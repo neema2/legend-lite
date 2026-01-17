@@ -112,8 +112,8 @@ public final class PureCompiler {
         List<Projection> projections = new ArrayList<>();
         
         // Track joins we need to add for association projections
-        // Key: association property name, Value: (JoinNode, targetAlias, targetMapping)
-        java.util.Map<String, JoinedAssociation> joinedAssociations = new java.util.HashMap<>();
+        // Key: association property name, Value: join info (alias and mapping)
+        java.util.Map<String, JoinInfo> joinInfos = new java.util.HashMap<>();
         
         for (int i = 0; i < project.projections().size(); i++) {
             LambdaExpression lambda = project.projections().get(i);
@@ -138,8 +138,8 @@ public final class PureCompiler {
             }
             
             if (path != null && path.hasToManyNavigation() && modelContext != null) {
-                // Association navigation - need to add JOIN
-                Projection proj = compileAssociationProjection(path, alias, joinedAssociations, baseTableAlias, baseMapping);
+                // Association navigation - collect join info and create projection
+                Projection proj = compileAssociationProjection(path, alias, joinInfos, baseTableAlias, baseMapping);
                 projections.add(proj);
             } else {
                 // Simple property access
@@ -150,10 +150,17 @@ public final class PureCompiler {
             }
         }
         
-        // Add any required JOINs to the source
+        // Build the final source by adding JOINs on top of the existing source
+        // This preserves any filters that were applied to source!
         RelationNode finalSource = source;
-        for (JoinedAssociation ja : joinedAssociations.values()) {
-            finalSource = ja.joinNode();
+        for (JoinInfo ji : joinInfos.values()) {
+            // Create the join ON TOP of the current finalSource
+            TableNode targetTable = new TableNode(ji.targetMapping().table(), ji.alias());
+            Expression joinCondition = ComparisonExpression.equals(
+                    ColumnReference.of(baseTableAlias, ji.leftColumn()),
+                    ColumnReference.of(ji.alias(), ji.rightColumn())
+            );
+            finalSource = new JoinNode(finalSource, targetTable, joinCondition, JoinNode.JoinType.LEFT_OUTER);
         }
         
         return new ProjectNode(finalSource, projections);
@@ -163,15 +170,15 @@ public final class PureCompiler {
      * Compiles a projection that navigates through an association.
      * 
      * For: {p | $p.addresses.street}
-     * Generates: LEFT JOIN to T_ADDRESS, project a.STREET
+     * Collects join info and returns the projection referencing the joined table.
      * 
-     * Uses LEFT JOIN to preserve base rows even if no related rows exist.
-     * Row multiplication is expected (each person appears once per address).
+     * The actual JOIN is added later in compileProject(), preserving any
+     * filters that were applied to the source.
      */
     private Projection compileAssociationProjection(
             AssociationPath path, 
             String projectionAlias,
-            java.util.Map<String, JoinedAssociation> joinedAssociations,
+            java.util.Map<String, JoinInfo> joinInfos,
             String baseTableAlias,
             RelationalMapping baseMapping) {
         
@@ -198,34 +205,23 @@ public final class PureCompiler {
             throw new PureCompileException("No mapping or join for association: " + nav.association().name());
         }
         
-        // Check if we already joined this association
-        JoinedAssociation joined = joinedAssociations.get(assocPropertyName);
+        // Check if we already have join info for this association
+        JoinInfo joinInfo = joinInfos.get(assocPropertyName);
         String targetAlias;
         
-        if (joined == null) {
-            // Need to create the join
+        if (joinInfo == null) {
+            // Need to record join info (actual join built later)
             targetAlias = "j" + aliasCounter++;
-            TableNode targetTable = new TableNode(targetMapping.table(), targetAlias);
             
-            // Build join condition
             Join join = nav.join();
             String leftColumn = join.getColumnForTable(baseMapping.table().name());
             String rightColumn = join.getColumnForTable(targetMapping.table().name());
             
-            Expression joinCondition = ComparisonExpression.equals(
-                    ColumnReference.of(baseTableAlias, leftColumn),
-                    ColumnReference.of(targetAlias, rightColumn)
-            );
-            
-            // Use LEFT OUTER JOIN for projections to preserve all base rows
-            TableNode baseTable = new TableNode(baseMapping.table(), baseTableAlias);
-            JoinNode joinNode = JoinNode.leftOuter(baseTable, targetTable, joinCondition);
-            
-            joined = new JoinedAssociation(joinNode, targetAlias, targetMapping);
-            joinedAssociations.put(assocPropertyName, joined);
+            joinInfo = new JoinInfo(targetAlias, targetMapping, leftColumn, rightColumn);
+            joinInfos.put(assocPropertyName, joinInfo);
         } else {
-            targetAlias = joined.alias();
-            targetMapping = joined.mapping();
+            targetAlias = joinInfo.alias();
+            targetMapping = joinInfo.targetMapping();
         }
         
         // Get the final property (e.g., "street" from $p.addresses.street)
@@ -249,12 +245,14 @@ public final class PureCompiler {
     }
     
     /**
-     * Tracks a joined association for projection compilation.
+     * Information needed to build a JOIN for association projection.
+     * The actual JoinNode is built later to preserve the source (with filters).
      */
-    private record JoinedAssociation(
-            JoinNode joinNode,
+    private record JoinInfo(
             String alias,
-            RelationalMapping mapping
+            RelationalMapping targetMapping,
+            String leftColumn,
+            String rightColumn
     ) {}
     
     /**

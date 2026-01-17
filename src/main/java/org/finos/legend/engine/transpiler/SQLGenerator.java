@@ -137,9 +137,12 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     private String visitProjectWithJoin(ProjectNode project, JoinNode join, Expression whereCondition) {
         var sb = new StringBuilder();
         
-        // Get table info
+        // Extract table info and any filter conditions from the left side
         TableNode leftTable = extractTableNode(join.left());
         TableNode rightTable = extractTableNode(join.right());
+        
+        // Check if the left side has a filter condition (e.g., EXISTS from association filter)
+        Expression leftFilterCondition = extractFilterCondition(join.left());
         
         // SELECT clause
         sb.append("SELECT ");
@@ -162,13 +165,36 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         sb.append(" ON ");
         sb.append(join.condition().accept(this));
         
-        // WHERE clause (optional)
-        if (whereCondition != null) {
+        // WHERE clause: combine any filter from left side + explicit whereCondition
+        Expression combinedWhere = combineConditions(leftFilterCondition, whereCondition);
+        if (combinedWhere != null) {
             sb.append(" WHERE ");
-            sb.append(whereCondition.accept(this));
+            sb.append(combinedWhere.accept(this));
         }
         
         return sb.toString();
+    }
+    
+    /**
+     * Extracts a filter condition from a relation node, if present.
+     * Used to preserve EXISTS conditions from filters when building JOINs.
+     */
+    private Expression extractFilterCondition(RelationNode node) {
+        return switch (node) {
+            case FilterNode filter -> filter.condition();
+            case ProjectNode project -> extractFilterCondition(project.source());
+            case JoinNode join -> extractFilterCondition(join.left()); // Recurse into left side
+            case TableNode table -> null; // No filter
+        };
+    }
+    
+    /**
+     * Combines two conditions with AND, handling nulls.
+     */
+    private Expression combineConditions(Expression cond1, Expression cond2) {
+        if (cond1 == null) return cond2;
+        if (cond2 == null) return cond1;
+        return LogicalExpression.and(cond1, cond2);
     }
     
     private TableNode extractTableNode(RelationNode node) {

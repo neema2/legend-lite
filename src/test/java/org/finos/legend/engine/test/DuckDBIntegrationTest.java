@@ -751,6 +751,139 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
     
     @Test
+    @DisplayName("Pure: Combine filter AND project through association")
+    void testPureCombineFilterAndProjectThroughAssociation() throws SQLException {
+        // THE ULTIMATE TEST: Both filter and project navigate through associations!
+        //
+        // Query: Find people who have an address in New York, 
+        //        and show their name plus ALL their addresses
+        //
+        // Expected behavior:
+        // - Filter: EXISTS (find people with at least one NY address)
+        // - Project: LEFT JOIN (get all their addresses for display)
+        //
+        // John has addresses in New York and Boston
+        // Jane has address in Chicago
+        // Bob has address in Detroit
+        //
+        // Result: Only John (has NY address), but show BOTH his addresses
+        
+        String pureQuery = """
+            Person.all()
+                ->filter({p | $p.addresses.city == 'New York'})
+                ->project({p | $p.firstName}, {p | $p.addresses.street}, {p | $p.addresses.city})
+            """;
+        
+        // WHEN: We compile and generate SQL
+        String sql = compileAndGenerateSql(pureQuery);
+        System.out.println("Pure Query (filter + project through association): " + pureQuery);
+        System.out.println("Generated SQL: " + sql);
+        
+        // THEN: SQL should have BOTH EXISTS (for filter) AND LEFT JOIN (for projection)
+        assertTrue(sql.contains("EXISTS"), "Should use EXISTS for filter");
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projection");
+        assertTrue(sql.contains("SELECT 1"), "EXISTS subquery should use SELECT 1");
+        
+        // AND: Query executes correctly
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            java.util.List<String> results = new java.util.ArrayList<>();
+            while (rs.next()) {
+                String firstName = rs.getString("firstName");
+                String street = rs.getString("street");
+                String city = rs.getString("city");
+                results.add(firstName + ": " + street + ", " + city);
+                System.out.println("  " + firstName + ": " + street + ", " + city);
+            }
+            
+            // John is the only one with a New York address
+            // But we should see BOTH of John's addresses (row multiplication from LEFT JOIN)
+            assertEquals(2, results.size(), "Should have 2 rows (both of John's addresses)");
+            assertTrue(results.stream().allMatch(r -> r.startsWith("John:")), "All results should be John");
+            assertTrue(results.stream().anyMatch(r -> r.contains("New York")), "Should include NY address");
+            assertTrue(results.stream().anyMatch(r -> r.contains("Boston")), "Should include Boston address");
+        }
+    }
+    
+    @Test
+    @DisplayName("Pure: Filter on one association property, project different property")
+    void testPureFilterAndProjectDifferentAssociationProperties() throws SQLException {
+        // Filter by city, project street - shows the pattern clearly
+        String pureQuery = """
+            Person.all()
+                ->filter({p | $p.addresses.city == 'Chicago'})
+                ->project({p | $p.firstName}, {p | $p.addresses.street})
+            """;
+        
+        String sql = compileAndGenerateSql(pureQuery);
+        System.out.println("Pure Query (filter city, project street): " + pureQuery);
+        System.out.println("Generated SQL: " + sql);
+        
+        // Should have EXISTS for filter AND LEFT JOIN for projection
+        assertTrue(sql.contains("EXISTS"), "Should use EXISTS for filter");
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projection");
+        
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            java.util.List<String> results = new java.util.ArrayList<>();
+            while (rs.next()) {
+                String firstName = rs.getString("firstName");
+                String street = rs.getString("street");
+                results.add(firstName + ": " + street);
+                System.out.println("  " + firstName + ": " + street);
+            }
+            
+            // Jane is the only one with a Chicago address, and she has only 1 address
+            assertEquals(1, results.size(), "Should have 1 row");
+            assertTrue(results.getFirst().startsWith("Jane:"), "Should be Jane");
+            assertTrue(results.getFirst().contains("789 Main Rd"), "Should show Jane's street");
+        }
+    }
+    
+    @Test
+    @DisplayName("Pure: Filter local property, project through association")
+    void testPureFilterLocalProjectAssociation() throws SQLException {
+        // Filter by local property (lastName), project through association
+        // This is a simpler case: no EXISTS needed for filter, just LEFT JOIN for projection
+        String pureQuery = """
+            Person.all()
+                ->filter({p | $p.lastName == 'Smith'})
+                ->project({p | $p.firstName}, {p | $p.addresses.street})
+            """;
+        
+        String sql = compileAndGenerateSql(pureQuery);
+        System.out.println("Pure Query (filter local, project association): " + pureQuery);
+        System.out.println("Generated SQL: " + sql);
+        
+        // Should NOT have EXISTS (local filter), but SHOULD have LEFT JOIN (projection)
+        assertFalse(sql.contains("EXISTS"), "Should NOT use EXISTS for local property filter");
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projection");
+        assertTrue(sql.contains("LAST_NAME") && sql.contains("'Smith'"), "Should filter by LAST_NAME");
+        
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            java.util.List<String> results = new java.util.ArrayList<>();
+            java.util.Set<String> people = new java.util.HashSet<>();
+            while (rs.next()) {
+                String firstName = rs.getString("firstName");
+                String street = rs.getString("street");
+                results.add(firstName + ": " + street);
+                people.add(firstName);
+                System.out.println("  " + firstName + ": " + street);
+            }
+            
+            // John Smith has 2 addresses, Jane Smith has 1 = 3 total rows
+            assertEquals(3, results.size(), "Should have 3 rows (John x2, Jane x1)");
+            assertEquals(2, people.size(), "Should have 2 unique people");
+            assertTrue(people.contains("John"), "Should include John");
+            assertTrue(people.contains("Jane"), "Should include Jane");
+        }
+    }
+    
+    @Test
     @DisplayName("Pure: Association navigation prevents row explosion")
     void testPureAssociationNoRowExplosion() throws SQLException {
         // John has 2 addresses (123 Main St, 456 Oak Ave)
