@@ -1,9 +1,9 @@
 package org.finos.legend.pure.dsl.definition;
 
 import org.finos.legend.engine.store.*;
+import org.finos.legend.pure.dsl.ModelContext;
 import org.finos.legend.pure.m3.*;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +17,10 @@ import java.util.Optional;
  * - AssociationDefinition -> Association
  * - DatabaseDefinition -> Table(s) and Join(s)
  * - MappingDefinition -> RelationalMapping
+ * 
+ * Implements {@link ModelContext} to provide model lookups during compilation.
  */
-public final class PureModelBuilder {
+public final class PureModelBuilder implements ModelContext {
     
     private final Map<String, PureClass> classes = new HashMap<>();
     private final Map<String, Association> associations = new HashMap<>();
@@ -197,6 +199,69 @@ public final class PureModelBuilder {
      */
     public Optional<Association> getAssociation(String associationName) {
         return Optional.ofNullable(associations.get(associationName));
+    }
+    
+    // ==================== ModelContext Implementation ====================
+    
+    @Override
+    public Optional<RelationalMapping> findMapping(String className) {
+        return mappingRegistry.findByClassName(className);
+    }
+    
+    @Override
+    public Optional<PureClass> findClass(String className) {
+        return Optional.ofNullable(classes.get(className));
+    }
+    
+    @Override
+    public Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName) {
+        // Search all associations for one that has this property navigating from the given class
+        for (Association assoc : associations.values()) {
+            var prop1 = assoc.property1();
+            var prop2 = assoc.property2();
+            
+            // Check if property1's name matches and property2's target is fromClassName
+            // (property1 navigates FROM prop2.targetClass TO prop1.targetClass)
+            if (prop1.propertyName().equals(propertyName) && prop2.targetClass().equals(fromClassName)) {
+                boolean isToMany = prop1.multiplicity().isMany();
+                Join join = findJoinForAssociation(assoc.name()).orElse(null);
+                return Optional.of(new AssociationNavigation(assoc, prop2, prop1, isToMany, join));
+            }
+            
+            // Check if property2's name matches and property1's target is fromClassName
+            if (prop2.propertyName().equals(propertyName) && prop1.targetClass().equals(fromClassName)) {
+                boolean isToMany = prop2.multiplicity().isMany();
+                Join join = findJoinForAssociation(assoc.name()).orElse(null);
+                return Optional.of(new AssociationNavigation(assoc, prop1, prop2, isToMany, join));
+            }
+        }
+        return Optional.empty();
+    }
+    
+    /**
+     * Finds a join that matches an association name (convention-based).
+     */
+    private Optional<Join> findJoinForAssociation(String associationName) {
+        // Try exact match first
+        Join join = joins.get(associationName);
+        if (join != null) {
+            return Optional.of(join);
+        }
+        // Try without package prefix
+        String simpleName = associationName.contains("::") 
+                ? associationName.substring(associationName.lastIndexOf("::") + 2)
+                : associationName;
+        return Optional.ofNullable(joins.get(simpleName));
+    }
+    
+    @Override
+    public Optional<Join> findJoin(String joinName) {
+        return Optional.ofNullable(joins.get(joinName));
+    }
+    
+    @Override
+    public Optional<Table> findTable(String tableName) {
+        return Optional.ofNullable(tables.get(tableName));
     }
     
     // ==================== Conversion Helpers ====================

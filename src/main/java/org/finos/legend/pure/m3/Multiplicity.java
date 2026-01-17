@@ -44,6 +44,13 @@ public record Multiplicity(int lowerBound, Integer upperBound) {
         return upperBound != null && upperBound == 1;
     }
     
+    /**
+     * @return true if this multiplicity allows multiple values (upper bound > 1 or unbounded)
+     */
+    public boolean isMany() {
+        return upperBound == null || upperBound > 1;
+    }
+    
     @Override
     public String toString() {
         if (upperBound == null) {

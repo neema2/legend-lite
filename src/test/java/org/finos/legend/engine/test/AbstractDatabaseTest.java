@@ -40,7 +40,29 @@ public abstract class AbstractDatabaseTest {
             """;
     
     /**
-     * Pure Database definition with T_PERSON table.
+     * Pure Class definition for Address.
+     */
+    protected static final String ADDRESS_CLASS = """
+            Class model::Address
+            {
+                street: String[1];
+                city: String[1];
+            }
+            """;
+    
+    /**
+     * Pure Association linking Person to Address (1:*).
+     */
+    protected static final String PERSON_ADDRESS_ASSOCIATION = """
+            Association model::Person_Address
+            {
+                person: Person[1];
+                addresses: Address[*];
+            }
+            """;
+    
+    /**
+     * Pure Database definition with T_PERSON and T_ADDRESS tables.
      */
     protected static final String PERSON_DATABASE = """
             Database store::PersonDatabase
@@ -52,6 +74,14 @@ public abstract class AbstractDatabaseTest {
                     LAST_NAME VARCHAR(100) NOT NULL,
                     AGE_VAL INTEGER NOT NULL
                 )
+                Table T_ADDRESS
+                (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL,
+                    CITY VARCHAR(100) NOT NULL
+                )
+                Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
             )
             """;
     
@@ -68,26 +98,43 @@ public abstract class AbstractDatabaseTest {
                     lastName: [PersonDatabase] T_PERSON.LAST_NAME,
                     age: [PersonDatabase] T_PERSON.AGE_VAL
                 }
+                
+                Address: Relational
+                {
+                    ~mainTable [PersonDatabase] T_ADDRESS
+                    street: [PersonDatabase] T_ADDRESS.STREET,
+                    city: [PersonDatabase] T_ADDRESS.CITY
+                }
             )
             """;
     
     /**
-     * Complete Pure model (Class + Database + Mapping).
+     * Complete Pure model (Classes + Association + Database + Mapping).
      */
-    protected static final String COMPLETE_PURE_MODEL = PERSON_CLASS + "\n" + PERSON_DATABASE + "\n" + PERSON_MAPPING;
+    protected static final String COMPLETE_PURE_MODEL = 
+            PERSON_CLASS + "\n" + 
+            ADDRESS_CLASS + "\n" + 
+            PERSON_ADDRESS_ASSOCIATION + "\n" + 
+            PERSON_DATABASE + "\n" + 
+            PERSON_MAPPING;
     
     // ==================== Pure Model Setup ====================
     
     /**
      * Sets up the model from Pure syntax definitions.
      * This parses the Pure source and creates all metamodel objects.
+     * 
+     * The compiler is configured with the ModelContext to support
+     * association navigation (e.g., $p.addresses.street) and automatic
+     * EXISTS generation for to-many filters.
      */
     protected void setupPureModel() {
         modelBuilder = new PureModelBuilder()
                 .addSource(COMPLETE_PURE_MODEL);
         
         mappingRegistry = modelBuilder.getMappingRegistry();
-        pureCompiler = new PureCompiler(mappingRegistry);
+        // Pass modelBuilder as ModelContext for association navigation support
+        pureCompiler = new PureCompiler(mappingRegistry, modelBuilder);
     }
     
     /**
@@ -137,7 +184,7 @@ public abstract class AbstractDatabaseTest {
     // ==================== Database Setup ====================
     
     /**
-     * Creates the test table and inserts sample data.
+     * Creates the test tables and inserts sample data.
      */
     protected void setupDatabase() throws SQLException {
         // Create the T_PERSON table
@@ -152,13 +199,38 @@ public abstract class AbstractDatabaseTest {
                 """);
         }
         
-        // Insert test data
+        // Create the T_ADDRESS table
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("""
+                CREATE TABLE T_ADDRESS (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL,
+                    CITY VARCHAR(100) NOT NULL
+                )
+                """);
+        }
+        
+        // Insert person test data
         try (PreparedStatement ps = connection.prepareStatement(
                 "INSERT INTO T_PERSON (ID, FIRST_NAME, LAST_NAME, AGE_VAL) VALUES (?, ?, ?, ?)")) {
             
             insertPerson(ps, 1, "John", "Smith", 30);
             insertPerson(ps, 2, "Jane", "Smith", 28);
             insertPerson(ps, 3, "Bob", "Jones", 45);
+        }
+        
+        // Insert address test data
+        // John has 2 addresses (123 Main St, 456 Oak Ave)
+        // Jane has 1 address (789 Main Rd)
+        // Bob has 1 address (999 Pine Lane - no 'Main' in it)
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO T_ADDRESS (ID, PERSON_ID, STREET, CITY) VALUES (?, ?, ?, ?)")) {
+            
+            insertAddress(ps, 1, 1, "123 Main St", "New York");
+            insertAddress(ps, 2, 1, "456 Oak Ave", "Boston");
+            insertAddress(ps, 3, 2, "789 Main Rd", "Chicago");
+            insertAddress(ps, 4, 3, "999 Pine Lane", "Detroit");
         }
     }
     
@@ -168,6 +240,15 @@ public abstract class AbstractDatabaseTest {
         ps.setString(2, firstName);
         ps.setString(3, lastName);
         ps.setInt(4, age);
+        ps.executeUpdate();
+    }
+    
+    private void insertAddress(PreparedStatement ps, int id, int personId, String street, String city)
+            throws SQLException {
+        ps.setInt(1, id);
+        ps.setInt(2, personId);
+        ps.setString(3, street);
+        ps.setString(4, city);
         ps.executeUpdate();
     }
     
