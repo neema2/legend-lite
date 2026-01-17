@@ -303,6 +303,13 @@ mvn test
 - [x] Pure Definition Syntax (Class, Database, Mapping)
 - [x] Integration tests with DuckDB and SQLite using Pure syntax
 
+## FAQ
+
+See [FAQ.md](FAQ.md) for frequently asked questions about:
+- SQL generation strategies (EXISTS vs JOIN)
+- Why we use specific SQL patterns for associations
+- Architecture and design decisions
+
 ## License
 
 Apache 2.0 (Compatible with FINOS Legend)
