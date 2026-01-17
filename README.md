@@ -293,15 +293,32 @@ mvn test
 4. **Visitor Pattern**: Clean separation between data structure and operations
 5. **Real Database Tests**: No mocking - tests run against actual DuckDB and SQLite instances
 
-## Phase 1 Deliverables
+## Roadmap
 
-- [x] M3 Metamodel (Type, Class, Property, PrimitiveType, Multiplicity)
-- [x] Relational Store (Table, Column, RelationalMapping)
-- [x] Logical Plan IR (TableNode, FilterNode, ProjectNode)
-- [x] SQL Transpiler with dialect support
+### Phase 1: Core Query Engine ✅
+
+- [x] M3 Metamodel (Type, Class, Property, PrimitiveType, Multiplicity, Association)
+- [x] Relational Store (Table, Column, RelationalMapping, Join)
+- [x] Logical Plan IR (TableNode, FilterNode, ProjectNode, JoinNode, ExistsExpression)
+- [x] SQL Transpiler with dialect support (DuckDB, SQLite)
 - [x] Pure Language DSL with parser and compiler
-- [x] Pure Definition Syntax (Class, Database, Mapping)
+- [x] Pure Definition Syntax (Class, Database, Mapping, Association)
+- [x] Association navigation (EXISTS for filter, LEFT JOIN for project)
 - [x] Integration tests with DuckDB and SQLite using Pure syntax
+
+### Phase 2: Model-to-Model Transforms 🚧
+
+- [ ] M2M mapping syntax (`~src`, `$src.property`)
+- [ ] Derived properties (string concat, arithmetic)
+- [ ] Conditional logic (`if()` → `CASE WHEN`)
+- [ ] Aggregations (`count()`, `sum()`, etc. → `GROUP BY`)
+- [ ] Chained M2M mappings (compile to CTEs)
+- [ ] See [docs/MODEL_TO_MODEL.md](docs/MODEL_TO_MODEL.md) for design
+
+## Documentation
+
+- **[FAQ.md](FAQ.md)** - Frequently asked questions
+- **[docs/MODEL_TO_MODEL.md](docs/MODEL_TO_MODEL.md)** - Model-to-Model transform design (WIP)
 
 ## FAQ
 
