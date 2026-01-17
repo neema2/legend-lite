@@ -103,37 +103,159 @@ public final class PureCompiler {
         RelationNode source = compileExpression(project.source(), outerContext);
         
         // Get the table alias from the source
-        String tableAlias = getTableAlias(source);
+        String baseTableAlias = getTableAlias(source);
         
-        // Get the mapping for the class
-        RelationalMapping mapping = getMappingFromSource(project.source());
+        // Get the mapping and class name for the source
+        RelationalMapping baseMapping = getMappingFromSource(project.source());
+        String baseClassName = getClassNameFromSource(project.source());
         
         List<Projection> projections = new ArrayList<>();
+        
+        // Track joins we need to add for association projections
+        // Key: association property name, Value: (JoinNode, targetAlias, targetMapping)
+        java.util.Map<String, JoinedAssociation> joinedAssociations = new java.util.HashMap<>();
         
         for (int i = 0; i < project.projections().size(); i++) {
             LambdaExpression lambda = project.projections().get(i);
             
-            // Note: We don't need full context here since projections 
-            // don't support association navigation (only direct properties)
+            // Analyze if this projection navigates through an association
+            CompilationContext projContext = new CompilationContext(
+                    lambda.parameter(),
+                    baseTableAlias,
+                    baseMapping,
+                    baseClassName,
+                    false
+            );
             
-            // The lambda body should be a property access
-            String propertyName = extractPropertyName(lambda.body());
-            String columnName = mapping.getColumnForProperty(propertyName)
-                    .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
+            AssociationPath path = analyzePropertyPath(lambda.body(), projContext);
             
-            // Determine alias
+            // Determine alias for this projection
             String alias;
             if (i < project.aliases().size()) {
                 alias = project.aliases().get(i);
             } else {
-                alias = propertyName;
+                alias = extractFinalPropertyName(lambda.body());
             }
             
-            projections.add(Projection.column(tableAlias, columnName, alias));
+            if (path != null && path.hasToManyNavigation() && modelContext != null) {
+                // Association navigation - need to add JOIN
+                Projection proj = compileAssociationProjection(path, alias, joinedAssociations, baseTableAlias, baseMapping);
+                projections.add(proj);
+            } else {
+                // Simple property access
+                String propertyName = extractPropertyName(lambda.body());
+                String columnName = baseMapping.getColumnForProperty(propertyName)
+                        .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
+                projections.add(Projection.column(baseTableAlias, columnName, alias));
+            }
         }
         
-        return new ProjectNode(source, projections);
+        // Add any required JOINs to the source
+        RelationNode finalSource = source;
+        for (JoinedAssociation ja : joinedAssociations.values()) {
+            finalSource = ja.joinNode();
+        }
+        
+        return new ProjectNode(finalSource, projections);
     }
+    
+    /**
+     * Compiles a projection that navigates through an association.
+     * 
+     * For: {p | $p.addresses.street}
+     * Generates: LEFT JOIN to T_ADDRESS, project a.STREET
+     * 
+     * Uses LEFT JOIN to preserve base rows even if no related rows exist.
+     * Row multiplication is expected (each person appears once per address).
+     */
+    private Projection compileAssociationProjection(
+            AssociationPath path, 
+            String projectionAlias,
+            java.util.Map<String, JoinedAssociation> joinedAssociations,
+            String baseTableAlias,
+            RelationalMapping baseMapping) {
+        
+        List<NavigationSegment> segments = path.segments();
+        
+        // Find the association navigation segment
+        NavigationSegment assocSegment = null;
+        for (NavigationSegment seg : segments) {
+            if (seg.isAssociationNavigation()) {
+                assocSegment = seg;
+                break;
+            }
+        }
+        
+        if (assocSegment == null) {
+            throw new PureCompileException("No association found in path");
+        }
+        
+        String assocPropertyName = assocSegment.propertyName();
+        AssociationNavigation nav = assocSegment.navigation();
+        RelationalMapping targetMapping = assocSegment.targetMapping();
+        
+        if (targetMapping == null || nav.join() == null) {
+            throw new PureCompileException("No mapping or join for association: " + nav.association().name());
+        }
+        
+        // Check if we already joined this association
+        JoinedAssociation joined = joinedAssociations.get(assocPropertyName);
+        String targetAlias;
+        
+        if (joined == null) {
+            // Need to create the join
+            targetAlias = "j" + aliasCounter++;
+            TableNode targetTable = new TableNode(targetMapping.table(), targetAlias);
+            
+            // Build join condition
+            Join join = nav.join();
+            String leftColumn = join.getColumnForTable(baseMapping.table().name());
+            String rightColumn = join.getColumnForTable(targetMapping.table().name());
+            
+            Expression joinCondition = ComparisonExpression.equals(
+                    ColumnReference.of(baseTableAlias, leftColumn),
+                    ColumnReference.of(targetAlias, rightColumn)
+            );
+            
+            // Use LEFT OUTER JOIN for projections to preserve all base rows
+            TableNode baseTable = new TableNode(baseMapping.table(), baseTableAlias);
+            JoinNode joinNode = JoinNode.leftOuter(baseTable, targetTable, joinCondition);
+            
+            joined = new JoinedAssociation(joinNode, targetAlias, targetMapping);
+            joinedAssociations.put(assocPropertyName, joined);
+        } else {
+            targetAlias = joined.alias();
+            targetMapping = joined.mapping();
+        }
+        
+        // Get the final property (e.g., "street" from $p.addresses.street)
+        NavigationSegment finalSegment = segments.getLast();
+        String finalProperty = finalSegment.propertyName();
+        String columnName = targetMapping.getColumnForProperty(finalProperty)
+                .orElseThrow(() -> new PureCompileException("No column mapping for: " + finalProperty));
+        
+        return Projection.column(targetAlias, columnName, projectionAlias);
+    }
+    
+    /**
+     * Extracts the final property name from a potentially chained property access.
+     * For $p.addresses.street, returns "street".
+     */
+    private String extractFinalPropertyName(PureExpression expr) {
+        if (expr instanceof PropertyAccessExpression propAccess) {
+            return propAccess.propertyName();
+        }
+        throw new PureCompileException("Expected property access, got: " + expr);
+    }
+    
+    /**
+     * Tracks a joined association for projection compilation.
+     */
+    private record JoinedAssociation(
+            JoinNode joinNode,
+            String alias,
+            RelationalMapping mapping
+    ) {}
     
     /**
      * Compiles a Pure expression to a SQL expression.

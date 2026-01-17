@@ -621,6 +621,136 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
     
     @Test
+    @DisplayName("Pure: Project through association - Person.all()->project({p | $p.firstName}, {p | $p.addresses.street})")
+    void testPureProjectThroughAssociation() throws SQLException {
+        // GIVEN: A Pure query that PROJECTS through a to-many association
+        // This uses LEFT JOIN (not EXISTS) because we want the actual data
+        String pureQuery = """
+            Person.all()
+                ->project({p | $p.firstName}, {p | $p.addresses.street})
+            """;
+        
+        // WHEN: We compile and generate SQL
+        String sql = compileAndGenerateSql(pureQuery);
+        System.out.println("Pure Query (projection through association): " + pureQuery);
+        System.out.println("Generated SQL: " + sql);
+        
+        // THEN: SQL uses LEFT OUTER JOIN (not EXISTS, since we want the data)
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projecting through association");
+        assertTrue(sql.contains("T_ADDRESS"), "Should reference T_ADDRESS table");
+        assertTrue(sql.contains("STREET"), "Should project STREET column");
+        assertFalse(sql.contains("EXISTS"), "Should NOT use EXISTS for projection");
+        
+        // AND: The query executes and returns person-address pairs
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            java.util.List<String> results = new java.util.ArrayList<>();
+            while (rs.next()) {
+                String firstName = rs.getString("firstName");
+                String street = rs.getString("street");
+                results.add(firstName + ": " + street);
+            }
+            
+            System.out.println("Projection results:");
+            results.forEach(r -> System.out.println("  " + r));
+            
+            // John has 2 addresses, Jane has 1, Bob has 1 = 4 rows total
+            assertEquals(4, results.size(), "Should have 4 person-address rows");
+            
+            // Verify John appears twice (once per address)
+            long johnCount = results.stream().filter(r -> r.startsWith("John:")).count();
+            assertEquals(2, johnCount, "John should appear twice (has 2 addresses)");
+        }
+    }
+    
+    @Test
+    @DisplayName("Pure: Project multiple properties through same association")
+    void testPureProjectMultiplePropertiesThroughAssociation() throws SQLException {
+        // GIVEN: A Pure query that projects MULTIPLE properties from the association
+        String pureQuery = """
+            Person.all()
+                ->project({p | $p.firstName}, {p | $p.addresses.street}, {p | $p.addresses.city})
+            """;
+        
+        // WHEN: We compile and generate SQL
+        String sql = compileAndGenerateSql(pureQuery);
+        System.out.println("Pure Query (multiple association projections): " + pureQuery);
+        System.out.println("Generated SQL: " + sql);
+        
+        // THEN: Should have only ONE join (not duplicate joins for each projection)
+        // Count occurrences of LEFT OUTER JOIN - should be exactly 1
+        int joinCount = sql.split("LEFT OUTER JOIN").length - 1;
+        assertEquals(1, joinCount, "Should have exactly 1 LEFT OUTER JOIN, not multiple");
+        
+        // AND: Both STREET and CITY should be projected
+        assertTrue(sql.contains("STREET"), "Should project STREET");
+        assertTrue(sql.contains("CITY"), "Should project CITY");
+        
+        // AND: Query executes correctly
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            int count = 0;
+            while (rs.next()) {
+                String firstName = rs.getString("firstName");
+                String street = rs.getString("street");
+                String city = rs.getString("city");
+                assertNotNull(firstName, "firstName should not be null");
+                // street and city can be null if no address exists
+                System.out.println("  " + firstName + ": " + street + ", " + city);
+                count++;
+            }
+            
+            assertEquals(4, count, "Should have 4 rows");
+        }
+    }
+    
+    @Test
+    @DisplayName("Pure: Mix local and association projections")
+    void testPureMixLocalAndAssociationProjections() throws SQLException {
+        // GIVEN: A Pure query mixing local properties and association navigation
+        String pureQuery = """
+            Person.all()
+                ->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age}, {p | $p.addresses.city})
+            """;
+        
+        // WHEN: We compile and generate SQL
+        String sql = compileAndGenerateSql(pureQuery);
+        System.out.println("Pure Query (mixed projections): " + pureQuery);
+        System.out.println("Generated SQL: " + sql);
+        
+        // THEN: Should have base table columns AND joined table column
+        assertTrue(sql.contains("FIRST_NAME"), "Should project FIRST_NAME from base");
+        assertTrue(sql.contains("LAST_NAME"), "Should project LAST_NAME from base");
+        assertTrue(sql.contains("AGE_VAL"), "Should project AGE_VAL from base");
+        assertTrue(sql.contains("CITY"), "Should project CITY from joined table");
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN");
+        
+        // AND: Query executes correctly
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            int count = 0;
+            while (rs.next()) {
+                String firstName = rs.getString("firstName");
+                String lastName = rs.getString("lastName");
+                int age = rs.getInt("age");
+                String city = rs.getString("city");
+                
+                assertNotNull(firstName);
+                assertNotNull(lastName);
+                assertTrue(age > 0, "Age should be positive");
+                // city can be null for LEFT JOIN
+                
+                count++;
+            }
+            
+            assertEquals(4, count, "Should have 4 rows");
+        }
+    }
+    
+    @Test
     @DisplayName("Pure: Association navigation prevents row explosion")
     void testPureAssociationNoRowExplosion() throws SQLException {
         // John has 2 addresses (123 Main St, 456 Oak Ave)
