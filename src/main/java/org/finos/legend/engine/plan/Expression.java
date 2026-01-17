@@ -3,9 +3,16 @@ package org.finos.legend.engine.plan;
 /**
  * Sealed interface representing expressions in the logical plan.
  * Expressions are used in filters, projections, and computed columns.
+ * 
+ * Includes:
+ * - ColumnReference: reference to a column
+ * - Literal: constant value
+ * - ComparisonExpression: comparison operators (=, <, >, etc.)
+ * - LogicalExpression: boolean operators (AND, OR, NOT)
+ * - ExistsExpression: EXISTS (subquery) for to-many navigation
  */
 public sealed interface Expression 
-        permits ColumnReference, Literal, ComparisonExpression, LogicalExpression {
+        permits ColumnReference, Literal, ComparisonExpression, LogicalExpression, ExistsExpression {
     
     /**
      * Accept method for the expression visitor pattern.

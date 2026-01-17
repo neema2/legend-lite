@@ -587,4 +587,381 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
             assertEquals(3, count, "Should find 3 person-address combinations");
         }
     }
+    
+    // ==================== EXISTS vs JOIN Tests - Row Explosion Prevention ====================
+    
+    /**
+     * This test demonstrates the "row explosion" problem with naive INNER JOINs
+     * when filtering through to-many associations.
+     * 
+     * When you have:
+     *   Person -> (1:*) -> Address
+     * 
+     * And query: Person.all()->filter(p | $p.addresses.street->contains('Main'))
+     * 
+     * Using INNER JOIN:
+     *   John (ID=1) has 2 addresses matching 'Main' => John appears TWICE
+     * 
+     * Using EXISTS:
+     *   John appears ONCE (as expected)
+     */
+    @Test
+    @DisplayName("Demonstrate row explosion with naive JOIN on to-many")
+    void testRowExplosionWithJoin() throws SQLException {
+        // GIVEN: Set up Person with multiple matching addresses
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS T_ADDRESS (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL,
+                    CITY VARCHAR(100) NOT NULL
+                )
+                """);
+            
+            // John (ID=1) has TWO addresses containing 'Main'
+            stmt.execute("DELETE FROM T_ADDRESS");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (1, 1, '123 Main St', 'New York')");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (2, 1, '789 Main Ave', 'Boston')");
+            // Jane (ID=2) has ONE address containing 'Main'
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (3, 2, '456 Main Rd', 'Chicago')");
+            // Bob (ID=3) has NO addresses containing 'Main'
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (4, 3, '999 Oak Lane', 'Detroit')");
+        }
+        
+        // BAD: Using INNER JOIN for filtering (causes row explosion)
+        String wrongJoinSql = """
+            SELECT "p"."FIRST_NAME" AS "firstName", "p"."LAST_NAME" AS "lastName"
+            FROM "T_PERSON" AS "p"
+            INNER JOIN "T_ADDRESS" AS "a" ON "p"."ID" = "a"."PERSON_ID"
+            WHERE "a"."STREET" LIKE '%Main%'
+            """;
+        
+        // WHEN: We execute the WRONG approach
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(wrongJoinSql)) {
+            
+            int count = 0;
+            int johnCount = 0;
+            while (rs.next()) {
+                if ("John".equals(rs.getString("firstName"))) {
+                    johnCount++;
+                }
+                count++;
+            }
+            
+            // THEN: John appears TWICE because he has 2 matching addresses!
+            assertEquals(3, count, "Total rows with JOIN (wrong - includes duplicates)");
+            assertEquals(2, johnCount, "John appears twice due to row explosion!");
+        }
+        
+        // GOOD: Using EXISTS for filtering (no row explosion)
+        String correctExistsSql = """
+            SELECT "p"."FIRST_NAME" AS "firstName", "p"."LAST_NAME" AS "lastName"
+            FROM "T_PERSON" AS "p"
+            WHERE EXISTS (
+                SELECT 1 FROM "T_ADDRESS" AS "a"
+                WHERE "a"."PERSON_ID" = "p"."ID"
+                AND "a"."STREET" LIKE '%Main%'
+            )
+            """;
+        
+        // WHEN: We execute the CORRECT approach
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(correctExistsSql)) {
+            
+            int count = 0;
+            int johnCount = 0;
+            while (rs.next()) {
+                if ("John".equals(rs.getString("firstName"))) {
+                    johnCount++;
+                }
+                count++;
+            }
+            
+            // THEN: Each person appears ONCE
+            assertEquals(2, count, "Total rows with EXISTS (correct - no duplicates)");
+            assertEquals(1, johnCount, "John appears once with EXISTS");
+        }
+    }
+    
+    @Test
+    @DisplayName("ExistsExpression generates correct SQL")
+    void testExistsExpressionGeneratesSql() {
+        // GIVEN: Tables for person and address
+        Table personTable = modelBuilder.getTable("T_PERSON");
+        Table addressTable = new Table("T_ADDRESS", List.of(
+                Column.required("ID", SqlDataType.INTEGER),
+                Column.required("PERSON_ID", SqlDataType.INTEGER),
+                Column.required("STREET", SqlDataType.VARCHAR)
+        ));
+        
+        // Build the correlated subquery:
+        // SELECT 1 FROM T_ADDRESS a WHERE a.PERSON_ID = p.ID AND a.STREET LIKE '%Main%'
+        TableNode addressNode = new TableNode(addressTable, "a");
+        
+        Expression correlation = ComparisonExpression.equals(
+                ColumnReference.of("a", "PERSON_ID"),
+                ColumnReference.of("p", "ID")  // Reference to outer query
+        );
+        
+        Expression streetFilter = new ComparisonExpression(
+                ColumnReference.of("a", "STREET"),
+                ComparisonExpression.ComparisonOperator.LIKE,
+                Literal.string("%Main%")
+        );
+        
+        Expression subqueryCondition = LogicalExpression.and(correlation, streetFilter);
+        FilterNode subquery = new FilterNode(addressNode, subqueryCondition);
+        
+        // Build the main query with EXISTS
+        TableNode personNode = new TableNode(personTable, "p");
+        ExistsExpression existsExpr = ExistsExpression.exists(subquery);
+        FilterNode mainFilter = new FilterNode(personNode, existsExpr);
+        
+        // Project person fields only
+        ProjectNode projectNode = new ProjectNode(mainFilter, List.of(
+                Projection.column("p", "FIRST_NAME", "firstName"),
+                Projection.column("p", "LAST_NAME", "lastName")
+        ));
+        
+        // WHEN: We generate SQL
+        String sql = sqlGenerator.generate(projectNode);
+        System.out.println("Generated EXISTS SQL: " + sql);
+        
+        // THEN: SQL uses EXISTS, not JOIN
+        assertTrue(sql.contains("EXISTS"), "Should use EXISTS");
+        assertTrue(sql.contains("SELECT 1"), "Subquery should use SELECT 1");
+        assertTrue(sql.contains("\"a\".\"PERSON_ID\" = \"p\".\"ID\""), "Should have correlation");
+        assertTrue(sql.contains("\"a\".\"STREET\" LIKE '%Main%'"), "Should have street filter");
+        assertFalse(sql.contains("INNER JOIN"), "Should NOT use INNER JOIN");
+    }
+    
+    @Test
+    @DisplayName("ExistsExpression executes correctly - no row explosion")
+    void testExistsExpressionExecution() throws SQLException {
+        // GIVEN: Set up the address table with test data
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS T_ADDRESS (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL,
+                    CITY VARCHAR(100) NOT NULL
+                )
+                """);
+            
+            // John (ID=1) has TWO addresses containing 'Main'
+            stmt.execute("DELETE FROM T_ADDRESS");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (1, 1, '123 Main St', 'New York')");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (2, 1, '789 Main Ave', 'Boston')");
+            // Jane (ID=2) has ONE address containing 'Main'
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (3, 2, '456 Main Rd', 'Chicago')");
+            // Bob (ID=3) has NO addresses containing 'Main'
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (4, 3, '999 Oak Lane', 'Detroit')");
+        }
+        
+        // Build EXISTS query programmatically
+        Table personTable = modelBuilder.getTable("T_PERSON");
+        Table addressTable = new Table("T_ADDRESS", List.of(
+                Column.required("ID", SqlDataType.INTEGER),
+                Column.required("PERSON_ID", SqlDataType.INTEGER),
+                Column.required("STREET", SqlDataType.VARCHAR),
+                Column.required("CITY", SqlDataType.VARCHAR)
+        ));
+        
+        TableNode addressNode = new TableNode(addressTable, "a");
+        
+        Expression correlation = ComparisonExpression.equals(
+                ColumnReference.of("a", "PERSON_ID"),
+                ColumnReference.of("p", "ID")
+        );
+        
+        Expression streetFilter = new ComparisonExpression(
+                ColumnReference.of("a", "STREET"),
+                ComparisonExpression.ComparisonOperator.LIKE,
+                Literal.string("%Main%")
+        );
+        
+        Expression subqueryCondition = LogicalExpression.and(correlation, streetFilter);
+        FilterNode subquery = new FilterNode(addressNode, subqueryCondition);
+        
+        TableNode personNode = new TableNode(personTable, "p");
+        ExistsExpression existsExpr = ExistsExpression.exists(subquery);
+        FilterNode mainFilter = new FilterNode(personNode, existsExpr);
+        
+        ProjectNode projectNode = new ProjectNode(mainFilter, List.of(
+                Projection.column("p", "FIRST_NAME", "firstName"),
+                Projection.column("p", "LAST_NAME", "lastName")
+        ));
+        
+        String sql = sqlGenerator.generate(projectNode);
+        System.out.println("Executing EXISTS SQL: " + sql);
+        
+        // WHEN: We execute the EXISTS query
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            java.util.Set<String> people = new java.util.HashSet<>();
+            int count = 0;
+            while (rs.next()) {
+                String firstName = rs.getString("firstName");
+                people.add(firstName);
+                count++;
+            }
+            
+            // THEN: John and Jane appear exactly ONCE each (no Bob)
+            assertEquals(2, count, "Should have exactly 2 people (John and Jane)");
+            assertEquals(2, people.size(), "Should have 2 unique people");
+            assertTrue(people.contains("John"), "Should include John");
+            assertTrue(people.contains("Jane"), "Should include Jane");
+            assertFalse(people.contains("Bob"), "Should NOT include Bob");
+        }
+    }
+    
+    @Test
+    @DisplayName("NOT EXISTS works for finding people without matching addresses")
+    void testNotExistsExpression() throws SQLException {
+        // GIVEN: Set up address table
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS T_ADDRESS (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL,
+                    CITY VARCHAR(100) NOT NULL
+                )
+                """);
+            
+            stmt.execute("DELETE FROM T_ADDRESS");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (1, 1, '123 Main St', 'New York')");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (2, 2, '456 Main Rd', 'Chicago')");
+            // Bob (ID=3) has NO addresses at all
+        }
+        
+        // Build NOT EXISTS query: People with no addresses containing 'Main'
+        Table personTable = modelBuilder.getTable("T_PERSON");
+        Table addressTable = new Table("T_ADDRESS", List.of(
+                Column.required("ID", SqlDataType.INTEGER),
+                Column.required("PERSON_ID", SqlDataType.INTEGER),
+                Column.required("STREET", SqlDataType.VARCHAR),
+                Column.required("CITY", SqlDataType.VARCHAR)
+        ));
+        
+        TableNode addressNode = new TableNode(addressTable, "a");
+        
+        Expression correlation = ComparisonExpression.equals(
+                ColumnReference.of("a", "PERSON_ID"),
+                ColumnReference.of("p", "ID")
+        );
+        
+        Expression streetFilter = new ComparisonExpression(
+                ColumnReference.of("a", "STREET"),
+                ComparisonExpression.ComparisonOperator.LIKE,
+                Literal.string("%Main%")
+        );
+        
+        Expression subqueryCondition = LogicalExpression.and(correlation, streetFilter);
+        FilterNode subquery = new FilterNode(addressNode, subqueryCondition);
+        
+        TableNode personNode = new TableNode(personTable, "p");
+        ExistsExpression notExistsExpr = ExistsExpression.notExists(subquery);
+        FilterNode mainFilter = new FilterNode(personNode, notExistsExpr);
+        
+        ProjectNode projectNode = new ProjectNode(mainFilter, List.of(
+                Projection.column("p", "FIRST_NAME", "firstName"),
+                Projection.column("p", "LAST_NAME", "lastName")
+        ));
+        
+        String sql = sqlGenerator.generate(projectNode);
+        System.out.println("Executing NOT EXISTS SQL: " + sql);
+        
+        // WHEN: We execute the NOT EXISTS query
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            java.util.Set<String> people = new java.util.HashSet<>();
+            while (rs.next()) {
+                people.add(rs.getString("firstName"));
+            }
+            
+            // THEN: Only Bob has no addresses containing 'Main'
+            assertEquals(1, people.size(), "Should have 1 person");
+            assertTrue(people.contains("Bob"), "Should include Bob");
+        }
+    }
+    
+    @Test
+    @DisplayName("JOIN is still used for Relational DataFrame queries (explicit projections from both sides)")
+    void testJoinForRelationalDataFrame() throws SQLException {
+        // This test confirms that JOINs are still correct and useful for
+        // "Relational" or "DataFrame" style queries where you want to
+        // explicitly SELECT columns from BOTH sides of the relationship.
+        
+        // GIVEN: Set up address table
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS T_ADDRESS (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL,
+                    CITY VARCHAR(100) NOT NULL
+                )
+                """);
+            
+            stmt.execute("DELETE FROM T_ADDRESS");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (1, 1, '123 Main St', 'New York')");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (2, 1, '456 Oak Ave', 'Boston')");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (3, 2, '789 Pine Rd', 'Chicago')");
+        }
+        
+        // Build a JOIN query that selects from BOTH tables
+        // This is appropriate when you WANT the row multiplication!
+        Table personTable = modelBuilder.getTable("T_PERSON");
+        Table addressTable = new Table("T_ADDRESS", List.of(
+                Column.required("ID", SqlDataType.INTEGER),
+                Column.required("PERSON_ID", SqlDataType.INTEGER),
+                Column.required("STREET", SqlDataType.VARCHAR),
+                Column.required("CITY", SqlDataType.VARCHAR)
+        ));
+        
+        TableNode personNode = new TableNode(personTable, "p");
+        TableNode addressNode = new TableNode(addressTable, "a");
+        
+        Expression joinCondition = ComparisonExpression.equals(
+                ColumnReference.of("p", "ID"),
+                ColumnReference.of("a", "PERSON_ID")
+        );
+        
+        JoinNode joinNode = JoinNode.inner(personNode, addressNode, joinCondition);
+        
+        // Project columns from BOTH tables (DataFrame style)
+        ProjectNode projectNode = new ProjectNode(joinNode, List.of(
+                Projection.column("p", "FIRST_NAME", "personName"),
+                Projection.column("a", "STREET", "street"),
+                Projection.column("a", "CITY", "city")
+        ));
+        
+        String sql = sqlGenerator.generate(projectNode);
+        System.out.println("DataFrame JOIN SQL: " + sql);
+        
+        // WHEN: We execute the JOIN
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            int count = 0;
+            java.util.List<String> rows = new java.util.ArrayList<>();
+            while (rs.next()) {
+                String row = rs.getString("personName") + " - " + rs.getString("street") + ", " + rs.getString("city");
+                rows.add(row);
+                count++;
+            }
+            
+            // THEN: We get 3 rows (one per person-address combo)
+            // This is CORRECT for a DataFrame-style query!
+            assertEquals(3, count, "Should have 3 person-address combinations");
+            System.out.println("DataFrame results:");
+            rows.forEach(r -> System.out.println("  " + r));
+        }
+    }
 }

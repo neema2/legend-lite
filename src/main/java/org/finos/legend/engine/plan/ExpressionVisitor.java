@@ -26,4 +26,9 @@ public interface ExpressionVisitor<T> {
      * Visit a logical expression.
      */
     T visitLogical(LogicalExpression logical);
+    
+    /**
+     * Visit an EXISTS expression (correlated subquery).
+     */
+    T visitExists(ExistsExpression exists);
 }

@@ -262,4 +262,64 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     .collect(Collectors.joining(" OR ", "(", ")"));
         };
     }
+    
+    @Override
+    public String visitExists(ExistsExpression exists) {
+        // Generate the correlated subquery - but strip outer SELECT * and make it SELECT 1
+        String subquerySql = generateExistsSubquery(exists.subquery());
+        
+        if (exists.negated()) {
+            return "NOT EXISTS (" + subquerySql + ")";
+        }
+        return "EXISTS (" + subquerySql + ")";
+    }
+    
+    /**
+     * Generates a subquery suitable for EXISTS.
+     * The subquery uses SELECT 1 instead of SELECT * for efficiency.
+     */
+    private String generateExistsSubquery(RelationNode node) {
+        return switch (node) {
+            case TableNode table -> {
+                yield "SELECT 1 FROM " + dialect.quoteIdentifier(table.table().name())
+                        + " AS " + dialect.quoteIdentifier(table.alias());
+            }
+            case FilterNode filter -> {
+                String whereClause = filter.condition().accept(this);
+                yield switch (filter.source()) {
+                    case TableNode table -> {
+                        yield "SELECT 1 FROM " + dialect.quoteIdentifier(table.table().name())
+                                + " AS " + dialect.quoteIdentifier(table.alias())
+                                + " WHERE " + whereClause;
+                    }
+                    case JoinNode join -> {
+                        TableNode leftTable = extractTableNode(join.left());
+                        TableNode rightTable = extractTableNode(join.right());
+                        yield "SELECT 1 FROM " + dialect.quoteIdentifier(leftTable.table().name())
+                                + " AS " + dialect.quoteIdentifier(leftTable.alias())
+                                + " " + join.joinType().toSql() + " "
+                                + dialect.quoteIdentifier(rightTable.table().name())
+                                + " AS " + dialect.quoteIdentifier(rightTable.alias())
+                                + " ON " + join.condition().accept(this)
+                                + " WHERE " + whereClause;
+                    }
+                    default -> "SELECT 1 FROM (" + filter.source().accept(this) + ") WHERE " + whereClause;
+                };
+            }
+            case JoinNode join -> {
+                TableNode leftTable = extractTableNode(join.left());
+                TableNode rightTable = extractTableNode(join.right());
+                yield "SELECT 1 FROM " + dialect.quoteIdentifier(leftTable.table().name())
+                        + " AS " + dialect.quoteIdentifier(leftTable.alias())
+                        + " " + join.joinType().toSql() + " "
+                        + dialect.quoteIdentifier(rightTable.table().name())
+                        + " AS " + dialect.quoteIdentifier(rightTable.alias())
+                        + " ON " + join.condition().accept(this);
+            }
+            case ProjectNode project -> {
+                // For EXISTS, we don't need the projections, just the source with filter
+                yield generateExistsSubquery(project.source());
+            }
+        };
+    }
 }
