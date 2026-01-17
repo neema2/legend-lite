@@ -34,7 +34,7 @@ public record TableNode(
     
     @Override
     public <T> T accept(RelationNodeVisitor<T> visitor) {
-        return visitor.visitTable(this);
+        return visitor.visit(this);
     }
     
     @Override

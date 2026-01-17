@@ -1,5 +1,6 @@
 package org.finos.legend.engine.test;
 
+import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.store.*;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
@@ -387,5 +388,203 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals("FIRST_NAME", mapping.getColumnForProperty("firstName").orElseThrow());
         assertEquals("LAST_NAME", mapping.getColumnForProperty("lastName").orElseThrow());
         assertEquals("AGE_VAL", mapping.getColumnForProperty("age").orElseThrow());
+    }
+    
+    // ==================== Association & Join Tests ====================
+    
+    @Test
+    @DisplayName("Parse Pure Association definition")
+    void testParseAssociationDefinition() {
+        // GIVEN: A Pure Association definition
+        String pureAssociation = """
+            Association model::Person_Address
+            {
+                person: Person[1];
+                addresses: Address[*];
+            }
+            """;
+        
+        // WHEN: We parse it
+        AssociationDefinition assocDef = PureDefinitionParser.parseAssociationDefinition(pureAssociation);
+        
+        // THEN: We get a valid AssociationDefinition
+        assertEquals("model::Person_Address", assocDef.qualifiedName());
+        assertEquals("Person_Address", assocDef.simpleName());
+        
+        // Verify property1 (person -> Person)
+        var prop1 = assocDef.property1();
+        assertEquals("person", prop1.propertyName());
+        assertEquals("Person", prop1.targetClass());
+        assertEquals("1", prop1.multiplicityString());
+        
+        // Verify property2 (addresses -> Address)
+        var prop2 = assocDef.property2();
+        assertEquals("addresses", prop2.propertyName());
+        assertEquals("Address", prop2.targetClass());
+        assertEquals("*", prop2.multiplicityString());
+    }
+    
+    @Test
+    @DisplayName("Parse Database with Join definition")
+    void testParseDatabaseWithJoin() {
+        // GIVEN: A Pure Database with tables and a join
+        String pureDatabase = """
+            Database store::TestDB
+            (
+                Table T_PERSON
+                (
+                    ID INTEGER PRIMARY KEY,
+                    NAME VARCHAR(100) NOT NULL
+                )
+                Table T_ADDRESS
+                (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL
+                )
+                Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
+            )
+            """;
+        
+        // WHEN: We parse it
+        DatabaseDefinition dbDef = PureDefinitionParser.parseDatabaseDefinition(pureDatabase);
+        
+        // THEN: We get tables and joins
+        assertEquals("store::TestDB", dbDef.qualifiedName());
+        assertEquals(2, dbDef.tables().size());
+        assertEquals(1, dbDef.joins().size());
+        
+        // Verify join
+        var join = dbDef.findJoin("Person_Address").orElseThrow();
+        assertEquals("Person_Address", join.name());
+        assertEquals("T_PERSON", join.leftTable());
+        assertEquals("ID", join.leftColumn());
+        assertEquals("T_ADDRESS", join.rightTable());
+        assertEquals("PERSON_ID", join.rightColumn());
+    }
+    
+    @Test
+    @DisplayName("Build model with Association and Join from Pure")
+    void testBuildModelWithAssociationAndJoin() {
+        // GIVEN: Pure source with classes, association, database with join
+        String pureSource = """
+            Class model::Person
+            {
+                name: String[1];
+            }
+            
+            Class model::Address
+            {
+                street: String[1];
+            }
+            
+            Association model::Person_Address
+            {
+                person: Person[1];
+                addresses: Address[*];
+            }
+            
+            Database store::TestDB
+            (
+                Table T_PERSON
+                (
+                    ID INTEGER PRIMARY KEY,
+                    NAME VARCHAR(100) NOT NULL
+                )
+                Table T_ADDRESS
+                (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL
+                )
+                Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
+            )
+            """;
+        
+        // WHEN: We build the model
+        PureModelBuilder builder = new PureModelBuilder().addSource(pureSource);
+        
+        // THEN: We have classes, association, tables, and join
+        assertNotNull(builder.getClass("Person"));
+        assertNotNull(builder.getClass("Address"));
+        assertNotNull(builder.getTable("T_PERSON"));
+        assertNotNull(builder.getTable("T_ADDRESS"));
+        
+        assertTrue(builder.getAssociation("Person_Address").isPresent());
+        assertTrue(builder.getJoin("Person_Address").isPresent());
+        
+        var join = builder.getJoin("Person_Address").orElseThrow();
+        assertEquals("T_PERSON", join.leftTable());
+        assertEquals("T_ADDRESS", join.rightTable());
+    }
+    
+    @Test
+    @DisplayName("Generate SQL for JOIN query")
+    void testGenerateJoinSql() throws SQLException {
+        // GIVEN: Set up tables with foreign key relationship
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("""
+                CREATE TABLE T_ADDRESS (
+                    ID INTEGER PRIMARY KEY,
+                    PERSON_ID INTEGER NOT NULL,
+                    STREET VARCHAR(200) NOT NULL,
+                    CITY VARCHAR(100) NOT NULL
+                )
+                """);
+            
+            // Insert test addresses
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (1, 1, '123 Main St', 'New York')");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (2, 1, '456 Oak Ave', 'Boston')");
+            stmt.execute("INSERT INTO T_ADDRESS VALUES (3, 2, '789 Pine Rd', 'Chicago')");
+        }
+        
+        // WHEN: We generate a JOIN SQL
+        Table personTable = modelBuilder.getTable("T_PERSON");
+        Table addressTable = new Table("T_ADDRESS", List.of(
+                Column.required("ID", SqlDataType.INTEGER),
+                Column.required("PERSON_ID", SqlDataType.INTEGER),
+                Column.required("STREET", SqlDataType.VARCHAR),
+                Column.required("CITY", SqlDataType.VARCHAR)
+        ));
+        
+        TableNode personNode = new TableNode(personTable, "p");
+        TableNode addressNode = new TableNode(addressTable, "a");
+        
+        // Build join condition: p.ID = a.PERSON_ID
+        Expression joinCondition = ComparisonExpression.equals(
+                ColumnReference.of("p", "ID"),
+                ColumnReference.of("a", "PERSON_ID")
+        );
+        
+        JoinNode joinNode = JoinNode.inner(personNode, addressNode, joinCondition);
+        
+        // Project: firstName, street
+        ProjectNode projectNode = new ProjectNode(joinNode, List.of(
+                Projection.column("p", "FIRST_NAME", "firstName"),
+                Projection.column("a", "STREET", "street")
+        ));
+        
+        String sql = sqlGenerator.generate(projectNode);
+        System.out.println("Generated JOIN SQL: " + sql);
+        
+        // THEN: SQL is valid and returns results
+        assertTrue(sql.contains("INNER JOIN"), "Should have INNER JOIN");
+        assertTrue(sql.contains("ON"), "Should have ON clause");
+        
+        // Execute and verify
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            int count = 0;
+            while (rs.next()) {
+                String firstName = rs.getString("firstName");
+                String street = rs.getString("street");
+                assertNotNull(firstName);
+                assertNotNull(street);
+                count++;
+            }
+            
+            assertEquals(3, count, "Should find 3 person-address combinations");
+        }
     }
 }

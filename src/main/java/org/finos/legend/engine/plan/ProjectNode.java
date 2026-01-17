@@ -40,7 +40,7 @@ public record ProjectNode(
     
     @Override
     public <T> T accept(RelationNodeVisitor<T> visitor) {
-        return visitor.visitProject(this);
+        return visitor.visit(this);
     }
     
     @Override

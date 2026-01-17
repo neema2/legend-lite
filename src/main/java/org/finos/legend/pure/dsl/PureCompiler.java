@@ -207,6 +207,7 @@ public final class PureCompiler {
             case TableNode table -> table.alias();
             case FilterNode filter -> getTableAlias(filter.source());
             case ProjectNode project -> getTableAlias(project.source());
+            case JoinNode join -> getTableAlias(join.left()); // Use left table alias for joins
         };
     }
     

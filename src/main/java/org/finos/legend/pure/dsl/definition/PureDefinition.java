@@ -5,9 +5,10 @@ package org.finos.legend.pure.dsl.definition;
  * 
  * These are parsed from Pure source files containing:
  * - Class definitions
+ * - Association definitions
  * - Database (Store) definitions
  * - Mapping definitions
  */
 public sealed interface PureDefinition 
-        permits ClassDefinition, DatabaseDefinition, MappingDefinition {
+        permits ClassDefinition, AssociationDefinition, DatabaseDefinition, MappingDefinition {
 }

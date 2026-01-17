@@ -40,6 +40,10 @@ public final class PureDefinitionParser {
                 var result = parseMapping(remaining);
                 definitions.add(result.definition);
                 remaining = result.remaining;
+            } else if (remaining.startsWith("Association ")) {
+                var result = parseAssociation(remaining);
+                definitions.add(result.definition);
+                remaining = result.remaining;
             } else {
                 throw new PureParseException("Unknown definition starting with: " + 
                         remaining.substring(0, Math.min(50, remaining.length())));
@@ -155,11 +159,36 @@ public final class PureDefinitionParser {
         
         String body = source.substring(bodyStart, bodyEnd);
         List<DatabaseDefinition.TableDefinition> tables = parseTables(body);
+        List<DatabaseDefinition.JoinDefinition> joins = parseJoins(body);
         
         return new ParseResult<>(
-                new DatabaseDefinition(qualifiedName, tables),
+                new DatabaseDefinition(qualifiedName, tables, joins),
                 source.substring(bodyEnd + 1)
         );
+    }
+    
+    private static List<DatabaseDefinition.JoinDefinition> parseJoins(String body) {
+        List<DatabaseDefinition.JoinDefinition> joins = new ArrayList<>();
+        
+        // Pattern: Join JoinName(TABLE_A.COLUMN_A = TABLE_B.COLUMN_B)
+        Pattern pattern = Pattern.compile(
+                "Join\\s+(\\w+)\\s*\\(\\s*(\\w+)\\.(\\w+)\\s*=\\s*(\\w+)\\.(\\w+)\\s*\\)",
+                Pattern.CASE_INSENSITIVE
+        );
+        Matcher matcher = pattern.matcher(body);
+        
+        while (matcher.find()) {
+            String name = matcher.group(1);
+            String leftTable = matcher.group(2);
+            String leftColumn = matcher.group(3);
+            String rightTable = matcher.group(4);
+            String rightColumn = matcher.group(5);
+            
+            joins.add(new DatabaseDefinition.JoinDefinition(
+                    name, leftTable, leftColumn, rightTable, rightColumn));
+        }
+        
+        return joins;
     }
     
     private static List<DatabaseDefinition.TableDefinition> parseTables(String body) {
@@ -302,6 +331,66 @@ public final class PureDefinitionParser {
         }
         
         return mappings;
+    }
+    
+    // ==================== Association Parsing ====================
+    
+    /**
+     * Parses a single Association definition.
+     */
+    public static AssociationDefinition parseAssociationDefinition(String pureSource) {
+        var result = parseAssociation(pureSource.trim());
+        return result.definition;
+    }
+    
+    private static ParseResult<AssociationDefinition> parseAssociation(String source) {
+        // Pattern: Association qualified::Name { ... }
+        Pattern pattern = Pattern.compile(
+                "Association\\s+([\\w:]+)\\s*\\{([^}]*)\\}",
+                Pattern.DOTALL
+        );
+        Matcher matcher = pattern.matcher(source);
+        
+        if (!matcher.find()) {
+            throw new PureParseException("Invalid Association definition");
+        }
+        
+        String qualifiedName = matcher.group(1);
+        String body = matcher.group(2);
+        
+        // Parse the two association ends (properties)
+        List<AssociationDefinition.AssociationEndDefinition> ends = parseAssociationEnds(body);
+        
+        if (ends.size() != 2) {
+            throw new PureParseException("Association must have exactly 2 properties, found: " + ends.size());
+        }
+        
+        return new ParseResult<>(
+                new AssociationDefinition(qualifiedName, ends.get(0), ends.get(1)),
+                source.substring(matcher.end())
+        );
+    }
+    
+    private static List<AssociationDefinition.AssociationEndDefinition> parseAssociationEnds(String body) {
+        List<AssociationDefinition.AssociationEndDefinition> ends = new ArrayList<>();
+        
+        // Pattern: propertyName: ClassName[multiplicity];
+        Pattern pattern = Pattern.compile(
+                "(\\w+)\\s*:\\s*(\\w+)\\s*\\[([^\\]]+)\\]\\s*;?"
+        );
+        Matcher matcher = pattern.matcher(body);
+        
+        while (matcher.find()) {
+            String propertyName = matcher.group(1);
+            String targetClass = matcher.group(2);
+            String multiplicity = matcher.group(3);
+            
+            var bounds = parseMultiplicity(multiplicity);
+            ends.add(new AssociationDefinition.AssociationEndDefinition(
+                    propertyName, targetClass, bounds[0], bounds[1]));
+        }
+        
+        return ends;
     }
     
     // ==================== Helper Methods ====================

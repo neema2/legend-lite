@@ -8,9 +8,10 @@ package org.finos.legend.engine.plan;
  * - TableNode: Physical table scan (FROM clause)
  * - FilterNode: Row filtering (WHERE clause)
  * - ProjectNode: Column projection (SELECT clause)
+ * - JoinNode: Table join (JOIN clause)
  */
 public sealed interface RelationNode 
-        permits TableNode, FilterNode, ProjectNode {
+        permits TableNode, FilterNode, ProjectNode, JoinNode {
     
     /**
      * Accept method for the visitor pattern.

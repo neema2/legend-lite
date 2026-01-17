@@ -10,15 +10,20 @@ public interface RelationNodeVisitor<T> {
     /**
      * Visit a table node (FROM clause).
      */
-    T visitTable(TableNode table);
+    T visit(TableNode table);
     
     /**
      * Visit a filter node (WHERE clause).
      */
-    T visitFilter(FilterNode filter);
+    T visit(FilterNode filter);
     
     /**
      * Visit a project node (SELECT clause).
      */
-    T visitProject(ProjectNode project);
+    T visit(ProjectNode project);
+    
+    /**
+     * Visit a join node (JOIN clause).
+     */
+    T visit(JoinNode join);
 }

@@ -14,6 +14,9 @@ public record Multiplicity(int lowerBound, Integer upperBound) {
     /** Optional single value [0..1] */
     public static final Multiplicity ZERO_ONE = new Multiplicity(0, 1);
     
+    /** Alias for ZERO_ONE */
+    public static final Multiplicity ZERO_OR_ONE = ZERO_ONE;
+    
     /** Zero or more [*] */
     public static final Multiplicity MANY = new Multiplicity(0, null);
     

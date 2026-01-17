@@ -7,19 +7,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Builds runtime model objects from Pure definitions.
  * 
  * Converts parsed Pure syntax into the runtime metamodel:
  * - ClassDefinition -> PureClass
- * - DatabaseDefinition -> Table(s)
+ * - AssociationDefinition -> Association
+ * - DatabaseDefinition -> Table(s) and Join(s)
  * - MappingDefinition -> RelationalMapping
  */
 public final class PureModelBuilder {
     
     private final Map<String, PureClass> classes = new HashMap<>();
+    private final Map<String, Association> associations = new HashMap<>();
     private final Map<String, Table> tables = new HashMap<>();
+    private final Map<String, Join> joins = new HashMap<>();
     private final Map<String, DatabaseDefinition> databases = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry();
     
@@ -35,6 +39,7 @@ public final class PureModelBuilder {
         for (PureDefinition def : definitions) {
             switch (def) {
                 case ClassDefinition classDef -> addClass(classDef);
+                case AssociationDefinition assocDef -> addAssociation(assocDef);
                 case DatabaseDefinition dbDef -> addDatabase(dbDef);
                 case MappingDefinition mappingDef -> addMapping(mappingDef);
             }
@@ -64,16 +69,58 @@ public final class PureModelBuilder {
     }
     
     /**
+     * Adds an Association definition.
+     */
+    public PureModelBuilder addAssociation(AssociationDefinition assocDef) {
+        var end1 = assocDef.property1();
+        var end2 = assocDef.property2();
+        
+        Association association = new Association(
+                assocDef.packagePath(),
+                assocDef.simpleName(),
+                new Association.AssociationEnd(
+                        end1.propertyName(),
+                        end1.targetClass(),
+                        new Multiplicity(end1.lowerBound(), end1.upperBound())
+                ),
+                new Association.AssociationEnd(
+                        end2.propertyName(),
+                        end2.targetClass(),
+                        new Multiplicity(end2.lowerBound(), end2.upperBound())
+                )
+        );
+        
+        associations.put(assocDef.qualifiedName(), association);
+        associations.put(assocDef.simpleName(), association);
+        
+        return this;
+    }
+    
+    /**
      * Adds a Database definition.
      */
     public PureModelBuilder addDatabase(DatabaseDefinition dbDef) {
         databases.put(dbDef.qualifiedName(), dbDef);
         databases.put(dbDef.simpleName(), dbDef);
         
+        // Register tables
         for (var tableDef : dbDef.tables()) {
             Table table = convertTable(tableDef);
             tables.put(tableDef.name(), table);
             tables.put(dbDef.simpleName() + "." + tableDef.name(), table);
+        }
+        
+        // Register joins
+        for (var joinDef : dbDef.joins()) {
+            Join join = new Join(
+                    joinDef.name(),
+                    joinDef.leftTable(),
+                    joinDef.leftColumn(),
+                    joinDef.rightTable(),
+                    joinDef.rightColumn()
+            );
+            joins.put(joinDef.name(), join);
+            joins.put(dbDef.simpleName() + "." + joinDef.name(), join);
         }
         
         return this;
@@ -134,6 +181,22 @@ public final class PureModelBuilder {
      */
     public Table getTable(String tableName) {
         return tables.get(tableName);
+    }
+    
+    /**
+     * @param joinName The join name
+     * @return The Join, if found
+     */
+    public Optional<Join> getJoin(String joinName) {
+        return Optional.ofNullable(joins.get(joinName));
+    }
+    
+    /**
+     * @param associationName The association name
+     * @return The Association, if found
+     */
+    public Optional<Association> getAssociation(String associationName) {
+        return Optional.ofNullable(associations.get(associationName));
     }
     
     // ==================== Conversion Helpers ====================

@@ -21,7 +21,7 @@ public record FilterNode(
     
     @Override
     public <T> T accept(RelationNodeVisitor<T> visitor) {
-        return visitor.visitFilter(this);
+        return visitor.visit(this);
     }
     
     @Override

@@ -42,14 +42,14 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     // ==================== RelationNode Visitors ====================
     
     @Override
-    public String visitTable(TableNode table) {
+    public String visit(TableNode table) {
         // Simple table scan: FROM "table" AS "alias"
         return "SELECT * FROM " + dialect.quoteIdentifier(table.table().name()) 
                 + " AS " + dialect.quoteIdentifier(table.alias());
     }
     
     @Override
-    public String visitFilter(FilterNode filter) {
+    public String visit(FilterNode filter) {
         // We need to handle the case where filter is on top of table or on top of project
         RelationNode source = filter.source();
         String whereClause = filter.condition().accept(this);
@@ -69,15 +69,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = nestedFilter.accept(this);
                 yield innerSql + " AND " + whereClause;
             }
+            case JoinNode join -> {
+                // Filter on top of join
+                String innerSql = join.accept(this);
+                yield innerSql + " WHERE " + whereClause;
+            }
         };
     }
     
     @Override
-    public String visitProject(ProjectNode project) {
+    public String visit(ProjectNode project) {
         // Check the source type to construct appropriate SQL
         return switch (project.source()) {
             case TableNode table -> generateSelectFromTable(project, table, null);
             case FilterNode filter -> visitProjectWithFilter(project, filter);
+            case JoinNode join -> visitProjectWithJoin(project, join, null);
             case ProjectNode nested -> {
                 // Nested projections - generate subquery
                 String innerSql = nested.accept(this);
@@ -87,16 +93,90 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         };
     }
     
+    @Override
+    public String visit(JoinNode join) {
+        var sb = new StringBuilder();
+        
+        // Get left table info
+        TableNode leftTable = extractTableNode(join.left());
+        TableNode rightTable = extractTableNode(join.right());
+        
+        sb.append("SELECT * FROM ");
+        sb.append(dialect.quoteIdentifier(leftTable.table().name()));
+        sb.append(" AS ");
+        sb.append(dialect.quoteIdentifier(leftTable.alias()));
+        
+        sb.append(" ");
+        sb.append(join.joinType().toSql());
+        sb.append(" ");
+        
+        sb.append(dialect.quoteIdentifier(rightTable.table().name()));
+        sb.append(" AS ");
+        sb.append(dialect.quoteIdentifier(rightTable.alias()));
+        
+        sb.append(" ON ");
+        sb.append(join.condition().accept(this));
+        
+        return sb.toString();
+    }
+    
     private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
         // Common case: Project on top of Filter on top of Table
         return switch (filter.source()) {
             case TableNode table -> generateSelectFromTable(project, table, filter.condition());
+            case JoinNode join -> visitProjectWithJoin(project, join, filter.condition());
             default -> {
                 // Complex case: generate subquery
                 String innerSql = filter.accept(this);
                 String projections = formatProjections(project);
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS subq";
             }
+        };
+    }
+    
+    private String visitProjectWithJoin(ProjectNode project, JoinNode join, Expression whereCondition) {
+        var sb = new StringBuilder();
+        
+        // Get table info
+        TableNode leftTable = extractTableNode(join.left());
+        TableNode rightTable = extractTableNode(join.right());
+        
+        // SELECT clause
+        sb.append("SELECT ");
+        sb.append(formatProjections(project));
+        
+        // FROM clause with JOIN
+        sb.append(" FROM ");
+        sb.append(dialect.quoteIdentifier(leftTable.table().name()));
+        sb.append(" AS ");
+        sb.append(dialect.quoteIdentifier(leftTable.alias()));
+        
+        sb.append(" ");
+        sb.append(join.joinType().toSql());
+        sb.append(" ");
+        
+        sb.append(dialect.quoteIdentifier(rightTable.table().name()));
+        sb.append(" AS ");
+        sb.append(dialect.quoteIdentifier(rightTable.alias()));
+        
+        sb.append(" ON ");
+        sb.append(join.condition().accept(this));
+        
+        // WHERE clause (optional)
+        if (whereCondition != null) {
+            sb.append(" WHERE ");
+            sb.append(whereCondition.accept(this));
+        }
+        
+        return sb.toString();
+    }
+    
+    private TableNode extractTableNode(RelationNode node) {
+        return switch (node) {
+            case TableNode table -> table;
+            case FilterNode filter -> extractTableNode(filter.source());
+            case ProjectNode project -> extractTableNode(project.source());
+            case JoinNode join -> extractTableNode(join.left()); // For nested joins, take left
         };
     }
     

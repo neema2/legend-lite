@@ -16,6 +16,7 @@ import java.util.Optional;
  *         COLUMN_NAME DATA_TYPE [PRIMARY KEY] [NOT NULL],
  *         ...
  *     )
+ *     Join JoinName(TABLE_A.COLUMN_A = TABLE_B.COLUMN_B)
  * )
  * </pre>
  * 
@@ -26,25 +27,41 @@ import java.util.Optional;
  *     Table T_PERSON
  *     (
  *         ID INTEGER PRIMARY KEY,
- *         FIRST_NAME VARCHAR(100) NOT NULL,
- *         LAST_NAME VARCHAR(100) NOT NULL,
- *         AGE_VAL INTEGER
+ *         FIRST_NAME VARCHAR(100) NOT NULL
  *     )
+ *     Table T_ADDRESS
+ *     (
+ *         ID INTEGER PRIMARY KEY,
+ *         PERSON_ID INTEGER NOT NULL,
+ *         STREET VARCHAR(200) NOT NULL
+ *     )
+ *     Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
  * )
  * </pre>
  * 
  * @param qualifiedName The fully qualified database name
  * @param tables The list of table definitions
+ * @param joins The list of join definitions
  */
 public record DatabaseDefinition(
         String qualifiedName,
-        List<TableDefinition> tables
+        List<TableDefinition> tables,
+        List<JoinDefinition> joins
 ) implements PureDefinition {
     
     public DatabaseDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(tables, "Tables cannot be null");
+        Objects.requireNonNull(joins, "Joins cannot be null");
         tables = List.copyOf(tables);
+        joins = List.copyOf(joins);
+    }
+    
+    /**
+     * Constructor without joins for backward compatibility.
+     */
+    public DatabaseDefinition(String qualifiedName, List<TableDefinition> tables) {
+        this(qualifiedName, tables, List.of());
     }
     
     /**
@@ -61,6 +78,15 @@ public record DatabaseDefinition(
     public Optional<TableDefinition> findTable(String tableName) {
         return tables.stream()
                 .filter(t -> t.name().equals(tableName))
+                .findFirst();
+    }
+    
+    /**
+     * Finds a join by name.
+     */
+    public Optional<JoinDefinition> findJoin(String joinName) {
+        return joins.stream()
+                .filter(j -> j.name().equals(joinName))
                 .findFirst();
     }
     
@@ -119,6 +145,49 @@ public record DatabaseDefinition(
         
         public static ColumnDefinition notNull(String name, String dataType) {
             return new ColumnDefinition(name, dataType, false, true);
+        }
+    }
+    
+    /**
+     * Represents a join definition within a database.
+     * 
+     * Pure syntax: Join JoinName(TABLE_A.COLUMN_A = TABLE_B.COLUMN_B)
+     * 
+     * @param name The join name
+     * @param leftTable The left table name
+     * @param leftColumn The left column name
+     * @param rightTable The right table name
+     * @param rightColumn The right column name
+     */
+    public record JoinDefinition(
+            String name,
+            String leftTable,
+            String leftColumn,
+            String rightTable,
+            String rightColumn
+    ) {
+        public JoinDefinition {
+            Objects.requireNonNull(name, "Join name cannot be null");
+            Objects.requireNonNull(leftTable, "Left table cannot be null");
+            Objects.requireNonNull(leftColumn, "Left column cannot be null");
+            Objects.requireNonNull(rightTable, "Right table cannot be null");
+            Objects.requireNonNull(rightColumn, "Right column cannot be null");
+        }
+        
+        /**
+         * Checks if this join involves the given table.
+         */
+        public boolean involvesTable(String tableName) {
+            return leftTable.equals(tableName) || rightTable.equals(tableName);
+        }
+        
+        /**
+         * Gets the other table in the join.
+         */
+        public String getOtherTable(String tableName) {
+            if (leftTable.equals(tableName)) return rightTable;
+            if (rightTable.equals(tableName)) return leftTable;
+            throw new IllegalArgumentException("Table " + tableName + " not in join " + name);
         }
     }
 }
