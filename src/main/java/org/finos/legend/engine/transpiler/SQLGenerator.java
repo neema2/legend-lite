@@ -1,0 +1,185 @@
+package org.finos.legend.engine.transpiler;
+
+import org.finos.legend.engine.plan.*;
+
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+/**
+ * Transpiles a RelationNode tree into a SQL string.
+ * This is the core transpiler that implements the "Database-as-Runtime" philosophy.
+ * 
+ * The generator traverses the logical plan and produces dialect-specific SQL.
+ */
+public final class SQLGenerator implements RelationNodeVisitor<String>, ExpressionVisitor<String> {
+    
+    private final SQLDialect dialect;
+    
+    public SQLGenerator(SQLDialect dialect) {
+        this.dialect = Objects.requireNonNull(dialect, "Dialect cannot be null");
+    }
+    
+    /**
+     * Generates SQL from a relation node tree.
+     * 
+     * @param node The root node of the logical plan
+     * @return The generated SQL string
+     */
+    public String generate(RelationNode node) {
+        return node.accept(this);
+    }
+    
+    /**
+     * Generates SQL from an expression.
+     * 
+     * @param expression The expression to generate SQL for
+     * @return The generated SQL string
+     */
+    public String generateExpression(Expression expression) {
+        return expression.accept(this);
+    }
+    
+    // ==================== RelationNode Visitors ====================
+    
+    @Override
+    public String visitTable(TableNode table) {
+        // Simple table scan: FROM "table" AS "alias"
+        return "SELECT * FROM " + dialect.quoteIdentifier(table.table().name()) 
+                + " AS " + dialect.quoteIdentifier(table.alias());
+    }
+    
+    @Override
+    public String visitFilter(FilterNode filter) {
+        // We need to handle the case where filter is on top of table or on top of project
+        RelationNode source = filter.source();
+        String whereClause = filter.condition().accept(this);
+        
+        return switch (source) {
+            case TableNode table -> {
+                yield "SELECT * FROM " + dialect.quoteIdentifier(table.table().name())
+                        + " AS " + dialect.quoteIdentifier(table.alias())
+                        + " WHERE " + whereClause;
+            }
+            case ProjectNode project -> {
+                // Push filter down into the project
+                yield visitProjectWithFilter(project, filter);
+            }
+            case FilterNode nestedFilter -> {
+                // Combine filters with AND
+                String innerSql = nestedFilter.accept(this);
+                yield innerSql + " AND " + whereClause;
+            }
+        };
+    }
+    
+    @Override
+    public String visitProject(ProjectNode project) {
+        // Check the source type to construct appropriate SQL
+        return switch (project.source()) {
+            case TableNode table -> generateSelectFromTable(project, table, null);
+            case FilterNode filter -> visitProjectWithFilter(project, filter);
+            case ProjectNode nested -> {
+                // Nested projections - generate subquery
+                String innerSql = nested.accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS subq";
+            }
+        };
+    }
+    
+    private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
+        // Common case: Project on top of Filter on top of Table
+        return switch (filter.source()) {
+            case TableNode table -> generateSelectFromTable(project, table, filter.condition());
+            default -> {
+                // Complex case: generate subquery
+                String innerSql = filter.accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS subq";
+            }
+        };
+    }
+    
+    private String generateSelectFromTable(ProjectNode project, TableNode table, Expression whereCondition) {
+        var sb = new StringBuilder();
+        
+        // SELECT clause
+        sb.append("SELECT ");
+        sb.append(formatProjections(project));
+        
+        // FROM clause
+        sb.append(" FROM ");
+        sb.append(dialect.quoteIdentifier(table.table().name()));
+        sb.append(" AS ");
+        sb.append(dialect.quoteIdentifier(table.alias()));
+        
+        // WHERE clause (optional)
+        if (whereCondition != null) {
+            sb.append(" WHERE ");
+            sb.append(whereCondition.accept(this));
+        }
+        
+        return sb.toString();
+    }
+    
+    private String formatProjections(ProjectNode project) {
+        return project.projections().stream()
+                .map(this::formatProjection)
+                .collect(Collectors.joining(", "));
+    }
+    
+    private String formatProjection(Projection projection) {
+        String expr = projection.expression().accept(this);
+        return expr + " AS " + dialect.quoteIdentifier(projection.alias());
+    }
+    
+    // ==================== Expression Visitors ====================
+    
+    @Override
+    public String visitColumnReference(ColumnReference columnRef) {
+        if (columnRef.tableAlias().isEmpty()) {
+            return dialect.quoteIdentifier(columnRef.columnName());
+        }
+        return dialect.quoteIdentifier(columnRef.tableAlias()) 
+                + "." + dialect.quoteIdentifier(columnRef.columnName());
+    }
+    
+    @Override
+    public String visitLiteral(Literal literal) {
+        return switch (literal.type()) {
+            case STRING -> dialect.quoteStringLiteral((String) literal.value());
+            case INTEGER -> String.valueOf(literal.value());
+            case BOOLEAN -> dialect.formatBoolean((Boolean) literal.value());
+            case DOUBLE -> String.valueOf(literal.value());
+            case NULL -> dialect.formatNull();
+        };
+    }
+    
+    @Override
+    public String visitComparison(ComparisonExpression comparison) {
+        String left = comparison.left().accept(this);
+        String op = comparison.operator().toSql();
+        
+        // Handle IS NULL / IS NOT NULL (unary operators)
+        if (comparison.operator() == ComparisonExpression.ComparisonOperator.IS_NULL ||
+            comparison.operator() == ComparisonExpression.ComparisonOperator.IS_NOT_NULL) {
+            return left + " " + op;
+        }
+        
+        String right = comparison.right().accept(this);
+        return left + " " + op + " " + right;
+    }
+    
+    @Override
+    public String visitLogical(LogicalExpression logical) {
+        return switch (logical.operator()) {
+            case NOT -> "NOT (" + logical.operands().getFirst().accept(this) + ")";
+            case AND -> logical.operands().stream()
+                    .map(e -> e.accept(this))
+                    .collect(Collectors.joining(" AND ", "(", ")"));
+            case OR -> logical.operands().stream()
+                    .map(e -> e.accept(this))
+                    .collect(Collectors.joining(" OR ", "(", ")"));
+        };
+    }
+}
