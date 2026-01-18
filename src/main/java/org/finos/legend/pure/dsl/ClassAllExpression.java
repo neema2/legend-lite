@@ -9,7 +9,7 @@ import java.util.Objects;
  * 
  * @param className The name of the class to query
  */
-public record ClassAllExpression(String className) implements PureExpression {
+public record ClassAllExpression(String className) implements ClassExpression {
     public ClassAllExpression {
         Objects.requireNonNull(className, "Class name cannot be null");
     }

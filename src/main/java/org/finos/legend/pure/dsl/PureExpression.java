@@ -3,11 +3,14 @@ package org.finos.legend.pure.dsl;
 /**
  * Sealed interface representing expressions in the Pure language AST.
  * 
- * Pure expressions follow a functional, fluent style:
- *   Person.all()->filter(p | $p.lastName == 'Smith')->project(...)
+ * Type hierarchy:
+ * PureExpression
+ * ├── ClassExpression (Class.all(), filter on Class)
+ * ├── RelationExpression (project(), groupBy(), filter on Relation)
+ * └── ValueExpression (literals, variables, comparisons, lambdas)
  */
-public sealed interface PureExpression 
-        permits ClassAllExpression, FilterExpression, ProjectExpression, 
-                LambdaExpression, PropertyAccessExpression, ComparisonExpr, 
-                LiteralExpr, VariableExpr, LogicalExpr {
+public sealed interface PureExpression
+        permits ClassExpression, RelationExpression,
+        LambdaExpression, PropertyAccessExpression, ComparisonExpr,
+        LiteralExpr, VariableExpr, LogicalExpr {
 }

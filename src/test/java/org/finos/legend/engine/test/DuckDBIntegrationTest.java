@@ -1256,4 +1256,200 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
             rows.forEach(r -> System.out.println("  " + r));
         }
     }
+
+    // ==================== GROUP BY / Aggregation Tests ====================
+
+    @Test
+    @DisplayName("GroupByNode generates and executes correct SQL in DuckDB")
+    void testGroupByNodeExecution() throws Exception {
+        // GIVEN: A table with data for aggregation
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("CREATE TABLE T_EMPLOYEE (ID INTEGER, NAME VARCHAR, DEPARTMENT VARCHAR, SALARY INTEGER)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (1, 'John', 'Engineering', 80000)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (2, 'Jane', 'Engineering', 90000)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (3, 'Bob', 'Sales', 60000)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (4, 'Alice', 'Sales', 70000)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (5, 'Charlie', 'Engineering', 85000)");
+        }
+
+        // Build the GroupByNode directly
+        Table employeeTable = new Table("T_EMPLOYEE", java.util.List.of(
+                Column.required("ID", SqlDataType.INTEGER),
+                Column.required("NAME", SqlDataType.VARCHAR),
+                Column.required("DEPARTMENT", SqlDataType.VARCHAR),
+                Column.required("SALARY", SqlDataType.INTEGER)));
+
+        TableNode tableNode = new TableNode(employeeTable, "t0");
+
+        GroupByNode groupByNode = new GroupByNode(
+                tableNode,
+                java.util.List.of("DEPARTMENT"),
+                java.util.List.of(
+                        new GroupByNode.AggregateProjection("totalSalary", "SALARY",
+                                AggregateExpression.AggregateFunction.SUM),
+                        new GroupByNode.AggregateProjection("avgSalary", "SALARY",
+                                AggregateExpression.AggregateFunction.AVG),
+                        new GroupByNode.AggregateProjection("headcount", "ID",
+                                AggregateExpression.AggregateFunction.COUNT)));
+
+        // WHEN: We generate and execute SQL
+        String sql = sqlGenerator.generate(groupByNode);
+        System.out.println("GroupBy Integration SQL: " + sql);
+
+        // THEN: Results are correct
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+
+            java.util.Map<String, int[]> results = new java.util.HashMap<>();
+            while (rs.next()) {
+                String dept = rs.getString("DEPARTMENT");
+                int total = rs.getInt("totalSalary");
+                int avg = rs.getInt("avgSalary");
+                int count = rs.getInt("headcount");
+                results.put(dept, new int[] { total, avg, count });
+                System.out.println("  " + dept + ": total=" + total + ", avg=" + avg + ", count=" + count);
+            }
+
+            // Engineering: 80000 + 90000 + 85000 = 255000, avg=85000, count=3
+            assertEquals(255000, results.get("Engineering")[0], "Engineering total salary");
+            assertEquals(85000, results.get("Engineering")[1], "Engineering avg salary");
+            assertEquals(3, results.get("Engineering")[2], "Engineering headcount");
+
+            // Sales: 60000 + 70000 = 130000, avg=65000, count=2
+            assertEquals(130000, results.get("Sales")[0], "Sales total salary");
+            assertEquals(65000, results.get("Sales")[1], "Sales avg salary");
+            assertEquals(2, results.get("Sales")[2], "Sales headcount");
+        }
+    }
+
+    @Test
+    @DisplayName("GroupByNode with FilterNode executes correctly")
+    void testGroupByWithFilterExecution() throws Exception {
+        // GIVEN: Reuse the T_EMPLOYEE table from above test
+        try (Statement stmt = connection.createStatement()) {
+            // Drop if exists from previous test
+            stmt.execute("DROP TABLE IF EXISTS T_EMPLOYEE");
+            stmt.execute("CREATE TABLE T_EMPLOYEE (ID INTEGER, NAME VARCHAR, DEPARTMENT VARCHAR, SALARY INTEGER)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (1, 'John', 'Engineering', 80000)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (2, 'Jane', 'Engineering', 90000)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (3, 'Bob', 'Sales', 40000)");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (4, 'Alice', 'Sales', 70000)");
+        }
+
+        Table employeeTable = new Table("T_EMPLOYEE", java.util.List.of(
+                Column.required("DEPARTMENT", SqlDataType.VARCHAR),
+                Column.required("SALARY", SqlDataType.INTEGER)));
+
+        TableNode tableNode = new TableNode(employeeTable, "t0");
+
+        // Filter: SALARY > 50000
+        FilterNode filterNode = new FilterNode(tableNode,
+                ComparisonExpression.greaterThan(
+                        ColumnReference.of("t0", "SALARY"),
+                        Literal.integer(50000)));
+
+        GroupByNode groupByNode = new GroupByNode(
+                filterNode,
+                java.util.List.of("DEPARTMENT"),
+                java.util.List.of(
+                        new GroupByNode.AggregateProjection("totalSalary", "SALARY",
+                                AggregateExpression.AggregateFunction.SUM)));
+
+        // WHEN: We execute
+        String sql = sqlGenerator.generate(groupByNode);
+        System.out.println("Filter+GroupBy SQL: " + sql);
+
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+
+            java.util.Map<String, Integer> results = new java.util.HashMap<>();
+            while (rs.next()) {
+                results.put(rs.getString("DEPARTMENT"), rs.getInt("totalSalary"));
+            }
+
+            // Only salaries > 50000 are included
+            // Engineering: 80000 + 90000 = 170000
+            // Sales: only 70000 (40000 is filtered out)
+            assertEquals(170000, results.get("Engineering"), "Engineering total (>50k)");
+            assertEquals(70000, results.get("Sales"), "Sales total (>50k)");
+        }
+    }
+
+    // ==================== Pure Syntax End-to-End GroupBy Tests
+    // ====================
+
+    @Test
+    @DisplayName("Pure syntax: Class.all()->project()->groupBy()")
+    void testPureSyntaxProjectThenGroupBy() throws Exception {
+        // GIVEN: Create employee table and data
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_EMP");
+            stmt.execute("CREATE TABLE T_EMP (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            stmt.execute("INSERT INTO T_EMP VALUES (1, 'Engineering', 80000)");
+            stmt.execute("INSERT INTO T_EMP VALUES (2, 'Engineering', 90000)");
+            stmt.execute("INSERT INTO T_EMP VALUES (3, 'Sales', 60000)");
+            stmt.execute("INSERT INTO T_EMP VALUES (4, 'Sales', 70000)");
+        }
+
+        // Build model from Pure source
+        String model = """
+                Class model::Emp { dept: String[1]; sal: Integer[1]; }
+                Database store::EmpDb ( Table T_EMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP dept: [EmpDb] T_EMP.DEPT, sal: [EmpDb] T_EMP.SAL } )
+                """;
+
+        modelBuilder = new PureModelBuilder();
+        modelBuilder.addSource(model);
+        MappingRegistry mappingRegistry = modelBuilder.getMappingRegistry();
+        pureCompiler = new org.finos.legend.pure.dsl.PureCompiler(mappingRegistry);
+
+        // Correct Relation v2 pattern: Class.all() -> project() converts Class to
+        // Relation, THEN groupBy
+        // project() extracts the columns we want to aggregate, creating a Relation
+        String pureQuery = "Emp.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal}], ['totalSal'])";
+        RelationNode plan = pureCompiler.compile(pureQuery);
+        String sql = sqlGenerator.generate(plan);
+
+        System.out.println("Pure Project+GroupBy SQL: " + sql);
+
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+
+            java.util.Map<String, Integer> results = new java.util.HashMap<>();
+            while (rs.next()) {
+                results.put(rs.getString("dept"), rs.getInt("totalSal"));
+            }
+
+            assertEquals(170000, results.get("Engineering"), "Engineering total");
+            assertEquals(130000, results.get("Sales"), "Sales total");
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: Class.all()->groupBy() should FAIL (type safety)")
+    void testPureSyntaxGroupByOnClassFails() {
+        // GIVEN: A model
+        String model = """
+                Class model::Emp { dept: String[1]; sal: Integer[1]; }
+                Database store::EmpDb ( Table T_EMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP dept: [EmpDb] T_EMP.DEPT, sal: [EmpDb] T_EMP.SAL } )
+                """;
+
+        modelBuilder = new PureModelBuilder();
+        modelBuilder.addSource(model);
+
+        // WHEN: Try to parse groupBy directly on Class.all() (without project)
+        // THEN: Should fail with PureParseException explaining the correct pattern
+        String invalidQuery = "Emp.all()->groupBy([{e | $e.dept}], [{e | $e.sal}], ['totalSal'])";
+
+        org.finos.legend.pure.dsl.PureParseException exception = assertThrows(
+                org.finos.legend.pure.dsl.PureParseException.class,
+                () -> org.finos.legend.pure.dsl.PureParser.parse(invalidQuery),
+                "groupBy on Class should throw PureParseException");
+
+        // Verify the error message is helpful
+        assertTrue(exception.getMessage().contains("project"),
+                "Error should mention project(): " + exception.getMessage());
+        System.out.println("Expected error message: " + exception.getMessage());
+    }
 }

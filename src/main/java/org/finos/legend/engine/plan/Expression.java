@@ -11,16 +11,16 @@ package org.finos.legend.engine.plan;
  * - LogicalExpression: boolean operators (AND, OR, NOT)
  * - ExistsExpression: EXISTS (subquery) for to-many navigation
  */
-public sealed interface Expression 
-        permits ColumnReference, Literal, ComparisonExpression, LogicalExpression, ExistsExpression,
-                ConcatExpression, SqlFunctionCall, CaseExpression, ArithmeticExpression {
-    
-    /**
-     * Accept method for the expression visitor pattern.
-     * 
-     * @param visitor The visitor to accept
-     * @param <T> The return type of the visitor
-     * @return The result of visiting this expression
-     */
-    <T> T accept(ExpressionVisitor<T> visitor);
+public sealed interface Expression
+                permits ColumnReference, Literal, ComparisonExpression, LogicalExpression, ExistsExpression,
+                ConcatExpression, SqlFunctionCall, CaseExpression, ArithmeticExpression, AggregateExpression {
+
+        /**
+         * Accept method for the expression visitor pattern.
+         * 
+         * @param visitor The visitor to accept
+         * @param <T>     The return type of the visitor
+         * @return The result of visiting this expression
+         */
+        <T> T accept(ExpressionVisitor<T> visitor);
 }

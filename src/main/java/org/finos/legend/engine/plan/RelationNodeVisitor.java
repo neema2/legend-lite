@@ -6,24 +6,29 @@ package org.finos.legend.engine.plan;
  * @param <T> The return type of the visitor methods
  */
 public interface RelationNodeVisitor<T> {
-    
+
     /**
      * Visit a table node (FROM clause).
      */
     T visit(TableNode table);
-    
+
     /**
      * Visit a filter node (WHERE clause).
      */
     T visit(FilterNode filter);
-    
+
     /**
      * Visit a project node (SELECT clause).
      */
     T visit(ProjectNode project);
-    
+
     /**
      * Visit a join node (JOIN clause).
      */
     T visit(JoinNode join);
+
+    /**
+     * Visit a group by node (GROUP BY clause).
+     */
+    T visit(GroupByNode groupBy);
 }

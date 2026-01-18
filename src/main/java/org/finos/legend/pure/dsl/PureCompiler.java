@@ -19,18 +19,18 @@ import java.util.Objects;
  * - Preserves JOINs for explicit relational/DataFrame queries
  */
 public final class PureCompiler {
-    
+
     private final MappingRegistry mappingRegistry;
     private final ModelContext modelContext;
     private int aliasCounter = 0;
-    
+
     /**
      * Creates a compiler with just a mapping registry (legacy compatibility).
      */
     public PureCompiler(MappingRegistry mappingRegistry) {
         this(mappingRegistry, null);
     }
-    
+
     /**
      * Creates a compiler with full model context for association navigation.
      */
@@ -38,7 +38,7 @@ public final class PureCompiler {
         this.mappingRegistry = Objects.requireNonNull(mappingRegistry, "Mapping registry cannot be null");
         this.modelContext = modelContext;
     }
-    
+
     /**
      * Compiles a Pure query string into a RelationNode execution plan.
      * 
@@ -49,86 +49,118 @@ public final class PureCompiler {
         PureExpression ast = PureParser.parse(pureQuery);
         return compileExpression(ast, null);
     }
-    
+
     /**
      * Compiles a Pure expression AST into a RelationNode.
      * 
-     * @param expr The Pure expression
+     * @param expr    The Pure expression
      * @param context Compilation context (for lambda parameter resolution)
      * @return The compiled RelationNode
      */
     public RelationNode compileExpression(PureExpression expr, CompilationContext context) {
         return switch (expr) {
             case ClassAllExpression classAll -> compileClassAll(classAll);
-            case FilterExpression filter -> compileFilter(filter, context);
+            case ClassFilterExpression classFilter -> compileClassFilter(classFilter, context);
+            case RelationFilterExpression relationFilter -> compileRelationFilter(relationFilter, context);
             case ProjectExpression project -> compileProject(project, context);
+            case GroupByExpression groupBy -> compileGroupBy(groupBy, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
-    
+
     private RelationNode compileClassAll(ClassAllExpression classAll) {
         RelationalMapping mapping = mappingRegistry.findByClassName(classAll.className())
                 .orElseThrow(() -> new PureCompileException("No mapping found for class: " + classAll.className()));
-        
+
         String alias = "t" + aliasCounter++;
         return new TableNode(mapping.table(), alias);
     }
-    
-    private RelationNode compileFilter(FilterExpression filter, CompilationContext outerContext) {
+
+    /**
+     * Compiles a filter on a ClassExpression (e.g., Person.all()->filter(...))
+     */
+    private RelationNode compileClassFilter(ClassFilterExpression filter, CompilationContext outerContext) {
         RelationNode source = compileExpression(filter.source(), outerContext);
-        
+
         // Get the table alias from the source
         String tableAlias = getTableAlias(source);
-        
+
         // Get the mapping and class for the source
         RelationalMapping mapping = getMappingFromSource(filter.source());
         String className = getClassNameFromSource(filter.source());
-        
+
         // Create context for the lambda
         CompilationContext lambdaContext = new CompilationContext(
                 filter.lambda().parameter(),
                 tableAlias,
                 mapping,
                 className,
-                true  // We're in a filter context
+                true // We're in a filter context
         );
-        
+
         // Compile the filter condition
         Expression condition = compileToSqlExpression(filter.lambda().body(), lambdaContext);
-        
+
         return new FilterNode(source, condition);
     }
-    
+
+    /**
+     * Compiles a filter on a RelationExpression (e.g.,
+     * ...->project(...)->filter(...))
+     * Uses column aliases from the source Relation, not class property mappings.
+     */
+    private RelationNode compileRelationFilter(RelationFilterExpression filter, CompilationContext outerContext) {
+        RelationNode source = compileExpression(filter.source(), outerContext);
+
+        // Get the table alias from the source
+        String tableAlias = getTableAlias(source);
+
+        // For Relation filters, the lambda references column aliases, not class
+        // properties
+        // Create a minimal context where property names ARE column names
+        CompilationContext lambdaContext = new CompilationContext(
+                filter.lambda().parameter(),
+                tableAlias,
+                null, // No class mapping - we're working with Relation columns
+                null,
+                true);
+
+        // Compile the filter condition - property names become column references
+        // directly
+        Expression condition = compileToSqlExpression(filter.lambda().body(), lambdaContext);
+
+        return new FilterNode(source, condition);
+    }
+
     private RelationNode compileProject(ProjectExpression project, CompilationContext outerContext) {
         RelationNode source = compileExpression(project.source(), outerContext);
-        
+
         // Get the table alias from the source
         String baseTableAlias = getTableAlias(source);
-        
+
         // Get the mapping and class name for the source
         RelationalMapping baseMapping = getMappingFromSource(project.source());
         String baseClassName = getClassNameFromSource(project.source());
-        
+
         List<Projection> projections = new ArrayList<>();
-        
+
         // Track joins we need to add for association projections
         // Key: association property name, Value: join info (alias and mapping)
         java.util.Map<String, JoinInfo> joinInfos = new java.util.HashMap<>();
-        
+
         for (int i = 0; i < project.projections().size(); i++) {
             LambdaExpression lambda = project.projections().get(i);
-            
+
             // Analyze if this projection navigates through an association
             CompilationContext projContext = new CompilationContext(
                     lambda.parameter(),
                     baseTableAlias,
                     baseMapping,
                     baseClassName,
-                    false
-            );
-            
+                    false);
+
             AssociationPath path = analyzePropertyPath(lambda.body(), projContext);
-            
+
             // Determine alias for this projection
             String alias;
             if (i < project.aliases().size()) {
@@ -136,7 +168,7 @@ public final class PureCompiler {
             } else {
                 alias = extractFinalPropertyName(lambda.body());
             }
-            
+
             if (path != null && path.hasToManyNavigation() && modelContext != null) {
                 // Association navigation - collect join info and create projection
                 Projection proj = compileAssociationProjection(path, alias, joinInfos, baseTableAlias, baseMapping);
@@ -149,7 +181,7 @@ public final class PureCompiler {
                 projections.add(Projection.column(baseTableAlias, columnName, alias));
             }
         }
-        
+
         // Build the final source by adding JOINs on top of the existing source
         // This preserves any filters that were applied to source!
         RelationNode finalSource = source;
@@ -158,14 +190,74 @@ public final class PureCompiler {
             TableNode targetTable = new TableNode(ji.targetMapping().table(), ji.alias());
             Expression joinCondition = ComparisonExpression.equals(
                     ColumnReference.of(baseTableAlias, ji.leftColumn()),
-                    ColumnReference.of(ji.alias(), ji.rightColumn())
-            );
+                    ColumnReference.of(ji.alias(), ji.rightColumn()));
             finalSource = new JoinNode(finalSource, targetTable, joinCondition, JoinNode.JoinType.LEFT_OUTER);
         }
-        
+
         return new ProjectNode(finalSource, projections);
     }
-    
+
+    /**
+     * Compiles a groupBy expression into a GroupByNode.
+     * 
+     * Example Pure: ->groupBy({p | $p.department}, {p | $p.salary}, 'totalSalary')
+     * 
+     * IMPORTANT: groupBy only works on Relation type (from project() or Relation
+     * literal).
+     * It cannot be called directly on Class.all() - use project() first to convert
+     * Class to Relation.
+     * 
+     * @param groupBy      The groupBy expression
+     * @param outerContext Compilation context
+     * @return The compiled GroupByNode
+     */
+    private RelationNode compileGroupBy(GroupByExpression groupBy, CompilationContext outerContext) {
+        // Type safety is now enforced at compile-time by the Java type system.
+        // GroupByExpression.source() is RelationExpression, which can only be:
+        // - ProjectExpression
+        // - RelationFilterExpression
+        // - GroupByExpression
+        // NOT ClassAllExpression or ClassFilterExpression!
+
+        RelationNode source = compileExpression(groupBy.source(), outerContext);
+
+        // For ProjectExpression source, the lambda property names reference the
+        // projected column aliases
+        // For example: project([...], ['dept', 'sal'])->groupBy([{r | $r.dept}], ...)
+        // Here 'dept' is the column alias from project, not a class property
+
+        // Extract grouping column names from lambdas
+        // The property name in the lambda IS the column name (from project aliases)
+        List<String> groupingColumns = new ArrayList<>();
+        for (LambdaExpression lambda : groupBy.groupByColumns()) {
+            String columnName = extractPropertyName(lambda.body());
+            groupingColumns.add(columnName);
+        }
+
+        // Extract aggregations from lambdas
+        List<GroupByNode.AggregateProjection> aggregations = new ArrayList<>();
+        for (int i = 0; i < groupBy.aggregations().size(); i++) {
+            LambdaExpression aggLambda = groupBy.aggregations().get(i);
+            String columnName = extractPropertyName(aggLambda.body());
+
+            // Get alias from the aliases list or generate one
+            String alias;
+            if (i < groupBy.aliases().size()) {
+                alias = groupBy.aliases().get(i);
+            } else {
+                alias = columnName + "_agg";
+            }
+
+            // Default to SUM for now - in full implementation, parse the aggregate function
+            // from lambda
+            AggregateExpression.AggregateFunction aggFunc = AggregateExpression.AggregateFunction.SUM;
+
+            aggregations.add(new GroupByNode.AggregateProjection(alias, columnName, aggFunc));
+        }
+
+        return new GroupByNode(source, groupingColumns, aggregations);
+    }
+
     /**
      * Compiles a projection that navigates through an association.
      * 
@@ -176,14 +268,14 @@ public final class PureCompiler {
      * filters that were applied to the source.
      */
     private Projection compileAssociationProjection(
-            AssociationPath path, 
+            AssociationPath path,
             String projectionAlias,
             java.util.Map<String, JoinInfo> joinInfos,
             String baseTableAlias,
             RelationalMapping baseMapping) {
-        
+
         List<NavigationSegment> segments = path.segments();
-        
+
         // Find the association navigation segment
         NavigationSegment assocSegment = null;
         for (NavigationSegment seg : segments) {
@@ -192,47 +284,47 @@ public final class PureCompiler {
                 break;
             }
         }
-        
+
         if (assocSegment == null) {
             throw new PureCompileException("No association found in path");
         }
-        
+
         String assocPropertyName = assocSegment.propertyName();
         AssociationNavigation nav = assocSegment.navigation();
         RelationalMapping targetMapping = assocSegment.targetMapping();
-        
+
         if (targetMapping == null || nav.join() == null) {
             throw new PureCompileException("No mapping or join for association: " + nav.association().name());
         }
-        
+
         // Check if we already have join info for this association
         JoinInfo joinInfo = joinInfos.get(assocPropertyName);
         String targetAlias;
-        
+
         if (joinInfo == null) {
             // Need to record join info (actual join built later)
             targetAlias = "j" + aliasCounter++;
-            
+
             Join join = nav.join();
             String leftColumn = join.getColumnForTable(baseMapping.table().name());
             String rightColumn = join.getColumnForTable(targetMapping.table().name());
-            
+
             joinInfo = new JoinInfo(targetAlias, targetMapping, leftColumn, rightColumn);
             joinInfos.put(assocPropertyName, joinInfo);
         } else {
             targetAlias = joinInfo.alias();
             targetMapping = joinInfo.targetMapping();
         }
-        
+
         // Get the final property (e.g., "street" from $p.addresses.street)
         NavigationSegment finalSegment = segments.getLast();
         String finalProperty = finalSegment.propertyName();
         String columnName = targetMapping.getColumnForProperty(finalProperty)
                 .orElseThrow(() -> new PureCompileException("No column mapping for: " + finalProperty));
-        
+
         return Projection.column(targetAlias, columnName, projectionAlias);
     }
-    
+
     /**
      * Extracts the final property name from a potentially chained property access.
      * For $p.addresses.street, returns "street".
@@ -243,7 +335,7 @@ public final class PureCompiler {
         }
         throw new PureCompileException("Expected property access, got: " + expr);
     }
-    
+
     /**
      * Information needed to build a JOIN for association projection.
      * The actual JoinNode is built later to preserve the source (with filters).
@@ -252,9 +344,9 @@ public final class PureCompiler {
             String alias,
             RelationalMapping targetMapping,
             String leftColumn,
-            String rightColumn
-    ) {}
-    
+            String rightColumn) {
+    }
+
     /**
      * Compiles a Pure expression to a SQL expression.
      * 
@@ -268,24 +360,25 @@ public final class PureCompiler {
             case LogicalExpr logical -> compileLogical(logical, context);
             case PropertyAccessExpression propAccess -> compilePropertyAccess(propAccess, context);
             case LiteralExpr literal -> compileLiteral(literal);
-            case VariableExpr var -> throw new PureCompileException("Unexpected variable in expression context: " + var);
+            case VariableExpr var ->
+                throw new PureCompileException("Unexpected variable in expression context: " + var);
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
         };
     }
-    
+
     private Expression compileComparison(ComparisonExpr comp, CompilationContext context) {
         // Check if left side involves association navigation through to-many
         AssociationPath leftPath = analyzePropertyPath(comp.left(), context);
-        
+
         if (leftPath != null && leftPath.hasToManyNavigation() && context.inFilterContext()) {
             // Generate EXISTS for to-many navigation
             return compileToManyComparison(leftPath, comp.operator(), comp.right(), context);
         }
-        
+
         // Standard comparison
         Expression left = compileToSqlExpression(comp.left(), context);
         Expression right = compileToSqlExpression(comp.right(), context);
-        
+
         ComparisonExpression.ComparisonOperator op = switch (comp.operator()) {
             case EQUALS -> ComparisonExpression.ComparisonOperator.EQUALS;
             case NOT_EQUALS -> ComparisonExpression.ComparisonOperator.NOT_EQUALS;
@@ -294,10 +387,10 @@ public final class PureCompiler {
             case GREATER_THAN -> ComparisonExpression.ComparisonOperator.GREATER_THAN;
             case GREATER_THAN_OR_EQUALS -> ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS;
         };
-        
+
         return new ComparisonExpression(left, op, right);
     }
-    
+
     /**
      * Analyzes a property access path to detect association navigation.
      * 
@@ -310,58 +403,57 @@ public final class PureCompiler {
         if (!(expr instanceof PropertyAccessExpression)) {
             return null;
         }
-        
+
         if (modelContext == null) {
             return null; // No model context, can't analyze associations
         }
-        
+
         // Collect the property chain
         List<String> segments = new ArrayList<>();
         PureExpression current = expr;
-        
+
         while (current instanceof PropertyAccessExpression propAccess) {
             segments.addFirst(propAccess.propertyName()); // Add to front
             current = propAccess.source();
         }
-        
+
         if (!(current instanceof VariableExpr var)) {
             return null;
         }
-        
+
         // Verify the variable matches the lambda parameter
         if (!var.name().equals(context.lambdaParameter())) {
             return null;
         }
-        
+
         // Analyze each segment for association navigation
         String currentClassName = context.className();
         RelationalMapping currentMapping = context.mapping();
         List<NavigationSegment> navigationSegments = new ArrayList<>();
         boolean hasToMany = false;
-        
+
         for (int i = 0; i < segments.size(); i++) {
             String propName = segments.get(i);
-            
+
             // Check if this is an association navigation
             var assocNav = modelContext.findAssociationByProperty(currentClassName, propName);
-            
+
             if (assocNav.isPresent()) {
                 var nav = assocNav.get();
                 if (nav.isToMany()) {
                     hasToMany = true;
                 }
-                
+
                 // Get the target class and mapping
                 String targetClassName = nav.targetClassName();
                 RelationalMapping targetMapping = modelContext.findMapping(targetClassName).orElse(null);
-                
+
                 navigationSegments.add(new NavigationSegment(
                         propName,
                         nav,
                         currentMapping,
-                        targetMapping
-                ));
-                
+                        targetMapping));
+
                 currentClassName = targetClassName;
                 currentMapping = targetMapping;
             } else {
@@ -370,30 +462,32 @@ public final class PureCompiler {
                         propName,
                         null,
                         currentMapping,
-                        null
-                ));
+                        null));
             }
         }
-        
+
         return new AssociationPath(var.name(), navigationSegments, hasToMany);
     }
-    
+
     /**
-     * Compiles a comparison that involves to-many navigation into an EXISTS expression.
+     * Compiles a comparison that involves to-many navigation into an EXISTS
+     * expression.
      * 
      * For: $p.addresses.street == 'Main St'
-     * Generates: EXISTS (SELECT 1 FROM T_ADDRESS a WHERE a.PERSON_ID = p.ID AND a.STREET = 'Main St')
+     * Generates: EXISTS (SELECT 1 FROM T_ADDRESS a WHERE a.PERSON_ID = p.ID AND
+     * a.STREET = 'Main St')
      */
-    private Expression compileToManyComparison(AssociationPath path, ComparisonExpr.Operator op, 
-                                                PureExpression rightExpr, CompilationContext context) {
+    private Expression compileToManyComparison(AssociationPath path, ComparisonExpr.Operator op,
+            PureExpression rightExpr, CompilationContext context) {
         // Build the EXISTS subquery
-        // We need to navigate through the association chain and build the correlated subquery
-        
+        // We need to navigate through the association chain and build the correlated
+        // subquery
+
         List<NavigationSegment> segments = path.segments();
         if (segments.isEmpty()) {
             throw new PureCompileException("Empty association path");
         }
-        
+
         // Find the first to-many navigation
         int toManyIndex = -1;
         for (int i = 0; i < segments.size(); i++) {
@@ -402,43 +496,42 @@ public final class PureCompiler {
                 break;
             }
         }
-        
+
         if (toManyIndex < 0) {
             throw new PureCompileException("No to-many navigation found in path");
         }
-        
+
         NavigationSegment toManySegment = segments.get(toManyIndex);
         AssociationNavigation nav = toManySegment.navigation();
         RelationalMapping targetMapping = toManySegment.targetMapping();
-        
+
         if (targetMapping == null || nav.join() == null) {
             throw new PureCompileException("No mapping or join found for association: " + nav.association().name());
         }
-        
+
         // Create the target table node
         String targetAlias = "sub" + aliasCounter++;
         TableNode targetTable = new TableNode(targetMapping.table(), targetAlias);
-        
+
         // Build the correlation condition (e.g., a.PERSON_ID = p.ID)
         Join join = nav.join();
         String outerColumn = join.getColumnForTable(context.mapping().table().name());
         String innerColumn = join.getColumnForTable(targetMapping.table().name());
-        
+
         Expression correlation = ComparisonExpression.equals(
                 ColumnReference.of(targetAlias, innerColumn),
-                ColumnReference.of(context.tableAlias(), outerColumn)
-        );
-        
+                ColumnReference.of(context.tableAlias(), outerColumn));
+
         // Build the filter condition on the target property
         // The final segment should be a property access on the target class
         NavigationSegment finalSegment = segments.getLast();
         String targetProperty = finalSegment.propertyName();
         String targetColumn = targetMapping.getColumnForProperty(targetProperty)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + targetProperty));
-        
+
         Expression left = ColumnReference.of(targetAlias, targetColumn);
         Expression right = compileLiteral((LiteralExpr) rightExpr);
-        
+
         ComparisonExpression.ComparisonOperator sqlOp = switch (op) {
             case EQUALS -> ComparisonExpression.ComparisonOperator.EQUALS;
             case NOT_EQUALS -> ComparisonExpression.ComparisonOperator.NOT_EQUALS;
@@ -447,46 +540,47 @@ public final class PureCompiler {
             case GREATER_THAN -> ComparisonExpression.ComparisonOperator.GREATER_THAN;
             case GREATER_THAN_OR_EQUALS -> ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS;
         };
-        
+
         Expression propertyFilter = new ComparisonExpression(left, sqlOp, right);
-        
+
         // Combine correlation and property filter
         Expression subqueryCondition = LogicalExpression.and(correlation, propertyFilter);
-        
+
         // Create the subquery
         FilterNode subquery = new FilterNode(targetTable, subqueryCondition);
-        
+
         // Return EXISTS expression
         return ExistsExpression.exists(subquery);
     }
-    
+
     private Expression compileLogical(LogicalExpr logical, CompilationContext context) {
         List<Expression> compiledOperands = logical.operands().stream()
                 .map(op -> compileToSqlExpression(op, context))
                 .toList();
-        
+
         return switch (logical.operator()) {
             case AND -> LogicalExpression.and(compiledOperands);
             case OR -> new LogicalExpression(LogicalExpression.LogicalOperator.OR, compiledOperands);
             case NOT -> LogicalExpression.not(compiledOperands.getFirst());
         };
     }
-    
+
     private Expression compilePropertyAccess(PropertyAccessExpression propAccess, CompilationContext context) {
         // For simple property access (not through associations), just map to column
         String varName = extractVariableName(propAccess.source());
-        
+
         if (!varName.equals(context.lambdaParameter())) {
-            throw new PureCompileException("Unknown variable: $" + varName + ", expected: $" + context.lambdaParameter());
+            throw new PureCompileException(
+                    "Unknown variable: $" + varName + ", expected: $" + context.lambdaParameter());
         }
-        
+
         String propertyName = propAccess.propertyName();
         String columnName = context.mapping().getColumnForProperty(propertyName)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
-        
+
         return ColumnReference.of(context.tableAlias(), columnName);
     }
-    
+
     private Expression compileLiteral(LiteralExpr literal) {
         return switch (literal.type()) {
             case STRING -> Literal.string((String) literal.value());
@@ -495,14 +589,14 @@ public final class PureCompiler {
             case BOOLEAN -> Literal.bool((Boolean) literal.value());
         };
     }
-    
+
     private String extractPropertyName(PureExpression expr) {
         if (expr instanceof PropertyAccessExpression propAccess) {
             return propAccess.propertyName();
         }
         throw new PureCompileException("Expected property access in projection, got: " + expr);
     }
-    
+
     private String extractVariableName(PureExpression expr) {
         if (expr instanceof VariableExpr var) {
             return var.name();
@@ -512,35 +606,36 @@ public final class PureCompiler {
         }
         throw new PureCompileException("Cannot extract variable name from: " + expr);
     }
-    
+
     private String getTableAlias(RelationNode node) {
         return switch (node) {
             case TableNode table -> table.alias();
             case FilterNode filter -> getTableAlias(filter.source());
             case ProjectNode project -> getTableAlias(project.source());
             case JoinNode join -> getTableAlias(join.left());
+            case GroupByNode groupBy -> getTableAlias(groupBy.source());
         };
     }
-    
+
     private RelationalMapping getMappingFromSource(PureExpression source) {
         return switch (source) {
             case ClassAllExpression classAll -> mappingRegistry.findByClassName(classAll.className())
                     .orElseThrow(() -> new PureCompileException("No mapping for class: " + classAll.className()));
-            case FilterExpression filter -> getMappingFromSource(filter.source());
+            case ClassFilterExpression filter -> getMappingFromSource(filter.source());
             case ProjectExpression project -> getMappingFromSource(project.source());
             default -> throw new PureCompileException("Cannot determine mapping from: " + source);
         };
     }
-    
+
     private String getClassNameFromSource(PureExpression source) {
         return switch (source) {
             case ClassAllExpression classAll -> classAll.className();
-            case FilterExpression filter -> getClassNameFromSource(filter.source());
+            case ClassFilterExpression filter -> getClassNameFromSource(filter.source());
             case ProjectExpression project -> getClassNameFromSource(project.source());
             default -> throw new PureCompileException("Cannot determine class name from: " + source);
         };
     }
-    
+
     /**
      * Context for compiling within a lambda expression.
      */
@@ -549,8 +644,7 @@ public final class PureCompiler {
             String tableAlias,
             RelationalMapping mapping,
             String className,
-            boolean inFilterContext
-    ) {
+            boolean inFilterContext) {
         /**
          * Legacy constructor for backwards compatibility.
          */
@@ -558,16 +652,16 @@ public final class PureCompiler {
             this(lambdaParameter, tableAlias, mapping, mapping.pureClass().name(), false);
         }
     }
-    
+
     /**
      * Represents a navigation path through properties and associations.
      */
     private record AssociationPath(
             String baseVariable,
             List<NavigationSegment> segments,
-            boolean hasToManyNavigation
-    ) {}
-    
+            boolean hasToManyNavigation) {
+    }
+
     /**
      * Represents a single segment in a navigation path.
      */
@@ -575,8 +669,7 @@ public final class PureCompiler {
             String propertyName,
             AssociationNavigation navigation,
             RelationalMapping sourceMapping,
-            RelationalMapping targetMapping
-    ) {
+            RelationalMapping targetMapping) {
         boolean isAssociationNavigation() {
             return navigation != null;
         }

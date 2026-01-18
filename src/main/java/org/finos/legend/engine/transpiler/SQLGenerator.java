@@ -7,18 +7,19 @@ import java.util.stream.Collectors;
 
 /**
  * Transpiles a RelationNode tree into a SQL string.
- * This is the core transpiler that implements the "Database-as-Runtime" philosophy.
+ * This is the core transpiler that implements the "Database-as-Runtime"
+ * philosophy.
  * 
  * The generator traverses the logical plan and produces dialect-specific SQL.
  */
 public final class SQLGenerator implements RelationNodeVisitor<String>, ExpressionVisitor<String> {
-    
+
     private final SQLDialect dialect;
-    
+
     public SQLGenerator(SQLDialect dialect) {
         this.dialect = Objects.requireNonNull(dialect, "Dialect cannot be null");
     }
-    
+
     /**
      * Generates SQL from a relation node tree.
      * 
@@ -28,7 +29,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     public String generate(RelationNode node) {
         return node.accept(this);
     }
-    
+
     /**
      * Generates SQL from an expression.
      * 
@@ -38,22 +39,23 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     public String generateExpression(Expression expression) {
         return expression.accept(this);
     }
-    
+
     // ==================== RelationNode Visitors ====================
-    
+
     @Override
     public String visit(TableNode table) {
         // Simple table scan: FROM "table" AS "alias"
-        return "SELECT * FROM " + dialect.quoteIdentifier(table.table().name()) 
+        return "SELECT * FROM " + dialect.quoteIdentifier(table.table().name())
                 + " AS " + dialect.quoteIdentifier(table.alias());
     }
-    
+
     @Override
     public String visit(FilterNode filter) {
-        // We need to handle the case where filter is on top of table or on top of project
+        // We need to handle the case where filter is on top of table or on top of
+        // project
         RelationNode source = filter.source();
         String whereClause = filter.condition().accept(this);
-        
+
         return switch (source) {
             case TableNode table -> {
                 yield "SELECT * FROM " + dialect.quoteIdentifier(table.table().name())
@@ -74,9 +76,14 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = join.accept(this);
                 yield innerSql + " WHERE " + whereClause;
             }
+            case GroupByNode groupBy -> {
+                // Filter on top of group by
+                String innerSql = groupBy.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS grp WHERE " + whereClause;
+            }
         };
     }
-    
+
     @Override
     public String visit(ProjectNode project) {
         // Check the source type to construct appropriate SQL
@@ -90,36 +97,84 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String projections = formatProjections(project);
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS subq";
             }
+            case GroupByNode groupBy -> {
+                // Project on top of group by
+                String innerSql = groupBy.accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS groupby_result";
+            }
         };
     }
-    
+
     @Override
     public String visit(JoinNode join) {
         var sb = new StringBuilder();
-        
+
         // Get left table info
         TableNode leftTable = extractTableNode(join.left());
         TableNode rightTable = extractTableNode(join.right());
-        
+
         sb.append("SELECT * FROM ");
         sb.append(dialect.quoteIdentifier(leftTable.table().name()));
         sb.append(" AS ");
         sb.append(dialect.quoteIdentifier(leftTable.alias()));
-        
+
         sb.append(" ");
         sb.append(join.joinType().toSql());
         sb.append(" ");
-        
+
         sb.append(dialect.quoteIdentifier(rightTable.table().name()));
         sb.append(" AS ");
         sb.append(dialect.quoteIdentifier(rightTable.alias()));
-        
+
         sb.append(" ON ");
         sb.append(join.condition().accept(this));
-        
+
         return sb.toString();
     }
-    
+
+    @Override
+    public String visit(GroupByNode groupBy) {
+        var sb = new StringBuilder();
+
+        // Generate the source subquery
+        String sourceSql = groupBy.source().accept(this);
+
+        // Build SELECT clause with grouping columns and aggregations
+        sb.append("SELECT ");
+
+        // Add grouping columns
+        String groupCols = groupBy.groupingColumns().stream()
+                .map(dialect::quoteIdentifier)
+                .collect(Collectors.joining(", "));
+        sb.append(groupCols);
+
+        // Add aggregate projections
+        for (GroupByNode.AggregateProjection agg : groupBy.aggregations()) {
+            sb.append(", ");
+            sb.append(agg.function().sql());
+            sb.append("(");
+            sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+            sb.append(")");
+            if (agg.function() == AggregateExpression.AggregateFunction.COUNT_DISTINCT) {
+                sb.append(")"); // close the extra paren for COUNT(DISTINCT ...)
+            }
+            sb.append(" AS ");
+            sb.append(dialect.quoteIdentifier(agg.alias()));
+        }
+
+        // FROM subquery
+        sb.append(" FROM (");
+        sb.append(sourceSql);
+        sb.append(") AS groupby_src");
+
+        // GROUP BY clause
+        sb.append(" GROUP BY ");
+        sb.append(groupCols);
+
+        return sb.toString();
+    }
+
     private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
         // Common case: Project on top of Filter on top of Table
         return switch (filter.source()) {
@@ -133,48 +188,49 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
         };
     }
-    
+
     private String visitProjectWithJoin(ProjectNode project, JoinNode join, Expression whereCondition) {
         var sb = new StringBuilder();
-        
+
         // Extract table info and any filter conditions from the left side
         TableNode leftTable = extractTableNode(join.left());
         TableNode rightTable = extractTableNode(join.right());
-        
-        // Check if the left side has a filter condition (e.g., EXISTS from association filter)
+
+        // Check if the left side has a filter condition (e.g., EXISTS from association
+        // filter)
         Expression leftFilterCondition = extractFilterCondition(join.left());
-        
+
         // SELECT clause
         sb.append("SELECT ");
         sb.append(formatProjections(project));
-        
+
         // FROM clause with JOIN
         sb.append(" FROM ");
         sb.append(dialect.quoteIdentifier(leftTable.table().name()));
         sb.append(" AS ");
         sb.append(dialect.quoteIdentifier(leftTable.alias()));
-        
+
         sb.append(" ");
         sb.append(join.joinType().toSql());
         sb.append(" ");
-        
+
         sb.append(dialect.quoteIdentifier(rightTable.table().name()));
         sb.append(" AS ");
         sb.append(dialect.quoteIdentifier(rightTable.alias()));
-        
+
         sb.append(" ON ");
         sb.append(join.condition().accept(this));
-        
+
         // WHERE clause: combine any filter from left side + explicit whereCondition
         Expression combinedWhere = combineConditions(leftFilterCondition, whereCondition);
         if (combinedWhere != null) {
             sb.append(" WHERE ");
             sb.append(combinedWhere.accept(this));
         }
-        
+
         return sb.toString();
     }
-    
+
     /**
      * Extracts a filter condition from a relation node, if present.
      * Used to preserve EXISTS conditions from filters when building JOINs.
@@ -185,71 +241,75 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case ProjectNode project -> extractFilterCondition(project.source());
             case JoinNode join -> extractFilterCondition(join.left()); // Recurse into left side
             case TableNode table -> null; // No filter
+            case GroupByNode groupBy -> extractFilterCondition(groupBy.source());
         };
     }
-    
+
     /**
      * Combines two conditions with AND, handling nulls.
      */
     private Expression combineConditions(Expression cond1, Expression cond2) {
-        if (cond1 == null) return cond2;
-        if (cond2 == null) return cond1;
+        if (cond1 == null)
+            return cond2;
+        if (cond2 == null)
+            return cond1;
         return LogicalExpression.and(cond1, cond2);
     }
-    
+
     private TableNode extractTableNode(RelationNode node) {
         return switch (node) {
             case TableNode table -> table;
             case FilterNode filter -> extractTableNode(filter.source());
             case ProjectNode project -> extractTableNode(project.source());
             case JoinNode join -> extractTableNode(join.left()); // For nested joins, take left
+            case GroupByNode groupBy -> extractTableNode(groupBy.source());
         };
     }
-    
+
     private String generateSelectFromTable(ProjectNode project, TableNode table, Expression whereCondition) {
         var sb = new StringBuilder();
-        
+
         // SELECT clause
         sb.append("SELECT ");
         sb.append(formatProjections(project));
-        
+
         // FROM clause
         sb.append(" FROM ");
         sb.append(dialect.quoteIdentifier(table.table().name()));
         sb.append(" AS ");
         sb.append(dialect.quoteIdentifier(table.alias()));
-        
+
         // WHERE clause (optional)
         if (whereCondition != null) {
             sb.append(" WHERE ");
             sb.append(whereCondition.accept(this));
         }
-        
+
         return sb.toString();
     }
-    
+
     private String formatProjections(ProjectNode project) {
         return project.projections().stream()
                 .map(this::formatProjection)
                 .collect(Collectors.joining(", "));
     }
-    
+
     private String formatProjection(Projection projection) {
         String expr = projection.expression().accept(this);
         return expr + " AS " + dialect.quoteIdentifier(projection.alias());
     }
-    
+
     // ==================== Expression Visitors ====================
-    
+
     @Override
     public String visitColumnReference(ColumnReference columnRef) {
         if (columnRef.tableAlias().isEmpty()) {
             return dialect.quoteIdentifier(columnRef.columnName());
         }
-        return dialect.quoteIdentifier(columnRef.tableAlias()) 
+        return dialect.quoteIdentifier(columnRef.tableAlias())
                 + "." + dialect.quoteIdentifier(columnRef.columnName());
     }
-    
+
     @Override
     public String visitLiteral(Literal literal) {
         return switch (literal.type()) {
@@ -260,22 +320,22 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case NULL -> dialect.formatNull();
         };
     }
-    
+
     @Override
     public String visitComparison(ComparisonExpression comparison) {
         String left = comparison.left().accept(this);
         String op = comparison.operator().toSql();
-        
+
         // Handle IS NULL / IS NOT NULL (unary operators)
         if (comparison.operator() == ComparisonExpression.ComparisonOperator.IS_NULL ||
-            comparison.operator() == ComparisonExpression.ComparisonOperator.IS_NOT_NULL) {
+                comparison.operator() == ComparisonExpression.ComparisonOperator.IS_NOT_NULL) {
             return left + " " + op;
         }
-        
+
         String right = comparison.right().accept(this);
         return left + " " + op + " " + right;
     }
-    
+
     @Override
     public String visitLogical(LogicalExpression logical) {
         return switch (logical.operator()) {
@@ -288,18 +348,19 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     .collect(Collectors.joining(" OR ", "(", ")"));
         };
     }
-    
+
     @Override
     public String visitExists(ExistsExpression exists) {
-        // Generate the correlated subquery - but strip outer SELECT * and make it SELECT 1
+        // Generate the correlated subquery - but strip outer SELECT * and make it
+        // SELECT 1
         String subquerySql = generateExistsSubquery(exists.subquery());
-        
+
         if (exists.negated()) {
             return "NOT EXISTS (" + subquerySql + ")";
         }
         return "EXISTS (" + subquerySql + ")";
     }
-    
+
     @Override
     public String visitConcat(ConcatExpression concat) {
         // Use || for concatenation (works in DuckDB, SQLite, PostgreSQL)
@@ -307,12 +368,12 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 .map(e -> e.accept(this))
                 .collect(Collectors.joining(" || ", "(", ")"));
     }
-    
+
     @Override
     public String visitFunctionCall(SqlFunctionCall functionCall) {
         String funcName = functionCall.sqlFunctionName();
         String target = functionCall.target().accept(this);
-        
+
         if (functionCall.arguments().isEmpty()) {
             return funcName + "(" + target + ")";
         } else {
@@ -322,19 +383,19 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             return funcName + "(" + target + ", " + args + ")";
         }
     }
-    
+
     @Override
     public String visitCase(CaseExpression caseExpr) {
         var sb = new StringBuilder();
         sb.append("CASE");
-        
+
         // Flatten nested CASE expressions for cleaner SQL
         appendCaseWhen(sb, caseExpr);
-        
+
         sb.append(" END");
         return sb.toString();
     }
-    
+
     /**
      * Helper to append CASE WHEN clauses, flattening nested CaseExpressions.
      */
@@ -343,7 +404,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         sb.append(caseExpr.condition().accept(this));
         sb.append(" THEN ");
         sb.append(caseExpr.thenValue().accept(this));
-        
+
         if (caseExpr.elseValue() instanceof CaseExpression nested) {
             // Flatten nested if into multiple WHEN clauses
             appendCaseWhen(sb, nested);
@@ -352,14 +413,24 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             sb.append(caseExpr.elseValue().accept(this));
         }
     }
-    
+
     @Override
     public String visitArithmetic(ArithmeticExpression arithmetic) {
         String left = arithmetic.left().accept(this);
         String right = arithmetic.right().accept(this);
         return "(" + left + " " + arithmetic.sqlOperator() + " " + right + ")";
     }
-    
+
+    @Override
+    public String visitAggregate(AggregateExpression aggregate) {
+        String arg = aggregate.argument().accept(this);
+        String funcName = aggregate.function().sql();
+        if (aggregate.function() == AggregateExpression.AggregateFunction.COUNT_DISTINCT) {
+            return funcName + " " + arg + ")"; // COUNT(DISTINCT col)
+        }
+        return funcName + "(" + arg + ")";
+    }
+
     /**
      * Generates a subquery suitable for EXISTS.
      * The subquery uses SELECT 1 instead of SELECT * for efficiency.
@@ -405,6 +476,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case ProjectNode project -> {
                 // For EXISTS, we don't need the projections, just the source with filter
                 yield generateExistsSubquery(project.source());
+            }
+            case GroupByNode groupBy -> {
+                // For EXISTS, we don't need aggregations, just the source
+                yield generateExistsSubquery(groupBy.source());
             }
         };
     }

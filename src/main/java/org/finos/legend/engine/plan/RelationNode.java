@@ -10,14 +10,14 @@ package org.finos.legend.engine.plan;
  * - ProjectNode: Column projection (SELECT clause)
  * - JoinNode: Table join (JOIN clause)
  */
-public sealed interface RelationNode 
-        permits TableNode, FilterNode, ProjectNode, JoinNode {
-    
+public sealed interface RelationNode
+        permits TableNode, FilterNode, ProjectNode, JoinNode, GroupByNode {
+
     /**
      * Accept method for the visitor pattern.
      * 
      * @param visitor The visitor to accept
-     * @param <T> The return type of the visitor
+     * @param <T>     The return type of the visitor
      * @return The result of visiting this node
      */
     <T> T accept(RelationNodeVisitor<T> visitor);
