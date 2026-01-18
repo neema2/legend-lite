@@ -49,6 +49,10 @@ public final class PureDefinitionParser {
                 var result = parseService(remaining);
                 definitions.add(result.definition);
                 remaining = result.remaining;
+            } else if (remaining.startsWith("Enum ")) {
+                var result = parseEnum(remaining);
+                definitions.add(result.definition);
+                remaining = result.remaining;
             } else {
                 throw new PureParseException("Unknown definition starting with: " +
                         remaining.substring(0, Math.min(50, remaining.length())));
@@ -613,5 +617,50 @@ public final class PureDefinitionParser {
             return matcher.group(1);
         }
         return null; // Documentation is optional
+    }
+
+    // ==================== Enum Parsing ====================
+
+    /**
+     * Parses a single Enum definition.
+     * 
+     * Syntax: Enum package::Name { VALUE1, VALUE2, VALUE3 }
+     */
+    public static EnumDefinition parseEnumDefinition(String pureSource) {
+        var result = parseEnum(pureSource.trim());
+        return result.definition;
+    }
+
+    private static ParseResult<EnumDefinition> parseEnum(String source) {
+        // Pattern: Enum qualified::Name { VALUE1, VALUE2, ... }
+        Pattern headerPattern = Pattern.compile("Enum\\s+([\\w:]+)\\s*\\{");
+        Matcher headerMatcher = headerPattern.matcher(source);
+
+        if (!headerMatcher.find()) {
+            throw new PureParseException("Invalid Enum definition");
+        }
+
+        String qualifiedName = headerMatcher.group(1);
+        int bodyStart = headerMatcher.end();
+        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
+
+        String body = source.substring(bodyStart, bodyEnd).trim();
+
+        // Parse values: VALUE1, VALUE2, VALUE3
+        List<String> values = new ArrayList<>();
+        for (String value : body.split(",")) {
+            String trimmed = value.trim();
+            if (!trimmed.isEmpty()) {
+                values.add(trimmed);
+            }
+        }
+
+        if (values.isEmpty()) {
+            throw new PureParseException("Enum must have at least one value");
+        }
+
+        return new ParseResult<>(
+                EnumDefinition.of(qualifiedName, values),
+                source.substring(bodyEnd + 1));
     }
 }

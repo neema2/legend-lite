@@ -46,6 +46,7 @@ public final class PureModelBuilder implements ModelContext {
                 case MappingDefinition mappingDef -> addMapping(mappingDef);
                 case M2MMappingDefinition m2mDef -> addM2MMapping(m2mDef);
                 case ServiceDefinition serviceDef -> addService(serviceDef);
+                case EnumDefinition enumDef -> addEnum(enumDef);
             }
         }
 
@@ -177,6 +178,16 @@ public final class PureModelBuilder implements ModelContext {
     public PureModelBuilder addService(ServiceDefinition serviceDef) {
         // Services are registered with the ServiceRegistry at runtime.
         // The model builder just stores them for later access.
+        return this;
+    }
+
+    /**
+     * Adds an Enum definition.
+     * Enums are type-safe value sets used for properties.
+     */
+    public PureModelBuilder addEnum(EnumDefinition enumDef) {
+        // Store enum for validation and type checking
+        // Enum values are stored as strings in SQL
         return this;
     }
 
