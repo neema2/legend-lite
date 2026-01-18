@@ -31,4 +31,24 @@ public interface ExpressionVisitor<T> {
      * Visit an EXISTS expression (correlated subquery).
      */
     T visitExists(ExistsExpression exists);
+    
+    /**
+     * Visit a string concatenation expression.
+     */
+    T visitConcat(ConcatExpression concat);
+    
+    /**
+     * Visit a SQL function call expression.
+     */
+    T visitFunctionCall(SqlFunctionCall functionCall);
+    
+    /**
+     * Visit a CASE/conditional expression.
+     */
+    T visitCase(CaseExpression caseExpr);
+    
+    /**
+     * Visit an arithmetic expression.
+     */
+    T visitArithmetic(ArithmeticExpression arithmetic);
 }

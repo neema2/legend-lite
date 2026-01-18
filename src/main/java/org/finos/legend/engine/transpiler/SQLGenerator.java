@@ -300,6 +300,66 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return "EXISTS (" + subquerySql + ")";
     }
     
+    @Override
+    public String visitConcat(ConcatExpression concat) {
+        // Use || for concatenation (works in DuckDB, SQLite, PostgreSQL)
+        return concat.parts().stream()
+                .map(e -> e.accept(this))
+                .collect(Collectors.joining(" || ", "(", ")"));
+    }
+    
+    @Override
+    public String visitFunctionCall(SqlFunctionCall functionCall) {
+        String funcName = functionCall.sqlFunctionName();
+        String target = functionCall.target().accept(this);
+        
+        if (functionCall.arguments().isEmpty()) {
+            return funcName + "(" + target + ")";
+        } else {
+            String args = functionCall.arguments().stream()
+                    .map(e -> e.accept(this))
+                    .collect(Collectors.joining(", "));
+            return funcName + "(" + target + ", " + args + ")";
+        }
+    }
+    
+    @Override
+    public String visitCase(CaseExpression caseExpr) {
+        var sb = new StringBuilder();
+        sb.append("CASE");
+        
+        // Flatten nested CASE expressions for cleaner SQL
+        appendCaseWhen(sb, caseExpr);
+        
+        sb.append(" END");
+        return sb.toString();
+    }
+    
+    /**
+     * Helper to append CASE WHEN clauses, flattening nested CaseExpressions.
+     */
+    private void appendCaseWhen(StringBuilder sb, CaseExpression caseExpr) {
+        sb.append(" WHEN ");
+        sb.append(caseExpr.condition().accept(this));
+        sb.append(" THEN ");
+        sb.append(caseExpr.thenValue().accept(this));
+        
+        if (caseExpr.elseValue() instanceof CaseExpression nested) {
+            // Flatten nested if into multiple WHEN clauses
+            appendCaseWhen(sb, nested);
+        } else {
+            sb.append(" ELSE ");
+            sb.append(caseExpr.elseValue().accept(this));
+        }
+    }
+    
+    @Override
+    public String visitArithmetic(ArithmeticExpression arithmetic) {
+        String left = arithmetic.left().accept(this);
+        String right = arithmetic.right().accept(this);
+        return "(" + left + " " + arithmetic.sqlOperator() + " " + right + ")";
+    }
+    
     /**
      * Generates a subquery suitable for EXISTS.
      * The subquery uses SELECT 1 instead of SELECT * for efficiency.

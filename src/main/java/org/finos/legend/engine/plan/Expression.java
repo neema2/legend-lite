@@ -12,7 +12,8 @@ package org.finos.legend.engine.plan;
  * - ExistsExpression: EXISTS (subquery) for to-many navigation
  */
 public sealed interface Expression 
-        permits ColumnReference, Literal, ComparisonExpression, LogicalExpression, ExistsExpression {
+        permits ColumnReference, Literal, ComparisonExpression, LogicalExpression, ExistsExpression,
+                ConcatExpression, SqlFunctionCall, CaseExpression, ArithmeticExpression {
     
     /**
      * Accept method for the expression visitor pattern.
