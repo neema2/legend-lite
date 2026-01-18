@@ -9,6 +9,7 @@ package org.finos.legend.pure.dsl.definition;
  * - Database (Store) definitions
  * - Mapping definitions
  */
-public sealed interface PureDefinition 
-        permits ClassDefinition, AssociationDefinition, DatabaseDefinition, MappingDefinition {
+public sealed interface PureDefinition
+                permits ClassDefinition, AssociationDefinition, DatabaseDefinition, MappingDefinition,
+                M2MMappingDefinition {
 }
