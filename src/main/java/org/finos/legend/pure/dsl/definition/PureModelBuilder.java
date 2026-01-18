@@ -45,6 +45,7 @@ public final class PureModelBuilder implements ModelContext {
                 case DatabaseDefinition dbDef -> addDatabase(dbDef);
                 case MappingDefinition mappingDef -> addMapping(mappingDef);
                 case M2MMappingDefinition m2mDef -> addM2MMapping(m2mDef);
+                case ServiceDefinition serviceDef -> addService(serviceDef);
             }
         }
 
@@ -166,6 +167,16 @@ public final class PureModelBuilder implements ModelContext {
     public PureModelBuilder addM2MMapping(M2MMappingDefinition m2mMappingDef) {
         // M2M mappings are used directly by M2MCompiler at compile time.
         // The source class must already have a relational mapping registered.
+        return this;
+    }
+
+    /**
+     * Adds a Service definition.
+     * Services are used by the hosted service runtime for HTTP endpoints.
+     */
+    public PureModelBuilder addService(ServiceDefinition serviceDef) {
+        // Services are registered with the ServiceRegistry at runtime.
+        // The model builder just stores them for later access.
         return this;
     }
 

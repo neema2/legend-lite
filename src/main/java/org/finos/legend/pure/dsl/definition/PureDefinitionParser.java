@@ -45,6 +45,10 @@ public final class PureDefinitionParser {
                 var result = parseAssociation(remaining);
                 definitions.add(result.definition);
                 remaining = result.remaining;
+            } else if (remaining.startsWith("Service ")) {
+                var result = parseService(remaining);
+                definitions.add(result.definition);
+                remaining = result.remaining;
             } else {
                 throw new PureParseException("Unknown definition starting with: " +
                         remaining.substring(0, Math.min(50, remaining.length())));
@@ -536,5 +540,78 @@ public final class PureDefinitionParser {
     }
 
     private record ParseResult<T>(T definition, String remaining) {
+    }
+
+    // ==================== Service Parsing ====================
+
+    /**
+     * Parses a single Service definition.
+     */
+    public static ServiceDefinition parseServiceDefinition(String pureSource) {
+        var result = parseService(pureSource.trim());
+        return result.definition;
+    }
+
+    private static ParseResult<ServiceDefinition> parseService(String source) {
+        // Pattern: Service qualified::Name { ... }
+        Pattern headerPattern = Pattern.compile("Service\\s+([\\w:]+)\\s*\\{");
+        Matcher headerMatcher = headerPattern.matcher(source);
+
+        if (!headerMatcher.find()) {
+            throw new PureParseException("Invalid Service definition");
+        }
+
+        String qualifiedName = headerMatcher.group(1);
+        int bodyStart = headerMatcher.end();
+        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
+
+        String body = source.substring(bodyStart, bodyEnd);
+
+        // Parse pattern
+        String pattern = parseServicePattern(body);
+
+        // Parse function body
+        String functionBody = parseServiceFunction(body);
+
+        // Parse documentation (optional)
+        String documentation = parseServiceDocumentation(body);
+
+        return new ParseResult<>(
+                ServiceDefinition.of(qualifiedName, pattern, functionBody, documentation),
+                source.substring(bodyEnd + 1));
+    }
+
+    private static String parseServicePattern(String body) {
+        // Pattern: pattern: '/api/path/{param}';
+        Pattern pattern = Pattern.compile("pattern\\s*:\\s*'([^']+)'\\s*;?");
+        Matcher matcher = pattern.matcher(body);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        throw new PureParseException("Service must have a pattern");
+    }
+
+    private static String parseServiceFunction(String body) {
+        // Pattern: function: |expr;
+        // The function body is a lambda expression starting with |
+        Pattern pattern = Pattern.compile("function\\s*:\\s*\\|([^;]+);?");
+        Matcher matcher = pattern.matcher(body);
+
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        throw new PureParseException("Service must have a function");
+    }
+
+    private static String parseServiceDocumentation(String body) {
+        // Pattern: documentation: 'description';
+        Pattern pattern = Pattern.compile("documentation\\s*:\\s*'([^']*)'\\s*;?");
+        Matcher matcher = pattern.matcher(body);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null; // Documentation is optional
     }
 }
