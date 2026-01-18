@@ -96,8 +96,10 @@ public final class JavaCodeGenerator {
         }
         sb.append(")");
 
-        // Check if we need a body for derived properties
-        if (!classDef.derivedProperties().isEmpty()) {
+        // Check if we need a body for derived properties or constraints
+        boolean needsBody = !classDef.derivedProperties().isEmpty() || !classDef.constraints().isEmpty();
+
+        if (needsBody) {
             sb.append(" {\n");
 
             // Generate derived property methods
@@ -114,12 +116,47 @@ public final class JavaCodeGenerator {
                 sb.append(INDENT).append("}\n");
             }
 
+            // Generate validate() method for constraints
+            if (!classDef.constraints().isEmpty()) {
+                sb.append("\n");
+                sb.append(INDENT).append("/**\n");
+                sb.append(INDENT).append(" * Validates all constraints on this record.\n");
+                sb.append(INDENT).append(" * @return List of constraint names that failed validation\n");
+                sb.append(INDENT).append(" */\n");
+                sb.append(INDENT).append("public java.util.List<String> validate() {\n");
+                sb.append(INDENT).append(INDENT)
+                        .append("java.util.List<String> errors = new java.util.ArrayList<>();\n");
+
+                for (var constraint : classDef.constraints()) {
+                    sb.append(INDENT).append(INDENT);
+                    sb.append("if (!(").append(translateConstraintToJava(constraint.expression())).append(")) ");
+                    sb.append("errors.add(\"").append(constraint.name()).append("\");\n");
+                }
+
+                sb.append(INDENT).append(INDENT).append("return errors;\n");
+                sb.append(INDENT).append("}\n");
+            }
+
             sb.append("}\n");
         } else {
             sb.append(" {}\n");
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Translates a Pure constraint expression to Java.
+     * 
+     * Examples:
+     * - $this.age >= 0 → age >= 0
+     * - $this.firstName->length() > 0 → firstName.length() > 0
+     */
+    private String translateConstraintToJava(String pureExpr) {
+        return pureExpr
+                .replace("$this.", "") // Remove $this. prefix
+                .replace("->", ".") // Arrow to dot notation
+                .replace("'", "\""); // Single quotes → double quotes
     }
 
     /**

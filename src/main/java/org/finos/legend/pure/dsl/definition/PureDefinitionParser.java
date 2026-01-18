@@ -89,7 +89,7 @@ public final class PureDefinitionParser {
     // ==================== Class Parsing ====================
 
     private static ParseResult<ClassDefinition> parseClass(String source) {
-        // Pattern: Class qualified::Name { ... }
+        // Pattern: Class qualified::Name { ... } [constraints]?
         // Use findMatchingBrace for proper handling of nested braces in derived
         // properties
         Pattern headerPattern = Pattern.compile("Class\\s+([\\w:]+)\\s*\\{");
@@ -108,9 +108,61 @@ public final class PureDefinitionParser {
         List<ClassDefinition.PropertyDefinition> properties = parseProperties(body);
         List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = parseDerivedProperties(body);
 
+        // Check for constraints block after class body: [ constraint1: expr,
+        // constraint2: expr ]
+        String remaining = source.substring(bodyEnd + 1).trim();
+        List<ClassDefinition.ConstraintDefinition> constraints = new ArrayList<>();
+
+        if (remaining.startsWith("[")) {
+            int constraintEnd = findMatchingBracket(remaining, 0);
+            String constraintBody = remaining.substring(1, constraintEnd);
+            constraints = parseConstraints(constraintBody);
+            remaining = remaining.substring(constraintEnd + 1);
+        }
+
         return new ParseResult<>(
-                new ClassDefinition(qualifiedName, properties, derivedProperties),
-                source.substring(bodyEnd + 1));
+                new ClassDefinition(qualifiedName, properties, derivedProperties, constraints),
+                remaining);
+    }
+
+    /**
+     * Parses constraints from a constraint block body.
+     * Format: name1: expression1, name2: expression2
+     */
+    private static List<ClassDefinition.ConstraintDefinition> parseConstraints(String body) {
+        List<ClassDefinition.ConstraintDefinition> constraints = new ArrayList<>();
+
+        // Split by comma (but be careful of commas in expressions)
+        // Pattern: constraintName: $this.property > value
+        Pattern pattern = Pattern.compile("(\\w+)\\s*:\\s*([^,]+)");
+        Matcher matcher = pattern.matcher(body);
+
+        while (matcher.find()) {
+            String name = matcher.group(1).trim();
+            String expression = matcher.group(2).trim();
+            constraints.add(new ClassDefinition.ConstraintDefinition(name, expression));
+        }
+
+        return constraints;
+    }
+
+    /**
+     * Finds the matching closing bracket for an opening bracket.
+     */
+    private static int findMatchingBracket(String source, int openPos) {
+        int depth = 1;
+        for (int i = openPos + 1; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '[') {
+                depth++;
+            } else if (c == ']') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        throw new PureParseException("Unmatched bracket starting at position " + openPos);
     }
 
     private static List<ClassDefinition.PropertyDefinition> parseProperties(String body) {

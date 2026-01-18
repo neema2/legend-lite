@@ -128,6 +128,40 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    @DisplayName("Parse Pure Class with constraints")
+    void testParseClassWithConstraints() {
+        // GIVEN: A Pure Class definition with constraints
+        String pureClass = """
+                Class model::Person
+                {
+                    firstName: String[1];
+                    age: Integer[1];
+                }
+                [
+                    validAge: $this.age >= 0,
+                    nameNotEmpty: $this.firstName->length() > 0
+                ]
+                """;
+
+        // WHEN: We parse it
+        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+
+        // THEN: We get a valid ClassDefinition with constraints
+        assertEquals("model::Person", classDef.qualifiedName());
+        assertEquals(2, classDef.properties().size());
+        assertEquals(2, classDef.constraints().size());
+
+        // Verify constraints
+        var validAge = classDef.constraints().get(0);
+        assertEquals("validAge", validAge.name());
+        assertEquals("$this.age >= 0", validAge.expression());
+
+        var nameNotEmpty = classDef.constraints().get(1);
+        assertEquals("nameNotEmpty", nameNotEmpty.name());
+        assertEquals("$this.firstName->length() > 0", nameNotEmpty.expression());
+    }
+
+    @Test
     @DisplayName("Parse Pure Database definition")
     void testParseDatabaseDefinition() {
         // GIVEN: A Pure Database definition

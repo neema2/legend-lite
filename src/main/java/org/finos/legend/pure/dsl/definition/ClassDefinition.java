@@ -36,20 +36,31 @@ import java.util.Objects;
 public record ClassDefinition(
         String qualifiedName,
         List<PropertyDefinition> properties,
-        List<DerivedPropertyDefinition> derivedProperties) implements PureDefinition {
+        List<DerivedPropertyDefinition> derivedProperties,
+        List<ConstraintDefinition> constraints) implements PureDefinition {
 
     public ClassDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(properties, "Properties cannot be null");
         properties = List.copyOf(properties);
         derivedProperties = derivedProperties == null ? List.of() : List.copyOf(derivedProperties);
+        constraints = constraints == null ? List.of() : List.copyOf(constraints);
     }
 
     /**
-     * Constructor for backwards compatibility (no derived properties).
+     * Constructor for backwards compatibility (no derived properties or
+     * constraints).
      */
     public ClassDefinition(String qualifiedName, List<PropertyDefinition> properties) {
-        this(qualifiedName, properties, List.of());
+        this(qualifiedName, properties, List.of(), List.of());
+    }
+
+    /**
+     * Constructor with derived properties but no constraints.
+     */
+    public ClassDefinition(String qualifiedName, List<PropertyDefinition> properties,
+            List<DerivedPropertyDefinition> derivedProperties) {
+        this(qualifiedName, properties, derivedProperties, List.of());
     }
 
     /**
@@ -157,6 +168,30 @@ public record ClassDefinition(
                 return String.valueOf(lowerBound);
             }
             return lowerBound + ".." + upperBound;
+        }
+    }
+
+    /**
+     * Represents a constraint (validation rule) on a class.
+     * 
+     * Pure syntax: constraintName: $this.property > 0
+     * 
+     * @param name       The constraint name (e.g., "validAge")
+     * @param expression The Pure expression that must evaluate to true
+     */
+    public record ConstraintDefinition(
+            String name,
+            String expression) {
+        public ConstraintDefinition {
+            Objects.requireNonNull(name, "Constraint name cannot be null");
+            Objects.requireNonNull(expression, "Constraint expression cannot be null");
+        }
+
+        /**
+         * Factory method for creating a constraint.
+         */
+        public static ConstraintDefinition of(String name, String expression) {
+            return new ConstraintDefinition(name, expression);
         }
     }
 }

@@ -283,4 +283,35 @@ class JavaCodeGeneratorTest {
         assertTrue(javaCode.contains("List<String> tags")); // String[*] → List<String>
         assertTrue(javaCode.contains("public String displayName()"));
     }
+
+    // ==================== Constraint Validation ====================
+
+    @Test
+    @DisplayName("Generate Java record with validate() method for constraints")
+    void testGenerateRecordWithConstraints() {
+        // GIVEN: A Pure Class with constraints
+        String pureClass = """
+                Class model::Person
+                {
+                    firstName: String[1];
+                    age: Integer[1];
+                }
+                [
+                    validAge: $this.age >= 0,
+                    nameNotEmpty: $this.firstName->length() > 0
+                ]
+                """;
+        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+
+        // WHEN: We generate Java code
+        String javaCode = generator.generateRecord(classDef);
+
+        // THEN: The record has a validate() method
+        System.out.println("Generated Record with Constraints:\n" + javaCode);
+
+        assertTrue(javaCode.contains("public java.util.List<String> validate()"));
+        assertTrue(javaCode.contains("if (!(age >= 0)) errors.add(\"validAge\")"));
+        assertTrue(javaCode.contains("if (!(firstName.length() > 0)) errors.add(\"nameNotEmpty\")"));
+        assertTrue(javaCode.contains("return errors;"));
+    }
 }
