@@ -7,8 +7,8 @@ This document outlines how Legend Lite can support **Model-to-Model (M2M) transf
 ### What is Model-to-Model?
 
 In Legend, M2M transforms allow you to:
-1. Define a **source model** (e.g., `RawPerson` from a staging table)
-2. Define a **target model** (e.g., `Person` with derived/computed properties)
+1. Define a **source model** (e.g., `Firm` from a staging table)
+2. Define a **target model** (e.g., `NewFirm` with derived/computed properties)
 3. Map source properties to target properties with **transformation expressions**
 
 ### Legend's Current Approach
@@ -28,7 +28,7 @@ We want M2M transforms to compile to **SQL only**. The database performs all com
 
 ---
 
-## Proposed Pure Syntax for M2M Mappings
+## Pure Syntax for M2M Mappings (Legend-Compatible)
 
 ### Current Relational Mapping (what we have)
 
@@ -44,41 +44,150 @@ Mapping model::PersonMapping
 )
 ```
 
-### New Model-to-Model Mapping (proposed)
+### Model-to-Model Mapping (Legend Syntax)
+
+This is the **exact syntax** used by Legend Engine:
 
 ```pure
-Mapping model::PersonTransform
+Class NewFirm
+{
+    shortenedCompanyType: String[1];
+}
+
+Mapping MyModelToModelMapping
 (
-    // Target class : Pure (indicates M2M, source is another Pure class)
-    Person: Pure
+    NewFirm[newFirmTag]: Pure
     {
-        ~src RawPerson
-        
-        // Simple property access
-        firstName: $src.firstName,
-        lastName: $src.lastName,
-        
-        // Derived/computed property - string concatenation
-        fullName: $src.firstName + ' ' + $src.lastName,
-        
-        // Conditional logic
-        ageGroup: if($src.age < 18, 'Minor', if($src.age < 65, 'Adult', 'Senior')),
-        
-        // Filter (only include records matching condition)
-        ~filter $src.isActive == true
+        ~src Firm
+        shortenedCompanyType: if(
+            $src.companyType == CompanyType.LimitedLiabilityCorporation,
+            |'LLC',
+            |$src.companyType->toString()
+        )
     }
 )
 ```
 
-### Key Syntax Elements
+### Key Syntax Elements (Legend-Compatible)
 
 | Element | Description | Example |
 |---------|-------------|---------|
-| `~src ClassName` | Source class for the transform | `~src RawPerson` |
-| `$src.property` | Reference to source property | `$src.firstName` |
+| `TargetClass[tag]: Pure` | Declares Pure/M2M mapping with optional tag | `NewFirm[myTag]: Pure` |
+| `~src SourceClass` | Declares the source class | `~src Firm` |
+| `$src` | Reference to source instance | `$src.firstName` |
+| `$src.property` | Access source property | `$src.companyType` |
 | `+` on strings | String concatenation | `$src.first + ' ' + $src.last` |
-| `if(cond, then, else)` | Conditional expression | `if($src.age < 18, 'Minor', 'Adult')` |
+| `if(cond, \|then, \|else)` | Conditional (**note the `\|` pipes**) | `if($src.age < 18, \|'Minor', \|'Adult')` |
+| `->function()` | Function application (chained) | `$src.name->toUpper()` |
 | `~filter expr` | Filter source rows | `~filter $src.isActive == true` |
+
+### Lambda Syntax in Conditionals
+
+Legend Pure uses **pipe `|`** before lambda bodies in `if` expressions:
+
+```pure
+// CORRECT Legend syntax - pipes before then/else values
+if($src.age < 18, |'Minor', |'Adult')
+
+// Nested conditionals
+if($src.age < 18, 
+   |'Minor', 
+   |if($src.age < 65, |'Adult', |'Senior'))
+```
+
+### Function Chaining with `->`
+
+Legend Pure uses arrow `->` for method-style function calls:
+
+```pure
+// Legend syntax - arrow chaining
+$src.firstName->toUpper()
+$src.name->trim()->toLower()
+$src.companyType->toString()
+
+// Also supports prefix style for some functions
+toUpper($src.firstName)
+```
+
+---
+
+## Complete M2M Examples (Legend Syntax)
+
+### Example 1: Simple Property Mapping
+
+```pure
+Class TargetPerson
+{
+    fullName: String[1];
+    upperLastName: String[1];
+}
+
+Mapping model::PersonTransform
+(
+    TargetPerson: Pure
+    {
+        ~src Person
+        fullName: $src.firstName + ' ' + $src.lastName,
+        upperLastName: $src.lastName->toUpper()
+    }
+)
+```
+
+### Example 2: With Filter
+
+```pure
+Mapping model::ActivePersonTransform
+(
+    ActivePerson: Pure
+    {
+        ~src Person
+        ~filter $src.isActive == true
+        
+        name: $src.firstName + ' ' + $src.lastName
+    }
+)
+```
+
+### Example 3: Complex Conditional
+
+```pure
+Mapping model::PersonWithAgeGroup
+(
+    PersonView: Pure
+    {
+        ~src Person
+        firstName: $src.firstName,
+        lastName: $src.lastName,
+        ageGroup: if($src.age < 18, 
+                     |'Minor', 
+                     |if($src.age < 65, |'Adult', |'Senior'))
+    }
+)
+```
+
+### Example 4: Enum Handling
+
+```pure
+Enum CompanyType
+{
+    LimitedLiabilityCorporation,
+    Corporation,
+    Partnership
+}
+
+Mapping model::FirmTransform
+(
+    NewFirm: Pure
+    {
+        ~src Firm
+        shortenedCompanyType: if(
+            $src.companyType == CompanyType.LimitedLiabilityCorporation,
+            |'LLC',
+            |$src.companyType->toString()
+        )
+    }
+)
+```
 
 ---
 
@@ -93,31 +202,40 @@ firstName: $src.firstName
 
 **SQL:**
 ```sql
-SELECT t0.FIRST_NAME AS firstName FROM T_RAW_PERSON AS t0
+SELECT t0.FIRST_NAME AS firstName FROM T_PERSON AS t0
 ```
 
-### Derived Property (String Concatenation)
+### String Concatenation
 
 **Pure:**
 ```pure
 fullName: $src.firstName + ' ' + $src.lastName
 ```
 
-**SQL (DuckDB/PostgreSQL):**
+**SQL (DuckDB/PostgreSQL/SQLite):**
 ```sql
-SELECT t0.FIRST_NAME || ' ' || t0.LAST_NAME AS fullName FROM T_RAW_PERSON AS t0
+SELECT t0.FIRST_NAME || ' ' || t0.LAST_NAME AS fullName FROM T_PERSON AS t0
 ```
 
-**SQL (MySQL):**
-```sql
-SELECT CONCAT(t0.FIRST_NAME, ' ', t0.LAST_NAME) AS fullName FROM T_RAW_PERSON AS t0
-```
-
-### Conditional Logic
+### Function Chaining
 
 **Pure:**
 ```pure
-ageGroup: if($src.age < 18, 'Minor', if($src.age < 65, 'Adult', 'Senior'))
+upperName: $src.firstName->toUpper()
+cleanName: $src.name->trim()->toLower()
+```
+
+**SQL:**
+```sql
+SELECT UPPER(t0.FIRST_NAME) AS upperName FROM T_PERSON AS t0
+SELECT LOWER(TRIM(t0.NAME)) AS cleanName FROM T_PERSON AS t0
+```
+
+### Conditional Logic with Pipes
+
+**Pure:**
+```pure
+ageGroup: if($src.age < 18, |'Minor', |if($src.age < 65, |'Adult', |'Senior'))
 ```
 
 **SQL:**
@@ -128,10 +246,22 @@ SELECT
         WHEN t0.AGE < 65 THEN 'Adult'
         ELSE 'Senior'
     END AS ageGroup
-FROM T_RAW_PERSON AS t0
+FROM T_PERSON AS t0
 ```
 
-### Aggregation (One-to-Many Rollup)
+### Filter
+
+**Pure:**
+```pure
+~filter $src.isActive == true
+```
+
+**SQL:**
+```sql
+SELECT ... FROM T_PERSON AS t0 WHERE t0.IS_ACTIVE = true
+```
+
+### Aggregation with GroupBy
 
 **Pure:**
 ```pure
@@ -143,9 +273,9 @@ Mapping model::OrderSummary
         ~groupBy $src.customerId
         
         customerId: $src.customerId,
-        orderCount: count($src),
-        totalAmount: sum($src.amount),
-        avgAmount: avg($src.amount)
+        orderCount: $src->count(),
+        totalAmount: $src.amount->sum(),
+        avgAmount: $src.amount->avg()
     }
 )
 ```
@@ -175,45 +305,50 @@ src/main/java/org/finos/legend/pure/dsl/
 ├── m2m/
 │   ├── M2MExpression.java             # NEW: Sealed interface for M2M expressions
 │   ├── SourcePropertyRef.java         # NEW: $src.property reference
-│   ├── StringConcatExpr.java          # NEW: String concatenation
-│   ├── IfExpression.java              # NEW: if(cond, then, else)
-│   ├── AggregateExpr.java             # NEW: count(), sum(), avg(), etc.
+│   ├── FunctionCallExpr.java          # NEW: ->function() calls
+│   ├── IfExpression.java              # NEW: if(cond, |then, |else)
+│   ├── AggregateExpr.java             # NEW: ->count(), ->sum(), etc.
 │   └── M2MExpressionParser.java       # NEW: Parse M2M expressions
 │
 └── compiler/
     └── M2MCompiler.java               # NEW: Compile M2M mapping to RelationNode
 ```
 
-### Expression Hierarchy
+### Parsing the Pipe Syntax
+
+The `|` in `if(cond, |then, |else)` represents lambda expressions in Pure. For M2M, these are typically simple value expressions:
 
 ```java
-public sealed interface M2MExpression 
-    permits SourcePropertyRef, StringConcatExpr, IfExpression, 
-            AggregateExpr, ArithmeticExpr, LiteralExpr, ComparisonExpr {
-    
-    /**
-     * Compile this M2M expression to a SQL Expression in the logical plan.
-     */
-    Expression toSqlExpression(M2MContext context);
-}
+// Lexer needs to handle:
+// - PIPE token for |
+// - Parsing |'value' as a lambda returning 'value'
+// - Parsing |$src.prop as a lambda returning that property
+
+public record IfExpression(
+    M2MExpression condition,
+    M2MExpression thenBranch,  // The expression after first |
+    M2MExpression elseBranch   // The expression after second |
+) implements M2MExpression { }
 ```
 
-### Supported Functions (SQL-Translatable Subset)
+### Supported Functions (SQL-Translatable)
 
-| Category | Functions | SQL Equivalent |
-|----------|-----------|----------------|
-| **String** | `+` (concat), `toUpper()`, `toLower()`, `trim()`, `substring()`, `length()` | `\|\|`, `UPPER()`, `LOWER()`, `TRIM()`, `SUBSTR()`, `LENGTH()` |
-| **Math** | `+`, `-`, `*`, `/`, `abs()`, `round()`, `ceil()`, `floor()` | Same |
-| **Date** | `today()`, `year()`, `month()`, `day()`, `dateDiff()` | `CURRENT_DATE`, `YEAR()`, `MONTH()`, `DAY()`, dialect-specific |
-| **Aggregate** | `count()`, `sum()`, `avg()`, `min()`, `max()` | Same |
-| **Conditional** | `if(cond, then, else)`, `isNull()`, `coalesce()` | `CASE WHEN`, `IS NULL`, `COALESCE()` |
+| Category | Pure Syntax | SQL Equivalent |
+|----------|-------------|----------------|
+| **String** | `->toUpper()`, `->toLower()`, `->trim()`, `->substring(start, end)`, `->length()`, `+` | `UPPER()`, `LOWER()`, `TRIM()`, `SUBSTR()`, `LENGTH()`, `\|\|` |
+| **Math** | `+`, `-`, `*`, `/`, `->abs()`, `->round()`, `->ceiling()`, `->floor()` | Same |
+| **Date** | `->today()`, `->year()`, `->month()`, `->dayOfMonth()` | `CURRENT_DATE`, `YEAR()`, `MONTH()`, `DAY()` |
+| **Aggregate** | `->count()`, `->sum()`, `->avg()`, `->min()`, `->max()` | Same |
+| **Conditional** | `if(cond, \|then, \|else)`, `->isEmpty()`, `->isNotEmpty()` | `CASE WHEN`, `IS NULL`, `IS NOT NULL` |
 | **Boolean** | `&&`, `\|\|`, `!`, `==`, `!=`, `<`, `>`, `<=`, `>=` | `AND`, `OR`, `NOT`, `=`, `<>`, etc. |
+| **Type** | `->toString()`, `->toInteger()`, `->toFloat()` | `CAST()` |
 
 ### Functions NOT Supported (require in-memory fallback)
 
+- `->map()`, `->filter()` with complex lambdas on collections
+- `->fold()`, `->reduce()` 
 - Recursion / graph traversal
 - External service calls
-- Complex collection operations (map, filter with lambdas over collections)
 - User-defined Pure functions (unless pre-registered as SQL UDFs)
 
 ---
@@ -229,8 +364,8 @@ Mapping model::CleanPerson
     CleanPerson: Pure
     {
         ~src RawPerson
-        firstName: trim($src.firstName),
-        lastName: toUpper($src.lastName)
+        firstName: $src.firstName->trim(),
+        lastName: $src.lastName->toUpper()
     }
 )
 
@@ -263,20 +398,6 @@ SELECT
 FROM clean_person AS c
 ```
 
-### Alternative: Materialized View
-
-For performance, Legend Lite could optionally materialize intermediate M2M results:
-
-```sql
-CREATE VIEW v_clean_person AS
-SELECT TRIM(FIRST_NAME) AS firstName, UPPER(LAST_NAME) AS lastName 
-FROM T_RAW_PERSON;
-
-CREATE VIEW v_person_with_full_name AS
-SELECT firstName, lastName, firstName || ' ' || lastName AS fullName
-FROM v_clean_person;
-```
-
 ---
 
 ## Integration with Existing Query Syntax
@@ -306,37 +427,44 @@ WHERE UPPER(t0.LAST_NAME) = 'SMITH'
 
 ## Implementation Phases
 
-### Phase 1: Core M2M (Simple Properties + Derivations)
+### Phase 1: Core M2M (Simple Properties + String Functions)
 
-- [ ] `M2MExpression` sealed interface and implementations
-- [ ] Parser for `~src` and `$src.property` syntax
-- [ ] Compiler: `M2MExpression` → `Expression` (existing IR)
-- [ ] Support string concat (`+`), basic arithmetic, comparisons
-- [ ] Integration test: RawPerson → Person transform
+- [ ] Parse `~src ClassName` in mapping definitions
+- [ ] Parse `$src.property` references
+- [ ] Parse `->function()` chained calls
+- [ ] Support string concat (`+`), `->toUpper()`, `->toLower()`, `->trim()`
+- [ ] Compiler: M2M expression → SQL Expression
+- [ ] Integration test: Person → TargetPerson transform
 
 ### Phase 2: Conditional Logic
 
-- [ ] `if(cond, then, else)` expression parsing
+- [ ] Parse `if(cond, |then, |else)` with pipe syntax
+- [ ] Handle nested conditionals
 - [ ] Compile to `CASE WHEN` SQL
-- [ ] Nested conditionals
 
-### Phase 3: Aggregations
+### Phase 3: Filters
 
-- [ ] `~groupBy` syntax in M2M mapping
-- [ ] Aggregate functions: `count()`, `sum()`, `avg()`, `min()`, `max()`
+- [ ] Parse `~filter $src.property == value`
+- [ ] Compile to `WHERE` clause
+
+### Phase 4: Aggregations
+
+- [ ] Parse `~groupBy $src.property`
+- [ ] Parse aggregate functions: `->count()`, `->sum()`, `->avg()`, `->min()`, `->max()`
 - [ ] Compile to `GROUP BY` SQL
 
-### Phase 4: Chained Mappings
+### Phase 5: Chained Mappings
 
 - [ ] Resolve M2M → M2M → Relational chains
 - [ ] Generate CTEs or nested subqueries
 - [ ] Optional: CREATE VIEW generation
 
-### Phase 5: Advanced
+### Phase 6: Advanced
 
 - [ ] Date/time functions with dialect support
-- [ ] `coalesce()` / null handling
-- [ ] Window functions (`rank()`, `rowNumber()`)
+- [ ] `->isEmpty()` / null handling
+- [ ] Enum handling with `->toString()`
+- [ ] Window functions (`->rank()`, `->rowNumber()`)
 
 ---
 
@@ -394,7 +522,7 @@ Mapping staging::RawPersonMapping
 )
 ```
 
-### 3. Define M2M Transform
+### 3. Define M2M Transform (Legend Syntax)
 
 ```pure
 Mapping model::PersonTransform
@@ -407,9 +535,10 @@ Mapping model::PersonTransform
         firstName: $src.firstName,
         lastName: $src.lastName,
         fullName: $src.firstName + ' ' + $src.lastName,
-        age: year(today()) - year($src.birthDate),
-        salaryBand: if($src.salary < 50000, 'Entry', 
-                      if($src.salary < 100000, 'Mid', 'Senior'))
+        age: today()->year() - $src.birthDate->year(),
+        salaryBand: if($src.salary < 50000, 
+                       |'Entry', 
+                       |if($src.salary < 100000, |'Mid', |'Senior'))
     }
 )
 ```
@@ -446,11 +575,11 @@ WHERE t0.IS_ACTIVE = true
 | Aspect | Legend Engine | Legend Lite |
 |--------|--------------|-------------|
 | **Execution** | In-memory (Java/Pure) | Database only (SQL) |
-| **Expressiveness** | Full Pure language | SQL-translatable subset |
+| **Syntax** | Full Pure language | Same Pure syntax (subset) |
+| **Expressiveness** | Any Pure function | SQL-translatable functions |
 | **Performance** | Memory-bound | Database-optimized |
 | **Scalability** | Limited by JVM heap | Limited by database |
-| **Complexity** | Higher (interpreter) | Lower (transpiler) |
-| **Functions** | Any Pure function | Predefined SQL-mappable set |
+| **Compatibility** | Full | Backwards-compatible subset |
 
 ---
 
@@ -467,8 +596,8 @@ WHERE t0.IS_ACTIVE = true
 3. **How to handle M2M with associations?**
    - Same pattern as relational: EXISTS for filter, LEFT JOIN for project
 
-4. **Should unsupported expressions fail-fast or silently skip?**
-   - Recommendation: Fail-fast with clear error message
+4. **Should unsupported functions fail-fast or error?**
+   - Recommendation: Fail-fast with clear error message listing supported functions
 
 ---
 
@@ -476,4 +605,4 @@ WHERE t0.IS_ACTIVE = true
 
 - [Legend M2M Mapping Tutorial](https://legend.finos.org/docs/tutorials/studio-m2m-mapping)
 - [Legend Language Reference](https://legend.finos.org/docs/reference/legend-language)
-- [Legend Lite FAQ](./FAQ.md) - SQL generation patterns
+- [Legend Lite FAQ](../FAQ.md) - SQL generation patterns
