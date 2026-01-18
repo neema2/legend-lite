@@ -31,4 +31,14 @@ public interface RelationNodeVisitor<T> {
      * Visit a group by node (GROUP BY clause).
      */
     T visit(GroupByNode groupBy);
+
+    /**
+     * Visit a sort node (ORDER BY clause).
+     */
+    T visit(SortNode sort);
+
+    /**
+     * Visit a limit node (LIMIT/OFFSET clause).
+     */
+    T visit(LimitNode limit);
 }

@@ -66,12 +66,15 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 // Push filter down into the project
                 yield visitProjectWithFilter(project, filter);
             }
-            case FilterNode nestedFilter -> {
+            case
+
+                    FilterNode nestedFilter -> {
                 // Combine filters with AND
                 String innerSql = nestedFilter.accept(this);
                 yield innerSql + " AND " + whereClause;
             }
-            case JoinNode join -> {
+            case
+                    JoinNode join -> {
                 // Filter on top of join
                 String innerSql = join.accept(this);
                 yield innerSql + " WHERE " + whereClause;
@@ -80,6 +83,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 // Filter on top of group by
                 String innerSql = groupBy.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS grp WHERE " + whereClause;
+            }
+            case SortNode sort -> {
+                // Filter on top of sort
+                String innerSql = sort.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS srt WHERE " + whereClause;
+            }
+            case LimitNode limit -> {
+                // Filter on top of limit
+                String innerSql = limit.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS lim WHERE " + whereClause;
             }
         };
     }
@@ -102,6 +115,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = groupBy.accept(this);
                 String projections = formatProjections(project);
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS groupby_result";
+            }
+            case SortNode sort -> {
+                String innerSql = sort.accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS sort_result";
+            }
+            case LimitNode limit -> {
+                String innerSql = limit.accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS limit_result";
             }
         };
     }
@@ -175,6 +198,54 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return sb.toString();
     }
 
+    @Override
+    public String visit(SortNode sort) {
+        var sb = new StringBuilder();
+
+        // Generate the source SQL
+        String sourceSql = sort.source().accept(this);
+
+        // Wrap source in subquery and add ORDER BY
+        sb.append("SELECT * FROM (");
+        sb.append(sourceSql);
+        sb.append(") AS sort_src ORDER BY ");
+
+        // Add sort columns
+        String orderCols = sort.columns().stream()
+                .map(col -> dialect.quoteIdentifier(col.column()) + " " + col.direction().name())
+                .collect(Collectors.joining(", "));
+        sb.append(orderCols);
+
+        return sb.toString();
+    }
+
+    @Override
+    public String visit(LimitNode limit) {
+        var sb = new StringBuilder();
+
+        // Generate the source SQL
+        String sourceSql = limit.source().accept(this);
+
+        // Wrap source and add LIMIT/OFFSET
+        sb.append("SELECT * FROM (");
+        sb.append(sourceSql);
+        sb.append(") AS limit_src");
+
+        // Add LIMIT if specified
+        if (limit.limit() != null) {
+            sb.append(" LIMIT ");
+            sb.append(limit.limit());
+        }
+
+        // Add OFFSET if specified
+        if (limit.offset() > 0) {
+            sb.append(" OFFSET ");
+            sb.append(limit.offset());
+        }
+
+        return sb.toString();
+    }
+
     private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
         // Common case: Project on top of Filter on top of Table
         return switch (filter.source()) {
@@ -239,9 +310,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return switch (node) {
             case FilterNode filter -> filter.condition();
             case ProjectNode project -> extractFilterCondition(project.source());
-            case JoinNode join -> extractFilterCondition(join.left()); // Recurse into left side
-            case TableNode table -> null; // No filter
+            case JoinNode join -> extractFilterCondition(join.left());
+            case TableNode table -> null;
             case GroupByNode groupBy -> extractFilterCondition(groupBy.source());
+            case SortNode sort -> extractFilterCondition(sort.source());
+            case LimitNode limit -> extractFilterCondition(limit.source());
         };
     }
 
@@ -261,8 +334,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case TableNode table -> table;
             case FilterNode filter -> extractTableNode(filter.source());
             case ProjectNode project -> extractTableNode(project.source());
-            case JoinNode join -> extractTableNode(join.left()); // For nested joins, take left
+            case JoinNode join -> extractTableNode(join.left());
             case GroupByNode groupBy -> extractTableNode(groupBy.source());
+            case SortNode sort -> extractTableNode(sort.source());
+            case LimitNode limit -> extractTableNode(limit.source());
         };
     }
 
@@ -480,6 +555,14 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case GroupByNode groupBy -> {
                 // For EXISTS, we don't need aggregations, just the source
                 yield generateExistsSubquery(groupBy.source());
+            }
+            case SortNode sort -> {
+                // For EXISTS, sorting doesn't matter, just use the source
+                yield generateExistsSubquery(sort.source());
+            }
+            case LimitNode limit -> {
+                // For EXISTS with limit, we need to preserve the limit
+                yield "SELECT 1 FROM (" + limit.accept(this) + ") AS exists_src";
             }
         };
     }

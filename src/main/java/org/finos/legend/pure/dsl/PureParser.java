@@ -67,6 +67,11 @@ public final class PureParser {
                 case "filter" -> parseFilterCall(expr);
                 case "project" -> parseProjectCall(expr);
                 case "groupBy" -> parseGroupByCall(expr);
+                case "sortBy" -> parseSortByCall(expr);
+                case "sort" -> parseSortCall(expr);
+                case "limit", "take" -> parseLimitCall(expr);
+                case "drop" -> parseDropCall(expr);
+                case "slice" -> parseSliceCall(expr);
                 default -> throw new PureParseException("Unknown function: " + functionName);
             };
         }
@@ -352,6 +357,111 @@ public final class PureParser {
 
         consume(TokenType.RPAREN, "Expected ')' after groupBy");
         return new GroupByExpression(relationSource, groupByColumns, aggregations, aliases);
+    }
+
+    /**
+     * Parses sortBy function call (for ClassExpression):
+     * sortBy({p | $p.lastName}) or sortBy({p | $p.lastName}, 'desc')
+     */
+    private PureExpression parseSortByCall(PureExpression source) {
+        if (!(source instanceof ClassExpression classSource)) {
+            throw new PureParseException(
+                    "sortBy() requires a Class expression. Got: " + source.getClass().getSimpleName());
+        }
+
+        LambdaExpression lambda = parseLambda();
+
+        // Parse optional direction ('asc' or 'desc')
+        boolean ascending = true;
+        if (check(TokenType.COMMA)) {
+            consume(TokenType.COMMA, "Expected ','");
+            String direction = consume(TokenType.STRING_LITERAL, "Expected 'asc' or 'desc'").value();
+            ascending = !direction.equalsIgnoreCase("desc");
+        }
+
+        consume(TokenType.RPAREN, "Expected ')' after sortBy");
+        return new ClassSortByExpression(classSource, lambda, ascending);
+    }
+
+    /**
+     * Parses sort function call (for RelationExpression):
+     * sort('columnName') or sort('columnName', 'desc')
+     */
+    private PureExpression parseSortCall(PureExpression source) {
+        if (!(source instanceof RelationExpression relationSource)) {
+            throw new PureParseException(
+                    "sort() requires a Relation expression. Got: " + source.getClass().getSimpleName());
+        }
+
+        String column = consume(TokenType.STRING_LITERAL, "Expected column name").value();
+
+        // Parse optional direction ('asc' or 'desc')
+        boolean ascending = true;
+        if (check(TokenType.COMMA)) {
+            consume(TokenType.COMMA, "Expected ','");
+            String direction = consume(TokenType.STRING_LITERAL, "Expected 'asc' or 'desc'").value();
+            ascending = !direction.equalsIgnoreCase("desc");
+        }
+
+        consume(TokenType.RPAREN, "Expected ')' after sort");
+        return new RelationSortExpression(relationSource, column, ascending);
+    }
+
+    /**
+     * Parses limit/take function call:
+     * limit(10) or take(10)
+     */
+    private PureExpression parseLimitCall(PureExpression source) {
+        String limitStr = consume(TokenType.INTEGER_LITERAL, "Expected limit number").value();
+        int limit = Integer.parseInt(limitStr);
+        consume(TokenType.RPAREN, "Expected ')' after limit");
+
+        if (source instanceof ClassExpression classSource) {
+            return ClassLimitExpression.limit(classSource, limit);
+        } else if (source instanceof RelationExpression relationSource) {
+            return RelationLimitExpression.limit(relationSource, limit);
+        } else {
+            throw new PureParseException("limit() requires Class or Relation expression");
+        }
+    }
+
+    /**
+     * Parses drop function call:
+     * drop(10) - skip first 10 rows
+     */
+    private PureExpression parseDropCall(PureExpression source) {
+        String offsetStr = consume(TokenType.INTEGER_LITERAL, "Expected offset number").value();
+        int offset = Integer.parseInt(offsetStr);
+        consume(TokenType.RPAREN, "Expected ')' after drop");
+
+        if (source instanceof ClassExpression classSource) {
+            return ClassLimitExpression.offset(classSource, offset);
+        } else if (source instanceof RelationExpression relationSource) {
+            return RelationLimitExpression.offset(relationSource, offset);
+        } else {
+            throw new PureParseException("drop() requires Class or Relation expression");
+        }
+    }
+
+    /**
+     * Parses slice function call:
+     * slice(5, 15) - rows 5-14 (start inclusive, stop exclusive)
+     */
+    private PureExpression parseSliceCall(PureExpression source) {
+        String startStr = consume(TokenType.INTEGER_LITERAL, "Expected start number").value();
+        int start = Integer.parseInt(startStr);
+        consume(TokenType.COMMA, "Expected ','");
+        String stopStr = consume(TokenType.INTEGER_LITERAL, "Expected stop number").value();
+        int stop = Integer.parseInt(stopStr);
+        consume(TokenType.RPAREN, "Expected ')' after slice");
+
+        if (source instanceof ClassExpression classSource) {
+            return ClassLimitExpression.slice(classSource, start, stop);
+        } else if (source instanceof RelationExpression relationSource) {
+            return RelationLimitExpression.slice(relationSource, start, stop);
+        } else {
+            throw new PureParseException("slice() requires Class or Relation expression");
+        }
     }
 
     /**

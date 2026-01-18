@@ -1452,4 +1452,60 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 "Error should mention project(): " + exception.getMessage());
         System.out.println("Expected error message: " + exception.getMessage());
     }
+
+    @Test
+    @DisplayName("Pure syntax: Class.all()->sortBy({...})->limit()")
+    void testPureSyntaxSortByAndLimit() throws Exception {
+        // GIVEN: A model with employees
+        String model = """
+                Class model::Emp { name: String[1]; sal: Integer[1]; }
+                Database store::EmpDb ( Table T_EMP ( ID INTEGER, NAME VARCHAR(100), SAL INTEGER ) )
+                Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP name: [EmpDb] T_EMP.NAME, sal: [EmpDb] T_EMP.SAL } )
+                """;
+
+        modelBuilder = new PureModelBuilder();
+        modelBuilder.addSource(model);
+        MappingRegistry mappingRegistry = modelBuilder.getMappingRegistry();
+        pureCompiler = new org.finos.legend.pure.dsl.PureCompiler(mappingRegistry);
+
+        // WHEN: Parse and compile Pure query with sortBy and limit
+        String pureQuery = "Emp.all()->sortBy({e | $e.sal}, 'desc')->limit(3)";
+        RelationNode plan = pureCompiler.compile(pureQuery);
+        String sql = sqlGenerator.generate(plan);
+
+        System.out.println("Pure sortBy+limit SQL: " + sql);
+
+        // THEN: Should generate correct SQL with ORDER BY and LIMIT
+        assertTrue(sql.contains("ORDER BY"), "Should contain ORDER BY");
+        assertTrue(sql.contains("LIMIT"), "Should contain LIMIT");
+        assertTrue(sql.contains("DESC"), "Should contain DESC");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: Relation->sort()->slice()")
+    void testPureSyntaxRelationSortAndSlice() throws Exception {
+        // GIVEN: A model
+        String model = """
+                Class model::Emp { name: String[1]; sal: Integer[1]; }
+                Database store::EmpDb ( Table T_EMP ( ID INTEGER, NAME VARCHAR(100), SAL INTEGER ) )
+                Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP name: [EmpDb] T_EMP.NAME, sal: [EmpDb] T_EMP.SAL } )
+                """;
+
+        modelBuilder = new PureModelBuilder();
+        modelBuilder.addSource(model);
+        MappingRegistry mappingRegistry = modelBuilder.getMappingRegistry();
+        pureCompiler = new org.finos.legend.pure.dsl.PureCompiler(mappingRegistry);
+
+        // WHEN: Parse and compile with project()->sort()->slice()
+        String pureQuery = "Emp.all()->project([{e | $e.name}, {e | $e.sal}], ['name', 'sal'])->sort('sal', 'asc')->slice(0, 5)";
+        RelationNode plan = pureCompiler.compile(pureQuery);
+        String sql = sqlGenerator.generate(plan);
+
+        System.out.println("Pure Relation sort+slice SQL: " + sql);
+
+        // THEN: Should generate correct SQL
+        assertTrue(sql.contains("ORDER BY"), "Should contain ORDER BY");
+        assertTrue(sql.contains("ASC"), "Should contain ASC");
+        assertTrue(sql.contains("LIMIT"), "Should contain LIMIT");
+    }
 }

@@ -64,6 +64,10 @@ public final class PureCompiler {
             case RelationFilterExpression relationFilter -> compileRelationFilter(relationFilter, context);
             case ProjectExpression project -> compileProject(project, context);
             case GroupByExpression groupBy -> compileGroupBy(groupBy, context);
+            case ClassSortByExpression classSortBy -> compileClassSortBy(classSortBy, context);
+            case RelationSortExpression relationSort -> compileRelationSort(relationSort, context);
+            case ClassLimitExpression classLimit -> compileClassLimit(classLimit, context);
+            case RelationLimitExpression relationLimit -> compileRelationLimit(relationLimit, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
@@ -256,6 +260,63 @@ public final class PureCompiler {
         }
 
         return new GroupByNode(source, groupingColumns, aggregations);
+    }
+
+    /**
+     * Compiles sortBy() on a ClassExpression.
+     * Uses lambda to extract property name for ORDER BY.
+     */
+    private RelationNode compileClassSortBy(ClassSortByExpression sortBy, CompilationContext context) {
+        RelationNode source = compileExpression(sortBy.source(), context);
+
+        // Get the table alias and mapping from source
+        String tableAlias = getTableAlias(source);
+        RelationalMapping mapping = getMappingFromSource(sortBy.source());
+
+        // Extract property name from lambda
+        String propertyName = extractPropertyName(sortBy.lambda().body());
+        String columnName = mapping.getColumnForProperty(propertyName)
+                .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
+
+        // Create SortColumn
+        SortNode.SortDirection direction = sortBy.ascending()
+                ? SortNode.SortDirection.ASC
+                : SortNode.SortDirection.DESC;
+        SortNode.SortColumn sortColumn = new SortNode.SortColumn(columnName, direction);
+
+        return new SortNode(source, List.of(sortColumn));
+    }
+
+    /**
+     * Compiles sort() on a RelationExpression.
+     * Uses column name directly (from project aliases).
+     */
+    private RelationNode compileRelationSort(RelationSortExpression sort, CompilationContext context) {
+        RelationNode source = compileExpression(sort.source(), context);
+
+        // Column name is already the relation column (from project alias)
+        SortNode.SortDirection direction = sort.ascending()
+                ? SortNode.SortDirection.ASC
+                : SortNode.SortDirection.DESC;
+        SortNode.SortColumn sortColumn = new SortNode.SortColumn(sort.column(), direction);
+
+        return new SortNode(source, List.of(sortColumn));
+    }
+
+    /**
+     * Compiles limit/take/drop/slice on a ClassExpression.
+     */
+    private RelationNode compileClassLimit(ClassLimitExpression limit, CompilationContext context) {
+        RelationNode source = compileExpression(limit.source(), context);
+        return new LimitNode(source, limit.limit(), limit.offset());
+    }
+
+    /**
+     * Compiles limit/take/drop/slice on a RelationExpression.
+     */
+    private RelationNode compileRelationLimit(RelationLimitExpression limit, CompilationContext context) {
+        RelationNode source = compileExpression(limit.source(), context);
+        return new LimitNode(source, limit.limit(), limit.offset());
     }
 
     /**
@@ -614,6 +675,8 @@ public final class PureCompiler {
             case ProjectNode project -> getTableAlias(project.source());
             case JoinNode join -> getTableAlias(join.left());
             case GroupByNode groupBy -> getTableAlias(groupBy.source());
+            case SortNode sort -> getTableAlias(sort.source());
+            case LimitNode limit -> getTableAlias(limit.source());
         };
     }
 
