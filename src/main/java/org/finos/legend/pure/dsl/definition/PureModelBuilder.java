@@ -27,6 +27,7 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, Table> tables = new HashMap<>();
     private final Map<String, Join> joins = new HashMap<>();
     private final Map<String, DatabaseDefinition> databases = new HashMap<>();
+    private final Map<String, ProfileDefinition> profiles = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry();
 
     /**
@@ -47,6 +48,7 @@ public final class PureModelBuilder implements ModelContext {
                 case M2MMappingDefinition m2mDef -> addM2MMapping(m2mDef);
                 case ServiceDefinition serviceDef -> addService(serviceDef);
                 case EnumDefinition enumDef -> addEnum(enumDef);
+                case ProfileDefinition profileDef -> addProfile(profileDef);
             }
         }
 
@@ -123,6 +125,15 @@ public final class PureModelBuilder implements ModelContext {
             joins.put(dbDef.simpleName() + "." + joinDef.name(), join);
         }
 
+        return this;
+    }
+
+    /**
+     * Adds a Profile definition.
+     */
+    public PureModelBuilder addProfile(ProfileDefinition profileDef) {
+        profiles.put(profileDef.qualifiedName(), profileDef);
+        profiles.put(profileDef.simpleName(), profileDef);
         return this;
     }
 

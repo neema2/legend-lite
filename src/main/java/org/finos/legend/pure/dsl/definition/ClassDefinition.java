@@ -37,7 +37,9 @@ public record ClassDefinition(
         String qualifiedName,
         List<PropertyDefinition> properties,
         List<DerivedPropertyDefinition> derivedProperties,
-        List<ConstraintDefinition> constraints) implements PureDefinition {
+        List<ConstraintDefinition> constraints,
+        List<StereotypeApplication> stereotypes,
+        List<TaggedValue> taggedValues) implements PureDefinition {
 
     public ClassDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -45,22 +47,32 @@ public record ClassDefinition(
         properties = List.copyOf(properties);
         derivedProperties = derivedProperties == null ? List.of() : List.copyOf(derivedProperties);
         constraints = constraints == null ? List.of() : List.copyOf(constraints);
+        stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
+        taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
     }
 
     /**
-     * Constructor for backwards compatibility (no derived properties or
-     * constraints).
+     * Constructor for backwards compatibility (no derived properties,
+     * constraints, or annotations).
      */
     public ClassDefinition(String qualifiedName, List<PropertyDefinition> properties) {
-        this(qualifiedName, properties, List.of(), List.of());
+        this(qualifiedName, properties, List.of(), List.of(), List.of(), List.of());
     }
 
     /**
-     * Constructor with derived properties but no constraints.
+     * Constructor with derived properties but no constraints or annotations.
      */
     public ClassDefinition(String qualifiedName, List<PropertyDefinition> properties,
             List<DerivedPropertyDefinition> derivedProperties) {
-        this(qualifiedName, properties, derivedProperties, List.of());
+        this(qualifiedName, properties, derivedProperties, List.of(), List.of(), List.of());
+    }
+
+    /**
+     * Constructor with constraints but no annotations (backwards compat).
+     */
+    public ClassDefinition(String qualifiedName, List<PropertyDefinition> properties,
+            List<DerivedPropertyDefinition> derivedProperties, List<ConstraintDefinition> constraints) {
+        this(qualifiedName, properties, derivedProperties, constraints, List.of(), List.of());
     }
 
     /**

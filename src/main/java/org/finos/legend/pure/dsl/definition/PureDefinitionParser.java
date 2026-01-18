@@ -29,7 +29,8 @@ public final class PureDefinitionParser {
             if (remaining.isEmpty())
                 break;
 
-            if (remaining.startsWith("Class ")) {
+            if (remaining.startsWith("Class ") || remaining.startsWith("<<")) {
+                // Both regular classes and annotated classes (<<profile.stereotype>> Class ...)
                 var result = parseClass(remaining);
                 definitions.add(result.definition);
                 remaining = result.remaining;
@@ -53,6 +54,10 @@ public final class PureDefinitionParser {
                 var result = parseEnum(remaining);
                 definitions.add(result.definition);
                 remaining = result.remaining;
+            } else if (remaining.startsWith("Profile ")) {
+                var result = parseProfile(remaining);
+                definitions.add(result.definition);
+                remaining = result.remaining;
             } else {
                 throw new PureParseException("Unknown definition starting with: " +
                         remaining.substring(0, Math.min(50, remaining.length())));
@@ -67,6 +72,14 @@ public final class PureDefinitionParser {
      */
     public static ClassDefinition parseClassDefinition(String pureSource) {
         var result = parseClass(pureSource.trim());
+        return result.definition;
+    }
+
+    /**
+     * Parses a single Profile definition.
+     */
+    public static ProfileDefinition parseProfileDefinition(String pureSource) {
+        var result = parseProfile(pureSource.trim());
         return result.definition;
     }
 
@@ -89,11 +102,48 @@ public final class PureDefinitionParser {
     // ==================== Class Parsing ====================
 
     private static ParseResult<ClassDefinition> parseClass(String source) {
+        // Parse stereotypes and tagged values before Class keyword
+        // Pattern: <<profile::Name.stereotype>> or <<profile::Name.tag: 'value'>>
+        List<StereotypeApplication> stereotypes = new ArrayList<>();
+        List<TaggedValue> taggedValues = new ArrayList<>();
+
+        String remaining = source.trim();
+        while (remaining.startsWith("<<")) {
+            int closeIdx = remaining.indexOf(">>");
+            if (closeIdx < 0)
+                break;
+            String annotation = remaining.substring(2, closeIdx).trim();
+            remaining = remaining.substring(closeIdx + 2).trim();
+
+            // Check if it's a tagged value (has colon AFTER the dot separator)
+            // e.g., profile::Name.tag: 'value' - colon comes after .tag
+            int dotIdx = annotation.lastIndexOf('.');
+            int colonIdx = annotation.indexOf(':', dotIdx > 0 ? dotIdx : 0);
+            if (colonIdx > dotIdx && dotIdx > 0) {
+                // Tagged value: profile::Name.tag: 'value'
+                String reference = annotation.substring(0, colonIdx).trim();
+                String value = annotation.substring(colonIdx + 1).trim();
+                // Remove quotes
+                if ((value.startsWith("'") && value.endsWith("'")) ||
+                        (value.startsWith("\"") && value.endsWith("\""))) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                int refDotIdx = reference.lastIndexOf('.');
+                if (refDotIdx > 0) {
+                    taggedValues.add(new TaggedValue(
+                            reference.substring(0, refDotIdx),
+                            reference.substring(refDotIdx + 1),
+                            value));
+                }
+            } else {
+                // Stereotype: profile::Name.stereotype
+                stereotypes.add(StereotypeApplication.parse(annotation));
+            }
+        }
+
         // Pattern: Class qualified::Name { ... } [constraints]?
-        // Use findMatchingBrace for proper handling of nested braces in derived
-        // properties
         Pattern headerPattern = Pattern.compile("Class\\s+([\\w:]+)\\s*\\{");
-        Matcher headerMatcher = headerPattern.matcher(source);
+        Matcher headerMatcher = headerPattern.matcher(remaining);
 
         if (!headerMatcher.find()) {
             throw new PureParseException("Invalid Class definition");
@@ -101,16 +151,16 @@ public final class PureDefinitionParser {
 
         String qualifiedName = headerMatcher.group(1);
         int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
+        int bodyEnd = findMatchingBrace(remaining, bodyStart - 1);
 
-        String body = source.substring(bodyStart, bodyEnd);
+        String body = remaining.substring(bodyStart, bodyEnd);
 
         List<ClassDefinition.PropertyDefinition> properties = parseProperties(body);
         List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = parseDerivedProperties(body);
 
         // Check for constraints block after class body: [ constraint1: expr,
         // constraint2: expr ]
-        String remaining = source.substring(bodyEnd + 1).trim();
+        remaining = remaining.substring(bodyEnd + 1).trim();
         List<ClassDefinition.ConstraintDefinition> constraints = new ArrayList<>();
 
         if (remaining.startsWith("[")) {
@@ -121,7 +171,60 @@ public final class PureDefinitionParser {
         }
 
         return new ParseResult<>(
-                new ClassDefinition(qualifiedName, properties, derivedProperties, constraints),
+                new ClassDefinition(qualifiedName, properties, derivedProperties, constraints, stereotypes,
+                        taggedValues),
+                remaining);
+    }
+
+    // ==================== Profile Parsing ====================
+
+    private static ParseResult<ProfileDefinition> parseProfile(String source) {
+        // Pattern: Profile qualified::Name { stereotypes: [...]; tags: [...]; }
+        Pattern headerPattern = Pattern.compile("Profile\\s+([\\w:]+)\\s*\\{");
+        Matcher headerMatcher = headerPattern.matcher(source);
+
+        if (!headerMatcher.find()) {
+            throw new PureParseException("Invalid Profile definition");
+        }
+
+        String qualifiedName = headerMatcher.group(1);
+        int bodyStart = headerMatcher.end();
+        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
+
+        String body = source.substring(bodyStart, bodyEnd);
+        String remaining = source.substring(bodyEnd + 1).trim();
+
+        List<String> stereotypes = new ArrayList<>();
+        List<String> tags = new ArrayList<>();
+
+        // Parse stereotypes: [name1, name2, ...]
+        Pattern stereotypesPattern = Pattern.compile("stereotypes\\s*:\\s*\\[([^\\]]+)]");
+        Matcher stereotypesMatcher = stereotypesPattern.matcher(body);
+        if (stereotypesMatcher.find()) {
+            String[] names = stereotypesMatcher.group(1).split(",");
+            for (String name : names) {
+                name = name.trim();
+                if (!name.isEmpty()) {
+                    stereotypes.add(name);
+                }
+            }
+        }
+
+        // Parse tags: [name1, name2, ...]
+        Pattern tagsPattern = Pattern.compile("tags\\s*:\\s*\\[([^\\]]+)]");
+        Matcher tagsMatcher = tagsPattern.matcher(body);
+        if (tagsMatcher.find()) {
+            String[] names = tagsMatcher.group(1).split(",");
+            for (String name : names) {
+                name = name.trim();
+                if (!name.isEmpty()) {
+                    tags.add(name);
+                }
+            }
+        }
+
+        return new ParseResult<>(
+                new ProfileDefinition(qualifiedName, stereotypes, tags),
                 remaining);
     }
 
