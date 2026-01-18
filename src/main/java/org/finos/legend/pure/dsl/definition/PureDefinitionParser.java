@@ -58,6 +58,10 @@ public final class PureDefinitionParser {
                 var result = parseProfile(remaining);
                 definitions.add(result.definition);
                 remaining = result.remaining;
+            } else if (remaining.startsWith("function ")) {
+                var result = parseFunction(remaining);
+                definitions.add(result.definition);
+                remaining = result.remaining;
             } else {
                 throw new PureParseException("Unknown definition starting with: " +
                         remaining.substring(0, Math.min(50, remaining.length())));
@@ -80,6 +84,14 @@ public final class PureDefinitionParser {
      */
     public static ProfileDefinition parseProfileDefinition(String pureSource) {
         var result = parseProfile(pureSource.trim());
+        return result.definition;
+    }
+
+    /**
+     * Parses a single Function definition.
+     */
+    public static FunctionDefinition parseFunctionDefinition(String pureSource) {
+        var result = parseFunction(pureSource.trim());
         return result.definition;
     }
 
@@ -225,6 +237,103 @@ public final class PureDefinitionParser {
 
         return new ParseResult<>(
                 new ProfileDefinition(qualifiedName, stereotypes, tags),
+                remaining);
+    }
+
+    // ==================== Function Parsing ====================
+
+    private static ParseResult<FunctionDefinition> parseFunction(String source) {
+        // Parse stereotypes and tagged values before function keyword
+        List<StereotypeApplication> stereotypes = new ArrayList<>();
+        List<TaggedValue> taggedValues = new ArrayList<>();
+
+        String remaining = source.trim();
+        while (remaining.startsWith("<<")) {
+            int closeIdx = remaining.indexOf(">>");
+            if (closeIdx < 0)
+                break;
+            String annotation = remaining.substring(2, closeIdx).trim();
+            remaining = remaining.substring(closeIdx + 2).trim();
+
+            int dotIdx = annotation.lastIndexOf('.');
+            int colonIdx = annotation.indexOf(':', dotIdx > 0 ? dotIdx : 0);
+            if (colonIdx > dotIdx && dotIdx > 0) {
+                String reference = annotation.substring(0, colonIdx).trim();
+                String value = annotation.substring(colonIdx + 1).trim();
+                if ((value.startsWith("'") && value.endsWith("'")) ||
+                        (value.startsWith("\"") && value.endsWith("\""))) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                int refDotIdx = reference.lastIndexOf('.');
+                if (refDotIdx > 0) {
+                    taggedValues.add(new TaggedValue(
+                            reference.substring(0, refDotIdx),
+                            reference.substring(refDotIdx + 1),
+                            value));
+                }
+            } else {
+                stereotypes.add(StereotypeApplication.parse(annotation));
+            }
+        }
+
+        // Pattern: function qualified::name(params): ReturnType[mult] { body }
+        Pattern headerPattern = Pattern.compile(
+                "function\\s+([\\w:]+)\\s*\\(([^)]*)\\)\\s*:\\s*([\\w:]+)\\s*\\[([^\\]]+)]\\s*\\{");
+        Matcher headerMatcher = headerPattern.matcher(remaining);
+
+        if (!headerMatcher.find()) {
+            throw new PureParseException("Invalid Function definition: " +
+                    remaining.substring(0, Math.min(100, remaining.length())));
+        }
+
+        String qualifiedName = headerMatcher.group(1);
+        String paramsStr = headerMatcher.group(2).trim();
+        String returnType = headerMatcher.group(3);
+        String returnMult = headerMatcher.group(4);
+
+        int bodyStart = headerMatcher.end();
+        int bodyEnd = findMatchingBrace(remaining, bodyStart - 1);
+
+        String body = remaining.substring(bodyStart, bodyEnd).trim();
+        remaining = remaining.substring(bodyEnd + 1).trim();
+
+        // Parse parameters
+        List<FunctionDefinition.ParameterDefinition> parameters = new ArrayList<>();
+        if (!paramsStr.isEmpty()) {
+            // Split by comma but be careful of nested generics
+            String[] paramParts = paramsStr.split(",");
+            for (String paramPart : paramParts) {
+                paramPart = paramPart.trim();
+                if (paramPart.isEmpty())
+                    continue;
+
+                // Pattern: paramName: Type[mult]
+                Pattern paramPattern = Pattern.compile("(\\w+)\\s*:\\s*([\\w:]+)\\s*\\[([^\\]]+)]");
+                Matcher paramMatcher = paramPattern.matcher(paramPart);
+                if (paramMatcher.matches()) {
+                    String paramName = paramMatcher.group(1);
+                    String paramType = paramMatcher.group(2);
+                    String paramMult = paramMatcher.group(3);
+                    Integer[] bounds = parseMultiplicity(paramMult);
+                    parameters.add(new FunctionDefinition.ParameterDefinition(
+                            paramName, paramType, bounds[0], bounds[1]));
+                }
+            }
+        }
+
+        // Parse return multiplicity
+        Integer[] returnBounds = parseMultiplicity(returnMult);
+
+        return new ParseResult<>(
+                new FunctionDefinition(
+                        qualifiedName,
+                        parameters,
+                        returnType,
+                        returnBounds[0],
+                        returnBounds[1],
+                        body,
+                        stereotypes,
+                        taggedValues),
                 remaining);
     }
 

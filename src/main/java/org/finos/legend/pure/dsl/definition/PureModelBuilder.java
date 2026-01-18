@@ -28,6 +28,7 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, Join> joins = new HashMap<>();
     private final Map<String, DatabaseDefinition> databases = new HashMap<>();
     private final Map<String, ProfileDefinition> profiles = new HashMap<>();
+    private final Map<String, FunctionDefinition> functions = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry();
 
     /**
@@ -49,6 +50,7 @@ public final class PureModelBuilder implements ModelContext {
                 case ServiceDefinition serviceDef -> addService(serviceDef);
                 case EnumDefinition enumDef -> addEnum(enumDef);
                 case ProfileDefinition profileDef -> addProfile(profileDef);
+                case FunctionDefinition funcDef -> addFunction(funcDef);
             }
         }
 
@@ -134,6 +136,15 @@ public final class PureModelBuilder implements ModelContext {
     public PureModelBuilder addProfile(ProfileDefinition profileDef) {
         profiles.put(profileDef.qualifiedName(), profileDef);
         profiles.put(profileDef.simpleName(), profileDef);
+        return this;
+    }
+
+    /**
+     * Adds a Function definition.
+     */
+    public PureModelBuilder addFunction(FunctionDefinition funcDef) {
+        functions.put(funcDef.qualifiedName(), funcDef);
+        functions.put(funcDef.simpleName(), funcDef);
         return this;
     }
 

@@ -1508,4 +1508,99 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(sql.contains("ASC"), "Should contain ASC");
         assertTrue(sql.contains("LIMIT"), "Should contain LIMIT");
     }
+
+    // ==================== Function Definition Tests ====================
+
+    @Test
+    @DisplayName("Function with Class query - execute body against DuckDB")
+    void testFunctionWithClassQuery_DuckDB() throws Exception {
+        // GIVEN: A model with a function that returns a filtered Class query
+        String model = """
+                Class model::Adult { name: String[1]; age: Integer[1]; }
+                Database store::AdultDb ( Table T_ADULT ( ID INTEGER, NAME VARCHAR(100), AGE INTEGER ) )
+                Mapping model::AdultMap ( Adult: Relational { ~mainTable [AdultDb] T_ADULT name: [AdultDb] T_ADULT.NAME, age: [AdultDb] T_ADULT.AGE } )
+
+                function query::getAdults(): model::Adult[*]
+                {
+                    Adult.all()->filter({p | $p.age >= 18})
+                }
+                """;
+
+        // Setup test data (unique table name to avoid conflicts with setUp)
+        connection.createStatement().execute(
+                "CREATE TABLE T_ADULT (ID INTEGER, NAME VARCHAR(100), AGE INTEGER)");
+        connection.createStatement().execute(
+                "INSERT INTO T_ADULT VALUES (1, 'Alice', 25), (2, 'Bob', 15), (3, 'Charlie', 30)");
+
+        // Parse the model (includes the function definition)
+        modelBuilder = new PureModelBuilder();
+        modelBuilder.addSource(model);
+        MappingRegistry mappingRegistry = modelBuilder.getMappingRegistry();
+        pureCompiler = new org.finos.legend.pure.dsl.PureCompiler(mappingRegistry);
+
+        // WHEN: Parse and compile the function BODY directly
+        String functionBody = "Adult.all()->filter({p | $p.age >= 18})";
+        RelationNode plan = pureCompiler.compile(functionBody);
+        String sql = sqlGenerator.generate(plan);
+
+        System.out.println("Function body SQL (getAdults): " + sql);
+
+        // Execute against DuckDB
+        ResultSet rs = connection.createStatement().executeQuery(sql);
+
+        // THEN: Should return only adults (age >= 18)
+        int count = 0;
+        while (rs.next()) {
+            count++;
+            int age = rs.getInt("AGE");
+            assertTrue(age >= 18, "Should only return adults, got age: " + age);
+        }
+        assertEquals(2, count, "Should return 2 adults (Alice and Charlie)");
+    }
+
+    @Test
+    @DisplayName("Function with Relation query - execute body against DuckDB")
+    void testFunctionWithRelationQuery_DuckDB() throws Exception {
+        // GIVEN: A model with a function that returns a projected query
+        String model = """
+                Class model::Worker { dept: String[1]; salary: Integer[1]; }
+                Database store::WorkerDb ( Table T_WORKER ( ID INTEGER, DEPT VARCHAR(50), SALARY INTEGER ) )
+                Mapping model::WorkerMap ( Worker: Relational { ~mainTable [WorkerDb] T_WORKER dept: [WorkerDb] T_WORKER.DEPT, salary: [WorkerDb] T_WORKER.SALARY } )
+
+                function query::getWorkerInfo(): Any[*]
+                {
+                    Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
+                }
+                """;
+
+        // Setup test data
+        connection.createStatement().execute(
+                "CREATE TABLE T_WORKER (ID INTEGER, DEPT VARCHAR(50), SALARY INTEGER)");
+        connection.createStatement().execute(
+                "INSERT INTO T_WORKER VALUES (1, 'Engineering', 100000), (2, 'Engineering', 120000), (3, 'Sales', 80000)");
+
+        modelBuilder = new PureModelBuilder();
+        modelBuilder.addSource(model);
+        MappingRegistry mappingRegistry = modelBuilder.getMappingRegistry();
+        pureCompiler = new org.finos.legend.pure.dsl.PureCompiler(mappingRegistry);
+
+        // WHEN: Parse and compile the function BODY (project without nested ->)
+        String functionBody = "Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
+        RelationNode plan = pureCompiler.compile(functionBody);
+        String sql = sqlGenerator.generate(plan);
+
+        System.out.println("Function body SQL (getWorkerInfo): " + sql);
+
+        // Execute against DuckDB
+        ResultSet rs = connection.createStatement().executeQuery(sql);
+
+        // THEN: Should return 3 rows with projected columns
+        int rowCount = 0;
+        while (rs.next()) {
+            rowCount++;
+            assertNotNull(rs.getString("department"));
+            assertTrue(rs.getInt("sal") > 0);
+        }
+        assertEquals(3, rowCount, "Should have 3 worker rows");
+    }
 }
