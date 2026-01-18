@@ -91,6 +91,43 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    @DisplayName("Parse Pure Class with derived property")
+    void testParseClassWithDerivedProperty() {
+        // GIVEN: A Pure Class definition with a derived property
+        String pureClass = """
+                Class model::Person
+                {
+                    firstName: String[1];
+                    lastName: String[1];
+                    fullName() {$this.firstName + ' ' + $this.lastName}: String[1];
+                }
+                """;
+
+        // WHEN: We parse it
+        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+
+        // THEN: We get a valid ClassDefinition with both regular and derived properties
+        assertEquals("model::Person", classDef.qualifiedName());
+        assertEquals(2, classDef.properties().size());
+        assertEquals(1, classDef.derivedProperties().size());
+
+        // Verify regular properties
+        var firstName = classDef.properties().get(0);
+        assertEquals("firstName", firstName.name());
+
+        var lastName = classDef.properties().get(1);
+        assertEquals("lastName", lastName.name());
+
+        // Verify derived property
+        var fullName = classDef.derivedProperties().get(0);
+        assertEquals("fullName", fullName.name());
+        assertEquals("$this.firstName + ' ' + $this.lastName", fullName.expression());
+        assertEquals("String", fullName.type());
+        assertEquals(1, fullName.lowerBound());
+        assertEquals(Integer.valueOf(1), fullName.upperBound());
+    }
+
+    @Test
     @DisplayName("Parse Pure Database definition")
     void testParseDatabaseDefinition() {
         // GIVEN: A Pure Database definition

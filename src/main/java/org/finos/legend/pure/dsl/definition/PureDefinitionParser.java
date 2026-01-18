@@ -90,29 +90,34 @@ public final class PureDefinitionParser {
 
     private static ParseResult<ClassDefinition> parseClass(String source) {
         // Pattern: Class qualified::Name { ... }
-        Pattern pattern = Pattern.compile(
-                "Class\\s+([\\w:]+)\\s*\\{([^}]*)\\}",
-                Pattern.DOTALL);
-        Matcher matcher = pattern.matcher(source);
+        // Use findMatchingBrace for proper handling of nested braces in derived
+        // properties
+        Pattern headerPattern = Pattern.compile("Class\\s+([\\w:]+)\\s*\\{");
+        Matcher headerMatcher = headerPattern.matcher(source);
 
-        if (!matcher.find()) {
+        if (!headerMatcher.find()) {
             throw new PureParseException("Invalid Class definition");
         }
 
-        String qualifiedName = matcher.group(1);
-        String body = matcher.group(2);
+        String qualifiedName = headerMatcher.group(1);
+        int bodyStart = headerMatcher.end();
+        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
+
+        String body = source.substring(bodyStart, bodyEnd);
 
         List<ClassDefinition.PropertyDefinition> properties = parseProperties(body);
+        List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = parseDerivedProperties(body);
 
         return new ParseResult<>(
-                new ClassDefinition(qualifiedName, properties),
-                source.substring(matcher.end()));
+                new ClassDefinition(qualifiedName, properties, derivedProperties),
+                source.substring(bodyEnd + 1));
     }
 
     private static List<ClassDefinition.PropertyDefinition> parseProperties(String body) {
         List<ClassDefinition.PropertyDefinition> properties = new ArrayList<>();
 
         // Pattern: propertyName: Type[multiplicity];
+        // Must NOT be followed by () which would indicate a derived property
         Pattern pattern = Pattern.compile(
                 "(\\w+)\\s*:\\s*(\\w+)\\s*\\[([^\\]]+)\\]\\s*;?");
         Matcher matcher = pattern.matcher(body);
@@ -122,11 +127,44 @@ public final class PureDefinitionParser {
             String type = matcher.group(2);
             String multiplicity = matcher.group(3);
 
+            // Skip derived properties (they have () after name)
+            int start = matcher.start();
+            if (start > 0) {
+                // Check if there's a () before the :
+                String before = body.substring(Math.max(0, start - 10), start);
+                if (before.contains("()")) {
+                    continue; // This is part of a derived property expression
+                }
+            }
+
             var bounds = parseMultiplicity(multiplicity);
             properties.add(new ClassDefinition.PropertyDefinition(name, type, bounds[0], bounds[1]));
         }
 
         return properties;
+    }
+
+    private static List<ClassDefinition.DerivedPropertyDefinition> parseDerivedProperties(String body) {
+        List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = new ArrayList<>();
+
+        // Pattern: name() {expression}: Type[multiplicity];
+        // Example: fullName() {$this.firstName + ' ' + $this.lastName}: String[1];
+        Pattern pattern = Pattern.compile(
+                "(\\w+)\\s*\\(\\s*\\)\\s*\\{([^}]+)\\}\\s*:\\s*(\\w+)\\s*\\[([^\\]]+)\\]\\s*;?");
+        Matcher matcher = pattern.matcher(body);
+
+        while (matcher.find()) {
+            String name = matcher.group(1);
+            String expression = matcher.group(2).trim();
+            String type = matcher.group(3);
+            String multiplicity = matcher.group(4);
+
+            var bounds = parseMultiplicity(multiplicity);
+            derivedProperties.add(new ClassDefinition.DerivedPropertyDefinition(
+                    name, expression, type, bounds[0], bounds[1]));
+        }
+
+        return derivedProperties;
     }
 
     private static Integer[] parseMultiplicity(String mult) {
