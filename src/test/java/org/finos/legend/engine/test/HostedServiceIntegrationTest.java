@@ -282,4 +282,214 @@ class HostedServiceIntegrationTest {
             return response.toString();
         }
     }
+
+    // ==================== Association Navigation Tests ====================
+
+    /**
+     * Test class that sets up Person + Address with association for testing.
+     */
+    @Nested
+    @DisplayName("Association Navigation via HTTP")
+    class AssociationNavigationTests {
+
+        private ServiceServer assocServer;
+        private int assocServerPort;
+        private Connection assocConnection;
+
+        @BeforeEach
+        void setUpAssociations() throws Exception {
+            // Create separate in-memory DuckDB for association tests
+            assocConnection = DriverManager.getConnection("jdbc:duckdb:");
+
+            try (Statement stmt = assocConnection.createStatement()) {
+                // Create Person table
+                stmt.execute("""
+                        CREATE TABLE T_PERSON (
+                            ID INTEGER PRIMARY KEY,
+                            FIRST_NAME VARCHAR(100),
+                            LAST_NAME VARCHAR(100)
+                        )
+                        """);
+
+                // Create Address table with FK to Person
+                stmt.execute("""
+                        CREATE TABLE T_ADDRESS (
+                            ID INTEGER PRIMARY KEY,
+                            PERSON_ID INTEGER,
+                            STREET VARCHAR(200),
+                            CITY VARCHAR(100)
+                        )
+                        """);
+
+                // Insert Person data
+                stmt.execute("INSERT INTO T_PERSON VALUES (1, 'John', 'Smith')");
+                stmt.execute("INSERT INTO T_PERSON VALUES (2, 'Jane', 'Doe')");
+
+                // Insert Address data (John has 2 addresses, Jane has 1)
+                stmt.execute("INSERT INTO T_ADDRESS VALUES (1, 1, '123 Main St', 'New York')");
+                stmt.execute("INSERT INTO T_ADDRESS VALUES (2, 1, '456 Oak Ave', 'Boston')");
+                stmt.execute("INSERT INTO T_ADDRESS VALUES (3, 2, '789 Pine Rd', 'Chicago')");
+            }
+
+            // Create registry with association-aware services
+            ServiceRegistry registry = new ServiceRegistry();
+
+            // Service: Get persons with their addresses (LEFT OUTER JOIN)
+            ServiceDefinition personWithAddressesDef = ServiceDefinition.of(
+                    "model::PersonsWithAddresses",
+                    "/api/persons-with-addresses",
+                    "Person.all()->project({p | $p.firstName}, {p | $p.addresses.street}, {p | $p.addresses.city})",
+                    "Returns all persons with their addresses");
+            registry.register(personWithAddressesDef, (pathParams, queryParams, conn) -> {
+                // Simulate the SQL that association navigation generates
+                String sql = """
+                        SELECT "t0"."FIRST_NAME" AS "firstName",
+                               "j1"."STREET" AS "street",
+                               "j1"."CITY" AS "city"
+                        FROM "T_PERSON" AS "t0"
+                        LEFT OUTER JOIN "T_ADDRESS" AS "j1" ON "t0"."ID" = "j1"."PERSON_ID"
+                        """;
+                try (Statement stmt = conn.createStatement();
+                        ResultSet rs = stmt.executeQuery(sql)) {
+                    return ResultSetJsonSerializer.serializeAsArray(rs);
+                }
+            });
+
+            // Service: Get persons filtered by address city (EXISTS subquery)
+            ServiceDefinition personByCityDef = ServiceDefinition.of(
+                    "model::PersonsByCity",
+                    "/api/persons-by-city/{city}",
+                    "Person.all()->filter({p | $p.addresses.city == $city})->project({p | $p.firstName})",
+                    "Returns persons who have an address in the specified city");
+            registry.register(personByCityDef, (pathParams, queryParams, conn) -> {
+                String city = pathParams.get("city");
+                // Simulate the SQL that association filter generates (EXISTS)
+                String sql = """
+                        SELECT "t0"."FIRST_NAME" AS "firstName"
+                        FROM "T_PERSON" AS "t0"
+                        WHERE EXISTS (
+                            SELECT 1 FROM "T_ADDRESS" AS "sub1"
+                            WHERE ("sub1"."PERSON_ID" = "t0"."ID" AND "sub1"."CITY" = ?)
+                        )
+                        """;
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setString(1, city);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        return ResultSetJsonSerializer.serializeAsArray(rs);
+                    }
+                }
+            });
+
+            // Service: Get addresses for a specific person (path param + JOIN)
+            ServiceDefinition addressesByPersonDef = ServiceDefinition.of(
+                    "model::AddressesByPerson",
+                    "/api/addresses/{personId}",
+                    "Address.all()->filter({a | $a.person.id == $personId})",
+                    "Returns addresses for a specific person");
+            registry.register(addressesByPersonDef, (pathParams, queryParams, conn) -> {
+                int personId = Integer.parseInt(pathParams.get("personId"));
+                String sql = """
+                        SELECT "t0"."STREET" AS "street", "t0"."CITY" AS "city"
+                        FROM "T_ADDRESS" AS "t0"
+                        WHERE "t0"."PERSON_ID" = ?
+                        """;
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setInt(1, personId);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        return ResultSetJsonSerializer.serializeAsArray(rs);
+                    }
+                }
+            });
+
+            // Start server
+            assocServer = new ServiceServer(0, registry, () -> assocConnection);
+            assocServer.start();
+            assocServerPort = assocServer.getPort();
+        }
+
+        @AfterEach
+        void tearDownAssociations() throws Exception {
+            if (assocServer != null) {
+                assocServer.stop(0);
+            }
+            if (assocConnection != null) {
+                assocConnection.close();
+            }
+        }
+
+        @Test
+        @DisplayName("GET /api/persons-with-addresses returns person data with JOINed addresses")
+        void testGetPersonsWithAddresses() throws Exception {
+            String response = httpGetAssoc("/api/persons-with-addresses");
+
+            System.out.println("Persons with addresses: " + response);
+
+            // John has 2 addresses, Jane has 1 = 3 rows total
+            // Verify John appears with both addresses
+            assertTrue(response.contains("\"firstName\":\"John\""));
+            assertTrue(response.contains("\"street\":\"123 Main St\""));
+            assertTrue(response.contains("\"street\":\"456 Oak Ave\""));
+
+            // Verify Jane appears with her address
+            assertTrue(response.contains("\"firstName\":\"Jane\""));
+            assertTrue(response.contains("\"street\":\"789 Pine Rd\""));
+        }
+
+        @Test
+        @DisplayName("GET /api/persons-by-city/{city} uses EXISTS for to-many filter")
+        void testGetPersonsByCity() throws Exception {
+            // John lives in Boston
+            String bostonResponse = httpGetAssoc("/api/persons-by-city/Boston");
+            System.out.println("Persons in Boston: " + bostonResponse);
+            assertTrue(bostonResponse.contains("\"firstName\":\"John\""));
+            assertFalse(bostonResponse.contains("\"firstName\":\"Jane\""));
+
+            // Jane lives in Chicago
+            String chicagoResponse = httpGetAssoc("/api/persons-by-city/Chicago");
+            System.out.println("Persons in Chicago: " + chicagoResponse);
+            assertTrue(chicagoResponse.contains("\"firstName\":\"Jane\""));
+            assertFalse(chicagoResponse.contains("\"firstName\":\"John\""));
+
+            // No one in Miami
+            String miamiResponse = httpGetAssoc("/api/persons-by-city/Miami");
+            System.out.println("Persons in Miami: " + miamiResponse);
+            assertEquals("[]", miamiResponse);
+        }
+
+        @Test
+        @DisplayName("GET /api/addresses/{personId} returns addresses for specific person")
+        void testGetAddressesByPerson() throws Exception {
+            // John (ID 1) has 2 addresses
+            String johnAddresses = httpGetAssoc("/api/addresses/1");
+            System.out.println("John's addresses: " + johnAddresses);
+            assertTrue(johnAddresses.contains("\"street\":\"123 Main St\""));
+            assertTrue(johnAddresses.contains("\"street\":\"456 Oak Ave\""));
+
+            // Jane (ID 2) has 1 address
+            String janeAddresses = httpGetAssoc("/api/addresses/2");
+            System.out.println("Jane's addresses: " + janeAddresses);
+            assertTrue(janeAddresses.contains("\"street\":\"789 Pine Rd\""));
+            assertFalse(janeAddresses.contains("Main St"));
+        }
+
+        private String httpGetAssoc(String path) throws Exception {
+            HttpURLConnection conn = (HttpURLConnection) new URL("http://localhost:" + assocServerPort + path)
+                    .openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+
+            assertEquals(200, conn.getResponseCode(), "Expected 200 OK for " + path);
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                return response.toString();
+            }
+        }
+    }
 }

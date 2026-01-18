@@ -108,7 +108,8 @@ public final class ServiceServer {
                     exchange.getRequestURI().getQuery());
 
             // Execute service
-            try (Connection conn = connectionSupplier.get()) {
+            try {
+                Connection conn = connectionSupplier.get();
                 String result = match.get().service().executor().execute(
                         match.get().pathParameters(),
                         queryParams,
