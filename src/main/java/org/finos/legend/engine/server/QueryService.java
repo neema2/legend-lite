@@ -1,10 +1,14 @@
 package org.finos.legend.engine.server;
 
+import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.ConnectionResolver;
-import org.finos.legend.engine.execution.RelationResult;
+import org.finos.legend.engine.execution.Result;
+import org.finos.legend.engine.execution.StreamingResult;
 import org.finos.legend.engine.plan.ExecutionPlan;
 import org.finos.legend.engine.plan.RelationNode;
 import org.finos.legend.engine.plan.ResultSchema;
+import org.finos.legend.engine.serialization.ResultSerializer;
+import org.finos.legend.engine.serialization.SerializerRegistry;
 import org.finos.legend.engine.store.MappingRegistry;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
@@ -15,6 +19,8 @@ import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
 import org.finos.legend.pure.dsl.definition.RuntimeDefinition;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -29,6 +35,9 @@ import java.util.UUID;
  * Performs compile + plan generation + execution in a single call.
  * No state is retained between calls - each request is independent.
  * 
+ * Supports both buffered (default) and streaming result modes, as well as
+ * direct serialization to various output formats (JSON, CSV, etc).
+ * 
  * Use cases:
  * - Ad-hoc queries without pre-deployed models
  * - Exploratory data analysis
@@ -39,7 +48,7 @@ import java.util.UUID;
  * <pre>
  * QueryService service = new QueryService();
  * 
- * RelationResult result = service.execute(
+ * BufferedResult result = service.execute(
  *         modelSource, // Classes, Mappings, Connections, Runtimes
  *         "Person.all()->filter({p | $p.age > 30})->project(...)",
  *         "app::MyRuntime");
@@ -47,18 +56,53 @@ import java.util.UUID;
  */
 public class QueryService {
 
+    private static final int DEFAULT_FETCH_SIZE = 100;
+
     private final ConnectionResolver connectionResolver = new ConnectionResolver();
 
     /**
      * Compiles Pure source, generates a plan, and executes - all in one call.
+     * Returns a buffered result (all rows materialized in memory).
      * 
      * @param pureSource  The complete Pure source (model + runtime definitions)
      * @param query       The Pure query to execute
      * @param runtimeName The qualified name of the Runtime to use
-     * @return The execution result as tabular data
+     * @return The execution result as buffered tabular data
      * @throws SQLException If execution fails
      */
-    public RelationResult execute(String pureSource, String query, String runtimeName)
+    public BufferedResult execute(String pureSource, String query, String runtimeName)
+            throws SQLException {
+        return execute(pureSource, query, runtimeName, ResultMode.BUFFERED).toBuffered();
+    }
+
+    /**
+     * Compiles, generates, and executes using a provided connection.
+     * Returns a buffered result.
+     * 
+     * @param pureSource  The complete Pure source (model + runtime definitions)
+     * @param query       The Pure query to execute
+     * @param runtimeName The qualified name of the Runtime (for dialect resolution)
+     * @param connection  The JDBC connection to use (must already contain test
+     *                    data)
+     * @return The execution result as buffered tabular data
+     * @throws SQLException If execution fails
+     */
+    public BufferedResult execute(String pureSource, String query, String runtimeName, Connection connection)
+            throws SQLException {
+        return execute(pureSource, query, runtimeName, connection, ResultMode.BUFFERED).toBuffered();
+    }
+
+    /**
+     * Executes with explicit result mode selection.
+     * 
+     * @param pureSource  The complete Pure source
+     * @param query       The Pure query to execute
+     * @param runtimeName The qualified name of the Runtime
+     * @param mode        The result mode (BUFFERED or STREAMING)
+     * @return The execution result
+     * @throws SQLException If execution fails
+     */
+    public Result execute(String pureSource, String query, String runtimeName, ResultMode mode)
             throws SQLException {
 
         // 1. Compile the Pure source
@@ -89,24 +133,14 @@ public class QueryService {
 
         // 5. Resolve connection and execute
         Connection conn = connectionResolver.resolve(connectionDef);
-        return executeWithConnection(conn, sql);
+        return executeWithMode(conn, sql, mode);
     }
 
     /**
-     * Compiles, generates, and executes using a provided connection.
-     * This is useful for testing where the connection is pre-configured with test
-     * data.
-     * 
-     * @param pureSource  The complete Pure source (model + runtime definitions)
-     * @param query       The Pure query to execute
-     * @param runtimeName The qualified name of the Runtime (for dialect resolution)
-     * @param connection  The JDBC connection to use (must already contain test
-     *                    data)
-     * @return The execution result as tabular data
-     * @throws SQLException If execution fails
+     * Executes with explicit result mode using a provided connection.
      */
-    public RelationResult execute(String pureSource, String query, String runtimeName, Connection connection)
-            throws SQLException {
+    public Result execute(String pureSource, String query, String runtimeName,
+            Connection connection, ResultMode mode) throws SQLException {
 
         // 1. Compile the Pure source
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
@@ -138,14 +172,63 @@ public class QueryService {
         System.out.println("Generated SQL: " + sql);
 
         // 5. Execute using provided connection
-        return executeWithConnection(connection, sql);
+        return executeWithMode(connection, sql, mode);
     }
 
-    private RelationResult executeWithConnection(Connection conn, String sql) throws SQLException {
+    /**
+     * Executes a query and serializes the result directly to an output stream.
+     * Automatically chooses streaming mode if the serializer supports it.
+     * 
+     * @param pureSource  The complete Pure source
+     * @param query       The Pure query to execute
+     * @param runtimeName The qualified name of the Runtime
+     * @param out         The output stream to write to
+     * @param format      The serialization format (e.g., "json", "csv")
+     * @throws SQLException If execution fails
+     * @throws IOException  If serialization fails
+     */
+    public void executeAndSerialize(String pureSource, String query, String runtimeName,
+            OutputStream out, String format) throws SQLException, IOException {
+        ResultSerializer serializer = SerializerRegistry.get(format);
+        ResultMode mode = serializer.supportsStreaming() ? ResultMode.STREAMING : ResultMode.BUFFERED;
+
+        try (Result result = execute(pureSource, query, runtimeName, mode)) {
+            result.writeTo(out, serializer);
+        }
+    }
+
+    /**
+     * Executes a query with provided connection and serializes to output stream.
+     */
+    public void executeAndSerialize(String pureSource, String query, String runtimeName,
+            Connection connection, OutputStream out, String format)
+            throws SQLException, IOException {
+        ResultSerializer serializer = SerializerRegistry.get(format);
+        ResultMode mode = serializer.supportsStreaming() ? ResultMode.STREAMING : ResultMode.BUFFERED;
+
+        try (Result result = execute(pureSource, query, runtimeName, connection, mode)) {
+            result.writeTo(out, serializer);
+        }
+    }
+
+    private Result executeWithMode(Connection conn, String sql, ResultMode mode) throws SQLException {
+        return switch (mode) {
+            case BUFFERED -> executeBuffered(conn, sql);
+            case STREAMING -> executeStreaming(conn, sql);
+        };
+    }
+
+    private BufferedResult executeBuffered(Connection conn, String sql) throws SQLException {
         try (Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(sql)) {
-            return RelationResult.fromResultSet(rs);
+            return BufferedResult.fromResultSet(rs);
         }
+    }
+
+    private StreamingResult executeStreaming(Connection conn, String sql) throws SQLException {
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery(sql);
+        return StreamingResult.fromResultSet(rs, stmt, conn, DEFAULT_FETCH_SIZE);
     }
 
     /**
@@ -201,5 +284,15 @@ public class QueryService {
             case SQLite -> SQLiteDialect.INSTANCE;
             default -> DuckDBDialect.INSTANCE;
         };
+    }
+
+    /**
+     * Determines whether to buffer or stream results.
+     */
+    public enum ResultMode {
+        /** Materialize all rows in memory (current behavior) */
+        BUFFERED,
+        /** Lazy iteration with held connection */
+        STREAMING
     }
 }

@@ -197,6 +197,116 @@ Sealed interfaces (`Type`, `RelationNode`, `Expression`) enable:
 
 ---
 
+## Results & Serialization
+
+### Q: When should I use streaming vs buffered results?
+
+Legend Lite supports two result modes for query execution:
+
+| Mode | Use When | Memory | Connection |
+|------|----------|--------|------------|
+| **Buffered** (default) | Small results, need random access, re-iteration | O(rows × cols) | Closed after fetch |
+| **Streaming** | Large results, single pass, memory-constrained | O(batch size) | Held during iteration |
+
+**Buffered (default):**
+```java
+BufferedResult result = queryService.execute(pureSource, query, runtime);
+// Random access, re-iteration OK
+Object value = result.getValue(5, "name");
+result.stream().forEach(...);  // Can iterate multiple times
+```
+
+**Streaming (large results):**
+```java
+try (Result result = queryService.execute(pureSource, query, runtime, ResultMode.STREAMING)) {
+    result.stream()
+        .limit(1000)  // Can stop early
+        .forEach(row -> process(row));
+}  // Resources released automatically
+```
+
+**Direct serialization (best for HTTP responses):**
+```java
+queryService.executeAndSerialize(pureSource, query, runtime, outputStream, "json");
+```
+
+---
+
+### Q: How do I add a custom serializer (e.g., Arrow, Protobuf, Parquet)?
+
+**Step 1: Implement `ResultSerializer`**
+
+```java
+public class ArrowSerializer implements ResultSerializer {
+
+    public static final ArrowSerializer INSTANCE = new ArrowSerializer();
+
+    @Override
+    public String formatId() {
+        return "arrow";
+    }
+
+    @Override
+    public String contentType() {
+        return "application/vnd.apache.arrow.stream";
+    }
+
+    @Override
+    public boolean supportsStreaming() {
+        return true;  // Can write incrementally
+    }
+
+    @Override
+    public void serialize(BufferedResult result, OutputStream out) throws IOException {
+        // Write Arrow IPC format from buffered data
+        try (BufferAllocator allocator = new RootAllocator();
+             VectorSchemaRoot root = buildSchema(result.columns(), allocator)) {
+            // ... populate vectors and write
+        }
+    }
+
+    @Override
+    public void serializeStreaming(StreamingResult result, OutputStream out) throws IOException {
+        // Write Arrow record batches as rows arrive
+        // ... stream in batches of 1024 rows
+    }
+}
+```
+
+**Step 2: Register the serializer**
+
+```java
+// At application startup
+SerializerRegistry.register(ArrowSerializer.INSTANCE);
+```
+
+Or via **ServiceLoader** for modular dependencies:
+```
+# META-INF/services/org.finos.legend.engine.serialization.ResultSerializer
+com.mycompany.ArrowSerializer
+```
+
+**Step 3: Use it**
+
+```java
+queryService.executeAndSerialize(pureSource, query, runtime, out, "arrow");
+```
+
+---
+
+### Q: What serializers are built-in?
+
+| Format | Class | Streaming | Dependencies |
+|--------|-------|-----------|--------------|
+| **JSON** | `JsonSerializer` | ✅ Yes | None (hand-rolled) |
+| **CSV** | `CsvSerializer` | ✅ Yes | None (hand-rolled) |
+
+Built-in serializers have zero external dependencies and are fully GraalVM native-image compatible.
+
+For Arrow, Protobuf, or Parquet, implement custom serializers in optional modules with explicit native-image configuration.
+
+---
+
 ## Contributing
 
 Have a question not answered here? Open an issue on GitHub!

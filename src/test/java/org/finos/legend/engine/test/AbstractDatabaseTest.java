@@ -1,6 +1,6 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.RelationResult;
+import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.plan.ExecutionPlan;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.store.MappingRegistry;
@@ -217,14 +217,14 @@ public abstract class AbstractDatabaseTest {
      * @return List of PersonResult
      */
     protected List<PersonResult> executePureQuery(String pureQuery) throws SQLException {
-        RelationResult result = executeRelation(pureQuery);
+        BufferedResult result = executeRelation(pureQuery);
         return convertToPersonResults(result);
     }
 
     /**
-     * Converts RelationResult to PersonResult list.
+     * Converts BufferedResult to PersonResult list.
      */
-    private List<PersonResult> convertToPersonResults(RelationResult result) {
+    private List<PersonResult> convertToPersonResults(BufferedResult result) {
         List<PersonResult> personResults = new ArrayList<>();
 
         for (var row : result.rows()) {
@@ -254,9 +254,9 @@ public abstract class AbstractDatabaseTest {
      * Uses QueryService for complete compile → plan → execute flow.
      * 
      * @param pureQuery The Pure query to execute
-     * @return RelationResult containing column metadata and rows
+     * @return BufferedResult containing column metadata and rows
      */
-    protected RelationResult executeRelation(String pureQuery) throws SQLException {
+    protected BufferedResult executeRelation(String pureQuery) throws SQLException {
         return queryService.execute(
                 getCompletePureModelWithRuntime(),
                 pureQuery,

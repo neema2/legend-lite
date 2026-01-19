@@ -1,93 +1,71 @@
 package org.finos.legend.engine.execution;
 
+import org.finos.legend.engine.serialization.ResultSerializer;
+
+import java.io.IOException;
+import java.io.OutputStream;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
- * Represents the result of a Relation query (tabular data).
+ * A fully materialized, immutable query result.
  * 
- * This is the return type for Pure relation expressions like:
- * {@code #>store::PersonDb.T_PERSON}->project(...)
+ * All rows are loaded into memory, allowing random access and re-iteration.
+ * Suitable for small to medium result sets or when results need to be processed
+ * multiple times.
  * 
  * GraalVM native-image compatible.
  */
-public record RelationResult(
+public record BufferedResult(
         List<Column> columns,
-        List<Row> rows) {
+        List<Row> rows) implements Result {
 
-    /**
-     * Creates a RelationResult from a JDBC ResultSet.
-     */
-    public static RelationResult fromResultSet(ResultSet rs) throws SQLException {
-        ResultSetMetaData meta = rs.getMetaData();
-        int columnCount = meta.getColumnCount();
-
-        // Build column metadata
-        List<Column> columns = new ArrayList<>();
-        for (int i = 1; i <= columnCount; i++) {
-            columns.add(new Column(
-                    meta.getColumnLabel(i),
-                    meta.getColumnTypeName(i),
-                    mapToJavaType(meta.getColumnType(i))));
-        }
-
-        // Build rows
-        List<Row> rows = new ArrayList<>();
-        while (rs.next()) {
-            List<Object> values = new ArrayList<>();
-            for (int i = 1; i <= columnCount; i++) {
-                values.add(rs.getObject(i));
-            }
-            rows.add(new Row(values));
-        }
-
-        return new RelationResult(columns, rows);
-    }
-
-    /**
-     * Maps JDBC type to Java class name.
-     */
-    private static String mapToJavaType(int jdbcType) {
-        return switch (jdbcType) {
-            case java.sql.Types.VARCHAR, java.sql.Types.CHAR, java.sql.Types.LONGVARCHAR -> "String";
-            case java.sql.Types.INTEGER, java.sql.Types.SMALLINT, java.sql.Types.TINYINT -> "Integer";
-            case java.sql.Types.BIGINT -> "Long";
-            case java.sql.Types.DOUBLE, java.sql.Types.FLOAT, java.sql.Types.REAL -> "Double";
-            case java.sql.Types.DECIMAL, java.sql.Types.NUMERIC -> "BigDecimal";
-            case java.sql.Types.BOOLEAN, java.sql.Types.BIT -> "Boolean";
-            case java.sql.Types.DATE -> "LocalDate";
-            case java.sql.Types.TIMESTAMP, java.sql.Types.TIMESTAMP_WITH_TIMEZONE -> "LocalDateTime";
-            default -> "Object";
-        };
-    }
-
-    /**
-     * Gets the number of rows.
-     */
-    public int rowCount() {
+    @Override
+    public long rowCount() {
         return rows.size();
     }
 
-    /**
-     * Gets the number of columns.
-     */
+    @Override
+    public Iterator<Row> iterator() {
+        return rows.iterator();
+    }
+
+    @Override
+    public Stream<Row> stream() {
+        return rows.stream();
+    }
+
+    @Override
+    public void writeTo(OutputStream out, ResultSerializer serializer) throws IOException {
+        serializer.serialize(this, out);
+    }
+
+    @Override
+    public BufferedResult toBuffered() {
+        return this;
+    }
+
+    @Override
+    public void close() {
+        // No-op: already materialized, no resources to release
+    }
+
+    @Override
     public int columnCount() {
         return columns.size();
     }
 
-    /**
-     * Gets a value at the specified row and column.
-     */
+    @Override
     public Object getValue(int rowIndex, int columnIndex) {
         return rows.get(rowIndex).values().get(columnIndex);
     }
 
-    /**
-     * Gets a value at the specified row by column name.
-     */
+    @Override
     public Object getValue(int rowIndex, String columnName) {
         for (int i = 0; i < columns.size(); i++) {
             if (columns.get(i).name().equals(columnName)) {
@@ -100,8 +78,6 @@ public record RelationResult(
     /**
      * Serializes this result as a JSON array of objects.
      * Each row becomes a JSON object with column names as keys.
-     * 
-     * @return JSON string representation
      */
     public String toJsonArray() {
         StringBuilder sb = new StringBuilder("[");
@@ -163,17 +139,28 @@ public record RelationResult(
     }
 
     /**
-     * Column metadata.
+     * Creates a BufferedResult from a JDBC ResultSet.
+     * The ResultSet is fully consumed and can be closed after this call.
      */
-    public record Column(String name, String sqlType, String javaType) {
-    }
+    public static BufferedResult fromResultSet(ResultSet rs) throws SQLException {
+        ResultSetMetaData meta = rs.getMetaData();
+        int columnCount = meta.getColumnCount();
 
-    /**
-     * A row of values.
-     */
-    public record Row(List<Object> values) {
-        public Object get(int index) {
-            return values.get(index);
+        // Build column metadata
+        List<Column> columns = new ArrayList<>(columnCount);
+        for (int i = 1; i <= columnCount; i++) {
+            columns.add(new Column(
+                    meta.getColumnLabel(i),
+                    meta.getColumnTypeName(i),
+                    Column.mapJdbcTypeToJava(meta.getColumnType(i))));
         }
+
+        // Build rows
+        List<Row> rows = new ArrayList<>();
+        while (rs.next()) {
+            rows.add(Row.fromResultSet(rs, columnCount));
+        }
+
+        return new BufferedResult(columns, rows);
     }
 }

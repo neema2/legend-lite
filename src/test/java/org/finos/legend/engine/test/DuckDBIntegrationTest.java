@@ -1029,7 +1029,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String relationQuery = "#>{store::PersonDatabase.T_PERSON}->from(test::TestRuntime)";
 
         // WHEN: Execute through QueryService (parse → compile → SQL → execute)
-        org.finos.legend.engine.execution.RelationResult result = queryService.execute(
+        org.finos.legend.engine.execution.BufferedResult result = queryService.execute(
                 pureSource,
                 relationQuery,
                 "test::TestRuntime",

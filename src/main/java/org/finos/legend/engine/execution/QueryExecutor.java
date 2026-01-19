@@ -121,10 +121,10 @@ public class QueryExecutor {
      * 
      * @param pureQuery   The Pure query to execute
      * @param runtimeName The name of the runtime to use
-     * @return RelationResult containing column metadata and rows
+     * @return BufferedResult containing column metadata and rows
      * @throws SQLException If execution fails
      */
-    public RelationResult executeRelation(String pureQuery, String runtimeName) throws SQLException {
+    public BufferedResult executeRelation(String pureQuery, String runtimeName) throws SQLException {
         RuntimeDefinition runtime = runtimes.get(runtimeName);
         if (runtime == null) {
             throw new IllegalArgumentException("Runtime not found: " + runtimeName);
@@ -135,9 +135,9 @@ public class QueryExecutor {
     /**
      * Executes a Pure relation query and returns tabular results.
      */
-    public RelationResult executeRelation(String pureQuery, RuntimeDefinition runtime) throws SQLException {
+    public BufferedResult executeRelation(String pureQuery, RuntimeDefinition runtime) throws SQLException {
         try (ResultSet rs = execute(pureQuery, runtime)) {
-            return RelationResult.fromResultSet(rs);
+            return BufferedResult.fromResultSet(rs);
         }
     }
 
