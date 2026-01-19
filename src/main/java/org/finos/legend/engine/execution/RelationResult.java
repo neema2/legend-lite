@@ -98,6 +98,71 @@ public record RelationResult(
     }
 
     /**
+     * Serializes this result as a JSON array of objects.
+     * Each row becomes a JSON object with column names as keys.
+     * 
+     * @return JSON string representation
+     */
+    public String toJsonArray() {
+        StringBuilder sb = new StringBuilder("[");
+
+        for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
+            if (rowIdx > 0) {
+                sb.append(",");
+            }
+            sb.append("{");
+
+            Row row = rows.get(rowIdx);
+            for (int colIdx = 0; colIdx < columns.size(); colIdx++) {
+                if (colIdx > 0) {
+                    sb.append(",");
+                }
+
+                Column col = columns.get(colIdx);
+                Object value = row.values().get(colIdx);
+
+                sb.append("\"").append(escapeJson(col.name())).append("\":");
+                sb.append(formatJsonValue(value));
+            }
+            sb.append("}");
+        }
+
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private static String formatJsonValue(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof Boolean) {
+            return value.toString();
+        }
+        if (value instanceof Number) {
+            return value.toString();
+        }
+        // String or other - escape and quote
+        return "\"" + escapeJson(value.toString()) + "\"";
+    }
+
+    private static String escapeJson(String s) {
+        if (s == null)
+            return "";
+        StringBuilder sb = new StringBuilder(s.length());
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
      * Column metadata.
      */
     public record Column(String name, String sqlType, String javaType) {

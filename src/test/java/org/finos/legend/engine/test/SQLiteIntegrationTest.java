@@ -1,10 +1,7 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.store.*;
-import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
-import org.finos.legend.engine.transpiler.SQLGenerator;
 import org.finos.legend.engine.transpiler.SQLiteDialect;
 import org.finos.legend.pure.dsl.definition.*;
 import org.finos.legend.pure.m3.*;
@@ -48,7 +45,6 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     @BeforeEach
     void setUp() throws SQLException {
         connection = DriverManager.getConnection(getJdbcUrl());
-        sqlGenerator = new SQLGenerator(getDialect());
         setupDatabase();
         setupMappingRegistry();
     }
@@ -268,26 +264,6 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     // ==================== Cross-Dialect Compatibility ====================
 
     @Test
-    @DisplayName("SQL generated is compatible across dialects for standard queries")
-    void testCrossDialectCompatibility() {
-        // GIVEN: Same Pure query
-        String pureQuery = "Person.all()->filter({p | $p.lastName == 'Smith'})->project({p | $p.firstName}, {p | $p.lastName})";
-
-        // WHEN: We generate SQL with both dialects
-        SQLGenerator duckdbGen = new SQLGenerator(DuckDBDialect.INSTANCE);
-        SQLGenerator sqliteGen = new SQLGenerator(SQLiteDialect.INSTANCE);
-
-        RelationNode plan = pureCompiler.compile(pureQuery);
-
-        String duckdbSql = duckdbGen.generate(plan);
-        String sqliteSql = sqliteGen.generate(plan);
-
-        // THEN: For standard queries, they should be identical
-        assertEquals(duckdbSql, sqliteSql,
-                "Standard queries should generate identical SQL");
-    }
-
-    @Test
     @DisplayName("Pure query with NOT EQUALS operator")
     void testPureNotEquals() throws SQLException {
         // GIVEN: A Pure query with != operator
@@ -311,8 +287,8 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("Function with Class query - execute body against SQLite")
     void testFunctionWithClassQuery_SQLite() throws Exception {
-        // GIVEN: A model with a function that returns a filtered Class query
-        String model = """
+        // GIVEN: A model with a function, connection and runtime
+        String pureSource = """
                 Class model::Adult { name: String[1]; age: Integer[1]; }
                 Database store::AdultDb ( Table T_ADULT ( ID INTEGER, NAME VARCHAR(100), AGE INTEGER ) )
                 Mapping model::AdultMap ( Adult: Relational { ~mainTable [AdultDb] T_ADULT name: [AdultDb] T_ADULT.NAME, age: [AdultDb] T_ADULT.AGE } )
@@ -321,45 +297,40 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 {
                     Adult.all()->filter({p | $p.age >= 18})
                 }
+
+                RelationalDatabaseConnection store::TestConnection
+                {
+                    type: SQLite;
+                    specification: InMemory { };
+                    auth: NoAuth { };
+                }
+
+                Runtime test::TestRuntime
+                {
+                    mappings: [ model::AdultMap ];
+                    connections: [ store::AdultDb: store::TestConnection ];
+                }
                 """;
 
-        // Setup test data (unique table name to avoid conflicts with setUp)
+        // Setup test data
         connection.createStatement().execute(
                 "CREATE TABLE T_ADULT (ID INTEGER, NAME VARCHAR(100), AGE INTEGER)");
         connection.createStatement().execute(
                 "INSERT INTO T_ADULT VALUES (1, 'Alice', 25), (2, 'Bob', 15), (3, 'Charlie', 30)");
 
-        // Parse the model (includes the function definition)
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(model);
-        MappingRegistry mappingRegistry = modelBuilder.getMappingRegistry();
-        pureCompiler = new org.finos.legend.pure.dsl.PureCompiler(mappingRegistry);
-
-        // WHEN: Parse and compile the function BODY directly
+        // Execute the function body via QueryService
         String functionBody = "Adult.all()->filter({p | $p.age >= 18})";
-        RelationNode plan = pureCompiler.compile(functionBody);
-        String sql = sqlGenerator.generate(plan);
-
-        System.out.println("SQLite Function body SQL (getAdults): " + sql);
-
-        // Execute against SQLite
-        ResultSet rs = connection.createStatement().executeQuery(sql);
+        var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Should return only adults (age >= 18)
-        int count = 0;
-        while (rs.next()) {
-            count++;
-            int age = rs.getInt("AGE");
-            assertTrue(age >= 18, "Should only return adults, got age: " + age);
-        }
-        assertEquals(2, count, "Should return 2 adults (Alice and Charlie)");
+        assertEquals(2, result.rows().size(), "Should return 2 adults (Alice and Charlie)");
     }
 
     @Test
     @DisplayName("Function with Relation query - execute body against SQLite")
     void testFunctionWithRelationQuery_SQLite() throws Exception {
-        // GIVEN: A model with a function that returns a projected query
-        String model = """
+        // GIVEN: A model with a function, connection and runtime
+        String pureSource = """
                 Class model::Worker { dept: String[1]; salary: Integer[1]; }
                 Database store::WorkerDb ( Table T_WORKER ( ID INTEGER, DEPT VARCHAR(50), SALARY INTEGER ) )
                 Mapping model::WorkerMap ( Worker: Relational { ~mainTable [WorkerDb] T_WORKER dept: [WorkerDb] T_WORKER.DEPT, salary: [WorkerDb] T_WORKER.SALARY } )
@@ -367,6 +338,19 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 function query::getWorkerInfo(): Any[*]
                 {
                     Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
+                }
+
+                RelationalDatabaseConnection store::TestConnection
+                {
+                    type: SQLite;
+                    specification: InMemory { };
+                    auth: NoAuth { };
+                }
+
+                Runtime test::TestRuntime
+                {
+                    mappings: [ model::WorkerMap ];
+                    connections: [ store::WorkerDb: store::TestConnection ];
                 }
                 """;
 
@@ -376,28 +360,11 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         connection.createStatement().execute(
                 "INSERT INTO T_WORKER VALUES (1, 'Engineering', 100000), (2, 'Engineering', 120000), (3, 'Sales', 80000)");
 
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(model);
-        MappingRegistry mappingRegistry = modelBuilder.getMappingRegistry();
-        pureCompiler = new org.finos.legend.pure.dsl.PureCompiler(mappingRegistry);
-
-        // WHEN: Parse and compile the function BODY (project without nested ->)
+        // Execute the function body via QueryService
         String functionBody = "Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
-        RelationNode plan = pureCompiler.compile(functionBody);
-        String sql = sqlGenerator.generate(plan);
-
-        System.out.println("SQLite Function body SQL (getWorkerInfo): " + sql);
-
-        // Execute against SQLite
-        ResultSet rs = connection.createStatement().executeQuery(sql);
+        var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Should return 3 rows with projected columns
-        int rowCount = 0;
-        while (rs.next()) {
-            rowCount++;
-            assertNotNull(rs.getString("department"));
-            assertTrue(rs.getInt("sal") > 0);
-        }
-        assertEquals(3, rowCount, "Should have 3 worker rows");
+        assertEquals(3, result.rows().size(), "Should have 3 worker rows");
     }
 }

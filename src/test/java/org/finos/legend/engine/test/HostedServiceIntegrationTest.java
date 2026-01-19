@@ -1,10 +1,8 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.plan.RelationNode;
 import org.finos.legend.engine.server.*;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
-import org.finos.legend.engine.transpiler.SQLGenerator;
 import org.finos.legend.pure.dsl.definition.*;
 import org.junit.jupiter.api.*;
 
@@ -94,7 +92,6 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     void setUp() throws Exception {
         // Set up DuckDB connection and database
         connection = DriverManager.getConnection(getJdbcUrl());
-        sqlGenerator = new SQLGenerator(getDialect());
         setupDatabase(); // Creates T_PERSON and T_ADDRESS tables
         setupMappingRegistry(); // Sets up Pure model, mapping registry, and compiler
 
@@ -120,32 +117,29 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
-     * Registers a service that executes its Pure function directly.
+     * Registers a service that executes its Pure function via QueryService.
      * No path parameters - just compile and run.
      */
     private void registerService(ServiceRegistry registry, String servicePure) {
         ServiceDefinition def = PureDefinitionParser.parseServiceDefinition(servicePure);
         String pureQuery = def.functionBody();
+        String pureSource = getCompletePureModelWithRuntime();
 
         registry.register(def, (pathParams, queryParams, conn) -> {
-            // Compile Pure to SQL using the real compilation pipeline
-            RelationNode plan = pureCompiler.compile(pureQuery);
-            String sql = sqlGenerator.generate(plan);
-
-            try (Statement stmt = conn.createStatement();
-                    ResultSet rs = stmt.executeQuery(sql)) {
-                return ResultSetJsonSerializer.serializeAsArray(rs);
-            }
+            // Execute via QueryService (parse → compile → SQL → execute)
+            var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", conn);
+            return result.toJsonArray();
         });
     }
 
     /**
-     * Registers a service with a path parameter filter.
+     * Registers a service with a path parameter filter via QueryService.
      * The filter value is substituted into the WHERE clause.
      */
     private void registerServiceWithFilter(ServiceRegistry registry, String servicePure, String paramName) {
         ServiceDefinition def = PureDefinitionParser.parseServiceDefinition(servicePure);
         String pureQueryTemplate = def.functionBody();
+        String pureSource = getCompletePureModelWithRuntime();
 
         registry.register(def, (pathParams, queryParams, conn) -> {
             String paramValue = pathParams.get(paramName);
@@ -155,18 +149,9 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
             // statements
             String pureQuery = pureQueryTemplate.replace("$" + paramName, "'" + paramValue + "'");
 
-            // Compile Pure to SQL using the real compilation pipeline
-            RelationNode plan = pureCompiler.compile(pureQuery);
-            String sql = sqlGenerator.generate(plan);
-
-            System.out.println("Service: " + def.simpleName());
-            System.out.println("  Pure Query: " + pureQuery);
-            System.out.println("  Generated SQL: " + sql);
-
-            try (Statement stmt = conn.createStatement();
-                    ResultSet rs = stmt.executeQuery(sql)) {
-                return ResultSetJsonSerializer.serializeAsArray(rs);
-            }
+            // Execute via QueryService (parse → compile → SQL → execute)
+            var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", conn);
+            return result.toJsonArray();
         });
     }
 
