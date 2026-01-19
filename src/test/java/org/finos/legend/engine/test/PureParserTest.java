@@ -436,4 +436,22 @@ class PureParserTest {
         assertInstanceOf(DatabaseDefinition.class, definitions.get(3)); // PersonDatabase
         assertInstanceOf(MappingDefinition.class, definitions.get(4)); // PersonMapping
     }
+
+    // ==================== Relation Literal Parsing Tests ====================
+
+    @Test
+    @DisplayName("Parse Relation literal: #>{db.table}")
+    void testParseRelationLiteral() {
+        // GIVEN: A Relation literal expression
+        String query = "#>{MyDB.T_PERSON}";
+
+        // WHEN: We parse it
+        var expr = org.finos.legend.pure.dsl.PureParser.parse(query);
+
+        // THEN: We get a RelationLiteral
+        assertInstanceOf(org.finos.legend.pure.dsl.RelationLiteral.class, expr);
+        var literal = (org.finos.legend.pure.dsl.RelationLiteral) expr;
+        assertEquals("MyDB", literal.databaseRef());
+        assertEquals("T_PERSON", literal.tableName());
+    }
 }

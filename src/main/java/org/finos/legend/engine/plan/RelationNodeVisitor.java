@@ -41,4 +41,9 @@ public interface RelationNodeVisitor<T> {
      * Visit a limit node (LIMIT/OFFSET clause).
      */
     T visit(LimitNode limit);
+
+    /**
+     * Visit a from node (runtime binding).
+     */
+    T visit(FromNode from);
 }

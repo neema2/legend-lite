@@ -72,6 +72,10 @@ public final class PureParser {
                 case "limit", "take" -> parseLimitCall(expr);
                 case "drop" -> parseDropCall(expr);
                 case "slice" -> parseSliceCall(expr);
+                // Relation API operations
+                case "select" -> parseSelectCall(expr);
+                case "extend" -> parseExtendCall(expr);
+                case "from" -> parseFromCall(expr);
                 default -> throw new PureParseException("Unknown function: " + functionName);
             };
         }
@@ -116,6 +120,11 @@ public final class PureParser {
             return parseClassAllOrIdentifier();
         }
 
+        // Relation literal: #>{store::DB.TABLE_NAME}
+        if (check(TokenType.HASH_GREATER)) {
+            return parseRelationLiteral();
+        }
+
         if (check(TokenType.LPAREN)) {
             consume(TokenType.LPAREN, "Expected '('");
             PureExpression expr = parseOrExpression();
@@ -148,6 +157,27 @@ public final class PureParser {
 
         // Just an identifier (might be in a lambda context)
         return new VariableExpr(className.value());
+    }
+
+    /**
+     * Parses a Relation literal: #>{store::DB.TABLE_NAME}
+     * 
+     * Syntax: #>{databaseRef.tableName} where databaseRef can be qualified (e.g.,
+     * store::PersonDb)
+     */
+    private RelationLiteral parseRelationLiteral() {
+        consume(TokenType.HASH_GREATER, "Expected '#>'");
+        consume(TokenType.LBRACE, "Expected '{' after '#>'");
+
+        // Parse qualified database reference (e.g., store::PersonDatabase)
+        String dbRef = parseQualifiedName();
+
+        consume(TokenType.DOT, "Expected '.' between database and table");
+        Token tableName = consume(TokenType.IDENTIFIER, "Expected table name");
+
+        consume(TokenType.RBRACE, "Expected '}' to close Relation literal");
+
+        return new RelationLiteral(dbRef, tableName.value());
     }
 
     /**
@@ -462,6 +492,90 @@ public final class PureParser {
         } else {
             throw new PureParseException("slice() requires Class or Relation expression");
         }
+    }
+
+    // ==================== Relation API Operations ====================
+
+    /**
+     * Parses select function call on Relation:
+     * select(~col1, ~col2, ~col3)
+     * 
+     * Uses the ~ prefix for column specifications.
+     */
+    private RelationExpression parseSelectCall(PureExpression source) {
+        if (!(source instanceof RelationExpression relationSource)) {
+            throw new PureParseException(
+                    "select() requires a Relation expression. Got: " + source.getClass().getSimpleName());
+        }
+
+        List<String> columns = new ArrayList<>();
+
+        // Parse column specifications: ~col1, ~col2, ...
+        do {
+            if (check(TokenType.COMMA)) {
+                consume(TokenType.COMMA, "Expected ','");
+            }
+            consume(TokenType.TILDE, "Expected '~' before column name");
+            String colName = consume(TokenType.IDENTIFIER, "Expected column name after '~'").value();
+            columns.add(colName);
+        } while (check(TokenType.COMMA));
+
+        consume(TokenType.RPAREN, "Expected ')' after select");
+        return new RelationSelectExpression(relationSource, columns);
+    }
+
+    /**
+     * Parses extend function call on Relation:
+     * extend(~newCol : x | $x.col1 + $x.col2)
+     * 
+     * Adds a calculated column to the Relation.
+     */
+    private RelationExpression parseExtendCall(PureExpression source) {
+        if (!(source instanceof RelationExpression relationSource)) {
+            throw new PureParseException(
+                    "extend() requires a Relation expression. Got: " + source.getClass().getSimpleName());
+        }
+
+        // Parse column and expression: ~newCol : x | expr
+        consume(TokenType.TILDE, "Expected '~' before new column name");
+        String newColName = consume(TokenType.IDENTIFIER, "Expected new column name").value();
+        consume(TokenType.COLON, "Expected ':' after column name in extend");
+
+        // Parse the lambda expression
+        LambdaExpression lambda = parseLambda();
+
+        consume(TokenType.RPAREN, "Expected ')' after extend");
+        return new RelationExtendExpression(relationSource, newColName, lambda);
+    }
+
+    /**
+     * Parses from function call:
+     * from(My::Runtime::DuckDb)
+     * 
+     * Binds a Relation query to its runtime (database connection).
+     */
+    private FromExpression parseFromCall(PureExpression source) {
+        // Parse qualified runtime reference: My::Runtime::DuckDb
+        String runtimeRef = parseQualifiedName();
+
+        consume(TokenType.RPAREN, "Expected ')' after from");
+        return new FromExpression(source, runtimeRef);
+    }
+
+    /**
+     * Parses a qualified name: name::name::name
+     */
+    private String parseQualifiedName() {
+        StringBuilder name = new StringBuilder();
+        name.append(consume(TokenType.IDENTIFIER, "Expected identifier").value());
+
+        while (check(TokenType.DOUBLE_COLON)) {
+            consume(TokenType.DOUBLE_COLON, "Expected '::'");
+            name.append("::");
+            name.append(consume(TokenType.IDENTIFIER, "Expected identifier after '::'").value());
+        }
+
+        return name.toString();
     }
 
     /**

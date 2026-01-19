@@ -10,15 +10,15 @@ import java.util.List;
  * Converts a Pure query string into a list of tokens.
  */
 public final class PureLexer {
-    
+
     private final String input;
     private int position;
-    
+
     public PureLexer(String input) {
         this.input = input;
         this.position = 0;
     }
-    
+
     /**
      * Tokenizes the entire input string.
      * 
@@ -26,31 +26,32 @@ public final class PureLexer {
      */
     public List<Token> tokenize() {
         List<Token> tokens = new ArrayList<>();
-        
+
         while (position < input.length()) {
             skipWhitespace();
-            if (position >= input.length()) break;
-            
+            if (position >= input.length())
+                break;
+
             Token token = nextToken();
             if (token != null) {
                 tokens.add(token);
             }
         }
-        
+
         tokens.add(new Token(TokenType.EOF, null, position));
         return tokens;
     }
-    
+
     private void skipWhitespace() {
         while (position < input.length() && Character.isWhitespace(input.charAt(position))) {
             position++;
         }
     }
-    
+
     private Token nextToken() {
         char c = input.charAt(position);
         int start = position;
-        
+
         // Two-character operators
         if (position + 1 < input.length()) {
             String twoChar = input.substring(position, position + 2);
@@ -62,6 +63,8 @@ public final class PureLexer {
                 case ">=" -> TokenType.GREATER_THAN_EQ;
                 case "&&" -> TokenType.AND;
                 case "||" -> TokenType.OR;
+                case "#>" -> TokenType.HASH_GREATER; // Relation literal start
+                case "::" -> TokenType.DOUBLE_COLON; // Qualified name separator
                 default -> null;
             };
             if (twoCharType != null) {
@@ -69,7 +72,7 @@ public final class PureLexer {
                 return new Token(twoCharType, twoChar, start);
             }
         }
-        
+
         // Single-character operators and delimiters
         TokenType singleCharType = switch (c) {
             case '.' -> TokenType.DOT;
@@ -85,35 +88,38 @@ public final class PureLexer {
             case '{' -> TokenType.LBRACE;
             case '}' -> TokenType.RBRACE;
             case ',' -> TokenType.COMMA;
+            case '~' -> TokenType.TILDE; // Column reference
+            case ':' -> TokenType.COLON; // Extend expression separator
             default -> null;
         };
         if (singleCharType != null) {
             position++;
             return new Token(singleCharType, String.valueOf(c), start);
         }
-        
+
         // String literal
         if (c == '\'') {
             return readStringLiteral();
         }
-        
+
         // Number literal
-        if (Character.isDigit(c) || (c == '-' && position + 1 < input.length() && Character.isDigit(input.charAt(position + 1)))) {
+        if (Character.isDigit(c)
+                || (c == '-' && position + 1 < input.length() && Character.isDigit(input.charAt(position + 1)))) {
             return readNumberLiteral();
         }
-        
+
         // Identifier or keyword
         if (Character.isLetter(c) || c == '_') {
             return readIdentifierOrKeyword();
         }
-        
+
         throw new PureParseException("Unexpected character: '" + c + "' at position " + position);
     }
-    
+
     private Token readStringLiteral() {
         int start = position;
         position++; // skip opening quote
-        
+
         StringBuilder sb = new StringBuilder();
         while (position < input.length() && input.charAt(position) != '\'') {
             char c = input.charAt(position);
@@ -132,24 +138,24 @@ public final class PureLexer {
             }
             position++;
         }
-        
+
         if (position >= input.length()) {
             throw new PureParseException("Unterminated string literal at position " + start);
         }
-        
+
         position++; // skip closing quote
         return new Token(TokenType.STRING_LITERAL, sb.toString(), start);
     }
-    
+
     private Token readNumberLiteral() {
         int start = position;
         StringBuilder sb = new StringBuilder();
-        
+
         if (input.charAt(position) == '-') {
             sb.append('-');
             position++;
         }
-        
+
         boolean hasDecimal = false;
         while (position < input.length()) {
             char c = input.charAt(position);
@@ -164,18 +170,17 @@ public final class PureLexer {
                 break;
             }
         }
-        
+
         return new Token(
                 hasDecimal ? TokenType.FLOAT_LITERAL : TokenType.INTEGER_LITERAL,
                 sb.toString(),
-                start
-        );
+                start);
     }
-    
+
     private Token readIdentifierOrKeyword() {
         int start = position;
         StringBuilder sb = new StringBuilder();
-        
+
         while (position < input.length()) {
             char c = input.charAt(position);
             if (Character.isLetterOrDigit(c) || c == '_') {
@@ -185,9 +190,9 @@ public final class PureLexer {
                 break;
             }
         }
-        
+
         String value = sb.toString();
-        
+
         // Check for keywords
         return switch (value) {
             case "true" -> new Token(TokenType.TRUE, value, start);

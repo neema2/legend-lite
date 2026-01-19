@@ -1259,4 +1259,36 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
         assertEquals(3, rowCount, "Should have 3 worker rows");
     }
+
+    // ==================== Relation API Tests ====================
+
+    @Test
+    @DisplayName("Relation API: #>{DB.TABLE}->from(runtime) - execute via QueryService")
+    void testRelationApiDirectTableQuery() throws Exception {
+        // GIVEN: A Relation query with ->from(runtime)
+        // The query: #>{store::PersonDatabase.T_PERSON}->from(test::TestRuntime)
+
+        String pureSource = getCompletePureModelWithRuntime();
+        String relationQuery = "#>{store::PersonDatabase.T_PERSON}->from(test::TestRuntime)";
+
+        // WHEN: Execute through QueryService (parse → compile → SQL → execute)
+        org.finos.legend.engine.execution.RelationResult result = queryService.execute(
+                pureSource,
+                relationQuery,
+                "test::TestRuntime",
+                connection);
+
+        // THEN: Should return 3 rows from T_PERSON
+        assertEquals(3, result.rows().size(), "Should return all 3 persons from T_PERSON");
+
+        // Verify column metadata
+        var columns = result.columns();
+        assertTrue(columns.stream().anyMatch(c -> c.name().equals("FIRST_NAME")),
+                "Should have FIRST_NAME column");
+        assertTrue(columns.stream().anyMatch(c -> c.name().equals("LAST_NAME")),
+                "Should have LAST_NAME column");
+
+        System.out.println("Relation API via QueryService: Retrieved " + result.rows().size() + " rows");
+        System.out.println("Columns: " + columns.stream().map(c -> c.name()).toList());
+    }
 }

@@ -94,6 +94,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = limit.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS lim WHERE " + whereClause;
             }
+            case FromNode from -> {
+                // Filter on top of from (unwrap and process)
+                String innerSql = from.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS frm WHERE " + whereClause;
+            }
         };
     }
 
@@ -125,6 +130,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = limit.accept(this);
                 String projections = formatProjections(project);
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS limit_result";
+            }
+            case FromNode from -> {
+                String innerSql = from.accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS from_result";
             }
         };
     }
@@ -246,6 +256,14 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return sb.toString();
     }
 
+    @Override
+    public String visit(FromNode from) {
+        // FromNode is a wrapper that carries runtime binding.
+        // For SQL generation, we simply generate SQL from the source.
+        // The runtime reference is used during execution to get the connection.
+        return from.source().accept(this);
+    }
+
     private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
         // Common case: Project on top of Filter on top of Table
         return switch (filter.source()) {
@@ -315,6 +333,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case GroupByNode groupBy -> extractFilterCondition(groupBy.source());
             case SortNode sort -> extractFilterCondition(sort.source());
             case LimitNode limit -> extractFilterCondition(limit.source());
+            case FromNode from -> extractFilterCondition(from.source());
         };
     }
 
@@ -338,6 +357,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case GroupByNode groupBy -> extractTableNode(groupBy.source());
             case SortNode sort -> extractTableNode(sort.source());
             case LimitNode limit -> extractTableNode(limit.source());
+            case FromNode from -> extractTableNode(from.source());
         };
     }
 
@@ -563,6 +583,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case LimitNode limit -> {
                 // For EXISTS with limit, we need to preserve the limit
                 yield "SELECT 1 FROM (" + limit.accept(this) + ") AS exists_src";
+            }
+            case FromNode from -> {
+                // For EXISTS, unwrap the from and process the source
+                yield generateExistsSubquery(from.source());
             }
         };
     }

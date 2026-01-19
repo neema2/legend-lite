@@ -11,7 +11,7 @@ package org.finos.legend.engine.plan;
  * - JoinNode: Table join (JOIN clause)
  */
 public sealed interface RelationNode
-        permits TableNode, FilterNode, ProjectNode, JoinNode, GroupByNode, SortNode, LimitNode {
+        permits TableNode, FilterNode, ProjectNode, JoinNode, GroupByNode, SortNode, LimitNode, FromNode {
 
     /**
      * Accept method for the visitor pattern.

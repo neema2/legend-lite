@@ -10,7 +10,7 @@ package org.finos.legend.pure.dsl;
  * └── ValueExpression (literals, variables, comparisons, lambdas)
  */
 public sealed interface PureExpression
-        permits ClassExpression, RelationExpression,
-        LambdaExpression, PropertyAccessExpression, ComparisonExpr,
-        LiteralExpr, VariableExpr, LogicalExpr {
+                permits ClassExpression, RelationExpression,
+                LambdaExpression, PropertyAccessExpression, ComparisonExpr,
+                LiteralExpr, VariableExpr, LogicalExpr, FromExpression {
 }

@@ -68,6 +68,10 @@ public final class PureCompiler {
             case RelationSortExpression relationSort -> compileRelationSort(relationSort, context);
             case ClassLimitExpression classLimit -> compileClassLimit(classLimit, context);
             case RelationLimitExpression relationLimit -> compileRelationLimit(relationLimit, context);
+            case RelationLiteral literal -> compileRelationLiteral(literal);
+            case RelationSelectExpression select -> compileRelationSelect(select, context);
+            case RelationExtendExpression extend -> compileRelationExtend(extend, context);
+            case FromExpression from -> compileFrom(from, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
@@ -317,6 +321,87 @@ public final class PureCompiler {
     private RelationNode compileRelationLimit(RelationLimitExpression limit, CompilationContext context) {
         RelationNode source = compileExpression(limit.source(), context);
         return new LimitNode(source, limit.limit(), limit.offset());
+    }
+
+    // ==================== Relation Literal Operations ====================
+
+    /**
+     * Compiles a Relation literal: #>{store::DatabaseRef.TABLE_NAME}
+     * 
+     * This creates a TableScanNode directly from the database table reference.
+     */
+    private RelationNode compileRelationLiteral(RelationLiteral literal) {
+        // Extract simple database name from qualified reference
+        // e.g., "store::PersonDatabase" -> "PersonDatabase"
+        String dbRef = literal.databaseRef();
+        String simpleDbName = dbRef.contains("::")
+                ? dbRef.substring(dbRef.lastIndexOf("::") + 2)
+                : dbRef;
+
+        // Build table key: simpleDbName.tableName (e.g., "PersonDatabase.T_PERSON")
+        String tableKey = simpleDbName + "." + literal.tableName();
+
+        // Look up via model context if available
+        if (modelContext != null) {
+            var tableOpt = modelContext.findTable(tableKey);
+            if (tableOpt.isPresent()) {
+                return new TableNode(tableOpt.get(), "t0");
+            }
+            // Fallback: try just table name
+            tableOpt = modelContext.findTable(literal.tableName());
+            if (tableOpt.isPresent()) {
+                return new TableNode(tableOpt.get(), "t0");
+            }
+        }
+
+        // Fallback to mapping registry lookup
+        RelationalMapping mapping = mappingRegistry.findByTableName(tableKey)
+                .orElseThrow(() -> new PureCompileException(
+                        "Table not found: " + literal.tableName() + " in " + literal.databaseRef()));
+
+        return new TableNode(mapping.table(), "t0");
+    }
+
+    /**
+     * Compiles a select expression: relation->select(~col1, ~col2)
+     * 
+     * This projects specific columns from the source Relation.
+     */
+    private RelationNode compileRelationSelect(RelationSelectExpression select, CompilationContext context) {
+        RelationNode source = compileExpression(select.source(), context);
+
+        // Build projection for each selected column
+        List<Projection> projections = select.columns().stream()
+                .map(colName -> Projection.column("src", colName, colName))
+                .toList();
+
+        // Wrap the source in a ProjectNode
+        return new ProjectNode(source, projections);
+    }
+
+    /**
+     * Compiles an extend expression: relation->extend(~newCol : x | expr)
+     * 
+     * This adds a calculated column to the source Relation.
+     * For initial implementation, this throws a not-implemented exception.
+     */
+    private RelationNode compileRelationExtend(RelationExtendExpression extend, CompilationContext context) {
+        throw new PureCompileException(
+                "extend() is not yet fully implemented. Use project() with calculated columns instead.");
+    }
+
+    /**
+     * Compiles a from expression: query->from(runtime)
+     * 
+     * The from() binds a Relation query to a runtime for execution.
+     * It compiles the source query and wraps it with runtime binding information.
+     */
+    private RelationNode compileFrom(FromExpression from, CompilationContext context) {
+        // Compile the source Relation expression
+        RelationNode source = compileExpression(from.source(), context);
+
+        // Wrap in a FromNode that carries the runtime reference
+        return new FromNode(source, from.runtimeRef());
     }
 
     /**
@@ -677,6 +762,7 @@ public final class PureCompiler {
             case GroupByNode groupBy -> getTableAlias(groupBy.source());
             case SortNode sort -> getTableAlias(sort.source());
             case LimitNode limit -> getTableAlias(limit.source());
+            case org.finos.legend.engine.plan.FromNode from -> getTableAlias(from.source());
         };
     }
 
