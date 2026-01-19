@@ -526,9 +526,12 @@ public final class PureParser {
 
     /**
      * Parses extend function call on Relation:
-     * extend(~newCol : x | $x.col1 + $x.col2)
+     * 1. Simple: extend(~newCol : x | $x.col1 + $x.col2)
+     * 2. Window: extend(~rowNum : row_number()->over(~department))
+     * 3. Aggregate window: extend(~runningSum : sum(~salary)->over(~department,
+     * ~salary))
      * 
-     * Adds a calculated column to the Relation.
+     * Adds a calculated column (optionally with window function) to the Relation.
      */
     private RelationExpression parseExtendCall(PureExpression source) {
         if (!(source instanceof RelationExpression relationSource)) {
@@ -536,16 +539,110 @@ public final class PureParser {
                     "extend() requires a Relation expression. Got: " + source.getClass().getSimpleName());
         }
 
-        // Parse column and expression: ~newCol : x | expr
+        // Parse column specification: ~newCol : ...
         consume(TokenType.TILDE, "Expected '~' before new column name");
         String newColName = consume(TokenType.IDENTIFIER, "Expected new column name").value();
         consume(TokenType.COLON, "Expected ':' after column name in extend");
 
-        // Parse the lambda expression
-        LambdaExpression lambda = parseLambda();
+        // Check if this is a window function or simple expression
+        if (check(TokenType.IDENTIFIER) && isWindowFunctionName(peekAhead())) {
+            // Window function syntax: row_number(), rank(), sum(~col), etc.
+            RelationExtendExpression.WindowFunctionSpec windowSpec = parseWindowFunctionSpec();
+            consume(TokenType.RPAREN, "Expected ')' after extend");
+            return RelationExtendExpression.window(relationSource, newColName, windowSpec);
+        } else {
+            // Simple expression with lambda
+            LambdaExpression lambda = parseLambda();
+            consume(TokenType.RPAREN, "Expected ')' after extend");
+            return new RelationExtendExpression(relationSource, newColName, lambda);
+        }
+    }
 
-        consume(TokenType.RPAREN, "Expected ')' after extend");
-        return new RelationExtendExpression(relationSource, newColName, lambda);
+    /**
+     * Checks if the current token is a known window function name.
+     */
+    private boolean isWindowFunctionName(String name) {
+        return switch (name.toLowerCase()) {
+            case "row_number", "rank", "dense_rank", "ntile",
+                    "lag", "lead", "first_value", "last_value",
+                    "sum", "avg", "min", "max", "count" ->
+                true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Peeks at the current token value without advancing.
+     */
+    private String peekAhead() {
+        return peek().value();
+    }
+
+    /**
+     * Parses a window function specification:
+     * row_number()->over(~department, ~salary->desc())
+     * sum(~salary)->over(~department)
+     */
+    private RelationExtendExpression.WindowFunctionSpec parseWindowFunctionSpec() {
+        String functionName = consume(TokenType.IDENTIFIER, "Expected window function name").value();
+        consume(TokenType.LPAREN, "Expected '(' after function name");
+
+        // Parse optional aggregate column for aggregate window functions
+        String aggregateColumn = null;
+        if (!check(TokenType.RPAREN)) {
+            // Aggregate function with column: sum(~salary)
+            consume(TokenType.TILDE, "Expected '~' before column name");
+            aggregateColumn = consume(TokenType.IDENTIFIER, "Expected column name").value();
+        }
+        consume(TokenType.RPAREN, "Expected ')' after function arguments");
+
+        // Parse ->over(...)
+        consume(TokenType.ARROW, "Expected '->' before over");
+        String overKeyword = consume(TokenType.IDENTIFIER, "Expected 'over'").value();
+        if (!overKeyword.equalsIgnoreCase("over")) {
+            throw new PureParseException("Expected 'over' but got: " + overKeyword);
+        }
+        consume(TokenType.LPAREN, "Expected '(' after over");
+
+        // Parse partition and order columns
+        List<String> partitionColumns = new ArrayList<>();
+        List<RelationExtendExpression.SortSpec> orderColumns = new ArrayList<>();
+
+        // Parse columns inside over(): ~col1, ~col2->desc()
+        while (!check(TokenType.RPAREN)) {
+            if (!partitionColumns.isEmpty() || !orderColumns.isEmpty()) {
+                consume(TokenType.COMMA, "Expected ',' between columns");
+            }
+
+            consume(TokenType.TILDE, "Expected '~' before column name");
+            String colName = consume(TokenType.IDENTIFIER, "Expected column name").value();
+
+            // Check for sort direction: ~col->desc() or ~col->asc()
+            if (check(TokenType.ARROW)) {
+                consume(TokenType.ARROW, "Expected '->'");
+                String direction = consume(TokenType.IDENTIFIER, "Expected 'asc' or 'desc'").value();
+                consume(TokenType.LPAREN, "Expected '('");
+                consume(TokenType.RPAREN, "Expected ')'");
+
+                RelationExtendExpression.SortDirection sortDir = direction.equalsIgnoreCase("desc")
+                        ? RelationExtendExpression.SortDirection.DESC
+                        : RelationExtendExpression.SortDirection.ASC;
+                orderColumns.add(new RelationExtendExpression.SortSpec(colName, sortDir));
+            } else {
+                // No direction specified - treat as partition column
+                partitionColumns.add(colName);
+            }
+        }
+
+        consume(TokenType.RPAREN, "Expected ')' to close over");
+
+        if (aggregateColumn != null) {
+            return RelationExtendExpression.WindowFunctionSpec.aggregate(
+                    functionName, aggregateColumn, partitionColumns, orderColumns);
+        } else {
+            return RelationExtendExpression.WindowFunctionSpec.ranking(
+                    functionName, partitionColumns, orderColumns);
+        }
     }
 
     /**

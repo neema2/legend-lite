@@ -99,6 +99,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = from.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS frm WHERE " + whereClause;
             }
+            case ExtendNode extend -> {
+                // Filter on top of extend (window functions)
+                String innerSql = extend.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS ext WHERE " + whereClause;
+            }
         };
     }
 
@@ -135,6 +140,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = from.accept(this);
                 String projections = formatProjections(project);
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS from_result";
+            }
+            case ExtendNode extend -> {
+                String innerSql = extend.accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS extend_result";
             }
         };
     }
@@ -264,6 +274,65 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return from.source().accept(this);
     }
 
+    @Override
+    public String visit(ExtendNode extend) {
+        // Generate source SQL
+        String sourceSql = extend.source().accept(this);
+
+        // Build window function expressions
+        var windowCols = new StringBuilder();
+        for (ExtendNode.WindowProjection wp : extend.windowColumns()) {
+            windowCols.append(", ");
+            windowCols.append(formatWindowExpression(wp.expression()));
+            windowCols.append(" AS ");
+            windowCols.append(dialect.quoteIdentifier(wp.alias()));
+        }
+
+        // Wrap source and add window columns
+        return "SELECT *" + windowCols + " FROM (" + sourceSql + ") AS window_src";
+    }
+
+    /**
+     * Formats a window expression to SQL.
+     * Example: ROW_NUMBER() OVER (PARTITION BY "dept" ORDER BY "salary" DESC)
+     */
+    private String formatWindowExpression(WindowExpression w) {
+        var sb = new StringBuilder();
+
+        // Function name
+        sb.append(w.function().name());
+        sb.append("(");
+        if (w.aggregateColumn() != null) {
+            sb.append(dialect.quoteIdentifier(w.aggregateColumn()));
+        }
+        sb.append(") OVER (");
+
+        boolean hasPartition = !w.partitionBy().isEmpty();
+        boolean hasOrder = !w.orderBy().isEmpty();
+
+        // PARTITION BY clause
+        if (hasPartition) {
+            sb.append("PARTITION BY ");
+            sb.append(w.partitionBy().stream()
+                    .map(dialect::quoteIdentifier)
+                    .collect(Collectors.joining(", ")));
+        }
+
+        // ORDER BY clause
+        if (hasOrder) {
+            if (hasPartition) {
+                sb.append(" ");
+            }
+            sb.append("ORDER BY ");
+            sb.append(w.orderBy().stream()
+                    .map(s -> dialect.quoteIdentifier(s.column()) + " " + s.direction().name())
+                    .collect(Collectors.joining(", ")));
+        }
+
+        sb.append(")");
+        return sb.toString();
+    }
+
     private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
         // Common case: Project on top of Filter on top of Table
         return switch (filter.source()) {
@@ -334,6 +403,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case SortNode sort -> extractFilterCondition(sort.source());
             case LimitNode limit -> extractFilterCondition(limit.source());
             case FromNode from -> extractFilterCondition(from.source());
+            case ExtendNode extend -> extractFilterCondition(extend.source());
         };
     }
 
@@ -358,6 +428,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case SortNode sort -> extractTableNode(sort.source());
             case LimitNode limit -> extractTableNode(limit.source());
             case FromNode from -> extractTableNode(from.source());
+            case ExtendNode extend -> extractTableNode(extend.source());
         };
     }
 
@@ -587,6 +658,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case FromNode from -> {
                 // For EXISTS, unwrap the from and process the source
                 yield generateExistsSubquery(from.source());
+            }
+            case ExtendNode extend -> {
+                // For EXISTS with window functions, just use the source
+                yield generateExistsSubquery(extend.source());
             }
         };
     }

@@ -46,4 +46,9 @@ public interface RelationNodeVisitor<T> {
      * Visit a from node (runtime binding).
      */
     T visit(FromNode from);
+
+    /**
+     * Visit an extend node (window functions).
+     */
+    T visit(ExtendNode extend);
 }

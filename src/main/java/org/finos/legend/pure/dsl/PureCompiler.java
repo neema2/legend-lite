@@ -378,14 +378,76 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles an extend expression: relation->extend(~newCol : x | expr)
+     * Compiles an extend expression: relation->extend(~newCol : ...)
      * 
-     * This adds a calculated column to the source Relation.
-     * For initial implementation, this throws a not-implemented exception.
+     * Supports both:
+     * 1. Simple calculated columns: extend(~newCol : x | $x.col1 + $x.col2)
+     * 2. Window functions: extend(~rowNum : row_number()->over(~department))
      */
     private RelationNode compileRelationExtend(RelationExtendExpression extend, CompilationContext context) {
-        throw new PureCompileException(
-                "extend() is not yet fully implemented. Use project() with calculated columns instead.");
+        RelationNode source = compileExpression(extend.source(), context);
+
+        if (extend.isWindowFunction()) {
+            // Compile window function
+            RelationExtendExpression.WindowFunctionSpec spec = extend.windowSpec();
+
+            // Map function name to WindowFunction enum
+            WindowExpression.WindowFunction windowFunc = mapWindowFunction(spec.functionName());
+
+            // Map sort specs
+            List<WindowExpression.SortSpec> orderBy = spec.orderColumns().stream()
+                    .map(s -> new WindowExpression.SortSpec(
+                            s.column(),
+                            s.direction() == RelationExtendExpression.SortDirection.DESC
+                                    ? WindowExpression.SortDirection.DESC
+                                    : WindowExpression.SortDirection.ASC))
+                    .toList();
+
+            WindowExpression windowExpr;
+            if (spec.aggregateColumn() != null) {
+                windowExpr = WindowExpression.aggregate(
+                        windowFunc,
+                        spec.aggregateColumn(),
+                        spec.partitionColumns(),
+                        orderBy);
+            } else {
+                windowExpr = WindowExpression.ranking(
+                        windowFunc,
+                        spec.partitionColumns(),
+                        orderBy);
+            }
+
+            ExtendNode.WindowProjection projection = new ExtendNode.WindowProjection(extend.newColumnName(),
+                    windowExpr);
+
+            return new ExtendNode(source, List.of(projection));
+        } else {
+            // Simple calculated column - not yet implemented
+            throw new PureCompileException(
+                    "Simple extend() expressions are not yet implemented. Use window functions like row_number()->over(...)");
+        }
+    }
+
+    /**
+     * Maps a Pure function name to the corresponding WindowFunction enum.
+     */
+    private WindowExpression.WindowFunction mapWindowFunction(String functionName) {
+        return switch (functionName.toLowerCase()) {
+            case "row_number" -> WindowExpression.WindowFunction.ROW_NUMBER;
+            case "rank" -> WindowExpression.WindowFunction.RANK;
+            case "dense_rank" -> WindowExpression.WindowFunction.DENSE_RANK;
+            case "ntile" -> WindowExpression.WindowFunction.NTILE;
+            case "lag" -> WindowExpression.WindowFunction.LAG;
+            case "lead" -> WindowExpression.WindowFunction.LEAD;
+            case "first_value" -> WindowExpression.WindowFunction.FIRST_VALUE;
+            case "last_value" -> WindowExpression.WindowFunction.LAST_VALUE;
+            case "sum" -> WindowExpression.WindowFunction.SUM;
+            case "avg" -> WindowExpression.WindowFunction.AVG;
+            case "min" -> WindowExpression.WindowFunction.MIN;
+            case "max" -> WindowExpression.WindowFunction.MAX;
+            case "count" -> WindowExpression.WindowFunction.COUNT;
+            default -> throw new PureCompileException("Unknown window function: " + functionName);
+        };
     }
 
     /**
@@ -761,6 +823,7 @@ public final class PureCompiler {
             case SortNode sort -> getTableAlias(sort.source());
             case LimitNode limit -> getTableAlias(limit.source());
             case org.finos.legend.engine.plan.FromNode from -> getTableAlias(from.source());
+            case ExtendNode extend -> getTableAlias(extend.source());
         };
     }
 
