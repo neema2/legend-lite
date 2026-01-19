@@ -581,7 +581,7 @@ public final class PureParser {
     /**
      * Parses a window function specification:
      * row_number()->over(~department, ~salary->desc())
-     * sum(~salary)->over(~department)
+     * sum(~salary)->over(~department, ~date->asc(), rows(unbounded(), 0))
      */
     private RelationExtendExpression.WindowFunctionSpec parseWindowFunctionSpec() {
         String functionName = consume(TokenType.IDENTIFIER, "Expected window function name").value();
@@ -607,11 +607,21 @@ public final class PureParser {
         // Parse partition and order columns
         List<String> partitionColumns = new ArrayList<>();
         List<RelationExtendExpression.SortSpec> orderColumns = new ArrayList<>();
+        RelationExtendExpression.FrameSpec frame = null;
 
-        // Parse columns inside over(): ~col1, ~col2->desc()
+        // Parse columns inside over(): ~col1, ~col2->desc(), rows(...)
         while (!check(TokenType.RPAREN)) {
-            if (!partitionColumns.isEmpty() || !orderColumns.isEmpty()) {
+            if (!partitionColumns.isEmpty() || !orderColumns.isEmpty() || frame != null) {
                 consume(TokenType.COMMA, "Expected ',' between columns");
+            }
+
+            // Check for frame spec: rows(...) or range(...)
+            if (check(TokenType.IDENTIFIER)) {
+                String tokenValue = peek().value();
+                if (tokenValue.equalsIgnoreCase("rows") || tokenValue.equalsIgnoreCase("range")) {
+                    frame = parseFrameSpec();
+                    continue;
+                }
             }
 
             consume(TokenType.TILDE, "Expected '~' before column name");
@@ -638,11 +648,58 @@ public final class PureParser {
 
         if (aggregateColumn != null) {
             return RelationExtendExpression.WindowFunctionSpec.aggregate(
-                    functionName, aggregateColumn, partitionColumns, orderColumns);
+                    functionName, aggregateColumn, partitionColumns, orderColumns, frame);
         } else {
             return RelationExtendExpression.WindowFunctionSpec.ranking(
-                    functionName, partitionColumns, orderColumns);
+                    functionName, partitionColumns, orderColumns, frame);
         }
+    }
+
+    /**
+     * Parses a frame specification: rows(start, end) or range(start, end)
+     * 
+     * Frame bounds:
+     * - unbounded() = UNBOUNDED
+     * - 0 = CURRENT ROW
+     * - negative integer = PRECEDING
+     * - positive integer = FOLLOWING
+     */
+    private RelationExtendExpression.FrameSpec parseFrameSpec() {
+        String frameType = consume(TokenType.IDENTIFIER, "Expected 'rows' or 'range'").value();
+        consume(TokenType.LPAREN, "Expected '(' after frame type");
+
+        RelationExtendExpression.FrameBound start = parseFrameBound();
+        consume(TokenType.COMMA, "Expected ',' between frame bounds");
+        RelationExtendExpression.FrameBound end = parseFrameBound();
+
+        consume(TokenType.RPAREN, "Expected ')' to close frame");
+
+        if (frameType.equalsIgnoreCase("rows")) {
+            return RelationExtendExpression.FrameSpec.rows(start, end);
+        } else {
+            return RelationExtendExpression.FrameSpec.range(start, end);
+        }
+    }
+
+    /**
+     * Parses a frame bound: unbounded(), integer (0, -3, 1), etc.
+     * Note: The lexer handles negative numbers, so -3 is a single INTEGER_LITERAL
+     * token.
+     */
+    private RelationExtendExpression.FrameBound parseFrameBound() {
+        // Check for unbounded()
+        if (check(TokenType.IDENTIFIER) && peek().value().equalsIgnoreCase("unbounded")) {
+            consume(TokenType.IDENTIFIER, "Expected 'unbounded'");
+            consume(TokenType.LPAREN, "Expected '('");
+            consume(TokenType.RPAREN, "Expected ')'");
+            return RelationExtendExpression.FrameBound.unbounded();
+        }
+
+        // Parse the number (lexer includes negative sign in INTEGER_LITERAL)
+        String numStr = consume(TokenType.INTEGER_LITERAL, "Expected number for frame bound").value();
+        int value = Integer.parseInt(numStr);
+
+        return RelationExtendExpression.FrameBound.fromInteger(value);
     }
 
     /**

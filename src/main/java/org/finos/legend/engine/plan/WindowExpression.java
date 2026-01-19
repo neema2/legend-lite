@@ -1,24 +1,31 @@
 package org.finos.legend.engine.plan;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a window function in the logical plan.
  * 
  * Maps to SQL window function syntax:
- * FUNCTION(column) OVER (PARTITION BY ... ORDER BY ...)
+ * FUNCTION(column) OVER (PARTITION BY ... ORDER BY ... ROWS/RANGE BETWEEN ...
+ * AND ...)
  * 
  * Example Pure:
  * ->extend(~rank : rank()->over(~department, ~salary->desc()))
+ * ->extend(~runningSum : sum(~value)->over(~dept, ~date->asc(),
+ * rows(unbounded(), 0)))
  * 
  * SQL output:
  * RANK() OVER (PARTITION BY "department" ORDER BY "salary" DESC) AS "rank"
+ * SUM("value") OVER (PARTITION BY "dept" ORDER BY "date" ASC ROWS BETWEEN
+ * UNBOUNDED PRECEDING AND CURRENT ROW)
  */
 public record WindowExpression(
         WindowFunction function,
         String aggregateColumn,
-        java.util.List<String> partitionBy,
-        java.util.List<SortSpec> orderBy) {
+        List<String> partitionBy,
+        List<SortSpec> orderBy,
+        FrameSpec frame) {
 
     /**
      * Window function types.
@@ -61,32 +68,170 @@ public record WindowExpression(
         ASC, DESC
     }
 
+    /**
+     * Frame specification for window functions.
+     * 
+     * Follows Legend-Engine syntax:
+     * - rows(start, end) -- ROWS frame
+     * - range(start, end) -- RANGE frame
+     * 
+     * Where bounds are:
+     * - unbounded() -- UNBOUNDED
+     * - 0 -- CURRENT ROW
+     * - negative -- N PRECEDING
+     * - positive -- N FOLLOWING
+     */
+    public record FrameSpec(FrameType type, FrameBound start, FrameBound end) {
+        public FrameSpec {
+            Objects.requireNonNull(type, "Frame type cannot be null");
+            Objects.requireNonNull(start, "Frame start cannot be null");
+            Objects.requireNonNull(end, "Frame end cannot be null");
+        }
+
+        /**
+         * Creates a ROWS frame.
+         */
+        public static FrameSpec rows(FrameBound start, FrameBound end) {
+            return new FrameSpec(FrameType.ROWS, start, end);
+        }
+
+        /**
+         * Creates a RANGE frame.
+         */
+        public static FrameSpec range(FrameBound start, FrameBound end) {
+            return new FrameSpec(FrameType.RANGE, start, end);
+        }
+    }
+
+    /**
+     * Frame type.
+     */
+    public enum FrameType {
+        ROWS, RANGE
+    }
+
+    /**
+     * Frame boundary specification.
+     */
+    public record FrameBound(BoundType type, int offset) {
+
+        /**
+         * Creates an UNBOUNDED boundary.
+         */
+        public static FrameBound unbounded() {
+            return new FrameBound(BoundType.UNBOUNDED, 0);
+        }
+
+        /**
+         * Creates a CURRENT ROW boundary.
+         */
+        public static FrameBound currentRow() {
+            return new FrameBound(BoundType.CURRENT_ROW, 0);
+        }
+
+        /**
+         * Creates a PRECEDING boundary with offset.
+         */
+        public static FrameBound preceding(int n) {
+            if (n < 0)
+                throw new IllegalArgumentException("Preceding offset must be non-negative");
+            return new FrameBound(BoundType.PRECEDING, n);
+        }
+
+        /**
+         * Creates a FOLLOWING boundary with offset.
+         */
+        public static FrameBound following(int n) {
+            if (n < 0)
+                throw new IllegalArgumentException("Following offset must be non-negative");
+            return new FrameBound(BoundType.FOLLOWING, n);
+        }
+
+        /**
+         * Creates a bound from an integer value using Legend-Engine encoding:
+         * - unbounded represented by null in Pure
+         * - 0 = CURRENT ROW
+         * - negative = PRECEDING
+         * - positive = FOLLOWING
+         */
+        public static FrameBound fromInteger(int value) {
+            if (value == 0) {
+                return currentRow();
+            } else if (value < 0) {
+                return preceding(-value); // Convert negative to positive offset
+            } else {
+                return following(value);
+            }
+        }
+    }
+
+    /**
+     * Frame bound type.
+     */
+    public enum BoundType {
+        UNBOUNDED,
+        CURRENT_ROW,
+        PRECEDING,
+        FOLLOWING
+    }
+
     public WindowExpression {
         Objects.requireNonNull(function, "Window function cannot be null");
         Objects.requireNonNull(partitionBy, "Partition columns cannot be null");
         Objects.requireNonNull(orderBy, "Order columns cannot be null");
         // aggregateColumn can be null for ranking functions
+        // frame can be null (uses SQL default)
     }
 
     /**
-     * Creates a ranking window function (no aggregate column).
+     * Creates a ranking window function (no aggregate column, no frame).
      */
     public static WindowExpression ranking(
             WindowFunction function,
-            java.util.List<String> partitionBy,
-            java.util.List<SortSpec> orderBy) {
-        return new WindowExpression(function, null, partitionBy, orderBy);
+            List<String> partitionBy,
+            List<SortSpec> orderBy) {
+        return new WindowExpression(function, null, partitionBy, orderBy, null);
     }
 
     /**
-     * Creates an aggregate window function.
+     * Creates a ranking window function with frame.
+     */
+    public static WindowExpression ranking(
+            WindowFunction function,
+            List<String> partitionBy,
+            List<SortSpec> orderBy,
+            FrameSpec frame) {
+        return new WindowExpression(function, null, partitionBy, orderBy, frame);
+    }
+
+    /**
+     * Creates an aggregate window function (no frame).
      */
     public static WindowExpression aggregate(
             WindowFunction function,
             String aggregateColumn,
-            java.util.List<String> partitionBy,
-            java.util.List<SortSpec> orderBy) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy);
+            List<String> partitionBy,
+            List<SortSpec> orderBy) {
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null);
+    }
+
+    /**
+     * Creates an aggregate window function with frame.
+     */
+    public static WindowExpression aggregate(
+            WindowFunction function,
+            String aggregateColumn,
+            List<String> partitionBy,
+            List<SortSpec> orderBy,
+            FrameSpec frame) {
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, frame);
+    }
+
+    /**
+     * Returns true if this window has a frame specification.
+     */
+    public boolean hasFrame() {
+        return frame != null;
     }
 
     /**

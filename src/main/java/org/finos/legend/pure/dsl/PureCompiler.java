@@ -383,6 +383,8 @@ public final class PureCompiler {
      * Supports both:
      * 1. Simple calculated columns: extend(~newCol : x | $x.col1 + $x.col2)
      * 2. Window functions: extend(~rowNum : row_number()->over(~department))
+     * 3. Window with frame: extend(~sum : sum(~val)->over(~dept, ~date,
+     * rows(unbounded(), 0)))
      */
     private RelationNode compileRelationExtend(RelationExtendExpression extend, CompilationContext context) {
         RelationNode source = compileExpression(extend.source(), context);
@@ -403,18 +405,26 @@ public final class PureCompiler {
                                     : WindowExpression.SortDirection.ASC))
                     .toList();
 
+            // Map frame spec if present
+            WindowExpression.FrameSpec frameSpec = null;
+            if (spec.hasFrame()) {
+                frameSpec = mapFrameSpec(spec.frame());
+            }
+
             WindowExpression windowExpr;
             if (spec.aggregateColumn() != null) {
                 windowExpr = WindowExpression.aggregate(
                         windowFunc,
                         spec.aggregateColumn(),
                         spec.partitionColumns(),
-                        orderBy);
+                        orderBy,
+                        frameSpec);
             } else {
                 windowExpr = WindowExpression.ranking(
                         windowFunc,
                         spec.partitionColumns(),
-                        orderBy);
+                        orderBy,
+                        frameSpec);
             }
 
             ExtendNode.WindowProjection projection = new ExtendNode.WindowProjection(extend.newColumnName(),
@@ -426,6 +436,31 @@ public final class PureCompiler {
             throw new PureCompileException(
                     "Simple extend() expressions are not yet implemented. Use window functions like row_number()->over(...)");
         }
+    }
+
+    /**
+     * Maps AST FrameSpec to IR FrameSpec.
+     */
+    private WindowExpression.FrameSpec mapFrameSpec(RelationExtendExpression.FrameSpec astFrame) {
+        WindowExpression.FrameBound start = mapFrameBound(astFrame.start());
+        WindowExpression.FrameBound end = mapFrameBound(astFrame.end());
+
+        return switch (astFrame.type()) {
+            case ROWS -> WindowExpression.FrameSpec.rows(start, end);
+            case RANGE -> WindowExpression.FrameSpec.range(start, end);
+        };
+    }
+
+    /**
+     * Maps AST FrameBound to IR FrameBound.
+     */
+    private WindowExpression.FrameBound mapFrameBound(RelationExtendExpression.FrameBound astBound) {
+        return switch (astBound.type()) {
+            case UNBOUNDED -> WindowExpression.FrameBound.unbounded();
+            case CURRENT_ROW -> WindowExpression.FrameBound.currentRow();
+            case PRECEDING -> WindowExpression.FrameBound.preceding(astBound.offset());
+            case FOLLOWING -> WindowExpression.FrameBound.following(astBound.offset());
+        };
     }
 
     /**

@@ -5,11 +5,8 @@ import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.store.*;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
-import org.finos.legend.engine.transpiler.SQLDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
 import org.finos.legend.pure.dsl.*;
-import org.finos.legend.pure.dsl.definition.*;
-import org.finos.legend.pure.m3.*;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -132,6 +129,67 @@ class WindowFunctionTest {
             assertEquals("denseRank", extend.newColumnName());
             assertEquals("dense_rank", extend.windowSpec().functionName());
         }
+
+        @Test
+        @DisplayName("Parse window function with frame (rows)")
+        void testParseWindowWithRowsFrame() {
+            String pure = """
+                    Person.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(~runningSum : sum(~salary)->over(~department, ~salary->asc(), rows(unbounded(), 0)))
+                    """;
+
+            PureExpression ast = PureParser.parse(pure);
+
+            assertTrue(ast instanceof RelationExtendExpression);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
+
+            assertEquals("runningSum", extend.newColumnName());
+            assertTrue(extend.windowSpec().hasFrame());
+            assertEquals(RelationExtendExpression.FrameType.ROWS, extend.windowSpec().frame().type());
+            assertEquals(RelationExtendExpression.BoundType.UNBOUNDED, extend.windowSpec().frame().start().type());
+            assertEquals(RelationExtendExpression.BoundType.CURRENT_ROW, extend.windowSpec().frame().end().type());
+        }
+
+        @Test
+        @DisplayName("Parse window function with frame (range)")
+        void testParseWindowWithRangeFrame() {
+            String pure = """
+                    Person.all()
+                        ->project({e | $e.name}, {e | $e.salary})
+                        ->extend(~total : sum(~salary)->over(~salary->asc(), range(unbounded(), unbounded())))
+                    """;
+
+            PureExpression ast = PureParser.parse(pure);
+
+            assertTrue(ast instanceof RelationExtendExpression);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
+
+            assertTrue(extend.windowSpec().hasFrame());
+            assertEquals(RelationExtendExpression.FrameType.RANGE, extend.windowSpec().frame().type());
+        }
+
+        @Test
+        @DisplayName("Parse window function with numeric frame bounds")
+        void testParseWindowWithNumericBounds() {
+            String pure = """
+                    Person.all()
+                        ->project({e | $e.name}, {e | $e.salary})
+                        ->extend(~movingAvg : avg(~salary)->over(~salary->asc(), rows(-3, 0)))
+                    """;
+
+            PureExpression ast = PureParser.parse(pure);
+
+            assertTrue(ast instanceof RelationExtendExpression);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
+
+            assertTrue(extend.windowSpec().hasFrame());
+            // -3 becomes PRECEDING with offset 3
+            assertEquals(RelationExtendExpression.BoundType.PRECEDING, extend.windowSpec().frame().start().type());
+            assertEquals(3, extend.windowSpec().frame().start().offset());
+            // 0 is CURRENT ROW
+            assertEquals(RelationExtendExpression.BoundType.CURRENT_ROW, extend.windowSpec().frame().end().type());
+        }
     }
 
     // ==================== SQL Generator Tests ====================
@@ -241,6 +299,65 @@ class WindowFunctionTest {
             assertTrue(sql.contains("ROW_NUMBER()"), "Should contain ROW_NUMBER()");
             assertTrue(sql.contains("OVER (ORDER BY"), "Should have ORDER BY without PARTITION BY");
             assertFalse(sql.contains("PARTITION BY"), "Should not have PARTITION BY");
+        }
+
+        @Test
+        @DisplayName("Generate window function with ROWS frame")
+        void testGenerateWindowWithRowsFrame() {
+            TableNode table = new TableNode(
+                    new Table("T_EMPLOYEE", List.of()), "t0");
+            ProjectNode project = new ProjectNode(table, List.of(
+                    Projection.column("t0", "DEPARTMENT", "department"),
+                    Projection.column("t0", "SALARY", "salary")));
+
+            WindowExpression.FrameSpec frame = WindowExpression.FrameSpec.rows(
+                    WindowExpression.FrameBound.unbounded(),
+                    WindowExpression.FrameBound.currentRow());
+
+            WindowExpression window = WindowExpression.aggregate(
+                    WindowExpression.WindowFunction.SUM,
+                    "salary",
+                    List.of("department"),
+                    List.of(new WindowExpression.SortSpec("salary", WindowExpression.SortDirection.ASC)),
+                    frame);
+
+            ExtendNode extend = new ExtendNode(project, List.of(
+                    new ExtendNode.WindowProjection("runningTotal", window)));
+
+            SQLGenerator generator = new SQLGenerator(DuckDBDialect.INSTANCE);
+            String sql = generator.generate(extend);
+
+            assertTrue(sql.contains("ROWS BETWEEN"), "Should contain ROWS BETWEEN");
+            assertTrue(sql.contains("UNBOUNDED PRECEDING"), "Should have UNBOUNDED PRECEDING");
+            assertTrue(sql.contains("CURRENT ROW"), "Should have CURRENT ROW");
+        }
+
+        @Test
+        @DisplayName("Generate window function with numeric frame bounds")
+        void testGenerateWindowWithNumericBounds() {
+            TableNode table = new TableNode(
+                    new Table("T_DATA", List.of()), "t0");
+
+            WindowExpression.FrameSpec frame = WindowExpression.FrameSpec.rows(
+                    WindowExpression.FrameBound.preceding(3),
+                    WindowExpression.FrameBound.following(1));
+
+            WindowExpression window = WindowExpression.aggregate(
+                    WindowExpression.WindowFunction.AVG,
+                    "value",
+                    List.of(),
+                    List.of(new WindowExpression.SortSpec("date", WindowExpression.SortDirection.ASC)),
+                    frame);
+
+            ExtendNode extend = new ExtendNode(table, List.of(
+                    new ExtendNode.WindowProjection("movingAvg", window)));
+
+            SQLGenerator generator = new SQLGenerator(DuckDBDialect.INSTANCE);
+            String sql = generator.generate(extend);
+
+            assertTrue(sql.contains("ROWS BETWEEN"), "Should contain ROWS BETWEEN");
+            assertTrue(sql.contains("3 PRECEDING"), "Should have 3 PRECEDING");
+            assertTrue(sql.contains("1 FOLLOWING"), "Should have 1 FOLLOWING");
         }
     }
 
@@ -498,6 +615,32 @@ class WindowFunctionTest {
                     }
                 }
             }
+        }
+
+        @Test
+        @DisplayName("Execute SUM with ROWS frame via Pure -> QueryService -> DuckDB")
+        void testExecuteSumWithRowsFrameViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(~runningSum : sum(~salary)->over(~department, ~salary->asc(), rows(unbounded(), 0)))
+                    """;
+
+            // Verify SQL generation includes frame
+            String sql = generateSql(pureQuery);
+            System.out.println("Generated SQL with frame: " + sql);
+            assertTrue(sql.contains("ROWS BETWEEN"), "SQL should contain ROWS BETWEEN");
+            assertTrue(sql.contains("UNBOUNDED PRECEDING"), "SQL should contain UNBOUNDED PRECEDING");
+
+            // Execute and verify results
+            BufferedResult result = executeQuery(pureQuery);
+
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            // Verify running sum column exists
+            assertTrue(result.columns().stream()
+                    .anyMatch(c -> c.name().equals("runningSum")),
+                    "Should have runningSum column");
         }
 
         private int findColumnIndex(BufferedResult result, String columnName) {

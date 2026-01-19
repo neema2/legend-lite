@@ -295,6 +295,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     /**
      * Formats a window expression to SQL.
      * Example: ROW_NUMBER() OVER (PARTITION BY "dept" ORDER BY "salary" DESC)
+     * Example with frame: SUM("val") OVER (PARTITION BY "dept" ORDER BY "date" ROWS
+     * BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
      */
     private String formatWindowExpression(WindowExpression w) {
         var sb = new StringBuilder();
@@ -309,6 +311,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
         boolean hasPartition = !w.partitionBy().isEmpty();
         boolean hasOrder = !w.orderBy().isEmpty();
+        boolean hasFrame = w.hasFrame();
 
         // PARTITION BY clause
         if (hasPartition) {
@@ -329,8 +332,40 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     .collect(Collectors.joining(", ")));
         }
 
+        // FRAME clause (ROWS/RANGE BETWEEN ... AND ...)
+        if (hasFrame) {
+            if (hasPartition || hasOrder) {
+                sb.append(" ");
+            }
+            sb.append(formatFrameSpec(w.frame()));
+        }
+
         sb.append(")");
         return sb.toString();
+    }
+
+    /**
+     * Formats a frame specification to SQL.
+     * Example: ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+     */
+    private String formatFrameSpec(WindowExpression.FrameSpec frame) {
+        return frame.type().name() + " BETWEEN " +
+                formatFrameBound(frame.start(), true) + " AND " +
+                formatFrameBound(frame.end(), false);
+    }
+
+    /**
+     * Formats a frame bound to SQL.
+     * 
+     * @param isStart true if this is the start bound, false if end bound
+     */
+    private String formatFrameBound(WindowExpression.FrameBound bound, boolean isStart) {
+        return switch (bound.type()) {
+            case UNBOUNDED -> "UNBOUNDED " + (isStart ? "PRECEDING" : "FOLLOWING");
+            case CURRENT_ROW -> "CURRENT ROW";
+            case PRECEDING -> bound.offset() + " PRECEDING";
+            case FOLLOWING -> bound.offset() + " FOLLOWING";
+        };
     }
 
     private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
