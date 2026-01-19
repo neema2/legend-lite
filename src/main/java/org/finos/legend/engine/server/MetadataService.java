@@ -1,9 +1,6 @@
 package org.finos.legend.engine.server;
 
-import org.finos.legend.engine.execution.ConnectionResolver;
-import org.finos.legend.engine.execution.PlanExecutor;
 import org.finos.legend.engine.plan.ExecutionPlan;
-import org.finos.legend.engine.plan.PlanBuilder;
 import org.finos.legend.engine.plan.RelationNode;
 import org.finos.legend.engine.plan.ResultSchema;
 import org.finos.legend.engine.store.MappingRegistry;

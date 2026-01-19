@@ -1,8 +1,6 @@
 package org.finos.legend.engine.server;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.util.Map;
 
 /**

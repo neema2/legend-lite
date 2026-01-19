@@ -1,7 +1,6 @@
 package org.finos.legend.engine.execution;
 
 import org.finos.legend.engine.plan.ExecutionPlan;
-import org.finos.legend.engine.plan.ResultSchema;
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.RuntimeDefinition;
 

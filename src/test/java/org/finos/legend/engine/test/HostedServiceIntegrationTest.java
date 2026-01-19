@@ -5,7 +5,6 @@ import org.finos.legend.engine.server.*;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
-import org.finos.legend.pure.dsl.PureCompiler;
 import org.finos.legend.pure.dsl.definition.*;
 import org.junit.jupiter.api.*;
 

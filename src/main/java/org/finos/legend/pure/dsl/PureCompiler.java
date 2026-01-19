@@ -273,8 +273,6 @@ public final class PureCompiler {
     private RelationNode compileClassSortBy(ClassSortByExpression sortBy, CompilationContext context) {
         RelationNode source = compileExpression(sortBy.source(), context);
 
-        // Get the table alias and mapping from source
-        String tableAlias = getTableAlias(source);
         RelationalMapping mapping = getMappingFromSource(sortBy.source());
 
         // Extract property name from lambda

@@ -536,8 +536,6 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 String firstName = rs.getString("firstName");
                 String lastName = rs.getString("lastName");
                 int age = rs.getInt("age");
-                String city = rs.getString("city");
-
                 assertNotNull(firstName);
                 assertNotNull(lastName);
                 assertTrue(age > 0, "Age should be positive");

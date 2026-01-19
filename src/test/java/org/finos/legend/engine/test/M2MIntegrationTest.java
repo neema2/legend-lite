@@ -6,7 +6,6 @@ import org.finos.legend.pure.dsl.definition.*;
 import org.finos.legend.pure.dsl.m2m.*;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
-import org.finos.legend.pure.m3.*;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -145,9 +144,6 @@ class M2MIntegrationTest {
             )
             """;
 
-    // Relational mapping components
-    private PureClass rawPersonClass;
-    private Table rawPersonTable;
     private RelationalMapping rawPersonMapping;
 
     @BeforeEach
@@ -183,8 +179,8 @@ class M2MIntegrationTest {
                 .addSource(RAW_PERSON_MAPPING);
 
         mappingRegistry = modelBuilder.getMappingRegistry();
-        rawPersonClass = modelBuilder.getClass("RawPerson");
-        rawPersonTable = modelBuilder.getTable("T_RAW_PERSON");
+        modelBuilder.getClass("RawPerson");
+        modelBuilder.getTable("T_RAW_PERSON");
         rawPersonMapping = mappingRegistry.getByClassName("RawPerson");
     }
 
