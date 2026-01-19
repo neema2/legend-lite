@@ -1,332 +1,208 @@
-# Legend Lite - Clean Room Implementation
+# Legend Lite
 
-A "Clean Room" implementation of the FINOS Legend Engine core, designed for 100% SQL Push-Down execution.
+A clean-room implementation of the FINOS Legend Engine core, designed for **100% SQL Push-Down** execution.
 
-## Architecture Philosophy
+## Architecture
 
-**"Database-as-Runtime"** - The Java layer is purely a transpiler (Pure Language → SQL). It does not execute business logic. All computation is pushed down to the database engine.
-
-## Stack
-
-- **Language**: Java 21+ (LTS)
-- **Paradigm**: Functional & Immutable (records, sealed interfaces, pattern matching)
-- **Target Databases**: DuckDB, SQLite
-- **GraalVM Native Image**: Compatible (no reflection, no dynamic class loading)
-
-## Project Structure
+Legend Lite uses a **three-server architecture** for query execution:
 
 ```
-src/main/java/org/finos/legend/
-├── pure/m3/                    # Metamodel (M3)
-│   ├── Type.java               # Sealed interface for types
-│   ├── PrimitiveType.java      # String, Integer, Boolean, Date
-│   ├── PureClass.java          # User-defined classes
-│   ├── Property.java           # Class properties
-│   └── Multiplicity.java       # Cardinality constraints
-│
-├── engine/store/               # Relational Store & Mapping
-│   ├── Table.java              # Physical table definition
-│   ├── Column.java             # Table columns
-│   ├── SqlDataType.java        # SQL data types
-│   ├── RelationalMapping.java  # Class-to-table mapping
-│   ├── PropertyMapping.java    # Property-to-column mapping
-│   └── MappingRegistry.java    # Mapping registry
-│
-├── engine/plan/                # Logical Plan (IR)
-│   ├── RelationNode.java       # Sealed interface for plan nodes
-│   ├── TableNode.java          # Table scan (FROM)
-│   ├── FilterNode.java         # Row filter (WHERE)
-│   ├── ProjectNode.java        # Column projection (SELECT)
-│   ├── Projection.java         # Structural projection
-│   ├── Expression.java         # Expression hierarchy
-│   ├── ColumnReference.java    # Column reference
-│   ├── Literal.java            # Literal values
-│   ├── ComparisonExpression.java # Comparison ops
-│   └── LogicalExpression.java  # AND/OR/NOT
-│
-├── engine/transpiler/          # SQL Transpiler
-│   ├── SQLDialect.java         # Dialect interface
-│   ├── DuckDBDialect.java      # DuckDB implementation
-│   ├── SQLiteDialect.java      # SQLite implementation
-│   └── SQLGenerator.java       # Plan-to-SQL transpiler
-│
-└── pure/dsl/                   # Pure Language DSL
-    ├── definition/             # Pure Definition Parsing
-    │   ├── PureDefinition.java # Sealed interface for definitions
-    │   ├── ClassDefinition.java # Class model definition
-    │   ├── DatabaseDefinition.java # Database/Store definition
-    │   ├── MappingDefinition.java # Mapping definition
-    │   ├── PureDefinitionParser.java # Definition parser
-    │   └── PureModelBuilder.java # Builds runtime model from Pure
-    ├── PureExpression.java     # Sealed AST interface
-    ├── ClassAllExpression.java # Person.all()
-    ├── FilterExpression.java   # ->filter({...})
-    ├── ProjectExpression.java  # ->project({...})
-    ├── LambdaExpression.java   # {p | ...}
-    ├── Token.java              # Lexer tokens
-    ├── PureLexer.java          # Tokenizer
-    ├── PureParser.java         # Recursive descent parser
-    └── PureCompiler.java       # Pure AST → RelationNode
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ MetadataService │     │  QueryService   │     │ ServiceExecutor │
+│   (Stateful)    │     │  (Stateless)    │     │  (Stateless)    │
+├─────────────────┤     ├─────────────────┤     ├─────────────────┤
+│ • Holds model   │     │ • Ad-hoc queries│     │ • Service exec  │
+│ • Caches plans  │     │ • One-shot      │     │ • Plan playback │
+│ • Service defs  │     │ • No state      │     │ • No compilation│
+└─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
-## Full Pure Language Syntax
+### MetadataService (Stateful)
 
-Legend Lite supports the full Pure syntax for defining models, including **Class**, **Database**, and **Mapping** definitions.
+Manages the compiled Pure model and caches execution plans.
 
-### Class Definition
+```java
+MetadataService metadata = new MetadataService(pureSource);
 
-Defines a Pure class with properties and multiplicities:
-
-```pure
-Class package::ClassName
-{
-    propertyName: Type[multiplicity];
-}
+// Generate and cache execution plan
+ExecutionPlan plan = metadata.generatePlan("app::MyService", "app::MyRuntime");
 ```
 
-**Example:**
-```pure
-Class model::Person
-{
-    firstName: String[1];
-    lastName: String[1];
-    age: Integer[1];
-    email: String[0..1];      // Optional
-    phoneNumbers: String[*];  // Many
-}
+**Use cases:**
+- Long-running server with pre-deployed models
+- Service definitions that are executed repeatedly
+- Plan caching for performance
+
+### QueryService (Stateless)
+
+Compiles and executes ad-hoc queries in a single call. No state retained.
+
+```java
+QueryService query = new QueryService();
+
+// Execute ad-hoc query
+RelationResult result = query.execute(
+    pureSource,
+    "Person.all()->filter({p | $p.age > 30})->project(...)",
+    "app::MyRuntime"
+);
+
+// Or just compile without executing
+ExecutionPlan plan = query.compile(pureSource, query, runtimeName);
 ```
 
-### Database (Store) Definition
+**Use cases:**
+- Exploratory data analysis
+- One-off queries
+- Serverless/lambda execution
 
-Defines a relational database with tables and columns:
+### ServiceExecutor (Stateless)
 
-```pure
-Database package::DatabaseName
-(
-    Table TABLE_NAME
-    (
-        COLUMN_NAME DATA_TYPE [PRIMARY KEY] [NOT NULL],
-        ...
-    )
-)
+Executes pre-compiled plans. No compilation, just execution.
+
+```java
+ServiceExecutor executor = new ServiceExecutor();
+
+// Execute a pre-compiled plan
+RelationResult result = executor.execute(plan, connectionOverride);
 ```
 
-**Example:**
-```pure
-Database store::PersonDatabase
-(
-    Table T_PERSON
-    (
-        ID INTEGER PRIMARY KEY,
-        FIRST_NAME VARCHAR(100) NOT NULL,
-        LAST_NAME VARCHAR(100) NOT NULL,
-        AGE_VAL INTEGER NOT NULL
-    )
-)
+**Use cases:**
+- Plan playback from cache
+- Distributed execution
+- Edge deployment
+
+---
+
+## Quick Start
+
+### Define Your Model (Pure Syntax)
+
 ```
-
-### Mapping Definition
-
-Links a Pure class to a relational table:
-
-```pure
-Mapping package::MappingName
-(
-    ClassName: Relational
-    {
-        ~mainTable [DatabaseName] TABLE_NAME
-        propertyName: [DatabaseName] TABLE_NAME.COLUMN_NAME,
-        ...
-    }
-)
-```
-
-**Example:**
-```pure
-Mapping model::PersonMapping
-(
-    Person: Relational
-    {
-        ~mainTable [PersonDatabase] T_PERSON
-        firstName: [PersonDatabase] T_PERSON.FIRST_NAME,
-        lastName: [PersonDatabase] T_PERSON.LAST_NAME,
-        age: [PersonDatabase] T_PERSON.AGE_VAL
-    }
-)
-```
-
-## Query Syntax
-
-### Lambda Expressions
-Lambdas are enclosed in curly braces: `{parameter | body}`
-
-```pure
-{p | $p.lastName == 'Smith'}     // Filter predicate
-{p | $p.firstName}                // Property projection
-```
-
-### Query Functions
-
-| Function | Description | Example |
-|----------|-------------|---------|
-| `.all()` | Get all instances of a class | `Person.all()` |
-| `->filter({...})` | Filter rows | `->filter({p \| $p.age > 25})` |
-| `->project({...}, {...})` | Select columns | `->project({p \| $p.firstName}, {p \| $p.lastName})` |
-
-### Comparison Operators
-- `==` equals
-- `!=` not equals
-- `<` less than
-- `<=` less than or equal
-- `>` greater than
-- `>=` greater than or equal
-
-### Logical Operators
-- `&&` logical AND
-- `||` logical OR
-
-### Example Queries
-
-```pure
-// Simple filter
-Person.all()->filter({p | $p.lastName == 'Smith'})->project({p | $p.firstName})
-
-// Complex filter with AND
-Person.all()->filter({p | $p.lastName == 'Smith' && $p.age > 25})->project({p | $p.firstName}, {p | $p.age})
-
-// Filter with OR
-Person.all()->filter({p | $p.age < 25 || $p.age > 40})->project({p | $p.firstName})
-```
-
-## Complete Example
-
-### 1. Define the Model in Pure
-
-```pure
-Class model::Person
-{
+Class model::Person {
     firstName: String[1];
     lastName: String[1];
     age: Integer[1];
 }
 
-Database store::PersonDatabase
-(
-    Table T_PERSON
-    (
+Database store::PersonDB (
+    Table T_PERSON (
         ID INTEGER PRIMARY KEY,
-        FIRST_NAME VARCHAR(100) NOT NULL,
-        LAST_NAME VARCHAR(100) NOT NULL,
-        AGE_VAL INTEGER NOT NULL
+        FIRST_NAME VARCHAR(100),
+        LAST_NAME VARCHAR(100),
+        AGE INTEGER
     )
 )
 
-Mapping model::PersonMapping
-(
-    Person: Relational
-    {
-        ~mainTable [PersonDatabase] T_PERSON
-        firstName: [PersonDatabase] T_PERSON.FIRST_NAME,
-        lastName: [PersonDatabase] T_PERSON.LAST_NAME,
-        age: [PersonDatabase] T_PERSON.AGE_VAL
+Mapping model::PersonMapping (
+    Person: Relational {
+        firstName: T_PERSON.FIRST_NAME,
+        lastName: T_PERSON.LAST_NAME,
+        age: T_PERSON.AGE
     }
 )
-```
 
-### 2. Load the Model in Java
+Connection store::MyConnection {
+    database: DuckDB;
+    specification: InMemory;
+}
 
-```java
-// Parse Pure definitions and build runtime model
-PureModelBuilder modelBuilder = new PureModelBuilder()
-    .addSource(pureModelSource);
-
-MappingRegistry mappingRegistry = modelBuilder.getMappingRegistry();
-PureCompiler compiler = new PureCompiler(mappingRegistry);
-```
-
-### 3. Execute Queries
-
-```java
-// Compile Pure query to logical plan
-RelationNode plan = compiler.compile("""
-    Person.all()
-        ->filter({p | $p.lastName == 'Smith'})
-        ->project({p | $p.firstName}, {p | $p.lastName})
-    """);
-
-// Transpile to SQL
-SQLGenerator generator = new SQLGenerator(DuckDBDialect.INSTANCE);
-String sql = generator.generate(plan);
-
-// Execute via JDBC
-try (Statement stmt = connection.createStatement();
-     ResultSet rs = stmt.executeQuery(sql)) {
-    while (rs.next()) {
-        System.out.println(rs.getString("firstName") + " " + rs.getString("lastName"));
-    }
+Runtime app::MyRuntime {
+    mappings: [ model::PersonMapping ];
+    connections: [ store::PersonDB: store::MyConnection ];
 }
 ```
 
-### 4. Generated SQL (DuckDB)
+### Execute a Query
 
-```sql
-SELECT "t0"."FIRST_NAME" AS "firstName", "t0"."LAST_NAME" AS "lastName"
-FROM "T_PERSON" AS "t0"
-WHERE "t0"."LAST_NAME" = 'Smith'
+```java
+QueryService qs = new QueryService();
+
+RelationResult result = qs.execute(
+    pureSource,
+    "Person.all()->filter({p | $p.lastName == 'Smith'})->project({p | $p.firstName})",
+    "app::MyRuntime"
+);
+
+for (List<Object> row : result.rows()) {
+    System.out.println(row.get(0)); // firstName
+}
 ```
 
-## Building & Testing
-
-```bash
-# Build (requires Java 21+)
-mvn clean compile
-
-# Run tests
-mvn test
-```
-
-## Design Principles
-
-1. **Immutability**: All model classes are records - no setters, no mutation
-2. **Sealed Hierarchies**: `Type` and `RelationNode` are sealed for exhaustive pattern matching
-3. **No Reflection**: GraalVM Native Image compatible
-4. **Visitor Pattern**: Clean separation between data structure and operations
-5. **Real Database Tests**: No mocking - tests run against actual DuckDB and SQLite instances
-
-## Roadmap
-
-### Phase 1: Core Query Engine ✅
-
-- [x] M3 Metamodel (Type, Class, Property, PrimitiveType, Multiplicity, Association)
-- [x] Relational Store (Table, Column, RelationalMapping, Join)
-- [x] Logical Plan IR (TableNode, FilterNode, ProjectNode, JoinNode, ExistsExpression)
-- [x] SQL Transpiler with dialect support (DuckDB, SQLite)
-- [x] Pure Language DSL with parser and compiler
-- [x] Pure Definition Syntax (Class, Database, Mapping, Association)
-- [x] Association navigation (EXISTS for filter, LEFT JOIN for project)
-- [x] Integration tests with DuckDB and SQLite using Pure syntax
-
-### Phase 2: Model-to-Model Transforms 🚧
-
-- [ ] M2M mapping syntax (`~src`, `$src.property`)
-- [ ] Derived properties (string concat, arithmetic)
-- [ ] Conditional logic (`if()` → `CASE WHEN`)
-- [ ] Aggregations (`count()`, `sum()`, etc. → `GROUP BY`)
-- [ ] Chained M2M mappings (compile to CTEs)
-- [ ] See [docs/MODEL_TO_MODEL.md](docs/MODEL_TO_MODEL.md) for design
-
-## Documentation
-
-- **[FAQ.md](FAQ.md)** - Frequently asked questions
-- **[docs/MODEL_TO_MODEL.md](docs/MODEL_TO_MODEL.md)** - Model-to-Model transform design (WIP)
+---
 
 ## FAQ
 
-See [FAQ.md](FAQ.md) for frequently asked questions about:
-- SQL generation strategies (EXISTS vs JOIN)
-- Why we use specific SQL patterns for associations
-- Architecture and design decisions
+### What databases are supported?
+
+| Database | Status |
+|----------|--------|
+| DuckDB | ✅ Full support |
+| SQLite | ✅ Full support |
+| H2 | ✅ Basic support |
+| PostgreSQL | 🚧 In progress |
+| Snowflake | 📋 Planned |
+
+### What's the difference between QueryService and MetadataService?
+
+| Feature | QueryService | MetadataService |
+|---------|--------------|-----------------|
+| State | Stateless | Stateful |
+| Plan caching | No | Yes |
+| Use case | Ad-hoc queries | Production services |
+| Startup cost | Higher (compiles each time) | Lower (cached plans) |
+
+### How does SQL push-down work?
+
+All queries are translated to native SQL and executed entirely in the database:
+
+```
+Pure Query:
+Person.all()
+    ->filter({p | $p.age > 30})
+    ->project({p | $p.firstName})
+
+Generated SQL:
+SELECT "t0"."FIRST_NAME" AS "firstName"
+FROM "T_PERSON" AS "t0"
+WHERE "t0"."AGE" > 30
+```
+
+No data is fetched into the JVM for filtering or projection.
+
+### What about associations/joins?
+
+Associations are fully supported with automatic EXISTS optimization:
+
+```
+// Filter through to-many association (uses EXISTS)
+Person.all()
+    ->filter({p | $p.addresses.city == 'NYC'})
+    ->project({p | $p.firstName})
+
+// Project through association (uses LEFT JOIN)
+Person.all()
+    ->project({p | $p.firstName}, {p | $p.addresses.street})
+```
+
+---
+
+## Building
+
+```bash
+mvn clean install
+```
+
+## Testing
+
+```bash
+mvn test
+```
+
+All 123 tests run in ~3 seconds.
+
+---
 
 ## License
 
-Apache 2.0 (Compatible with FINOS Legend)
+Apache 2.0

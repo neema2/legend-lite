@@ -44,6 +44,11 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Override
+    protected String getDatabaseType() {
+        return "DuckDB";
+    }
+
+    @Override
     protected String getJdbcUrl() {
         return "jdbc:duckdb:"; // In-memory DuckDB
     }

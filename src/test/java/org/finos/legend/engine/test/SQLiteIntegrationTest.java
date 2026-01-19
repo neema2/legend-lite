@@ -36,6 +36,11 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Override
+    protected String getDatabaseType() {
+        return "SQLite";
+    }
+
+    @Override
     protected String getJdbcUrl() {
         return "jdbc:sqlite::memory:"; // In-memory SQLite
     }

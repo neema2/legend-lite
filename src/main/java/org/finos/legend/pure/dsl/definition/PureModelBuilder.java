@@ -29,6 +29,9 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, DatabaseDefinition> databases = new HashMap<>();
     private final Map<String, ProfileDefinition> profiles = new HashMap<>();
     private final Map<String, FunctionDefinition> functions = new HashMap<>();
+    private final Map<String, ConnectionDefinition> connections = new HashMap<>();
+    private final Map<String, RuntimeDefinition> runtimes = new HashMap<>();
+    private final Map<String, ServiceDefinition> services = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry();
 
     /**
@@ -51,6 +54,8 @@ public final class PureModelBuilder implements ModelContext {
                 case EnumDefinition enumDef -> addEnum(enumDef);
                 case ProfileDefinition profileDef -> addProfile(profileDef);
                 case FunctionDefinition funcDef -> addFunction(funcDef);
+                case ConnectionDefinition connDef -> addConnection(connDef);
+                case RuntimeDefinition runtimeDef -> addRuntime(runtimeDef);
             }
         }
 
@@ -149,6 +154,24 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
+     * Adds a Connection definition.
+     */
+    public PureModelBuilder addConnection(ConnectionDefinition connDef) {
+        connections.put(connDef.qualifiedName(), connDef);
+        connections.put(connDef.simpleName(), connDef);
+        return this;
+    }
+
+    /**
+     * Adds a Runtime definition.
+     */
+    public PureModelBuilder addRuntime(RuntimeDefinition runtimeDef) {
+        runtimes.put(runtimeDef.qualifiedName(), runtimeDef);
+        runtimes.put(runtimeDef.simpleName(), runtimeDef);
+        return this;
+    }
+
+    /**
      * Adds a Mapping definition and registers it.
      */
     public PureModelBuilder addMapping(MappingDefinition mappingDef) {
@@ -198,8 +221,8 @@ public final class PureModelBuilder implements ModelContext {
      * Services are used by the hosted service runtime for HTTP endpoints.
      */
     public PureModelBuilder addService(ServiceDefinition serviceDef) {
-        // Services are registered with the ServiceRegistry at runtime.
-        // The model builder just stores them for later access.
+        services.put(serviceDef.qualifiedName(), serviceDef);
+        services.put(serviceDef.simpleName(), serviceDef);
         return this;
     }
 
@@ -250,6 +273,30 @@ public final class PureModelBuilder implements ModelContext {
      */
     public Optional<Association> getAssociation(String associationName) {
         return Optional.ofNullable(associations.get(associationName));
+    }
+
+    /**
+     * @param connectionName The connection name (simple or qualified)
+     * @return The ConnectionDefinition, or null if not found
+     */
+    public ConnectionDefinition getConnection(String connectionName) {
+        return connections.get(connectionName);
+    }
+
+    /**
+     * @param runtimeName The runtime name (simple or qualified)
+     * @return The RuntimeDefinition, or null if not found
+     */
+    public RuntimeDefinition getRuntime(String runtimeName) {
+        return runtimes.get(runtimeName);
+    }
+
+    /**
+     * @param serviceName The service name (simple or qualified)
+     * @return The ServiceDefinition, or null if not found
+     */
+    public ServiceDefinition getService(String serviceName) {
+        return services.get(serviceName);
     }
 
     // ==================== ModelContext Implementation ====================

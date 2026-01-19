@@ -62,6 +62,14 @@ public final class PureDefinitionParser {
                 var result = parseFunction(remaining);
                 definitions.add(result.definition);
                 remaining = result.remaining;
+            } else if (remaining.startsWith("RelationalDatabaseConnection ")) {
+                var result = parseConnection(remaining);
+                definitions.add(result.definition);
+                remaining = result.remaining;
+            } else if (remaining.startsWith("Runtime ")) {
+                var result = parseRuntimeDef(remaining);
+                definitions.add(result.definition);
+                remaining = result.remaining;
             } else {
                 throw new PureParseException("Unknown definition starting with: " +
                         remaining.substring(0, Math.min(50, remaining.length())));
@@ -92,6 +100,22 @@ public final class PureDefinitionParser {
      */
     public static FunctionDefinition parseFunctionDefinition(String pureSource) {
         var result = parseFunction(pureSource.trim());
+        return result.definition;
+    }
+
+    /**
+     * Parses a single Connection definition.
+     */
+    public static ConnectionDefinition parseConnectionDefinition(String pureSource) {
+        var result = parseConnection(pureSource.trim());
+        return result.definition;
+    }
+
+    /**
+     * Parses a single Runtime definition.
+     */
+    public static RuntimeDefinition parseRuntimeDefinition(String pureSource) {
+        var result = parseRuntimeDef(pureSource.trim());
         return result.definition;
     }
 
@@ -334,6 +358,173 @@ public final class PureDefinitionParser {
                         body,
                         stereotypes,
                         taggedValues),
+                remaining);
+    }
+
+    // ==================== Connection Parsing ====================
+
+    private static ParseResult<ConnectionDefinition> parseConnection(String source) {
+        // Pattern: RelationalDatabaseConnection qualified::name { store: ...; type:
+        // ...; specification: ...; auth: ...; }
+        Pattern headerPattern = Pattern.compile(
+                "RelationalDatabaseConnection\\s+([\\w:]+)\\s*\\{");
+        Matcher headerMatcher = headerPattern.matcher(source);
+
+        if (!headerMatcher.find()) {
+            throw new PureParseException("Invalid Connection definition: " +
+                    source.substring(0, Math.min(100, source.length())));
+        }
+
+        String qualifiedName = headerMatcher.group(1);
+        int bodyStart = headerMatcher.end();
+        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
+
+        String body = source.substring(bodyStart, bodyEnd).trim();
+        String remaining = source.substring(bodyEnd + 1).trim();
+
+        // Parse store: storeName;
+        String storeName = null;
+        Pattern storePattern = Pattern.compile("store:\\s*([\\w:]+)\\s*;");
+        Matcher storeMatcher = storePattern.matcher(body);
+        if (storeMatcher.find()) {
+            storeName = storeMatcher.group(1);
+        }
+
+        // Parse type: DuckDB|SQLite|H2|etc;
+        ConnectionDefinition.DatabaseType databaseType = ConnectionDefinition.DatabaseType.DuckDB;
+        Pattern typePattern = Pattern.compile("type:\\s*(\\w+)\\s*;");
+        Matcher typeMatcher = typePattern.matcher(body);
+        if (typeMatcher.find()) {
+            String typeStr = typeMatcher.group(1);
+            try {
+                databaseType = ConnectionDefinition.DatabaseType.valueOf(typeStr);
+            } catch (IllegalArgumentException e) {
+                throw new PureParseException("Unknown database type: " + typeStr);
+            }
+        }
+
+        // Parse specification: InMemory {} | LocalFile { path: '...'; } | Static {
+        // host: ...; port: ...; database: ...; }
+        ConnectionSpecification specification = new ConnectionSpecification.InMemory();
+        Pattern specPattern = Pattern.compile("specification:\\s*(\\w+)\\s*\\{([^}]*)}");
+        Matcher specMatcher = specPattern.matcher(body);
+        if (specMatcher.find()) {
+            String specType = specMatcher.group(1);
+            String specBody = specMatcher.group(2).trim();
+
+            specification = switch (specType) {
+                case "InMemory" -> new ConnectionSpecification.InMemory();
+                case "LocalFile" -> {
+                    String path = extractStringProperty(specBody, "path");
+                    yield new ConnectionSpecification.LocalFile(path);
+                }
+                case "Static" -> {
+                    String host = extractStringProperty(specBody, "host");
+                    int port = extractIntProperty(specBody, "port", 0);
+                    String database = extractStringProperty(specBody, "database");
+                    yield new ConnectionSpecification.StaticDatasource(host, port, database);
+                }
+                default -> new ConnectionSpecification.InMemory();
+            };
+        }
+
+        // Parse auth: NoAuth {} | UsernamePassword { username: ...; passwordVaultRef:
+        // ...; }
+        AuthenticationSpec authentication = new AuthenticationSpec.NoAuth();
+        Pattern authPattern = Pattern.compile("auth:\\s*(\\w+)\\s*\\{([^}]*)}");
+        Matcher authMatcher = authPattern.matcher(body);
+        if (authMatcher.find()) {
+            String authType = authMatcher.group(1);
+            String authBody = authMatcher.group(2).trim();
+
+            authentication = switch (authType) {
+                case "NoAuth" -> new AuthenticationSpec.NoAuth();
+                case "UsernamePassword" -> {
+                    String username = extractStringProperty(authBody, "username");
+                    String passwordVaultRef = extractStringProperty(authBody, "passwordVaultRef");
+                    yield new AuthenticationSpec.UsernamePassword(username, passwordVaultRef);
+                }
+                default -> new AuthenticationSpec.NoAuth();
+            };
+        }
+
+        return new ParseResult<>(
+                new ConnectionDefinition(qualifiedName, storeName, databaseType, specification, authentication),
+                remaining);
+    }
+
+    private static String extractStringProperty(String body, String propertyName) {
+        Pattern pattern = Pattern.compile(propertyName + ":\\s*'([^']*)'");
+        Matcher matcher = pattern.matcher(body);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    private static int extractIntProperty(String body, String propertyName, int defaultValue) {
+        Pattern pattern = Pattern.compile(propertyName + ":\\s*(\\d+)");
+        Matcher matcher = pattern.matcher(body);
+        if (matcher.find()) {
+            return Integer.parseInt(matcher.group(1));
+        }
+        return defaultValue;
+    }
+
+    // ==================== Runtime Parsing ====================
+
+    private static ParseResult<RuntimeDefinition> parseRuntimeDef(String source) {
+        // Pattern: Runtime qualified::name { mappings: [...]; connections: [...]; }
+        Pattern headerPattern = Pattern.compile("Runtime\\s+([\\w:]+)\\s*\\{");
+        Matcher headerMatcher = headerPattern.matcher(source);
+
+        if (!headerMatcher.find()) {
+            throw new PureParseException("Invalid Runtime definition: " +
+                    source.substring(0, Math.min(100, source.length())));
+        }
+
+        String qualifiedName = headerMatcher.group(1);
+        int bodyStart = headerMatcher.end();
+        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
+
+        String body = source.substring(bodyStart, bodyEnd).trim();
+        String remaining = source.substring(bodyEnd + 1).trim();
+
+        // Parse mappings: [ mapping1, mapping2 ];
+        List<String> mappings = new ArrayList<>();
+        Pattern mappingsPattern = Pattern.compile("mappings:\\s*\\[([^\\]]*)]");
+        Matcher mappingsMatcher = mappingsPattern.matcher(body);
+        if (mappingsMatcher.find()) {
+            String mappingsStr = mappingsMatcher.group(1).trim();
+            if (!mappingsStr.isEmpty()) {
+                for (String mapping : mappingsStr.split(",")) {
+                    mappings.add(mapping.trim());
+                }
+            }
+        }
+
+        // Parse connections: [ store1: connection1, store2: connection2 ];
+        java.util.Map<String, String> connectionBindings = new java.util.HashMap<>();
+        Pattern connectionsPattern = Pattern.compile("connections:\\s*\\[([^\\]]*)]");
+        Matcher connectionsMatcher = connectionsPattern.matcher(body);
+        if (connectionsMatcher.find()) {
+            String connectionsStr = connectionsMatcher.group(1).trim();
+            if (!connectionsStr.isEmpty()) {
+                for (String binding : connectionsStr.split(",")) {
+                    // Use regex to match qualified names: "store::Name: conn::Name"
+                    // The pattern matches two qualified names separated by ": "
+                    binding = binding.trim();
+                    Pattern bindingPattern = Pattern.compile("([\\w:]+):\\s*([\\w:]+)$");
+                    Matcher bindingMatcher = bindingPattern.matcher(binding);
+                    if (bindingMatcher.find()) {
+                        connectionBindings.put(bindingMatcher.group(1).trim(), bindingMatcher.group(2).trim());
+                    }
+                }
+            }
+        }
+
+        return new ParseResult<>(
+                new RuntimeDefinition(qualifiedName, mappings, connectionBindings),
                 remaining);
     }
 
