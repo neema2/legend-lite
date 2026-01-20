@@ -368,18 +368,57 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         };
     }
 
+    /**
+     * Handles the relationship between ProjectNode and FilterNode.
+     * 
+     * Called from two paths:
+     * 1. visit(FilterNode): filter.source() == project → push filter INTO project  
+     * 2. visit(ProjectNode): project.source() == filter → apply projections OVER filter
+     */
     private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
-        // Common case: Project on top of Filter on top of Table
-        return switch (filter.source()) {
-            case TableNode table -> generateSelectFromTable(project, table, filter.condition());
-            case JoinNode join -> visitProjectWithJoin(project, join, filter.condition());
-            default -> {
-                // Complex case: generate subquery
-                String innerSql = filter.accept(this);
-                String projections = formatProjections(project);
-                yield "SELECT " + projections + " FROM (" + innerSql + ") AS subq";
-            }
-        };
+        // Detect which call path we're on
+        boolean filterWrapsProject = filter.source() == project;
+        boolean projectWrapsFilter = project.source() == filter;
+        
+        if (projectWrapsFilter) {
+            // Case 2: Project→Filter structure (normal SQL: SELECT cols FROM table WHERE cond)
+            // Check what the filter is on top of
+            return switch (filter.source()) {
+                case TableNode table -> generateSelectFromTable(project, table, filter.condition());
+                case JoinNode join -> visitProjectWithJoin(project, join, filter.condition());
+                default -> {
+                    // Complex source: wrap in subquery
+                    String innerSql = filter.source().accept(this);
+                    String projections = formatProjections(project);
+                    String whereClause = filter.condition().accept(this);
+                    yield "SELECT " + projections + " FROM (" + innerSql + ") AS subq WHERE " + whereClause;
+                }
+            };
+        } else if (filterWrapsProject) {
+            // Case 1: Filter→Project structure (service case: Filter(ServiceProjectNode))
+            // The project is from service(), we need to wrap it and apply filter
+            return switch (project.source()) {
+                case TableNode table -> {
+                    // Simple case: SELECT + WHERE on table
+                    String projections = formatProjections(project);
+                    String whereClause = filter.condition().accept(this);
+                    yield "SELECT " + projections + " FROM " 
+                          + dialect.quoteIdentifier(table.table().name()) + " AS " + dialect.quoteIdentifier(table.alias())
+                          + " WHERE " + whereClause;
+                }
+                default -> {
+                    // Complex: wrap project in subquery, apply filter
+                    String innerSql = project.accept(this);
+                    String whereClause = filter.condition().accept(this);
+                    yield "SELECT * FROM (" + innerSql + ") AS filter_subq WHERE " + whereClause;
+                }
+            };
+        } else {
+            // Fallback: should not happen but be safe
+            String innerSql = project.accept(this);
+            String whereClause = filter.condition().accept(this);
+            return "SELECT * FROM (" + innerSql + ") AS fallback WHERE " + whereClause;
+        }
     }
 
     private String visitProjectWithJoin(ProjectNode project, JoinNode join, Expression whereCondition) {
