@@ -173,9 +173,18 @@ public final class PureModelBuilder implements ModelContext {
 
     /**
      * Adds a Mapping definition and registers it.
+     * Handles both Relational and Pure (M2M) mappings:
+     * - Relational: Creates PropertyMappings and registers with MappingRegistry
+     * - Pure: Re-parses as M2M and registers M2M class mappings
      */
     public PureModelBuilder addMapping(MappingDefinition mappingDef) {
         for (var classMapping : mappingDef.classMappings()) {
+            if ("Pure".equals(classMapping.mappingType())) {
+                // Pure (M2M) mapping - parse and register M2M class mapping
+                registerM2MClassMapping(mappingDef.qualifiedName(), classMapping);
+                continue;
+            }
+
             // Find the PureClass
             PureClass pureClass = classes.get(classMapping.className());
             if (pureClass == null) {
@@ -203,6 +212,47 @@ public final class PureModelBuilder implements ModelContext {
         }
 
         return this;
+    }
+
+    /**
+     * Creates an M2MClassMapping from the parsed ClassMappingDefinition and
+     * registers it.
+     * This is called when addMapping encounters a "Pure" mapping type.
+     */
+    private void registerM2MClassMapping(String mappingName, MappingDefinition.ClassMappingDefinition classMapping) {
+        // Convert m2mPropertyExpressions to M2MPropertyMappings
+        List<org.finos.legend.pure.dsl.m2m.M2MPropertyMapping> propertyMappings = new java.util.ArrayList<>();
+
+        if (classMapping.m2mPropertyExpressions() != null) {
+            for (var entry : classMapping.m2mPropertyExpressions().entrySet()) {
+                String propertyName = entry.getKey();
+                String expressionString = entry.getValue();
+
+                // Parse the expression string into an M2MExpression
+                org.finos.legend.pure.dsl.m2m.M2MExpression expression = org.finos.legend.pure.dsl.m2m.M2MExpressionParser
+                        .parse(expressionString);
+
+                propertyMappings.add(new org.finos.legend.pure.dsl.m2m.M2MPropertyMapping(
+                        propertyName, expression));
+            }
+        }
+
+        // Parse filter expression if present
+        org.finos.legend.pure.dsl.m2m.M2MExpression filter = null;
+        if (classMapping.filterExpression() != null && !classMapping.filterExpression().isEmpty()) {
+            filter = org.finos.legend.pure.dsl.m2m.M2MExpressionParser.parse(classMapping.filterExpression());
+        }
+
+        // Create M2MClassMapping
+        org.finos.legend.pure.dsl.m2m.M2MClassMapping m2mMapping = new org.finos.legend.pure.dsl.m2m.M2MClassMapping(
+                classMapping.className(),
+                null, // tag
+                classMapping.sourceClassName(),
+                filter,
+                propertyMappings);
+
+        // Register with MappingRegistry
+        mappingRegistry.registerM2M(m2mMapping);
     }
 
     /**

@@ -12,5 +12,6 @@ package org.finos.legend.pure.dsl;
  * ->project() → RelationExpression (converts to Relation)
  */
 public sealed interface ClassExpression extends PureExpression
-                permits ClassAllExpression, ClassFilterExpression, ClassSortByExpression, ClassLimitExpression {
+        permits ClassAllExpression, ClassFilterExpression, ClassSortByExpression,
+        ClassLimitExpression, GraphFetchExpression {
 }

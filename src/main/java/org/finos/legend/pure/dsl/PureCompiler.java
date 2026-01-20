@@ -3,6 +3,9 @@ package org.finos.legend.pure.dsl;
 import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.store.*;
 import org.finos.legend.pure.dsl.ModelContext.AssociationNavigation;
+import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
+import org.finos.legend.pure.dsl.m2m.M2MClassMapping;
+import org.finos.legend.pure.dsl.m2m.M2MCompiler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,6 +75,7 @@ public final class PureCompiler {
             case RelationSelectExpression select -> compileRelationSelect(select, context);
             case RelationExtendExpression extend -> compileRelationExtend(extend, context);
             case FromExpression from -> compileFrom(from, context);
+            case SerializeExpression serialize -> compileSerialize(serialize, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
@@ -497,6 +501,73 @@ public final class PureCompiler {
 
         // Wrap in a FromNode that carries the runtime reference
         return new FromNode(source, from.runtimeRef());
+    }
+
+    // ==================== M2M graphFetch/serialize Operations ====================
+
+    /**
+     * Compiles a serialize expression from a graphFetch chain.
+     * 
+     * This is the terminal compile point for M2M queries:
+     * Person.all()->graphFetch(#{...}#)->serialize(#{...}#)
+     * 
+     * The compilation:
+     * 1. Gets the target class from the graphFetch tree
+     * 2. Looks up the M2M mapping for that target class
+     * 3. Uses M2MCompiler to generate the ProjectNode with transforms
+     * 4. Applies any filters that were on the source before graphFetch
+     */
+    private RelationNode compileSerialize(SerializeExpression serialize, CompilationContext context) {
+        GraphFetchTree serializeTree = serialize.serializeTree();
+        GraphFetchExpression graphFetch = serialize.source();
+        GraphFetchTree fetchTree = graphFetch.fetchTree();
+
+        // Get the target class name (what we're transforming to)
+        String targetClassName = fetchTree.rootClass();
+
+        // Look up the M2M mapping for the target class
+        M2MClassMapping m2mMapping = mappingRegistry.findM2MMapping(targetClassName)
+                .orElseThrow(() -> new PureCompileException(
+                        "No M2M mapping found for class: " + targetClassName +
+                                ". Register it with MappingRegistry.registerM2M()"));
+
+        // Get the source class and its relational mapping
+        String sourceClassName = m2mMapping.sourceClassName();
+        RelationalMapping sourceMapping = mappingRegistry.findByClassName(sourceClassName)
+                .orElseThrow(() -> new PureCompileException(
+                        "No relational mapping found for M2M source class: " + sourceClassName));
+
+        // Generate table alias
+        String tableAlias = "t" + aliasCounter++;
+
+        // Use M2MCompiler to build the projection with M2M transforms
+        M2MCompiler m2mCompiler = new M2MCompiler(sourceMapping, tableAlias);
+        RelationNode m2mProjection = m2mCompiler.compile(m2mMapping);
+
+        // Check if there's a filter on the source (e.g.,
+        // Person.all()->filter(...)->graphFetch(...))
+        // If so, we need to wrap the filter around the M2M projection
+        ClassExpression sourceExpr = graphFetch.source();
+        if (sourceExpr instanceof ClassFilterExpression filterExpr) {
+            // Compile the filter condition
+            CompilationContext lambdaContext = new CompilationContext(
+                    filterExpr.lambda().parameter(),
+                    tableAlias,
+                    sourceMapping,
+                    sourceClassName,
+                    true);
+
+            Expression filterCondition = compileToSqlExpression(filterExpr.lambda().body(), lambdaContext);
+
+            // Apply filter to the base table (not the projection)
+            // The M2M projection's source is a TableNode, we need to wrap it with filter
+            if (m2mProjection instanceof ProjectNode projectNode) {
+                RelationNode filteredSource = new FilterNode(projectNode.source(), filterCondition);
+                m2mProjection = new ProjectNode(filteredSource, projectNode.projections());
+            }
+        }
+
+        return m2mProjection;
     }
 
     /**

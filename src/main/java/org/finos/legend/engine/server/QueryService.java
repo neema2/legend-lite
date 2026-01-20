@@ -278,6 +278,114 @@ public class QueryService {
                 runtime.qualifiedName());
     }
 
+    // ==================== M2M graphFetch Execution ====================
+
+    /**
+     * Executes a graphFetch/serialize query and returns JSON.
+     * 
+     * This is the Legend-compatible M2M execution path:
+     * - Input: Person.all()->graphFetch(#{...}#)->serialize(#{...}#)
+     * - Output: JSON array of objects, e.g., [{"fullName": "John Smith"}, ...]
+     * 
+     * @param pureSource  The complete Pure source (model + runtime + M2M mappings)
+     * @param query       The graphFetch/serialize Pure query
+     * @param runtimeName The qualified name of the Runtime
+     * @param connection  The JDBC connection for execution
+     * @return JSON string (array of objects)
+     * @throws SQLException If execution fails
+     */
+    public String executeGraphFetch(String pureSource, String query, String runtimeName,
+            Connection connection) throws SQLException {
+
+        // 1. Compile the Pure source
+        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
+
+        // 2. Look up runtime for dialect
+        RuntimeDefinition runtime = model.getRuntime(runtimeName);
+        if (runtime == null) {
+            throw new IllegalArgumentException("Runtime not found: " + runtimeName);
+        }
+
+        // 3. Compile query to IR (PureCompiler handles graphFetch/serialize)
+        MappingRegistry mappingRegistry = model.getMappingRegistry();
+        PureCompiler compiler = new PureCompiler(mappingRegistry, model);
+        RelationNode ir = compiler.compile(query);
+
+        // 4. Get dialect from runtime's connection
+        String storeRef = runtime.connectionBindings().keySet().iterator().next();
+        String connectionRef = runtime.connectionBindings().get(storeRef);
+        ConnectionDefinition connectionDef = model.getConnection(connectionRef);
+
+        if (connectionDef == null) {
+            throw new IllegalArgumentException("Connection not found: " + connectionRef);
+        }
+
+        SQLDialect dialect = getDialect(connectionDef.databaseType());
+        String sql = new SQLGenerator(dialect).generate(ir);
+
+        System.out.println("graphFetch Query: " + query);
+        System.out.println("Generated SQL: " + sql);
+
+        // 5. Execute and serialize to JSON
+        return executeAndSerializeToJson(connection, sql, ir);
+    }
+
+    /**
+     * Executes SQL and converts ResultSet to JSON array.
+     * Uses column names from the IR ProjectNode as JSON property names.
+     */
+    private String executeAndSerializeToJson(Connection connection, String sql, RelationNode ir)
+            throws SQLException {
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+
+            StringBuilder json = new StringBuilder("[");
+            boolean first = true;
+
+            // Get column count and names from ResultSet metadata
+            int columnCount = rs.getMetaData().getColumnCount();
+            String[] columnNames = new String[columnCount];
+            for (int i = 0; i < columnCount; i++) {
+                columnNames[i] = rs.getMetaData().getColumnLabel(i + 1);
+            }
+
+            while (rs.next()) {
+                if (!first) {
+                    json.append(", ");
+                }
+                first = false;
+
+                json.append("{");
+                for (int i = 0; i < columnCount; i++) {
+                    if (i > 0) {
+                        json.append(", ");
+                    }
+
+                    String columnName = columnNames[i];
+                    Object value = rs.getObject(i + 1);
+
+                    json.append("\"").append(columnName).append("\": ");
+                    if (value == null) {
+                        json.append("null");
+                    } else if (value instanceof String strVal) {
+                        // Escape quotes in strings
+                        json.append("\"").append(strVal.replace("\"", "\\\"")).append("\"");
+                    } else if (value instanceof Number) {
+                        json.append(value);
+                    } else if (value instanceof Boolean) {
+                        json.append(value);
+                    } else {
+                        json.append("\"").append(value.toString().replace("\"", "\\\"")).append("\"");
+                    }
+                }
+                json.append("}");
+            }
+
+            json.append("]");
+            return json.toString();
+        }
+    }
+
     private SQLDialect getDialect(ConnectionDefinition.DatabaseType dbType) {
         return switch (dbType) {
             case DuckDB -> DuckDBDialect.INSTANCE;

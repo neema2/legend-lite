@@ -46,6 +46,8 @@ public record Token(TokenType type, String value, int position) {
 
         // Relation syntax
         HASH_GREATER, // #> (start of Relation literal)
+        HASH_LBRACE, // #{ (start of graphFetch tree)
+        RBRACE_HASH, // }# (end of graphFetch tree)
         TILDE, // ~ (column reference)
         COLON, // : (for extend expressions)
         DOUBLE_COLON, // :: (qualified name separator)

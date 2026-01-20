@@ -64,6 +64,8 @@ public final class PureLexer {
                 case "&&" -> TokenType.AND;
                 case "||" -> TokenType.OR;
                 case "#>" -> TokenType.HASH_GREATER; // Relation literal start
+                case "#{" -> TokenType.HASH_LBRACE; // graphFetch tree start
+                case "}#" -> TokenType.RBRACE_HASH; // graphFetch tree end
                 case "::" -> TokenType.DOUBLE_COLON; // Qualified name separator
                 default -> null;
             };

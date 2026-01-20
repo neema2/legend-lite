@@ -779,20 +779,61 @@ public final class PureDefinitionParser {
 
             String mappingBody = body.substring(mappingBodyStart, mappingBodyEnd);
 
-            // Parse ~mainTable
-            MappingDefinition.TableReference mainTable = parseMainTable(mappingBody);
+            if ("Pure".equals(mappingType)) {
+                // Parse as M2M mapping
+                String sourceClassName = parseM2MSource(mappingBody);
+                String filterExpression = parseM2MFilter(mappingBody);
+                java.util.Map<String, String> m2mPropertyExpressions = parseM2MPropertyExpressionsMap(mappingBody);
 
-            // Parse property mappings
-            List<MappingDefinition.PropertyMappingDefinition> propertyMappings = parsePropertyMappings(mappingBody);
+                mappings.add(MappingDefinition.ClassMappingDefinition.pure(
+                        className, sourceClassName, filterExpression, m2mPropertyExpressions));
+            } else {
+                // Parse as Relational mapping
+                MappingDefinition.TableReference mainTable = parseMainTable(mappingBody);
+                List<MappingDefinition.PropertyMappingDefinition> propertyMappings = parsePropertyMappings(mappingBody);
 
-            mappings.add(new MappingDefinition.ClassMappingDefinition(
-                    className, mappingType, mainTable, propertyMappings));
+                mappings.add(MappingDefinition.ClassMappingDefinition.relational(
+                        className, mainTable, propertyMappings));
+            }
 
             // Continue searching
             matcher.region(mappingBodyEnd + 1, body.length());
         }
 
         return mappings;
+    }
+
+    /**
+     * Parses M2M property expressions into a Map (propertyName -> expression
+     * string).
+     */
+    private static java.util.Map<String, String> parseM2MPropertyExpressionsMap(String body) {
+        java.util.Map<String, String> expressions = new java.util.LinkedHashMap<>();
+
+        // Skip ~src and ~filter lines, then parse propertyName: expression lines
+        String[] lines = body.split("\n");
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith("~src") || line.startsWith("~filter")) {
+                continue;
+            }
+
+            // Pattern: propertyName: expression[,]
+            int colonIdx = line.indexOf(':');
+            if (colonIdx > 0) {
+                String propertyName = line.substring(0, colonIdx).trim();
+                String expression = line.substring(colonIdx + 1).trim();
+                // Remove trailing comma if present
+                if (expression.endsWith(",")) {
+                    expression = expression.substring(0, expression.length() - 1).trim();
+                }
+                if (!propertyName.isEmpty() && !expression.isEmpty()) {
+                    expressions.put(propertyName, expression);
+                }
+            }
+        }
+
+        return expressions;
     }
 
     private static MappingDefinition.TableReference parseMainTable(String body) {

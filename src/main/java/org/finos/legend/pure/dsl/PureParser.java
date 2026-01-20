@@ -1,6 +1,7 @@
 package org.finos.legend.pure.dsl;
 
 import org.finos.legend.pure.dsl.Token.TokenType;
+import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,6 +77,9 @@ public final class PureParser {
                 case "select" -> parseSelectCall(expr);
                 case "extend" -> parseExtendCall(expr);
                 case "from" -> parseFromCall(expr);
+                // M2M graphFetch operations
+                case "graphFetch" -> parseGraphFetchCall(expr);
+                case "serialize" -> parseSerializeCall(expr);
                 default -> throw new PureParseException("Unknown function: " + functionName);
             };
         }
@@ -714,6 +718,97 @@ public final class PureParser {
 
         consume(TokenType.RPAREN, "Expected ')' after from");
         return new FromExpression(source, runtimeRef);
+    }
+
+    // ==================== M2M graphFetch Operations ====================
+
+    /**
+     * Parses graphFetch function call:
+     * graphFetch(#{ Person { firstName, lastName } }#)
+     * 
+     * graphFetch() specifies which properties to fetch from the object graph.
+     * Must be called on a ClassExpression (e.g., Person.all()).
+     */
+    private GraphFetchExpression parseGraphFetchCall(PureExpression source) {
+        if (!(source instanceof ClassExpression classSource)) {
+            throw new PureParseException(
+                    "graphFetch() requires a Class expression. Got: " + source.getClass().getSimpleName());
+        }
+
+        // Parse #{...}# tree
+        GraphFetchTree tree = parseGraphFetchTree();
+
+        consume(TokenType.RPAREN, "Expected ')' after graphFetch");
+        return new GraphFetchExpression(classSource, tree);
+    }
+
+    /**
+     * Parses serialize function call:
+     * serialize(#{ Person { firstName, lastName } }#)
+     * 
+     * serialize() terminates a graphFetch chain and produces JSON output.
+     * Must be called on a GraphFetchExpression.
+     */
+    private SerializeExpression parseSerializeCall(PureExpression source) {
+        if (!(source instanceof GraphFetchExpression graphFetchSource)) {
+            throw new PureParseException(
+                    "serialize() requires a graphFetch() expression. " +
+                            "Use: Class.all()->graphFetch(...)->serialize(...). Got: " +
+                            source.getClass().getSimpleName());
+        }
+
+        // Parse #{...}# tree
+        GraphFetchTree tree = parseGraphFetchTree();
+
+        consume(TokenType.RPAREN, "Expected ')' after serialize");
+        return new SerializeExpression(graphFetchSource, tree);
+    }
+
+    /**
+     * Parses a graphFetch tree: #{ ClassName { prop1, prop2 } }#
+     */
+    private GraphFetchTree parseGraphFetchTree() {
+        consume(TokenType.HASH_LBRACE, "Expected '#{' to start graphFetch tree");
+
+        // Parse class name
+        String className = parseQualifiedName();
+        consume(TokenType.LBRACE, "Expected '{' after class name in graphFetch tree");
+
+        // Parse property list
+        List<GraphFetchTree.PropertyFetch> properties = new ArrayList<>();
+
+        while (!check(TokenType.RBRACE)) {
+            if (!properties.isEmpty()) {
+                consume(TokenType.COMMA, "Expected ',' between properties");
+            }
+
+            String propName = consume(TokenType.IDENTIFIER, "Expected property name").value();
+
+            // Check for nested properties: propName { subProp1, subProp2 }
+            if (check(TokenType.LBRACE)) {
+                consume(TokenType.LBRACE, "Expected '{'");
+                List<GraphFetchTree.PropertyFetch> nestedProps = new ArrayList<>();
+
+                while (!check(TokenType.RBRACE)) {
+                    if (!nestedProps.isEmpty()) {
+                        consume(TokenType.COMMA, "Expected ','");
+                    }
+                    String nestedPropName = consume(TokenType.IDENTIFIER, "Expected property name").value();
+                    nestedProps.add(GraphFetchTree.PropertyFetch.simple(nestedPropName));
+                }
+
+                consume(TokenType.RBRACE, "Expected '}' after nested properties");
+                GraphFetchTree subTree = new GraphFetchTree(propName, nestedProps);
+                properties.add(GraphFetchTree.PropertyFetch.nested(propName, subTree));
+            } else {
+                properties.add(GraphFetchTree.PropertyFetch.simple(propName));
+            }
+        }
+
+        consume(TokenType.RBRACE, "Expected '}' after properties");
+        consume(TokenType.RBRACE_HASH, "Expected '}#' to end graphFetch tree");
+
+        return new GraphFetchTree(className, properties);
     }
 
     /**
