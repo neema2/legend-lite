@@ -4,9 +4,7 @@ import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.ConnectionResolver;
 import org.finos.legend.engine.execution.Result;
 import org.finos.legend.engine.execution.StreamingResult;
-import org.finos.legend.engine.plan.ExecutionPlan;
-import org.finos.legend.engine.plan.RelationNode;
-import org.finos.legend.engine.plan.ResultSchema;
+import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.serialization.ResultSerializer;
 import org.finos.legend.engine.serialization.SerializerRegistry;
 import org.finos.legend.engine.store.MappingRegistry;
@@ -14,6 +12,9 @@ import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
 import org.finos.legend.engine.transpiler.SQLiteDialect;
+import org.finos.legend.engine.transpiler.json.DuckDbJsonDialect;
+import org.finos.legend.engine.transpiler.json.JsonSqlDialect;
+import org.finos.legend.engine.transpiler.json.JsonSqlGenerator;
 import org.finos.legend.pure.dsl.PureCompiler;
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
@@ -311,7 +312,7 @@ public class QueryService {
         PureCompiler compiler = new PureCompiler(mappingRegistry, model);
         RelationNode ir = compiler.compile(query);
 
-        // 4. Get dialect from runtime's connection
+        // 4. Get JSON dialect from runtime's connection
         String storeRef = runtime.connectionBindings().keySet().iterator().next();
         String connectionRef = runtime.connectionBindings().get(storeRef);
         ConnectionDefinition connectionDef = model.getConnection(connectionRef);
@@ -320,14 +321,38 @@ public class QueryService {
             throw new IllegalArgumentException("Connection not found: " + connectionRef);
         }
 
-        SQLDialect dialect = getDialect(connectionDef.databaseType());
-        String sql = new SQLGenerator(dialect).generate(ir);
+        // 5. Generate JSON-producing SQL using JsonSqlGenerator
+        JsonSqlDialect jsonDialect = getJsonDialect(connectionDef.databaseType());
+
+        // The IR should be a ProjectNode for graphFetch queries
+        if (!(ir instanceof ProjectNode projectNode)) {
+            throw new IllegalArgumentException("graphFetch query must compile to ProjectNode, got: " + ir.getClass());
+        }
+
+        String sql = new JsonSqlGenerator(jsonDialect).generateJsonSql(projectNode);
 
         System.out.println("graphFetch Query: " + query);
-        System.out.println("Generated SQL: " + sql);
+        System.out.println("Generated JSON SQL: " + sql);
 
-        // 5. Execute and serialize to JSON
-        return executeAndSerializeToJson(connection, sql, ir);
+        // 6. Execute and return JSON directly from database
+        return executeJsonSql(connection, sql);
+    }
+
+    /**
+     * Executes JSON-producing SQL and returns the result.
+     * The SQL returns a single column containing the full JSON array.
+     */
+    private String executeJsonSql(Connection connection, String sql) throws SQLException {
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+
+            if (rs.next()) {
+                String jsonResult = rs.getString(1);
+                // Handle null result (empty table)
+                return jsonResult != null ? jsonResult : "[]";
+            }
+            return "[]";
+        }
     }
 
     /**
@@ -391,6 +416,15 @@ public class QueryService {
             case DuckDB -> DuckDBDialect.INSTANCE;
             case SQLite -> SQLiteDialect.INSTANCE;
             default -> DuckDBDialect.INSTANCE;
+        };
+    }
+
+    private JsonSqlDialect getJsonDialect(ConnectionDefinition.DatabaseType dbType) {
+        return switch (dbType) {
+            case DuckDB -> DuckDbJsonDialect.INSTANCE;
+            // SQLite also uses same JSON function names as DuckDB
+            case SQLite -> DuckDbJsonDialect.INSTANCE;
+            default -> DuckDbJsonDialect.INSTANCE;
         };
     }
 

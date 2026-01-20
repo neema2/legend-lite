@@ -372,16 +372,18 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
      * Handles the relationship between ProjectNode and FilterNode.
      * 
      * Called from two paths:
-     * 1. visit(FilterNode): filter.source() == project → push filter INTO project  
-     * 2. visit(ProjectNode): project.source() == filter → apply projections OVER filter
+     * 1. visit(FilterNode): filter.source() == project → push filter INTO project
+     * 2. visit(ProjectNode): project.source() == filter → apply projections OVER
+     * filter
      */
     private String visitProjectWithFilter(ProjectNode project, FilterNode filter) {
         // Detect which call path we're on
         boolean filterWrapsProject = filter.source() == project;
         boolean projectWrapsFilter = project.source() == filter;
-        
+
         if (projectWrapsFilter) {
-            // Case 2: Project→Filter structure (normal SQL: SELECT cols FROM table WHERE cond)
+            // Case 2: Project→Filter structure (normal SQL: SELECT cols FROM table WHERE
+            // cond)
             // Check what the filter is on top of
             return switch (filter.source()) {
                 case TableNode table -> generateSelectFromTable(project, table, filter.condition());
@@ -402,9 +404,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     // Simple case: SELECT + WHERE on table
                     String projections = formatProjections(project);
                     String whereClause = filter.condition().accept(this);
-                    yield "SELECT " + projections + " FROM " 
-                          + dialect.quoteIdentifier(table.table().name()) + " AS " + dialect.quoteIdentifier(table.alias())
-                          + " WHERE " + whereClause;
+                    yield "SELECT " + projections + " FROM "
+                            + dialect.quoteIdentifier(table.table().name()) + " AS "
+                            + dialect.quoteIdentifier(table.alias())
+                            + " WHERE " + whereClause;
                 }
                 default -> {
                     // Complex: wrap project in subquery, apply filter
@@ -669,6 +672,61 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             return funcName + " " + arg + ")"; // COUNT(DISTINCT col)
         }
         return funcName + "(" + arg + ")";
+    }
+
+    @Override
+    public String visit(JsonObjectExpression jsonObject) {
+        // Render nested json_object() for deep fetch
+        // Example: json_object('city', t1.CITY, 'street', t1.STREET)
+        var sb = new StringBuilder();
+        sb.append("json_object(");
+
+        boolean first = true;
+        for (Projection p : jsonObject.projections()) {
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append("'").append(p.alias()).append("', ");
+            sb.append(p.expression().accept(this));
+        }
+
+        sb.append(")");
+        return sb.toString();
+    }
+
+    @Override
+    public String visit(SubqueryExpression subquery) {
+        // Render as a correlated subquery: (SELECT expr FROM table WHERE condition)
+        String selectExpr = subquery.selectExpression().accept(this);
+        String fromClause = generateSubqueryFromClause(subquery.source());
+
+        return "(" + "SELECT " + selectExpr + " " + fromClause + ")";
+    }
+
+    /**
+     * Generates FROM clause for a subquery, handling filters.
+     */
+    private String generateSubqueryFromClause(RelationNode node) {
+        return switch (node) {
+            case TableNode table ->
+                "FROM " + dialect.quoteIdentifier(table.table().name())
+                        + " AS " + dialect.quoteIdentifier(table.alias());
+            case FilterNode filter -> {
+                String whereClause = filter.condition().accept(this);
+                String innerFrom = generateSubqueryFromClause(filter.source());
+                yield innerFrom + " WHERE " + whereClause;
+            }
+            default ->
+                "FROM (" + node.accept(this) + ") AS subq";
+        };
+    }
+
+    @Override
+    public String visit(JsonArrayExpression jsonArray) {
+        // Render as json_group_array(element)
+        String element = jsonArray.elementExpression().accept(this);
+        return "json_group_array(" + element + ")";
     }
 
     /**

@@ -189,6 +189,13 @@ public final class M2MExpressionParser {
             return parseIf();
         }
 
+        // @JoinName - association reference for deep fetch
+        if (peek() == '@') {
+            advance(); // consume @
+            String joinName = parseIdentifier();
+            return new AssociationRef(joinName);
+        }
+
         // $src.property
         if (peek() == '$') {
             return parseSourceRef();

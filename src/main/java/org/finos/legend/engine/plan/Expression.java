@@ -13,7 +13,8 @@ package org.finos.legend.engine.plan;
  */
 public sealed interface Expression
                 permits ColumnReference, Literal, ComparisonExpression, LogicalExpression, ExistsExpression,
-                ConcatExpression, SqlFunctionCall, CaseExpression, ArithmeticExpression, AggregateExpression {
+                ConcatExpression, SqlFunctionCall, CaseExpression, ArithmeticExpression, AggregateExpression,
+                JsonObjectExpression, SubqueryExpression, JsonArrayExpression {
 
         /**
          * Accept method for the expression visitor pattern.

@@ -56,4 +56,19 @@ public interface ExpressionVisitor<T> {
      * Visit an aggregate expression (SUM, COUNT, etc.).
      */
     T visitAggregate(AggregateExpression aggregate);
+
+    /**
+     * Visit a nested JSON object expression (for deep fetch).
+     */
+    T visit(JsonObjectExpression jsonObject);
+
+    /**
+     * Visit a scalar subquery expression (for 1-to-many deep fetch).
+     */
+    T visit(SubqueryExpression subquery);
+
+    /**
+     * Visit a JSON array aggregation expression (for 1-to-many deep fetch).
+     */
+    T visit(JsonArrayExpression jsonArray);
 }

@@ -538,10 +538,19 @@ public final class PureCompiler {
                         "No relational mapping found for M2M source class: " + sourceClassName));
 
         // Generate table alias
-        String tableAlias = "t" + aliasCounter++;
+        String rootAlias = "t" + aliasCounter++;
 
-        // Use M2MCompiler to build the projection with M2M transforms
-        M2MCompiler m2mCompiler = new M2MCompiler(sourceMapping, tableAlias);
+        // Track JOINs needed for associations (for deep fetch)
+        List<M2MJoinInfo> associationJoins = new ArrayList<>();
+
+        // Create M2MCompiler with resolver for association references
+        M2MCompiler m2mCompiler = new M2MCompiler(sourceMapping, rootAlias)
+                .withAssociationResolver((assocRef, propertyName) -> {
+                    // Resolve the association to a nested JsonObjectExpression
+                    return resolveAssociation(assocRef, propertyName, sourceMapping,
+                            rootAlias, fetchTree, associationJoins);
+                });
+
         RelationNode m2mProjection = m2mCompiler.compile(m2mMapping);
 
         // Check if there's a filter on the source (e.g.,
@@ -552,7 +561,7 @@ public final class PureCompiler {
             // Compile the filter condition
             CompilationContext lambdaContext = new CompilationContext(
                     filterExpr.lambda().parameter(),
-                    tableAlias,
+                    rootAlias,
                     sourceMapping,
                     sourceClassName,
                     true);
@@ -567,7 +576,219 @@ public final class PureCompiler {
             }
         }
 
+        // Apply JOINs for any associations
+        if (!associationJoins.isEmpty() && m2mProjection instanceof ProjectNode projectNode) {
+            RelationNode joinedSource = projectNode.source();
+            for (M2MJoinInfo joinInfo : associationJoins) {
+                joinedSource = new JoinNode(
+                        joinedSource,
+                        joinInfo.rightTable(),
+                        joinInfo.condition(),
+                        JoinNode.JoinType.LEFT_OUTER);
+            }
+            m2mProjection = new ProjectNode(joinedSource, projectNode.projections());
+        }
+
         return m2mProjection;
+    }
+
+    /**
+     * Resolves an M2M association reference to a nested JsonObjectExpression.
+     * For 1-to-1: adds JOIN and returns JsonObjectExpression
+     * For 1-to-many: returns SubqueryExpression with JsonArrayExpression
+     */
+    private Expression resolveAssociation(
+            org.finos.legend.pure.dsl.m2m.AssociationRef assocRef,
+            String propertyName,
+            RelationalMapping sourceMapping,
+            String sourceAlias,
+            GraphFetchTree fetchTree,
+            List<M2MJoinInfo> associationJoins) {
+
+        // Look up the Join definition
+        org.finos.legend.engine.store.Join join = mappingRegistry.findJoin(assocRef.joinName())
+                .orElseThrow(() -> new PureCompileException(
+                        "No join found: " + assocRef.joinName()));
+
+        // Determine target table from join (the table that's NOT the source)
+        String sourceTableName = sourceMapping.table().name();
+        String targetTableName = join.getOtherTable(sourceTableName);
+
+        // Find the relational mapping for the target table
+        RelationalMapping targetMapping = mappingRegistry.findByTableName(targetTableName)
+                .orElseThrow(() -> new PureCompileException(
+                        "No relational mapping found for table: " + targetTableName));
+
+        // Find the nested M2M mapping
+        // The property type from the class definition tells us the target class
+        // For now, derive from graphFetch tree or use naming convention
+        String nestedClassName = getNestedClassFromFetchTree(fetchTree, propertyName);
+
+        // Try to find the M2M mapping - first with the name as-is, then try singular
+        // form
+        M2MClassMapping nestedM2M = mappingRegistry.findM2MMapping(nestedClassName)
+                .or(() -> {
+                    // Try singular form (e.g., "Addresses" -> "Address")
+                    if (nestedClassName.endsWith("es")) {
+                        return mappingRegistry.findM2MMapping(
+                                nestedClassName.substring(0, nestedClassName.length() - 2));
+                    } else if (nestedClassName.endsWith("s")) {
+                        return mappingRegistry.findM2MMapping(
+                                nestedClassName.substring(0, nestedClassName.length() - 1));
+                    }
+                    return java.util.Optional.empty();
+                })
+                .orElseThrow(() -> new PureCompileException(
+                        "No M2M mapping found for nested class: " + nestedClassName +
+                                " (property: " + propertyName + ")"));
+
+        // Generate alias for joined/subquery table
+        String targetAlias = "t" + aliasCounter++;
+
+        // Build correlation condition (same for both 1-to-1 and 1-to-many)
+        String leftCol, rightCol;
+        if (join.leftTable().equals(sourceTableName)) {
+            leftCol = join.leftColumn();
+            rightCol = join.rightColumn();
+        } else {
+            leftCol = join.rightColumn();
+            rightCol = join.leftColumn();
+        }
+
+        Expression correlationCondition = new ComparisonExpression(
+                ColumnReference.of(targetAlias, rightCol),
+                ComparisonExpression.ComparisonOperator.EQUALS,
+                ColumnReference.of(sourceAlias, leftCol));
+
+        // Build nested projections for the JsonObjectExpression
+        List<Projection> nestedProjections = new ArrayList<>();
+        GraphFetchTree nestedFetchTree = getNestedFetchTree(fetchTree, propertyName);
+
+        for (org.finos.legend.pure.dsl.m2m.M2MPropertyMapping pm : nestedM2M.propertyMappings()) {
+            // Check if this property is requested in the nested fetch tree
+            if (nestedFetchTree == null || wantsProperty(nestedFetchTree, pm.propertyName())) {
+                // Compile the nested property expression
+                M2MCompiler nestedCompiler = new M2MCompiler(targetMapping, targetAlias);
+                Expression expr = nestedCompiler.compileExpression(pm.expression());
+                nestedProjections.add(new Projection(expr, pm.propertyName()));
+            }
+        }
+
+        // Detect if this is a 1-to-many by checking if property name is plural
+        boolean isToMany = isCollectionProperty(propertyName);
+
+        if (isToMany) {
+            // 1-to-many: use correlated subquery with json_group_array()
+            // (SELECT json_group_array(json_object(...)) FROM target WHERE correlation)
+            TableNode targetTable = new TableNode(targetMapping.table(), targetAlias);
+            FilterNode filteredTarget = new FilterNode(targetTable, correlationCondition);
+
+            JsonObjectExpression jsonObj = new JsonObjectExpression(nestedProjections);
+            JsonArrayExpression jsonArray = new JsonArrayExpression(jsonObj);
+
+            return new SubqueryExpression(filteredTarget, jsonArray);
+        } else {
+            // 1-to-1: use LEFT JOIN with json_object()
+            // Track the JOIN (will be added to FROM clause)
+            TableNode targetTable = new TableNode(targetMapping.table(), targetAlias);
+
+            // For JOIN, the condition references source.leftCol = target.rightCol
+            Expression joinCondition = new ComparisonExpression(
+                    ColumnReference.of(sourceAlias, leftCol),
+                    ComparisonExpression.ComparisonOperator.EQUALS,
+                    ColumnReference.of(targetAlias, rightCol));
+
+            associationJoins.add(new M2MJoinInfo(targetTable, joinCondition, sourceAlias, targetAlias));
+
+            return new JsonObjectExpression(nestedProjections);
+        }
+    }
+
+    /**
+     * Gets the nested class name from the graphFetch tree for a property.
+     */
+    private String getNestedClassFromFetchTree(GraphFetchTree tree, String propertyName) {
+        if (tree == null) {
+            // Fallback: capitalize property name
+            return capitalize(propertyName);
+        }
+
+        for (GraphFetchTree.PropertyFetch pf : tree.properties()) {
+            if (pf.name().equals(propertyName) && pf.subTree() != null) {
+                String rootClass = pf.subTree().rootClass();
+                if (rootClass != null && !rootClass.isEmpty()) {
+                    // The parser sets rootClass to property name, which may be lowercase.
+                    // Capitalize to get the class name (e.g., "address" -> "Address")
+                    return capitalize(rootClass);
+                }
+            }
+        }
+
+        // Fallback
+        return capitalize(propertyName);
+    }
+
+    /**
+     * Capitalizes the first letter of a string.
+     */
+    private String capitalize(String s) {
+        if (s == null || s.isEmpty())
+            return s;
+        return s.substring(0, 1).toUpperCase() + s.substring(1);
+    }
+
+    /**
+     * Detects if a property name indicates a collection (1-to-many).
+     * Uses simple heuristic: plural property names end with 's'.
+     * 
+     * Examples:
+     * - "address" -> false (1-to-1)
+     * - "addresses" -> true (1-to-many)
+     * - "person" -> false
+     * - "people" -> false (irregular plural, not detected)
+     */
+    private boolean isCollectionProperty(String propertyName) {
+        if (propertyName == null || propertyName.length() < 2) {
+            return false;
+        }
+        // Simple heuristic: ends with 's' but not 'ss' (like "address")
+        // This handles "addresses" (collection) vs "address" (single)
+        return propertyName.endsWith("es") ||
+                (propertyName.endsWith("s") && !propertyName.endsWith("ss"));
+    }
+
+    /**
+     * Gets the nested fetch tree for a property.
+     */
+    private GraphFetchTree getNestedFetchTree(GraphFetchTree tree, String propertyName) {
+        if (tree == null)
+            return null;
+
+        for (GraphFetchTree.PropertyFetch pf : tree.properties()) {
+            if (pf.name().equals(propertyName)) {
+                return pf.subTree();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Checks if a property is wanted in the fetch tree.
+     */
+    private boolean wantsProperty(GraphFetchTree tree, String propertyName) {
+        if (tree == null)
+            return true;
+        return tree.propertyNames().contains(propertyName);
+    }
+
+    /**
+     * Record for tracking JOIN information during association resolution.
+     */
+    private record M2MJoinInfo(
+            TableNode rightTable,
+            Expression condition,
+            String leftAlias,
+            String rightAlias) {
     }
 
     /**

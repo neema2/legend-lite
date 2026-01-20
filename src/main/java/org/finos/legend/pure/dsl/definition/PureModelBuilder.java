@@ -130,6 +130,9 @@ public final class PureModelBuilder implements ModelContext {
                     joinDef.rightColumn());
             joins.put(joinDef.name(), join);
             joins.put(dbDef.simpleName() + "." + joinDef.name(), join);
+
+            // Also register with MappingRegistry for M2M deep fetch lookup
+            mappingRegistry.registerJoin(join);
         }
 
         return this;

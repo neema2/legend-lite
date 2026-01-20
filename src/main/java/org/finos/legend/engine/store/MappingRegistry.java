@@ -16,11 +16,13 @@ public final class MappingRegistry {
     private final Map<String, RelationalMapping> mappingsByClassName;
     private final Map<String, RelationalMapping> mappingsByTableName;
     private final Map<String, M2MClassMapping> m2mMappingsByTargetClass;
+    private final Map<String, Join> joinsByName;
 
     public MappingRegistry() {
         this.mappingsByClassName = new ConcurrentHashMap<>();
         this.mappingsByTableName = new ConcurrentHashMap<>();
         this.m2mMappingsByTargetClass = new ConcurrentHashMap<>();
+        this.joinsByName = new ConcurrentHashMap<>();
     }
 
     /**
@@ -142,6 +144,42 @@ public final class MappingRegistry {
         return m2mMappingsByTargetClass.size();
     }
 
+    // ==================== Join Registration ====================
+
+    /**
+     * Registers a Join by name.
+     * 
+     * @param join The Join to register
+     * @return this registry for fluent API
+     */
+    public MappingRegistry registerJoin(Join join) {
+        joinsByName.put(join.name(), join);
+        return this;
+    }
+
+    /**
+     * Looks up a Join by name.
+     * 
+     * @param joinName The join name
+     * @return Optional containing the Join if found
+     */
+    public Optional<Join> findJoin(String joinName) {
+        return Optional.ofNullable(joinsByName.get(joinName));
+    }
+
+    /**
+     * Gets a Join or throws.
+     * 
+     * @param joinName The join name
+     * @return The Join
+     * @throws IllegalArgumentException if no join exists
+     */
+    public Join getJoin(String joinName) {
+        return findJoin(joinName)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No join found with name: " + joinName));
+    }
+
     /**
      * Clears all registered mappings.
      */
@@ -149,5 +187,6 @@ public final class MappingRegistry {
         mappingsByClassName.clear();
         mappingsByTableName.clear();
         m2mMappingsByTargetClass.clear();
+        joinsByName.clear();
     }
 }

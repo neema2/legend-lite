@@ -46,10 +46,35 @@ class M2MIntegrationTest {
                 isActive: Boolean[1];
             }
 
+            Class model::RawAddress
+            {
+                city: String[1];
+                street: String[1];
+                personId: Integer[1];
+            }
+
             Class model::Person
             {
                 fullName: String[1];
                 upperLastName: String[1];
+            }
+
+            Class model::Address
+            {
+                city: String[1];
+                street: String[1];
+            }
+
+            Class model::PersonWithAddress
+            {
+                fullName: String[1];
+                address: model::Address[0..1];
+            }
+
+            Class model::PersonWithAddresses
+            {
+                fullName: String[1];
+                addresses: model::Address[*];
             }
 
             Class model::PersonView
@@ -81,6 +106,14 @@ class M2MIntegrationTest {
                     SALARY DECIMAL(10,2) NOT NULL,
                     IS_ACTIVE BOOLEAN NOT NULL
                 )
+                Table T_RAW_ADDRESS
+                (
+                    ID INTEGER PRIMARY KEY,
+                    CITY VARCHAR(100) NOT NULL,
+                    STREET VARCHAR(100) NOT NULL,
+                    PERSON_ID INTEGER NOT NULL
+                )
+                Join PersonAddress(T_RAW_PERSON.ID = T_RAW_ADDRESS.PERSON_ID)
             )
 
             Mapping model::RawMapping
@@ -94,6 +127,13 @@ class M2MIntegrationTest {
                     salary: [RawDatabase] T_RAW_PERSON.SALARY,
                     isActive: [RawDatabase] T_RAW_PERSON.IS_ACTIVE
                 }
+                RawAddress: Relational
+                {
+                    ~mainTable [RawDatabase] T_RAW_ADDRESS
+                    city: [RawDatabase] T_RAW_ADDRESS.CITY,
+                    street: [RawDatabase] T_RAW_ADDRESS.STREET,
+                    personId: [RawDatabase] T_RAW_ADDRESS.PERSON_ID
+                }
             )
 
             Mapping model::PersonM2MMapping
@@ -103,6 +143,38 @@ class M2MIntegrationTest {
                     ~src RawPerson
                     fullName: $src.firstName + ' ' + $src.lastName,
                     upperLastName: $src.lastName->toUpper()
+                }
+            )
+
+            Mapping model::AddressM2MMapping
+            (
+                Address: Pure
+                {
+                    ~src RawAddress
+                    city: $src.city,
+                    street: $src.street
+                }
+            )
+
+            Mapping model::DeepFetchMapping
+            (
+                PersonWithAddress: Pure
+                {
+                    ~src RawPerson
+                    fullName: $src.firstName + ' ' + $src.lastName,
+                    address: @PersonAddress
+                }
+                PersonWithAddresses: Pure
+                {
+                    ~src RawPerson
+                    fullName: $src.firstName + ' ' + $src.lastName,
+                    addresses: @PersonAddress
+                }
+                Address: Pure
+                {
+                    ~src RawAddress
+                    city: $src.city,
+                    street: $src.street
                 }
             )
 
@@ -146,7 +218,7 @@ class M2MIntegrationTest {
 
             Runtime test::TestRuntime
             {
-                mappings: [ model::PersonM2MMapping, model::ConditionalMapping, model::FilteredMapping, model::SalaryBandMapping ];
+                mappings: [ model::PersonM2MMapping, model::ConditionalMapping, model::FilteredMapping, model::SalaryBandMapping, model::DeepFetchMapping ];
                 connections: [ store::RawDatabase: store::TestConnection ];
             }
             """;
@@ -169,6 +241,7 @@ class M2MIntegrationTest {
 
     private void setupTestData() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
+            // Create person table
             stmt.execute("""
                     CREATE TABLE T_RAW_PERSON (
                         ID INTEGER PRIMARY KEY,
@@ -184,6 +257,25 @@ class M2MIntegrationTest {
             stmt.execute("INSERT INTO T_RAW_PERSON VALUES (2, 'Jane', 'Doe', 25, 55000.00, true)");
             stmt.execute("INSERT INTO T_RAW_PERSON VALUES (3, 'Bob', 'Jones', 45, 120000.00, false)");
             stmt.execute("INSERT INTO T_RAW_PERSON VALUES (4, 'Alice', 'Wonder', 17, 0.00, true)");
+
+            // Create address table for deep fetch tests
+            stmt.execute("""
+                    CREATE TABLE T_RAW_ADDRESS (
+                        ID INTEGER PRIMARY KEY,
+                        CITY VARCHAR(100),
+                        STREET VARCHAR(100),
+                        PERSON_ID INTEGER
+                    )
+                    """);
+
+            // 1-to-1: John has one address
+            stmt.execute("INSERT INTO T_RAW_ADDRESS VALUES (1, 'New York', '123 Main St', 1)");
+            // 1-to-1: Jane has one address
+            stmt.execute("INSERT INTO T_RAW_ADDRESS VALUES (2, 'Boston', '456 Oak Ave', 2)");
+            // 1-to-many: Bob has multiple addresses
+            stmt.execute("INSERT INTO T_RAW_ADDRESS VALUES (3, 'Chicago', '789 Pine Rd', 3)");
+            stmt.execute("INSERT INTO T_RAW_ADDRESS VALUES (4, 'Seattle', '321 Elm Blvd', 3)");
+            // Alice has no address (tests null handling)
         }
     }
 
@@ -332,5 +424,76 @@ class M2MIntegrationTest {
         assertTrue(json.contains("DOE"), "Should have DOE");
         assertTrue(json.contains("JONES"), "Should have JONES");
         assertTrue(json.contains("WONDER"), "Should have WONDER");
+    }
+
+    // ==================== Deep Fetch (Nested Object) Tests ====================
+
+    @Test
+    @DisplayName("Deep Fetch 1-to-1: PersonWithAddress with nested address object")
+    void testDeepFetchOneToOne() throws SQLException {
+        // GIVEN: A graphFetch query with nested address
+        String pureQuery = """
+                PersonWithAddress.all()
+                    ->graphFetch(#{ PersonWithAddress { fullName, address { city, street } } }#)
+                    ->serialize(#{ PersonWithAddress { fullName, address { city, street } } }#)
+                """;
+
+        // WHEN: Execute via QueryService
+        String json = executeGraphFetch(pureQuery);
+        System.out.println("Deep Fetch 1-to-1 JSON: " + json);
+
+        // THEN: JSON contains nested address objects
+        assertTrue(json.contains("John Smith"), "Should have John's fullName");
+        assertTrue(json.contains("\"address\""), "Should have nested address property");
+        assertTrue(json.contains("New York"), "Should have John's city");
+        assertTrue(json.contains("123 Main St"), "Should have John's street");
+
+        // Jane has address too
+        assertTrue(json.contains("Jane Doe"), "Should have Jane's fullName");
+        assertTrue(json.contains("Boston"), "Should have Jane's city");
+    }
+
+    @Test
+    @DisplayName("Deep Fetch 1-to-Many: PersonWithAddresses with nested address array")
+    void testDeepFetchOneToMany() throws SQLException {
+        // GIVEN: A graphFetch query with nested addresses collection
+        String pureQuery = """
+                PersonWithAddresses.all()
+                    ->graphFetch(#{ PersonWithAddresses { fullName, addresses { city, street } } }#)
+                    ->serialize(#{ PersonWithAddresses { fullName, addresses { city, street } } }#)
+                """;
+
+        // WHEN: Execute via QueryService
+        String json = executeGraphFetch(pureQuery);
+        System.out.println("Deep Fetch 1-to-Many JSON: " + json);
+
+        // THEN: JSON contains nested address arrays
+        assertTrue(json.contains("Bob Jones"), "Should have Bob's fullName");
+        assertTrue(json.contains("\"addresses\""), "Should have nested addresses array");
+        assertTrue(json.contains("Chicago"), "Should have Bob's first city");
+        assertTrue(json.contains("Seattle"), "Should have Bob's second city");
+
+        // Bob should have 2 addresses in array
+        // Count occurrences of "street" following Bob - he has 2
+    }
+
+    @Test
+    @DisplayName("Deep Fetch null handling: Person without address returns null")
+    @Disabled("TODO: Implement null handling for 1-to-1 with no related record")
+    void testDeepFetchNullAddress() throws SQLException {
+        // GIVEN: Alice has no address in the database
+        String pureQuery = """
+                PersonWithAddress.all()
+                    ->graphFetch(#{ PersonWithAddress { fullName, address { city } } }#)
+                    ->serialize(#{ PersonWithAddress { fullName, address { city } } }#)
+                """;
+
+        // WHEN: Execute via QueryService
+        String json = executeGraphFetch(pureQuery);
+        System.out.println("Deep Fetch with null JSON: " + json);
+
+        // THEN: Alice should have null address
+        assertTrue(json.contains("Alice Wonder"), "Should have Alice's fullName");
+        // Alice's address should be null or empty object
     }
 }
