@@ -80,6 +80,10 @@ public final class PureParser {
                 // M2M graphFetch operations
                 case "graphFetch" -> parseGraphFetchCall(expr);
                 case "serialize" -> parseSerializeCall(expr);
+                // Mutation operations
+                case "save" -> parseSaveCall(expr);
+                case "update" -> parseUpdateCall(expr);
+                case "delete" -> parseDeleteCall(expr);
                 default -> throw new PureParseException("Unknown function: " + functionName);
             };
         }
@@ -122,6 +126,11 @@ public final class PureParser {
 
         if (check(TokenType.IDENTIFIER)) {
             return parseClassAllOrIdentifier();
+        }
+
+        // Instance construction: ^Person(firstName='John', lastName='Doe')
+        if (check(TokenType.CARET)) {
+            return parseInstanceConstruction();
         }
 
         // Relation literal: #>{store::DB.TABLE_NAME}
@@ -896,6 +905,85 @@ public final class PureParser {
         }
 
         return left;
+    }
+
+    // ==================== Instance Construction ====================
+
+    /**
+     * Parses instance construction: ^Person(firstName='John', lastName='Doe')
+     */
+    private InstanceExpression parseInstanceConstruction() {
+        consume(TokenType.CARET, "Expected '^'");
+        Token classNameToken = consume(TokenType.IDENTIFIER, "Expected class name after '^'");
+        String className = classNameToken.value();
+
+        consume(TokenType.LPAREN, "Expected '(' after class name");
+
+        java.util.Map<String, Object> properties = new java.util.LinkedHashMap<>();
+
+        while (!check(TokenType.RPAREN)) {
+            Token propNameToken = consume(TokenType.IDENTIFIER, "Expected property name");
+            String propName = propNameToken.value();
+
+            consume(TokenType.ASSIGN, "Expected '=' after property name");
+
+            // Parse property value
+            Object value;
+            if (check(TokenType.STRING_LITERAL)) {
+                value = advance().value();
+            } else if (check(TokenType.INTEGER_LITERAL)) {
+                value = Long.parseLong(advance().value());
+            } else if (check(TokenType.FLOAT_LITERAL)) {
+                value = Double.parseDouble(advance().value());
+            } else if (check(TokenType.TRUE)) {
+                advance();
+                value = true;
+            } else if (check(TokenType.FALSE)) {
+                advance();
+                value = false;
+            } else if (check(TokenType.CARET)) {
+                // Nested instance
+                value = parseInstanceConstruction();
+            } else {
+                throw new PureParseException("Expected property value at position " + peek().position());
+            }
+
+            properties.put(propName, value);
+
+            if (check(TokenType.COMMA)) {
+                advance();
+            } else {
+                break;
+            }
+        }
+
+        consume(TokenType.RPAREN, "Expected ')' after instance properties");
+        return new InstanceExpression(className, properties);
+    }
+
+    /**
+     * Parses save function call: ->save()
+     */
+    private SaveExpression parseSaveCall(PureExpression source) {
+        consume(TokenType.RPAREN, "Expected ')' after save()");
+        return new SaveExpression(source);
+    }
+
+    /**
+     * Parses update function call: ->update({p | $p.age == 31})
+     */
+    private UpdateExpression parseUpdateCall(PureExpression source) {
+        LambdaExpression lambda = parseLambda();
+        consume(TokenType.RPAREN, "Expected ')' after update()");
+        return new UpdateExpression(source, lambda);
+    }
+
+    /**
+     * Parses delete function call: ->delete()
+     */
+    private DeleteExpression parseDeleteCall(PureExpression source) {
+        consume(TokenType.RPAREN, "Expected ')' after delete()");
+        return new DeleteExpression(source);
     }
 
     // ==================== Helper Methods ====================

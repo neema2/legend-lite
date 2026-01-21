@@ -34,6 +34,8 @@ public record Token(TokenType type, String value, int position) {
         AND, // &&
         OR, // ||
         NOT, // !
+        CARET, // ^ (instance construction)
+        ASSIGN, // = (property assignment)
 
         // Delimiters
         LPAREN, // (

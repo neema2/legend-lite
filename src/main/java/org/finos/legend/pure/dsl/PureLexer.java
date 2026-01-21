@@ -92,6 +92,8 @@ public final class PureLexer {
             case ',' -> TokenType.COMMA;
             case '~' -> TokenType.TILDE; // Column reference
             case ':' -> TokenType.COLON; // Extend expression separator
+            case '^' -> TokenType.CARET; // Instance construction
+            case '=' -> TokenType.ASSIGN; // Property assignment
             default -> null;
         };
         if (singleCharType != null) {

@@ -13,5 +13,6 @@ public sealed interface PureExpression
         permits ClassExpression, RelationExpression,
         LambdaExpression, PropertyAccessExpression, ComparisonExpr,
         LiteralExpr, VariableExpr, LogicalExpr, FromExpression,
-        SerializeExpression {
+        SerializeExpression, InstanceExpression, SaveExpression,
+        InternalizeExpression, UpdateExpression, DeleteExpression {
 }

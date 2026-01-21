@@ -8,7 +8,9 @@ import org.finos.legend.pure.dsl.m2m.M2MClassMapping;
 import org.finos.legend.pure.dsl.m2m.M2MCompiler;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -78,6 +80,169 @@ public final class PureCompiler {
             case SerializeExpression serialize -> compileSerialize(serialize, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
+    }
+
+    // ========================================================================
+    // MUTATION COMPILATION (save, update, delete)
+    // ========================================================================
+
+    /**
+     * Compiles a Pure mutation expression into a MutationNode.
+     * 
+     * Supports:
+     * - SaveExpression: ^Person(...)->save() → InsertNode
+     * - UpdateExpression: Person.all()->filter(...)->update({...}) → UpdateNode
+     * - DeleteExpression: Person.all()->filter(...)->delete() → DeleteNode
+     */
+    public MutationNode compileMutation(PureExpression expr) {
+        return switch (expr) {
+            case SaveExpression save -> compileSave(save);
+            case UpdateExpression update -> compileUpdate(update);
+            case DeleteExpression delete -> compileDelete(delete);
+            default -> throw new PureCompileException("Not a mutation expression: " + expr.getClass().getSimpleName());
+        };
+    }
+
+    private MutationNode compileSave(SaveExpression save) {
+        PureExpression source = save.instance();
+
+        if (source instanceof InstanceExpression instance) {
+            return compileInstanceInsert(instance);
+        }
+
+        throw new PureCompileException("Cannot save expression: " + source.getClass().getSimpleName());
+    }
+
+    private InsertNode compileInstanceInsert(InstanceExpression instance) {
+        String className = instance.className();
+        Table table = inferTableFromClassName(className);
+
+        List<String> columns = new ArrayList<>();
+        List<Expression> values = new ArrayList<>();
+
+        for (var entry : instance.properties().entrySet()) {
+            columns.add(toColumnName(entry.getKey()));
+            values.add(literalToExpression(entry.getValue()));
+        }
+
+        return new InsertNode(table, columns, values);
+    }
+
+    private MutationNode compileUpdate(UpdateExpression update) {
+        PureExpression source = update.source();
+        String className = extractClassNameFromSource(source);
+        Table table = inferTableFromClassName(className);
+
+        // Compile WHERE clause from filter
+        Expression whereClause = compileWhereFromSource(source);
+
+        // Compile SET clause from lambda
+        Map<String, Expression> setClause = compileSetClause(update.updateLambda(), className);
+
+        return new UpdateNode(table, setClause, whereClause);
+    }
+
+    private MutationNode compileDelete(DeleteExpression delete) {
+        PureExpression source = delete.source();
+        String className = extractClassNameFromSource(source);
+        Table table = inferTableFromClassName(className);
+
+        // Compile WHERE clause from filter
+        Expression whereClause = compileWhereFromSource(source);
+
+        return new DeleteNode(table, whereClause);
+    }
+
+    private String extractClassNameFromSource(PureExpression source) {
+        return switch (source) {
+            case ClassAllExpression cae -> cae.className();
+            case ClassFilterExpression cfe -> extractClassNameFromSource(cfe.source());
+            default ->
+                throw new PureCompileException("Cannot extract class name from: " + source.getClass().getSimpleName());
+        };
+    }
+
+    private Expression compileWhereFromSource(PureExpression source) {
+        if (source instanceof ClassFilterExpression cfe) {
+            // Get mapping for property name resolution
+            RelationalMapping mapping = mappingRegistry.findByClassName(extractClassNameFromSource(cfe.source()))
+                    .orElse(null);
+            String className = extractClassNameFromSource(cfe.source());
+
+            CompilationContext ctx = new CompilationContext(
+                    cfe.lambda().parameter(),
+                    "t0", // Default alias
+                    mapping,
+                    className,
+                    true);
+            return compileToSqlExpression(cfe.lambda().body(), ctx);
+        }
+        return null; // No filter
+    }
+
+    private Map<String, Expression> compileSetClause(LambdaExpression lambda, String className) {
+        Map<String, Expression> setClause = new HashMap<>();
+        PureExpression body = lambda.body();
+
+        // Handle comparison as assignment: {p | $p.age == 31}
+        if (body instanceof ComparisonExpr cmp && cmp.operator() == ComparisonExpr.Operator.EQUALS) {
+            if (cmp.left() instanceof PropertyAccessExpression pae) {
+                String columnName = toColumnName(pae.propertyName());
+                Expression value = compileLiteral((LiteralExpr) cmp.right());
+                setClause.put(columnName, value);
+            }
+        }
+
+        if (setClause.isEmpty()) {
+            throw new PureCompileException("No valid assignments in update lambda");
+        }
+
+        return setClause;
+    }
+
+    private Table inferTableFromClassName(String className) {
+        // Check if we have a mapping
+        var mapping = mappingRegistry.findByClassName(className);
+        if (mapping.isPresent()) {
+            return mapping.get().table();
+        }
+        // Fall back to convention: Person -> T_PERSON
+        String tableName = "T_" + toUpperSnakeCase(className);
+        return new Table(tableName, List.of());
+    }
+
+    private String toColumnName(String propertyName) {
+        return toUpperSnakeCase(propertyName);
+    }
+
+    private String toUpperSnakeCase(String camelCase) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < camelCase.length(); i++) {
+            char c = camelCase.charAt(i);
+            if (Character.isUpperCase(c) && i > 0) {
+                result.append('_');
+            }
+            result.append(Character.toUpperCase(c));
+        }
+        return result.toString();
+    }
+
+    private Expression literalToExpression(Object value) {
+        if (value == null)
+            return Literal.nullValue();
+        if (value instanceof String s)
+            return Literal.string(s);
+        if (value instanceof Long l)
+            return Literal.integer(l);
+        if (value instanceof Integer i)
+            return Literal.integer(i);
+        if (value instanceof Double d)
+            return new Literal(d, Literal.LiteralType.DOUBLE);
+        if (value instanceof Number n)
+            return Literal.integer(n.longValue());
+        if (value instanceof Boolean b)
+            return Literal.bool(b);
+        return Literal.string(value.toString());
     }
 
     private RelationNode compileClassAll(ClassAllExpression classAll) {
