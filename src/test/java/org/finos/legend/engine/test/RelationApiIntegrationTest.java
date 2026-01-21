@@ -463,17 +463,18 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         @DisplayName("slice() combines skip and take")
-        @Disabled("TODO: Fix slice implementation - off-by-one issue")
         void testSlice() throws SQLException {
             String pureQuery = """
                     Person.all()
                         ->project({p | $p.firstName})
                         ->sort('firstName')
-                        ->slice(1, 1)
+                        ->slice(1, 2)
                     """;
 
             var result = executeRelation(pureQuery);
 
+            // Sorted firstName: Bob, Jane, John (3 rows)
+            // slice(1, 2) = 1 row starting at index 1 = Jane
             assertEquals(1, result.rows().size());
             assertEquals("Jane", result.rows().get(0).get(0));
         }

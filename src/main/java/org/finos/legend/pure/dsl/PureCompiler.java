@@ -71,11 +71,17 @@ public final class PureCompiler {
             case GroupByExpression groupBy -> compileGroupBy(groupBy, context);
             case ClassSortByExpression classSortBy -> compileClassSortBy(classSortBy, context);
             case RelationSortExpression relationSort -> compileRelationSort(relationSort, context);
+            case SortExpression sort -> compileSort(sort, context);
+            case SortByExpression sortBy -> compileSortBy(sortBy, context);
             case ClassLimitExpression classLimit -> compileClassLimit(classLimit, context);
             case RelationLimitExpression relationLimit -> compileRelationLimit(relationLimit, context);
+            case LimitExpression limit -> compileLimit(limit, context);
+            case SliceExpression slice -> compileSlice(slice, context);
+            case DropExpression drop -> compileDrop(drop, context);
             case RelationLiteral literal -> compileRelationLiteral(literal);
             case RelationSelectExpression select -> compileRelationSelect(select, context);
             case RelationExtendExpression extend -> compileRelationExtend(extend, context);
+            case ExtendExpression extend -> compileExtend(extend, context);
             case FromExpression from -> compileFrom(from, context);
             case SerializeExpression serialize -> compileSerialize(serialize, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
@@ -488,6 +494,386 @@ public final class PureCompiler {
     private RelationNode compileRelationLimit(RelationLimitExpression limit, CompilationContext context) {
         RelationNode source = compileExpression(limit.source(), context);
         return new LimitNode(source, limit.limit(), limit.offset());
+    }
+
+    /**
+     * Compiles a generic SortExpression (from new AST builder).
+     * Extracts column names from the sort specifications.
+     */
+    private RelationNode compileSort(SortExpression sort, CompilationContext context) {
+        RelationNode source = compileExpression(sort.source(), context);
+
+        List<SortNode.SortColumn> sortColumns = new ArrayList<>();
+        SortNode.SortDirection nextDirection = SortNode.SortDirection.ASC;
+
+        for (PureExpression colExpr : sort.sortColumns()) {
+            // Check if this is a direction modifier
+            if (colExpr instanceof LiteralExpr lit && lit.value() instanceof String s) {
+                if ("DESC".equalsIgnoreCase(s)) {
+                    // Apply to the previous column if exists
+                    if (!sortColumns.isEmpty()) {
+                        SortNode.SortColumn last = sortColumns.removeLast();
+                        sortColumns.add(new SortNode.SortColumn(last.column(), SortNode.SortDirection.DESC));
+                    } else {
+                        nextDirection = SortNode.SortDirection.DESC;
+                    }
+                    continue;
+                } else if ("ASC".equalsIgnoreCase(s)) {
+                    continue; // Skip ASC literals, ASC is default
+                }
+            }
+
+            String colName = extractColumnName(colExpr);
+            SortNode.SortDirection direction = extractSortDirection(colExpr);
+            if (direction == SortNode.SortDirection.ASC) {
+                direction = nextDirection; // Use pending direction
+            }
+            sortColumns.add(new SortNode.SortColumn(colName, direction));
+            nextDirection = SortNode.SortDirection.ASC; // Reset
+        }
+
+        return new SortNode(source, sortColumns);
+    }
+
+    /**
+     * Compiles a SortByExpression (from new AST builder).
+     * Similar to SortExpression but uses lambda-style column specs.
+     */
+    private RelationNode compileSortBy(SortByExpression sortBy, CompilationContext context) {
+        RelationNode source = compileExpression(sortBy.source(), context);
+
+        List<SortNode.SortColumn> sortColumns = new ArrayList<>();
+        for (PureExpression colExpr : sortBy.sortColumns()) {
+            String colName = extractColumnName(colExpr);
+            SortNode.SortDirection direction = extractSortDirection(colExpr);
+            sortColumns.add(new SortNode.SortColumn(colName, direction));
+        }
+
+        return new SortNode(source, sortColumns);
+    }
+
+    /**
+     * Compiles a generic LimitExpression (from new AST builder).
+     */
+    private RelationNode compileLimit(LimitExpression limit, CompilationContext context) {
+        RelationNode source = compileExpression(limit.source(), context);
+        return new LimitNode(source, limit.count(), 0);
+    }
+
+    /**
+     * Compiles a SliceExpression: source->slice(start, end)
+     * Equivalent to LIMIT (end - start) OFFSET start
+     */
+    private RelationNode compileSlice(SliceExpression slice, CompilationContext context) {
+        RelationNode source = compileExpression(slice.source(), context);
+        int limit = slice.end() - slice.start();
+        int offset = slice.start();
+        return new LimitNode(source, limit, offset);
+    }
+
+    /**
+     * Compiles a DropExpression: source->drop(n)
+     * Equivalent to OFFSET n (skip first n rows)
+     */
+    private RelationNode compileDrop(DropExpression drop, CompilationContext context) {
+        RelationNode source = compileExpression(drop.source(), context);
+        // Drop is just an offset - we use a very large limit to get "all remaining
+        // rows"
+        // In practice, we should use an OffsetNode, but for now LimitNode with offset
+        // works
+        return new LimitNode(source, Integer.MAX_VALUE, drop.count());
+    }
+
+    /**
+     * Extracts column name from various expression types.
+     */
+    private String extractColumnName(PureExpression expr) {
+        return switch (expr) {
+            case LiteralExpr lit -> String.valueOf(lit.value());
+            case ColumnSpec col -> col.name();
+            case LambdaExpression lambda -> extractPropertyName(lambda.body());
+            case PropertyAccessExpression prop -> prop.propertyName();
+            case MethodCall method -> extractColumnName(method.source());
+            default -> throw new PureCompileException("Cannot extract column name from: " + expr);
+        };
+    }
+
+    /**
+     * Extracts sort direction from expression (defaults to ASC).
+     * Handles MethodCall with .desc() or .asc() suffix.
+     */
+    private SortNode.SortDirection extractSortDirection(PureExpression expr) {
+        if (expr instanceof MethodCall method) {
+            if ("desc".equalsIgnoreCase(method.methodName())) {
+                return SortNode.SortDirection.DESC;
+            }
+        }
+        // Check if column spec has "DESC" somewhere
+        if (expr instanceof LiteralExpr lit && lit.value() instanceof String s) {
+            if ("DESC".equalsIgnoreCase(s)) {
+                return SortNode.SortDirection.DESC;
+            }
+        }
+        return SortNode.SortDirection.ASC;
+    }
+
+    /**
+     * Compiles a generic ExtendExpression (from new AST builder).
+     * 
+     * Handles window functions in the format:
+     * extend(~rowNum : row_number()->over(~department, ~salary->desc()))
+     * 
+     * The AST structure is:
+     * ExtendExpression
+     * .source = ProjectExpression
+     * .columns = [MethodCall[source=ColumnSpec[name=rowNum], methodName=over,
+     * arguments=[...]]]
+     */
+    private RelationNode compileExtend(ExtendExpression extend, CompilationContext context) {
+        RelationNode source = compileExpression(extend.source(), context);
+
+        List<ExtendNode.WindowProjection> projections = new ArrayList<>();
+
+        // Check if first arg is an over() function call (legend-engine style)
+        List<PureExpression> columns = extend.columns();
+        FunctionCall overFunctionCall = null;
+
+        if (!columns.isEmpty() && columns.get(0) instanceof FunctionCall fc && "over".equals(fc.functionName())) {
+            // Legend-engine style: extend(over(...), ~col:{...})
+            overFunctionCall = fc;
+            columns = columns.subList(1, columns.size()); // Skip the over() for column processing
+        }
+
+        for (PureExpression colExpr : columns) {
+            if (colExpr instanceof MethodCall overCall && "over".equals(overCall.methodName())) {
+                // Old style: MethodCall with over()
+                ExtendNode.WindowProjection projection = compileWindowProjection(overCall);
+                projections.add(projection);
+            } else if (colExpr instanceof ColumnSpec colSpec && overFunctionCall != null) {
+                // Legend-engine style: over() + ColumnSpec with aggregation
+                ExtendNode.WindowProjection projection = compileWindowProjectionFromFunctionCall(overFunctionCall,
+                        colSpec);
+                projections.add(projection);
+            } else {
+                throw new PureCompileException(
+                        "extend() currently only supports window functions with over(). Got: " + colExpr);
+            }
+        }
+
+        return new ExtendNode(source, projections);
+    }
+
+    /**
+     * Compiles a window function MethodCall with over() into a WindowProjection.
+     * 
+     * Input format: MethodCall[source=ColumnSpec[name=rowNum], methodName=over,
+     * arguments=[...]]
+     * where the source ColumnSpec's name is the new column name, and if it has a
+     * lambda,
+     * the lambda contains the window function call.
+     */
+    private ExtendNode.WindowProjection compileWindowProjection(MethodCall overCall) {
+        // The source of the over() call contains the column spec with window function
+        // info
+        PureExpression source = overCall.source();
+
+        String newColumnName;
+        String functionName;
+
+        if (source instanceof ColumnSpec colSpec) {
+            newColumnName = colSpec.name();
+            // The column name IS the function name (e.g., "rowNum" -> "row_number")
+            functionName = mapColumnNameToWindowFunction(colSpec.name());
+        } else if (source instanceof MethodCall funcCall) {
+            // Nested method call like sum(~val)->over(...)
+            newColumnName = extractColumnName(funcCall.source());
+            functionName = funcCall.methodName();
+        } else {
+            throw new PureCompileException("Unknown window function source: " + source);
+        }
+
+        // Parse the over() arguments: partition columns and order columns
+        List<String> partitionColumns = new ArrayList<>();
+        List<WindowExpression.SortSpec> orderBy = new ArrayList<>();
+
+        for (PureExpression arg : overCall.arguments()) {
+            if (arg instanceof ColumnSpec cs) {
+                // Partition column
+                partitionColumns.add(cs.name());
+            } else if (arg instanceof MethodCall mc) {
+                if ("desc".equals(mc.methodName()) || "asc".equals(mc.methodName())) {
+                    // Sort column with direction
+                    String colName = extractColumnName(mc.source());
+                    WindowExpression.SortDirection dir = "desc".equals(mc.methodName())
+                            ? WindowExpression.SortDirection.DESC
+                            : WindowExpression.SortDirection.ASC;
+                    orderBy.add(new WindowExpression.SortSpec(colName, dir));
+                } else {
+                    // Unknown method call, treat as partition
+                    partitionColumns.add(extractColumnName(mc));
+                }
+            }
+        }
+
+        // Create the WindowExpression
+        WindowExpression.WindowFunction windowFunc = mapWindowFunction(functionName);
+        WindowExpression windowExpr = WindowExpression.ranking(
+                windowFunc,
+                partitionColumns,
+                orderBy,
+                null);
+
+        return new ExtendNode.WindowProjection(newColumnName, windowExpr);
+    }
+
+    /**
+     * Compiles window projection from legend-engine style:
+     * extend(over(~partition, ~order->ascending(), rows(unbounded(), 0)),
+     * ~newCol:{p,w,r|$r.col}:y|$y->plus())
+     */
+    private ExtendNode.WindowProjection compileWindowProjectionFromFunctionCall(FunctionCall overCall,
+            ColumnSpec colSpec) {
+        // Extract partition, order, and frame from over() arguments
+        List<String> partitionColumns = new ArrayList<>();
+        List<WindowExpression.SortSpec> orderBy = new ArrayList<>();
+        WindowExpression.FrameSpec frame = null;
+
+        for (PureExpression arg : overCall.arguments()) {
+            if (arg instanceof ColumnSpec cs) {
+                // Partition column
+                partitionColumns.add(cs.name());
+            } else if (arg instanceof MethodCall mc) {
+                String methodName = mc.methodName();
+                if ("ascending".equals(methodName) || "descending".equals(methodName)) {
+                    String colName = extractColumnName(mc.source());
+                    WindowExpression.SortDirection dir = "descending".equals(methodName)
+                            ? WindowExpression.SortDirection.DESC
+                            : WindowExpression.SortDirection.ASC;
+                    orderBy.add(new WindowExpression.SortSpec(colName, dir));
+                } else {
+                    partitionColumns.add(extractColumnName(mc));
+                }
+            } else if (arg instanceof FunctionCall fc) {
+                // Handle rows() or range() frame specifications
+                if ("rows".equals(fc.functionName())) {
+                    frame = parseRowsFrame(fc);
+                } else if ("range".equals(fc.functionName())) {
+                    frame = parseRangeFrame(fc);
+                }
+            }
+        }
+
+        // Get new column name
+        String newColumnName = colSpec.name();
+
+        // Extract aggregate column from the lambda body: {p,w,r|$r.salary}
+        // The lambda body should be a property access on one of the parameters
+        String aggregateColumn = null;
+        if (colSpec.lambda() instanceof LambdaExpression lambda) {
+            // Lambda body should be something like $r.salary
+            aggregateColumn = extractPropertyName(lambda.body());
+        }
+
+        // Determine function from extraFunction (e.g., y|$y->plus() = sum)
+        String functionName = "sum"; // Default to sum
+        if (colSpec.extraFunction() instanceof LambdaExpression extraLambda) {
+            // The extraFunction body is like $y->plus() - extract the method name
+            if (extraLambda.body() instanceof MethodCall mc) {
+                functionName = mapAggregateMethodToFunction(mc.methodName());
+            }
+        }
+
+        // Create the WindowExpression with aggregate column and frame
+        WindowExpression.WindowFunction windowFunc = mapWindowFunction(functionName);
+        WindowExpression windowExpr = WindowExpression.aggregate(
+                windowFunc,
+                aggregateColumn,
+                partitionColumns,
+                orderBy,
+                frame);
+
+        return new ExtendNode.WindowProjection(newColumnName, windowExpr);
+    }
+
+    /**
+     * Parses a rows() frame specification: rows(start, end)
+     * Where start/end can be: unbounded(), 0 (current row), negative (preceding),
+     * positive (following)
+     */
+    private WindowExpression.FrameSpec parseRowsFrame(FunctionCall rowsCall) {
+        List<PureExpression> args = rowsCall.arguments();
+        if (args.size() < 2) {
+            throw new PureCompileException("rows() requires start and end bounds");
+        }
+
+        WindowExpression.FrameBound start = parseFrameBound(args.get(0));
+        WindowExpression.FrameBound end = parseFrameBound(args.get(1));
+
+        return WindowExpression.FrameSpec.rows(start, end);
+    }
+
+    /**
+     * Parses a range() frame specification.
+     */
+    private WindowExpression.FrameSpec parseRangeFrame(FunctionCall rangeCall) {
+        List<PureExpression> args = rangeCall.arguments();
+        if (args.size() < 2) {
+            throw new PureCompileException("range() requires start and end bounds");
+        }
+
+        WindowExpression.FrameBound start = parseFrameBound(args.get(0));
+        WindowExpression.FrameBound end = parseFrameBound(args.get(1));
+
+        return WindowExpression.FrameSpec.range(start, end);
+    }
+
+    /**
+     * Parses a frame bound: unbounded(), 0 (current row), or integer
+     * (preceding/following)
+     */
+    private WindowExpression.FrameBound parseFrameBound(PureExpression expr) {
+        if (expr instanceof FunctionCall fc && "unbounded".equals(fc.functionName())) {
+            return WindowExpression.FrameBound.unbounded();
+        } else if (expr instanceof LiteralExpr lit && lit.value() instanceof Number num) {
+            int value = num.intValue();
+            if (value == 0) {
+                return WindowExpression.FrameBound.currentRow();
+            } else if (value < 0) {
+                return WindowExpression.FrameBound.preceding(-value); // Convert to positive offset
+            } else {
+                return WindowExpression.FrameBound.following(value);
+            }
+        }
+        throw new PureCompileException("Cannot parse frame bound: " + expr);
+    }
+
+    /**
+     * Maps Pure aggregate method names to SQL function names.
+     */
+    private String mapAggregateMethodToFunction(String methodName) {
+        return switch (methodName.toLowerCase()) {
+            case "plus", "sum" -> "sum";
+            case "average", "avg" -> "avg";
+            case "min" -> "min";
+            case "max" -> "max";
+            case "count" -> "count";
+            case "joinstrings" -> "string_agg";
+            default -> methodName;
+        };
+    }
+
+    /**
+     * Maps column names like "rowNum", "denseRank" to window function names.
+     */
+    private String mapColumnNameToWindowFunction(String columnName) {
+        // Convert camelCase to snake_case style function names
+        return switch (columnName.toLowerCase()) {
+            case "rownum", "rownumber" -> "row_number";
+            case "denserank" -> "dense_rank";
+            case "salaryrank", "rank" -> "rank";
+            case "runningtotal", "sum" -> "sum";
+            default -> columnName.toLowerCase().replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
+        };
     }
 
     // ==================== Relation Literal Operations ====================
@@ -1058,9 +1444,34 @@ public final class PureCompiler {
             case LogicalExpr logical -> compileLogical(logical, context);
             case PropertyAccessExpression propAccess -> compilePropertyAccess(propAccess, context);
             case LiteralExpr literal -> compileLiteral(literal);
+            case BinaryExpression binary -> compileBinaryExpression(binary, context);
             case VariableExpr var ->
                 throw new PureCompileException("Unexpected variable in expression context: " + var);
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
+        };
+    }
+
+    private Expression compileBinaryExpression(BinaryExpression binary, CompilationContext context) {
+        Expression left = compileToSqlExpression(binary.left(), context);
+        Expression right = compileToSqlExpression(binary.right(), context);
+        String op = binary.operator();
+
+        // Map to comparison operators
+        return switch (op) {
+            case "==", "=" -> new ComparisonExpression(left, ComparisonExpression.ComparisonOperator.EQUALS, right);
+            case "!=" -> new ComparisonExpression(left, ComparisonExpression.ComparisonOperator.NOT_EQUALS, right);
+            case "<" -> new ComparisonExpression(left, ComparisonExpression.ComparisonOperator.LESS_THAN, right);
+            case "<=" ->
+                new ComparisonExpression(left, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, right);
+            case ">" -> new ComparisonExpression(left, ComparisonExpression.ComparisonOperator.GREATER_THAN, right);
+            case ">=" ->
+                new ComparisonExpression(left, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, right);
+            // Arithmetic operators - wrap in ArithmeticExpression
+            case "+" -> ArithmeticExpression.add(left, right);
+            case "-" -> ArithmeticExpression.subtract(left, right);
+            case "*" -> ArithmeticExpression.multiply(left, right);
+            case "/" -> ArithmeticExpression.divide(left, right);
+            default -> throw new PureCompileException("Unknown binary operator: " + op);
         };
     }
 

@@ -479,7 +479,6 @@ class M2MIntegrationTest {
 
     @Test
     @DisplayName("Deep Fetch null handling: Person without address returns null")
-    @Disabled("TODO: Implement null handling for 1-to-1 with no related record")
     void testDeepFetchNullAddress() throws SQLException {
         // GIVEN: Alice has no address in the database
         String pureQuery = """

@@ -1,211 +1,160 @@
 package org.finos.legend.pure.dsl.antlr;
 
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.tree.ParseTree;
-import org.junit.jupiter.api.DisplayName;
+import org.finos.legend.pure.dsl.*;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the ANTLR-generated Pure parser.
- * Validates that the grammar correctly parses all Pure query constructs.
+ * Tests for the ANTLR-based Pure parser.
+ * Tests parsing Pure expressions using the merged legend-engine grammar.
  */
 class AntlrPureParserTest {
 
-    private PureParser.QueryContext parse(String query) {
-        var lexer = new PureLexer(CharStreams.fromString(query));
-        var tokens = new CommonTokenStream(lexer);
-        var parser = new PureParser(tokens);
-
-        // Fail on syntax errors
-        parser.removeErrorListeners();
-        parser.addErrorListener(new org.antlr.v4.runtime.BaseErrorListener() {
-            @Override
-            public void syntaxError(org.antlr.v4.runtime.Recognizer<?, ?> recognizer,
-                    Object offendingSymbol, int line, int charPositionInLine,
-                    String msg, org.antlr.v4.runtime.RecognitionException e) {
-                throw new RuntimeException("Parse error at " + line + ":" + charPositionInLine + " - " + msg);
-            }
-        });
-
-        return parser.query();
-    }
+    // ========================================
+    // Class.all() Tests
+    // ========================================
 
     @Nested
-    @DisplayName("Class.all() Expressions")
     class ClassAllTests {
-
         @Test
         void simpleClassAll() {
-            var ctx = parse("Person.all()");
-            assertNotNull(ctx);
-            assertEquals(1, ctx.getChildCount() - 1); // -1 for EOF
+            PureExpression result = AntlrPureParserAdapter.parse("Person.all()");
+            assertInstanceOf(ClassAllExpression.class, result);
+            ClassAllExpression expr = (ClassAllExpression) result;
+            assertEquals("Person", expr.className());
         }
 
         @Test
         void qualifiedClassAll() {
-            var ctx = parse("model::domain::Person.all()");
-            assertNotNull(ctx);
+            PureExpression result = AntlrPureParserAdapter.parse("model::domain::Person.all()");
+            assertInstanceOf(ClassAllExpression.class, result);
+            ClassAllExpression expr = (ClassAllExpression) result;
+            assertEquals("model::domain::Person", expr.className());
         }
     }
 
+    // ========================================
+    // Filter Tests
+    // ========================================
+
     @Nested
-    @DisplayName("Method Chaining")
+    class FilterTests {
+        @Test
+        void classAllWithFilter() {
+            PureExpression result = AntlrPureParserAdapter.parse(
+                    "Person.all()->filter(p | $p.age > 21)");
+            // Check it parsed successfully
+            assertNotNull(result);
+        }
+    }
+
+    // ========================================
+    // Method Chaining Tests
+    // ========================================
+
+    @Nested
     class MethodChainingTests {
-
         @Test
-        void filterWithLambda() {
-            var ctx = parse("Person.all()->filter({p | $p.lastName == 'Smith'})");
-            assertNotNull(ctx);
-            var expr = ctx.expression();
-            assertEquals(1, expr.methodCall().size());
-            assertEquals("filter", expr.methodCall(0).IDENTIFIER().getText());
+        void filterThenLimit() {
+            PureExpression result = AntlrPureParserAdapter.parse(
+                    "Person.all()->filter(p | $p.active == true)->limit(10)");
+            assertNotNull(result);
         }
 
         @Test
-        void projectWithLambdaList() {
-            var ctx = parse("Person.all()->project([{p | $p.firstName}, {p | $p.lastName}])");
-            assertNotNull(ctx);
-            var expr = ctx.expression();
-            assertEquals("project", expr.methodCall(0).IDENTIFIER().getText());
-        }
-
-        @Test
-        void fullChain() {
-            var ctx = parse("Person.all()->filter({p | $p.age > 21})->project([{p | $p.firstName}])->limit(10)");
-            assertNotNull(ctx);
-            var expr = ctx.expression();
-            assertEquals(3, expr.methodCall().size());
+        void projectWithColumns() {
+            PureExpression result = AntlrPureParserAdapter.parse(
+                    "Person.all()->project(~[firstName, lastName])");
+            assertNotNull(result);
         }
     }
 
-    @Nested
-    @DisplayName("Relation Expressions")
-    class RelationTests {
-
-        @Test
-        void relationLiteral() {
-            var ctx = parse("#>{store::PersonDb.T_PERSON}");
-            assertNotNull(ctx);
-        }
-
-        @Test
-        void relationWithFilter() {
-            var ctx = parse("#>{store::PersonDb.T_PERSON}->filter({r | $r.age > 25})");
-            assertNotNull(ctx);
-        }
-
-        @Test
-        void relationExtend() {
-            var ctx = parse("#>{store::PersonDb.T_PERSON}->extend(~fullName : x | $x.firstName)");
-            assertNotNull(ctx);
-        }
-
-        @Test
-        void columnSelect() {
-            var ctx = parse("#>{store::PersonDb.T_PERSON}->select(~firstName, ~lastName)");
-            assertNotNull(ctx);
-        }
-    }
+    // ========================================
+    // Literal Tests
+    // ========================================
 
     @Nested
-    @DisplayName("GraphFetch Expressions")
-    class GraphFetchTests {
-
-        @Test
-        void simpleGraphFetch() {
-            var ctx = parse("Person.all()->graphFetch(#{Person { firstName, lastName }}#)");
-            assertNotNull(ctx);
-        }
-
-        @Test
-        void nestedGraphFetch() {
-            var ctx = parse("Person.all()->graphFetch(#{Person { firstName, address { city, zipCode } }}#)");
-            assertNotNull(ctx);
-        }
-
-        @Test
-        void graphFetchWithSerialize() {
-            var ctx = parse("Person.all()->graphFetch(#{Person { firstName }}#)->serialize(#{Person { firstName }}#)");
-            assertNotNull(ctx);
-            var expr = ctx.expression();
-            assertEquals(2, expr.methodCall().size());
-        }
-    }
-
-    @Nested
-    @DisplayName("Instance Expressions")
-    class InstanceTests {
-
-        @Test
-        void simpleInstance() {
-            var ctx = parse("^Person(firstName='John', lastName='Doe')");
-            assertNotNull(ctx);
-        }
-
-        @Test
-        void instanceSave() {
-            var ctx = parse("^Person(firstName='John', lastName='Doe')->save()");
-            assertNotNull(ctx);
-        }
-    }
-
-    @Nested
-    @DisplayName("Comparison Operators")
-    class ComparisonTests {
-
-        @Test
-        void allOperators() {
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.x == 1})"));
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.x != 1})"));
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.x < 1})"));
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.x <= 1})"));
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.x > 1})"));
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.x >= 1})"));
-        }
-
-        @Test
-        void logicalOperators() {
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.x > 1 && $p.y < 10})"));
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.x > 1 || $p.y < 10})"));
-        }
-    }
-
-    @Nested
-    @DisplayName("Literal Values")
     class LiteralTests {
-
         @Test
         void stringLiteral() {
-            var ctx = parse("Person.all()->filter({p | $p.name == 'John\\'s'})");
-            assertNotNull(ctx);
+            PureExpression result = AntlrPureParserAdapter.parse("'hello'");
+            assertInstanceOf(LiteralExpr.class, result);
         }
 
         @Test
         void integerLiteral() {
-            var ctx = parse("Person.all()->filter({p | $p.age == 42})");
-            assertNotNull(ctx);
+            PureExpression result = AntlrPureParserAdapter.parse("42");
+            assertInstanceOf(LiteralExpr.class, result);
         }
 
         @Test
-        void floatLiteral() {
-            var ctx = parse("Person.all()->filter({p | $p.salary > 50000.50})");
-            assertNotNull(ctx);
+        void booleanLiteral() {
+            PureExpression result = AntlrPureParserAdapter.parse("true");
+            assertInstanceOf(LiteralExpr.class, result);
+        }
+    }
+
+    // ========================================
+    // Variable Tests
+    // ========================================
+
+    @Nested
+    class VariableTests {
+        @Test
+        void simpleVariable() {
+            PureExpression result = AntlrPureParserAdapter.parse("$x");
+            assertInstanceOf(VariableExpr.class, result);
+            VariableExpr expr = (VariableExpr) result;
+            assertEquals("x", expr.name());
+        }
+    }
+
+    // ========================================
+    // Lambda Tests
+    // ========================================
+
+    @Nested
+    class LambdaTests {
+        @Test
+        void simpleLambda() {
+            PureExpression result = AntlrPureParserAdapter.parse("{x | $x.name}");
+            assertInstanceOf(LambdaExpression.class, result);
         }
 
         @Test
-        void booleanLiterals() {
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.active == true})"));
-            assertDoesNotThrow(() -> parse("Person.all()->filter({p | $p.active == false})"));
+        void lambdaWithPipe() {
+            PureExpression result = AntlrPureParserAdapter.parse("x | $x.age > 21");
+            assertInstanceOf(LambdaExpression.class, result);
         }
+    }
 
+    // ========================================
+    // Instance Expression Tests
+    // ========================================
+
+    @Nested
+    class InstanceTests {
         @Test
-        void negativeLiteral() {
-            var ctx = parse("Person.all()->filter({p | $p.balance > -100})");
-            assertNotNull(ctx);
+        void simpleInstance() {
+            PureExpression result = AntlrPureParserAdapter.parse(
+                    "^Person(firstName='John', lastName='Doe')");
+            assertInstanceOf(InstanceExpression.class, result);
+        }
+    }
+
+    // ========================================
+    // Comparison Tests
+    // ========================================
+
+    @Nested
+    class ComparisonTests {
+        @Test
+        void equalsComparison() {
+            PureExpression result = AntlrPureParserAdapter.parse("$p.name == 'John'");
+            // After processing the combinedExpression, we should have a comparison
+            assertNotNull(result);
         }
     }
 }

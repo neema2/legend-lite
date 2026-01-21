@@ -88,6 +88,10 @@
                         <configuration>
                             <listener>false</listener>
                             <visitor>true</visitor>
+                            <!-- Only process grammars in our package, ignore legend-engine grammars -->
+                            <includes>
+                                <include>**/org/finos/legend/pure/dsl/antlr/*.g4</include>
+                            </includes>
                         </configuration>
                     </execution>
                 </executions>

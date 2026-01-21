@@ -28,14 +28,13 @@ public final class PureParser {
     /**
      * Parses a Pure query string.
      * 
+     * Delegates to ANTLR-generated parser for parsing.
+     * 
      * @param query The Pure query string
      * @return The parsed expression AST
      */
     public static PureExpression parse(String query) {
-        PureLexer lexer = new PureLexer(query);
-        List<Token> tokens = lexer.tokenize();
-        PureParser parser = new PureParser(tokens);
-        return parser.parseExpression();
+        return org.finos.legend.pure.dsl.antlr.AntlrPureParserAdapter.parse(query);
     }
 
     /**

@@ -1,6 +1,7 @@
 package org.finos.legend.pure.dsl.graphfetch;
 
 import java.util.List;
+import org.finos.legend.pure.dsl.PureExpression;
 
 /**
  * Represents a graphFetch tree specification.
@@ -28,7 +29,7 @@ import java.util.List;
  */
 public record GraphFetchTree(
         String rootClass,
-        List<PropertyFetch> properties) {
+        List<PropertyFetch> properties) implements PureExpression {
 
     /**
      * A single property in the fetch tree.
