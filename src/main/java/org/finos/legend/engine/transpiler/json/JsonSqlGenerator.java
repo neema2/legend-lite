@@ -7,7 +7,6 @@ import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Generates JSON-producing SQL for graphFetch queries.

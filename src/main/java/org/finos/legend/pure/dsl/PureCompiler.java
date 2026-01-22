@@ -1069,7 +1069,6 @@ public final class PureCompiler {
      * 4. Applies any filters that were on the source before graphFetch
      */
     private RelationNode compileSerialize(SerializeExpression serialize, CompilationContext context) {
-        GraphFetchTree serializeTree = serialize.serializeTree();
         GraphFetchExpression graphFetch = serialize.source();
         GraphFetchTree fetchTree = graphFetch.fetchTree();
 

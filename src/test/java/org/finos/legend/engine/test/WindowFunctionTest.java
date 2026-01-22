@@ -8,8 +8,6 @@ import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
 import org.finos.legend.pure.dsl.*;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.Disabled;
-
 import java.sql.*;
 import java.util.List;
 

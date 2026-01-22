@@ -1038,7 +1038,6 @@ public final class PureDefinitionParser {
             Matcher expectedMatcher = expectedPattern.matcher(assertBody);
 
             if (expectedMatcher.find()) {
-                String contentType = expectedMatcher.group(1);
                 String expectedData = expectedMatcher.group(2);
                 // Unescape JSON newlines
                 expectedData = expectedData.replace("\\n", "\n").replace("\\r", "\r");

@@ -1,7 +1,6 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.server.QueryService;
-import org.finos.legend.engine.test.TestSuiteRunner.*;
 import org.finos.legend.pure.dsl.definition.*;
 import org.junit.jupiter.api.*;
 

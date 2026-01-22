@@ -62,19 +62,6 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         return expr;
     }
 
-    private PureExpression processExpressionPart(PureExpression left, PureParser.ExpressionPartContext ctx) {
-        if (ctx.booleanPart() != null) {
-            PureParser.BooleanPartContext bp = ctx.booleanPart();
-            PureExpression right = visitComparisonExpression(bp.comparisonExpression());
-            if (bp.AND() != null) {
-                return LogicalExpr.and(left, right);
-            } else {
-                return LogicalExpr.or(left, right);
-            }
-        }
-        throw new PureParseException("Unknown expression part: " + ctx.getText());
-    }
-
     private PureExpression processArithmeticPart(PureExpression left, PureParser.ArithmeticPartContext ctx) {
         List<PureParser.ExpressionContext> exprs = ctx.expression();
         if (!exprs.isEmpty()) {
