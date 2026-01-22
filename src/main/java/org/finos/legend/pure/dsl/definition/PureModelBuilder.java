@@ -23,6 +23,7 @@ import java.util.Optional;
 public final class PureModelBuilder implements ModelContext {
 
     private final Map<String, PureClass> classes = new HashMap<>();
+    private final Map<String, ClassDefinition> pendingClassDefinitions = new HashMap<>();
     private final Map<String, Association> associations = new HashMap<>();
     private final Map<String, Table> tables = new HashMap<>();
     private final Map<String, Join> joins = new HashMap<>();
@@ -43,9 +44,21 @@ public final class PureModelBuilder implements ModelContext {
     public PureModelBuilder addSource(String pureSource) {
         List<PureDefinition> definitions = PureDefinitionParser.parse(pureSource);
 
+        // PHASE 1: Register all classes first (without superclass resolution)
+        for (PureDefinition def : definitions) {
+            if (def instanceof ClassDefinition classDef) {
+                addClass(classDef);
+            }
+        }
+
+        // PHASE 2: Resolve superclass references now that all classes are registered
+        resolveSuperclasses();
+
+        // PHASE 3: Process remaining definitions
         for (PureDefinition def : definitions) {
             switch (def) {
-                case ClassDefinition classDef -> addClass(classDef);
+                case ClassDefinition classDef -> {
+                } // Already processed in Phase 1
                 case AssociationDefinition assocDef -> addAssociation(assocDef);
                 case DatabaseDefinition dbDef -> addDatabase(dbDef);
                 case MappingDefinition mappingDef -> addMapping(mappingDef);
@@ -64,21 +77,78 @@ public final class PureModelBuilder implements ModelContext {
 
     /**
      * Adds a Class definition.
+     * Initially registers the class with empty superclass list.
+     * Superclass references are resolved later in resolveSuperclasses().
      */
     public PureModelBuilder addClass(ClassDefinition classDef) {
+        // Store the definition for later superclass resolution
+        pendingClassDefinitions.put(classDef.qualifiedName(), classDef);
+
         List<Property> properties = classDef.properties().stream()
                 .map(this::convertProperty)
                 .toList();
 
+        // Create class with empty superclass list initially
         PureClass pureClass = new PureClass(
                 classDef.packagePath(),
                 classDef.simpleName(),
+                List.of(), // Superclasses resolved later
                 properties);
 
         classes.put(classDef.qualifiedName(), pureClass);
         classes.put(classDef.simpleName(), pureClass); // Also register by simple name
 
         return this;
+    }
+
+    /**
+     * Resolves superclass references for all registered classes.
+     * This is Phase 2 of the two-phase resolution process.
+     * Must be called after all classes are registered.
+     */
+    private void resolveSuperclasses() {
+        for (var entry : pendingClassDefinitions.entrySet()) {
+            String qualifiedName = entry.getKey();
+            ClassDefinition classDef = entry.getValue();
+
+            if (classDef.superClasses().isEmpty()) {
+                continue; // No superclasses to resolve
+            }
+
+            // Resolve superclass references
+            List<PureClass> resolvedSuperClasses = new java.util.ArrayList<>();
+            for (String superClassName : classDef.superClasses()) {
+                PureClass superClass = classes.get(superClassName);
+                if (superClass == null) {
+                    // Try simple name lookup
+                    String simpleName = superClassName.contains("::")
+                            ? superClassName.substring(superClassName.lastIndexOf("::") + 2)
+                            : superClassName;
+                    superClass = classes.get(simpleName);
+                }
+
+                if (superClass == null) {
+                    throw new IllegalStateException(
+                            "Superclass not found: " + superClassName + " for class " + qualifiedName);
+                }
+                resolvedSuperClasses.add(superClass);
+            }
+
+            // Create new PureClass with resolved superclasses
+            PureClass existingClass = classes.get(qualifiedName);
+            PureClass updatedClass = new PureClass(
+                    existingClass.packagePath(),
+                    existingClass.name(),
+                    resolvedSuperClasses,
+                    existingClass.properties());
+
+            // Replace in registry
+            classes.put(qualifiedName, updatedClass);
+            classes.put(classDef.simpleName(), updatedClass);
+        }
+
+        // Clear pending definitions
+        pendingClassDefinitions.clear();
     }
 
     /**

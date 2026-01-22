@@ -177,8 +177,11 @@ public final class PureDefinitionParser {
             }
         }
 
-        // Pattern: Class qualified::Name { ... } [constraints]?
-        Pattern headerPattern = Pattern.compile("Class\\s+([\\w:]+)\\s*\\{");
+        // Pattern: Class qualified::Name [extends superclass1, superclass2]? { ... }
+        // [constraints]?
+        // Group 1: qualified class name
+        // Group 2: extends clause (optional, including "extends" keyword)
+        Pattern headerPattern = Pattern.compile("Class\\s+([\\w:]+)(\\s+extends\\s+[\\w:,\\s]+)?\\s*\\{");
         Matcher headerMatcher = headerPattern.matcher(remaining);
 
         if (!headerMatcher.find()) {
@@ -186,6 +189,22 @@ public final class PureDefinitionParser {
         }
 
         String qualifiedName = headerMatcher.group(1);
+
+        // Parse superclasses from extends clause
+        List<String> superClasses = new ArrayList<>();
+        String extendsClause = headerMatcher.group(2);
+        if (extendsClause != null && !extendsClause.isEmpty()) {
+            // Remove "extends" keyword and parse comma-separated class names
+            String classListStr = extendsClause.trim().substring("extends".length()).trim();
+            String[] classNames = classListStr.split(",");
+            for (String className : classNames) {
+                String trimmed = className.trim();
+                if (!trimmed.isEmpty()) {
+                    superClasses.add(trimmed);
+                }
+            }
+        }
+
         int bodyStart = headerMatcher.end();
         int bodyEnd = findMatchingBrace(remaining, bodyStart - 1);
 
@@ -207,7 +226,8 @@ public final class PureDefinitionParser {
         }
 
         return new ParseResult<>(
-                new ClassDefinition(qualifiedName, properties, derivedProperties, constraints, stereotypes,
+                new ClassDefinition(qualifiedName, superClasses, properties, derivedProperties, constraints,
+                        stereotypes,
                         taggedValues),
                 remaining);
     }

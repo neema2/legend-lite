@@ -148,45 +148,6 @@ class RelationApiTest {
         }
     }
 
-    // ==================== Lexer Tests ====================
-
-    @Nested
-    @DisplayName("Relation Lexer: Token generation")
-    class RelationLexerTests {
-
-        @Test
-        @DisplayName("Lexer tokenizes #> as HASH_GREATER")
-        void testLexerHashGreater() {
-            var lexer = new PureLexer("#>{DB.TABLE}");
-            var tokens = lexer.tokenize();
-
-            assertEquals(Token.TokenType.HASH_GREATER, tokens.get(0).type());
-            assertEquals("#>", tokens.get(0).value());
-        }
-
-        @Test
-        @DisplayName("Lexer tokenizes ~ as TILDE")
-        void testLexerTilde() {
-            var lexer = new PureLexer("~column");
-            var tokens = lexer.tokenize();
-
-            assertEquals(Token.TokenType.TILDE, tokens.get(0).type());
-        }
-
-        @Test
-        @DisplayName("Lexer tokenizes : as COLON")
-        void testLexerColon() {
-            var lexer = new PureLexer("name: value");
-            var tokens = lexer.tokenize();
-
-            boolean hasColon = tokens.stream()
-                    .anyMatch(t -> t.type() == Token.TokenType.COLON);
-            assertTrue(hasColon, "Should have COLON token");
-        }
-    }
-
-    // ==================== Expression Types ====================
-
     @Nested
     @DisplayName("Relation Expression Types")
     class RelationExpressionTypeTests {

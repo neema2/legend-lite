@@ -443,7 +443,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private PureExpression parseFilterCallFromString(PureExpression source, String argsContent) {
-        PureExpression predicate = AntlrPureParserAdapter.parse(argsContent);
+        PureExpression predicate = org.finos.legend.pure.dsl.PureParser.parse(argsContent);
         LambdaExpression lambda = (predicate instanceof LambdaExpression)
                 ? (LambdaExpression) predicate
                 : new LambdaExpression("x", predicate);
@@ -465,7 +465,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             String columnName = content.substring(0, colonIdx).trim();
             String exprContent = content.substring(colonIdx + 1).trim();
 
-            PureExpression extension = AntlrPureParserAdapter.parse(exprContent);
+            PureExpression extension = org.finos.legend.pure.dsl.PureParser.parse(exprContent);
             LambdaExpression lambda = (extension instanceof LambdaExpression)
                     ? (LambdaExpression) extension
                     : new LambdaExpression("x", extension);
@@ -474,12 +474,12 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         }
 
         // Fallback for simple extend
-        PureExpression extension = AntlrPureParserAdapter.parse(content);
+        PureExpression extension = org.finos.legend.pure.dsl.PureParser.parse(content);
         return new ExtendExpression(source, List.of(extension));
     }
 
     private PureExpression parseSortCallFromString(PureExpression source, String argsContent) {
-        PureExpression sortSpec = AntlrPureParserAdapter.parse(argsContent);
+        PureExpression sortSpec = org.finos.legend.pure.dsl.PureParser.parse(argsContent);
         return new SortExpression(source, List.of(sortSpec));
     }
 

@@ -35,6 +35,7 @@ import java.util.Objects;
  */
 public record ClassDefinition(
         String qualifiedName,
+        List<String> superClasses,
         List<PropertyDefinition> properties,
         List<DerivedPropertyDefinition> derivedProperties,
         List<ConstraintDefinition> constraints,
@@ -44,6 +45,7 @@ public record ClassDefinition(
     public ClassDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(properties, "Properties cannot be null");
+        superClasses = superClasses == null ? List.of() : List.copyOf(superClasses);
         properties = List.copyOf(properties);
         derivedProperties = derivedProperties == null ? List.of() : List.copyOf(derivedProperties);
         constraints = constraints == null ? List.of() : List.copyOf(constraints);
@@ -52,27 +54,29 @@ public record ClassDefinition(
     }
 
     /**
-     * Constructor for backwards compatibility (no derived properties,
+     * Constructor for backwards compatibility (no superclasses, derived properties,
      * constraints, or annotations).
      */
     public ClassDefinition(String qualifiedName, List<PropertyDefinition> properties) {
-        this(qualifiedName, properties, List.of(), List.of(), List.of(), List.of());
+        this(qualifiedName, List.of(), properties, List.of(), List.of(), List.of(), List.of());
     }
 
     /**
-     * Constructor with derived properties but no constraints or annotations.
+     * Constructor with derived properties but no superclasses, constraints or
+     * annotations.
      */
     public ClassDefinition(String qualifiedName, List<PropertyDefinition> properties,
             List<DerivedPropertyDefinition> derivedProperties) {
-        this(qualifiedName, properties, derivedProperties, List.of(), List.of(), List.of());
+        this(qualifiedName, List.of(), properties, derivedProperties, List.of(), List.of(), List.of());
     }
 
     /**
-     * Constructor with constraints but no annotations (backwards compat).
+     * Constructor with constraints but no superclasses or annotations (backwards
+     * compat).
      */
     public ClassDefinition(String qualifiedName, List<PropertyDefinition> properties,
             List<DerivedPropertyDefinition> derivedProperties, List<ConstraintDefinition> constraints) {
-        this(qualifiedName, properties, derivedProperties, constraints, List.of(), List.of());
+        this(qualifiedName, List.of(), properties, derivedProperties, constraints, List.of(), List.of());
     }
 
     /**

@@ -1,6 +1,5 @@
 package org.finos.legend.engine.plan;
 
-import java.util.List;
 import java.util.Objects;
 
 /**

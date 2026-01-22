@@ -20,7 +20,7 @@ class AntlrPureParserTest {
     class ClassAllTests {
         @Test
         void simpleClassAll() {
-            PureExpression result = AntlrPureParserAdapter.parse("Person.all()");
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("Person.all()");
             assertInstanceOf(ClassAllExpression.class, result);
             ClassAllExpression expr = (ClassAllExpression) result;
             assertEquals("Person", expr.className());
@@ -28,7 +28,7 @@ class AntlrPureParserTest {
 
         @Test
         void qualifiedClassAll() {
-            PureExpression result = AntlrPureParserAdapter.parse("model::domain::Person.all()");
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("model::domain::Person.all()");
             assertInstanceOf(ClassAllExpression.class, result);
             ClassAllExpression expr = (ClassAllExpression) result;
             assertEquals("model::domain::Person", expr.className());
@@ -43,9 +43,8 @@ class AntlrPureParserTest {
     class FilterTests {
         @Test
         void classAllWithFilter() {
-            PureExpression result = AntlrPureParserAdapter.parse(
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse(
                     "Person.all()->filter(p | $p.age > 21)");
-            // Check it parsed successfully
             assertNotNull(result);
         }
     }
@@ -58,14 +57,14 @@ class AntlrPureParserTest {
     class MethodChainingTests {
         @Test
         void filterThenLimit() {
-            PureExpression result = AntlrPureParserAdapter.parse(
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse(
                     "Person.all()->filter(p | $p.active == true)->limit(10)");
             assertNotNull(result);
         }
 
         @Test
         void projectWithColumns() {
-            PureExpression result = AntlrPureParserAdapter.parse(
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse(
                     "Person.all()->project(~[firstName, lastName])");
             assertNotNull(result);
         }
@@ -79,19 +78,19 @@ class AntlrPureParserTest {
     class LiteralTests {
         @Test
         void stringLiteral() {
-            PureExpression result = AntlrPureParserAdapter.parse("'hello'");
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("'hello'");
             assertInstanceOf(LiteralExpr.class, result);
         }
 
         @Test
         void integerLiteral() {
-            PureExpression result = AntlrPureParserAdapter.parse("42");
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("42");
             assertInstanceOf(LiteralExpr.class, result);
         }
 
         @Test
         void booleanLiteral() {
-            PureExpression result = AntlrPureParserAdapter.parse("true");
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("true");
             assertInstanceOf(LiteralExpr.class, result);
         }
     }
@@ -104,7 +103,7 @@ class AntlrPureParserTest {
     class VariableTests {
         @Test
         void simpleVariable() {
-            PureExpression result = AntlrPureParserAdapter.parse("$x");
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("$x");
             assertInstanceOf(VariableExpr.class, result);
             VariableExpr expr = (VariableExpr) result;
             assertEquals("x", expr.name());
@@ -119,13 +118,13 @@ class AntlrPureParserTest {
     class LambdaTests {
         @Test
         void simpleLambda() {
-            PureExpression result = AntlrPureParserAdapter.parse("{x | $x.name}");
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("{x | $x.name}");
             assertInstanceOf(LambdaExpression.class, result);
         }
 
         @Test
         void lambdaWithPipe() {
-            PureExpression result = AntlrPureParserAdapter.parse("x | $x.age > 21");
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("x | $x.age > 21");
             assertInstanceOf(LambdaExpression.class, result);
         }
     }
@@ -138,7 +137,7 @@ class AntlrPureParserTest {
     class InstanceTests {
         @Test
         void simpleInstance() {
-            PureExpression result = AntlrPureParserAdapter.parse(
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse(
                     "^Person(firstName='John', lastName='Doe')");
             assertInstanceOf(InstanceExpression.class, result);
         }
@@ -152,8 +151,7 @@ class AntlrPureParserTest {
     class ComparisonTests {
         @Test
         void equalsComparison() {
-            PureExpression result = AntlrPureParserAdapter.parse("$p.name == 'John'");
-            // After processing the combinedExpression, we should have a comparison
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("$p.name == 'John'");
             assertNotNull(result);
         }
     }

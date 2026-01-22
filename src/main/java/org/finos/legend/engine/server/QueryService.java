@@ -355,62 +355,6 @@ public class QueryService {
         }
     }
 
-    /**
-     * Executes SQL and converts ResultSet to JSON array.
-     * Uses column names from the IR ProjectNode as JSON property names.
-     */
-    private String executeAndSerializeToJson(Connection connection, String sql, RelationNode ir)
-            throws SQLException {
-        try (Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery(sql)) {
-
-            StringBuilder json = new StringBuilder("[");
-            boolean first = true;
-
-            // Get column count and names from ResultSet metadata
-            int columnCount = rs.getMetaData().getColumnCount();
-            String[] columnNames = new String[columnCount];
-            for (int i = 0; i < columnCount; i++) {
-                columnNames[i] = rs.getMetaData().getColumnLabel(i + 1);
-            }
-
-            while (rs.next()) {
-                if (!first) {
-                    json.append(", ");
-                }
-                first = false;
-
-                json.append("{");
-                for (int i = 0; i < columnCount; i++) {
-                    if (i > 0) {
-                        json.append(", ");
-                    }
-
-                    String columnName = columnNames[i];
-                    Object value = rs.getObject(i + 1);
-
-                    json.append("\"").append(columnName).append("\": ");
-                    if (value == null) {
-                        json.append("null");
-                    } else if (value instanceof String strVal) {
-                        // Escape quotes in strings
-                        json.append("\"").append(strVal.replace("\"", "\\\"")).append("\"");
-                    } else if (value instanceof Number) {
-                        json.append(value);
-                    } else if (value instanceof Boolean) {
-                        json.append(value);
-                    } else {
-                        json.append("\"").append(value.toString().replace("\"", "\\\"")).append("\"");
-                    }
-                }
-                json.append("}");
-            }
-
-            json.append("]");
-            return json.toString();
-        }
-    }
-
     private SQLDialect getDialect(ConnectionDefinition.DatabaseType dbType) {
         return switch (dbType) {
             case DuckDB -> DuckDBDialect.INSTANCE;

@@ -20,7 +20,7 @@ import static org.finos.legend.engine.sql.Token.*;
  * - Legend-Engine table functions (service, table, class)
  */
 public final class SelectParser {
-    
+
     private final Lexer lexer;
 
     public SelectParser(String sql) {
@@ -43,13 +43,6 @@ public final class SelectParser {
 
     private boolean check(Token t) {
         return current() == t;
-    }
-
-    private boolean checkAny(Token... tokens) {
-        for (Token t : tokens) {
-            if (current() == t) return true;
-        }
-        return false;
     }
 
     private void advance() {
@@ -115,7 +108,8 @@ public final class SelectParser {
         expect(SELECT);
 
         boolean distinct = consumeIf(DISTINCT);
-        if (!distinct) consumeIf(ALL);
+        if (!distinct)
+            consumeIf(ALL);
 
         List<SelectItem> items = parseSelectList();
 
@@ -206,12 +200,12 @@ public final class SelectParser {
     }
 
     private boolean isReserved(Token t) {
-        return t == FROM || t == WHERE || t == GROUP || t == HAVING || 
-               t == ORDER || t == LIMIT || t == OFFSET ||
-               t == JOIN || t == LEFT || t == RIGHT || t == INNER ||
-               t == FULL || t == CROSS || t == ON ||
-               t == UNION || t == INTERSECT || t == EXCEPT ||
-               t == AND || t == OR || t == AS || t == SELECT;
+        return t == FROM || t == WHERE || t == GROUP || t == HAVING ||
+                t == ORDER || t == LIMIT || t == OFFSET ||
+                t == JOIN || t == LEFT || t == RIGHT || t == INNER ||
+                t == FULL || t == CROSS || t == ON ||
+                t == UNION || t == INTERSECT || t == EXCEPT ||
+                t == AND || t == OR || t == AS || t == SELECT;
     }
 
     // ==================== FROM Clause ====================
@@ -242,7 +236,8 @@ public final class SelectParser {
                 SelectStatement subquery = parseSelect();
                 expect(RPAREN);
                 String alias = parseOptionalFromAlias();
-                if (alias == null) throw error("Subquery must have an alias");
+                if (alias == null)
+                    throw error("Subquery must have an alias");
                 return new FromItem.SubQuery(subquery, alias);
             }
             lexer.reset(mark);
@@ -272,13 +267,13 @@ public final class SelectParser {
         String funcName = stringVal();
         advance();
         expect(LPAREN);
-        
+
         List<Expression> args = new ArrayList<>();
         if (!check(RPAREN)) {
             args = parseList(this::parseExpression);
         }
         expect(RPAREN);
-        
+
         String alias = parseOptionalFromAlias();
         return new FromItem.TableFunction(funcName, args, alias);
     }
@@ -308,8 +303,8 @@ public final class SelectParser {
     }
 
     private boolean isJoinKeyword() {
-        return check(JOIN) || check(INNER) || check(LEFT) || 
-               check(RIGHT) || check(FULL) || check(CROSS);
+        return check(JOIN) || check(INNER) || check(LEFT) ||
+                check(RIGHT) || check(FULL) || check(CROSS);
     }
 
     private FromItem.JoinedTable.JoinType parseJoinType() {
@@ -346,16 +341,21 @@ public final class SelectParser {
 
     private OrderSpec parseOrderSpec() {
         Expression expr = parseExpression();
-        
+
         OrderSpec.Direction dir = OrderSpec.Direction.ASC;
-        if (consumeIf(ASC)) dir = OrderSpec.Direction.ASC;
-        else if (consumeIf(DESC)) dir = OrderSpec.Direction.DESC;
+        if (consumeIf(ASC))
+            dir = OrderSpec.Direction.ASC;
+        else if (consumeIf(DESC))
+            dir = OrderSpec.Direction.DESC;
 
         OrderSpec.NullsOrder nulls = OrderSpec.NullsOrder.DEFAULT;
         if (consumeIf(NULLS)) {
-            if (consumeIf(FIRST)) nulls = OrderSpec.NullsOrder.NULLS_FIRST;
-            else if (consumeIf(LAST)) nulls = OrderSpec.NullsOrder.NULLS_LAST;
-            else throw error("Expected FIRST or LAST after NULLS");
+            if (consumeIf(FIRST))
+                nulls = OrderSpec.NullsOrder.NULLS_FIRST;
+            else if (consumeIf(LAST))
+                nulls = OrderSpec.NullsOrder.NULLS_LAST;
+            else
+                throw error("Expected FIRST or LAST after NULLS");
         }
 
         return new OrderSpec(expr, dir, nulls);
@@ -429,7 +429,8 @@ public final class SelectParser {
 
         // LIKE / ILIKE
         if (check(LIKE) || check(ILIKE)) {
-            Expression.BinaryOperator op = check(LIKE) ? Expression.BinaryOperator.LIKE : Expression.BinaryOperator.ILIKE;
+            Expression.BinaryOperator op = check(LIKE) ? Expression.BinaryOperator.LIKE
+                    : Expression.BinaryOperator.ILIKE;
             advance();
             return new Expression.BinaryOp(left, op, parseAddExpr());
         }
@@ -552,9 +553,12 @@ public final class SelectParser {
             advance();
             return Expression.decimalLiteral(val);
         }
-        if (consumeIf(TRUE)) return Expression.boolLiteral(true);
-        if (consumeIf(FALSE)) return Expression.boolLiteral(false);
-        if (consumeIf(NULL)) return Expression.nullLiteral();
+        if (consumeIf(TRUE))
+            return Expression.boolLiteral(true);
+        if (consumeIf(FALSE))
+            return Expression.boolLiteral(false);
+        if (consumeIf(NULL))
+            return Expression.nullLiteral();
 
         // Identifier, function call, or column reference
         return parseIdentifierExpr();
@@ -568,14 +572,15 @@ public final class SelectParser {
             // COUNT(*)
             if (name.equalsIgnoreCase("COUNT") && consumeIf(STAR)) {
                 expect(RPAREN);
-                Expression.FunctionCall func = new Expression.FunctionCall(name, List.of(Expression.column("*")), false);
+                Expression.FunctionCall func = new Expression.FunctionCall(name, List.of(Expression.column("*")),
+                        false);
                 return maybeParseOver(func);
             }
-            
+
             boolean distinct = consumeIf(DISTINCT);
             List<Expression> args = check(RPAREN) ? List.of() : parseList(this::parseExpression);
             expect(RPAREN);
-            
+
             Expression.FunctionCall func = new Expression.FunctionCall(name, args, distinct);
             return maybeParseOver(func);
         }
@@ -596,7 +601,8 @@ public final class SelectParser {
     }
 
     private Expression maybeParseOver(Expression.FunctionCall func) {
-        if (!consumeIf(OVER)) return func;
+        if (!consumeIf(OVER))
+            return func;
 
         expect(LPAREN);
 
@@ -623,7 +629,10 @@ public final class SelectParser {
 
     private Expression.FrameSpec parseFrameSpec() {
         Expression.FrameType type = consumeIf(ROWS) ? Expression.FrameType.ROWS : Expression.FrameType.RANGE;
-        if (type == null) { consume(RANGE); type = Expression.FrameType.RANGE; }
+        if (type == null) {
+            consume(RANGE);
+            type = Expression.FrameType.RANGE;
+        }
 
         expect(BETWEEN);
         Expression.FrameBound start = parseFrameBound();
@@ -639,8 +648,10 @@ public final class SelectParser {
 
     private Expression.FrameBound parseFrameBound() {
         if (consumeIf(UNBOUNDED)) {
-            if (consumeIf(PRECEDING)) return Expression.FrameBound.unboundedPreceding();
-            if (consumeIf(FOLLOWING)) return Expression.FrameBound.unboundedFollowing();
+            if (consumeIf(PRECEDING))
+                return Expression.FrameBound.unboundedPreceding();
+            if (consumeIf(FOLLOWING))
+                return Expression.FrameBound.unboundedFollowing();
             throw error("Expected PRECEDING or FOLLOWING");
         }
         if (consumeIf(CURRENT)) {
@@ -648,15 +659,17 @@ public final class SelectParser {
             return Expression.FrameBound.currentRow();
         }
         int offset = expectInteger();
-        if (consumeIf(PRECEDING)) return Expression.FrameBound.preceding(offset);
-        if (consumeIf(FOLLOWING)) return Expression.FrameBound.following(offset);
+        if (consumeIf(PRECEDING))
+            return Expression.FrameBound.preceding(offset);
+        if (consumeIf(FOLLOWING))
+            return Expression.FrameBound.following(offset);
         throw error("Expected PRECEDING or FOLLOWING");
     }
 
     private Expression.CaseExpr parseCaseExpr() {
         expect(CASE);
         List<Expression.WhenClause> whenClauses = new ArrayList<>();
-        
+
         while (consumeIf(WHEN)) {
             Expression condition = parseExpression();
             expect(THEN);
