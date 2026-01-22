@@ -1,8 +1,7 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.server.QueryService;
-import org.finos.legend.engine.test.MappingTestRunner.*;
+import org.finos.legend.engine.test.TestSuiteRunner.*;
 import org.finos.legend.pure.dsl.definition.*;
 import org.junit.jupiter.api.*;
 
@@ -11,12 +10,12 @@ import java.sql.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for MappingTestRunner.
+ * Integration tests for TestSuiteRunner.
  * 
  * Tests the actual execution of testSuites against a database.
  * Parser-only tests are in MappingTestSuiteParserTest.
  */
-@DisplayName("Mapping Test Runner Integration Tests")
+@DisplayName("Test Suite Runner Integration Tests")
 class MappingTestIntegrationTest {
 
     private Connection connection;
@@ -130,7 +129,7 @@ class MappingTestIntegrationTest {
     }
 
     @Test
-    @DisplayName("Execute relational mapping testSuite using MappingTestRunner")
+    @DisplayName("Execute mapping testSuite using TestSuiteRunner")
     void testExecuteRelationalMappingWithRunner() throws Exception {
         String mappingOnly = RELATIONAL_MODEL.substring(
                 RELATIONAL_MODEL.indexOf("Mapping model::PersonMapping"),
@@ -139,10 +138,10 @@ class MappingTestIntegrationTest {
         MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(mappingOnly);
 
         // Create and run the test runner
-        MappingTestRunner runner = new MappingTestRunner(
+        TestSuiteRunner runner = new TestSuiteRunner(
                 queryService, connection, RELATIONAL_MODEL, "test::TestRuntime");
 
-        var results = runner.runAllTestSuites(mapping);
+        var results = runner.runAllTestSuites(mapping.testSuites());
 
         // Verify results
         assertEquals(1, results.size());
@@ -170,10 +169,10 @@ class MappingTestIntegrationTest {
 
         MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(mappingOnly);
 
-        MappingTestRunner runner = new MappingTestRunner(
+        TestSuiteRunner runner = new TestSuiteRunner(
                 queryService, connection, RELATIONAL_MODEL, "test::TestRuntime");
 
-        var results = runner.runAllTestSuites(mapping);
+        var results = runner.runAllTestSuites(mapping.testSuites());
         var suiteResult = results.get(0);
 
         // Test API methods

@@ -34,7 +34,8 @@ public record ServiceDefinition(
         String pattern,
         String functionBody,
         List<String> pathParams,
-        String documentation) implements PureDefinition {
+        String documentation,
+        List<MappingDefinition.TestSuiteDefinition> testSuites) implements PureDefinition {
 
     private static final Pattern PATH_PARAM_PATTERN = Pattern.compile("\\{(\\w+)\\}");
 
@@ -43,6 +44,15 @@ public record ServiceDefinition(
         Objects.requireNonNull(pattern, "Pattern cannot be null");
         Objects.requireNonNull(functionBody, "Function body cannot be null");
         pathParams = pathParams != null ? List.copyOf(pathParams) : List.of();
+        testSuites = testSuites != null ? List.copyOf(testSuites) : List.of();
+    }
+
+    /**
+     * Convenience constructor for services without test suites.
+     */
+    public ServiceDefinition(String qualifiedName, String pattern, String functionBody,
+            List<String> pathParams, String documentation) {
+        this(qualifiedName, pattern, functionBody, pathParams, documentation, List.of());
     }
 
     /**
@@ -99,5 +109,21 @@ public record ServiceDefinition(
                 functionBody,
                 extractPathParams(pattern),
                 documentation);
+    }
+
+    /**
+     * Creates a ServiceDefinition with automatic path parameter extraction and test
+     * suites.
+     */
+    public static ServiceDefinition of(String qualifiedName, String pattern,
+            String functionBody, String documentation,
+            List<MappingDefinition.TestSuiteDefinition> testSuites) {
+        return new ServiceDefinition(
+                qualifiedName,
+                pattern,
+                functionBody,
+                extractPathParams(pattern),
+                documentation,
+                testSuites);
     }
 }

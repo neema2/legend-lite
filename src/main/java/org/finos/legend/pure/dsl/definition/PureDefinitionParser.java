@@ -1360,8 +1360,16 @@ public final class PureDefinitionParser {
         // Parse documentation (optional)
         String documentation = parseServiceDocumentation(body);
 
+        // Parse testSuites (optional) - reuse the same format as mappings
+        List<MappingDefinition.TestSuiteDefinition> testSuites = List.of();
+        int testSuitesIdx = body.indexOf("testSuites:");
+        if (testSuitesIdx >= 0) {
+            String testSuitesBody = body.substring(testSuitesIdx);
+            testSuites = parseTestSuites(testSuitesBody);
+        }
+
         return new ParseResult<>(
-                ServiceDefinition.of(qualifiedName, pattern, functionBody, documentation),
+                ServiceDefinition.of(qualifiedName, pattern, functionBody, documentation, testSuites),
                 source.substring(bodyEnd + 1));
     }
 

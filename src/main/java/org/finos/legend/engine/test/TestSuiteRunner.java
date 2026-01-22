@@ -2,7 +2,6 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.server.QueryService;
-import org.finos.legend.pure.dsl.definition.MappingDefinition;
 import org.finos.legend.pure.dsl.definition.MappingDefinition.*;
 
 import java.sql.Connection;
@@ -10,23 +9,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Executes mapping test suites defined in Pure syntax.
+ * Executes test suites defined in Pure syntax for any element (Mapping,
+ * Service, etc.).
  * 
  * A test suite contains:
- * - A function body (graphFetch query)
+ * - A function body (query to execute)
  * - Multiple tests with input data and expected assertions
  * 
  * This runner executes the function against the database and
  * compares results with the expected assertions.
  */
-public class MappingTestRunner {
+public class TestSuiteRunner {
 
     private final QueryService queryService;
     private final Connection connection;
     private final String fullModel;
     private final String runtimeName;
 
-    public MappingTestRunner(QueryService queryService, Connection connection,
+    public TestSuiteRunner(QueryService queryService, Connection connection,
             String fullModel, String runtimeName) {
         this.queryService = queryService;
         this.connection = connection;
@@ -35,15 +35,15 @@ public class MappingTestRunner {
     }
 
     /**
-     * Executes all test suites in the mapping.
+     * Executes all test suites.
      * 
-     * @param mapping The mapping definition containing test suites
+     * @param testSuites The list of test suites to execute
      * @return Results for all test suites
      */
-    public List<TestSuiteResult> runAllTestSuites(MappingDefinition mapping) {
+    public List<TestSuiteResult> runAllTestSuites(List<TestSuiteDefinition> testSuites) {
         List<TestSuiteResult> results = new ArrayList<>();
 
-        for (TestSuiteDefinition suite : mapping.testSuites()) {
+        for (TestSuiteDefinition suite : testSuites) {
             results.add(runTestSuite(suite));
         }
 
