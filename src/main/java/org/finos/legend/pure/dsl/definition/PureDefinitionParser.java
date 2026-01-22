@@ -777,10 +777,24 @@ public final class PureDefinitionParser {
         int bodyEnd = findMatchingParen(source, bodyStart - 1);
 
         String body = source.substring(bodyStart, bodyEnd);
-        List<MappingDefinition.ClassMappingDefinition> classMappings = parseClassMappings(body);
+
+        // Separate classMappings from testSuites
+        // testSuites: [ ... ] appears at the end of the body
+        List<MappingDefinition.ClassMappingDefinition> classMappings;
+        List<MappingDefinition.TestSuiteDefinition> testSuites = List.of();
+
+        int testSuitesIdx = body.indexOf("testSuites:");
+        if (testSuitesIdx >= 0) {
+            String classMappingsBody = body.substring(0, testSuitesIdx).trim();
+            String testSuitesBody = body.substring(testSuitesIdx);
+            classMappings = parseClassMappings(classMappingsBody);
+            testSuites = parseTestSuites(testSuitesBody);
+        } else {
+            classMappings = parseClassMappings(body);
+        }
 
         return new ParseResult<>(
-                new MappingDefinition(qualifiedName, classMappings),
+                new MappingDefinition(qualifiedName, classMappings, testSuites),
                 source.substring(bodyEnd + 1));
     }
 
@@ -821,6 +835,218 @@ public final class PureDefinitionParser {
         }
 
         return mappings;
+    }
+
+    /**
+     * Parses test suites from a mapping body.
+     * 
+     * Expected format:
+     * testSuites:
+     * [
+     * SuiteName: { function: ...; tests: [...]; }
+     * ]
+     */
+    private static List<MappingDefinition.TestSuiteDefinition> parseTestSuites(String source) {
+        List<MappingDefinition.TestSuiteDefinition> suites = new ArrayList<>();
+
+        // Find the opening bracket after 'testSuites:'
+        int bracketStart = source.indexOf('[');
+        if (bracketStart < 0) {
+            return suites;
+        }
+
+        int bracketEnd = findMatchingBracket(source, bracketStart);
+        String suitesContent = source.substring(bracketStart + 1, bracketEnd).trim();
+
+        // Pattern: SuiteName: { ... }
+        Pattern suitePattern = Pattern.compile("(\\w+)\\s*:\\s*\\{");
+        Matcher suiteMatcher = suitePattern.matcher(suitesContent);
+
+        while (suiteMatcher.find()) {
+            String suiteName = suiteMatcher.group(1);
+            int suiteBodyStart = suiteMatcher.end();
+            int suiteBodyEnd = findMatchingBrace(suitesContent, suiteBodyStart - 1);
+
+            String suiteBody = suitesContent.substring(suiteBodyStart, suiteBodyEnd);
+
+            // Extract function body (|...;)
+            String functionBody = extractFunctionBody(suiteBody);
+
+            // Extract tests
+            List<MappingDefinition.TestDefinition> tests = parseTestDefinitions(suiteBody);
+
+            suites.add(new MappingDefinition.TestSuiteDefinition(suiteName, functionBody, tests));
+
+            suiteMatcher.region(suiteBodyEnd + 1, suitesContent.length());
+        }
+
+        return suites;
+    }
+
+    private static String extractFunctionBody(String suiteBody) {
+        // Pattern: function: |...;
+        int funcIdx = suiteBody.indexOf("function:");
+        if (funcIdx < 0) {
+            return null;
+        }
+
+        int start = suiteBody.indexOf('|', funcIdx);
+        if (start < 0) {
+            return null;
+        }
+
+        // Find the end of function (semicolon before 'tests:')
+        int testsIdx = suiteBody.indexOf("tests:", start);
+        if (testsIdx < 0) {
+            testsIdx = suiteBody.length();
+        }
+
+        String funcBody = suiteBody.substring(start, testsIdx).trim();
+        // Remove trailing semicolon
+        if (funcBody.endsWith(";")) {
+            funcBody = funcBody.substring(0, funcBody.length() - 1).trim();
+        }
+
+        return funcBody;
+    }
+
+    private static List<MappingDefinition.TestDefinition> parseTestDefinitions(String suiteBody) {
+        List<MappingDefinition.TestDefinition> tests = new ArrayList<>();
+
+        // Find tests: [ ... ]
+        int testsIdx = suiteBody.indexOf("tests:");
+        if (testsIdx < 0) {
+            return tests;
+        }
+
+        int bracketStart = suiteBody.indexOf('[', testsIdx);
+        if (bracketStart < 0) {
+            return tests;
+        }
+
+        int bracketEnd = findMatchingBracket(suiteBody, bracketStart);
+        String testsContent = suiteBody.substring(bracketStart + 1, bracketEnd).trim();
+
+        // Pattern: TestName: { ... }
+        Pattern testPattern = Pattern.compile("(\\w+)\\s*:\\s*\\{");
+        Matcher testMatcher = testPattern.matcher(testsContent);
+
+        while (testMatcher.find()) {
+            String testName = testMatcher.group(1);
+            int testBodyStart = testMatcher.end();
+            int testBodyEnd = findMatchingBrace(testsContent, testBodyStart - 1);
+
+            String testBody = testsContent.substring(testBodyStart, testBodyEnd);
+
+            // Extract documentation if present
+            String doc = extractDocumentation(testBody);
+
+            // Extract input data
+            List<MappingDefinition.TestData> inputData = parseTestData(testBody);
+
+            // Extract asserts
+            List<MappingDefinition.TestAssertion> asserts = parseTestAsserts(testBody);
+
+            tests.add(new MappingDefinition.TestDefinition(testName, doc, inputData, asserts));
+
+            testMatcher.region(testBodyEnd + 1, testsContent.length());
+        }
+
+        return tests;
+    }
+
+    private static String extractDocumentation(String testBody) {
+        // Pattern: doc: 'text';
+        Pattern docPattern = Pattern.compile("doc:\\s*'([^']*)'");
+        Matcher docMatcher = docPattern.matcher(testBody);
+        if (docMatcher.find()) {
+            return docMatcher.group(1);
+        }
+        return null;
+    }
+
+    private static List<MappingDefinition.TestData> parseTestData(String testBody) {
+        List<MappingDefinition.TestData> dataList = new ArrayList<>();
+
+        // Find data: [ ... ]
+        int dataIdx = testBody.indexOf("data:");
+        if (dataIdx < 0) {
+            return dataList;
+        }
+
+        int bracketStart = testBody.indexOf('[', dataIdx);
+        if (bracketStart < 0) {
+            return dataList;
+        }
+
+        int bracketEnd = findMatchingBracket(testBody, bracketStart);
+        String dataContent = testBody.substring(bracketStart + 1, bracketEnd).trim();
+
+        // Look for inline ExternalFormat or Reference
+        // For now, simplified parsing - extract contentType and data from
+        // ExternalFormat
+        Pattern extFormatPattern = Pattern.compile("contentType:\\s*'([^']+)'[^}]*data:\\s*'([^']*)'");
+        Matcher extFormatMatcher = extFormatPattern.matcher(dataContent);
+
+        if (extFormatMatcher.find()) {
+            String contentType = extFormatMatcher.group(1);
+            String data = extFormatMatcher.group(2);
+            // Unescape JSON newlines
+            data = data.replace("\\n", "\n").replace("\\r", "\r");
+            dataList.add(MappingDefinition.TestData.inline("ModelStore", contentType, data));
+        }
+
+        // Check for Reference
+        Pattern refPattern = Pattern.compile("Reference\\s*#\\{\\s*([\\w:]+)\\s*}#");
+        Matcher refMatcher = refPattern.matcher(dataContent);
+        if (refMatcher.find()) {
+            String refPath = refMatcher.group(1);
+            dataList.add(MappingDefinition.TestData.reference("ModelStore", refPath));
+        }
+
+        return dataList;
+    }
+
+    private static List<MappingDefinition.TestAssertion> parseTestAsserts(String testBody) {
+        List<MappingDefinition.TestAssertion> asserts = new ArrayList<>();
+
+        // Find asserts: [ ... ]
+        int assertsIdx = testBody.indexOf("asserts:");
+        if (assertsIdx < 0) {
+            return asserts;
+        }
+
+        int bracketStart = testBody.indexOf('[', assertsIdx);
+        if (bracketStart < 0) {
+            return asserts;
+        }
+
+        int bracketEnd = findMatchingBracket(testBody, bracketStart);
+        String assertsContent = testBody.substring(bracketStart + 1, bracketEnd).trim();
+
+        // Pattern: assertionName: EqualToJson #{ ... }#
+        Pattern assertPattern = Pattern.compile("(\\w+):\\s*EqualToJson\\s*#\\{");
+        Matcher assertMatcher = assertPattern.matcher(assertsContent);
+
+        if (assertMatcher.find()) {
+            String assertName = assertMatcher.group(1);
+            int assertBodyStart = assertMatcher.end();
+
+            // Extract expected data from ExternalFormat
+            String assertBody = assertsContent.substring(assertBodyStart);
+            Pattern expectedPattern = Pattern.compile("contentType:\\s*'([^']+)'[^}]*data:\\s*'([^']*)'");
+            Matcher expectedMatcher = expectedPattern.matcher(assertBody);
+
+            if (expectedMatcher.find()) {
+                String contentType = expectedMatcher.group(1);
+                String expectedData = expectedMatcher.group(2);
+                // Unescape JSON newlines
+                expectedData = expectedData.replace("\\n", "\n").replace("\\r", "\r");
+                asserts.add(MappingDefinition.TestAssertion.equalToJson(assertName, expectedData));
+            }
+        }
+
+        return asserts;
     }
 
     /**

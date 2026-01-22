@@ -41,12 +41,21 @@ import java.util.Optional;
  */
 public record MappingDefinition(
         String qualifiedName,
-        List<ClassMappingDefinition> classMappings) implements PureDefinition {
+        List<ClassMappingDefinition> classMappings,
+        List<TestSuiteDefinition> testSuites) implements PureDefinition {
 
     public MappingDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(classMappings, "Class mappings cannot be null");
         classMappings = List.copyOf(classMappings);
+        testSuites = testSuites != null ? List.copyOf(testSuites) : List.of();
+    }
+
+    /**
+     * Convenience constructor for mappings without test suites.
+     */
+    public MappingDefinition(String qualifiedName, List<ClassMappingDefinition> classMappings) {
+        this(qualifiedName, classMappings, List.of());
     }
 
     /**
@@ -179,6 +188,115 @@ public record MappingDefinition(
             Objects.requireNonNull(databaseName, "Database name cannot be null");
             Objects.requireNonNull(tableName, "Table name cannot be null");
             Objects.requireNonNull(columnName, "Column name cannot be null");
+        }
+    }
+
+    // ==================== Test Suite Records ====================
+
+    /**
+     * Represents a mapping test suite.
+     * 
+     * Pure syntax:
+     * 
+     * <pre>
+     * testSuites:
+     * [
+     *   SuiteName:
+     *   {
+     *     function: |Class.all()->graphFetch(#{...}#)->serialize(#{...}#);
+     *     tests: [ ... ];
+     *   }
+     * ]
+     * </pre>
+     * 
+     * @param name         The suite name
+     * @param functionBody The graphFetch query (as a string)
+     * @param tests        The list of test definitions
+     */
+    public record TestSuiteDefinition(
+            String name,
+            String functionBody,
+            List<TestDefinition> tests) {
+        public TestSuiteDefinition {
+            Objects.requireNonNull(name, "Suite name cannot be null");
+            tests = tests != null ? List.copyOf(tests) : List.of();
+        }
+    }
+
+    /**
+     * Represents a single test within a test suite.
+     * 
+     * @param name          The test name
+     * @param documentation Optional documentation
+     * @param inputData     The input data for the test
+     * @param asserts       The assertions to validate
+     */
+    public record TestDefinition(
+            String name,
+            String documentation,
+            List<TestData> inputData,
+            List<TestAssertion> asserts) {
+        public TestDefinition {
+            Objects.requireNonNull(name, "Test name cannot be null");
+            inputData = inputData != null ? List.copyOf(inputData) : List.of();
+            asserts = asserts != null ? List.copyOf(asserts) : List.of();
+        }
+    }
+
+    /**
+     * Represents input test data.
+     * 
+     * Can be inline JSON/CSV or a reference to a DataElement.
+     * 
+     * @param store       The store name (e.g., "ModelStore")
+     * @param contentType The content type (e.g., "application/json")
+     * @param data        The inline data or reference path
+     * @param isReference True if this is a reference to a DataElement
+     */
+    public record TestData(
+            String store,
+            String contentType,
+            String data,
+            boolean isReference) {
+
+        /**
+         * Creates inline test data (e.g., JSON).
+         */
+        public static TestData inline(String store, String contentType, String data) {
+            return new TestData(store, contentType, data, false);
+        }
+
+        /**
+         * Creates a reference to a DataElement.
+         */
+        public static TestData reference(String store, String dataElementPath) {
+            return new TestData(store, null, dataElementPath, true);
+        }
+    }
+
+    /**
+     * Represents a test assertion.
+     * 
+     * @param name         The assertion name
+     * @param type         The assertion type (e.g., "EqualToJson")
+     * @param contentType  The expected content type
+     * @param expectedData The expected result data
+     */
+    public record TestAssertion(
+            String name,
+            String type,
+            String contentType,
+            String expectedData) {
+        public TestAssertion {
+            Objects.requireNonNull(name, "Assertion name cannot be null");
+            Objects.requireNonNull(type, "Assertion type cannot be null");
+        }
+
+        /**
+         * Creates an EqualToJson assertion.
+         */
+        public static TestAssertion equalToJson(String name, String expectedJson) {
+            return new TestAssertion(name, "EqualToJson", "application/json", expectedJson);
         }
     }
 }
