@@ -312,20 +312,56 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visit(ExtendNode extend) {
-        // Generate source SQL
-        String sourceSql = extend.source().accept(this);
+        // Check if all projections are simple (no window functions)
+        boolean allSimple = extend.projections().stream()
+                .allMatch(p -> p instanceof ExtendNode.SimpleProjection);
 
-        // Build window function expressions
-        var windowCols = new StringBuilder();
-        for (ExtendNode.WindowProjection wp : extend.windowColumns()) {
-            windowCols.append(", ");
-            windowCols.append(formatWindowExpression(wp.expression()));
-            windowCols.append(" AS ");
-            windowCols.append(dialect.quoteIdentifier(wp.alias()));
+        if (allSimple) {
+            // Simple extends: inline the calculated column without subquery
+            String sourceSql = extend.source().accept(this);
+
+            // Build extend column expressions
+            var extendCols = new StringBuilder();
+            for (ExtendNode.ExtendProjection proj : extend.projections()) {
+                extendCols.append(", ");
+                ExtendNode.SimpleProjection sp = (ExtendNode.SimpleProjection) proj;
+                extendCols.append(sp.expression().accept(this));
+                extendCols.append(" AS ");
+                extendCols.append(dialect.quoteIdentifier(proj.alias()));
+            }
+
+            // For simple extends, inject columns directly
+            // sourceSql is like "SELECT ... FROM table", we need to add columns after
+            // SELECT
+            if (sourceSql.startsWith("SELECT ")) {
+                int fromIdx = sourceSql.toUpperCase().indexOf(" FROM ");
+                if (fromIdx > 0) {
+                    return sourceSql.substring(0, fromIdx) + extendCols + sourceSql.substring(fromIdx);
+                }
+            }
+            // Fallback: wrap in subquery
+            return "SELECT *" + extendCols + " FROM (" + sourceSql + ") AS extend_src";
+        } else {
+            // Window functions need subquery for proper semantics
+            String sourceSql = extend.source().accept(this);
+
+            var extendCols = new StringBuilder();
+            for (ExtendNode.ExtendProjection proj : extend.projections()) {
+                extendCols.append(", ");
+                switch (proj) {
+                    case ExtendNode.WindowProjection wp -> {
+                        extendCols.append(formatWindowExpression(wp.expression()));
+                    }
+                    case ExtendNode.SimpleProjection sp -> {
+                        extendCols.append(sp.expression().accept(this));
+                    }
+                }
+                extendCols.append(" AS ");
+                extendCols.append(dialect.quoteIdentifier(proj.alias()));
+            }
+
+            return "SELECT *" + extendCols + " FROM (" + sourceSql + ") AS window_src";
         }
-
-        // Wrap source and add window columns
-        return "SELECT *" + windowCols + " FROM (" + sourceSql + ") AS window_src";
     }
 
     /**
@@ -653,14 +689,37 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         String funcName = functionCall.sqlFunctionName();
         String target = functionCall.target().accept(this);
 
-        if (functionCall.arguments().isEmpty()) {
-            return funcName + "(" + target + ")";
-        } else {
-            String args = functionCall.arguments().stream()
-                    .map(e -> e.accept(this))
-                    .collect(Collectors.joining(", "));
-            return funcName + "(" + target + ", " + args + ")";
-        }
+        // Handle variant/JSON functions specially via dialect
+        return switch (functionCall.functionName()) {
+            case "fromjson" -> dialect.getJsonDialect().variantFromJson(target);
+            case "tojson" -> dialect.getJsonDialect().variantToJson(target);
+            case "get" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("get() requires a key or index argument");
+                }
+                Expression arg = functionCall.arguments().getFirst();
+                if (arg instanceof Literal lit && lit.type() == Literal.LiteralType.INTEGER) {
+                    yield dialect.getJsonDialect().variantGetIndex(target, ((Number) lit.value()).intValue());
+                } else if (arg instanceof Literal lit && lit.type() == Literal.LiteralType.STRING) {
+                    yield dialect.getJsonDialect().variantGet(target, (String) lit.value());
+                } else {
+                    // Dynamic key - fallback to string
+                    String keyExpr = arg.accept(this);
+                    yield dialect.getJsonDialect().variantGet(target, keyExpr);
+                }
+            }
+            default -> {
+                // Standard function call
+                if (functionCall.arguments().isEmpty()) {
+                    yield funcName + "(" + target + ")";
+                } else {
+                    String args = functionCall.arguments().stream()
+                            .map(e -> e.accept(this))
+                            .collect(Collectors.joining(", "));
+                    yield funcName + "(" + target + ", " + args + ")";
+                }
+            }
+        };
     }
 
     @Override

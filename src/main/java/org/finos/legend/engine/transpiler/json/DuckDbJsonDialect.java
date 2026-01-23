@@ -23,4 +23,26 @@ public final class DuckDbJsonDialect implements JsonSqlDialect {
     public String jsonArrayAggFunction() {
         return "json_group_array";
     }
+
+    @Override
+    public String variantFromJson(String expr) {
+        return "CAST(" + expr + " AS JSON)";
+    }
+
+    @Override
+    public String variantToJson(String expr) {
+        return "CAST(" + expr + " AS VARCHAR)";
+    }
+
+    @Override
+    public String variantGet(String expr, String key) {
+        // DuckDB uses ->> operator for text extraction
+        return "(" + expr + ")->>" + "'" + key + "'";
+    }
+
+    @Override
+    public String variantGetIndex(String expr, int index) {
+        // DuckDB uses [n] for array indexing
+        return "(" + expr + ")[" + index + "]";
+    }
 }

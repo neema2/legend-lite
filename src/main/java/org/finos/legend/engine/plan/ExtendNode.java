@@ -4,49 +4,63 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Represents an EXTEND operation that adds window function columns.
+ * Represents an EXTEND operation that adds calculated columns.
  * 
- * The extend operation adds calculated columns to the relation without
- * reducing the number of rows (unlike GROUP BY).
- * 
- * Example Pure:
- * ->extend(~rowNum : row_number()->over(~department))
- * ->extend(~rank : rank()->over(~department, ~salary->desc()))
- * ->extend(~runningSum : $x.salary->sum()->over(~department, ~salary))
+ * Supports two types of projections:
+ * 1. Window projections: row_number(), rank(), sum()->over(), etc.
+ * 2. Simple projections: $x.col1 + $x.col2, JSON get(), etc.
  * 
  * SQL output:
- * SELECT *,
- * ROW_NUMBER() OVER (PARTITION BY "department") AS "rowNum",
- * RANK() OVER (PARTITION BY "department" ORDER BY "salary" DESC) AS "rank",
- * SUM("salary") OVER (PARTITION BY "department" ORDER BY "salary") AS
- * "runningSum"
- * FROM (source)
+ * SELECT *, calculated_expr AS "alias" FROM (source)
  */
 public record ExtendNode(
         RelationNode source,
-        List<WindowProjection> windowColumns) implements RelationNode {
+        List<ExtendProjection> projections) implements RelationNode {
 
     /**
-     * A single window column projection.
-     * 
-     * @param alias      Output column name
-     * @param expression The window expression defining the calculation
+     * Sealed interface for extend projections.
+     */
+    public sealed interface ExtendProjection permits WindowProjection, SimpleProjection {
+        String alias();
+    }
+
+    /**
+     * A window function projection (e.g., row_number()->over(...)).
      */
     public record WindowProjection(
             String alias,
-            WindowExpression expression) {
+            WindowExpression expression) implements ExtendProjection {
         public WindowProjection {
             Objects.requireNonNull(alias, "Alias cannot be null");
             Objects.requireNonNull(expression, "Window expression cannot be null");
         }
     }
 
+    /**
+     * A simple expression projection (e.g., $x.PAYLOAD->get('page')).
+     */
+    public record SimpleProjection(
+            String alias,
+            Expression expression) implements ExtendProjection {
+        public SimpleProjection {
+            Objects.requireNonNull(alias, "Alias cannot be null");
+            Objects.requireNonNull(expression, "Expression cannot be null");
+        }
+    }
+
     public ExtendNode {
         Objects.requireNonNull(source, "Source node cannot be null");
-        Objects.requireNonNull(windowColumns, "Window columns cannot be null");
-        if (windowColumns.isEmpty()) {
-            throw new IllegalArgumentException("At least one window column is required");
+        Objects.requireNonNull(projections, "Projections cannot be null");
+        if (projections.isEmpty()) {
+            throw new IllegalArgumentException("At least one projection is required");
         }
+    }
+
+    /**
+     * Convenience constructor for window-only columns (backwards compatible).
+     */
+    public ExtendNode(RelationNode source, List<WindowProjection> windowColumns, boolean _ignored) {
+        this(source, windowColumns.stream().map(w -> (ExtendProjection) w).toList());
     }
 
     @Override

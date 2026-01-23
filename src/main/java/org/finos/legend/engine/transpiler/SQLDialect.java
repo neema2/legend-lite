@@ -1,16 +1,18 @@
 package org.finos.legend.engine.transpiler;
 
+import org.finos.legend.engine.transpiler.json.JsonSqlDialect;
+
 /**
  * Interface defining SQL dialect-specific behavior.
  * Implementations handle differences between database engines.
  */
 public interface SQLDialect {
-    
+
     /**
      * @return The dialect name (e.g., "DuckDB", "SQLite")
      */
     String name();
-    
+
     /**
      * Quote an identifier (table name, column name, alias).
      * 
@@ -18,7 +20,7 @@ public interface SQLDialect {
      * @return The quoted identifier
      */
     String quoteIdentifier(String identifier);
-    
+
     /**
      * Quote a string literal value.
      * 
@@ -26,7 +28,7 @@ public interface SQLDialect {
      * @return The quoted string literal
      */
     String quoteStringLiteral(String value);
-    
+
     /**
      * Format a boolean literal.
      * 
@@ -34,7 +36,7 @@ public interface SQLDialect {
      * @return The SQL boolean representation
      */
     String formatBoolean(boolean value);
-    
+
     /**
      * Format a NULL literal.
      * 
@@ -42,5 +44,14 @@ public interface SQLDialect {
      */
     default String formatNull() {
         return "NULL";
+    }
+
+    /**
+     * Get the JSON dialect for JSON/VARIANT operations.
+     * 
+     * @return The JSON dialect, or null if not supported
+     */
+    default JsonSqlDialect getJsonDialect() {
+        return null;
     }
 }

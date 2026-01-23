@@ -296,12 +296,12 @@ public final class PureCompiler {
     private RelationNode compileRelationFilter(RelationFilterExpression filter, CompilationContext outerContext) {
         RelationNode source = compileExpression(filter.source(), outerContext);
 
-        // Get the table alias from the source
-        String tableAlias = getTableAlias(source);
+        // For Relation API filters (chained after extend, etc.), use empty alias
+        // Column references should be unqualified since they reference the subquery
+        // result
+        String tableAlias = "";
 
-        // For Relation filters, the lambda references column aliases, not class
-        // properties
-        // Create a minimal context where property names ARE column names
+        // Create a context where property names ARE column names (no mapping)
         CompilationContext lambdaContext = new CompilationContext(
                 filter.lambda().parameter(),
                 tableAlias,
@@ -309,8 +309,7 @@ public final class PureCompiler {
                 null,
                 true);
 
-        // Compile the filter condition - property names become column references
-        // directly
+        // Compile the filter condition
         Expression condition = compileToSqlExpression(filter.lambda().body(), lambdaContext);
 
         return new FilterNode(source, condition);
@@ -747,7 +746,7 @@ public final class PureCompiler {
             }
         }
 
-        return new ExtendNode(source, projections);
+        return new ExtendNode(source, projections.stream().map(p -> (ExtendNode.ExtendProjection) p).toList());
     }
 
     /**
@@ -1010,9 +1009,11 @@ public final class PureCompiler {
     private RelationNode compileRelationSelect(RelationSelectExpression select, CompilationContext context) {
         RelationNode source = compileExpression(select.source(), context);
 
-        // Build projection for each selected column
+        // Build projection for each selected column - use empty alias for Relation API
+        // Column references should be unqualified to work correctly in chained
+        // operations
         List<Projection> projections = select.columns().stream()
-                .map(colName -> Projection.column("src", colName, colName))
+                .map(colName -> Projection.column("", colName, colName))
                 .toList();
 
         // Wrap the source in a ProjectNode
@@ -1074,9 +1075,24 @@ public final class PureCompiler {
 
             return new ExtendNode(source, List.of(projection));
         } else {
-            // Simple calculated column - not yet implemented
-            throw new PureCompileException(
-                    "Simple extend() expressions are not yet implemented. Use window functions like row_number()->over(...)");
+            // Simple calculated column: ~newCol: x | $x.col1 + $x.col2
+            // or JSON access: ~page: x | $x.PAYLOAD->get('page')
+            String tableAlias = getTableAlias(source);
+
+            CompilationContext lambdaContext = new CompilationContext(
+                    extend.expression().parameter(),
+                    tableAlias,
+                    null, // No class mapping - working with Relation columns
+                    null,
+                    false);
+
+            Expression calculatedExpr = compileToSqlExpression(extend.expression().body(), lambdaContext);
+
+            // Create SimpleProjection for the calculated column
+            ExtendNode.SimpleProjection simpleProj = new ExtendNode.SimpleProjection(
+                    extend.newColumnName(), calculatedExpr);
+
+            return new ExtendNode(source, List.of(simpleProj));
         }
     }
 
@@ -1531,10 +1547,29 @@ public final class PureCompiler {
             case PropertyAccessExpression propAccess -> compilePropertyAccess(propAccess, context);
             case LiteralExpr literal -> compileLiteral(literal);
             case BinaryExpression binary -> compileBinaryExpression(binary, context);
+            case MethodCall methodCall -> compileMethodCall(methodCall, context);
             case VariableExpr var ->
                 throw new PureCompileException("Unexpected variable in expression context: " + var);
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
         };
+    }
+
+    /**
+     * Compiles a MethodCall (like ->get(), ->fromJson(), ->toJson()) to a SQL
+     * function call.
+     */
+    private Expression compileMethodCall(MethodCall methodCall, CompilationContext context) {
+        // Compile the source expression (e.g., $_.PAYLOAD)
+        Expression source = compileToSqlExpression(methodCall.source(), context);
+
+        // Compile additional arguments (e.g., the key name in get('page'))
+        List<Expression> additionalArgs = new java.util.ArrayList<>();
+        for (PureExpression arg : methodCall.arguments()) {
+            additionalArgs.add(compileToSqlExpression(arg, context));
+        }
+
+        // Return SqlFunctionCall which will be handled by SQLGenerator
+        return new SqlFunctionCall(methodCall.methodName(), source, additionalArgs);
     }
 
     private Expression compileBinaryExpression(BinaryExpression binary, CompilationContext context) {
@@ -1770,6 +1805,13 @@ public final class PureCompiler {
         }
 
         String propertyName = propAccess.propertyName();
+
+        // If no mapping exists (direct Relation API access), use property name as
+        // column name
+        if (context.mapping() == null) {
+            return ColumnReference.of(context.tableAlias(), propertyName);
+        }
+
         String columnName = context.mapping().getColumnForProperty(propertyName)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
 

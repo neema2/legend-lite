@@ -58,4 +58,30 @@ public interface JsonSqlDialect {
     default String quotedKey(String key) {
         return "'" + key + "'";
     }
+
+    // ==================== Variant Navigation Functions ====================
+
+    /**
+     * Converts a string expression to JSON/Variant type.
+     * Example: CAST(expr AS JSON)
+     */
+    String variantFromJson(String expr);
+
+    /**
+     * Converts a JSON/Variant expression back to string.
+     * Example: CAST(expr AS VARCHAR)
+     */
+    String variantToJson(String expr);
+
+    /**
+     * Extracts a value from a JSON object by key.
+     * Example: expr->>'key' or json_extract(expr, '$.key')
+     */
+    String variantGet(String expr, String key);
+
+    /**
+     * Extracts a value from a JSON array by index.
+     * Example: expr[0] or json_extract(expr, '$[0]')
+     */
+    String variantGetIndex(String expr, int index);
 }

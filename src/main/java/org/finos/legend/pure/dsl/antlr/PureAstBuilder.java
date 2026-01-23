@@ -435,7 +435,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         LambdaExpression lambda = (predicate instanceof LambdaExpression)
                 ? (LambdaExpression) predicate
                 : new LambdaExpression("x", predicate);
-        return new FilterExpression(source, lambda);
+        // Relation API chains always start from RelationExpression
+        return new RelationFilterExpression((RelationExpression) source, lambda);
     }
 
     private PureExpression parseExtendCallFromString(PureExpression source, String argsContent) {
@@ -1114,11 +1115,51 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private PureExpression parseSelectCall(PureExpression source, List<PureExpression> args) {
-        return new SelectExpression(source, args);
+        if (!(source instanceof RelationExpression relExpr)) {
+            throw new PureParseException(
+                    "select() requires a Relation source, got: " + source.getClass().getSimpleName());
+        }
+        // Extract column names from args (ColumnSpec or ColumnSpecArray)
+        List<String> columns = extractColumnsFromArgs(args);
+        return new RelationSelectExpression(relExpr, columns);
     }
 
     private PureExpression parseExtendCall(PureExpression source, List<PureExpression> args) {
+        // extend() is Relation-only
+        if (!(source instanceof RelationExpression relExpr)) {
+            throw new PureParseException(
+                    "extend() requires a Relation source, got: " + source.getClass().getSimpleName());
+        }
+
+        // Check for simple ColumnSpec with lambda: ~col: x | expr
+        if (args.size() == 1 && args.get(0) instanceof ColumnSpec cs
+                && cs.lambda() instanceof LambdaExpression lambda) {
+            return new RelationExtendExpression(relExpr, cs.name(), lambda);
+        }
+
+        // For window functions and other complex cases, keep using ExtendExpression
+        // The compiler will handle it
         return new ExtendExpression(source, args);
+    }
+
+    /**
+     * Extracts column names from select() arguments (ColumnSpec or
+     * ColumnSpecArray).
+     */
+    private List<String> extractColumnsFromArgs(List<PureExpression> args) {
+        List<String> columns = new ArrayList<>();
+        for (PureExpression arg : args) {
+            if (arg instanceof ColumnSpec cs) {
+                columns.add(cs.name());
+            } else if (arg instanceof ColumnSpecArray csa) {
+                for (PureExpression spec : csa.specs()) {
+                    if (spec instanceof ColumnSpec cs) {
+                        columns.add(cs.name());
+                    }
+                }
+            }
+        }
+        return columns;
     }
 
     private PureExpression parseFromCall(PureExpression source, List<PureExpression> args) {
