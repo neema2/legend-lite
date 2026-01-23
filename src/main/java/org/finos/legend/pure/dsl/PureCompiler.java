@@ -69,6 +69,7 @@ public final class PureCompiler {
             case RelationFilterExpression relationFilter -> compileRelationFilter(relationFilter, context);
             case ProjectExpression project -> compileProject(project, context);
             case GroupByExpression groupBy -> compileGroupBy(groupBy, context);
+            case JoinExpression join -> compileJoin(join, context);
             case ClassSortByExpression classSortBy -> compileClassSortBy(classSortBy, context);
             case RelationSortExpression relationSort -> compileRelationSort(relationSort, context);
             case SortExpression sort -> compileSort(sort, context);
@@ -439,6 +440,92 @@ public final class PureCompiler {
         }
 
         return new GroupByNode(source, groupingColumns, aggregations);
+    }
+
+    /**
+     * Compiles a join expression into a JoinNode.
+     * 
+     * Example Pure: ->join(otherRelation, JoinType.LEFT_OUTER, {l, r | $l.id ==
+     * $r.personId})
+     * 
+     * @param join    The join expression
+     * @param context Compilation context
+     * @return The compiled JoinNode
+     */
+    private RelationNode compileJoin(JoinExpression join, CompilationContext context) {
+        // Compile left and right relations
+        RelationNode left = compileExpression(join.left(), context);
+        RelationNode right = compileExpression(join.right(), context);
+
+        // Use consistent aliases that match SQLGenerator.generateJoinSource
+        // When the source is a ProjectNode, SQLGenerator wraps it in a subquery with
+        // these aliases
+        String leftAlias = "left_src";
+        String rightAlias = "right_src";
+
+        // Get the lambda parameter names to map to left/right aliases
+        // Lambda format: {l, r | $l.col == $r.col}
+        // Unfortunately our LambdaExpression only supports single parameter
+        // So we need to extract column references differently
+        LambdaExpression condLambda = join.condition();
+        String leftParam = condLambda.parameter();
+
+        // Compile the join condition, mapping parameter names to aliases
+        Expression condition = compileJoinConditionWithParams(condLambda.body(),
+                leftParam, leftAlias, rightAlias);
+
+        // Map JoinExpression.JoinType to JoinNode.JoinType
+        JoinNode.JoinType joinType = switch (join.joinType()) {
+            case INNER -> JoinNode.JoinType.INNER;
+            case LEFT_OUTER -> JoinNode.JoinType.LEFT_OUTER;
+            case RIGHT_OUTER -> JoinNode.JoinType.RIGHT_OUTER;
+            case FULL_OUTER -> JoinNode.JoinType.FULL_OUTER;
+        };
+
+        return new JoinNode(left, right, condition, joinType);
+    }
+
+    /**
+     * Compiles a join condition expression with parameter name mapping.
+     * First property access goes to leftAlias, second goes to rightAlias.
+     */
+    private Expression compileJoinConditionWithParams(PureExpression expr,
+            String leftParam, String leftAlias, String rightAlias) {
+        // Track which side we're on based on position in comparison
+        return compileJoinConditionInternal(expr, leftAlias, rightAlias, new int[] { 0 });
+    }
+
+    private Expression compileJoinConditionInternal(PureExpression expr,
+            String leftAlias, String rightAlias, int[] accessCount) {
+        return switch (expr) {
+            case ComparisonExpr cmp -> {
+                // Reset counter and compile each side
+                accessCount[0] = 0;
+                Expression leftExpr = compileJoinConditionInternal(cmp.left(), leftAlias, rightAlias, accessCount);
+                Expression rightExpr = compileJoinConditionInternal(cmp.right(), leftAlias, rightAlias, accessCount);
+                yield switch (cmp.operator()) {
+                    case EQUALS -> ComparisonExpression.equals(leftExpr, rightExpr);
+                    case NOT_EQUALS -> new ComparisonExpression(leftExpr,
+                            ComparisonExpression.ComparisonOperator.NOT_EQUALS, rightExpr);
+                    case LESS_THAN -> ComparisonExpression.lessThan(leftExpr, rightExpr);
+                    case LESS_THAN_OR_EQUALS -> new ComparisonExpression(leftExpr,
+                            ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, rightExpr);
+                    case GREATER_THAN -> ComparisonExpression.greaterThan(leftExpr, rightExpr);
+                    case GREATER_THAN_OR_EQUALS -> new ComparisonExpression(leftExpr,
+                            ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, rightExpr);
+                };
+            }
+            case PropertyAccessExpression prop -> {
+                // First property access uses left alias, second uses right
+                String columnName = prop.propertyName();
+                String alias = (accessCount[0] == 0) ? leftAlias : rightAlias;
+                accessCount[0]++;
+                yield ColumnReference.of(alias, columnName);
+            }
+            case LiteralExpr lit -> compileLiteral(lit);
+            default -> throw new PureCompileException(
+                    "Cannot compile join condition expression: " + expr.getClass().getSimpleName());
+        };
     }
 
     /**

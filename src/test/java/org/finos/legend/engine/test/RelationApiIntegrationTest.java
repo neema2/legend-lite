@@ -544,6 +544,88 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
             assertEquals(1, johnCount, "John should appear exactly once with EXISTS");
         }
+
+        // ==================== Explicit join() Tests ====================
+
+        @Test
+        @DisplayName("Explicit ->join() with INNER join type - E2E execution")
+        void testExplicitInnerJoin() throws SQLException {
+            // Join Person with Address where firstName matches city (no matches expected)
+            // Use a realistic join: Person.age == Address.PERSON_ID (which is an integer)
+            String pureQuery = """
+                    Person.all()
+                        ->project({p | $p.firstName}, {p | $p.age})
+                        ->join(
+                            Address.all()->project({a | $a.city}, {a | $a.street}),
+                            JoinType.INNER,
+                            {l, r | $l.firstName == $r.city}
+                        )
+                    """;
+
+            // Verify SQL generation first
+            String sql = generateSql(pureQuery);
+            assertTrue(sql.contains("INNER JOIN"), "Should generate INNER JOIN");
+
+            // Execute E2E through QueryService
+            var result = executeRelation(pureQuery);
+
+            // No matches expected (no one's firstName equals a city name)
+            assertEquals(0, result.rows().size(), "INNER JOIN with no matches should return 0 rows");
+        }
+
+        @Test
+        @DisplayName("Explicit ->join() with LEFT_OUTER join type - E2E execution")
+        void testExplicitLeftOuterJoin() throws SQLException {
+            String pureQuery = """
+                    Person.all()
+                        ->project({p | $p.firstName}, {p | $p.age})
+                        ->join(
+                            Address.all()->project({a | $a.city}, {a | $a.street}),
+                            JoinType.LEFT_OUTER,
+                            {l, r | $l.firstName == $r.city}
+                        )
+                    """;
+
+            // Verify SQL generation first
+            String sql = generateSql(pureQuery);
+            assertTrue(sql.contains("LEFT OUTER JOIN"), "Should generate LEFT OUTER JOIN");
+
+            // Execute E2E through QueryService
+            var result = executeRelation(pureQuery);
+
+            // LEFT JOIN preserves all left rows even with no matches
+            // We have 3 people (John, Jane, Bob) - all should appear with NULL address data
+            assertEquals(3, result.rows().size(), "LEFT OUTER JOIN should preserve all left rows");
+
+            // Verify column structure includes both sides
+            assertTrue(result.columns().size() >= 2, "Should have columns from both relations");
+        }
+
+        @Test
+        @DisplayName("Explicit ->join() with matching data - E2E execution")
+        void testExplicitJoinWithMatches() throws SQLException {
+            // Self-join: join Person with itself on firstName
+            // This tests that explicit join produces matching rows
+
+            String pureQuery = """
+                    Person.all()
+                        ->project({p | $p.firstName}, {p | $p.lastName})
+                        ->join(
+                            Person.all()->project({p2 | $p2.firstName}, {p2 | $p2.age}),
+                            JoinType.INNER,
+                            {l, r | $l.firstName == $r.firstName}
+                        )
+                    """;
+
+            // Execute E2E through QueryService
+            var result = executeRelation(pureQuery);
+
+            // Self-join on firstName: John=John, Jane=Jane, Bob=Bob = 3 exact matches
+            assertEquals(3, result.rows().size(), "Self-join on firstName should produce 3 matches");
+
+            // Verify we have columns from both projections
+            assertEquals(4, result.columns().size(), "Should have 4 columns: firstName, lastName, firstName, age");
+        }
     }
 
     // ==================== extend() Window Function Tests ====================

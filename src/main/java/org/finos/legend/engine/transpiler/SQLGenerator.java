@@ -153,27 +153,63 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     public String visit(JoinNode join) {
         var sb = new StringBuilder();
 
-        // Get left table info
-        TableNode leftTable = extractTableNode(join.left());
-        TableNode rightTable = extractTableNode(join.right());
+        // Check if sources are complex (need subqueries) or simple tables
+        String leftFrom = generateJoinSource(join.left(), "left_src");
+        String rightFrom = generateJoinSource(join.right(), "right_src");
 
         sb.append("SELECT * FROM ");
-        sb.append(dialect.quoteIdentifier(leftTable.table().name()));
-        sb.append(" AS ");
-        sb.append(dialect.quoteIdentifier(leftTable.alias()));
+        sb.append(leftFrom);
 
         sb.append(" ");
         sb.append(join.joinType().toSql());
         sb.append(" ");
 
-        sb.append(dialect.quoteIdentifier(rightTable.table().name()));
-        sb.append(" AS ");
-        sb.append(dialect.quoteIdentifier(rightTable.alias()));
+        sb.append(rightFrom);
 
         sb.append(" ON ");
         sb.append(join.condition().accept(this));
 
         return sb.toString();
+    }
+
+    /**
+     * Generates a source clause for a JOIN, handling complex sources with
+     * subqueries.
+     */
+    private String generateJoinSource(RelationNode node, String defaultAlias) {
+        return switch (node) {
+            case TableNode table ->
+                dialect.quoteIdentifier(table.table().name()) + " AS " + dialect.quoteIdentifier(table.alias());
+            case ProjectNode project -> {
+                String innerSql = project.accept(this);
+                yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
+            }
+            case GroupByNode groupBy -> {
+                String innerSql = groupBy.accept(this);
+                yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
+            }
+            case SortNode sort -> {
+                String innerSql = sort.accept(this);
+                yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
+            }
+            case LimitNode limit -> {
+                String innerSql = limit.accept(this);
+                yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
+            }
+            case ExtendNode extend -> {
+                String innerSql = extend.accept(this);
+                yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
+            }
+            case FilterNode filter -> {
+                TableNode table = extractTableNode(filter);
+                yield dialect.quoteIdentifier(table.table().name()) + " AS " + dialect.quoteIdentifier(table.alias());
+            }
+            case JoinNode nestedJoin -> {
+                String innerSql = nestedJoin.accept(this);
+                yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
+            }
+            case FromNode from -> generateJoinSource(from.source(), defaultAlias);
+        };
     }
 
     @Override

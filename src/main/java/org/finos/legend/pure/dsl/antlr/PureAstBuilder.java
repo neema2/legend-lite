@@ -179,6 +179,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "filter" -> parseFilterCall(source, args);
             case "project" -> parseProjectCall(source, args);
             case "groupBy" -> parseGroupByCall(source, args);
+            case "join" -> parseJoinCall(source, args);
             case "sortBy" -> parseSortByCall(source, args);
             case "sort" -> parseSortCall(source, args);
             case "limit", "take" -> parseLimitCall(source, args);
@@ -936,6 +937,72 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
         // Fallback to MethodCall for other source types
         return new MethodCall(source, "groupBy", args);
+    }
+
+    private PureExpression parseJoinCall(PureExpression source, List<PureExpression> args) {
+        // Validate: join cannot be called directly on Class.all() - must use project()
+        // first
+        if (source instanceof ClassExpression || source instanceof ClassAllExpression) {
+            throw new PureParseException(
+                    "join() cannot be called directly on a Class. " +
+                            "Use project() first to create a relation: Class.all()->project(...)->join(...)");
+        }
+
+        // join requires exactly 3 arguments: rightRelation, joinType, condition
+        if (args.size() < 3) {
+            throw new PureParseException(
+                    "join() requires 3 arguments: right relation, join type, and condition lambda");
+        }
+
+        // First arg: right relation (must be RelationExpression)
+        PureExpression rightArg = args.get(0);
+        if (!(rightArg instanceof RelationExpression)) {
+            throw new PureParseException(
+                    "join() first argument must be a Relation (use project() first), got: " +
+                            rightArg.getClass().getSimpleName());
+        }
+        RelationExpression right = (RelationExpression) rightArg;
+
+        // Second arg: join type (enum reference like JoinType.LEFT_OUTER)
+        JoinExpression.JoinType joinType = extractJoinType(args.get(1));
+
+        // Third arg: condition lambda
+        PureExpression condArg = args.get(2);
+        if (!(condArg instanceof LambdaExpression)) {
+            throw new PureParseException(
+                    "join() third argument must be a lambda condition, got: " +
+                            condArg.getClass().getSimpleName());
+        }
+        LambdaExpression condition = (LambdaExpression) condArg;
+
+        // Source must be a RelationExpression
+        if (source instanceof RelationExpression leftRelation) {
+            return new JoinExpression(leftRelation, right, joinType, condition);
+        }
+
+        // Fallback to MethodCall for other source types
+        return new MethodCall(source, "join", args);
+    }
+
+    private JoinExpression.JoinType extractJoinType(PureExpression arg) {
+        // Handle enum reference like JoinType.LEFT_OUTER or PropertyAccess
+        if (arg instanceof PropertyAccessExpression propAccess) {
+            return JoinExpression.JoinType.fromString(propAccess.propertyName());
+        }
+        if (arg instanceof ClassReference ref) {
+            // Could be JoinType.INNER parsed as a class reference
+            String name = ref.className();
+            if (name.contains(".")) {
+                return JoinExpression.JoinType.fromString(name.substring(name.lastIndexOf('.') + 1));
+            }
+            return JoinExpression.JoinType.fromString(name);
+        }
+        if (arg instanceof LiteralExpr lit && lit.value() instanceof String s) {
+            return JoinExpression.JoinType.fromString(s);
+        }
+        throw new PureParseException(
+                "join() second argument must be a JoinType (INNER, LEFT_OUTER, etc), got: " +
+                        arg.getClass().getSimpleName());
     }
 
     private List<LambdaExpression> extractLambdasFromArg(PureExpression arg, String argName) {
