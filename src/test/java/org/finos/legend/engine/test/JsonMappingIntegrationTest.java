@@ -488,4 +488,248 @@ class JsonMappingIntegrationTest {
             assertEquals(2, itemResult.rows().size());
         }
     }
+
+    // =========================================================================
+    // TEST 5: Association with JSON Properties
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Association with JSON Properties")
+    class AssociationWithJsonTests {
+
+        @BeforeEach
+        void setupTables() throws SQLException {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("""
+                        CREATE TABLE T_ORDERS (
+                            ID INTEGER PRIMARY KEY,
+                            DATA JSON
+                        )
+                        """);
+                stmt.execute("""
+                        CREATE TABLE T_ORDER_ITEMS (
+                            ID INTEGER PRIMARY KEY,
+                            ORDER_ID INTEGER NOT NULL,
+                            DATA JSON
+                        )
+                        """);
+                // Alice has 2 items
+                stmt.execute(
+                        "INSERT INTO T_ORDERS VALUES (1, '{\"customerName\": \"Alice\", \"status\": \"shipped\"}')");
+                stmt.execute(
+                        "INSERT INTO T_ORDER_ITEMS VALUES (1, 1, '{\"productName\": \"Widget\", \"quantity\": 2}')");
+                stmt.execute(
+                        "INSERT INTO T_ORDER_ITEMS VALUES (2, 1, '{\"productName\": \"Gadget\", \"quantity\": 1}')");
+                // Bob has 1 item
+                stmt.execute("INSERT INTO T_ORDERS VALUES (2, '{\"customerName\": \"Bob\", \"status\": \"pending\"}')");
+                stmt.execute(
+                        "INSERT INTO T_ORDER_ITEMS VALUES (3, 2, '{\"productName\": \"Doohickey\", \"quantity\": 5}')");
+            }
+        }
+
+        @Test
+        @DisplayName("Project through association: Order.all()->project([o | $o.items.productName])")
+        void testProjectThroughAssociation() throws SQLException {
+            String pureModel = """
+                    Class model::Order {
+                        id: Integer[1];
+                        customerName: String[1];
+                    }
+                    Class model::OrderItem {
+                        id: Integer[1];
+                        orderId: Integer[1];
+                        productName: String[1];
+                    }
+                    Association model::Order_OrderItem {
+                        order: Order[1];
+                        items: OrderItem[*];
+                    }
+                    Database store::OrderDB (
+                        Table T_ORDERS (
+                            ID INTEGER PRIMARY KEY,
+                            DATA JSON
+                        )
+                        Table T_ORDER_ITEMS (
+                            ID INTEGER PRIMARY KEY,
+                            ORDER_ID INTEGER NOT NULL,
+                            DATA JSON
+                        )
+                        Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
+                    )
+                    Mapping model::OrderMapping (
+                        Order: Relational {
+                            ~mainTable [OrderDB] T_ORDERS
+                            id: [OrderDB] T_ORDERS.ID,
+                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String)
+                        }
+                        OrderItem: Relational {
+                            ~mainTable [OrderDB] T_ORDER_ITEMS
+                            id: [OrderDB] T_ORDER_ITEMS.ID,
+                            orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
+                            productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String)
+                        }
+                    )
+                    """ + CONNECTION + RUNTIME;
+
+            // Project order's customer name and item's product name (via association)
+            String query = "Order.all()->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
+
+            var plan = queryService.compile(pureModel, query, "test::TestRuntime");
+            String sql = plan.sqlByStore().values().iterator().next().sql();
+            System.out.println("Association + JSON SQL: " + sql);
+
+            // Should have LEFT OUTER JOIN for association navigation
+            assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for association navigation");
+            assertTrue(sql.contains("CAST"), "Should have CAST for JSON extraction");
+
+            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+
+            // Alice has 2 items, Bob has 1 = 3 rows total
+            assertEquals(3, result.rows().size(), "Should have 3 rows (Alice x2, Bob x1)");
+
+            // Verify Alice's items with correct JSON-extracted values
+            var aliceRows = result.rows().stream()
+                    .filter(r -> "Alice".equals(r.get(0)))
+                    .toList();
+            assertEquals(2, aliceRows.size(), "Alice should appear twice (has 2 items)");
+
+            // Verify productName was correctly extracted from JSON
+            var productNames = aliceRows.stream().map(r -> r.get(1)).toList();
+            assertTrue(productNames.contains("Widget"), "Should contain Widget");
+            assertTrue(productNames.contains("Gadget"), "Should contain Gadget");
+        }
+
+        @Test
+        @DisplayName("Filter on scalar association property, project JSON property")
+        void testFilterOnAssociationScalarProjectJson() throws SQLException {
+            // Note: Filter on JSON-extracted properties in filters requires additional work
+            // This test demonstrates filtering on scalar association property while
+            // projecting JSON
+            String pureModel = """
+                    Class model::Order {
+                        id: Integer[1];
+                        customerName: String[1];
+                    }
+                    Class model::OrderItem {
+                        id: Integer[1];
+                        orderId: Integer[1];
+                        productName: String[1];
+                    }
+                    Association model::Order_OrderItem {
+                        order: Order[1];
+                        items: OrderItem[*];
+                    }
+                    Database store::OrderDB (
+                        Table T_ORDERS (
+                            ID INTEGER PRIMARY KEY,
+                            DATA JSON
+                        )
+                        Table T_ORDER_ITEMS (
+                            ID INTEGER NOT NULL,
+                            ORDER_ID INTEGER NOT NULL,
+                            DATA JSON
+                        )
+                        Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
+                    )
+                    Mapping model::OrderMapping (
+                        Order: Relational {
+                            ~mainTable [OrderDB] T_ORDERS
+                            id: [OrderDB] T_ORDERS.ID,
+                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String)
+                        }
+                        OrderItem: Relational {
+                            ~mainTable [OrderDB] T_ORDER_ITEMS
+                            id: [OrderDB] T_ORDER_ITEMS.ID,
+                            orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
+                            productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String)
+                        }
+                    )
+                    """ + CONNECTION + RUNTIME;
+
+            // Filter on scalar orderId through association, project JSON-extracted
+            // properties
+            String query = "Order.all()->filter(o | $o.items.orderId == 1)->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
+
+            var plan = queryService.compile(pureModel, query, "test::TestRuntime");
+            String sql = plan.sqlByStore().values().iterator().next().sql();
+            System.out.println("Filter Scalar + Project JSON Association SQL: " + sql);
+
+            // Should use EXISTS for to-many association filtering
+            assertTrue(sql.contains("EXISTS"), "Should use EXISTS for to-many association filter");
+            assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projection");
+
+            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+
+            // Order 1 (Alice) has items with orderId=1, she has 2 items
+            assertEquals(2, result.rows().size(), "Should find Alice's 2 items");
+            assertTrue(result.rows().stream().allMatch(r -> "Alice".equals(r.get(0))), "All should be Alice");
+        }
+
+        @Test
+        @DisplayName("Mixed: Filter scalar id, project JSON through association")
+        void testMixedScalarFilterAssociationJsonProjection() throws SQLException {
+            // Note: Filter on JSON-extracted properties requires additional work
+            // This test demonstrates filtering on scalar, projecting JSON via association
+            String pureModel = """
+                    Class model::Order {
+                        id: Integer[1];
+                        customerName: String[1];
+                    }
+                    Class model::OrderItem {
+                        id: Integer[1];
+                        orderId: Integer[1];
+                        productName: String[1];
+                        quantity: Integer[1];
+                    }
+                    Association model::Order_OrderItem {
+                        order: Order[1];
+                        items: OrderItem[*];
+                    }
+                    Database store::OrderDB (
+                        Table T_ORDERS (
+                            ID INTEGER PRIMARY KEY,
+                            DATA JSON
+                        )
+                        Table T_ORDER_ITEMS (
+                            ID INTEGER PRIMARY KEY,
+                            ORDER_ID INTEGER NOT NULL,
+                            DATA JSON
+                        )
+                        Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
+                    )
+                    Mapping model::OrderMapping (
+                        Order: Relational {
+                            ~mainTable [OrderDB] T_ORDERS
+                            id: [OrderDB] T_ORDERS.ID,
+                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String)
+                        }
+                        OrderItem: Relational {
+                            ~mainTable [OrderDB] T_ORDER_ITEMS
+                            id: [OrderDB] T_ORDER_ITEMS.ID,
+                            orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
+                            productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String),
+                            quantity: [OrderDB] T_ORDER_ITEMS.DATA->get('quantity', @Integer)
+                        }
+                    )
+                    """ + CONNECTION + RUNTIME;
+
+            // Filter by scalar id, project JSON via association
+            String query = "Order.all()->filter(o | $o.id == 1)->project([o | $o.customerName, o | $o.items.productName, o | $o.items.quantity], ['customer', 'product', 'qty'])";
+
+            var plan = queryService.compile(pureModel, query, "test::TestRuntime");
+            String sql = plan.sqlByStore().values().iterator().next().sql();
+            System.out.println("Mixed Scalar Filter + JSON Association SQL: " + sql);
+
+            // Should have LEFT OUTER JOIN for projection
+            assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for association projection");
+            // Should have CAST for JSON extractions
+            assertTrue(sql.contains("CAST"), "Should have CAST for JSON extraction");
+
+            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+
+            // Order 1 is Alice's, she has 2 items
+            assertEquals(2, result.rows().size(), "Should have 2 rows (Alice's 2 items)");
+            assertTrue(result.rows().stream().allMatch(r -> "Alice".equals(r.get(0))), "All results should be Alice");
+        }
+    }
 }

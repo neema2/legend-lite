@@ -1570,10 +1570,20 @@ public final class PureCompiler {
         // Get the final property (e.g., "street" from $p.addresses.street)
         NavigationSegment finalSegment = segments.getLast();
         String finalProperty = finalSegment.propertyName();
-        String columnName = targetMapping.getColumnForProperty(finalProperty)
-                .orElseThrow(() -> new PureCompileException("No column mapping for: " + finalProperty));
 
-        return Projection.column(targetAlias, columnName, projectionAlias);
+        // Check if the property has an expression mapping (e.g., ->get('key', @Type))
+        PropertyMapping propertyMapping = targetMapping.getPropertyMapping(finalProperty)
+                .orElseThrow(() -> new PureCompileException("No property mapping for: " + finalProperty));
+
+        if (propertyMapping.expressionString() != null) {
+            // Expression mapping (JSON extraction) - use compileExpressionMapping
+            Expression expr = compileExpressionMapping(propertyMapping.expressionString(), targetAlias);
+            return new Projection(expr, projectionAlias);
+        } else {
+            // Simple column mapping
+            String columnName = propertyMapping.columnName();
+            return Projection.column(targetAlias, columnName, projectionAlias);
+        }
     }
 
     /**
