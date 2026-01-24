@@ -75,6 +75,18 @@ public record RelationalMapping(
                         PropertyMapping::propertyName));
     }
 
+    /**
+     * Gets the property mapping for a given property name.
+     * 
+     * @param propertyName The Pure property name
+     * @return Optional containing the PropertyMapping if found
+     */
+    public Optional<PropertyMapping> getPropertyMapping(String propertyName) {
+        return propertyMappings.stream()
+                .filter(pm -> pm.propertyName().equals(propertyName))
+                .findFirst();
+    }
+
     @Override
     public String toString() {
         var sb = new StringBuilder();

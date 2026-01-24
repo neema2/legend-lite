@@ -276,7 +276,16 @@ public final class PureModelBuilder implements ModelContext {
 
             // Build property mappings
             List<PropertyMapping> propertyMappings = classMapping.propertyMappings().stream()
-                    .map(pm -> new PropertyMapping(pm.propertyName(), pm.columnReference().columnName()))
+                    .map(pm -> {
+                        if (pm.isExpression()) {
+                            // Expression-based mapping (e.g., PAYLOAD->get('price', @Integer))
+                            String colName = extractColumnNameFromExpression(pm.expressionString());
+                            return PropertyMapping.expression(pm.propertyName(), colName, pm.expressionString());
+                        } else {
+                            // Simple column reference
+                            return PropertyMapping.column(pm.propertyName(), pm.columnReference().columnName());
+                        }
+                    })
                     .toList();
 
             // Create and register the mapping
@@ -544,5 +553,20 @@ public final class PureModelBuilder implements ModelContext {
         if (upper.equals("DECIMAL") || upper.startsWith("DECIMAL"))
             return SqlDataType.DECIMAL;
         return SqlDataType.VARCHAR; // Default fallback
+    }
+
+    /**
+     * Extracts column name from an expression like "[DB]
+     * TABLE.COLUMN->cast(@Class)".
+     */
+    private String extractColumnNameFromExpression(String expression) {
+        // Pattern: [DB] TABLE.COLUMN...
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "\\[\\w+\\]\\s+\\w+\\.(\\w+)");
+        java.util.regex.Matcher matcher = pattern.matcher(expression);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        throw new IllegalArgumentException("Cannot extract column name from expression: " + expression);
     }
 }

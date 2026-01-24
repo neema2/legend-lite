@@ -358,11 +358,21 @@ public final class PureCompiler {
                 Projection proj = compileAssociationProjection(path, alias, joinInfos, baseTableAlias, baseMapping);
                 projections.add(proj);
             } else {
-                // Simple property access
+                // Property access - check if expression-based or column-based
                 String propertyName = extractPropertyName(lambda.body());
-                String columnName = baseMapping.getColumnForProperty(propertyName)
-                        .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
-                projections.add(Projection.column(baseTableAlias, columnName, alias));
+                var propertyMapping = baseMapping.getPropertyMapping(propertyName);
+
+                if (propertyMapping.isPresent() && propertyMapping.get().hasExpression()) {
+                    // Expression-based mapping: compile the expression string
+                    String expressionStr = propertyMapping.get().expressionString();
+                    Expression expr = compileExpressionMapping(expressionStr, baseTableAlias);
+                    projections.add(new Projection(expr, alias));
+                } else {
+                    String columnName = baseMapping.getColumnForProperty(propertyName)
+                            .orElseThrow(
+                                    () -> new PureCompileException("No column mapping for property: " + propertyName));
+                    projections.add(Projection.column(baseTableAlias, columnName, alias));
+                }
             }
         }
 
@@ -2000,15 +2010,15 @@ public final class PureCompiler {
     }
 
     private Expression compilePropertyAccess(PropertyAccessExpression propAccess, CompilationContext context) {
-        // For simple property access (not through associations), just map to column
+        String propertyName = propAccess.propertyName();
+
+        // Standard property access handling
         String varName = extractVariableName(propAccess.source());
 
         if (!varName.equals(context.lambdaParameter())) {
             throw new PureCompileException(
                     "Unknown variable: $" + varName + ", expected: $" + context.lambdaParameter());
         }
-
-        String propertyName = propAccess.propertyName();
 
         // Check if this is an extended column (from extend/flatten) - use unqualified
         // reference
@@ -2026,6 +2036,35 @@ public final class PureCompiler {
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
 
         return ColumnReference.of(context.tableAlias(), columnName);
+    }
+
+    /**
+     * Compiles an expression mapping string to a SQL expression.
+     * 
+     * Handles expressions like: [DB] T.PAYLOAD->get('price', @Integer)
+     * 
+     * @param expressionStr The expression string from the mapping
+     * @param tableAlias    The table alias to use for column references
+     * @return The compiled SQL expression
+     */
+    private Expression compileExpressionMapping(String expressionStr, String tableAlias) {
+        // Pattern: [DB] TABLE.COLUMN->get('key', @Type)
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "\\[\\w+\\]\\s+\\w+\\.(\\w+)\\s*->\\s*get\\s*\\(\\s*'([^']+)'\\s*,\\s*@(\\w+)\\s*\\)");
+        java.util.regex.Matcher matcher = pattern.matcher(expressionStr);
+
+        if (matcher.find()) {
+            String columnName = matcher.group(1);
+            String jsonKey = matcher.group(2);
+            String typeName = matcher.group(3);
+
+            // Build: get(COLUMN, 'key') with return type
+            Expression columnRef = ColumnReference.of(tableAlias, columnName);
+            SqlType returnType = mapTypeName(typeName);
+            return SqlFunctionCall.of("get", columnRef, returnType, Literal.string(jsonKey));
+        }
+
+        throw new PureCompileException("Cannot parse expression mapping: " + expressionStr);
     }
 
     private Expression compileLiteral(LiteralExpr literal) {

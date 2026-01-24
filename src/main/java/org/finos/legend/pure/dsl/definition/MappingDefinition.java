@@ -161,15 +161,60 @@ public record MappingDefinition(
     /**
      * Represents a property mapping within a class mapping.
      * 
-     * @param propertyName    The Pure property name
-     * @param columnReference The column reference
+     * Supports two modes:
+     * 1. Simple column reference: propertyName -> columnReference
+     * 2. Expression with embedded class: propertyName -> COLUMN->cast(@ClassName)
+     * 
+     * @param propertyName      The Pure property name
+     * @param columnReference   The column reference (null if using expression)
+     * @param expressionString  The mapping expression (null if using column
+     *                          reference)
+     * @param embeddedClassName The target class for embedded JSON (null if not
+     *                          embedded)
      */
     public record PropertyMappingDefinition(
             String propertyName,
-            ColumnReference columnReference) {
+            ColumnReference columnReference,
+            String expressionString,
+            String embeddedClassName) {
+
         public PropertyMappingDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
-            Objects.requireNonNull(columnReference, "Column reference cannot be null");
+            // Either columnReference or expressionString must be present
+            if (columnReference == null && expressionString == null) {
+                throw new IllegalArgumentException(
+                        "Either columnReference or expressionString must be provided for property: " + propertyName);
+            }
+        }
+
+        /**
+         * Creates a simple column reference mapping.
+         */
+        public static PropertyMappingDefinition column(String propertyName, ColumnReference columnRef) {
+            return new PropertyMappingDefinition(propertyName, columnRef, null, null);
+        }
+
+        /**
+         * Creates an expression-based mapping with optional embedded class.
+         */
+        public static PropertyMappingDefinition expression(String propertyName, String expression,
+                String embeddedClass) {
+            return new PropertyMappingDefinition(propertyName, null, expression, embeddedClass);
+        }
+
+        /**
+         * @return true if this mapping uses an expression rather than a direct column
+         *         reference
+         */
+        public boolean isExpression() {
+            return expressionString != null;
+        }
+
+        /**
+         * @return true if this maps to an embedded class via JSON
+         */
+        public boolean hasEmbeddedClass() {
+            return embeddedClassName != null;
         }
     }
 

@@ -1095,17 +1095,51 @@ public final class PureDefinitionParser {
     private static List<MappingDefinition.PropertyMappingDefinition> parsePropertyMappings(String body) {
         List<MappingDefinition.PropertyMappingDefinition> mappings = new ArrayList<>();
 
+        // First, try to parse expression-based mappings (with ->get)
+        // Pattern: propertyName: [DatabaseName] TABLE_NAME.COLUMN_NAME->get('key',
+        // @Type)
+        Pattern getPattern = Pattern.compile(
+                "(\\w+)\\s*:\\s*\\[(\\w+)\\]\\s+(\\w+)\\.(\\w+)\\s*->\\s*get\\s*\\(\\s*'([^']+)'\\s*,\\s*@(\\w+)\\s*\\)");
+        Matcher getMatcher = getPattern.matcher(body);
+
+        java.util.Set<Integer> getMatchEnds = new java.util.HashSet<>();
+        while (getMatcher.find()) {
+            String propertyName = getMatcher.group(1);
+            String databaseName = getMatcher.group(2);
+            String tableName = getMatcher.group(3);
+            String columnName = getMatcher.group(4);
+            String jsonKey = getMatcher.group(5);
+            String typeName = getMatcher.group(6);
+
+            // Store the full expression for compilation
+            String expression = "[" + databaseName + "] " + tableName + "." + columnName
+                    + "->get('" + jsonKey + "', @" + typeName + ")";
+
+            mappings.add(MappingDefinition.PropertyMappingDefinition.expression(
+                    propertyName, expression, null)); // No embedded class, just expression
+            getMatchEnds.add(getMatcher.end());
+        }
+
+        // Then parse simple column references
         // Pattern: propertyName: [DatabaseName] TABLE_NAME.COLUMN_NAME
-        Pattern pattern = Pattern.compile("(\\w+)\\s*:\\s*\\[(\\w+)\\]\\s+(\\w+)\\.(\\w+)");
-        Matcher matcher = pattern.matcher(body);
+        Pattern simplePattern = Pattern.compile("(\\w+)\\s*:\\s*\\[(\\w+)\\]\\s+(\\w+)\\.(\\w+)");
+        Matcher simpleMatcher = simplePattern.matcher(body);
 
-        while (matcher.find()) {
-            String propertyName = matcher.group(1);
-            String databaseName = matcher.group(2);
-            String tableName = matcher.group(3);
-            String columnName = matcher.group(4);
+        while (simpleMatcher.find()) {
+            // Skip if this was already matched as part of a get expression
+            // Check if there's a "->" after this match
+            int matchEnd = simpleMatcher.end();
+            String afterMatch = body.substring(matchEnd).trim();
+            if (afterMatch.startsWith("->") || afterMatch.startsWith("-> ")) {
+                continue; // This is part of an expression, already handled
+            }
 
-            mappings.add(new MappingDefinition.PropertyMappingDefinition(
+            String propertyName = simpleMatcher.group(1);
+            String databaseName = simpleMatcher.group(2);
+            String tableName = simpleMatcher.group(3);
+            String columnName = simpleMatcher.group(4);
+
+            mappings.add(MappingDefinition.PropertyMappingDefinition.column(
                     propertyName,
                     new MappingDefinition.ColumnReference(databaseName, tableName, columnName)));
         }
