@@ -310,13 +310,14 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     // ==================== JSON Serialization Tests ====================
 
     @Test
-    @DisplayName("ResultSetJsonSerializer produces valid JSON for various types")
+    @DisplayName("BufferedResult.toJsonArray produces valid JSON for various types")
     void testJsonSerializer() throws Exception {
         try (Statement stmt = connection.createStatement();
                 ResultSet rs = stmt.executeQuery(
                         "SELECT 1 as \"id\", 'test' as \"name\", true as \"active\", 42.5 as \"value\"")) {
 
-            String json = ResultSetJsonSerializer.serializeAsArray(rs);
+            var result = org.finos.legend.engine.execution.BufferedResult.fromResultSet(rs);
+            String json = result.toJsonArray();
             System.out.println("JSON: " + json);
 
             assertEquals("[{\"id\":1,\"name\":\"test\",\"active\":true,\"value\":42.5}]", json);
@@ -324,11 +325,9 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("ResultSetJsonSerializer handles null values correctly")
+    @DisplayName("BufferedResult.toJsonArray handles null values correctly")
     void testJsonSerializerNulls() throws Exception {
         // Create a query that produces NULL values naturally via LEFT JOIN
-        // Person ID 99 has no address, so LEFT JOIN will produce NULL for address
-        // columns
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("INSERT INTO T_PERSON VALUES (99, 'NoAddress', 'Person', 99)");
         }
@@ -339,7 +338,8 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                                 "FROM T_PERSON p LEFT OUTER JOIN T_ADDRESS a ON p.ID = a.PERSON_ID " +
                                 "WHERE p.ID = 99")) {
 
-            String json = ResultSetJsonSerializer.serializeAsArray(rs);
+            var result = org.finos.legend.engine.execution.BufferedResult.fromResultSet(rs);
+            String json = result.toJsonArray();
             System.out.println("JSON with nulls: " + json);
 
             assertTrue(json.contains("\"firstName\":\"NoAddress\""));
@@ -348,7 +348,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("ResultSetJsonSerializer escapes special characters in strings")
+    @DisplayName("BufferedResult.toJsonArray escapes special characters in strings")
     void testJsonSerializerEscaping() throws Exception {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("INSERT INTO T_PERSON VALUES (98, 'Quote\"Test', 'Tab\tPerson', 20)");
@@ -358,7 +358,8 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 ResultSet rs = stmt.executeQuery(
                         "SELECT FIRST_NAME as \"firstName\", LAST_NAME as \"lastName\" FROM T_PERSON WHERE ID = 98")) {
 
-            String json = ResultSetJsonSerializer.serializeAsArray(rs);
+            var result = org.finos.legend.engine.execution.BufferedResult.fromResultSet(rs);
+            String json = result.toJsonArray();
             System.out.println("JSON with escaping: " + json);
 
             // Should contain escaped quote and tab
