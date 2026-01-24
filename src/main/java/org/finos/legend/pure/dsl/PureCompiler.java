@@ -70,6 +70,7 @@ public final class PureCompiler {
             case ProjectExpression project -> compileProject(project, context);
             case GroupByExpression groupBy -> compileGroupBy(groupBy, context);
             case JoinExpression join -> compileJoin(join, context);
+            case FlattenExpression flatten -> compileFlatten(flatten, context);
             case ClassSortByExpression classSortBy -> compileClassSortBy(classSortBy, context);
             case RelationSortExpression relationSort -> compileRelationSort(relationSort, context);
             case SortExpression sort -> compileSort(sort, context);
@@ -525,6 +526,23 @@ public final class PureCompiler {
             default -> throw new PureCompileException(
                     "Cannot compile join condition expression: " + expr.getClass().getSimpleName());
         };
+    }
+
+    /**
+     * Compiles flatten(~col) to a lateral join that unnests a JSON array column.
+     * Creates a new column with the unnested elements.
+     */
+    private RelationNode compileFlatten(FlattenExpression flatten, CompilationContext context) {
+        RelationNode source = compileExpression(flatten.source(), context);
+        String columnName = flatten.columnName();
+
+        // Create a lateral join that unnests the array column
+        // Use unqualified column reference since the source SQL will handle
+        // qualification
+        ColumnReference arrayCol = ColumnReference.of(columnName);
+
+        // Return a LateralJoinNode that represents the lateral join with unnest
+        return new LateralJoinNode(source, arrayCol, columnName);
     }
 
     /**
@@ -1079,12 +1097,18 @@ public final class PureCompiler {
             // or JSON access: ~page: x | $x.PAYLOAD->get('page')
             String tableAlias = getTableAlias(source);
 
+            // Collect extended columns from the source expression (from flatten and extend
+            // ops)
+            java.util.Set<String> extendedColumns = collectExtendedColumns(extend.source());
+
             CompilationContext lambdaContext = new CompilationContext(
                     extend.expression().parameter(),
                     tableAlias,
                     null, // No class mapping - working with Relation columns
                     null,
-                    false);
+                    false,
+                    new java.util.HashMap<>(),
+                    extendedColumns);
 
             Expression calculatedExpr = compileToSqlExpression(extend.expression().body(), lambdaContext);
 
@@ -1093,6 +1117,37 @@ public final class PureCompiler {
                     extend.newColumnName(), calculatedExpr);
 
             return new ExtendNode(source, List.of(simpleProj));
+        }
+    }
+
+    /**
+     * Collects all extended column names from the source expression chain.
+     * This includes columns from extend and flatten operations.
+     */
+    private java.util.Set<String> collectExtendedColumns(PureExpression source) {
+        java.util.Set<String> columns = new java.util.HashSet<>();
+        collectExtendedColumnsRecursive(source, columns);
+        return columns;
+    }
+
+    private void collectExtendedColumnsRecursive(PureExpression source, java.util.Set<String> columns) {
+        switch (source) {
+            case FlattenExpression flatten -> {
+                // Flatten adds its output column
+                columns.add(flatten.columnName());
+                collectExtendedColumnsRecursive(flatten.source(), columns);
+            }
+            case RelationExtendExpression extend -> {
+                // Extend adds its new column
+                columns.add(extend.newColumnName());
+                collectExtendedColumnsRecursive(extend.source(), columns);
+            }
+            case RelationFilterExpression filter -> collectExtendedColumnsRecursive(filter.source(), columns);
+            case RelationSelectExpression select -> collectExtendedColumnsRecursive(select.source(), columns);
+            case RelationSortExpression sort -> collectExtendedColumnsRecursive(sort.source(), columns);
+            case RelationLimitExpression limit -> collectExtendedColumnsRecursive(limit.source(), columns);
+            default -> {
+                /* Base case - no more extended columns to collect */ }
         }
     }
 
@@ -1556,7 +1611,30 @@ public final class PureCompiler {
                 }
                 throw new PureCompileException("Unexpected variable in expression context: " + var);
             }
+            case CastExpression cast -> compileCastExpression(cast, context);
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
+        };
+    }
+
+    /**
+     * Compiles cast(@Type) to a SqlFunctionCall with appropriate return type.
+     */
+    private Expression compileCastExpression(CastExpression cast, CompilationContext context) {
+        Expression source = compileToSqlExpression(cast.source(), context);
+        SqlType targetType = mapTypeName(cast.targetType());
+        return SqlFunctionCall.of("cast", source, targetType);
+    }
+
+    /**
+     * Maps Pure type names to SqlType.
+     */
+    private SqlType mapTypeName(String typeName) {
+        return switch (typeName.toLowerCase()) {
+            case "integer", "int" -> SqlType.INTEGER;
+            case "float", "double", "number" -> SqlType.DOUBLE;
+            case "string", "varchar" -> SqlType.VARCHAR;
+            case "boolean", "bool" -> SqlType.BOOLEAN;
+            default -> SqlType.UNKNOWN;
         };
     }
 
@@ -1574,8 +1652,34 @@ public final class PureCompiler {
             case "filter" -> compileFilterCollectionCall(methodCall, context);
             case "fold" -> compileFoldCall(methodCall, context);
             case "flatten" -> compileFlattenCall(methodCall, context);
+            case "get" -> compileGetCall(methodCall, context);
             default -> compileSimpleMethodCall(methodCall, context);
         };
+    }
+
+    /**
+     * Compiles get('key') or get('key', @Type).
+     * get('key') returns JSON (for arrays/objects).
+     * get('key', @Type) returns typed scalar value.
+     */
+    private Expression compileGetCall(MethodCall methodCall, CompilationContext context) {
+        Expression source = compileToSqlExpression(methodCall.source(), context);
+        List<PureExpression> args = methodCall.arguments();
+
+        if (args.isEmpty()) {
+            throw new PureCompileException("get() requires at least a key argument");
+        }
+
+        // First argument is the key
+        Expression keyArg = compileToSqlExpression(args.get(0), context);
+
+        // Check for optional type argument (@Type)
+        SqlType returnType = SqlType.UNKNOWN;
+        if (args.size() >= 2 && args.get(1) instanceof TypeReference typeRef) {
+            returnType = mapTypeName(typeRef.typeName());
+        }
+
+        return new SqlFunctionCall("get", source, List.of(keyArg), returnType);
     }
 
     /**
@@ -1906,6 +2010,12 @@ public final class PureCompiler {
 
         String propertyName = propAccess.propertyName();
 
+        // Check if this is an extended column (from extend/flatten) - use unqualified
+        // reference
+        if (context.isExtendedColumn(propertyName)) {
+            return ColumnReference.of(propertyName);
+        }
+
         // If no mapping exists (direct Relation API access), use property name as
         // column name
         if (context.mapping() == null) {
@@ -1955,6 +2065,7 @@ public final class PureCompiler {
             case LimitNode limit -> getTableAlias(limit.source());
             case org.finos.legend.engine.plan.FromNode from -> getTableAlias(from.source());
             case ExtendNode extend -> getTableAlias(extend.source());
+            case LateralJoinNode lateral -> getTableAlias(lateral.source());
         };
     }
 
@@ -1986,18 +2097,21 @@ public final class PureCompiler {
             RelationalMapping mapping,
             String className,
             boolean inFilterContext,
-            java.util.Map<String, String> lambdaParameters) {
+            java.util.Map<String, String> lambdaParameters,
+            java.util.Set<String> extendedColumns) {
 
         public CompilationContext(String lambdaParameter, String tableAlias,
                 RelationalMapping mapping, String className, boolean inFilterContext) {
-            this(lambdaParameter, tableAlias, mapping, className, inFilterContext, new java.util.HashMap<>());
+            this(lambdaParameter, tableAlias, mapping, className, inFilterContext,
+                    new java.util.HashMap<>(), new java.util.HashSet<>());
         }
 
         /**
          * Legacy constructor for backwards compatibility.
          */
         public CompilationContext(String lambdaParameter, String tableAlias, RelationalMapping mapping) {
-            this(lambdaParameter, tableAlias, mapping, mapping.pureClass().name(), false, new java.util.HashMap<>());
+            this(lambdaParameter, tableAlias, mapping, mapping.pureClass().name(), false,
+                    new java.util.HashMap<>(), new java.util.HashSet<>());
         }
 
         /**
@@ -2006,7 +2120,8 @@ public final class PureCompiler {
         public CompilationContext withLambdaParameter(String paramName, String alias) {
             var newParams = new java.util.HashMap<>(lambdaParameters);
             newParams.put(paramName, alias);
-            return new CompilationContext(lambdaParameter, tableAlias, mapping, className, inFilterContext, newParams);
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
+                    inFilterContext, newParams, extendedColumns);
         }
 
         /**
@@ -2016,7 +2131,19 @@ public final class PureCompiler {
             var newParams = new java.util.HashMap<>(lambdaParameters);
             newParams.put(accParam, "");
             newParams.put(elemParam, "");
-            return new CompilationContext(lambdaParameter, tableAlias, mapping, className, inFilterContext, newParams);
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
+                    inFilterContext, newParams, extendedColumns);
+        }
+
+        /**
+         * Creates a new context with an extended column (from extend/flatten).
+         * Extended columns should use unqualified references.
+         */
+        public CompilationContext withExtendedColumn(String columnName) {
+            var newExtended = new java.util.HashSet<>(extendedColumns);
+            newExtended.add(columnName);
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
+                    inFilterContext, lambdaParameters, newExtended);
         }
 
         /**
@@ -2024,6 +2151,13 @@ public final class PureCompiler {
          */
         public boolean isLambdaParameter(String name) {
             return lambdaParameters.containsKey(name);
+        }
+
+        /**
+         * Checks if a column name is an extended column (should be unqualified).
+         */
+        public boolean isExtendedColumn(String name) {
+            return extendedColumns.contains(name);
         }
     }
 

@@ -51,4 +51,9 @@ public interface RelationNodeVisitor<T> {
      * Visit an extend node (window functions).
      */
     T visit(ExtendNode extend);
+
+    /**
+     * Visit a lateral join node (CROSS JOIN LATERAL UNNEST).
+     */
+    T visit(LateralJoinNode lateralJoin);
 }

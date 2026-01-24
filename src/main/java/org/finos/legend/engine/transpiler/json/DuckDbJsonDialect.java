@@ -37,16 +37,29 @@ public final class DuckDbJsonDialect implements JsonSqlDialect {
     @Override
     public String variantGet(String expr, String key) {
         // DuckDB uses ->> operator for text extraction
-        // Outer parens needed for lambda binding compatibility (item->>'price' fails,
-        // but (item->>'price') works)
-        return "((" + expr + ")->>" + "'" + key + "')";
+        // Don't wrap simple identifiers in parens as it confuses lambda parsing
+        if (isSimpleIdentifier(expr)) {
+            return "(" + expr + "->>'" + key + "')";
+        }
+        // Outer parens needed for lambda binding compatibility
+        return "((" + expr + ")->>'" + key + "')";
     }
 
     @Override
     public String variantGetJson(String expr, String key) {
         // DuckDB uses -> operator for JSON structure extraction (preserves
         // arrays/objects)
-        return "(" + expr + ")->" + "'" + key + "'";
+        // IMPORTANT: Always wrap in parens because -> is also the lambda operator
+        // e.g., in lambda "i -> i->'price'" we need "i -> (i->'price')" to disambiguate
+        if (isSimpleIdentifier(expr)) {
+            return "(" + expr + "->'" + key + "')";
+        }
+        return "((" + expr + ")->'" + key + "')";
+    }
+
+    private boolean isSimpleIdentifier(String expr) {
+        // Check if expr is a simple unquoted identifier (like a lambda param)
+        return expr.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
     }
 
     @Override

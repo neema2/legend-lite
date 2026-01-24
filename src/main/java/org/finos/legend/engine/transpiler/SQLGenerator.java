@@ -19,10 +19,6 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     // Track lambda parameters to avoid quoting them in SQL generation
     private final java.util.Set<String> lambdaParams = new java.util.HashSet<>();
 
-    // Track when we're generating the source of a list function (needs JSON
-    // extraction, not text)
-    private boolean inListSourceContext = false;
-
     public SQLGenerator(SQLDialect dialect) {
         this.dialect = Objects.requireNonNull(dialect, "Dialect cannot be null");
     }
@@ -86,30 +82,41 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = join.accept(this);
                 yield innerSql + " WHERE " + whereClause;
             }
-            case GroupByNode groupBy -> {
+            case
+                    GroupByNode groupBy -> {
                 // Filter on top of group by
                 String innerSql = groupBy.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS grp WHERE " + whereClause;
             }
-            case SortNode sort -> {
+            case
+                    SortNode sort -> {
                 // Filter on top of sort
                 String innerSql = sort.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS srt WHERE " + whereClause;
             }
-            case LimitNode limit -> {
+            case
+                    LimitNode limit -> {
                 // Filter on top of limit
                 String innerSql = limit.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS lim WHERE " + whereClause;
             }
-            case FromNode from -> {
+            case
+                    FromNode from -> {
                 // Filter on top of from (unwrap and process)
                 String innerSql = from.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS frm WHERE " + whereClause;
             }
-            case ExtendNode extend -> {
+            case
+                    ExtendNode extend -> {
                 // Filter on top of extend (window functions)
                 String innerSql = extend.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS ext WHERE " + whereClause;
+            }
+            case
+                    LateralJoinNode lateral -> {
+                // Filter on top of lateral join (unnest)
+                String innerSql = lateral.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS lat WHERE " + whereClause;
             }
         };
     }
@@ -152,6 +159,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = extend.accept(this);
                 String projections = formatProjections(project);
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS extend_result";
+            }
+            case LateralJoinNode lateral -> {
+                String innerSql = lateral.accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS lateral_result";
             }
         };
     }
@@ -213,6 +225,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case JoinNode nestedJoin -> {
                 String innerSql = nestedJoin.accept(this);
+                yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
+            }
+            case LateralJoinNode lateral -> {
+                String innerSql = lateral.accept(this);
                 yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
             }
             case FromNode from -> generateJoinSource(from.source(), defaultAlias);
@@ -323,7 +339,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         boolean allSimple = extend.projections().stream()
                 .allMatch(p -> p instanceof ExtendNode.SimpleProjection);
 
-        if (allSimple) {
+        // Force subquery wrapping if source is LateralJoinNode (UNNEST)
+        // because we can't reference UNNEST aliases in the same SELECT
+        boolean needsSubquery = extend.source() instanceof LateralJoinNode;
+
+        if (allSimple && !needsSubquery) {
             // Simple extends: inline the calculated column without subquery
             String sourceSql = extend.source().accept(this);
 
@@ -369,6 +389,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
             return "SELECT *" + extendCols + " FROM (" + sourceSql + ") AS window_src";
         }
+    }
+
+    @Override
+    public String visit(LateralJoinNode lateralJoin) {
+        // Generate SQL to flatten a JSON array column using UNNEST
+        // Since get() now returns JSON, we cast it to JSON[] for UNNEST
+        String sourceSql = lateralJoin.source().accept(this);
+        String arrayColSql = lateralJoin.arrayColumn().accept(this);
+        String outputCol = dialect.quoteIdentifier(lateralJoin.outputColumnName());
+
+        // DuckDB: UNNEST expects an array type, so we cast JSON to JSON[]
+        // Use SELECT * EXCLUDE to avoid duplicate column name (original array vs
+        // unnested)
+        return "SELECT * EXCLUDE(" + outputCol + "), UNNEST(CAST(" + arrayColSql + " AS JSON[])) AS " + outputCol +
+                " FROM (" + sourceSql + ") AS t";
     }
 
     /**
@@ -560,6 +595,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case LimitNode limit -> extractFilterCondition(limit.source());
             case FromNode from -> extractFilterCondition(from.source());
             case ExtendNode extend -> extractFilterCondition(extend.source());
+            case LateralJoinNode lateral -> extractFilterCondition(lateral.source());
         };
     }
 
@@ -585,6 +621,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case LimitNode limit -> extractTableNode(limit.source());
             case FromNode from -> extractTableNode(from.source());
             case ExtendNode extend -> extractTableNode(extend.source());
+            case LateralJoinNode lateral -> extractTableNode(lateral.source());
         };
     }
 
@@ -709,21 +746,50 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     throw new IllegalArgumentException("get() requires a key or index argument");
                 }
                 Expression arg = functionCall.arguments().getFirst();
+
+                // Check if there's a type argument (second argument)
+                // get('key') -> returns JSON using ->
+                // get('key', @Type) -> returns typed value using ->> + CAST
+                boolean hasTypeArg = functionCall.returnType() != SqlType.UNKNOWN;
+
                 if (arg instanceof Literal lit && lit.literalType() == Literal.LiteralType.INTEGER) {
+                    // Array index access - always returns JSON
                     yield dialect.getJsonDialect().variantGetIndex(target, ((Number) lit.value()).intValue());
                 } else if (arg instanceof Literal lit && lit.literalType() == Literal.LiteralType.STRING) {
-                    // Use JSON extraction if in list source context (for arrays), text extraction
-                    // otherwise
-                    if (inListSourceContext) {
-                        yield dialect.getJsonDialect().variantGetJson(target, (String) lit.value());
+                    String key = (String) lit.value();
+                    if (hasTypeArg) {
+                        // get('key', @Type) - extract as text and cast
+                        String textValue = dialect.getJsonDialect().variantGet(target, key);
+                        SqlType type = functionCall.returnType();
+                        String sqlType = switch (type) {
+                            case INTEGER -> "INTEGER";
+                            case DOUBLE -> "DOUBLE";
+                            case VARCHAR -> "VARCHAR";
+                            case BOOLEAN -> "BOOLEAN";
+                            default -> "VARCHAR";
+                        };
+                        yield "CAST(" + textValue + " AS " + sqlType + ")";
                     } else {
-                        yield dialect.getJsonDialect().variantGet(target, (String) lit.value());
+                        // get('key') - return JSON structure
+                        yield dialect.getJsonDialect().variantGetJson(target, key);
                     }
                 } else {
-                    // Dynamic key - fallback to string
+                    // Dynamic key - fallback to JSON extraction
                     String keyExpr = arg.accept(this);
-                    yield dialect.getJsonDialect().variantGet(target, keyExpr);
+                    yield dialect.getJsonDialect().variantGetJson(target, keyExpr);
                 }
+            }
+            case "cast" -> {
+                // Generate SQL CAST based on return type
+                SqlType type = functionCall.returnType();
+                String sqlType = switch (type) {
+                    case INTEGER -> "INTEGER";
+                    case DOUBLE -> "DOUBLE";
+                    case VARCHAR -> "VARCHAR";
+                    case BOOLEAN -> "BOOLEAN";
+                    default -> "VARCHAR"; // fallback
+                };
+                yield "CAST(" + target + " AS " + sqlType + ")";
             }
             default -> {
                 // Standard function call
@@ -899,26 +965,42 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 // For EXISTS, we don't need the projections, just the source with filter
                 yield generateExistsSubquery(project.source());
             }
-            case GroupByNode groupBy -> {
+            case
+
+                    GroupByNode groupBy -> {
                 // For EXISTS, we don't need aggregations, just the source
                 yield generateExistsSubquery(groupBy.source());
             }
-            case SortNode sort -> {
+            case
+
+                    SortNode sort -> {
                 // For EXISTS, sorting doesn't matter, just use the source
                 yield generateExistsSubquery(sort.source());
             }
-            case LimitNode limit -> {
+            case
+
+                    LimitNode limit -> {
                 // For EXISTS with limit, we need to preserve the limit
                 yield "SELECT 1 FROM (" + limit.accept(this) + ") AS exists_src";
             }
-            case FromNode from -> {
+            case
+                    FromNode from -> {
                 // For EXISTS, unwrap the from and process the source
                 yield generateExistsSubquery(from.source());
             }
-            case ExtendNode extend -> {
+            case
+
+                    ExtendNode extend -> {
                 // For EXISTS with window functions, just use the source
                 yield generateExistsSubquery(extend.source());
             }
+            case
+
+                    LateralJoinNode lateral -> {
+                // For EXISTS with lateral join, just use the source
+                yield generateExistsSubquery(lateral.source());
+            }
+
         };
     }
 
@@ -926,10 +1008,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visitCollectionCall(SqlCollectionCall call) {
-        // Use JSON extraction for list source (arrays need -> not ->>)
-        inListSourceContext = true;
+        // get() now returns JSON by default, so arrays work correctly
         String source = call.source().accept(this);
-        inListSourceContext = false;
 
         // Wrap JSON array source with CAST to JSON[] for DuckDB list functions
         String listSource = "CAST(" + source + " AS JSON[])";

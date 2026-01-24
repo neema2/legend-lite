@@ -193,6 +193,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "save" -> new SaveExpression(source);
             case "update" -> parseUpdateCall(source, args);
             case "delete" -> new DeleteExpression(source);
+            case "cast" -> parseCastCall(source, args);
+            case "flatten" -> parseFlattenCall(source, args);
             default -> new MethodCall(source, funcName, args);
         };
     }
@@ -1220,6 +1222,32 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new MethodCall(source, "update", args);
         }
         return new UpdateExpression(source, (LambdaExpression) args.get(0));
+    }
+
+    private PureExpression parseCastCall(PureExpression source, List<PureExpression> args) {
+        if (args.isEmpty()) {
+            throw new PureParseException("cast() requires a type argument like @Integer");
+        }
+        PureExpression arg = args.get(0);
+        if (!(arg instanceof TypeReference typeRef)) {
+            throw new PureParseException("cast() requires a type argument like @Integer, got: " + arg);
+        }
+        return new CastExpression(source, typeRef.typeName());
+    }
+
+    private PureExpression parseFlattenCall(PureExpression source, List<PureExpression> args) {
+        if (!(source instanceof RelationExpression relExpr)) {
+            throw new PureParseException(
+                    "flatten() requires a Relation source, got: " + source.getClass().getSimpleName());
+        }
+        if (args.isEmpty()) {
+            throw new PureParseException("flatten() requires a column reference like ~items");
+        }
+        PureExpression arg = args.get(0);
+        if (!(arg instanceof ColumnSpec colSpec)) {
+            throw new PureParseException("flatten() requires a column reference like ~items, got: " + arg);
+        }
+        return new FlattenExpression(relExpr, colSpec.name());
     }
 
     // ========================================
