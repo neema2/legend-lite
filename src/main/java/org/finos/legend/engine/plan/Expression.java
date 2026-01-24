@@ -14,7 +14,7 @@ package org.finos.legend.engine.plan;
 public sealed interface Expression
                 permits ColumnReference, Literal, ComparisonExpression, LogicalExpression, ExistsExpression,
                 ConcatExpression, SqlFunctionCall, CaseExpression, ArithmeticExpression, AggregateExpression,
-                JsonObjectExpression, SubqueryExpression, JsonArrayExpression {
+                JsonObjectExpression, SubqueryExpression, JsonArrayExpression, SqlCollectionCall {
 
         /**
          * Accept method for the expression visitor pattern.
@@ -24,4 +24,14 @@ public sealed interface Expression
          * @return The result of visiting this expression
          */
         <T> T accept(ExpressionVisitor<T> visitor);
+
+        /**
+         * Returns the SQL type of this expression.
+         * Used for type-aware SQL generation (e.g., CAST insertion).
+         * 
+         * @return The SQL type of this expression
+         */
+        default SqlType type() {
+                return SqlType.UNKNOWN;
+        }
 }

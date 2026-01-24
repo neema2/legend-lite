@@ -6,14 +6,13 @@ import java.util.Objects;
  * Represents a literal value in the logical plan.
  * Supports String, Integer, Boolean, and null values.
  * 
- * @param value The literal value (can be null)
- * @param type The type of the literal
+ * @param value       The literal value (can be null)
+ * @param literalType The type of the literal
  */
 public record Literal(
         Object value,
-        LiteralType type
-) implements Expression {
-    
+        LiteralType literalType) implements Expression {
+
     public enum LiteralType {
         STRING,
         INTEGER,
@@ -21,13 +20,13 @@ public record Literal(
         DOUBLE,
         NULL
     }
-    
+
     public Literal {
-        Objects.requireNonNull(type, "Literal type cannot be null");
-        
+        Objects.requireNonNull(literalType, "Literal type cannot be null");
+
         // Validate type matches value
         if (value != null) {
-            switch (type) {
+            switch (literalType) {
                 case STRING -> {
                     if (!(value instanceof String)) {
                         throw new IllegalArgumentException("STRING literal must have String value");
@@ -56,38 +55,49 @@ public record Literal(
             }
         }
     }
-    
+
     public static Literal string(String value) {
         return new Literal(value, LiteralType.STRING);
     }
-    
+
     public static Literal integer(int value) {
         return new Literal(value, LiteralType.INTEGER);
     }
-    
+
     public static Literal integer(long value) {
         return new Literal(value, LiteralType.INTEGER);
     }
-    
+
     public static Literal bool(boolean value) {
         return new Literal(value, LiteralType.BOOLEAN);
     }
-    
+
     public static Literal nullValue() {
         return new Literal(null, LiteralType.NULL);
     }
-    
+
     @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitLiteral(this);
     }
-    
+
+    @Override
+    public SqlType type() {
+        return switch (literalType) {
+            case STRING -> SqlType.VARCHAR;
+            case INTEGER -> SqlType.INTEGER;
+            case BOOLEAN -> SqlType.BOOLEAN;
+            case DOUBLE -> SqlType.DOUBLE;
+            case NULL -> SqlType.UNKNOWN;
+        };
+    }
+
     @Override
     public String toString() {
-        if (type == LiteralType.NULL) {
+        if (literalType == LiteralType.NULL) {
             return "NULL";
         }
-        if (type == LiteralType.STRING) {
+        if (literalType == LiteralType.STRING) {
             return "'" + value + "'";
         }
         return String.valueOf(value);

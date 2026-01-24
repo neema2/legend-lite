@@ -37,7 +37,16 @@ public final class DuckDbJsonDialect implements JsonSqlDialect {
     @Override
     public String variantGet(String expr, String key) {
         // DuckDB uses ->> operator for text extraction
-        return "(" + expr + ")->>" + "'" + key + "'";
+        // Outer parens needed for lambda binding compatibility (item->>'price' fails,
+        // but (item->>'price') works)
+        return "((" + expr + ")->>" + "'" + key + "')";
+    }
+
+    @Override
+    public String variantGetJson(String expr, String key) {
+        // DuckDB uses -> operator for JSON structure extraction (preserves
+        // arrays/objects)
+        return "(" + expr + ")->" + "'" + key + "'";
     }
 
     @Override

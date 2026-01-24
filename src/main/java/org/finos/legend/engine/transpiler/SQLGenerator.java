@@ -16,6 +16,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     private final SQLDialect dialect;
 
+    // Track lambda parameters to avoid quoting them in SQL generation
+    private final java.util.Set<String> lambdaParams = new java.util.HashSet<>();
+
+    // Track when we're generating the source of a list function (needs JSON
+    // extraction, not text)
+    private boolean inListSourceContext = false;
+
     public SQLGenerator(SQLDialect dialect) {
         this.dialect = Objects.requireNonNull(dialect, "Dialect cannot be null");
     }
@@ -618,6 +625,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visitColumnReference(ColumnReference columnRef) {
+        // Lambda parameters should NOT be quoted in DuckDB
+        if (lambdaParams.contains(columnRef.columnName())) {
+            return columnRef.columnName();
+        }
         if (columnRef.tableAlias().isEmpty()) {
             return dialect.quoteIdentifier(columnRef.columnName());
         }
@@ -627,7 +638,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visitLiteral(Literal literal) {
-        return switch (literal.type()) {
+        return switch (literal.literalType()) {
             case STRING -> dialect.quoteStringLiteral((String) literal.value());
             case INTEGER -> String.valueOf(literal.value());
             case BOOLEAN -> dialect.formatBoolean((Boolean) literal.value());
@@ -698,10 +709,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     throw new IllegalArgumentException("get() requires a key or index argument");
                 }
                 Expression arg = functionCall.arguments().getFirst();
-                if (arg instanceof Literal lit && lit.type() == Literal.LiteralType.INTEGER) {
+                if (arg instanceof Literal lit && lit.literalType() == Literal.LiteralType.INTEGER) {
                     yield dialect.getJsonDialect().variantGetIndex(target, ((Number) lit.value()).intValue());
-                } else if (arg instanceof Literal lit && lit.type() == Literal.LiteralType.STRING) {
-                    yield dialect.getJsonDialect().variantGet(target, (String) lit.value());
+                } else if (arg instanceof Literal lit && lit.literalType() == Literal.LiteralType.STRING) {
+                    // Use JSON extraction if in list source context (for arrays), text extraction
+                    // otherwise
+                    if (inListSourceContext) {
+                        yield dialect.getJsonDialect().variantGetJson(target, (String) lit.value());
+                    } else {
+                        yield dialect.getJsonDialect().variantGet(target, (String) lit.value());
+                    }
                 } else {
                     // Dynamic key - fallback to string
                     String keyExpr = arg.accept(this);
@@ -754,9 +771,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visitArithmetic(ArithmeticExpression arithmetic) {
-        String left = arithmetic.left().accept(this);
-        String right = arithmetic.right().accept(this);
+        String left = wrapNumericCast(arithmetic.left());
+        String right = wrapNumericCast(arithmetic.right());
         return "(" + left + " " + arithmetic.sqlOperator() + " " + right + ")";
+    }
+
+    /**
+     * Wraps an expression with CAST(... AS DOUBLE) if it's not already numeric.
+     * This is needed for JSON-extracted values which come as VARCHAR or JSON.
+     */
+    private String wrapNumericCast(Expression expr) {
+        String sql = expr.accept(this);
+        if (expr.type().needsNumericCast()) {
+            return "CAST(" + sql + " AS DOUBLE)";
+        }
+        return sql;
     }
 
     @Override
@@ -890,6 +919,51 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 // For EXISTS with window functions, just use the source
                 yield generateExistsSubquery(extend.source());
             }
+        };
+    }
+
+    // ==================== Collection Function Support ====================
+
+    @Override
+    public String visitCollectionCall(SqlCollectionCall call) {
+        // Use JSON extraction for list source (arrays need -> not ->>)
+        inListSourceContext = true;
+        String source = call.source().accept(this);
+        inListSourceContext = false;
+
+        // Wrap JSON array source with CAST to JSON[] for DuckDB list functions
+        String listSource = "CAST(" + source + " AS JSON[])";
+
+        return switch (call.function()) {
+            case MAP -> {
+                String param = call.lambdaParam();
+                lambdaParams.add(param); // Register lambda param
+                String lambdaBody = call.lambdaBody().accept(this);
+                lambdaParams.remove(param); // Unregister after use
+                yield "list_transform(" + listSource + ", " + param + " -> " + lambdaBody + ")";
+            }
+            case FILTER -> {
+                String param = call.lambdaParam();
+                lambdaParams.add(param);
+                String lambdaBody = call.lambdaBody().accept(this);
+                lambdaParams.remove(param);
+                yield "list_filter(" + listSource + ", " + param + " -> " + lambdaBody + ")";
+            }
+            case FOLD -> {
+                String accParam = call.lambdaParam2(); // accumulator
+                String elemParam = call.lambdaParam(); // element
+                lambdaParams.add(accParam);
+                lambdaParams.add(elemParam);
+                String lambdaBody = call.lambdaBody().accept(this);
+                lambdaParams.remove(accParam);
+                lambdaParams.remove(elemParam);
+                String initVal = call.initialValue().accept(this);
+                // DuckDB list_reduce only takes 2 args: list_reduce(list, lambda)
+                // Use COALESCE to handle empty list with initial value fallback
+                yield "COALESCE(list_reduce(" + listSource + ", (" + accParam + ", " + elemParam + ") -> "
+                        + lambdaBody + "), " + initVal + ")";
+            }
+            case FLATTEN -> "flatten(" + listSource + ")";
         };
     }
 }

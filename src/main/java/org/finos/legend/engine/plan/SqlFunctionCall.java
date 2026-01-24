@@ -11,25 +11,37 @@ import java.util.Objects;
  * @param functionName The SQL function name (lowercase)
  * @param target       The primary expression the function operates on
  * @param arguments    Additional arguments (if any)
+ * @param returnType   The SQL type returned by this function
  */
 public record SqlFunctionCall(
         String functionName,
         Expression target,
-        List<Expression> arguments) implements Expression {
+        List<Expression> arguments,
+        SqlType returnType) implements Expression {
 
     public SqlFunctionCall {
         Objects.requireNonNull(functionName, "Function name cannot be null");
         Objects.requireNonNull(target, "Target cannot be null");
         Objects.requireNonNull(arguments, "Arguments cannot be null");
         arguments = List.copyOf(arguments);
+        if (returnType == null) {
+            returnType = SqlType.UNKNOWN;
+        }
     }
 
     /**
-     * Creates a function call with no additional arguments.
+     * Creates a function call with no additional arguments and unknown return type.
      * E.g., UPPER(column)
      */
     public static SqlFunctionCall of(String functionName, Expression target) {
-        return new SqlFunctionCall(functionName, target, List.of());
+        return new SqlFunctionCall(functionName, target, List.of(), SqlType.UNKNOWN);
+    }
+
+    /**
+     * Creates a function call with type specified.
+     */
+    public static SqlFunctionCall of(String functionName, Expression target, SqlType returnType) {
+        return new SqlFunctionCall(functionName, target, List.of(), returnType);
     }
 
     /**
@@ -37,7 +49,14 @@ public record SqlFunctionCall(
      * E.g., SUBSTRING(column, 1, 10)
      */
     public static SqlFunctionCall of(String functionName, Expression target, Expression... args) {
-        return new SqlFunctionCall(functionName, target, List.of(args));
+        return new SqlFunctionCall(functionName, target, List.of(args), SqlType.UNKNOWN);
+    }
+
+    /**
+     * Creates a function call with arguments and type.
+     */
+    public static SqlFunctionCall of(String functionName, Expression target, SqlType returnType, Expression... args) {
+        return new SqlFunctionCall(functionName, target, List.of(args), returnType);
     }
 
     /**
@@ -67,6 +86,11 @@ public record SqlFunctionCall(
     @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitFunctionCall(this);
+    }
+
+    @Override
+    public SqlType type() {
+        return returnType;
     }
 
     @Override

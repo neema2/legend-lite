@@ -9,50 +9,54 @@ import java.util.Objects;
  * 
  * Supports: +, -, *, /
  * 
- * @param left The left operand
+ * @param left     The left operand
  * @param operator The arithmetic operator
- * @param right The right operand
+ * @param right    The right operand
  */
 public record ArithmeticExpression(
         Expression left,
         BinaryArithmeticExpr.Operator operator,
-        Expression right
-) implements Expression {
-    
+        Expression right) implements Expression {
+
     public ArithmeticExpression {
         Objects.requireNonNull(left, "Left operand cannot be null");
         Objects.requireNonNull(operator, "Operator cannot be null");
         Objects.requireNonNull(right, "Right operand cannot be null");
     }
-    
+
     public static ArithmeticExpression add(Expression left, Expression right) {
         return new ArithmeticExpression(left, BinaryArithmeticExpr.Operator.ADD, right);
     }
-    
+
     public static ArithmeticExpression subtract(Expression left, Expression right) {
         return new ArithmeticExpression(left, BinaryArithmeticExpr.Operator.SUBTRACT, right);
     }
-    
+
     public static ArithmeticExpression multiply(Expression left, Expression right) {
         return new ArithmeticExpression(left, BinaryArithmeticExpr.Operator.MULTIPLY, right);
     }
-    
+
     public static ArithmeticExpression divide(Expression left, Expression right) {
         return new ArithmeticExpression(left, BinaryArithmeticExpr.Operator.DIVIDE, right);
     }
-    
+
     /**
      * @return The SQL operator symbol
      */
     public String sqlOperator() {
         return operator.symbol();
     }
-    
+
     @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitArithmetic(this);
     }
-    
+
+    @Override
+    public SqlType type() {
+        return SqlType.DOUBLE;
+    }
+
     @Override
     public String toString() {
         return "(" + left + " " + operator.symbol() + " " + right + ")";

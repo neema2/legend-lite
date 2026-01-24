@@ -71,4 +71,9 @@ public interface ExpressionVisitor<T> {
      * Visit a JSON array aggregation expression (for 1-to-many deep fetch).
      */
     T visit(JsonArrayExpression jsonArray);
+
+    /**
+     * Visit a collection function call (map, filter, fold, flatten).
+     */
+    T visitCollectionCall(SqlCollectionCall collectionCall);
 }

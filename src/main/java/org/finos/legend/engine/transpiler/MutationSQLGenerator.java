@@ -84,14 +84,14 @@ public class MutationSQLGenerator implements MutationNodeVisitor<String> {
     }
 
     private String literalToSql(Literal lit) {
-        if (lit.type() == Literal.LiteralType.NULL) {
+        if (lit.literalType() == Literal.LiteralType.NULL) {
             return "NULL";
         }
-        if (lit.type() == Literal.LiteralType.STRING) {
+        if (lit.literalType() == Literal.LiteralType.STRING) {
             String s = (String) lit.value();
             return "'" + s.replace("'", "''") + "'";
         }
-        if (lit.type() == Literal.LiteralType.BOOLEAN) {
+        if (lit.literalType() == Literal.LiteralType.BOOLEAN) {
             return lit.value().toString().toUpperCase();
         }
         return lit.value().toString();

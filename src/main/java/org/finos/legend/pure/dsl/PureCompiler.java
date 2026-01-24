@@ -1548,17 +1548,40 @@ public final class PureCompiler {
             case LiteralExpr literal -> compileLiteral(literal);
             case BinaryExpression binary -> compileBinaryExpression(binary, context);
             case MethodCall methodCall -> compileMethodCall(methodCall, context);
-            case VariableExpr var ->
+            case VariableExpr var -> {
+                // Check if this is a lambda parameter (e.g., `i` in map(i | $i->get('price')))
+                if (context.lambdaParameters() != null && context.isLambdaParameter(var.name())) {
+                    // Lambda parameters become unqualified column references
+                    yield ColumnReference.of(var.name());
+                }
                 throw new PureCompileException("Unexpected variable in expression context: " + var);
+            }
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
         };
     }
 
     /**
-     * Compiles a MethodCall (like ->get(), ->fromJson(), ->toJson()) to a SQL
+     * Compiles a MethodCall (like ->get(), ->fromJson(), ->toJson(), ->map(),
+     * ->fold()) to a SQL
      * function call.
      */
     private Expression compileMethodCall(MethodCall methodCall, CompilationContext context) {
+        String methodName = methodCall.methodName();
+
+        // Handle collection functions that take lambdas
+        return switch (methodName) {
+            case "map" -> compileMapCall(methodCall, context);
+            case "filter" -> compileFilterCollectionCall(methodCall, context);
+            case "fold" -> compileFoldCall(methodCall, context);
+            case "flatten" -> compileFlattenCall(methodCall, context);
+            default -> compileSimpleMethodCall(methodCall, context);
+        };
+    }
+
+    /**
+     * Compiles a simple method call (get, fromJson, toJson, etc.)
+     */
+    private Expression compileSimpleMethodCall(MethodCall methodCall, CompilationContext context) {
         // Compile the source expression (e.g., $_.PAYLOAD)
         Expression source = compileToSqlExpression(methodCall.source(), context);
 
@@ -1569,7 +1592,84 @@ public final class PureCompiler {
         }
 
         // Return SqlFunctionCall which will be handled by SQLGenerator
-        return new SqlFunctionCall(methodCall.methodName(), source, additionalArgs);
+        return new SqlFunctionCall(methodCall.methodName(), source, additionalArgs, SqlType.UNKNOWN);
+    }
+
+    /**
+     * Compiles map(x | expr) to list_transform(arr, lambda x: expr)
+     */
+    private Expression compileMapCall(MethodCall methodCall, CompilationContext context) {
+        Expression source = compileToSqlExpression(methodCall.source(), context);
+
+        if (methodCall.arguments().isEmpty() || !(methodCall.arguments().get(0) instanceof LambdaExpression lambda)) {
+            throw new PureCompileException("map() requires a lambda argument");
+        }
+
+        // Compile lambda body with the lambda parameter in context
+        String lambdaParam = lambda.parameter();
+        CompilationContext newContext = context.withLambdaParameter(lambdaParam, "");
+        Expression lambdaBody = compileToSqlExpression(lambda.body(), newContext);
+
+        return SqlCollectionCall.map(source, lambdaParam, lambdaBody);
+    }
+
+    /**
+     * Compiles filter(x | condition) on collections to list_filter
+     */
+    private Expression compileFilterCollectionCall(MethodCall methodCall, CompilationContext context) {
+        Expression source = compileToSqlExpression(methodCall.source(), context);
+
+        if (methodCall.arguments().isEmpty() || !(methodCall.arguments().get(0) instanceof LambdaExpression lambda)) {
+            throw new PureCompileException("filter() on collection requires a lambda argument");
+        }
+
+        String lambdaParam = lambda.parameter();
+        Expression lambdaBody = compileToSqlExpression(lambda.body(),
+                context.withLambdaParameter(lambdaParam, ""));
+
+        return SqlCollectionCall.filter(source, lambdaParam, lambdaBody);
+    }
+
+    /**
+     * Compiles fold({acc, x | expr}, init) to list_reduce(arr, lambda acc, x: expr,
+     * init)
+     */
+    private Expression compileFoldCall(MethodCall methodCall, CompilationContext context) {
+        Expression source = compileToSqlExpression(methodCall.source(), context);
+
+        if (methodCall.arguments().size() < 2) {
+            throw new PureCompileException("fold() requires lambda and initial value arguments");
+        }
+
+        PureExpression lambdaArg = methodCall.arguments().get(0);
+        if (!(lambdaArg instanceof LambdaExpression lambda)) {
+            throw new PureCompileException("fold() first argument must be a lambda");
+        }
+
+        // Fold lambda has two parameters: accumulator and current element
+        // Parse as "{acc, x | expr}" format
+        String lambdaParams = lambda.parameter(); // This contains "acc, x" format
+        String[] params = lambdaParams.split(",");
+        if (params.length < 2) {
+            throw new PureCompileException("fold() lambda requires two parameters (accumulator, element)");
+        }
+        String accParam = params[0].trim();
+        String elemParam = params[1].trim();
+
+        Expression lambdaBody = compileToSqlExpression(lambda.body(),
+                context.withFoldParameters(accParam, elemParam));
+
+        Expression initialValue = compileToSqlExpression(methodCall.arguments().get(1), context);
+
+        return SqlCollectionCall.fold(source, accParam, elemParam, lambdaBody, initialValue);
+    }
+
+    /**
+     * Compiles flatten() to flatten(arr)
+     */
+    private Expression compileFlattenCall(MethodCall methodCall, CompilationContext context) {
+        Expression source = compileToSqlExpression(methodCall.source(), context);
+        return SqlCollectionCall.flatten(source);
     }
 
     private Expression compileBinaryExpression(BinaryExpression binary, CompilationContext context) {
@@ -1885,12 +1985,45 @@ public final class PureCompiler {
             String tableAlias,
             RelationalMapping mapping,
             String className,
-            boolean inFilterContext) {
+            boolean inFilterContext,
+            java.util.Map<String, String> lambdaParameters) {
+
+        public CompilationContext(String lambdaParameter, String tableAlias,
+                RelationalMapping mapping, String className, boolean inFilterContext) {
+            this(lambdaParameter, tableAlias, mapping, className, inFilterContext, new java.util.HashMap<>());
+        }
+
         /**
          * Legacy constructor for backwards compatibility.
          */
         public CompilationContext(String lambdaParameter, String tableAlias, RelationalMapping mapping) {
-            this(lambdaParameter, tableAlias, mapping, mapping.pureClass().name(), false);
+            this(lambdaParameter, tableAlias, mapping, mapping.pureClass().name(), false, new java.util.HashMap<>());
+        }
+
+        /**
+         * Creates a new context with a lambda parameter (for map/filter).
+         */
+        public CompilationContext withLambdaParameter(String paramName, String alias) {
+            var newParams = new java.util.HashMap<>(lambdaParameters);
+            newParams.put(paramName, alias);
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className, inFilterContext, newParams);
+        }
+
+        /**
+         * Creates a new context with fold parameters (accumulator and element).
+         */
+        public CompilationContext withFoldParameters(String accParam, String elemParam) {
+            var newParams = new java.util.HashMap<>(lambdaParameters);
+            newParams.put(accParam, "");
+            newParams.put(elemParam, "");
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className, inFilterContext, newParams);
+        }
+
+        /**
+         * Checks if a variable name is a lambda parameter.
+         */
+        public boolean isLambdaParameter(String name) {
+            return lambdaParameters.containsKey(name);
         }
     }
 

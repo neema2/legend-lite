@@ -80,6 +80,13 @@ public interface JsonSqlDialect {
     String variantGet(String expr, String key);
 
     /**
+     * Extracts a JSON value (preserving structure) from a JSON object by key.
+     * Used for arrays/objects that need to be processed by list functions.
+     * Example: expr->'key' or json_extract(expr, '$.key')
+     */
+    String variantGetJson(String expr, String key);
+
+    /**
      * Extracts a value from a JSON array by index.
      * Example: expr[0] or json_extract(expr, '$[0]')
      */

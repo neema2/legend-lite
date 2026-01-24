@@ -669,25 +669,41 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (ctx.lambdaFunction() != null) {
             return visit(ctx.lambdaFunction());
         }
-        if (ctx.lambdaPipe() != null) {
-            // |expr - lambda with no params
-            PureExpression body = visitLambdaBody(ctx.lambdaPipe());
-            return new LambdaExpression("_", body);
-        }
+        // IMPORTANT: Check lambdaParam BEFORE lambdaPipe!
+        // The grammar is: anyLambda : lambdaPipe | lambdaFunction | lambdaParam
+        // lambdaPipe
+        // When matching "x | expr", BOTH lambdaParam() and lambdaPipe() are non-null
+        // We must check lambdaParam first to correctly capture the parameter name
         if (ctx.lambdaParam() != null) {
             // x|expr - lambda with single param
             String param = getIdentifierText(ctx.lambdaParam().identifier());
             PureExpression body = visitLambdaBody(ctx.lambdaPipe());
             return new LambdaExpression(param, body);
         }
+        if (ctx.lambdaPipe() != null) {
+            // |expr - lambda with no params (use default "_")
+            PureExpression body = visitLambdaBody(ctx.lambdaPipe());
+            return new LambdaExpression("_", body);
+        }
         throw new PureParseException("Unknown lambda: " + ctx.getText());
     }
 
     @Override
     public PureExpression visitLambdaFunction(PureParser.LambdaFunctionContext ctx) {
-        // {x, y | body} - take first param (multi-param lambdas less common)
+        // {x, y | body} - capture ALL params as comma-separated string for fold()
+        // support
         List<PureParser.LambdaParamContext> params = ctx.lambdaParam();
-        String param = params.isEmpty() ? "_" : getIdentifierText(params.get(0).identifier());
+        String param;
+        if (params.isEmpty()) {
+            param = "_";
+        } else if (params.size() == 1) {
+            param = getIdentifierText(params.get(0).identifier());
+        } else {
+            // Multiple parameters - join as comma-separated for fold() lambda
+            param = params.stream()
+                    .map(p -> getIdentifierText(p.identifier()))
+                    .collect(java.util.stream.Collectors.joining(", "));
+        }
         PureExpression body = visitLambdaBody(ctx.lambdaPipe());
         return new LambdaExpression(param, body);
     }
