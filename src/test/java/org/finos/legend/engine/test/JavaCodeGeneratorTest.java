@@ -289,17 +289,17 @@ class JavaCodeGeneratorTest {
     @Test
     @DisplayName("Generate Java record with validate() method for constraints")
     void testGenerateRecordWithConstraints() {
-        // GIVEN: A Pure Class with constraints
+        // GIVEN: A Pure Class with constraints (constraints come BEFORE class body)
         String pureClass = """
                 Class model::Person
-                {
-                    firstName: String[1];
-                    age: Integer[1];
-                }
                 [
                     validAge: $this.age >= 0,
                     nameNotEmpty: $this.firstName->length() > 0
                 ]
+                {
+                    firstName: String[1];
+                    age: Integer[1];
+                }
                 """;
         ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
 

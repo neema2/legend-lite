@@ -46,13 +46,94 @@ public final class PureDefinitionParser {
             if (remaining.isEmpty())
                 break;
 
-            if (remaining.startsWith("Class ") || remaining.startsWith("<<")) {
-                // Both regular classes and annotated classes (<<profile.stereotype>> Class ...)
-                var result = parseClass(remaining, lineOffset);
-                definitions.add(result.definition);
+            if (remaining.startsWith("Class ")) {
+                // Use ANTLR to parse Class definitions
+                // Find the end of the Class definition (matching closing brace for class body)
+                // Skip past: Class <<stereotypes>> {taggedValues} name extends Parents
+                // [constraints] { body }
+                // We need to find the LAST brace pair which is the class body
+
+                // Strategy: find the class name (identifier after stereotypes/tagged values),
+                // then find the { that follows it
+                int pos = 5; // Skip "Class"
+
+                // Skip whitespace
+                while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
+                    pos++;
+
+                // Skip stereotypes <<...>>
+                while (pos < remaining.length() && remaining.charAt(pos) == '<' && pos + 1 < remaining.length()
+                        && remaining.charAt(pos + 1) == '<') {
+                    int closePos = remaining.indexOf(">>", pos);
+                    if (closePos < 0)
+                        break;
+                    pos = closePos + 2;
+                    while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
+                        pos++;
+                }
+
+                // Skip tagged values {...}
+                if (pos < remaining.length() && remaining.charAt(pos) == '{') {
+                    int closePos = findMatchingBrace(remaining, pos);
+                    pos = closePos + 1;
+                    while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
+                        pos++;
+                }
+
+                // Now we're at the class name - skip it
+                while (pos < remaining.length() && (Character.isLetterOrDigit(remaining.charAt(pos))
+                        || remaining.charAt(pos) == ':' || remaining.charAt(pos) == '_'))
+                    pos++;
+                while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
+                    pos++;
+
+                // Skip extends clause if present: extends ParentClass, OtherParent
+                if (pos + 7 < remaining.length() && remaining.substring(pos, pos + 7).equals("extends")) {
+                    pos += 7;
+                    while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
+                        pos++;
+                    // Skip comma-separated list of parent class names
+                    while (pos < remaining.length()) {
+                        // Skip class name
+                        while (pos < remaining.length() && (Character.isLetterOrDigit(remaining.charAt(pos))
+                                || remaining.charAt(pos) == ':' || remaining.charAt(pos) == '_'))
+                            pos++;
+                        while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
+                            pos++;
+                        // Continue if comma
+                        if (pos < remaining.length() && remaining.charAt(pos) == ',') {
+                            pos++;
+                            while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
+                                pos++;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                // Skip constraints [...] if present
+                if (pos < remaining.length() && remaining.charAt(pos) == '[') {
+                    int closePos = findMatchingBracket(remaining, pos);
+                    pos = closePos + 1;
+                    while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
+                        pos++;
+                }
+
+                // Now we should be at the class body brace
+                if (pos >= remaining.length() || remaining.charAt(pos) != '{') {
+                    throw new PureParseException("Invalid Class definition - missing class body");
+                }
+
+                int braceEnd = findMatchingBrace(remaining, pos);
+                String classSource = remaining.substring(0, braceEnd + 1);
+
+                // Parse using ANTLR with line offset for accurate error reporting
+                ClassDefinition classDef = parseClassDefinition(classSource, lineOffset);
+                definitions.add(classDef);
+
                 // Calculate new line offset by counting newlines consumed
-                lineOffset += countNewlines(remaining.substring(0, remaining.length() - result.remaining.length()));
-                remaining = result.remaining;
+                lineOffset += countNewlines(classSource);
+                remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("Database ")) {
                 var result = parseDatabase(remaining);
                 definitions.add(result.definition);
@@ -191,11 +272,33 @@ public final class PureDefinitionParser {
     }
 
     /**
-     * Parses a single Class definition.
+     * Parses a single Class definition using ANTLR.
      */
     public static ClassDefinition parseClassDefinition(String pureSource) {
-        var result = parseClass(pureSource.trim());
-        return result.definition;
+        return parseClassDefinition(pureSource, 0);
+    }
+
+    /**
+     * Parses a single Class definition using ANTLR with line offset.
+     * Line offset is added to ANTLR-reported line numbers for accurate error
+     * location.
+     */
+    public static ClassDefinition parseClassDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstClassDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No class definition found in source"));
+        } catch (PureParseException e) {
+            if (lineOffset > 0 && e.hasLocation()) {
+                // Adjust line number for the offset within the original source
+                throw new PureParseException(
+                        e.getMessage().replace("line " + e.getLine(), "line " + (e.getLine() + lineOffset)),
+                        e.getLine() + lineOffset, e.getColumn());
+            }
+            throw e;
+        }
     }
 
     /**

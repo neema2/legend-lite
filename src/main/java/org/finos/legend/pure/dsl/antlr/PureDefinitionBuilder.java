@@ -7,6 +7,9 @@ import org.finos.legend.pure.dsl.definition.ClassDefinition.PropertyDefinition;
 import org.finos.legend.pure.dsl.definition.StereotypeApplication;
 import org.finos.legend.pure.dsl.definition.TaggedValue;
 
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.misc.Interval;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -188,9 +191,9 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
                 }
             }
 
-            // Get expression from codeBlock
+            // Get expression from codeBlock - preserve original whitespace
             if (ctx.qualifiedPropertyBody().codeBlock() != null) {
-                expression = ctx.qualifiedPropertyBody().codeBlock().getText();
+                expression = getOriginalText(ctx.qualifiedPropertyBody().codeBlock());
             }
         }
 
@@ -293,13 +296,26 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
             name = ctx.simpleConstraint().constraintId().identifier().getText();
         }
 
-        // Get constraint expression
+        // Get constraint expression - preserve original whitespace
         String expression = "";
         if (ctx.simpleConstraint() != null && ctx.simpleConstraint().combinedExpression() != null) {
-            expression = ctx.simpleConstraint().combinedExpression().getText();
+            expression = getOriginalText(ctx.simpleConstraint().combinedExpression());
         }
 
         return new ConstraintDefinition(name, expression);
+    }
+
+    /**
+     * Gets the original text from a parse context, preserving whitespace.
+     * Uses the input stream to get the exact text as written.
+     */
+    private static String getOriginalText(ParserRuleContext ctx) {
+        if (ctx == null || ctx.start == null || ctx.stop == null) {
+            return "";
+        }
+        // Get the original text from the character stream
+        return ctx.start.getInputStream().getText(
+                Interval.of(ctx.start.getStartIndex(), ctx.stop.getStopIndex()));
     }
 
     /**

@@ -53,8 +53,7 @@ public class ProfileParserTest {
     @DisplayName("Parse Class with stereotype annotation")
     void testParseClassWithStereotype() {
         String pure = """
-                <<doc::Documentation.legacy>>
-                Class model::Person {
+                Class <<doc::Documentation.legacy>> model::Person {
                     name: String[1];
                 }
                 """;
@@ -72,9 +71,7 @@ public class ProfileParserTest {
     @DisplayName("Parse Class with multiple stereotypes")
     void testParseClassWithMultipleStereotypes() {
         String pure = """
-                <<doc::Documentation.deprecated>>
-                <<meta::Validation.required>>
-                Class model::Order {
+                Class <<doc::Documentation.deprecated, meta::Validation.required>> model::Order {
                     id: Integer[1];
                 }
                 """;
@@ -91,8 +88,7 @@ public class ProfileParserTest {
     @DisplayName("Parse Class with tagged value")
     void testParseClassWithTaggedValue() {
         String pure = """
-                <<doc::Documentation.author: 'John Smith'>>
-                Class model::Customer {
+                Class {doc::Documentation.author = 'John Smith'} model::Customer {
                     email: String[1];
                 }
                 """;
@@ -110,10 +106,7 @@ public class ProfileParserTest {
     @DisplayName("Parse Class with both stereotypes and tagged values")
     void testParseClassWithStereotypesAndTaggedValues() {
         String pure = """
-                <<doc::Documentation.deprecated>>
-                <<doc::Documentation.author: 'Jane Doe'>>
-                <<doc::Documentation.since: '2024-01-01'>>
-                Class model::LegacyEntity {
+                Class <<doc::Documentation.deprecated>> {doc::Documentation.author = 'Jane Doe', doc::Documentation.since = '2024-01-01'} model::LegacyEntity {
                     code: String[1];
                 }
                 """;
@@ -156,9 +149,7 @@ public class ProfileParserTest {
                     tags: [author];
                 }
 
-                <<doc::Documentation.legacy>>
-                <<doc::Documentation.author: 'Team A'>>
-                Class model::Entity {
+                Class <<doc::Documentation.legacy>> {doc::Documentation.author = 'Team A'} model::Entity {
                     id: Integer[1];
                 }
                 """;

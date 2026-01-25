@@ -613,12 +613,15 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Parse let with variable reference in Pure query")
         void testLetInPureQuery() {
             // Let bindings in derived properties - variable should be usable
+            // Legend-engine codeBlock grammar: programLine (SEMI_COLON (programLine
+            // SEMI_COLON)*)?
+            // This means: expr1 OR expr1; expr2; (trailing semicolon needed)
             String source = """
                     Class model::Person
                     {
                         firstName: String[1];
                         lastName: String[1];
-                        greeting() {let name = $this.firstName; 'Hello, ' + $name}: String[1];
+                        greeting() {let name = $this.firstName; 'Hello, ' + $name;}: String[1];
                     }
                     """;
 

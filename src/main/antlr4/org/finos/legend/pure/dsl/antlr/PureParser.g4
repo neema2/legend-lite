@@ -40,6 +40,9 @@ identifier:                                     VALID_STRING | STRING
                                                 | AGGREGATION_TYPE_COMPOSITE | AGGREGATION_TYPE_SHARED | AGGREGATION_TYPE_NONE
                                                 // Mapping keywords
                                                 | MAPPING | INCLUDE | TESTS
+                                                // Mapping testable keywords (can be used as package names)
+                                                | MAPPING_TESTABLE_DOC | MAPPING_TESTABLE_DATA | MAPPING_TESTABLE_ASSERT
+                                                | MAPPING_TESTABLE_SUITES | MAPPING_TEST_ASSERTS | MAPPING_TESTS | MAPPING_TESTS_QUERY
                                                 // Runtime keywords
                                                 | RUNTIME | SINGLE_CONNECTION_RUNTIME | MAPPINGS | CONNECTIONS | CONNECTION | CONNECTIONSTORES
                                                 // Relational keywords

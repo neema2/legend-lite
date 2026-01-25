@@ -96,17 +96,18 @@ class PureParserTest {
     @Test
     @DisplayName("Parse Pure Class with constraints")
     void testParseClassWithConstraints() {
-        // GIVEN: A Pure Class definition with constraints
+        // GIVEN: A Pure Class definition with constraints (constraints come BEFORE
+        // class body)
         String pureClass = """
                 Class model::Person
-                {
-                    firstName: String[1];
-                    age: Integer[1];
-                }
                 [
                     validAge: $this.age >= 0,
                     nameNotEmpty: $this.firstName->length() > 0
                 ]
+                {
+                    firstName: String[1];
+                    age: Integer[1];
+                }
                 """;
 
         // WHEN: We parse it

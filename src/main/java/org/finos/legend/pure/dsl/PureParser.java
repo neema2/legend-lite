@@ -85,8 +85,8 @@ public final class PureParser {
         public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
                 int line, int charPositionInLine, String msg,
                 RecognitionException e) {
-            throw new PureParseException(
-                    "Parse error at line " + line + ":" + charPositionInLine + " - " + msg);
+            // Use 3-argument constructor to set line/column for IDE integration
+            throw new PureParseException(msg, line, charPositionInLine);
         }
     }
 }
