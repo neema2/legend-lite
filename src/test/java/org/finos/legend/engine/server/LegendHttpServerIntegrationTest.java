@@ -90,9 +90,16 @@ class LegendHttpServerIntegrationTest {
                 }
 
                 Runtime test::TestRuntime {
-                    mappings: [model::PersonMapping];
-                    connections: [
-                        TestDatabase: store::TestConnection
+                    mappings:
+                    [
+                        model::PersonMapping
+                    ];
+                    connections:
+                    [
+                        TestDatabase:
+                        [
+                            environment: store::TestConnection
+                        ]
                     ];
                 }
                 """;
@@ -361,8 +368,17 @@ class LegendHttpServerIntegrationTest {
                 }
 
                 Runtime test::EmpRuntime {
-                    mappings: [model::EmployeeMapping];
-                    connections: [EmployeeDB: store::EmpConnection];
+                    mappings:
+                    [
+                        model::EmployeeMapping
+                    ];
+                    connections:
+                    [
+                        EmployeeDB:
+                        [
+                            environment: store::EmpConnection
+                        ]
+                    ];
                 }
                 """;
 

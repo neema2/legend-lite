@@ -183,9 +183,17 @@ public final class PureDefinitionParser {
                 lineOffset += countNewlines(connectionSource);
                 remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("Runtime ")) {
-                var result = parseRuntimeDef(remaining);
-                definitions.add(result.definition);
-                remaining = result.remaining;
+                // Find the end of the definition
+                int braceStart = remaining.indexOf('{');
+                int braceEnd = findMatchingBrace(remaining, braceStart);
+                String runtimeSource = remaining.substring(0, braceEnd + 1);
+
+                // Parse using ANTLR with line offset for accurate error reporting
+                RuntimeDefinition runtimeDef = parseRuntimeDefinition(runtimeSource, lineOffset);
+                definitions.add(runtimeDef);
+
+                lineOffset += countNewlines(runtimeSource);
+                remaining = remaining.substring(braceEnd + 1);
             } else {
                 // Unknown definition - report error at current position with line offset
                 // lineOffset is 0-based (lines consumed), so add 1 for 1-based line number
@@ -391,11 +399,25 @@ public final class PureDefinitionParser {
     }
 
     /**
-     * Parses a single Runtime definition.
+     * Parses a single Runtime definition using ANTLR.
      */
     public static RuntimeDefinition parseRuntimeDefinition(String pureSource) {
-        var result = parseRuntimeDef(pureSource.trim());
-        return result.definition;
+        return parseRuntimeDefinition(pureSource, 0);
+    }
+
+    /**
+     * Parses a single Runtime definition using ANTLR with line offset.
+     */
+    public static RuntimeDefinition parseRuntimeDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstRuntimeDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No runtime definition found in source"));
+        } catch (PureParseException e) {
+            throw adjustErrorLineOffset(e, lineOffset);
+        }
     }
 
     /**
@@ -442,63 +464,6 @@ public final class PureDefinitionParser {
     public static MappingDefinition parseMappingDefinition(String pureSource) {
         var result = parseMapping(pureSource.trim());
         return result.definition;
-    }
-
-    // ==================== Runtime Parsing ====================
-
-    private static ParseResult<RuntimeDefinition> parseRuntimeDef(String source) {
-        // Pattern: Runtime qualified::name { mappings: [...]; connections: [...]; }
-        Pattern headerPattern = Pattern.compile("Runtime\\s+([\\w:]+)\\s*\\{");
-        Matcher headerMatcher = headerPattern.matcher(source);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Runtime definition: " +
-                    source.substring(0, Math.min(100, source.length())));
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
-
-        String body = source.substring(bodyStart, bodyEnd).trim();
-        String remaining = source.substring(bodyEnd + 1).trim();
-
-        // Parse mappings: [ mapping1, mapping2 ];
-        List<String> mappings = new ArrayList<>();
-        Pattern mappingsPattern = Pattern.compile("mappings:\\s*\\[([^\\]]*)]");
-        Matcher mappingsMatcher = mappingsPattern.matcher(body);
-        if (mappingsMatcher.find()) {
-            String mappingsStr = mappingsMatcher.group(1).trim();
-            if (!mappingsStr.isEmpty()) {
-                for (String mapping : mappingsStr.split(",")) {
-                    mappings.add(mapping.trim());
-                }
-            }
-        }
-
-        // Parse connections: [ store1: connection1, store2: connection2 ];
-        java.util.Map<String, String> connectionBindings = new java.util.HashMap<>();
-        Pattern connectionsPattern = Pattern.compile("connections:\\s*\\[([^\\]]*)]");
-        Matcher connectionsMatcher = connectionsPattern.matcher(body);
-        if (connectionsMatcher.find()) {
-            String connectionsStr = connectionsMatcher.group(1).trim();
-            if (!connectionsStr.isEmpty()) {
-                for (String binding : connectionsStr.split(",")) {
-                    // Use regex to match qualified names: "store::Name: conn::Name"
-                    // The pattern matches two qualified names separated by ": "
-                    binding = binding.trim();
-                    Pattern bindingPattern = Pattern.compile("([\\w:]+):\\s*([\\w:]+)$");
-                    Matcher bindingMatcher = bindingPattern.matcher(binding);
-                    if (bindingMatcher.find()) {
-                        connectionBindings.put(bindingMatcher.group(1).trim(), bindingMatcher.group(2).trim());
-                    }
-                }
-            }
-        }
-
-        return new ParseResult<>(
-                new RuntimeDefinition(qualifiedName, mappings, connectionBindings),
-                remaining);
     }
 
     /**

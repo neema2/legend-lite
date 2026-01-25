@@ -91,8 +91,17 @@ class InheritanceIntegrationTest {
 
                 Runtime test::TestRuntime
                 {
-                    mappings: [ model::EmployeeMapping ];
-                    connections: [ store::EmployeeDatabase: store::TestConnection ];
+                    mappings:
+                    [
+                        model::EmployeeMapping
+                    ];
+                    connections:
+                    [
+                        store::EmployeeDatabase:
+                        [
+                            environment: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 

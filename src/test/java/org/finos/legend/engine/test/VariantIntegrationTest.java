@@ -43,8 +43,16 @@ class VariantIntegrationTest {
     private static final String RUNTIME_DEFINITION = """
             Runtime test::TestRuntime
             {
-                mappings: [ ];
-                connections: [ store::EventDatabase: store::TestConnection ];
+                mappings:
+                [
+                ];
+                connections:
+                [
+                    store::EventDatabase:
+                    [
+                        environment: store::TestConnection
+                    ]
+                ];
             }
             """;
 
@@ -329,8 +337,17 @@ class VariantIntegrationTest {
                 }
 
                 Runtime test::TestRuntime {
-                    mappings: [ model::EventMapping ];
-                    connections: [ store::EventDatabase: store::TestConnection ];
+                    mappings:
+                    [
+                        model::EventMapping
+                    ];
+                    connections:
+                    [
+                        store::EventDatabase:
+                        [
+                            environment: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 

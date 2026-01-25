@@ -307,8 +307,17 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
 
                 Runtime test::TestRuntime
                 {
-                    mappings: [ model::AdultMap ];
-                    connections: [ store::AdultDb: store::TestConnection ];
+                    mappings:
+                    [
+                        model::AdultMap
+                    ];
+                    connections:
+                    [
+                        store::AdultDb:
+                        [
+                            environment: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 
@@ -349,8 +358,17 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
 
                 Runtime test::TestRuntime
                 {
-                    mappings: [ model::WorkerMap ];
-                    connections: [ store::WorkerDb: store::TestConnection ];
+                    mappings:
+                    [
+                        model::WorkerMap
+                    ];
+                    connections:
+                    [
+                        store::WorkerDb:
+                        [
+                            environment: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 

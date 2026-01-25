@@ -187,13 +187,23 @@ class ConnectionRuntimeParserTest {
     // ==================== Runtime Parsing Tests ====================
 
     @Test
-    @DisplayName("Parse Runtime with single mapping and connection")
+    @DisplayName("Parse Runtime with single mapping and connection (legend-engine syntax)")
     void testParseSimpleRuntime() {
+        // Exact legend-engine syntax from databricks::lakehouse example
         String source = """
                 Runtime my::MyRuntime
                 {
-                    mappings: [ my::MyMapping ];
-                    connections: [ store::PersonDb: store::InMemoryDuckDb ];
+                    mappings:
+                    [
+                        my::MyMapping
+                    ];
+                    connections:
+                    [
+                        store::PersonDb:
+                        [
+                            environment: store::InMemoryDuckDb
+                        ]
+                    ];
                 }
                 """;
 
@@ -213,8 +223,19 @@ class ConnectionRuntimeParserTest {
         String source = """
                 Runtime app::AppRuntime
                 {
-                    mappings: [ model::PersonMapping, model::OrderMapping, model::ProductMapping ];
-                    connections: [ store::MainDb: store::ProdConnection ];
+                    mappings:
+                    [
+                        model::PersonMapping,
+                        model::OrderMapping,
+                        model::ProductMapping
+                    ];
+                    connections:
+                    [
+                        store::MainDb:
+                        [
+                            environment: store::ProdConnection
+                        ]
+                    ];
                 }
                 """;
 
@@ -232,8 +253,21 @@ class ConnectionRuntimeParserTest {
         String source = """
                 Runtime multi::MultiStoreRuntime
                 {
-                    mappings: [ model::FederatedMapping ];
-                    connections: [ store::PersonDb: conn::PersonConn, store::OrderDb: conn::OrderConn ];
+                    mappings:
+                    [
+                        model::FederatedMapping
+                    ];
+                    connections:
+                    [
+                        store::PersonDb:
+                        [
+                            environment: conn::PersonConn
+                        ],
+                        store::OrderDb:
+                        [
+                            environment: conn::OrderConn
+                        ]
+                    ];
                 }
                 """;
 
@@ -263,8 +297,17 @@ class ConnectionRuntimeParserTest {
 
                 Runtime app::AppRuntime
                 {
-                    mappings: [ model::PersonMap ];
-                    connections: [ store::PersonDb: store::InMemoryDuckDb ];
+                    mappings:
+                    [
+                        model::PersonMap
+                    ];
+                    connections:
+                    [
+                        store::PersonDb:
+                        [
+                            environment: store::InMemoryDuckDb
+                        ]
+                    ];
                 }
                 """;
 

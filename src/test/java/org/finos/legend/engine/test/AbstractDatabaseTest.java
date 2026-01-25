@@ -149,8 +149,17 @@ public abstract class AbstractDatabaseTest {
         return """
                 Runtime test::TestRuntime
                 {
-                    mappings: [ model::PersonMapping ];
-                    connections: [ store::PersonDatabase: store::TestConnection ];
+                    mappings:
+                    [
+                        model::PersonMapping
+                    ];
+                    connections:
+                    [
+                        store::PersonDatabase:
+                        [
+                            environment: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
     }

@@ -60,9 +60,16 @@ class QueryServiceDirectTest {
                 }
 
                 Runtime test::TestRuntime {
-                    mappings: [model::PersonMapping];
-                    connections: [
-                        TestDatabase: store::TestConnection
+                    mappings:
+                    [
+                        model::PersonMapping
+                    ];
+                    connections:
+                    [
+                        TestDatabase:
+                        [
+                            environment: store::TestConnection
+                        ]
                     ];
                 }
                 """.replace("{{DB_PATH}}", dbPath);

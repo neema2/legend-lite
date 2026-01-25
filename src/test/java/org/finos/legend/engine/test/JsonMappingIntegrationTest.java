@@ -96,8 +96,17 @@ class JsonMappingIntegrationTest {
 
     private static final String RUNTIME = """
             Runtime test::TestRuntime {
-                mappings: [ model::OrderMapping ];
-                connections: [ store::OrderDB: store::TestConnection ];
+                mappings:
+                [
+                    model::OrderMapping
+                ];
+                connections:
+                [
+                    store::OrderDB:
+                    [
+                        environment: store::TestConnection
+                    ]
+                ];
             }
             """;
 

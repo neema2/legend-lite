@@ -1037,4 +1037,73 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
                 definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Runtime Parsing ====================
+
+    /**
+     * Visits a Runtime parse tree node and returns a RuntimeDefinition.
+     * 
+     * Grammar rule:
+     * runtime: RUNTIME qualifiedName BRACE_OPEN (runtimeMappings |
+     * runtimeConnections | connectionStoresList)* BRACE_CLOSE
+     */
+    public org.finos.legend.pure.dsl.definition.RuntimeDefinition visitRuntime(
+            PureParser.RuntimeContext ctx) {
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        List<String> mappings = new ArrayList<>();
+        java.util.Map<String, String> connectionBindings = new java.util.HashMap<>();
+
+        // Extract mappings
+        for (var mappingsCtx : ctx.runtimeMappings()) {
+            for (var qn : mappingsCtx.qualifiedName()) {
+                mappings.add(qn.getText());
+            }
+        }
+
+        // Extract connections - legend-engine format: connections: [ store: [ id:
+        // connRef ] ]
+        for (var connectionsCtx : ctx.runtimeConnections()) {
+            for (var storeConnsCtx : connectionsCtx.storeConnections()) {
+                String storeName = storeConnsCtx.qualifiedName().getText();
+                // Get the first identified connection for this store
+                for (var identConnCtx : storeConnsCtx.identifiedConnection()) {
+                    if (identConnCtx.packageableElementPointer() != null) {
+                        String connectionRef = identConnCtx.packageableElementPointer().qualifiedName().getText();
+                        connectionBindings.put(storeName, connectionRef);
+                        break; // Take first connection for simplified model
+                    }
+                }
+            }
+        }
+
+        return new org.finos.legend.pure.dsl.definition.RuntimeDefinition(
+                qualifiedName, mappings, connectionBindings);
+    }
+
+    /**
+     * Extracts all RuntimeDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.RuntimeDefinition> extractRuntimeDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.RuntimeDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.runtime() != null) {
+                result.add(builder.visitRuntime(elemCtx.runtime()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first RuntimeDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.RuntimeDefinition> extractFirstRuntimeDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.RuntimeDefinition> defs = extractRuntimeDefinitions(definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
 }
