@@ -1,4 +1,4 @@
-package org.finos.legend.engine.lsp;
+package org.finos.legend.engine.server;
 
 import org.junit.jupiter.api.Test;
 
@@ -8,32 +8,32 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for LspJson - zero-dependency JSON parser.
+ * Tests for LegendHttpJson - zero-dependency JSON parser.
  */
-class LspJsonTest {
+class LegendHttpJsonTest {
 
     // ========== Parsing Tests ==========
 
     @Test
     void testParseEmptyObject() {
-        Map<String, Object> result = LspJson.parseObject("{}");
+        Map<String, Object> result = LegendHttpJson.parseObject("{}");
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }
 
     @Test
     void testParseSimpleObject() {
-        Map<String, Object> result = LspJson.parseObject("{\"name\":\"test\",\"value\":42}");
+        Map<String, Object> result = LegendHttpJson.parseObject("{\"name\":\"test\",\"value\":42}");
         assertEquals("test", result.get("name"));
         assertEquals(42, ((Number) result.get("value")).intValue());
     }
 
     @Test
     void testParseNestedObject() {
-        Map<String, Object> result = LspJson.parseObject(
+        Map<String, Object> result = LegendHttpJson.parseObject(
                 "{\"outer\":{\"inner\":\"value\"}}");
 
-        Map<String, Object> outer = LspJson.getObject(result, "outer");
+        Map<String, Object> outer = LegendHttpJson.getObject(result, "outer");
         assertNotNull(outer);
         assertEquals("value", outer.get("inner"));
     }
@@ -41,9 +41,9 @@ class LspJsonTest {
     @Test
     void testParseArray() {
         String json = "{\"items\":[1,2,3]}";
-        Map<String, Object> result = LspJson.parseObject(json);
+        Map<String, Object> result = LegendHttpJson.parseObject(json);
 
-        List<Object> items = LspJson.getList(result, "items");
+        List<Object> items = LegendHttpJson.getList(result, "items");
         assertNotNull(items);
         assertEquals(3, items.size());
         assertEquals(1, ((Number) items.get(0)).intValue());
@@ -54,26 +54,26 @@ class LspJsonTest {
     @Test
     void testParseStringWithEscapes() {
         String json = "{\"text\":\"hello\\nworld\\t!\"}";
-        Map<String, Object> result = LspJson.parseObject(json);
+        Map<String, Object> result = LegendHttpJson.parseObject(json);
         assertEquals("hello\nworld\t!", result.get("text"));
     }
 
     @Test
     void testParseBooleans() {
-        Map<String, Object> result = LspJson.parseObject("{\"yes\":true,\"no\":false}");
+        Map<String, Object> result = LegendHttpJson.parseObject("{\"yes\":true,\"no\":false}");
         assertEquals(true, result.get("yes"));
         assertEquals(false, result.get("no"));
     }
 
     @Test
     void testParseNull() {
-        Map<String, Object> result = LspJson.parseObject("{\"nothing\":null}");
+        Map<String, Object> result = LegendHttpJson.parseObject("{\"nothing\":null}");
         assertNull(result.get("nothing"));
     }
 
     @Test
     void testParseFloats() {
-        Map<String, Object> result = LspJson.parseObject("{\"pi\":3.14159}");
+        Map<String, Object> result = LegendHttpJson.parseObject("{\"pi\":3.14159}");
         assertEquals(3.14159, (Double) result.get("pi"), 0.00001);
     }
 
@@ -82,7 +82,7 @@ class LspJsonTest {
     @Test
     void testSerializeSimpleObject() {
         Map<String, Object> data = Map.of("name", "test", "value", 42);
-        String json = LspJson.toJson(data);
+        String json = LegendHttpJson.toJson(data);
 
         assertTrue(json.contains("\"name\":\"test\""));
         assertTrue(json.contains("\"value\":42"));
@@ -91,7 +91,7 @@ class LspJsonTest {
     @Test
     void testSerializeStringEscaping() {
         Map<String, Object> data = Map.of("text", "line1\nline2\ttab");
-        String json = LspJson.toJson(data);
+        String json = LegendHttpJson.toJson(data);
 
         assertTrue(json.contains("\\n"));
         assertTrue(json.contains("\\t"));
@@ -101,7 +101,7 @@ class LspJsonTest {
     void testSerializeNull() {
         Map<String, Object> data = new java.util.HashMap<>();
         data.put("nothing", null);
-        String json = LspJson.toJson(data);
+        String json = LegendHttpJson.toJson(data);
 
         assertTrue(json.contains("\"nothing\":null"));
     }
@@ -109,9 +109,9 @@ class LspJsonTest {
     @Test
     void testRoundTrip() {
         String original = "{\"id\":1,\"name\":\"test\",\"active\":true}";
-        Map<String, Object> parsed = LspJson.parseObject(original);
-        String serialized = LspJson.toJson(parsed);
-        Map<String, Object> reparsed = LspJson.parseObject(serialized);
+        Map<String, Object> parsed = LegendHttpJson.parseObject(original);
+        String serialized = LegendHttpJson.toJson(parsed);
+        Map<String, Object> reparsed = LegendHttpJson.parseObject(serialized);
 
         assertEquals(parsed.get("id"), reparsed.get("id"));
         assertEquals(parsed.get("name"), reparsed.get("name"));
@@ -134,13 +134,13 @@ class LspJsonTest {
                 }
                 """;
 
-        Map<String, Object> result = LspJson.parseObject(request);
+        Map<String, Object> result = LegendHttpJson.parseObject(request);
 
         assertEquals("2.0", result.get("jsonrpc"));
         assertEquals(1, ((Number) result.get("id")).intValue());
         assertEquals("initialize", result.get("method"));
 
-        Map<String, Object> params = LspJson.getObject(result, "params");
+        Map<String, Object> params = LegendHttpJson.getObject(result, "params");
         assertNotNull(params);
         assertEquals(12345, ((Number) params.get("processId")).intValue());
         assertEquals("file:///workspace", params.get("rootUri"));
@@ -164,15 +164,15 @@ class LspJsonTest {
                 }
                 """;
 
-        Map<String, Object> result = LspJson.parseObject(notification);
+        Map<String, Object> result = LegendHttpJson.parseObject(notification);
 
         assertEquals("textDocument/didChange", result.get("method"));
 
-        Map<String, Object> params = LspJson.getObject(result, "params");
-        Map<String, Object> textDocument = LspJson.getObject(params, "textDocument");
+        Map<String, Object> params = LegendHttpJson.getObject(result, "params");
+        Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
         assertEquals("file:///test.pure", textDocument.get("uri"));
 
-        List<Object> changes = LspJson.getList(params, "contentChanges");
+        List<Object> changes = LegendHttpJson.getList(params, "contentChanges");
         assertEquals(1, changes.size());
     }
 }

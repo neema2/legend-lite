@@ -1,4 +1,4 @@
-package org.finos.legend.engine.lsp;
+package org.finos.legend.engine.server;
 
 import org.finos.legend.engine.store.MappingRegistry;
 import org.finos.legend.pure.dsl.PureCompiler;
@@ -35,14 +35,14 @@ public class PureLspServer {
      * @return Response JSON, or null for notifications
      */
     public String handleMessage(String messageJson) {
-        Map<String, Object> message = LspJson.parseObject(messageJson);
+        Map<String, Object> message = LegendHttpJson.parseObject(messageJson);
         if (message == null) {
             return errorResponse(null, -32700, "Parse error");
         }
 
-        String method = LspJson.getString(message, "method");
+        String method = LegendHttpJson.getString(message, "method");
         Object id = message.get("id");
-        Map<String, Object> params = LspJson.getObject(message, "params");
+        Map<String, Object> params = LegendHttpJson.getObject(message, "params");
 
         if (method == null) {
             return errorResponse(id, -32600, "Invalid Request: missing method");
@@ -104,12 +104,12 @@ public class PureLspServer {
      * Handle textDocument/didOpen notification.
      */
     private String handleDidOpen(Map<String, Object> params) {
-        Map<String, Object> textDocument = LspJson.getObject(params, "textDocument");
+        Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
         if (textDocument == null)
             return null;
 
-        String uri = LspJson.getString(textDocument, "uri");
-        String text = LspJson.getString(textDocument, "text");
+        String uri = LegendHttpJson.getString(textDocument, "uri");
+        String text = LegendHttpJson.getString(textDocument, "text");
 
         if (uri != null && text != null) {
             documents.put(uri, text);
@@ -123,18 +123,18 @@ public class PureLspServer {
      * Handle textDocument/didChange notification.
      */
     private String handleDidChange(Map<String, Object> params) {
-        Map<String, Object> textDocument = LspJson.getObject(params, "textDocument");
+        Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
         if (textDocument == null)
             return null;
 
-        String uri = LspJson.getString(textDocument, "uri");
-        List<Object> contentChanges = LspJson.getList(params, "contentChanges");
+        String uri = LegendHttpJson.getString(textDocument, "uri");
+        List<Object> contentChanges = LegendHttpJson.getList(params, "contentChanges");
 
         if (uri != null && contentChanges != null && !contentChanges.isEmpty()) {
             // With full sync, first change contains full text
             @SuppressWarnings("unchecked")
             Map<String, Object> change = (Map<String, Object>) contentChanges.get(0);
-            String text = LspJson.getString(change, "text");
+            String text = LegendHttpJson.getString(change, "text");
 
             if (text != null) {
                 documents.put(uri, text);
@@ -148,11 +148,11 @@ public class PureLspServer {
      * Handle textDocument/didClose notification.
      */
     private String handleDidClose(Map<String, Object> params) {
-        Map<String, Object> textDocument = LspJson.getObject(params, "textDocument");
+        Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
         if (textDocument == null)
             return null;
 
-        String uri = LspJson.getString(textDocument, "uri");
+        String uri = LegendHttpJson.getString(textDocument, "uri");
         if (uri != null) {
             documents.remove(uri);
             // Clear diagnostics
@@ -244,7 +244,7 @@ public class PureLspServer {
         notification.put("method", "textDocument/publishDiagnostics");
         notification.put("params", params);
 
-        return LspJson.toJson(notification);
+        return LegendHttpJson.toJson(notification);
     }
 
     // ========== JSON-RPC Response Helpers ==========
@@ -254,7 +254,7 @@ public class PureLspServer {
         response.put("jsonrpc", "2.0");
         response.put("id", id);
         response.put("result", result);
-        return LspJson.toJson(response);
+        return LegendHttpJson.toJson(response);
     }
 
     private String errorResponse(Object id, int code, String message) {
@@ -266,7 +266,7 @@ public class PureLspServer {
         response.put("jsonrpc", "2.0");
         response.put("id", id);
         response.put("error", error);
-        return LspJson.toJson(response);
+        return LegendHttpJson.toJson(response);
     }
 
     // ========== Document Access ==========
@@ -313,6 +313,6 @@ public class PureLspServer {
         result.put("sql", sql);
         result.put("plan", plan.toString());
 
-        return LspJson.toJson(result);
+        return LegendHttpJson.toJson(result);
     }
 }

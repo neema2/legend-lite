@@ -1,4 +1,4 @@
-package org.finos.legend.engine.lsp;
+package org.finos.legend.engine.server;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * - POST /lsp/execute - Execute Pure code (receives full model from frontend)
  * - GET /health - Health check
  */
-public class LspHttpAdapter {
+public class LegendHttpServer {
 
     private final HttpServer server;
     private final PureLspServer lspServer;
@@ -36,7 +36,7 @@ public class LspHttpAdapter {
             "Runtime\\s+([\\w:]+)\\s*\\{",
             Pattern.MULTILINE);
 
-    public LspHttpAdapter(int port) throws IOException, SQLException {
+    public LegendHttpServer(int port) throws IOException, SQLException {
         this.server = HttpServer.create(new InetSocketAddress(port), 0);
         this.lspServer = new PureLspServer();
         initializeDuckDb();
@@ -158,8 +158,8 @@ public class LspHttpAdapter {
 
             try {
                 String body = readBody(exchange);
-                Map<String, Object> request = LspJson.parseObject(body);
-                String fullSource = LspJson.getString(request, "code");
+                Map<String, Object> request = LegendHttpJson.parseObject(body);
+                String fullSource = LegendHttpJson.getString(request, "code");
 
                 if (fullSource == null || fullSource.isBlank()) {
                     sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");
@@ -201,14 +201,14 @@ public class LspHttpAdapter {
                 response.put("columns", result.columns().stream().map(c -> c.name()).toList());
                 response.put("rowCount", result.rows().size());
 
-                sendResponse(exchange, 200, LspJson.toJson(response));
+                sendResponse(exchange, 200, LegendHttpJson.toJson(response));
 
             } catch (Exception e) {
                 e.printStackTrace();
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", false);
                 response.put("error", e.getMessage());
-                sendResponse(exchange, 200, LspJson.toJson(response));
+                sendResponse(exchange, 200, LegendHttpJson.toJson(response));
             }
         }
     }
@@ -315,7 +315,7 @@ public class LspHttpAdapter {
     public void start() {
         server.setExecutor(null);
         server.start();
-        System.out.println("LSP HTTP server started on port " + server.getAddress().getPort());
+        System.out.println("Legend HTTP server started on port " + server.getAddress().getPort());
     }
 
     public void stop() {
@@ -343,7 +343,7 @@ public class LspHttpAdapter {
             }
         }
 
-        LspHttpAdapter adapter = new LspHttpAdapter(port);
+        LegendHttpServer adapter = new LegendHttpServer(port);
         adapter.start();
 
         System.out.println();

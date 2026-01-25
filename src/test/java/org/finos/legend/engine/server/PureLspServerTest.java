@@ -1,4 +1,4 @@
-package org.finos.legend.engine.lsp;
+package org.finos.legend.engine.server;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,14 +39,14 @@ class PureLspServerTest {
         String response = server.handleMessage(request);
         assertNotNull(response);
 
-        Map<String, Object> result = LspJson.parseObject(response);
+        Map<String, Object> result = LegendHttpJson.parseObject(response);
         assertEquals(1, ((Number) result.get("id")).intValue());
         assertNotNull(result.get("result"));
 
-        Map<String, Object> resultObj = LspJson.getObject(result, "result");
+        Map<String, Object> resultObj = LegendHttpJson.getObject(result, "result");
         assertNotNull(resultObj.get("capabilities"));
 
-        Map<String, Object> serverInfo = LspJson.getObject(resultObj, "serverInfo");
+        Map<String, Object> serverInfo = LegendHttpJson.getObject(resultObj, "serverInfo");
         assertEquals("legend-lite-lsp", serverInfo.get("name"));
     }
 
@@ -88,7 +88,7 @@ class PureLspServerTest {
 
         // Should return diagnostics notification
         assertNotNull(response);
-        Map<String, Object> result = LspJson.parseObject(response);
+        Map<String, Object> result = LegendHttpJson.parseObject(response);
         assertEquals("textDocument/publishDiagnostics", result.get("method"));
     }
 
@@ -112,11 +112,11 @@ class PureLspServerTest {
         String response = server.handleMessage(didOpen);
         assertNotNull(response);
 
-        Map<String, Object> result = LspJson.parseObject(response);
+        Map<String, Object> result = LegendHttpJson.parseObject(response);
         assertEquals("textDocument/publishDiagnostics", result.get("method"));
 
-        Map<String, Object> params = LspJson.getObject(result, "params");
-        List<Object> diagnostics = LspJson.getList(params, "diagnostics");
+        Map<String, Object> params = LegendHttpJson.getObject(result, "params");
+        List<Object> diagnostics = LegendHttpJson.getList(params, "diagnostics");
 
         // Should have at least one error
         assertFalse(diagnostics.isEmpty());
@@ -161,7 +161,7 @@ class PureLspServerTest {
         String response = server.handleMessage(didChange);
         assertNotNull(response);
 
-        Map<String, Object> result = LspJson.parseObject(response);
+        Map<String, Object> result = LegendHttpJson.parseObject(response);
         assertEquals("textDocument/publishDiagnostics", result.get("method"));
     }
 
@@ -219,10 +219,10 @@ class PureLspServerTest {
         String response = server.handleMessage(request);
         assertNotNull(response);
 
-        Map<String, Object> result = LspJson.parseObject(response);
+        Map<String, Object> result = LegendHttpJson.parseObject(response);
         assertEquals(99, ((Number) result.get("id")).intValue());
 
-        Map<String, Object> error = LspJson.getObject(result, "error");
+        Map<String, Object> error = LegendHttpJson.getObject(result, "error");
         assertNotNull(error);
         assertEquals(-32601, ((Number) error.get("code")).intValue()); // Method not found
     }
@@ -240,7 +240,7 @@ class PureLspServerTest {
         String response = server.handleMessage(request);
         assertNotNull(response);
 
-        Map<String, Object> result = LspJson.parseObject(response);
+        Map<String, Object> result = LegendHttpJson.parseObject(response);
         assertEquals(100, ((Number) result.get("id")).intValue());
         assertNull(result.get("error"));
     }

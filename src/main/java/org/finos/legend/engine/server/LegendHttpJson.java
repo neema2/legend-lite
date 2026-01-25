@@ -1,4 +1,4 @@
-package org.finos.legend.engine.lsp;
+package org.finos.legend.engine.server;
 
 import java.util.*;
 
@@ -10,9 +10,9 @@ import java.util.*;
  * 
  * Supports: objects, arrays, strings, numbers, booleans, null
  */
-public final class LspJson {
+public final class LegendHttpJson {
 
-    private LspJson() {
+    private LegendHttpJson() {
     }
 
     // ========== PARSING ==========
