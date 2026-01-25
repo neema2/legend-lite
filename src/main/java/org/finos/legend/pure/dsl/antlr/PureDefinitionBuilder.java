@@ -897,4 +897,144 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         List<org.finos.legend.pure.dsl.definition.ServiceDefinition> defs = extractServiceDefinitions(definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Connection Parsing ====================
+
+    /**
+     * Visits a RelationalDatabaseConnection parse tree node and returns a
+     * ConnectionDefinition.
+     * 
+     * Grammar rule:
+     * relationalDatabaseConnection: RELATIONAL_DATABASE_CONNECTION qualifiedName
+     * BRACE_OPEN (dbConnectionStore | dbConnectionType | dbConnectionSpec |
+     * dbConnectionAuth | ...)* BRACE_CLOSE
+     */
+    public org.finos.legend.pure.dsl.definition.ConnectionDefinition visitRelationalDatabaseConnection(
+            PureParser.RelationalDatabaseConnectionContext ctx) {
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        String storeName = null;
+        org.finos.legend.pure.dsl.definition.ConnectionDefinition.DatabaseType dbType = org.finos.legend.pure.dsl.definition.ConnectionDefinition.DatabaseType.DuckDB;
+        org.finos.legend.pure.dsl.definition.ConnectionSpecification specification = new org.finos.legend.pure.dsl.definition.ConnectionSpecification.InMemory();
+        org.finos.legend.pure.dsl.definition.AuthenticationSpec authentication = new org.finos.legend.pure.dsl.definition.AuthenticationSpec.NoAuth();
+
+        // Extract store
+        if (ctx.dbConnectionStore() != null && !ctx.dbConnectionStore().isEmpty()) {
+            storeName = ctx.dbConnectionStore().get(0).qualifiedName().getText();
+        }
+
+        // Extract type
+        if (ctx.dbConnectionType() != null && !ctx.dbConnectionType().isEmpty()) {
+            String typeStr = ctx.dbConnectionType().get(0).identifier().getText();
+            try {
+                dbType = org.finos.legend.pure.dsl.definition.ConnectionDefinition.DatabaseType.valueOf(typeStr);
+            } catch (IllegalArgumentException e) {
+                // Unknown type - keep default DuckDB
+            }
+        }
+
+        // Extract specification
+        if (ctx.dbConnectionSpec() != null && !ctx.dbConnectionSpec().isEmpty()) {
+            var specCtx = ctx.dbConnectionSpec().get(0);
+            var specValue = specCtx.dbConnectionSpecValue();
+            String specType = specValue.identifier().getText();
+            String specBody = specValue.dbConnectionValueBody() != null
+                    ? getOriginalText(specValue.dbConnectionValueBody())
+                    : "";
+
+            specification = switch (specType) {
+                case "InMemory" -> new org.finos.legend.pure.dsl.definition.ConnectionSpecification.InMemory();
+                case "LocalFile" -> {
+                    String path = extractQuotedProperty(specBody, "path");
+                    yield new org.finos.legend.pure.dsl.definition.ConnectionSpecification.LocalFile(path);
+                }
+                case "Static" -> {
+                    String host = extractQuotedProperty(specBody, "host");
+                    int port = extractIntProperty(specBody, "port", 0);
+                    String database = extractQuotedProperty(specBody, "database");
+                    yield new org.finos.legend.pure.dsl.definition.ConnectionSpecification.StaticDatasource(host, port,
+                            database);
+                }
+                default -> new org.finos.legend.pure.dsl.definition.ConnectionSpecification.InMemory();
+            };
+        }
+
+        // Extract authentication
+        if (ctx.dbConnectionAuth() != null && !ctx.dbConnectionAuth().isEmpty()) {
+            var authCtx = ctx.dbConnectionAuth().get(0);
+            var authValue = authCtx.dbConnectionAuthValue();
+            String authType = authValue.identifier().getText();
+            String authBody = authValue.dbConnectionValueBody() != null
+                    ? getOriginalText(authValue.dbConnectionValueBody())
+                    : "";
+
+            authentication = switch (authType) {
+                case "NoAuth" -> new org.finos.legend.pure.dsl.definition.AuthenticationSpec.NoAuth();
+                case "UsernamePassword" -> {
+                    String username = extractQuotedProperty(authBody, "username");
+                    String passwordVaultRef = extractQuotedProperty(authBody, "passwordVaultRef");
+                    yield new org.finos.legend.pure.dsl.definition.AuthenticationSpec.UsernamePassword(username,
+                            passwordVaultRef);
+                }
+                default -> new org.finos.legend.pure.dsl.definition.AuthenticationSpec.NoAuth();
+            };
+        }
+
+        return new org.finos.legend.pure.dsl.definition.ConnectionDefinition(
+                qualifiedName, storeName, dbType, specification, authentication);
+    }
+
+    /**
+     * Extracts a quoted string property (e.g., "path: './file.db';") from a body
+     * string.
+     */
+    private String extractQuotedProperty(String body, String propertyName) {
+        java.util.regex.Pattern pattern = java.util.regex.Pattern
+                .compile(propertyName + "\\s*:\\s*'([^']*)'");
+        java.util.regex.Matcher matcher = pattern.matcher(body);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    /**
+     * Extracts an integer property from a body string.
+     */
+    private int extractIntProperty(String body, String propertyName, int defaultValue) {
+        java.util.regex.Pattern pattern = java.util.regex.Pattern
+                .compile(propertyName + "\\s*:\\s*(\\d+)");
+        java.util.regex.Matcher matcher = pattern.matcher(body);
+        if (matcher.find()) {
+            return Integer.parseInt(matcher.group(1));
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Extracts all ConnectionDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.ConnectionDefinition> extractConnectionDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.ConnectionDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.relationalDatabaseConnection() != null) {
+                result.add(builder.visitRelationalDatabaseConnection(elemCtx.relationalDatabaseConnection()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first ConnectionDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.ConnectionDefinition> extractFirstConnectionDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.ConnectionDefinition> defs = extractConnectionDefinitions(
+                definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
 }

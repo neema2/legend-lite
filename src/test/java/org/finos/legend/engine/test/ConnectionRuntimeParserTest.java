@@ -128,6 +128,62 @@ class ConnectionRuntimeParserTest {
         assertEquals("vault://secrets/db/password", auth.passwordVaultRef());
     }
 
+    @Test
+    @DisplayName("Parse exact legend-engine Connection syntax from TestDuckDBConnectionCompiler")
+    void testParseLegendEngineExactSyntax() {
+        // Exact syntax from legend-engine TestDuckDBConnectionCompiler.java
+        String source = """
+                RelationalDatabaseConnection simple::DuckDBConnection
+                {
+                  store: apps::pure::studio::relational::tests::dbInc;
+                  type: DuckDB;
+                  specification: DuckDB
+                  {
+                    path: '/test';
+                  };
+                  auth: Test;
+                }
+                """;
+
+        ConnectionDefinition conn = PureDefinitionParser.parseConnectionDefinition(source);
+
+        assertEquals("simple::DuckDBConnection", conn.qualifiedName());
+        assertEquals("apps::pure::studio::relational::tests::dbInc", conn.storeName());
+        assertEquals(ConnectionDefinition.DatabaseType.DuckDB, conn.databaseType());
+    }
+
+    @Test
+    @DisplayName("Parse complex Snowflake Connection with multiple specification and auth properties")
+    void testParseSnowflakeComplexConnection() {
+        // Complex Snowflake connection with multiple properties in spec and auth blocks
+        String source = """
+                RelationalDatabaseConnection demo::udtf::DemoSnowflakeConnection
+                {
+                  store: demo::udtf::DemoDb;
+                  type: Snowflake;
+                  specification: Snowflake
+                  {
+                    name: 'SUMMIT_MDM_DATA';
+                    account: 'sfcedeawseast1d01';
+                    warehouse: 'DEMO_WH';
+                    region: 'us-east-1';
+                  };
+                  auth: SnowflakePublic
+                  {
+                    publicUserName: 'isThis';
+                    privateKeyVaultReference: 'Hi';
+                    passPhraseVaultReference: 'What';
+                  };
+                }
+                """;
+
+        ConnectionDefinition conn = PureDefinitionParser.parseConnectionDefinition(source);
+
+        assertEquals("demo::udtf::DemoSnowflakeConnection", conn.qualifiedName());
+        assertEquals("demo::udtf::DemoDb", conn.storeName());
+        assertEquals(ConnectionDefinition.DatabaseType.Snowflake, conn.databaseType());
+    }
+
     // ==================== Runtime Parsing Tests ====================
 
     @Test

@@ -56,6 +56,10 @@ identifier:                                     VALID_STRING | STRING
                                                 // Connection keywords
                                                 | STORE | TYPE | MODE | RELATIONAL_DATASOURCE_SPEC | RELATIONAL_AUTH_STRATEGY
                                                 | DB_TIMEZONE | QUOTE_IDENTIFIERS | QUERY_GENERATION_CONFIGS
+                                                // Database type keywords (can be used as identifiers in type: field)
+                                                | DUCKDB | SQLITE | POSTGRES | H2 | SNOWFLAKE | LOCALDUCKDB
+                                                // Specification/auth type keywords
+                                                | INMEMORY | NOAUTH
                                                 // Service keywords
                                                 | SERVICE | SERVICE_PATTERN | SERVICE_OWNERS | SERVICE_DOCUMENTATION
                                                 | SERVICE_AUTO_ACTIVATE_UPDATES | SERVICE_EXEC | SERVICE_SINGLE

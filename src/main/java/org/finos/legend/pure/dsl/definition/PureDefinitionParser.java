@@ -171,9 +171,17 @@ public final class PureDefinitionParser {
                 lineOffset += countNewlines(funcSource);
                 remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("RelationalDatabaseConnection ")) {
-                var result = parseConnection(remaining);
-                definitions.add(result.definition);
-                remaining = result.remaining;
+                // Find the end of the definition
+                int braceStart = remaining.indexOf('{');
+                int braceEnd = findMatchingBrace(remaining, braceStart);
+                String connectionSource = remaining.substring(0, braceEnd + 1);
+
+                // Parse using ANTLR with line offset for accurate error reporting
+                ConnectionDefinition connDef = parseConnectionDefinition(connectionSource, lineOffset);
+                definitions.add(connDef);
+
+                lineOffset += countNewlines(connectionSource);
+                remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("Runtime ")) {
                 var result = parseRuntimeDef(remaining);
                 definitions.add(result.definition);
@@ -361,11 +369,25 @@ public final class PureDefinitionParser {
     }
 
     /**
-     * Parses a single Connection definition.
+     * Parses a single Connection definition using ANTLR.
      */
     public static ConnectionDefinition parseConnectionDefinition(String pureSource) {
-        var result = parseConnection(pureSource.trim());
-        return result.definition;
+        return parseConnectionDefinition(pureSource, 0);
+    }
+
+    /**
+     * Parses a single Connection definition using ANTLR with line offset.
+     */
+    public static ConnectionDefinition parseConnectionDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstConnectionDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No connection definition found in source"));
+        } catch (PureParseException e) {
+            throw adjustErrorLineOffset(e, lineOffset);
+        }
     }
 
     /**
@@ -420,116 +442,6 @@ public final class PureDefinitionParser {
     public static MappingDefinition parseMappingDefinition(String pureSource) {
         var result = parseMapping(pureSource.trim());
         return result.definition;
-    }
-
-    // ==================== Connection Parsing ====================
-
-    private static ParseResult<ConnectionDefinition> parseConnection(String source) {
-        // Pattern: RelationalDatabaseConnection qualified::name { store: ...; type:
-        // ...; specification: ...; auth: ...; }
-        Pattern headerPattern = Pattern.compile(
-                "RelationalDatabaseConnection\\s+([\\w:]+)\\s*\\{");
-        Matcher headerMatcher = headerPattern.matcher(source);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Connection definition: " +
-                    source.substring(0, Math.min(100, source.length())));
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
-
-        String body = source.substring(bodyStart, bodyEnd).trim();
-        String remaining = source.substring(bodyEnd + 1).trim();
-
-        // Parse store: storeName;
-        String storeName = null;
-        Pattern storePattern = Pattern.compile("store:\\s*([\\w:]+)\\s*;");
-        Matcher storeMatcher = storePattern.matcher(body);
-        if (storeMatcher.find()) {
-            storeName = storeMatcher.group(1);
-        }
-
-        // Parse type: DuckDB|SQLite|H2|etc;
-        ConnectionDefinition.DatabaseType databaseType = ConnectionDefinition.DatabaseType.DuckDB;
-        Pattern typePattern = Pattern.compile("type:\\s*(\\w+)\\s*;");
-        Matcher typeMatcher = typePattern.matcher(body);
-        if (typeMatcher.find()) {
-            String typeStr = typeMatcher.group(1);
-            try {
-                databaseType = ConnectionDefinition.DatabaseType.valueOf(typeStr);
-            } catch (IllegalArgumentException e) {
-                throw new PureParseException("Unknown database type: " + typeStr);
-            }
-        }
-
-        // Parse specification: InMemory {} | LocalFile { path: '...'; } | Static {
-        // host: ...; port: ...; database: ...; }
-        ConnectionSpecification specification = new ConnectionSpecification.InMemory();
-        Pattern specPattern = Pattern.compile("specification:\\s*(\\w+)\\s*\\{([^}]*)}");
-        Matcher specMatcher = specPattern.matcher(body);
-        if (specMatcher.find()) {
-            String specType = specMatcher.group(1);
-            String specBody = specMatcher.group(2).trim();
-
-            specification = switch (specType) {
-                case "InMemory" -> new ConnectionSpecification.InMemory();
-                case "LocalFile" -> {
-                    String path = extractStringProperty(specBody, "path");
-                    yield new ConnectionSpecification.LocalFile(path);
-                }
-                case "Static" -> {
-                    String host = extractStringProperty(specBody, "host");
-                    int port = extractIntProperty(specBody, "port", 0);
-                    String database = extractStringProperty(specBody, "database");
-                    yield new ConnectionSpecification.StaticDatasource(host, port, database);
-                }
-                default -> new ConnectionSpecification.InMemory();
-            };
-        }
-
-        // Parse auth: NoAuth {} | UsernamePassword { username: ...; passwordVaultRef:
-        // ...; }
-        AuthenticationSpec authentication = new AuthenticationSpec.NoAuth();
-        Pattern authPattern = Pattern.compile("auth:\\s*(\\w+)\\s*\\{([^}]*)}");
-        Matcher authMatcher = authPattern.matcher(body);
-        if (authMatcher.find()) {
-            String authType = authMatcher.group(1);
-            String authBody = authMatcher.group(2).trim();
-
-            authentication = switch (authType) {
-                case "NoAuth" -> new AuthenticationSpec.NoAuth();
-                case "UsernamePassword" -> {
-                    String username = extractStringProperty(authBody, "username");
-                    String passwordVaultRef = extractStringProperty(authBody, "passwordVaultRef");
-                    yield new AuthenticationSpec.UsernamePassword(username, passwordVaultRef);
-                }
-                default -> new AuthenticationSpec.NoAuth();
-            };
-        }
-
-        return new ParseResult<>(
-                new ConnectionDefinition(qualifiedName, storeName, databaseType, specification, authentication),
-                remaining);
-    }
-
-    private static String extractStringProperty(String body, String propertyName) {
-        Pattern pattern = Pattern.compile(propertyName + ":\\s*'([^']*)'");
-        Matcher matcher = pattern.matcher(body);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null;
-    }
-
-    private static int extractIntProperty(String body, String propertyName, int defaultValue) {
-        Pattern pattern = Pattern.compile(propertyName + ":\\s*(\\d+)");
-        Matcher matcher = pattern.matcher(body);
-        if (matcher.find()) {
-            return Integer.parseInt(matcher.group(1));
-        }
-        return defaultValue;
     }
 
     // ==================== Runtime Parsing ====================
