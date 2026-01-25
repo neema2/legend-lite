@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 /**
  * Parser for Pure definition syntax (Class, Database, Mapping).
- * 
+ *
  * This parses the declarative Pure syntax used to define models and mappings.
  */
 public final class PureDefinitionParser {
@@ -47,84 +47,14 @@ public final class PureDefinitionParser {
                 break;
 
             if (remaining.startsWith("Class ")) {
-                // Use ANTLR to parse Class definitions
-                // Find the end of the Class definition (matching closing brace for class body)
-                // Skip past: Class <<stereotypes>> {taggedValues} name extends Parents
-                // [constraints] { body }
-                // We need to find the LAST brace pair which is the class body
-
-                // Strategy: find the class name (identifier after stereotypes/tagged values),
-                // then find the { that follows it
-                int pos = 5; // Skip "Class"
-
-                // Skip whitespace
-                while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
-                    pos++;
-
-                // Skip stereotypes <<...>>
-                while (pos < remaining.length() && remaining.charAt(pos) == '<' && pos + 1 < remaining.length()
-                        && remaining.charAt(pos + 1) == '<') {
-                    int closePos = remaining.indexOf(">>", pos);
-                    if (closePos < 0)
-                        break;
-                    pos = closePos + 2;
-                    while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
-                        pos++;
-                }
-
-                // Skip tagged values {...}
-                if (pos < remaining.length() && remaining.charAt(pos) == '{') {
-                    int closePos = findMatchingBrace(remaining, pos);
-                    pos = closePos + 1;
-                    while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
-                        pos++;
-                }
-
-                // Now we're at the class name - skip it
-                while (pos < remaining.length() && (Character.isLetterOrDigit(remaining.charAt(pos))
-                        || remaining.charAt(pos) == ':' || remaining.charAt(pos) == '_'))
-                    pos++;
-                while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
-                    pos++;
-
-                // Skip extends clause if present: extends ParentClass, OtherParent
-                if (pos + 7 < remaining.length() && remaining.substring(pos, pos + 7).equals("extends")) {
-                    pos += 7;
-                    while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
-                        pos++;
-                    // Skip comma-separated list of parent class names
-                    while (pos < remaining.length()) {
-                        // Skip class name
-                        while (pos < remaining.length() && (Character.isLetterOrDigit(remaining.charAt(pos))
-                                || remaining.charAt(pos) == ':' || remaining.charAt(pos) == '_'))
-                            pos++;
-                        while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
-                            pos++;
-                        // Continue if comma
-                        if (pos < remaining.length() && remaining.charAt(pos) == ',') {
-                            pos++;
-                            while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
-                                pos++;
-                        } else {
-                            break;
-                        }
-                    }
-                }
-
-                // Skip constraints [...] if present
-                if (pos < remaining.length() && remaining.charAt(pos) == '[') {
-                    int closePos = findMatchingBracket(remaining, pos);
-                    pos = closePos + 1;
-                    while (pos < remaining.length() && Character.isWhitespace(remaining.charAt(pos)))
-                        pos++;
-                }
-
-                // Now we should be at the class body brace
-                if (pos >= remaining.length() || remaining.charAt(pos) != '{') {
+                // Find the class body brace - it's the first '{' not preceded by '>>' (tagged
+                // values)
+                int bodyStart = findClassBodyBrace(remaining);
+                if (bodyStart < 0) {
                     throw new PureParseException("Invalid Class definition - missing class body");
                 }
 
-                int braceEnd = findMatchingBrace(remaining, pos);
+                int braceEnd = findMatchingBrace(remaining, bodyStart);
                 String classSource = remaining.substring(0, braceEnd + 1);
 
                 // Parse using ANTLR with line offset for accurate error reporting
@@ -347,118 +277,6 @@ public final class PureDefinitionParser {
     public static MappingDefinition parseMappingDefinition(String pureSource) {
         var result = parseMapping(pureSource.trim());
         return result.definition;
-    }
-
-    // ==================== Class Parsing ====================
-
-    private static ParseResult<ClassDefinition> parseClass(String source) {
-        return parseClass(source, 0);
-    }
-
-    private static ParseResult<ClassDefinition> parseClass(String source, int sourceLineOffset) {
-        // Parse stereotypes and tagged values before Class keyword
-        // Pattern: <<profile::Name.stereotype>> or <<profile::Name.tag: 'value'>>
-        List<StereotypeApplication> stereotypes = new ArrayList<>();
-        List<TaggedValue> taggedValues = new ArrayList<>();
-
-        String remaining = source.trim();
-        while (remaining.startsWith("<<")) {
-            int closeIdx = remaining.indexOf(">>");
-            if (closeIdx < 0)
-                break;
-            String annotation = remaining.substring(2, closeIdx).trim();
-            remaining = remaining.substring(closeIdx + 2).trim();
-
-            // Check if it's a tagged value (has colon AFTER the dot separator)
-            // e.g., profile::Name.tag: 'value' - colon comes after .tag
-            int dotIdx = annotation.lastIndexOf('.');
-            int colonIdx = annotation.indexOf(':', dotIdx > 0 ? dotIdx : 0);
-            if (colonIdx > dotIdx && dotIdx > 0) {
-                // Tagged value: profile::Name.tag: 'value'
-                String reference = annotation.substring(0, colonIdx).trim();
-                String value = annotation.substring(colonIdx + 1).trim();
-                // Remove quotes
-                if ((value.startsWith("'") && value.endsWith("'")) ||
-                        (value.startsWith("\"") && value.endsWith("\""))) {
-                    value = value.substring(1, value.length() - 1);
-                }
-                int refDotIdx = reference.lastIndexOf('.');
-                if (refDotIdx > 0) {
-                    taggedValues.add(new TaggedValue(
-                            reference.substring(0, refDotIdx),
-                            reference.substring(refDotIdx + 1),
-                            value));
-                }
-            } else {
-                // Stereotype: profile::Name.stereotype
-                stereotypes.add(StereotypeApplication.parse(annotation));
-            }
-        }
-
-        // Pattern: Class qualified::Name [extends superclass1, superclass2]? { ... }
-        // [constraints]?
-        // Group 1: qualified class name
-        // Group 2: extends clause (optional, including "extends" keyword)
-        Pattern headerPattern = Pattern.compile("Class\\s+([\\w:]+)(\\s+extends\\s+[\\w:,\\s]+)?\\s*\\{");
-        Matcher headerMatcher = headerPattern.matcher(remaining);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Class definition");
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-
-        // Parse superclasses from extends clause
-        List<String> superClasses = new ArrayList<>();
-        String extendsClause = headerMatcher.group(2);
-        if (extendsClause != null && !extendsClause.isEmpty()) {
-            // Remove "extends" keyword and parse comma-separated class names
-            String classListStr = extendsClause.trim().substring("extends".length()).trim();
-            String[] classNames = classListStr.split(",");
-            for (String className : classNames) {
-                String trimmed = className.trim();
-                if (!trimmed.isEmpty()) {
-                    superClasses.add(trimmed);
-                }
-            }
-        }
-
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingBrace(remaining, bodyStart - 1);
-
-        String body = remaining.substring(bodyStart, bodyEnd);
-
-        List<ClassDefinition.PropertyDefinition> properties = parseProperties(body);
-        List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = parseDerivedProperties(body);
-
-        // Calculate line offset: how many lines are before the class body in the source
-        // Add sourceLineOffset to account for lines before this definition in original
-        // source
-        int bodyLineOffset = sourceLineOffset + countNewlines(remaining.substring(0, bodyStart)) + 1; // +1 because
-                                                                                                      // we're at line
-                                                                                                      // after {
-
-        // Validate: Check for unparsed tokens that look like property definitions
-        // This catches syntax errors like "name String[1];" (missing colon)
-        validateClassBody(body, properties, derivedProperties, qualifiedName, bodyLineOffset);
-
-        // Check for constraints block after class body: [ constraint1: expr,
-        // constraint2: expr ]
-        remaining = remaining.substring(bodyEnd + 1).trim();
-        List<ClassDefinition.ConstraintDefinition> constraints = new ArrayList<>();
-
-        if (remaining.startsWith("[")) {
-            int constraintEnd = findMatchingBracket(remaining, 0);
-            String constraintBody = remaining.substring(1, constraintEnd);
-            constraints = parseConstraints(constraintBody);
-            remaining = remaining.substring(constraintEnd + 1);
-        }
-
-        return new ParseResult<>(
-                new ClassDefinition(qualifiedName, superClasses, properties, derivedProperties, constraints,
-                        stereotypes,
-                        taggedValues),
-                remaining);
     }
 
     // ==================== Profile Parsing ====================
@@ -778,27 +596,6 @@ public final class PureDefinitionParser {
     }
 
     /**
-     * Parses constraints from a constraint block body.
-     * Format: name1: expression1, name2: expression2
-     */
-    private static List<ClassDefinition.ConstraintDefinition> parseConstraints(String body) {
-        List<ClassDefinition.ConstraintDefinition> constraints = new ArrayList<>();
-
-        // Split by comma (but be careful of commas in expressions)
-        // Pattern: constraintName: $this.property > value
-        Pattern pattern = Pattern.compile("(\\w+)\\s*:\\s*([^,]+)");
-        Matcher matcher = pattern.matcher(body);
-
-        while (matcher.find()) {
-            String name = matcher.group(1).trim();
-            String expression = matcher.group(2).trim();
-            constraints.add(new ClassDefinition.ConstraintDefinition(name, expression));
-        }
-
-        return constraints;
-    }
-
-    /**
      * Count the number of newlines in a string.
      */
     private static int countNewlines(String s) {
@@ -808,70 +605,6 @@ public final class PureDefinitionParser {
                 count++;
         }
         return count;
-    }
-
-    /**
-     * Calculate line number at a given offset in a string (1-indexed).
-     */
-    private static int getLineAtOffset(String s, int offset) {
-        int line = 1;
-        for (int i = 0; i < offset && i < s.length(); i++) {
-            if (s.charAt(i) == '\n')
-                line++;
-        }
-        return line;
-    }
-
-    /**
-     * Calculate column number at a given offset in a string (0-indexed).
-     */
-    private static int getColumnAtOffset(String s, int offset) {
-        int lastNewline = s.lastIndexOf('\n', offset - 1);
-        return lastNewline < 0 ? offset : offset - lastNewline - 1;
-    }
-
-    /**
-     * Validates that all tokens in the class body were parsed as properties or
-     * derived properties.
-     * Throws an error if there are tokens that look like property definitions but
-     * have invalid syntax.
-     * 
-     * @param bodyLineOffset The line number in the original source where the class
-     *                       body starts
-     */
-    private static void validateClassBody(String body,
-            List<ClassDefinition.PropertyDefinition> properties,
-            List<ClassDefinition.DerivedPropertyDefinition> derivedProperties,
-            String className,
-            int bodyLineOffset) {
-        // Look for patterns that look like properties but weren't parsed
-        // Pattern: word followed by word followed by bracket - e.g., "name String[1]"
-        // (missing colon)
-        Pattern invalidPropertyPattern = Pattern.compile("(\\w+)\\s+(\\w+)\\s*\\[([^\\]]+)\\]");
-        Matcher matcher = invalidPropertyPattern.matcher(body);
-
-        while (matcher.find()) {
-            String possiblePropName = matcher.group(1);
-            String possibleType = matcher.group(2);
-
-            // Check if this was parsed as a valid property
-            boolean found = properties.stream()
-                    .anyMatch(p -> p.name().equals(possiblePropName));
-
-            if (!found) {
-                // Calculate line number within body, then add offset
-                int lineInBody = getLineAtOffset(body, matcher.start());
-                int errorLine = bodyLineOffset + lineInBody - 1; // -1 because lineInBody is 1-indexed
-                int column = getColumnAtOffset(body, matcher.start());
-
-                // Not found - this is invalid syntax (missing colon)
-                throw new PureParseException(
-                        "Invalid property syntax in class " + className + ": '" +
-                                possiblePropName + " " + possibleType + "[...]' - missing colon. " +
-                                "Expected: '" + possiblePropName + ": " + possibleType + "[...]'",
-                        errorLine, column);
-            }
-        }
     }
 
     /**
@@ -893,91 +626,39 @@ public final class PureDefinitionParser {
         throw new PureParseException("Unmatched bracket starting at position " + openPos);
     }
 
-    private static List<ClassDefinition.PropertyDefinition> parseProperties(String body) {
-        List<ClassDefinition.PropertyDefinition> properties = new ArrayList<>();
-
-        // Pattern: propertyName: Type[multiplicity];
-        // Must NOT be followed by () which would indicate a derived property
-        Pattern pattern = Pattern.compile(
-                "(\\w+)\\s*:\\s*(\\w+)\\s*\\[([^\\]]+)\\]\\s*;?");
-        Matcher matcher = pattern.matcher(body);
-
-        while (matcher.find()) {
-            String name = matcher.group(1);
-            String type = matcher.group(2);
-            String multiplicity = matcher.group(3);
-
-            // Skip derived properties (they have () after name)
-            int start = matcher.start();
-            if (start > 0) {
-                // Check if there's a () before the :
-                String before = body.substring(Math.max(0, start - 10), start);
-                if (before.contains("()")) {
-                    continue; // This is part of a derived property expression
-                }
-            }
-
-            var bounds = parseMultiplicity(multiplicity);
-            properties.add(new ClassDefinition.PropertyDefinition(name, type, bounds[0], bounds[1]));
-        }
-
-        return properties;
-    }
-
-    private static List<ClassDefinition.DerivedPropertyDefinition> parseDerivedProperties(String body) {
-        List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = new ArrayList<>();
-
-        // Pattern: name(params) {expression}: Type[multiplicity];
-        // Examples:
-        // fullName() {$this.firstName + ' ' + $this.lastName}: String[1];
-        // firmByName(name: String[1]) {$this.firms->filter(f|$f.name == $name)}:
-        // Firm[0..1];
-        // firmByName(name: String[1]) {...}: package::Firm[0..1]; (qualified type)
-        Pattern pattern = Pattern.compile(
-                "(\\w+)\\s*\\(([^)]*)\\)\\s*\\{([^}]+)\\}\\s*:\\s*([\\w:]+)\\s*\\[([^\\]]+)\\]\\s*;?");
-        Matcher matcher = pattern.matcher(body);
-
-        while (matcher.find()) {
-            String name = matcher.group(1);
-            String paramsStr = matcher.group(2).trim();
-            String expression = matcher.group(3).trim();
-            String type = matcher.group(4);
-            String multiplicity = matcher.group(5);
-
-            // Parse parameters
-            List<ClassDefinition.ParameterDefinition> params = parseParameters(paramsStr);
-
-            var bounds = parseMultiplicity(multiplicity);
-            derivedProperties.add(new ClassDefinition.DerivedPropertyDefinition(
-                    name, params, expression, type, bounds[0], bounds[1]));
-        }
-
-        return derivedProperties;
-    }
-
     /**
-     * Parses parameter definitions from a comma-separated string.
-     * Format: paramName: Type[mult], paramName2: Type2[mult2]
+     * Finds the opening brace of a Class body.
+     * 
+     * Class syntax: Class [<<...>>]* [{taggedValues}]? Name [extends...]?
+     * [constraints]? { body }
+     * 
+     * The class body { is the first one NOT immediately preceded by '>>' (which
+     * would be tagged values).
+     * 
+     * @param source Source starting with "Class "
+     * @return Position of the class body opening brace, or -1 if not found
      */
-    private static List<ClassDefinition.ParameterDefinition> parseParameters(String paramsStr) {
-        List<ClassDefinition.ParameterDefinition> params = new ArrayList<>();
-        if (paramsStr == null || paramsStr.isEmpty()) {
-            return params;
+    private static int findClassBodyBrace(String source) {
+        int pos = 0;
+        while (pos < source.length()) {
+            int bracePos = source.indexOf('{', pos);
+            if (bracePos < 0)
+                return -1;
+
+            // Check if preceded by '>>' (tagged values brace)
+            int checkPos = bracePos - 1;
+            while (checkPos >= 0 && Character.isWhitespace(source.charAt(checkPos)))
+                checkPos--;
+
+            if (checkPos >= 1 && source.charAt(checkPos) == '>' && source.charAt(checkPos - 1) == '>') {
+                // This is a tagged values brace, skip past it
+                pos = findMatchingBrace(source, bracePos) + 1;
+            } else {
+                // This is the class body brace
+                return bracePos;
+            }
         }
-
-        // Pattern: paramName: Type[mult]
-        Pattern paramPattern = Pattern.compile("(\\w+)\\s*:\\s*(\\w+)\\s*\\[([^\\]]+)\\]");
-        Matcher matcher = paramPattern.matcher(paramsStr);
-
-        while (matcher.find()) {
-            String paramName = matcher.group(1);
-            String paramType = matcher.group(2);
-            String mult = matcher.group(3);
-            var bounds = parseMultiplicity(mult);
-            params.add(new ClassDefinition.ParameterDefinition(paramName, paramType, bounds[0], bounds[1]));
-        }
-
-        return params;
+        return -1;
     }
 
     private static Integer[] parseMultiplicity(String mult) {
