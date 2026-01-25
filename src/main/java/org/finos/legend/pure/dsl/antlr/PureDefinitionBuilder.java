@@ -513,4 +513,71 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         List<org.finos.legend.pure.dsl.definition.ProfileDefinition> defs = extractProfileDefinitions(definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Association Extraction ====================
+
+    /**
+     * Visits an association parse tree node and returns an AssociationDefinition.
+     * 
+     * Grammar rule:
+     * association: ASSOCIATION stereotypes? taggedValues? qualifiedName
+     * (associationProjection | associationBody)
+     * associationBody: BRACE_OPEN properties BRACE_CLOSE
+     */
+    public org.finos.legend.pure.dsl.definition.AssociationDefinition visitAssociation(
+            PureParser.AssociationContext ctx) {
+        // Extract qualified name
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        // Extract properties from associationBody (same structure as class properties)
+        List<org.finos.legend.pure.dsl.definition.AssociationDefinition.AssociationEndDefinition> ends = new ArrayList<>();
+
+        if (ctx.associationBody() != null && ctx.associationBody().properties() != null) {
+            for (PureParser.PropertyContext propCtx : ctx.associationBody().properties().property()) {
+                String propName = propCtx.identifier().getText();
+                String propType = propCtx.propertyReturnType().type().getText();
+
+                // Parse multiplicity
+                String multText = propCtx.propertyReturnType().multiplicity().getText();
+                int[] bounds = parseMultiplicity(multText);
+
+                ends.add(new org.finos.legend.pure.dsl.definition.AssociationDefinition.AssociationEndDefinition(
+                        propName, propType, bounds[0], bounds[1] == -1 ? null : bounds[1]));
+            }
+        }
+
+        if (ends.size() != 2) {
+            throw new org.finos.legend.pure.dsl.PureParseException(
+                    "Association must have exactly 2 properties, found: " + ends.size());
+        }
+
+        return new org.finos.legend.pure.dsl.definition.AssociationDefinition(qualifiedName, ends.get(0), ends.get(1));
+    }
+
+    /**
+     * Extracts all AssociationDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.AssociationDefinition> extractAssociationDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.AssociationDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.association() != null) {
+                result.add(builder.visitAssociation(elemCtx.association()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first AssociationDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.AssociationDefinition> extractFirstAssociationDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.AssociationDefinition> defs = extractAssociationDefinitions(
+                definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
 }
