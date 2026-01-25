@@ -65,9 +65,21 @@ public final class PureDefinitionParser {
                 lineOffset += countNewlines(classSource);
                 remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("Database ")) {
-                var result = parseDatabase(remaining);
-                definitions.add(result.definition);
-                remaining = result.remaining;
+                // Database uses parentheses, not braces: Database name ( ... )
+                int bodyStart = remaining.indexOf('(');
+                if (bodyStart < 0) {
+                    throw new PureParseException("Invalid Database definition - missing body");
+                }
+
+                int parenEnd = findMatchingParen(remaining, bodyStart);
+                String dbSource = remaining.substring(0, parenEnd + 1);
+
+                // Parse using ANTLR
+                DatabaseDefinition dbDef = parseDatabaseDefinition(dbSource);
+                definitions.add(dbDef);
+
+                lineOffset += countNewlines(dbSource);
+                remaining = remaining.substring(parenEnd + 1);
             } else if (remaining.startsWith("Mapping ")) {
                 var result = parseMapping(remaining);
                 definitions.add(result.definition);
@@ -320,11 +332,14 @@ public final class PureDefinitionParser {
     }
 
     /**
-     * Parses a single Database definition.
+     * Parses a single Database definition using ANTLR.
      */
     public static DatabaseDefinition parseDatabaseDefinition(String pureSource) {
-        var result = parseDatabase(pureSource.trim());
-        return result.definition;
+        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                .parseDefinition(pureSource);
+        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                .extractFirstDatabaseDefinition(tree)
+                .orElseThrow(() -> new PureParseException("No database definition found in source"));
     }
 
     /**
@@ -584,107 +599,6 @@ public final class PureDefinitionParser {
         }
         int val = Integer.parseInt(mult);
         return new Integer[] { val, val };
-    }
-
-    // ==================== Database Parsing ====================
-
-    private static ParseResult<DatabaseDefinition> parseDatabase(String source) {
-        // Pattern: Database qualified::Name ( ... )
-        // Find the opening paren
-        Pattern headerPattern = Pattern.compile("Database\\s+([\\w:]+)\\s*\\(");
-        Matcher headerMatcher = headerPattern.matcher(source);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Database definition");
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingParen(source, bodyStart - 1);
-
-        String body = source.substring(bodyStart, bodyEnd);
-        List<DatabaseDefinition.TableDefinition> tables = parseTables(body);
-        List<DatabaseDefinition.JoinDefinition> joins = parseJoins(body);
-
-        return new ParseResult<>(
-                new DatabaseDefinition(qualifiedName, tables, joins),
-                source.substring(bodyEnd + 1));
-    }
-
-    private static List<DatabaseDefinition.JoinDefinition> parseJoins(String body) {
-        List<DatabaseDefinition.JoinDefinition> joins = new ArrayList<>();
-
-        // Pattern: Join JoinName(TABLE_A.COLUMN_A = TABLE_B.COLUMN_B)
-        Pattern pattern = Pattern.compile(
-                "Join\\s+(\\w+)\\s*\\(\\s*(\\w+)\\.(\\w+)\\s*=\\s*(\\w+)\\.(\\w+)\\s*\\)",
-                Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(body);
-
-        while (matcher.find()) {
-            String name = matcher.group(1);
-            String leftTable = matcher.group(2);
-            String leftColumn = matcher.group(3);
-            String rightTable = matcher.group(4);
-            String rightColumn = matcher.group(5);
-
-            joins.add(new DatabaseDefinition.JoinDefinition(
-                    name, leftTable, leftColumn, rightTable, rightColumn));
-        }
-
-        return joins;
-    }
-
-    private static List<DatabaseDefinition.TableDefinition> parseTables(String body) {
-        List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>();
-
-        // Pattern: Table TABLE_NAME ( ... )
-        Pattern pattern = Pattern.compile("Table\\s+(\\w+)\\s*\\(");
-        Matcher matcher = pattern.matcher(body);
-
-        while (matcher.find()) {
-            String tableName = matcher.group(1);
-            int columnsStart = matcher.end();
-            int columnsEnd = findMatchingParen(body, columnsStart - 1);
-
-            String columnsBody = body.substring(columnsStart, columnsEnd);
-            List<DatabaseDefinition.ColumnDefinition> columns = parseColumns(columnsBody);
-
-            tables.add(new DatabaseDefinition.TableDefinition(tableName, columns));
-
-            // Continue searching after this table
-            matcher.region(columnsEnd + 1, body.length());
-        }
-
-        return tables;
-    }
-
-    private static List<DatabaseDefinition.ColumnDefinition> parseColumns(String body) {
-        List<DatabaseDefinition.ColumnDefinition> columns = new ArrayList<>();
-
-        // Split by comma
-        String[] parts = body.split(",");
-        for (String part : parts) {
-            part = part.trim();
-            if (part.isEmpty())
-                continue;
-
-            // Pattern: COLUMN_NAME DATA_TYPE [(size)] [PRIMARY KEY] [NOT NULL]
-            Pattern pattern = Pattern.compile(
-                    "(\\w+)\\s+(\\w+(?:\\s*\\([^)]+\\))?)\\s*(PRIMARY\\s+KEY)?\\s*(NOT\\s+NULL)?",
-                    Pattern.CASE_INSENSITIVE);
-            Matcher matcher = pattern.matcher(part);
-
-            if (matcher.find()) {
-                String name = matcher.group(1);
-                String dataType = matcher.group(2).replaceAll("\\s+", "");
-                boolean primaryKey = matcher.group(3) != null;
-                boolean notNull = matcher.group(4) != null || primaryKey;
-
-                columns.add(new DatabaseDefinition.ColumnDefinition(name, dataType, primaryKey, notNull));
-            }
-        }
-
-        return columns;
     }
 
     // ==================== Mapping Parsing ====================

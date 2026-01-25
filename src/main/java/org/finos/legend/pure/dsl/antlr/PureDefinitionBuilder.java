@@ -672,4 +672,131 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         List<org.finos.legend.pure.dsl.definition.FunctionDefinition> defs = extractFunctionDefinitions(definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Database Extraction ====================
+
+    /**
+     * Visits a database parse tree node and returns a DatabaseDefinition.
+     * 
+     * Grammar rule:
+     * database: DATABASE stereotypes? taggedValues? qualifiedName PAREN_OPEN
+     * (includeDatabase)* (dbSchema | dbTable | dbView | dbJoin | ...)* PAREN_CLOSE
+     */
+    public org.finos.legend.pure.dsl.definition.DatabaseDefinition visitDatabase(PureParser.DatabaseContext ctx) {
+        // Extract qualified name
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        // Extract tables (both top-level and in schemas)
+        List<org.finos.legend.pure.dsl.definition.DatabaseDefinition.TableDefinition> tables = new ArrayList<>();
+        for (PureParser.DbTableContext tableCtx : ctx.dbTable()) {
+            tables.add(extractDbTable(tableCtx));
+        }
+        // Also extract tables from schemas
+        for (PureParser.DbSchemaContext schemaCtx : ctx.dbSchema()) {
+            for (PureParser.DbTableContext tableCtx : schemaCtx.dbTable()) {
+                tables.add(extractDbTable(tableCtx));
+            }
+        }
+
+        // Extract joins
+        List<org.finos.legend.pure.dsl.definition.DatabaseDefinition.JoinDefinition> joins = new ArrayList<>();
+        for (PureParser.DbJoinContext joinCtx : ctx.dbJoin()) {
+            joins.add(extractDbJoin(joinCtx));
+        }
+
+        return new org.finos.legend.pure.dsl.definition.DatabaseDefinition(qualifiedName, tables, joins);
+    }
+
+    /**
+     * Visits a table parse tree node.
+     */
+    private org.finos.legend.pure.dsl.definition.DatabaseDefinition.TableDefinition extractDbTable(
+            PureParser.DbTableContext ctx) {
+        String tableName = ctx.relationalIdentifier().getText();
+
+        List<org.finos.legend.pure.dsl.definition.DatabaseDefinition.ColumnDefinition> columns = new ArrayList<>();
+        for (PureParser.ColumnDefinitionContext colCtx : ctx.columnDefinition()) {
+            columns.add(extractColumnDefinition(colCtx));
+        }
+
+        return new org.finos.legend.pure.dsl.definition.DatabaseDefinition.TableDefinition(tableName, columns);
+    }
+
+    /**
+     * Visits a column definition parse tree node.
+     */
+    private org.finos.legend.pure.dsl.definition.DatabaseDefinition.ColumnDefinition extractColumnDefinition(
+            PureParser.ColumnDefinitionContext ctx) {
+        String columnName = ctx.relationalIdentifier().getText();
+        String dataType = ctx.identifier().getText();
+
+        // Check for size specification like VARCHAR(100)
+        if (ctx.INTEGER() != null && !ctx.INTEGER().isEmpty()) {
+            dataType = dataType + "(" + ctx.INTEGER(0).getText();
+            if (ctx.INTEGER().size() > 1) {
+                dataType += "," + ctx.INTEGER(1).getText();
+            }
+            dataType += ")";
+        }
+
+        boolean primaryKey = ctx.PRIMARY_KEY() != null;
+        boolean notNull = ctx.NOT_NULL() != null || primaryKey;
+
+        return new org.finos.legend.pure.dsl.definition.DatabaseDefinition.ColumnDefinition(
+                columnName, dataType, primaryKey, notNull);
+    }
+
+    /**
+     * Visits a join definition parse tree node.
+     * Grammar: dbJoin: JOIN stereotypes? taggedValues? identifier PAREN_OPEN
+     * operation PAREN_CLOSE
+     */
+    private org.finos.legend.pure.dsl.definition.DatabaseDefinition.JoinDefinition extractDbJoin(
+            PureParser.DbJoinContext ctx) {
+        String joinName = ctx.identifier().getText();
+
+        // The join expression is in the 'operation' rule - we need to parse it
+        // For now, extract the text and parse it with regex (join expressions are
+        // complex)
+        String operationText = getOriginalText(ctx.dbOperation());
+
+        // Simple pattern: TABLE_A.COLUMN_A = TABLE_B.COLUMN_B
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\w+)\\.(\\w+)\\s*=\\s*(\\w+)\\.(\\w+)");
+        java.util.regex.Matcher matcher = pattern.matcher(operationText);
+
+        if (matcher.find()) {
+            return new org.finos.legend.pure.dsl.definition.DatabaseDefinition.JoinDefinition(
+                    joinName, matcher.group(1), matcher.group(2), matcher.group(3), matcher.group(4));
+        }
+
+        // Fallback - return placeholder
+        return new org.finos.legend.pure.dsl.definition.DatabaseDefinition.JoinDefinition(
+                joinName, "UNKNOWN", "UNKNOWN", "UNKNOWN", "UNKNOWN");
+    }
+
+    /**
+     * Extracts all DatabaseDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.DatabaseDefinition> extractDatabaseDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.DatabaseDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.database() != null) {
+                result.add(builder.visitDatabase(elemCtx.database()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first DatabaseDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.DatabaseDefinition> extractFirstDatabaseDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.DatabaseDefinition> defs = extractDatabaseDefinitions(definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
 }
