@@ -127,9 +127,21 @@ public final class PureDefinitionParser {
                 lineOffset += countNewlines(profileSource);
                 remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("function ")) {
-                var result = parseFunction(remaining);
-                definitions.add(result.definition);
-                remaining = result.remaining;
+                // Find the function body brace - first '{' after the signature
+                int bodyStart = remaining.indexOf('{');
+                if (bodyStart < 0) {
+                    throw new PureParseException("Invalid Function definition - missing body");
+                }
+
+                int braceEnd = findMatchingBrace(remaining, bodyStart);
+                String funcSource = remaining.substring(0, braceEnd + 1);
+
+                // Parse using ANTLR
+                FunctionDefinition funcDef = parseFunctionDefinition(funcSource);
+                definitions.add(funcDef);
+
+                lineOffset += countNewlines(funcSource);
+                remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("RelationalDatabaseConnection ")) {
                 var result = parseConnection(remaining);
                 definitions.add(result.definition);
@@ -281,11 +293,14 @@ public final class PureDefinitionParser {
     }
 
     /**
-     * Parses a single Function definition.
+     * Parses a single Function definition using ANTLR.
      */
     public static FunctionDefinition parseFunctionDefinition(String pureSource) {
-        var result = parseFunction(pureSource.trim());
-        return result.definition;
+        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                .parseDefinition(pureSource);
+        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                .extractFirstFunctionDefinition(tree)
+                .orElseThrow(() -> new PureParseException("No function definition found in source"));
     }
 
     /**
@@ -318,103 +333,6 @@ public final class PureDefinitionParser {
     public static MappingDefinition parseMappingDefinition(String pureSource) {
         var result = parseMapping(pureSource.trim());
         return result.definition;
-    }
-
-    // ==================== Function Parsing ====================
-
-    private static ParseResult<FunctionDefinition> parseFunction(String source) {
-        // Parse stereotypes and tagged values before function keyword
-        List<StereotypeApplication> stereotypes = new ArrayList<>();
-        List<TaggedValue> taggedValues = new ArrayList<>();
-
-        String remaining = source.trim();
-        while (remaining.startsWith("<<")) {
-            int closeIdx = remaining.indexOf(">>");
-            if (closeIdx < 0)
-                break;
-            String annotation = remaining.substring(2, closeIdx).trim();
-            remaining = remaining.substring(closeIdx + 2).trim();
-
-            int dotIdx = annotation.lastIndexOf('.');
-            int colonIdx = annotation.indexOf(':', dotIdx > 0 ? dotIdx : 0);
-            if (colonIdx > dotIdx && dotIdx > 0) {
-                String reference = annotation.substring(0, colonIdx).trim();
-                String value = annotation.substring(colonIdx + 1).trim();
-                if ((value.startsWith("'") && value.endsWith("'")) ||
-                        (value.startsWith("\"") && value.endsWith("\""))) {
-                    value = value.substring(1, value.length() - 1);
-                }
-                int refDotIdx = reference.lastIndexOf('.');
-                if (refDotIdx > 0) {
-                    taggedValues.add(new TaggedValue(
-                            reference.substring(0, refDotIdx),
-                            reference.substring(refDotIdx + 1),
-                            value));
-                }
-            } else {
-                stereotypes.add(StereotypeApplication.parse(annotation));
-            }
-        }
-
-        // Pattern: function qualified::name(params): ReturnType[mult] { body }
-        Pattern headerPattern = Pattern.compile(
-                "function\\s+([\\w:]+)\\s*\\(([^)]*)\\)\\s*:\\s*([\\w:]+)\\s*\\[([^\\]]+)]\\s*\\{");
-        Matcher headerMatcher = headerPattern.matcher(remaining);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Function definition: " +
-                    remaining.substring(0, Math.min(100, remaining.length())));
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-        String paramsStr = headerMatcher.group(2).trim();
-        String returnType = headerMatcher.group(3);
-        String returnMult = headerMatcher.group(4);
-
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingBrace(remaining, bodyStart - 1);
-
-        String body = remaining.substring(bodyStart, bodyEnd).trim();
-        remaining = remaining.substring(bodyEnd + 1).trim();
-
-        // Parse parameters
-        List<FunctionDefinition.ParameterDefinition> parameters = new ArrayList<>();
-        if (!paramsStr.isEmpty()) {
-            // Split by comma but be careful of nested generics
-            String[] paramParts = paramsStr.split(",");
-            for (String paramPart : paramParts) {
-                paramPart = paramPart.trim();
-                if (paramPart.isEmpty())
-                    continue;
-
-                // Pattern: paramName: Type[mult]
-                Pattern paramPattern = Pattern.compile("(\\w+)\\s*:\\s*([\\w:]+)\\s*\\[([^\\]]+)]");
-                Matcher paramMatcher = paramPattern.matcher(paramPart);
-                if (paramMatcher.matches()) {
-                    String paramName = paramMatcher.group(1);
-                    String paramType = paramMatcher.group(2);
-                    String paramMult = paramMatcher.group(3);
-                    Integer[] bounds = parseMultiplicity(paramMult);
-                    parameters.add(new FunctionDefinition.ParameterDefinition(
-                            paramName, paramType, bounds[0], bounds[1]));
-                }
-            }
-        }
-
-        // Parse return multiplicity
-        Integer[] returnBounds = parseMultiplicity(returnMult);
-
-        return new ParseResult<>(
-                new FunctionDefinition(
-                        qualifiedName,
-                        parameters,
-                        returnType,
-                        returnBounds[0],
-                        returnBounds[1],
-                        body,
-                        stereotypes,
-                        taggedValues),
-                remaining);
     }
 
     // ==================== Connection Parsing ====================

@@ -116,9 +116,9 @@ public class FunctionParserTest {
     @Test
     @DisplayName("Parse function with stereotype")
     void testParseFunctionWithStereotypes() {
+        // In legend-engine, stereotypes come AFTER the function keyword
         String pure = """
-                <<doc::Documentation.deprecated>>
-                function old::legacy::method(): Boolean[1]
+                function <<doc::Documentation.deprecated>> old::legacy::method(): Boolean[1]
                 {
                     true
                 }
@@ -136,9 +136,9 @@ public class FunctionParserTest {
     @Test
     @DisplayName("Parse function with tagged value")
     void testParseFunctionWithTaggedValue() {
+        // In legend-engine, tagged values come AFTER the function keyword
         String pure = """
-                <<doc::Documentation.author: 'John Smith'>>
-                function utils::helper(): String[1]
+                function {doc::Documentation.author = 'John Smith'} utils::helper(): String[1]
                 {
                     'help'
                 }

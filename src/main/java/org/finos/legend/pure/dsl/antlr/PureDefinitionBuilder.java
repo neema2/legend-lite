@@ -580,4 +580,96 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
                 definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Function Extraction ====================
+
+    /**
+     * Visits a function definition parse tree node and returns a
+     * FunctionDefinition.
+     * 
+     * Grammar rule:
+     * functionDefinition: FUNCTION stereotypes? taggedValues? qualifiedName
+     * typeAndMultiplicityParameters?
+     * functionTypeSignature constraints? BRACE_OPEN codeBlock BRACE_CLOSE
+     * functionTestSuiteDef?
+     * functionTypeSignature: PAREN_OPEN (functionVariableExpression (COMMA
+     * functionVariableExpression)*)? PAREN_CLOSE COLON type multiplicity
+     */
+    public org.finos.legend.pure.dsl.definition.FunctionDefinition visitFunctionDefinition(
+            PureParser.FunctionDefinitionContext ctx) {
+        // Extract qualified name
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        // Extract stereotypes
+        List<StereotypeApplication> stereotypes = new ArrayList<>();
+        if (ctx.stereotypes() != null) {
+            for (PureParser.StereotypeContext sCtx : ctx.stereotypes().stereotype()) {
+                stereotypes.add(visitStereotype(sCtx));
+            }
+        }
+
+        // Extract tagged values
+        List<TaggedValue> taggedValues = new ArrayList<>();
+        if (ctx.taggedValues() != null) {
+            for (PureParser.TaggedValueContext tvCtx : ctx.taggedValues().taggedValue()) {
+                taggedValues.add(visitTaggedValue(tvCtx));
+            }
+        }
+
+        // Extract parameters from functionTypeSignature
+        List<org.finos.legend.pure.dsl.definition.FunctionDefinition.ParameterDefinition> parameters = new ArrayList<>();
+        PureParser.FunctionTypeSignatureContext sigCtx = ctx.functionTypeSignature();
+        for (PureParser.FunctionVariableExpressionContext paramCtx : sigCtx.functionVariableExpression()) {
+            String paramName = paramCtx.identifier().getText();
+            String paramType = paramCtx.type().getText();
+            String multText = paramCtx.multiplicity().getText();
+            int[] bounds = parseMultiplicity(multText);
+            parameters.add(new org.finos.legend.pure.dsl.definition.FunctionDefinition.ParameterDefinition(
+                    paramName, paramType, bounds[0], bounds[1] == -1 ? null : bounds[1]));
+        }
+
+        // Extract return type and multiplicity
+        String returnType = sigCtx.type().getText();
+        String returnMultText = sigCtx.multiplicity().getText();
+        int[] returnBounds = parseMultiplicity(returnMultText);
+
+        // Extract function body from codeBlock
+        String body = getOriginalText(ctx.codeBlock());
+
+        return new org.finos.legend.pure.dsl.definition.FunctionDefinition(
+                qualifiedName,
+                parameters,
+                returnType,
+                returnBounds[0],
+                returnBounds[1] == -1 ? null : returnBounds[1],
+                body,
+                stereotypes,
+                taggedValues);
+    }
+
+    /**
+     * Extracts all FunctionDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.FunctionDefinition> extractFunctionDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.FunctionDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.functionDefinition() != null) {
+                result.add(builder.visitFunctionDefinition(elemCtx.functionDefinition()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first FunctionDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.FunctionDefinition> extractFirstFunctionDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.FunctionDefinition> defs = extractFunctionDefinitions(definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
 }
