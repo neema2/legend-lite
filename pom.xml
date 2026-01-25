@@ -96,6 +96,15 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- Exec Maven Plugin to run the server -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <mainClass>org.finos.legend.engine.lsp.LspHttpAdapter</mainClass>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>
