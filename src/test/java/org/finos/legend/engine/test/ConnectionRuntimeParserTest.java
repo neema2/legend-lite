@@ -1,6 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.pure.dsl.definition.*;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +27,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureDefinitionParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureDefinitionBuilder.parseConnectionDefinition(source);
 
         assertEquals("store::InMemoryDuckDb", conn.qualifiedName());
         assertEquals("InMemoryDuckDb", conn.simpleName());
@@ -49,7 +50,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureDefinitionParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureDefinitionBuilder.parseConnectionDefinition(source);
 
         assertEquals("store::InMemorySqlite", conn.qualifiedName());
         assertEquals("store::OrderDb", conn.storeName());
@@ -70,7 +71,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureDefinitionParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureDefinitionBuilder.parseConnectionDefinition(source);
 
         assertEquals("store::FileDuckDb", conn.qualifiedName());
         assertEquals(ConnectionDefinition.DatabaseType.DuckDB, conn.databaseType());
@@ -93,7 +94,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureDefinitionParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureDefinitionBuilder.parseConnectionDefinition(source);
 
         assertEquals("store::ProductionDb", conn.qualifiedName());
         assertEquals(ConnectionDefinition.DatabaseType.Postgres, conn.databaseType());
@@ -119,7 +120,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureDefinitionParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureDefinitionBuilder.parseConnectionDefinition(source);
 
         assertInstanceOf(AuthenticationSpec.UsernamePassword.class, conn.authentication());
 
@@ -141,7 +142,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        RuntimeDefinition runtime = PureDefinitionParser.parseRuntimeDefinition(source);
+        RuntimeDefinition runtime = PureDefinitionBuilder.parseRuntimeDefinition(source);
 
         assertEquals("my::MyRuntime", runtime.qualifiedName());
         assertEquals("MyRuntime", runtime.simpleName());
@@ -162,7 +163,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        RuntimeDefinition runtime = PureDefinitionParser.parseRuntimeDefinition(source);
+        RuntimeDefinition runtime = PureDefinitionBuilder.parseRuntimeDefinition(source);
 
         assertEquals(3, runtime.mappings().size());
         assertTrue(runtime.mappings().contains("model::PersonMapping"));
@@ -181,7 +182,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        RuntimeDefinition runtime = PureDefinitionParser.parseRuntimeDefinition(source);
+        RuntimeDefinition runtime = PureDefinitionBuilder.parseRuntimeDefinition(source);
 
         assertEquals(2, runtime.connectionBindings().size());
         assertEquals("conn::PersonConn", runtime.getConnectionForStore("store::PersonDb"));

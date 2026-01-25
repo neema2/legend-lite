@@ -1,6 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.pure.dsl.definition.*;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.junit.jupiter.api.*;
 
 import java.util.List;
@@ -36,7 +37,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // THEN: We get a valid ClassDefinition
         assertEquals("model::Person", classDef.qualifiedName());
@@ -70,7 +71,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // THEN: We get a valid ClassDefinition with both regular and derived properties
         assertEquals("model::Person", classDef.qualifiedName());
@@ -110,7 +111,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // THEN: We get a valid ClassDefinition with constraints
         assertEquals("model::Person", classDef.qualifiedName());
@@ -147,7 +148,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        DatabaseDefinition dbDef = PureDefinitionParser.parseDatabaseDefinition(pureDatabase);
+        DatabaseDefinition dbDef = PureDefinitionBuilder.parseDatabaseDefinition(pureDatabase);
 
         // THEN: We get a valid DatabaseDefinition
         assertEquals("store::MyDatabase", dbDef.qualifiedName());
@@ -194,7 +195,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        DatabaseDefinition dbDef = PureDefinitionParser.parseDatabaseDefinition(pureDatabase);
+        DatabaseDefinition dbDef = PureDefinitionBuilder.parseDatabaseDefinition(pureDatabase);
 
         // THEN: We get tables and joins
         assertEquals("store::TestDB", dbDef.qualifiedName());
@@ -226,7 +227,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        EnumDefinition enumDef = PureDefinitionParser.parseEnumDefinition(pureEnum);
+        EnumDefinition enumDef = PureDefinitionBuilder.parseEnumDefinition(pureEnum);
 
         // THEN: We get a valid EnumDefinition
         assertEquals("model::Status", enumDef.qualifiedName());
@@ -262,7 +263,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pureModel);
+        List<PureDefinition> definitions = PureDefinitionBuilder.parse(pureModel);
 
         // THEN: We get both definitions
         assertEquals(2, definitions.size());
@@ -304,7 +305,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        MappingDefinition mappingDef = PureDefinitionParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mappingDef = PureDefinitionBuilder.parseMappingDefinition(pureMapping);
 
         // THEN: We get a valid MappingDefinition
         assertEquals("model::PersonMapping", mappingDef.qualifiedName());
@@ -342,7 +343,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        AssociationDefinition assocDef = PureDefinitionParser.parseAssociationDefinition(pureAssociation);
+        AssociationDefinition assocDef = PureDefinitionBuilder.parseAssociationDefinition(pureAssociation);
 
         // THEN: We get a valid AssociationDefinition
         assertEquals("model::Person_Address", assocDef.qualifiedName());
@@ -389,7 +390,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        MappingDefinition mappingDef = PureDefinitionParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mappingDef = PureDefinitionBuilder.parseMappingDefinition(pureMapping);
 
         // THEN: We get class mappings with property-to-join references
         assertEquals("simple::mapping::Map", mappingDef.qualifiedName());
@@ -488,7 +489,7 @@ class PureParserTest {
                 """;
 
         // WHEN: We parse it
-        List<PureDefinition> definitions = PureDefinitionParser.parse(completePureModel);
+        List<PureDefinition> definitions = PureDefinitionBuilder.parse(completePureModel);
 
         // THEN: We get 5 definitions (Person, Address, Association, Database, Mapping)
         assertEquals(5, definitions.size());

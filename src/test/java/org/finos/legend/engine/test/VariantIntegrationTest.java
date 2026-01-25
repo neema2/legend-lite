@@ -44,7 +44,11 @@ class VariantIntegrationTest {
             Runtime test::TestRuntime
             {
                 mappings: [ ];
-                connections: [ store::EventDatabase: store::TestConnection ];
+                connections: [
+                    store::EventDatabase: [
+                        conn1: store::TestConnection
+                    ]
+                ];
             }
             """;
 
@@ -330,7 +334,11 @@ class VariantIntegrationTest {
 
                 Runtime test::TestRuntime {
                     mappings: [ model::EventMapping ];
-                    connections: [ store::EventDatabase: store::TestConnection ];
+                    connections: [
+                        store::EventDatabase: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 

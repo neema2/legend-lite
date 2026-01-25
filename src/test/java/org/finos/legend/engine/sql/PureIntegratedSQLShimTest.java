@@ -8,7 +8,7 @@ import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
 import org.finos.legend.pure.dsl.PureCompiler;
-import org.finos.legend.pure.dsl.definition.PureDefinitionParser;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.finos.legend.pure.dsl.definition.ServiceDefinition;
 
 import org.junit.jupiter.api.*;
@@ -64,7 +64,7 @@ class PureIntegratedSQLShimTest extends AbstractDatabaseTest {
         sqlGenerator = new SQLGenerator(DuckDBDialect.INSTANCE);
 
         // Add service to model builder
-        ServiceDefinition serviceDef = PureDefinitionParser.parseServiceDefinition(ALL_PERSONS_SERVICE);
+        ServiceDefinition serviceDef = PureDefinitionBuilder.parseServiceDefinition(ALL_PERSONS_SERVICE);
         modelBuilder.addService(serviceDef);
 
         fullCompiler = new SQLCompiler(

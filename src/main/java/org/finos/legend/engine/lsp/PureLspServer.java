@@ -163,13 +163,18 @@ public class PureLspServer {
 
     /**
      * Compile the document and publish diagnostics.
+     * 
+     * Uses ANTLR parser to validate Pure definitions (Class, Database, Mapping,
+     * etc.)
      */
     private String publishDiagnostics(String uri, String text) {
         List<Map<String, Object>> diagnostics = new ArrayList<>();
 
         try {
-            // Try to compile the Pure code using reusable compiler
-            compiler.compile(text);
+            // Use high-level parser API to validate Pure source
+            // This handles all definition types: Class, Database, Mapping, Runtime,
+            // Connection, etc.
+            org.finos.legend.pure.dsl.PureParser.parseToDefinitions(text);
             // Success - no diagnostics
         } catch (Exception e) {
             // Parse the error to extract location if possible

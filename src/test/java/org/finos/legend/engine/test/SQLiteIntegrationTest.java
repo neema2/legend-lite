@@ -4,6 +4,7 @@ import org.finos.legend.engine.store.*;
 import org.finos.legend.engine.transpiler.SQLDialect;
 import org.finos.legend.engine.transpiler.SQLiteDialect;
 import org.finos.legend.pure.dsl.definition.*;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.finos.legend.pure.m3.*;
 
 import org.junit.jupiter.api.*;
@@ -72,7 +73,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // WHEN: We parse it
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // THEN: We get correct multiplicities
         assertEquals("model::Employee", classDef.qualifiedName());
@@ -110,7 +111,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // WHEN: We parse it
-        DatabaseDefinition dbDef = PureDefinitionParser.parseDatabaseDefinition(pureDatabase);
+        DatabaseDefinition dbDef = PureDefinitionBuilder.parseDatabaseDefinition(pureDatabase);
 
         // THEN: We get both tables
         assertEquals("store::SalesDB", dbDef.qualifiedName());
@@ -289,6 +290,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithClassQuery_SQLite() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                ###Pure
                 Class model::Adult { name: String[1]; age: Integer[1]; }
                 Database store::AdultDb ( Table T_ADULT ( ID INTEGER, NAME VARCHAR(100), AGE INTEGER ) )
                 Mapping model::AdultMap ( Adult: Relational { ~mainTable [AdultDb] T_ADULT name: [AdultDb] T_ADULT.NAME, age: [AdultDb] T_ADULT.AGE } )
@@ -298,6 +300,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                     Adult.all()->filter({p | $p.age >= 18})
                 }
 
+                ###Connection
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: SQLite;
@@ -305,10 +308,15 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                     auth: NoAuth { };
                 }
 
+                ###Runtime
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::AdultMap ];
-                    connections: [ store::AdultDb: store::TestConnection ];
+                    connections: [
+                        store::AdultDb: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 
@@ -331,6 +339,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithRelationQuery_SQLite() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                ###Pure
                 Class model::Worker { dept: String[1]; salary: Integer[1]; }
                 Database store::WorkerDb ( Table T_WORKER ( ID INTEGER, DEPT VARCHAR(50), SALARY INTEGER ) )
                 Mapping model::WorkerMap ( Worker: Relational { ~mainTable [WorkerDb] T_WORKER dept: [WorkerDb] T_WORKER.DEPT, salary: [WorkerDb] T_WORKER.SALARY } )
@@ -340,6 +349,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                     Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
                 }
 
+                ###Connection
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: SQLite;
@@ -347,10 +357,15 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                     auth: NoAuth { };
                 }
 
+                ###Runtime
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::WorkerMap ];
-                    connections: [ store::WorkerDb: store::TestConnection ];
+                    connections: [
+                        store::WorkerDb: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 

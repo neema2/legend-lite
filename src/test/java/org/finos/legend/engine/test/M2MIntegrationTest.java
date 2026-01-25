@@ -219,7 +219,11 @@ class M2MIntegrationTest {
             Runtime test::TestRuntime
             {
                 mappings: [ model::PersonM2MMapping, model::ConditionalMapping, model::FilteredMapping, model::SalaryBandMapping, model::DeepFetchMapping ];
-                connections: [ store::RawDatabase: store::TestConnection ];
+                connections: [
+                    store::RawDatabase: [
+                        conn1: store::TestConnection
+                    ]
+                ];
             }
             """;
 

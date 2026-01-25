@@ -1,6 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.pure.dsl.definition.*;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -63,7 +64,7 @@ class MappingTestSuiteParserTest {
                 )
                 """;
 
-        MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mapping = PureDefinitionBuilder.parseMappingDefinition(pureMapping);
 
         // Verify basic mapping parsed
         assertEquals("model::PersonMapping", mapping.qualifiedName());
@@ -113,7 +114,7 @@ class MappingTestSuiteParserTest {
                 )
                 """;
 
-        MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mapping = PureDefinitionBuilder.parseMappingDefinition(pureMapping);
 
         assertEquals("model::SimpleMapping", mapping.qualifiedName());
         assertEquals(1, mapping.classMappings().size());
@@ -170,7 +171,7 @@ class MappingTestSuiteParserTest {
                 )
                 """;
 
-        MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mapping = PureDefinitionBuilder.parseMappingDefinition(pureMapping);
 
         // Verify M2M mapping parsed
         assertEquals("model::M2MMapping", mapping.qualifiedName());
@@ -236,7 +237,7 @@ class MappingTestSuiteParserTest {
                 )
                 """;
 
-        MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mapping = PureDefinitionBuilder.parseMappingDefinition(pureMapping);
 
         // Verify reference is parsed
         var test = mapping.testSuites().get(0).tests().get(0);

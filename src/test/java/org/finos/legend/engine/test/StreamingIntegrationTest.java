@@ -79,7 +79,11 @@ class StreamingIntegrationTest {
             Runtime test::TestRuntime
             {
                 mappings: [ model::EmployeeMapping ];
-                connections: [ store::EmployeeDb: store::TestConnection ];
+                connections: [
+                    store::EmployeeDb: [
+                        conn1: store::TestConnection
+                    ]
+                ];
             }
             """;
 

@@ -1,6 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.pure.dsl.definition.*;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +25,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureDefinitionParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureDefinitionBuilder.parseFunctionDefinition(pure);
 
         assertEquals("my::utils::greet", func.qualifiedName());
         assertEquals("greet", func.simpleName());
@@ -50,7 +51,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureDefinitionParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureDefinitionBuilder.parseFunctionDefinition(pure);
 
         assertEquals("math::add", func.qualifiedName());
         assertEquals(2, func.parameters().size());
@@ -70,7 +71,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureDefinitionParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureDefinitionBuilder.parseFunctionDefinition(pure);
 
         assertEquals(2, func.parameters().size());
         assertEquals("prefix", func.parameters().get(1).name());
@@ -88,7 +89,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureDefinitionParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureDefinitionBuilder.parseFunctionDefinition(pure);
 
         assertEquals("getAllNames", func.simpleName());
         assertEquals("String", func.returnType());
@@ -106,7 +107,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureDefinitionParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureDefinitionBuilder.parseFunctionDefinition(pure);
 
         assertEquals("app::getVersion", func.qualifiedName());
         assertTrue(func.parameters().isEmpty());
@@ -124,7 +125,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureDefinitionParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureDefinitionBuilder.parseFunctionDefinition(pure);
 
         assertEquals("old::legacy::method", func.qualifiedName());
         assertEquals(1, func.stereotypes().size());
@@ -144,7 +145,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureDefinitionParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureDefinitionBuilder.parseFunctionDefinition(pure);
 
         assertEquals(1, func.taggedValues().size());
         assertEquals("doc::Documentation", func.taggedValues().get(0).profileName());
@@ -166,7 +167,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pure);
+        List<PureDefinition> definitions = PureDefinitionBuilder.parse(pure);
 
         assertEquals(2, definitions.size());
         assertInstanceOf(ClassDefinition.class, definitions.get(0));

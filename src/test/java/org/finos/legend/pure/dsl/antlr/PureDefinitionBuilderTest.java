@@ -18,9 +18,11 @@ class PureDefinitionBuilderTest {
     void testParseClassWithNoSuperclass() {
         String source = "Class model::Person { firstName: String[1]; }";
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        Optional<ClassDefinition> result = PureDefinitionBuilder.extractFirstClassDefinition(ctx);
+        PureDefinitionBuilder.ParseResult parseResult = org.finos.legend.pure.dsl.PureParser.parseAll(source);
+        Optional<ClassDefinition> result = parseResult.definitions().stream()
+                .filter(d -> d instanceof ClassDefinition)
+                .map(d -> (ClassDefinition) d)
+                .findFirst();
 
         assertTrue(result.isPresent());
         ClassDefinition classDef = result.get();
@@ -34,9 +36,11 @@ class PureDefinitionBuilderTest {
     void testParseClassWithSingleSuperclass() {
         String source = "Class model::Employee extends model::Person { employeeId: String[1]; }";
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        Optional<ClassDefinition> result = PureDefinitionBuilder.extractFirstClassDefinition(ctx);
+        PureDefinitionBuilder.ParseResult parseResult = org.finos.legend.pure.dsl.PureParser.parseAll(source);
+        Optional<ClassDefinition> result = parseResult.definitions().stream()
+                .filter(d -> d instanceof ClassDefinition)
+                .map(d -> (ClassDefinition) d)
+                .findFirst();
 
         assertTrue(result.isPresent());
         ClassDefinition classDef = result.get();
@@ -50,9 +54,11 @@ class PureDefinitionBuilderTest {
     void testParseClassWithMultipleSuperclasses() {
         String source = "Class model::Manager extends model::Employee, model::Leader { teamSize: Integer[1]; }";
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        Optional<ClassDefinition> result = PureDefinitionBuilder.extractFirstClassDefinition(ctx);
+        PureDefinitionBuilder.ParseResult parseResult = org.finos.legend.pure.dsl.PureParser.parseAll(source);
+        Optional<ClassDefinition> result = parseResult.definitions().stream()
+                .filter(d -> d instanceof ClassDefinition)
+                .map(d -> (ClassDefinition) d)
+                .findFirst();
 
         assertTrue(result.isPresent());
         ClassDefinition classDef = result.get();
@@ -69,9 +75,11 @@ class PureDefinitionBuilderTest {
                 Class model::Employee extends model::Person { employeeId: String[1]; }
                 """;
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        List<ClassDefinition> result = PureDefinitionBuilder.extractClassDefinitions(ctx);
+        PureDefinitionBuilder.ParseResult parseResult = org.finos.legend.pure.dsl.PureParser.parseAll(source);
+        List<ClassDefinition> result = parseResult.definitions().stream()
+                .filter(d -> d instanceof ClassDefinition)
+                .map(d -> (ClassDefinition) d)
+                .toList();
 
         assertEquals(2, result.size());
 
@@ -97,9 +105,11 @@ class PureDefinitionBuilderTest {
                 }
                 """;
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        Optional<ClassDefinition> result = PureDefinitionBuilder.extractFirstClassDefinition(ctx);
+        PureDefinitionBuilder.ParseResult parseResult = org.finos.legend.pure.dsl.PureParser.parseAll(source);
+        Optional<ClassDefinition> result = parseResult.definitions().stream()
+                .filter(d -> d instanceof ClassDefinition)
+                .map(d -> (ClassDefinition) d)
+                .findFirst();
 
         assertTrue(result.isPresent());
         ClassDefinition classDef = result.get();

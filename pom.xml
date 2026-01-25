@@ -88,13 +88,48 @@
                         <configuration>
                             <listener>false</listener>
                             <visitor>true</visitor>
-                            <!-- Only process grammars in our package, ignore legend-engine grammars -->
+                            <!-- Library directory where imported grammars are found -->
+                            <libDirectory>${basedir}/src/main/antlr4/org/finos/legend/pure/dsl/antlr</libDirectory>
+                            <!-- Generate each Legend Engine grammar directly -->
                             <includes>
-                                <include>**/org/finos/legend/pure/dsl/antlr/*.g4</include>
+                                <!-- Core/Fragment grammars (required by others) -->
+                                <include>**/org/finos/legend/pure/dsl/antlr/CoreLexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/CoreFragmentGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/M3LexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/M3ParserGrammar.g4</include>
+                                <!-- Domain -->
+                                <include>**/org/finos/legend/pure/dsl/antlr/DomainLexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/DomainParserGrammar.g4</include>
+                                <!-- Mapping -->
+                                <include>**/org/finos/legend/pure/dsl/antlr/MappingLexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/MappingParserGrammar.g4</include>
+                                <!-- Runtime -->
+                                <include>**/org/finos/legend/pure/dsl/antlr/RuntimeLexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/RuntimeParserGrammar.g4</include>
+                                <!-- Connection -->
+                                <include>**/org/finos/legend/pure/dsl/antlr/ConnectionLexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/ConnectionParserGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/RelationalDatabaseConnectionLexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/RelationalDatabaseConnectionParserGrammar.g4</include>
+                                <!-- Relational -->
+                                <include>**/org/finos/legend/pure/dsl/antlr/RelationalLexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/RelationalParserGrammar.g4</include>
+                                <!-- Graph Fetch Tree -->
+                                <include>**/org/finos/legend/pure/dsl/antlr/GraphFetchTreeLexerGrammar.g4</include>
+                                <include>**/org/finos/legend/pure/dsl/antlr/GraphFetchTreeParserGrammar.g4</include>
                             </includes>
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <!-- Exec Maven Plugin - Run LSP Server -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>org.finos.legend.engine.lsp.LspHttpAdapter</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>

@@ -15,7 +15,6 @@ import org.finos.legend.pure.dsl.SaveExpression;
 import org.finos.legend.pure.dsl.UpdateExpression;
 import org.finos.legend.pure.dsl.definition.ClassDefinition;
 import org.finos.legend.pure.dsl.definition.PureDefinition;
-import org.finos.legend.pure.dsl.definition.PureDefinitionParser;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -115,7 +114,10 @@ public class WriteService {
      */
     private Map<String, ClassDefinition> parseClasses(String pureSource) {
         Map<String, ClassDefinition> classes = new HashMap<>();
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pureSource);
+
+        // Use high-level parser API - no grammar-specific types needed
+        List<PureDefinition> definitions = org.finos.legend.pure.dsl.PureParser.parseToDefinitions(pureSource);
+
         for (PureDefinition def : definitions) {
             if (def instanceof ClassDefinition classDef) {
                 classes.put(classDef.simpleName(), classDef);

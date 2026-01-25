@@ -806,7 +806,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::EmpMap ];
-                    connections: [ store::EmpDb: store::TestConnection ];
+                    connections: [
+                        store::EmpDb: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 
@@ -872,7 +876,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::EmpMap ];
-                    connections: [ store::EmpDb: store::TestConnection ];
+                    connections: [
+                        store::EmpDb: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 
@@ -911,7 +919,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::EmpMap ];
-                    connections: [ store::EmpDb: store::TestConnection ];
+                    connections: [
+                        store::EmpDb: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 
@@ -957,7 +969,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::AdultMap ];
-                    connections: [ store::AdultDb: store::TestConnection ];
+                    connections: [
+                        store::AdultDb: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 
@@ -999,7 +1015,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::WorkerMap ];
-                    connections: [ store::WorkerDb: store::TestConnection ];
+                    connections: [
+                        store::WorkerDb: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 

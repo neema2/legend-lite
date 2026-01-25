@@ -47,7 +47,8 @@ public final class PureModelBuilder implements ModelContext {
      * @return this builder for chaining
      */
     public PureModelBuilder addSource(String pureSource) {
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pureSource);
+        // Use high-level parser API - no grammar-specific types needed
+        List<PureDefinition> definitions = org.finos.legend.pure.dsl.PureParser.parseToDefinitions(pureSource);
 
         // PHASE 1: Register all classes first (without superclass resolution)
         for (PureDefinition def : definitions) {

@@ -1,6 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.pure.dsl.definition.*;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +25,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ProfileDefinition profile = PureDefinitionParser.parseProfileDefinition(pure);
+        ProfileDefinition profile = PureDefinitionBuilder.parseProfileDefinition(pure);
 
         assertEquals("doc::Documentation", profile.qualifiedName());
         assertEquals("Documentation", profile.simpleName());
@@ -42,7 +43,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ProfileDefinition profile = PureDefinitionParser.parseProfileDefinition(pure);
+        ProfileDefinition profile = PureDefinitionBuilder.parseProfileDefinition(pure);
 
         assertEquals("meta::Validation", profile.qualifiedName());
         assertEquals(List.of("required", "unique"), profile.stereotypes());
@@ -59,7 +60,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureDefinitionParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureDefinitionBuilder.parseClassDefinition(pure);
 
         assertEquals("model::Person", clazz.qualifiedName());
         assertEquals(1, clazz.stereotypes().size());
@@ -79,7 +80,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureDefinitionParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureDefinitionBuilder.parseClassDefinition(pure);
 
         assertEquals("model::Order", clazz.qualifiedName());
         assertEquals(2, clazz.stereotypes().size());
@@ -97,7 +98,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureDefinitionParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureDefinitionBuilder.parseClassDefinition(pure);
 
         assertEquals("model::Customer", clazz.qualifiedName());
         assertEquals(1, clazz.taggedValues().size());
@@ -118,7 +119,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureDefinitionParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureDefinitionBuilder.parseClassDefinition(pure);
 
         assertEquals("model::LegacyEntity", clazz.qualifiedName());
         assertEquals(1, clazz.stereotypes().size());
@@ -139,7 +140,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureDefinitionParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureDefinitionBuilder.parseClassDefinition(pure);
 
         assertEquals("model::Simple", clazz.qualifiedName());
         assertTrue(clazz.stereotypes().isEmpty());
@@ -163,7 +164,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pure);
+        List<PureDefinition> definitions = PureDefinitionBuilder.parse(pure);
 
         assertEquals(2, definitions.size());
         assertInstanceOf(ProfileDefinition.class, definitions.get(0));

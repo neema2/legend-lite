@@ -66,8 +66,10 @@ public abstract class AbstractDatabaseTest {
 
     /**
      * Pure Database definition with T_PERSON and T_ADDRESS tables.
+     * Note: Uses ###Relational section header for section-aware parsing.
      */
     protected static final String PERSON_DATABASE = """
+            ###Relational
             Database store::PersonDatabase
             (
                 Table T_PERSON
@@ -90,8 +92,10 @@ public abstract class AbstractDatabaseTest {
 
     /**
      * Pure Mapping definition from Person to T_PERSON.
+     * Note: Uses ###Mapping section header for section-aware parsing.
      */
     protected static final String PERSON_MAPPING = """
+            ###Mapping
             Mapping model::PersonMapping
             (
                 Person: Relational
@@ -113,12 +117,13 @@ public abstract class AbstractDatabaseTest {
 
     /**
      * Complete Pure model (Classes + Association + Database + Mapping).
+     * Each element type uses its own section header for section-aware parsing.
      */
-    protected static final String COMPLETE_PURE_MODEL = PERSON_CLASS + "\n" +
+    protected static final String COMPLETE_PURE_MODEL = "###Pure\n" + PERSON_CLASS + "\n" +
             ADDRESS_CLASS + "\n" +
             PERSON_ADDRESS_ASSOCIATION + "\n" +
-            PERSON_DATABASE + "\n" +
-            PERSON_MAPPING;
+            PERSON_DATABASE + "\n" + // Already has ###Relational header
+            PERSON_MAPPING; // Already has ###Mapping header
 
     // ==================== Connection/Runtime Definitions (Abstract)
     // ====================
@@ -130,9 +135,11 @@ public abstract class AbstractDatabaseTest {
 
     /**
      * Builds the Connection Pure definition for this database.
+     * Uses ###Connection section header.
      */
     protected String getConnectionDefinition() {
         return """
+                ###Connection
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: %s;
@@ -144,13 +151,22 @@ public abstract class AbstractDatabaseTest {
 
     /**
      * Builds the Runtime Pure definition.
+     * Uses ###Runtime section header.
+     * 
+     * Note: Legend Engine requires nested bracket syntax for connections:
+     * connections: [ storeName: [ connectionId: connectionRef ] ];
      */
     protected String getRuntimeDefinition() {
         return """
+                ###Runtime
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::PersonMapping ];
-                    connections: [ store::PersonDatabase: store::TestConnection ];
+                    connections: [
+                        store::PersonDatabase: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
     }

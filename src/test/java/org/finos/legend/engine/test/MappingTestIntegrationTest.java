@@ -2,6 +2,7 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.definition.*;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -97,7 +98,11 @@ class MappingTestIntegrationTest {
             Runtime test::TestRuntime
             {
                 mappings: [ model::PersonMapping ];
-                connections: [ store::PersonDatabase: store::TestConnection ];
+                connections: [
+                    store::PersonDatabase: [
+                        conn1: store::TestConnection
+                    ]
+                ];
             }
             """;
 
@@ -134,7 +139,7 @@ class MappingTestIntegrationTest {
                 RELATIONAL_MODEL.indexOf("Mapping model::PersonMapping"),
                 RELATIONAL_MODEL.indexOf("RelationalDatabaseConnection")).trim();
 
-        MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(mappingOnly);
+        MappingDefinition mapping = PureDefinitionBuilder.parseMappingDefinition(mappingOnly);
 
         // Create and run the test runner
         TestSuiteRunner runner = new TestSuiteRunner(
@@ -166,7 +171,7 @@ class MappingTestIntegrationTest {
                 RELATIONAL_MODEL.indexOf("Mapping model::PersonMapping"),
                 RELATIONAL_MODEL.indexOf("RelationalDatabaseConnection")).trim();
 
-        MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(mappingOnly);
+        MappingDefinition mapping = PureDefinitionBuilder.parseMappingDefinition(mappingOnly);
 
         TestSuiteRunner runner = new TestSuiteRunner(
                 queryService, connection, RELATIONAL_MODEL, "test::TestRuntime");

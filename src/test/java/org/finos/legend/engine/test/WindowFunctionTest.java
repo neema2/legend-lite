@@ -380,7 +380,11 @@ class WindowFunctionTest {
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::EmployeeMapping ];
-                    connections: [ store::EmployeeDatabase: store::TestConnection ];
+                    connections: [
+                        store::EmployeeDatabase: [
+                            conn1: store::TestConnection
+                        ]
+                    ];
                 }
                 """;
 

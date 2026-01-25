@@ -5,7 +5,6 @@ import org.finos.legend.pure.dsl.definition.ClassDefinition.DerivedPropertyDefin
 import org.finos.legend.pure.dsl.definition.ClassDefinition.PropertyDefinition;
 import org.finos.legend.pure.dsl.definition.EnumDefinition;
 import org.finos.legend.pure.dsl.definition.PureDefinition;
-import org.finos.legend.pure.dsl.definition.PureDefinitionParser;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,7 +41,8 @@ public final class JavaCodeGenerator {
      * @return List of generated Java source files (filename, content pairs)
      */
     public List<GeneratedFile> generate(String pureSource) {
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pureSource);
+        // Use high-level parser API - no grammar-specific types needed
+        List<PureDefinition> definitions = org.finos.legend.pure.dsl.PureParser.parseToDefinitions(pureSource);
 
         return definitions.stream()
                 .filter(def -> def instanceof ClassDefinition || def instanceof EnumDefinition)

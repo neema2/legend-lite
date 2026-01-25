@@ -2,6 +2,7 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.codegen.JavaCodeGenerator;
 import org.finos.legend.pure.dsl.definition.*;
+import org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder;
 import org.junit.jupiter.api.*;
 
 import java.util.List;
@@ -35,7 +36,7 @@ class JavaCodeGeneratorTest {
                     PENDING
                 }
                 """;
-        EnumDefinition enumDef = PureDefinitionParser.parseEnumDefinition(pureEnum);
+        EnumDefinition enumDef = PureDefinitionBuilder.parseEnumDefinition(pureEnum);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateEnum(enumDef);
@@ -65,7 +66,7 @@ class JavaCodeGeneratorTest {
                     active: Boolean[1];
                 }
                 """;
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -91,7 +92,7 @@ class JavaCodeGeneratorTest {
                     age: Integer[0..1];
                 }
                 """;
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -118,7 +119,7 @@ class JavaCodeGeneratorTest {
                     fullName() {$this.firstName + ' ' + $this.lastName}: String[1];
                 }
                 """;
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -142,7 +143,7 @@ class JavaCodeGeneratorTest {
                     members: String[*];
                 }
                 """;
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -268,7 +269,7 @@ class JavaCodeGeneratorTest {
                     displayName() {$this.name + ' <' + $this.email + '>'}: String[1];
                 }
                 """;
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -301,7 +302,7 @@ class JavaCodeGeneratorTest {
                     nameNotEmpty: $this.firstName->length() > 0
                 ]
                 """;
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureDefinitionBuilder.parseClassDefinition(pureClass);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
