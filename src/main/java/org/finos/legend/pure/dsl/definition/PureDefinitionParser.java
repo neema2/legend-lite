@@ -97,9 +97,22 @@ public final class PureDefinitionParser {
                 lineOffset += countNewlines(enumSource);
                 remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("Profile ")) {
-                var result = parseProfile(remaining);
-                definitions.add(result.definition);
-                remaining = result.remaining;
+                // Find the profile body brace - first '{' (Profile has no stereotypes on
+                // itself)
+                int bodyStart = remaining.indexOf('{');
+                if (bodyStart < 0) {
+                    throw new PureParseException("Invalid Profile definition - missing body");
+                }
+
+                int braceEnd = findMatchingBrace(remaining, bodyStart);
+                String profileSource = remaining.substring(0, braceEnd + 1);
+
+                // Parse using ANTLR
+                ProfileDefinition profileDef = parseProfileDefinition(profileSource);
+                definitions.add(profileDef);
+
+                lineOffset += countNewlines(profileSource);
+                remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("function ")) {
                 var result = parseFunction(remaining);
                 definitions.add(result.definition);
@@ -244,11 +257,14 @@ public final class PureDefinitionParser {
     }
 
     /**
-     * Parses a single Profile definition.
+     * Parses a single Profile definition using ANTLR.
      */
     public static ProfileDefinition parseProfileDefinition(String pureSource) {
-        var result = parseProfile(pureSource.trim());
-        return result.definition;
+        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                .parseDefinition(pureSource);
+        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                .extractFirstProfileDefinition(tree)
+                .orElseThrow(() -> new PureParseException("No profile definition found in source"));
     }
 
     /**
@@ -289,58 +305,6 @@ public final class PureDefinitionParser {
     public static MappingDefinition parseMappingDefinition(String pureSource) {
         var result = parseMapping(pureSource.trim());
         return result.definition;
-    }
-
-    // ==================== Profile Parsing ====================
-
-    private static ParseResult<ProfileDefinition> parseProfile(String source) {
-        // Pattern: Profile qualified::Name { stereotypes: [...]; tags: [...]; }
-        Pattern headerPattern = Pattern.compile("Profile\\s+([\\w:]+)\\s*\\{");
-        Matcher headerMatcher = headerPattern.matcher(source);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Profile definition");
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
-
-        String body = source.substring(bodyStart, bodyEnd);
-        String remaining = source.substring(bodyEnd + 1).trim();
-
-        List<String> stereotypes = new ArrayList<>();
-        List<String> tags = new ArrayList<>();
-
-        // Parse stereotypes: [name1, name2, ...]
-        Pattern stereotypesPattern = Pattern.compile("stereotypes\\s*:\\s*\\[([^\\]]+)]");
-        Matcher stereotypesMatcher = stereotypesPattern.matcher(body);
-        if (stereotypesMatcher.find()) {
-            String[] names = stereotypesMatcher.group(1).split(",");
-            for (String name : names) {
-                name = name.trim();
-                if (!name.isEmpty()) {
-                    stereotypes.add(name);
-                }
-            }
-        }
-
-        // Parse tags: [name1, name2, ...]
-        Pattern tagsPattern = Pattern.compile("tags\\s*:\\s*\\[([^\\]]+)]");
-        Matcher tagsMatcher = tagsPattern.matcher(body);
-        if (tagsMatcher.find()) {
-            String[] names = tagsMatcher.group(1).split(",");
-            for (String name : names) {
-                name = name.trim();
-                if (!name.isEmpty()) {
-                    tags.add(name);
-                }
-            }
-        }
-
-        return new ParseResult<>(
-                new ProfileDefinition(qualifiedName, stereotypes, tags),
-                remaining);
     }
 
     // ==================== Function Parsing ====================

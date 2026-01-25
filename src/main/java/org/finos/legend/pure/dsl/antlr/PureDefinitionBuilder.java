@@ -451,4 +451,66 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         List<org.finos.legend.pure.dsl.definition.EnumDefinition> defs = extractEnumDefinitions(definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Profile Extraction ====================
+
+    /**
+     * Visits a profile parse tree node and returns a ProfileDefinition.
+     * 
+     * Grammar rule:
+     * profile: PROFILE qualifiedName BRACE_OPEN (stereotypeDefinitions |
+     * tagDefinitions)* BRACE_CLOSE
+     * stereotypeDefinitions: STEREOTYPES COLON BRACKET_OPEN (identifier (COMMA
+     * identifier)*)? BRACKET_CLOSE SEMI_COLON
+     * tagDefinitions: TAGS COLON BRACKET_OPEN (identifier (COMMA identifier)*)?
+     * BRACKET_CLOSE SEMI_COLON
+     */
+    public org.finos.legend.pure.dsl.definition.ProfileDefinition visitProfile(PureParser.ProfileContext ctx) {
+        // Extract qualified name
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        // Extract stereotypes and tags
+        List<String> stereotypes = new ArrayList<>();
+        List<String> tags = new ArrayList<>();
+
+        for (PureParser.StereotypeDefinitionsContext stereotypeCtx : ctx.stereotypeDefinitions()) {
+            for (PureParser.IdentifierContext idCtx : stereotypeCtx.identifier()) {
+                stereotypes.add(idCtx.getText());
+            }
+        }
+
+        for (PureParser.TagDefinitionsContext tagCtx : ctx.tagDefinitions()) {
+            for (PureParser.IdentifierContext idCtx : tagCtx.identifier()) {
+                tags.add(idCtx.getText());
+            }
+        }
+
+        return new org.finos.legend.pure.dsl.definition.ProfileDefinition(qualifiedName, stereotypes, tags);
+    }
+
+    /**
+     * Extracts all ProfileDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.ProfileDefinition> extractProfileDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.ProfileDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.profile() != null) {
+                result.add(builder.visitProfile(elemCtx.profile()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first ProfileDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.ProfileDefinition> extractFirstProfileDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.ProfileDefinition> defs = extractProfileDefinitions(definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
 }
