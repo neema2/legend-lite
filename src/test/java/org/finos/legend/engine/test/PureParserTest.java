@@ -285,6 +285,29 @@ class PureParserTest {
         assertEquals("OrderStatus", statusProp.type());
     }
 
+    @Test
+    @DisplayName("Parse Enum with stereotypes and tagged values")
+    void testParseEnumWithStereotypes() {
+        // GIVEN: An Enum with stereotypes (legend-engine syntax)
+        String pureEnum = """
+                Enum <<meta::pure::profiles::doc.deprecated>> model::LegacyStatus
+                {
+                    OLD,
+                    ARCHIVED
+                }
+                """;
+
+        // WHEN: We parse it
+        EnumDefinition enumDef = PureDefinitionParser.parseEnumDefinition(pureEnum);
+
+        // THEN: We get a valid EnumDefinition
+        assertEquals("model::LegacyStatus", enumDef.qualifiedName());
+        assertEquals(2, enumDef.values().size());
+        assertTrue(enumDef.hasValue("OLD"));
+        assertTrue(enumDef.hasValue("ARCHIVED"));
+        // TODO: Add stereotype assertions when EnumDefinition supports them
+    }
+
     // ==================== Mapping Parsing Tests ====================
 
     @Test

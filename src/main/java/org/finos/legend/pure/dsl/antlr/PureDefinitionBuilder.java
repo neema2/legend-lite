@@ -398,4 +398,57 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         List<ClassDefinition> defs = extractClassDefinitions(definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Enum Extraction ====================
+
+    /**
+     * Visits an enum definition parse tree node and returns an EnumDefinition.
+     * 
+     * Grammar rule:
+     * enumDefinition: ENUM stereotypes? taggedValues? qualifiedName
+     * BRACE_OPEN (enumValue (COMMA enumValue)*)? BRACE_CLOSE
+     * enumValue: stereotypes? taggedValues? identifier
+     */
+    public org.finos.legend.pure.dsl.definition.EnumDefinition visitEnumDefinition(
+            PureParser.EnumDefinitionContext ctx) {
+        // Extract qualified name
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        // Extract enum values
+        List<String> values = new ArrayList<>();
+        for (PureParser.EnumValueContext valueCtx : ctx.enumValue()) {
+            // For now, just extract the identifier (ignoring per-value stereotypes/tagged
+            // values)
+            String valueName = valueCtx.identifier().getText();
+            values.add(valueName);
+        }
+
+        return org.finos.legend.pure.dsl.definition.EnumDefinition.of(qualifiedName, values);
+    }
+
+    /**
+     * Extracts all EnumDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.EnumDefinition> extractEnumDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.EnumDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.enumDefinition() != null) {
+                result.add(builder.visitEnumDefinition(elemCtx.enumDefinition()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first EnumDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.EnumDefinition> extractFirstEnumDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.EnumDefinition> defs = extractEnumDefinitions(definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
 }

@@ -81,9 +81,21 @@ public final class PureDefinitionParser {
                 definitions.add(result.definition);
                 remaining = result.remaining;
             } else if (remaining.startsWith("Enum ")) {
-                var result = parseEnum(remaining);
-                definitions.add(result.definition);
-                remaining = result.remaining;
+                // Find the enum body brace - similar to Class, first '{' not preceded by '>>'
+                int bodyStart = findClassBodyBrace(remaining); // Same logic works for Enum
+                if (bodyStart < 0) {
+                    throw new PureParseException("Invalid Enum definition - missing body");
+                }
+
+                int braceEnd = findMatchingBrace(remaining, bodyStart);
+                String enumSource = remaining.substring(0, braceEnd + 1);
+
+                // Parse using ANTLR
+                EnumDefinition enumDef = parseEnumDefinition(enumSource);
+                definitions.add(enumDef);
+
+                lineOffset += countNewlines(enumSource);
+                remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("Profile ")) {
                 var result = parseProfile(remaining);
                 definitions.add(result.definition);
@@ -1485,45 +1497,16 @@ public final class PureDefinitionParser {
     // ==================== Enum Parsing ====================
 
     /**
-     * Parses a single Enum definition.
+     * Parses a single Enum definition using ANTLR.
      * 
-     * Syntax: Enum package::Name { VALUE1, VALUE2, VALUE3 }
+     * Syntax: Enum [<<stereotypes>>] [taggedValues] package::Name { VALUE1, VALUE2,
+     * VALUE3 }
      */
     public static EnumDefinition parseEnumDefinition(String pureSource) {
-        var result = parseEnum(pureSource.trim());
-        return result.definition;
-    }
-
-    private static ParseResult<EnumDefinition> parseEnum(String source) {
-        // Pattern: Enum qualified::Name { VALUE1, VALUE2, ... }
-        Pattern headerPattern = Pattern.compile("Enum\\s+([\\w:]+)\\s*\\{");
-        Matcher headerMatcher = headerPattern.matcher(source);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Enum definition");
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
-
-        String body = source.substring(bodyStart, bodyEnd).trim();
-
-        // Parse values: VALUE1, VALUE2, VALUE3
-        List<String> values = new ArrayList<>();
-        for (String value : body.split(",")) {
-            String trimmed = value.trim();
-            if (!trimmed.isEmpty()) {
-                values.add(trimmed);
-            }
-        }
-
-        if (values.isEmpty()) {
-            throw new PureParseException("Enum must have at least one value");
-        }
-
-        return new ParseResult<>(
-                EnumDefinition.of(qualifiedName, values),
-                source.substring(bodyEnd + 1));
+        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                .parseDefinition(pureSource);
+        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                .extractFirstEnumDefinition(tree)
+                .orElseThrow(() -> new PureParseException("No enum definition found in source"));
     }
 }
