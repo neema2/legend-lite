@@ -3,6 +3,7 @@ package org.finos.legend.pure.dsl;
 import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.store.*;
 import org.finos.legend.pure.dsl.ModelContext.AssociationNavigation;
+import org.finos.legend.pure.dsl.definition.PureModelBuilder;
 import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
 import org.finos.legend.pure.dsl.m2m.M2MClassMapping;
 import org.finos.legend.pure.dsl.m2m.M2MCompiler;
@@ -42,6 +43,24 @@ public final class PureCompiler {
     public PureCompiler(MappingRegistry mappingRegistry, ModelContext modelContext) {
         this.mappingRegistry = Objects.requireNonNull(mappingRegistry, "Mapping registry cannot be null");
         this.modelContext = modelContext;
+    }
+
+    /**
+     * Validates Pure model source code (definitions only, no query execution).
+     * 
+     * This parses Classes, Mappings, Connections, Runtimes, etc. and validates
+     * their structure without trying to compile them into SQL execution plans.
+     * 
+     * @param pureSource The Pure source code to validate
+     * @throws RuntimeException if validation fails with error details
+     */
+    public void validate(String pureSource) {
+        // Use PureModelBuilder to parse and validate Pure definitions
+        try {
+            new PureModelBuilder().addSource(pureSource);
+        } catch (Exception e) {
+            throw new RuntimeException("Validation failed: " + e.getMessage(), e);
+        }
     }
 
     /**

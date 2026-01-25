@@ -25,6 +25,14 @@ public record BufferedResult(
         List<Column> columns,
         List<Row> rows) implements Result {
 
+    /**
+     * Returns an empty BufferedResult (no columns, no rows).
+     * Useful for DDL/DML operations that don't return a result set.
+     */
+    public static BufferedResult empty() {
+        return new BufferedResult(List.of(), List.of());
+    }
+
     @Override
     public long rowCount() {
         return rows.size();

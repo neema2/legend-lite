@@ -4,24 +4,23 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.finos.legend.engine.execution.BufferedResult;
-import org.finos.legend.engine.server.QueryService;
 
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.sql.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * HTTP adapter for the Pure LSP server.
+ * Legend Studio Lite HTTP Server.
  * 
  * Uses Java's built-in com.sun.net.httpserver - no external dependencies.
  * 
  * Endpoints:
- * - POST /lsp - Handle LSP JSON-RPC messages
- * - POST /lsp/execute - Execute Pure code (receives full model from frontend)
+ * - POST /lsp - Handle LSP JSON-RPC messages (diagnostics, completions, etc.)
+ * - POST /engine/execute - Execute Pure query (compile + generate SQL + run)
+ * - POST /engine/sql - Execute raw SQL against Connection from Runtime
  * - GET /health - Health check
  */
 public class LegendHttpServer {
@@ -29,73 +28,33 @@ public class LegendHttpServer {
     private final HttpServer server;
     private final PureLspServer lspServer;
     private final QueryService queryService = new QueryService();
-    private Connection duckDbConnection;
 
     // Pattern to find the Runtime definition
     private static final Pattern RUNTIME_PATTERN = Pattern.compile(
             "Runtime\\s+([\\w:]+)\\s*\\{",
             Pattern.MULTILINE);
 
-    public LegendHttpServer(int port) throws IOException, SQLException {
+    public LegendHttpServer(int port) throws IOException {
         this.server = HttpServer.create(new InetSocketAddress(port), 0);
         this.lspServer = new PureLspServer();
-        initializeDuckDb();
         setupRoutes();
     }
 
-    /**
-     * Initialize in-memory DuckDB with sample data.
-     * The database provides real data to execute queries against.
-     */
-    private void initializeDuckDb() throws SQLException {
-        duckDbConnection = DriverManager.getConnection("jdbc:duckdb:");
-
-        try (Statement stmt = duckDbConnection.createStatement()) {
-            // Create T_PERSON table
-            stmt.execute("""
-                    CREATE TABLE T_PERSON (
-                        ID INTEGER PRIMARY KEY,
-                        FIRST_NAME VARCHAR(100) NOT NULL,
-                        LAST_NAME VARCHAR(100) NOT NULL,
-                        AGE_VAL INTEGER NOT NULL
-                    )
-                    """);
-
-            // Create T_ADDRESS table
-            stmt.execute("""
-                    CREATE TABLE T_ADDRESS (
-                        ID INTEGER PRIMARY KEY,
-                        PERSON_ID INTEGER NOT NULL,
-                        STREET VARCHAR(200) NOT NULL,
-                        CITY VARCHAR(100) NOT NULL
-                    )
-                    """);
-
-            // Insert sample person data
-            stmt.execute("INSERT INTO T_PERSON VALUES (1, 'John', 'Smith', 30)");
-            stmt.execute("INSERT INTO T_PERSON VALUES (2, 'Jane', 'Smith', 28)");
-            stmt.execute("INSERT INTO T_PERSON VALUES (3, 'Bob', 'Jones', 45)");
-            stmt.execute("INSERT INTO T_PERSON VALUES (4, 'Alice', 'Williams', 22)");
-            stmt.execute("INSERT INTO T_PERSON VALUES (5, 'Charlie', 'Brown', 35)");
-
-            // Insert sample address data
-            stmt.execute("INSERT INTO T_ADDRESS VALUES (1, 1, '123 Main St', 'New York')");
-            stmt.execute("INSERT INTO T_ADDRESS VALUES (2, 1, '456 Oak Ave', 'Boston')");
-            stmt.execute("INSERT INTO T_ADDRESS VALUES (3, 2, '789 Elm Rd', 'Chicago')");
-            stmt.execute("INSERT INTO T_ADDRESS VALUES (4, 3, '999 Pine Lane', 'Detroit')");
-            stmt.execute("INSERT INTO T_ADDRESS VALUES (5, 5, '555 Maple Dr', 'Seattle')");
-        }
-
-        System.out.println("Initialized in-memory DuckDB with sample data");
-    }
-
     private void setupRoutes() {
+        // LSP Protocol - diagnostics, completions, etc.
         server.createContext("/lsp", new LspHandler());
-        server.createContext("/lsp/execute", new ExecuteHandler());
+
+        // Engine - query and SQL execution
+        server.createContext("/engine/execute", new ExecuteHandler());
+        server.createContext("/engine/sql", new ExecuteSqlHandler());
+
+        // Health check
         server.createContext("/health", exchange -> {
             addCorsHeaders(exchange);
             sendResponse(exchange, 200, "{\"status\":\"ok\"}");
         });
+
+        // CORS preflight for all routes
         server.createContext("/", exchange -> {
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
                 addCorsHeaders(exchange);
@@ -187,19 +146,94 @@ public class LegendHttpServer {
                 System.out.println("Query: " + query);
                 System.out.println("Runtime: " + runtimeName);
 
-                // Execute using QueryService - modelSource (definitions only), query
-                // (expression only)
+                // Execute using QueryService - uses Connection from Runtime
                 BufferedResult result = queryService.execute(
                         modelSource,
                         query,
-                        runtimeName,
-                        duckDbConnection);
+                        runtimeName);
 
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", true);
                 response.put("data", result.toJsonArray());
                 response.put("columns", result.columns().stream().map(c -> c.name()).toList());
                 response.put("rowCount", result.rows().size());
+
+                sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                Map<String, Object> response = new LinkedHashMap<>();
+                response.put("success", false);
+                response.put("error", e.getMessage());
+                sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+            }
+        }
+    }
+
+    /**
+     * Execute raw SQL against the Connection from the user's Runtime.
+     * 
+     * Request format:
+     * {
+     * "code": "full Pure model with Runtime definition",
+     * "sql": "CREATE TABLE T_PERSON (...) or INSERT INTO ... or SELECT ...",
+     * "runtime": "test::TestRuntime"
+     * }
+     */
+    private class ExecuteSqlHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            addCorsHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
+                return;
+            }
+
+            try {
+                String body = readBody(exchange);
+                System.out.println("Raw body length: " + body.length());
+                Map<String, Object> request = LegendHttpJson.parseObject(body);
+                String pureSource = LegendHttpJson.getString(request, "code");
+                String sql = LegendHttpJson.getString(request, "sql");
+                String runtimeName = LegendHttpJson.getString(request, "runtime");
+
+                if (pureSource == null || pureSource.isBlank()) {
+                    sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");
+                    return;
+                }
+                if (sql == null || sql.isBlank()) {
+                    sendResponse(exchange, 400, "{\"error\":\"Missing 'sql' field\"}");
+                    return;
+                }
+                if (runtimeName == null || runtimeName.isBlank()) {
+                    // Try to extract from source
+                    runtimeName = extractRuntimeName(pureSource);
+                    if (runtimeName == null) {
+                        sendResponse(exchange, 400,
+                                "{\"error\":\"Missing 'runtime' field and no Runtime found in source\"}");
+                        return;
+                    }
+                }
+
+                // Execute using QueryService
+                BufferedResult result = queryService.executeSql(pureSource, sql, runtimeName);
+
+                Map<String, Object> response = new LinkedHashMap<>();
+                response.put("success", true);
+                if (result.columns().isEmpty()) {
+                    // DDL/DML statement - no result set
+                    response.put("message", "SQL executed successfully");
+                } else {
+                    // SELECT - return results
+                    response.put("data", result.toJsonArray());
+                    response.put("columns", result.columns().stream().map(c -> c.name()).toList());
+                    response.put("rowCount", result.rows().size());
+                }
 
                 sendResponse(exchange, 200, LegendHttpJson.toJson(response));
 
@@ -320,21 +354,14 @@ public class LegendHttpServer {
 
     public void stop() {
         server.stop(0);
-        try {
-            if (duckDbConnection != null && !duckDbConnection.isClosed()) {
-                duckDbConnection.close();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
     }
 
     public int getPort() {
         return server.getAddress().getPort();
     }
 
-    public static void main(String[] args) throws IOException, SQLException {
-        int port = 8081;
+    public static void main(String[] args) throws IOException {
+        int port = 8080;
         if (args.length > 0) {
             try {
                 port = Integer.parseInt(args[0]);
@@ -343,8 +370,8 @@ public class LegendHttpServer {
             }
         }
 
-        LegendHttpServer adapter = new LegendHttpServer(port);
-        adapter.start();
+        LegendHttpServer server = new LegendHttpServer(port);
+        server.start();
 
         System.out.println();
         System.out.println("======================================");
@@ -352,16 +379,13 @@ public class LegendHttpServer {
         System.out.println("======================================");
         System.out.println();
         System.out.println("Endpoints:");
-        System.out.println("  http://localhost:" + port + "/lsp");
-        System.out.println("  http://localhost:" + port + "/lsp/execute");
-        System.out.println("  http://localhost:" + port + "/health");
-        System.out.println();
-        System.out.println("DuckDB initialized with sample data:");
-        System.out.println("  - T_PERSON (5 rows)");
-        System.out.println("  - T_ADDRESS (5 rows)");
+        System.out.println("  POST http://localhost:" + port + "/lsp         - LSP Protocol");
+        System.out.println("  POST http://localhost:" + port + "/engine/execute - Execute Pure query");
+        System.out.println("  POST http://localhost:" + port + "/engine/sql     - Execute raw SQL");
+        System.out.println("  GET  http://localhost:" + port + "/health         - Health check");
         System.out.println();
         System.out.println("Press Ctrl+C to stop");
 
-        Runtime.getRuntime().addShutdownHook(new Thread(adapter::stop));
+        Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
     }
 }

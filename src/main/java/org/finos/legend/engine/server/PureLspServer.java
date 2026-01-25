@@ -168,8 +168,8 @@ public class PureLspServer {
         List<Map<String, Object>> diagnostics = new ArrayList<>();
 
         try {
-            // Try to compile the Pure code using reusable compiler
-            compiler.compile(text);
+            // Validate the Pure model definitions (not query execution)
+            compiler.validate(text);
             // Success - no diagnostics
         } catch (Exception e) {
             // Parse the error to extract location if possible

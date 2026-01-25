@@ -7,6 +7,8 @@ import org.finos.legend.pure.dsl.definition.ConnectionSpecification;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Resolves a ConnectionDefinition to a live java.sql.Connection.
@@ -15,11 +17,31 @@ import java.sql.SQLException;
  * - InMemory DuckDB and SQLite
  * - LocalFile DuckDB
  * - Static datasource with host/port/database
+ * 
+ * In-memory connections are cached so that tables persist across requests.
  */
 public class ConnectionResolver {
 
+    // Force-load JDBC drivers at class initialization
+    static {
+        try {
+            Class.forName("org.duckdb.DuckDBDriver");
+        } catch (ClassNotFoundException e) {
+            System.err.println("DuckDB driver not found in classpath");
+        }
+        try {
+            Class.forName("org.sqlite.JDBC");
+        } catch (ClassNotFoundException e) {
+            System.err.println("SQLite driver not found in classpath");
+        }
+    }
+
+    // Cache for in-memory connections to persist tables across requests
+    private static final Map<String, Connection> connectionCache = new ConcurrentHashMap<>();
+
     /**
      * Resolves the given ConnectionDefinition to a JDBC Connection.
+     * In-memory connections are cached for persistence across requests.
      * 
      * @param connectionDef The connection definition to resolve
      * @return A live JDBC Connection
@@ -37,25 +59,27 @@ public class ConnectionResolver {
     }
 
     private Connection resolveDuckDB(ConnectionDefinition connectionDef) throws SQLException {
-        String jdbcUrl = switch (connectionDef.specification()) {
-            case ConnectionSpecification.InMemory() -> "jdbc:duckdb:";
-            case ConnectionSpecification.LocalFile(String path) -> "jdbc:duckdb:" + path;
+        return switch (connectionDef.specification()) {
+            case ConnectionSpecification.InMemory() -> getOrCreateCached(
+                    "duckdb:inmemory:" + connectionDef.qualifiedName(),
+                    () -> DriverManager.getConnection("jdbc:duckdb:"));
+            case ConnectionSpecification.LocalFile(String path) ->
+                DriverManager.getConnection("jdbc:duckdb:" + path);
             case ConnectionSpecification.StaticDatasource staticDs ->
                 throw new UnsupportedOperationException("DuckDB does not support remote connections");
         };
-
-        return DriverManager.getConnection(jdbcUrl);
     }
 
     private Connection resolveSQLite(ConnectionDefinition connectionDef) throws SQLException {
-        String jdbcUrl = switch (connectionDef.specification()) {
-            case ConnectionSpecification.InMemory() -> "jdbc:sqlite::memory:";
-            case ConnectionSpecification.LocalFile(String path) -> "jdbc:sqlite:" + path;
+        return switch (connectionDef.specification()) {
+            case ConnectionSpecification.InMemory() -> getOrCreateCached(
+                    "sqlite:inmemory:" + connectionDef.qualifiedName(),
+                    () -> DriverManager.getConnection("jdbc:sqlite::memory:"));
+            case ConnectionSpecification.LocalFile(String path) ->
+                DriverManager.getConnection("jdbc:sqlite:" + path);
             case ConnectionSpecification.StaticDatasource staticDs ->
                 throw new UnsupportedOperationException("SQLite does not support remote connections");
         };
-
-        return DriverManager.getConnection(jdbcUrl);
     }
 
     private Connection resolveH2(ConnectionDefinition connectionDef) throws SQLException {
@@ -96,6 +120,26 @@ public class ConnectionResolver {
     }
 
     /**
+     * Gets a cached connection or creates a new one.
+     * Used for in-memory databases to persist tables across requests.
+     */
+    private Connection getOrCreateCached(String key, ConnectionSupplier supplier) throws SQLException {
+        Connection cached = connectionCache.get(key);
+        if (cached != null && !cached.isClosed()) {
+            return cached;
+        }
+
+        Connection newConn = supplier.get();
+        connectionCache.put(key, newConn);
+        return newConn;
+    }
+
+    @FunctionalInterface
+    private interface ConnectionSupplier {
+        Connection get() throws SQLException;
+    }
+
+    /**
      * Creates an in-memory DuckDB connection without a definition.
      * Convenience method for testing.
      */
@@ -109,5 +153,18 @@ public class ConnectionResolver {
      */
     public static Connection createInMemorySQLite() throws SQLException {
         return DriverManager.getConnection("jdbc:sqlite::memory:");
+    }
+
+    /**
+     * Clears all cached connections. Useful for testing.
+     */
+    public static void clearCache() {
+        connectionCache.values().forEach(conn -> {
+            try {
+                conn.close();
+            } catch (SQLException ignored) {
+            }
+        });
+        connectionCache.clear();
     }
 }

@@ -77,6 +77,61 @@ public class QueryService {
     }
 
     /**
+     * Executes raw SQL against the Connection from the user's Runtime.
+     * 
+     * This does NOT compile Pure - it directly executes the provided SQL
+     * against the database connection defined in the Runtime.
+     * 
+     * Use for:
+     * - CREATE TABLE / DROP TABLE
+     * - INSERT / UPDATE / DELETE
+     * - Raw SELECT queries
+     * 
+     * @param pureSource  The Pure source containing Connection/Runtime definitions
+     * @param sql         The raw SQL to execute
+     * @param runtimeName The qualified name of the Runtime to use for connection
+     * @return BufferedResult with results (empty for DDL/DML)
+     * @throws SQLException If execution fails
+     */
+    public BufferedResult executeSql(String pureSource, String sql, String runtimeName)
+            throws SQLException {
+
+        // 1. Parse the Pure source to get connection definitions
+        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
+
+        // 2. Look up runtime
+        RuntimeDefinition runtime = model.getRuntime(runtimeName);
+        if (runtime == null) {
+            throw new IllegalArgumentException("Runtime not found: " + runtimeName);
+        }
+
+        // 3. Get connection from runtime
+        String storeRef = runtime.connectionBindings().keySet().iterator().next();
+        String connectionRef = runtime.connectionBindings().get(storeRef);
+        ConnectionDefinition connectionDef = model.getConnection(connectionRef);
+
+        if (connectionDef == null) {
+            throw new IllegalArgumentException("Connection not found: " + connectionRef);
+        }
+
+        // 4. Resolve the JDBC connection from the ConnectionDefinition
+        Connection conn = connectionResolver.resolve(connectionDef);
+
+        // 5. Execute the raw SQL
+        try (Statement stmt = conn.createStatement()) {
+            boolean hasResultSet = stmt.execute(sql);
+
+            if (hasResultSet) {
+                // SELECT - return results
+                return executeBuffered(conn, sql);
+            } else {
+                // DDL/DML - return empty result
+                return BufferedResult.empty();
+            }
+        }
+    }
+
+    /**
      * Compiles, generates, and executes using a provided connection.
      * Returns a buffered result.
      * 

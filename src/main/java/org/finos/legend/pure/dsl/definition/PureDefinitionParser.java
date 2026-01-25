@@ -285,6 +285,10 @@ public final class PureDefinitionParser {
         List<ClassDefinition.PropertyDefinition> properties = parseProperties(body);
         List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = parseDerivedProperties(body);
 
+        // Validate: Check for unparsed tokens that look like property definitions
+        // This catches syntax errors like "name String[1];" (missing colon)
+        validateClassBody(body, properties, derivedProperties, qualifiedName);
+
         // Check for constraints block after class body: [ constraint1: expr,
         // constraint2: expr ]
         remaining = remaining.substring(bodyEnd + 1).trim();
@@ -642,6 +646,40 @@ public final class PureDefinitionParser {
     }
 
     /**
+     * Validates that all tokens in the class body were parsed as properties or
+     * derived properties.
+     * Throws an error if there are tokens that look like property definitions but
+     * have invalid syntax.
+     */
+    private static void validateClassBody(String body,
+            List<ClassDefinition.PropertyDefinition> properties,
+            List<ClassDefinition.DerivedPropertyDefinition> derivedProperties,
+            String className) {
+        // Look for patterns that look like properties but weren't parsed
+        // Pattern: word followed by word followed by bracket - e.g., "name String[1]"
+        // (missing colon)
+        Pattern invalidPropertyPattern = Pattern.compile("(\\w+)\\s+(\\w+)\\s*\\[([^\\]]+)\\]");
+        Matcher matcher = invalidPropertyPattern.matcher(body);
+
+        while (matcher.find()) {
+            String possiblePropName = matcher.group(1);
+            String possibleType = matcher.group(2);
+
+            // Check if this was parsed as a valid property
+            boolean found = properties.stream()
+                    .anyMatch(p -> p.name().equals(possiblePropName));
+
+            if (!found) {
+                // Not found - this is invalid syntax (missing colon)
+                throw new PureParseException(
+                        "Invalid property syntax in class " + className + ": '" +
+                                possiblePropName + " " + possibleType + "[...]' - missing colon. " +
+                                "Expected: '" + possiblePropName + ": " + possibleType + "[...]'");
+            }
+        }
+    }
+
+    /**
      * Finds the matching closing bracket for an opening bracket.
      */
     private static int findMatchingBracket(String source, int openPos) {
@@ -906,14 +944,20 @@ public final class PureDefinitionParser {
     private static List<MappingDefinition.ClassMappingDefinition> parseClassMappings(String body) {
         List<MappingDefinition.ClassMappingDefinition> mappings = new ArrayList<>();
 
-        // Pattern: ClassName: MappingType { ... }
-        // This matches simple class names (no :: package prefix) for class mappings
-        // Association mappings use qualified names with :: (e.g., package::AssocName)
-        Pattern pattern = Pattern.compile("(?<!:)(\\w+)\\s*:\\s*(\\w+)\\s*\\{");
+        // Pattern: [package::]ClassName: MappingType { ... }
+        // Captures full qualified name (e.g., "model::Person" or just "Person"), then
+        // mapping type
+        // Changed from negative lookbehind (which incorrectly matched "erson") to
+        // capturing qualified names
+        Pattern pattern = Pattern.compile("([\\w:]+)\\s*:\\s*(Relational|Pure)\\s*\\{");
         Matcher matcher = pattern.matcher(body);
 
         while (matcher.find()) {
-            String className = matcher.group(1);
+            String qualifiedClassName = matcher.group(1);
+            // Extract simple name (after last ::)
+            String className = qualifiedClassName.contains("::")
+                    ? qualifiedClassName.substring(qualifiedClassName.lastIndexOf("::") + 2)
+                    : qualifiedClassName;
             String mappingType = matcher.group(2);
             int mappingBodyStart = matcher.end();
             int mappingBodyEnd = findMatchingBrace(body, mappingBodyStart - 1);
