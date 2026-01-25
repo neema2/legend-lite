@@ -195,6 +195,22 @@ MAPPING_TESTS_QUERY:                    'query';
 
 
 // =============================================================================
+// SERVICE KEYWORDS (from ServiceLexerGrammar)
+// =============================================================================
+
+SERVICE:                                'Service';
+SERVICE_PATTERN:                        'pattern';
+SERVICE_OWNERS:                         'owners';
+SERVICE_DOCUMENTATION:                  'documentation';
+SERVICE_AUTO_ACTIVATE_UPDATES:          'autoActivateUpdates';
+SERVICE_EXEC:                           'execution';
+SERVICE_SINGLE:                         'Single';
+SERVICE_MULTI:                          'Multi';
+SERVICE_MAPPING:                        'mapping';
+SERVICE_RUNTIME:                        'runtime';
+
+
+// =============================================================================
 // RUNTIME KEYWORDS (from RuntimeLexerGrammar)
 // =============================================================================
 

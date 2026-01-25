@@ -34,8 +34,11 @@ class PureIntegratedSQLShimTest extends AbstractDatabaseTest {
             Service model::AllPersons
             {
                 pattern: '/api/persons';
-                function: |Person.all()->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age});
                 documentation: 'Returns all people';
+                execution: Single
+                {
+                    query: |Person.all()->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age});
+                }
             }
             """;
 

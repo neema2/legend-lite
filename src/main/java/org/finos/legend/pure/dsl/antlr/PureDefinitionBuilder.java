@@ -799,4 +799,102 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         List<org.finos.legend.pure.dsl.definition.DatabaseDefinition> defs = extractDatabaseDefinitions(definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Service Definition ====================
+
+    /**
+     * Visits a service definition parse tree node and returns a ServiceDefinition.
+     * 
+     * Grammar rule:
+     * serviceDefinition: SERVICE stereotypes? taggedValues? qualifiedName
+     * BRACE_OPEN (servicePattern | serviceOwners | serviceDocumentation |
+     * serviceAutoActivateUpdates | serviceExec | serviceTestSuites)*
+     * BRACE_CLOSE
+     */
+    public org.finos.legend.pure.dsl.definition.ServiceDefinition visitServiceDefinition(
+            PureParser.ServiceDefinitionContext ctx) {
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        String pattern = null;
+        String documentation = null;
+        String functionBody = null;
+
+        // Extract pattern
+        if (ctx.servicePattern() != null && !ctx.servicePattern().isEmpty()) {
+            var patternCtx = ctx.servicePattern().get(0);
+            pattern = unquoteString(patternCtx.STRING().getText());
+        }
+
+        // Extract documentation
+        if (ctx.serviceDocumentation() != null && !ctx.serviceDocumentation().isEmpty()) {
+            var docCtx = ctx.serviceDocumentation().get(0);
+            documentation = unquoteString(docCtx.STRING().getText());
+        }
+
+        // Extract function body from execution
+        if (ctx.serviceExec() != null && !ctx.serviceExec().isEmpty()) {
+            var execCtx = ctx.serviceExec().get(0);
+            if (execCtx.serviceSingleExec() != null) {
+                var singleExec = execCtx.serviceSingleExec();
+                if (singleExec.serviceQuery() != null && !singleExec.serviceQuery().isEmpty()) {
+                    var queryCtx = singleExec.serviceQuery().get(0);
+                    // Get the combinedExpression text
+                    functionBody = getOriginalText(queryCtx.combinedExpression());
+                    // Strip leading '|' if present (lambda prefix)
+                    if (functionBody != null && functionBody.startsWith("|")) {
+                        functionBody = functionBody.substring(1).trim();
+                    }
+                }
+            }
+        }
+
+        // Extract testSuites (reuse existing parsing for now)
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition.TestSuiteDefinition> testSuites = List.of();
+
+        return org.finos.legend.pure.dsl.definition.ServiceDefinition.of(
+                qualifiedName,
+                pattern != null ? pattern : "/",
+                functionBody != null ? functionBody : "",
+                documentation,
+                testSuites);
+    }
+
+    /**
+     * Removes surrounding quotes from a string literal.
+     */
+    private String unquoteString(String s) {
+        if (s == null || s.length() < 2)
+            return s;
+        if ((s.startsWith("'") && s.endsWith("'")) ||
+                (s.startsWith("\"") && s.endsWith("\""))) {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
+    }
+
+    /**
+     * Extracts all ServiceDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.ServiceDefinition> extractServiceDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.ServiceDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.serviceDefinition() != null) {
+                result.add(builder.visitServiceDefinition(elemCtx.serviceDefinition()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first ServiceDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.ServiceDefinition> extractFirstServiceDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.ServiceDefinition> defs = extractServiceDefinitions(definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
 }

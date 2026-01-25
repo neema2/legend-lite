@@ -56,8 +56,11 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
             Service model::AllPersons
             {
                 pattern: '/api/persons';
-                function: |Person.all()->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age});
                 documentation: 'Returns all people';
+                execution: Single
+                {
+                    query: |Person.all()->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age});
+                }
             }
             """;
 
@@ -65,8 +68,11 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
             Service model::PersonsByLastName
             {
                 pattern: '/api/persons/{lastName}';
-                function: |Person.all()->filter({p | $p.lastName == $lastName})->project({p | $p.firstName}, {p | $p.lastName});
                 documentation: 'Returns people by last name';
+                execution: Single
+                {
+                    query: |Person.all()->filter({p | $p.lastName == $lastName})->project({p | $p.firstName}, {p | $p.lastName});
+                }
             }
             """;
 
@@ -74,8 +80,11 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
             Service model::PersonsWithAddresses
             {
                 pattern: '/api/persons-with-addresses';
-                function: |Person.all()->project({p | $p.firstName}, {p | $p.addresses.street}, {p | $p.addresses.city});
                 documentation: 'Returns all persons with their addresses (LEFT OUTER JOIN)';
+                execution: Single
+                {
+                    query: |Person.all()->project({p | $p.firstName}, {p | $p.addresses.street}, {p | $p.addresses.city});
+                }
             }
             """;
 
@@ -83,8 +92,11 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
             Service model::PersonsByCity
             {
                 pattern: '/api/persons-by-city/{city}';
-                function: |Person.all()->filter({p | $p.addresses.city == $city})->project({p | $p.firstName});
                 documentation: 'Returns persons who have an address in the specified city (EXISTS subquery)';
+                execution: Single
+                {
+                    query: |Person.all()->filter({p | $p.addresses.city == $city})->project({p | $p.firstName});
+                }
             }
             """;
 

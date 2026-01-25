@@ -56,6 +56,10 @@ identifier:                                     VALID_STRING | STRING
                                                 // Connection keywords
                                                 | STORE | TYPE | MODE | RELATIONAL_DATASOURCE_SPEC | RELATIONAL_AUTH_STRATEGY
                                                 | DB_TIMEZONE | QUOTE_IDENTIFIERS | QUERY_GENERATION_CONFIGS
+                                                // Service keywords
+                                                | SERVICE | SERVICE_PATTERN | SERVICE_OWNERS | SERVICE_DOCUMENTATION
+                                                | SERVICE_AUTO_ACTIVATE_UPDATES | SERVICE_EXEC | SERVICE_SINGLE
+                                                | SERVICE_MULTI | SERVICE_MAPPING | SERVICE_RUNTIME
 ;
 
 
@@ -406,6 +410,7 @@ elementDefinition:                              (
                                                     | singleConnectionRuntime
                                                     | database
                                                     | relationalDatabaseConnection
+                                                    | serviceDefinition
                                                 )
 ;
 
@@ -666,6 +671,115 @@ mappingParserName:                              identifier
 superClassMappingId:                            mappingElementId
 ;
 mappingElementId:                               word
+;
+
+
+// =============================================================================
+// SERVICE RULES (from ServiceParserGrammar)
+// =============================================================================
+
+serviceDefinition:                              SERVICE stereotypes? taggedValues? qualifiedName
+                                                    BRACE_OPEN
+                                                        (
+                                                            servicePattern
+                                                            | serviceOwners
+                                                            | serviceDocumentation
+                                                            | serviceAutoActivateUpdates
+                                                            | serviceExec
+                                                            | serviceTestSuites
+                                                        )*
+                                                    BRACE_CLOSE
+;
+servicePattern:                                 SERVICE_PATTERN COLON STRING SEMI_COLON
+;
+serviceOwners:                                  SERVICE_OWNERS COLON
+                                                    BRACKET_OPEN
+                                                        (STRING (COMMA STRING)*)?
+                                                    BRACKET_CLOSE
+                                                SEMI_COLON
+;
+serviceDocumentation:                           SERVICE_DOCUMENTATION COLON STRING SEMI_COLON
+;
+serviceAutoActivateUpdates:                     SERVICE_AUTO_ACTIVATE_UPDATES COLON BOOLEAN SEMI_COLON
+;
+serviceExec:                                    SERVICE_EXEC COLON (serviceSingleExec | serviceMultiExec)
+;
+serviceSingleExec:                              SERVICE_SINGLE
+                                                    BRACE_OPEN
+                                                        (
+                                                            serviceQuery
+                                                            | serviceMappingRef
+                                                            | serviceRuntimeRef
+                                                        )*
+                                                    BRACE_CLOSE
+;
+serviceMultiExec:                               SERVICE_MULTI
+                                                    BRACE_OPEN
+                                                        (
+                                                            serviceQuery
+                                                            | serviceExecKey
+                                                            | serviceExecParameter
+                                                        )*
+                                                    BRACE_CLOSE
+;
+serviceQuery:                                   MAPPING_TESTS_QUERY COLON combinedExpression SEMI_COLON
+;
+serviceMappingRef:                              SERVICE_MAPPING COLON qualifiedName SEMI_COLON
+;
+serviceRuntimeRef:                              SERVICE_RUNTIME COLON qualifiedName SEMI_COLON
+;
+serviceExecKey:                                 VALID_STRING COLON STRING SEMI_COLON
+;
+serviceExecParameter:                           VALID_STRING BRACKET_OPEN STRING BRACKET_CLOSE COLON
+                                                    BRACE_OPEN
+                                                        (serviceMappingRef | serviceRuntimeRef)*
+                                                    BRACE_CLOSE
+;
+serviceTestSuites:                              MAPPING_TESTABLE_SUITES COLON
+                                                    BRACKET_OPEN
+                                                        (serviceTestSuite (COMMA serviceTestSuite)*)?
+                                                    BRACKET_CLOSE
+;
+serviceTestSuite:                               identifier COLON
+                                                    BRACE_OPEN
+                                                        (serviceTestData | serviceTestTests)*
+                                                    BRACE_CLOSE
+;
+serviceTestData:                                MAPPING_TESTABLE_DATA COLON
+                                                    BRACKET_OPEN
+                                                        (serviceTestConnectionsData)*
+                                                    BRACKET_CLOSE
+;
+serviceTestConnectionsData:                     CONNECTIONS COLON
+                                                    BRACKET_OPEN
+                                                        (serviceTestConnectionData (COMMA serviceTestConnectionData)*)?
+                                                    BRACKET_CLOSE
+;
+serviceTestConnectionData:                      qualifiedName COLON embeddedData
+;
+serviceTestTests:                               MAPPING_TESTS COLON
+                                                    BRACKET_OPEN
+                                                        (serviceTestBlock (COMMA serviceTestBlock)*)?
+                                                    BRACKET_CLOSE
+;
+serviceTestBlock:                               identifier COLON
+                                                    BRACE_OPEN
+                                                        (serviceTestParameters | serviceTestAsserts)*
+                                                    BRACE_CLOSE
+;
+serviceTestParameters:                          VALID_STRING COLON
+                                                    BRACKET_OPEN
+                                                        (serviceTestParam (COMMA serviceTestParam)*)?
+                                                    BRACKET_CLOSE
+;
+serviceTestParam:                               identifier EQUAL primitiveValue
+;
+serviceTestAsserts:                             MAPPING_TEST_ASSERTS COLON
+                                                    BRACKET_OPEN
+                                                        (serviceTestAssert (COMMA serviceTestAssert)*)?
+                                                    BRACKET_CLOSE
+;
+serviceTestAssert:                              identifier COLON identifier islandDefinition
 ;
 
 

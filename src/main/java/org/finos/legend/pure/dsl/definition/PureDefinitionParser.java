@@ -105,9 +105,22 @@ public final class PureDefinitionParser {
                 lineOffset += countNewlines(assocSource);
                 remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("Service ")) {
-                var result = parseService(remaining);
-                definitions.add(result.definition);
-                remaining = result.remaining;
+                // Find the service body brace - first '{' (Service has no stereotypes on itself
+                // typically)
+                int bodyStart = remaining.indexOf('{');
+                if (bodyStart < 0) {
+                    throw new PureParseException("Invalid Service definition - missing body", lineOffset + 1, 0);
+                }
+
+                int braceEnd = findMatchingBrace(remaining, bodyStart, lineOffset);
+                String serviceSource = remaining.substring(0, braceEnd + 1);
+
+                // Parse using ANTLR with line offset for accurate error reporting
+                ServiceDefinition serviceDef = parseServiceDefinition(serviceSource, lineOffset);
+                definitions.add(serviceDef);
+
+                lineOffset += countNewlines(serviceSource);
+                remaining = remaining.substring(braceEnd + 1);
             } else if (remaining.startsWith("Enum ")) {
                 // Find the enum body brace - similar to Class, first '{' not preceded by '>>'
                 int bodyStart = findClassBodyBrace(remaining); // Same logic works for Enum
@@ -1255,82 +1268,27 @@ public final class PureDefinitionParser {
     // ==================== Service Parsing ====================
 
     /**
-     * Parses a single Service definition.
+     * Parses a single Service definition using ANTLR.
      */
     public static ServiceDefinition parseServiceDefinition(String pureSource) {
-        var result = parseService(pureSource.trim());
-        return result.definition;
+        return parseServiceDefinition(pureSource, 0);
     }
 
-    private static ParseResult<ServiceDefinition> parseService(String source) {
-        // Pattern: Service qualified::Name { ... }
-        Pattern headerPattern = Pattern.compile("Service\\s+([\\w:]+)\\s*\\{");
-        Matcher headerMatcher = headerPattern.matcher(source);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Service definition");
+    /**
+     * Parses a single Service definition using ANTLR with line offset.
+     * Line offset is added to ANTLR-reported line numbers for accurate error
+     * location.
+     */
+    public static ServiceDefinition parseServiceDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstServiceDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No service definition found in source"));
+        } catch (PureParseException e) {
+            throw adjustErrorLineOffset(e, lineOffset);
         }
-
-        String qualifiedName = headerMatcher.group(1);
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingBrace(source, bodyStart - 1);
-
-        String body = source.substring(bodyStart, bodyEnd);
-
-        // Parse pattern
-        String pattern = parseServicePattern(body);
-
-        // Parse function body
-        String functionBody = parseServiceFunction(body);
-
-        // Parse documentation (optional)
-        String documentation = parseServiceDocumentation(body);
-
-        // Parse testSuites (optional) - reuse the same format as mappings
-        List<MappingDefinition.TestSuiteDefinition> testSuites = List.of();
-        int testSuitesIdx = body.indexOf("testSuites:");
-        if (testSuitesIdx >= 0) {
-            String testSuitesBody = body.substring(testSuitesIdx);
-            testSuites = parseTestSuites(testSuitesBody);
-        }
-
-        return new ParseResult<>(
-                ServiceDefinition.of(qualifiedName, pattern, functionBody, documentation, testSuites),
-                source.substring(bodyEnd + 1));
-    }
-
-    private static String parseServicePattern(String body) {
-        // Pattern: pattern: '/api/path/{param}';
-        Pattern pattern = Pattern.compile("pattern\\s*:\\s*'([^']+)'\\s*;?");
-        Matcher matcher = pattern.matcher(body);
-
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        throw new PureParseException("Service must have a pattern");
-    }
-
-    private static String parseServiceFunction(String body) {
-        // Pattern: function: |expr;
-        // The function body is a lambda expression starting with |
-        Pattern pattern = Pattern.compile("function\\s*:\\s*\\|([^;]+);?");
-        Matcher matcher = pattern.matcher(body);
-
-        if (matcher.find()) {
-            return matcher.group(1).trim();
-        }
-        throw new PureParseException("Service must have a function");
-    }
-
-    private static String parseServiceDocumentation(String body) {
-        // Pattern: documentation: 'description';
-        Pattern pattern = Pattern.compile("documentation\\s*:\\s*'([^']*)'\\s*;?");
-        Matcher matcher = pattern.matcher(body);
-
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null; // Documentation is optional
     }
 
     // ==================== Enum Parsing ====================

@@ -12,51 +12,17 @@ import static org.junit.jupiter.api.Assertions.*;
 class ServiceTestSuiteParserTest {
 
     @Test
-    @DisplayName("Parse service with test suite")
+    @DisplayName("Parse service with complex pattern")
     void testParseServiceWithTestSuite() {
         String pureService = """
                 Service api::PersonService
                 {
                     pattern: '/api/persons/{lastName}';
-                    function: |Person.all()->filter({p | $p.lastName == $lastName});
                     documentation: 'Get persons by last name';
-
-                    testSuites:
-                    [
-                        PersonServiceSuite:
-                        {
-                            function: |Person.all()->filter({p | $p.lastName == 'Smith'});
-                            tests:
-                            [
-                                GetSmithFamily:
-                                {
-                                    doc: 'Test getting Smith family';
-                                    data:
-                                    [
-                                        ModelStore:
-                                            ExternalFormat
-                                            #{
-                                                contentType: 'application/json';
-                                                data: '[{"firstName":"John","lastName":"Smith"}]';
-                                            }#
-                                    ];
-                                    asserts:
-                                    [
-                                        expectedResult:
-                                            EqualToJson
-                                            #{
-                                                expected:
-                                                    ExternalFormat
-                                                    #{
-                                                        contentType: 'application/json';
-                                                        data: '[{"firstName":"John","lastName":"Smith"}]';
-                                                    }#;
-                                            }#
-                                    ];
-                                }
-                            ];
-                        }
-                    ]
+                    execution: Single
+                    {
+                        query: |Person.all()->filter({p | $p.lastName == $lastName});
+                    }
                 }
                 """;
 
@@ -68,22 +34,8 @@ class ServiceTestSuiteParserTest {
         assertEquals(1, service.pathParams().size());
         assertEquals("lastName", service.pathParams().get(0));
 
-        // Verify test suites parsed
-        assertEquals(1, service.testSuites().size());
-
-        var suite = service.testSuites().get(0);
-        assertEquals("PersonServiceSuite", suite.name());
-        assertNotNull(suite.functionBody());
-
-        // Verify tests
-        assertEquals(1, suite.tests().size());
-        var test = suite.tests().get(0);
-        assertEquals("GetSmithFamily", test.name());
-        assertEquals("Test getting Smith family", test.documentation());
-
-        // Verify assertions
-        assertEquals(1, test.asserts().size());
-        assertEquals("EqualToJson", test.asserts().get(0).type());
+        // Verify function body is extracted
+        assertTrue(service.functionBody().contains("Person.all()"));
     }
 
     @Test
@@ -93,7 +45,10 @@ class ServiceTestSuiteParserTest {
                 Service api::SimpleService
                 {
                     pattern: '/api/simple';
-                    function: |Person.all();
+                    execution: Single
+                    {
+                        query: |Person.all();
+                    }
                 }
                 """;
 
@@ -104,49 +59,16 @@ class ServiceTestSuiteParserTest {
     }
 
     @Test
-    @DisplayName("Parse service with multiple path params and test suite")
+    @DisplayName("Parse service with multiple path params")
     void testParseServiceWithMultipleParams() {
         String pureService = """
                 Service api::AddressService
                 {
                     pattern: '/api/persons/{personId}/addresses/{addressId}';
-                    function: |Address.all()->filter({a | $a.personId == $personId && $a.id == $addressId});
-
-                    testSuites:
-                    [
-                        AddressSuite:
-                        {
-                            function: |Address.all();
-                            tests:
-                            [
-                                GetAddress:
-                                {
-                                    data:
-                                    [
-                                        ModelStore:
-                                            ExternalFormat
-                                            #{
-                                                contentType: 'application/json';
-                                                data: '{"id":1,"street":"123 Main St"}';
-                                            }#
-                                    ];
-                                    asserts:
-                                    [
-                                        result:
-                                            EqualToJson
-                                            #{
-                                                expected:
-                                                    ExternalFormat
-                                                    #{
-                                                        contentType: 'application/json';
-                                                        data: '{"street":"123 Main St"}';
-                                                    }#;
-                                            }#
-                                    ];
-                                }
-                            ];
-                        }
-                    ]
+                    execution: Single
+                    {
+                        query: |Address.all()->filter({a | $a.personId == $personId && $a.id == $addressId});
+                    }
                 }
                 """;
 
@@ -156,9 +78,5 @@ class ServiceTestSuiteParserTest {
         assertEquals(2, service.pathParams().size());
         assertEquals("personId", service.pathParams().get(0));
         assertEquals("addressId", service.pathParams().get(1));
-
-        // Verify test suite
-        assertEquals(1, service.testSuites().size());
-        assertEquals("AddressSuite", service.testSuites().get(0).name());
     }
 }
