@@ -40,6 +40,7 @@ public class LspHttpAdapter {
 
         // Health check
         server.createContext("/health", exchange -> {
+            addCorsHeaders(exchange);
             sendResponse(exchange, 200, "{\"status\":\"ok\"}");
         });
 
