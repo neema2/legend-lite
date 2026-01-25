@@ -17,12 +17,19 @@ public final class PureDefinitionParser {
     /**
      * Parses a Pure source string and returns all definitions found.
      * 
+     * Handles legend-engine format with section headers (###Pure, ###Relational,
+     * ###Mapping)
+     * and import statements (import package::name::*).
+     * 
      * @param pureSource The Pure source code
      * @return List of parsed definitions
      */
     public static List<PureDefinition> parse(String pureSource) {
+        // Preprocess: strip section headers and parse imports
+        PreprocessResult preprocessed = preprocess(pureSource);
+
         List<PureDefinition> definitions = new ArrayList<>();
-        String remaining = pureSource.trim();
+        String remaining = preprocessed.cleanedSource.trim();
 
         while (!remaining.isEmpty()) {
             remaining = remaining.trim();
@@ -77,6 +84,71 @@ public final class PureDefinitionParser {
         }
 
         return definitions;
+    }
+
+    /**
+     * Preprocesses Pure source to handle legend-engine format.
+     * 
+     * Handles:
+     * - Line comments (// ...)
+     * - Block comments (slash-star ... star-slash)
+     * - Section headers (###Pure, ###Relational, ###Mapping)
+     * - Import statements parsed into ImportScope for name resolution
+     * 
+     * @param source The raw Pure source
+     * @return Preprocessed result with cleaned source and import scope
+     */
+    private static PreprocessResult preprocess(String source) {
+        // First, strip block comments /* ... */
+        String withoutBlockComments = source.replaceAll("/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/", "");
+
+        ImportScope imports = new ImportScope();
+        StringBuilder cleaned = new StringBuilder();
+
+        for (String line : withoutBlockComments.split("\n")) {
+            String trimmed = line.trim();
+
+            // Strip line comments: // ...
+            int commentIdx = line.indexOf("//");
+            if (commentIdx >= 0) {
+                // Check it's not inside a string (simplified check)
+                String beforeComment = line.substring(0, commentIdx);
+                long quoteCount = beforeComment.chars().filter(c -> c == '\'').count();
+                if (quoteCount % 2 == 0) {
+                    // Not inside a string, strip comment
+                    line = line.substring(0, commentIdx);
+                    trimmed = line.trim();
+                }
+            }
+
+            // Skip empty lines after comment stripping
+            if (trimmed.isEmpty()) {
+                cleaned.append("\n");
+                continue;
+            }
+
+            // Skip section headers: ###Pure, ###Relational, ###Mapping, etc.
+            if (trimmed.startsWith("###")) {
+                continue;
+            }
+
+            // Parse import statements: import package::name::*; or import package::Type;
+            if (trimmed.startsWith("import ") && trimmed.contains("::")) {
+                String importPath = trimmed.substring(7).replace(";", "").trim();
+                imports.addImport(importPath);
+                continue;
+            }
+
+            cleaned.append(line).append("\n");
+        }
+
+        return new PreprocessResult(cleaned.toString(), imports);
+    }
+
+    /**
+     * Result of preprocessing Pure source.
+     */
+    private record PreprocessResult(String cleanedSource, ImportScope imports) {
     }
 
     /**
@@ -622,24 +694,57 @@ public final class PureDefinitionParser {
     private static List<ClassDefinition.DerivedPropertyDefinition> parseDerivedProperties(String body) {
         List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = new ArrayList<>();
 
-        // Pattern: name() {expression}: Type[multiplicity];
-        // Example: fullName() {$this.firstName + ' ' + $this.lastName}: String[1];
+        // Pattern: name(params) {expression}: Type[multiplicity];
+        // Examples:
+        // fullName() {$this.firstName + ' ' + $this.lastName}: String[1];
+        // firmByName(name: String[1]) {$this.firms->filter(f|$f.name == $name)}:
+        // Firm[0..1];
+        // firmByName(name: String[1]) {...}: package::Firm[0..1]; (qualified type)
         Pattern pattern = Pattern.compile(
-                "(\\w+)\\s*\\(\\s*\\)\\s*\\{([^}]+)\\}\\s*:\\s*(\\w+)\\s*\\[([^\\]]+)\\]\\s*;?");
+                "(\\w+)\\s*\\(([^)]*)\\)\\s*\\{([^}]+)\\}\\s*:\\s*([\\w:]+)\\s*\\[([^\\]]+)\\]\\s*;?");
         Matcher matcher = pattern.matcher(body);
 
         while (matcher.find()) {
             String name = matcher.group(1);
-            String expression = matcher.group(2).trim();
-            String type = matcher.group(3);
-            String multiplicity = matcher.group(4);
+            String paramsStr = matcher.group(2).trim();
+            String expression = matcher.group(3).trim();
+            String type = matcher.group(4);
+            String multiplicity = matcher.group(5);
+
+            // Parse parameters
+            List<ClassDefinition.ParameterDefinition> params = parseParameters(paramsStr);
 
             var bounds = parseMultiplicity(multiplicity);
             derivedProperties.add(new ClassDefinition.DerivedPropertyDefinition(
-                    name, expression, type, bounds[0], bounds[1]));
+                    name, params, expression, type, bounds[0], bounds[1]));
         }
 
         return derivedProperties;
+    }
+
+    /**
+     * Parses parameter definitions from a comma-separated string.
+     * Format: paramName: Type[mult], paramName2: Type2[mult2]
+     */
+    private static List<ClassDefinition.ParameterDefinition> parseParameters(String paramsStr) {
+        List<ClassDefinition.ParameterDefinition> params = new ArrayList<>();
+        if (paramsStr == null || paramsStr.isEmpty()) {
+            return params;
+        }
+
+        // Pattern: paramName: Type[mult]
+        Pattern paramPattern = Pattern.compile("(\\w+)\\s*:\\s*(\\w+)\\s*\\[([^\\]]+)\\]");
+        Matcher matcher = paramPattern.matcher(paramsStr);
+
+        while (matcher.find()) {
+            String paramName = matcher.group(1);
+            String paramType = matcher.group(2);
+            String mult = matcher.group(3);
+            var bounds = parseMultiplicity(mult);
+            params.add(new ClassDefinition.ParameterDefinition(paramName, paramType, bounds[0], bounds[1]));
+        }
+
+        return params;
     }
 
     private static Integer[] parseMultiplicity(String mult) {

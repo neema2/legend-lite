@@ -185,6 +185,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "limit", "take" -> parseLimitCall(source, args);
             case "drop" -> parseDropCall(source, args);
             case "slice" -> parseSliceCall(source, args);
+            case "first" -> new FirstExpression(source);
             case "select" -> parseSelectCall(source, args);
             case "extend" -> parseExtendCall(source, args);
             case "from" -> parseFromCall(source, args);

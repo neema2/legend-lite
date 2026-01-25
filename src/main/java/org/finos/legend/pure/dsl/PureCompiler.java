@@ -78,6 +78,7 @@ public final class PureCompiler {
             case ClassLimitExpression classLimit -> compileClassLimit(classLimit, context);
             case RelationLimitExpression relationLimit -> compileRelationLimit(relationLimit, context);
             case LimitExpression limit -> compileLimit(limit, context);
+            case FirstExpression first -> compileFirst(first, context);
             case SliceExpression slice -> compileSlice(slice, context);
             case DropExpression drop -> compileDrop(drop, context);
             case RelationLiteral literal -> compileRelationLiteral(literal);
@@ -672,6 +673,15 @@ public final class PureCompiler {
     private RelationNode compileLimit(LimitExpression limit, CompilationContext context) {
         RelationNode source = compileExpression(limit.source(), context);
         return new LimitNode(source, limit.count(), 0);
+    }
+
+    /**
+     * Compiles first() expression: source->first()
+     * Returns first element (or null if empty). Translates to LIMIT 1.
+     */
+    private RelationNode compileFirst(FirstExpression first, CompilationContext context) {
+        RelationNode source = compileExpression(first.source(), context);
+        return new LimitNode(source, 1, 0);
     }
 
     /**

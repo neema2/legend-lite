@@ -161,6 +161,10 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
      * 
      * Grammar: qualifiedProperty: stereotypes? taggedValues? identifier
      * qualifiedPropertyBody COLON propertyReturnType SEMI_COLON
+     * 
+     * qualifiedPropertyBody: PAREN_OPEN (functionVariableExpression (COMMA
+     * functionVariableExpression)*)? PAREN_CLOSE
+     * codeBlock
      */
     @Override
     public DerivedPropertyDefinition visitQualifiedProperty(PureParser.QualifiedPropertyContext ctx) {
@@ -170,10 +174,24 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
 
         String name = ctx.identifier().getText();
 
-        // Get expression from qualifiedPropertyBody
+        // Extract parameters from qualifiedPropertyBody
+        List<ClassDefinition.ParameterDefinition> parameters = new ArrayList<>();
         String expression = "";
-        if (ctx.qualifiedPropertyBody() != null && ctx.qualifiedPropertyBody().codeBlock() != null) {
-            expression = ctx.qualifiedPropertyBody().codeBlock().getText();
+
+        if (ctx.qualifiedPropertyBody() != null) {
+            // Extract parameters from functionVariableExpression list
+            for (PureParser.FunctionVariableExpressionContext paramCtx : ctx.qualifiedPropertyBody()
+                    .functionVariableExpression()) {
+                ClassDefinition.ParameterDefinition param = visitFunctionVariableExpression(paramCtx);
+                if (param != null) {
+                    parameters.add(param);
+                }
+            }
+
+            // Get expression from codeBlock
+            if (ctx.qualifiedPropertyBody().codeBlock() != null) {
+                expression = ctx.qualifiedPropertyBody().codeBlock().getText();
+            }
         }
 
         // Get return type
@@ -191,7 +209,36 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
             }
         }
 
-        return new DerivedPropertyDefinition(name, expression, returnType, lowerBound, upperBound);
+        return new DerivedPropertyDefinition(name, parameters, expression, returnType, lowerBound, upperBound);
+    }
+
+    /**
+     * Visits a function variable expression (parameter definition).
+     * 
+     * Grammar: functionVariableExpression: identifier COLON type multiplicity
+     */
+    public ClassDefinition.ParameterDefinition visitFunctionVariableExpression(
+            PureParser.FunctionVariableExpressionContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        String paramName = ctx.identifier().getText();
+
+        String paramType = "";
+        if (ctx.type() != null && ctx.type().qualifiedName() != null) {
+            paramType = ctx.type().qualifiedName().getText();
+        }
+
+        int lowerBound = 1;
+        Integer upperBound = 1;
+        if (ctx.multiplicity() != null) {
+            int[] bounds = parseMultiplicity(ctx.multiplicity().getText());
+            lowerBound = bounds[0];
+            upperBound = bounds[1] == -1 ? null : bounds[1];
+        }
+
+        return new ClassDefinition.ParameterDefinition(paramName, paramType, lowerBound, upperBound);
     }
 
     /**

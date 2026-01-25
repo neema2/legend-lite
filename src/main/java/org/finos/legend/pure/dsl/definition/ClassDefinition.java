@@ -159,6 +159,7 @@ public record ClassDefinition(
      */
     public record DerivedPropertyDefinition(
             String name,
+            List<ParameterDefinition> parameters,
             String expression,
             String type,
             int lowerBound,
@@ -167,13 +168,71 @@ public record ClassDefinition(
             Objects.requireNonNull(name, "Derived property name cannot be null");
             Objects.requireNonNull(expression, "Derived property expression cannot be null");
             Objects.requireNonNull(type, "Derived property type cannot be null");
+            if (parameters == null) {
+                parameters = List.of();
+            }
         }
 
         /**
-         * Creates a derived property with [1] multiplicity.
+         * Creates a derived property with [1] multiplicity and no parameters.
          */
         public static DerivedPropertyDefinition of(String name, String expression, String type) {
-            return new DerivedPropertyDefinition(name, expression, type, 1, 1);
+            return new DerivedPropertyDefinition(name, List.of(), expression, type, 1, 1);
+        }
+
+        /**
+         * Creates a derived property with parameters.
+         */
+        public static DerivedPropertyDefinition withParams(String name, List<ParameterDefinition> params,
+                String expression, String type, int lowerBound, Integer upperBound) {
+            return new DerivedPropertyDefinition(name, params, expression, type, lowerBound, upperBound);
+        }
+
+        public String multiplicityString() {
+            if (upperBound == null) {
+                return lowerBound == 0 ? "*" : lowerBound + "..*";
+            }
+            if (lowerBound == upperBound) {
+                return String.valueOf(lowerBound);
+            }
+            return lowerBound + ".." + upperBound;
+        }
+
+        /**
+         * @return true if this derived property has parameters
+         */
+        public boolean hasParameters() {
+            return parameters != null && !parameters.isEmpty();
+        }
+    }
+
+    /**
+     * Represents a parameter in a derived property or function.
+     * 
+     * Pure syntax: paramName: Type[multiplicity]
+     * Example: firmByName(name: String[1]) {...}
+     * 
+     * @param name       The parameter name
+     * @param type       The parameter type
+     * @param lowerBound Lower multiplicity bound
+     * @param upperBound Upper multiplicity bound (null for *)
+     */
+    public record ParameterDefinition(
+            String name,
+            String type,
+            int lowerBound,
+            Integer upperBound) {
+
+        public ParameterDefinition {
+            Objects.requireNonNull(name, "Parameter name cannot be null");
+            Objects.requireNonNull(type, "Parameter type cannot be null");
+        }
+
+        /**
+         * Creates a parameter with [1] multiplicity.
+         */
+        public static ParameterDefinition of(String name, String type) {
+            return new ParameterDefinition(name, type, 1, 1);
         }
 
         public String multiplicityString() {
