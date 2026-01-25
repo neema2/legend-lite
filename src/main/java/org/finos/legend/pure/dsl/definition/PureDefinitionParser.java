@@ -29,7 +29,17 @@ public final class PureDefinitionParser {
         PreprocessResult preprocessed = preprocess(pureSource);
 
         List<PureDefinition> definitions = new ArrayList<>();
-        String remaining = preprocessed.cleanedSource.trim();
+        String remaining = preprocessed.cleanedSource;
+
+        // Track position in original source for error reporting
+        // Count leading whitespace removed by any trim operations
+        int leadingNewlines = 0;
+        for (int i = 0; i < remaining.length() && Character.isWhitespace(remaining.charAt(i)); i++) {
+            if (remaining.charAt(i) == '\n')
+                leadingNewlines++;
+        }
+        remaining = remaining.trim();
+        int lineOffset = leadingNewlines; // Lines consumed from start
 
         while (!remaining.isEmpty()) {
             remaining = remaining.trim();
@@ -38,8 +48,10 @@ public final class PureDefinitionParser {
 
             if (remaining.startsWith("Class ") || remaining.startsWith("<<")) {
                 // Both regular classes and annotated classes (<<profile.stereotype>> Class ...)
-                var result = parseClass(remaining);
+                var result = parseClass(remaining, lineOffset);
                 definitions.add(result.definition);
+                // Calculate new line offset by counting newlines consumed
+                lineOffset += countNewlines(remaining.substring(0, remaining.length() - result.remaining.length()));
                 remaining = result.remaining;
             } else if (remaining.startsWith("Database ")) {
                 var result = parseDatabase(remaining);
@@ -99,13 +111,38 @@ public final class PureDefinitionParser {
      * @return Preprocessed result with cleaned source and import scope
      */
     private static PreprocessResult preprocess(String source) {
-        // First, strip block comments /* ... */
-        String withoutBlockComments = source.replaceAll("/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/", "");
+        // First, strip block comments /* ... */ but preserve newlines for line number
+        // mapping
+        // Replace each block comment with the same number of newlines it contained
+        StringBuilder withoutBlockComments = new StringBuilder();
+        int i = 0;
+        while (i < source.length()) {
+            if (i + 1 < source.length() && source.charAt(i) == '/' && source.charAt(i + 1) == '*') {
+                // Found start of block comment, find the end
+                int end = source.indexOf("*/", i + 2);
+                if (end < 0) {
+                    end = source.length(); // Unclosed comment, go to end
+                } else {
+                    end += 2; // Include */
+                }
+                // Count newlines in the comment and preserve them
+                String comment = source.substring(i, end);
+                for (char c : comment.toCharArray()) {
+                    if (c == '\n') {
+                        withoutBlockComments.append('\n');
+                    }
+                }
+                i = end;
+            } else {
+                withoutBlockComments.append(source.charAt(i));
+                i++;
+            }
+        }
 
         ImportScope imports = new ImportScope();
         StringBuilder cleaned = new StringBuilder();
 
-        for (String line : withoutBlockComments.split("\n")) {
+        for (String line : withoutBlockComments.toString().split("\n")) {
             String trimmed = line.trim();
 
             // Strip line comments: // ...
@@ -127,15 +164,17 @@ public final class PureDefinitionParser {
                 continue;
             }
 
-            // Skip section headers: ###Pure, ###Relational, ###Mapping, etc.
+            // Skip section headers but preserve newline for line number mapping
             if (trimmed.startsWith("###")) {
+                cleaned.append("\n");
                 continue;
             }
 
-            // Parse import statements: import package::name::*; or import package::Type;
+            // Parse import statements but preserve newline for line number mapping
             if (trimmed.startsWith("import ") && trimmed.contains("::")) {
                 String importPath = trimmed.substring(7).replace(";", "").trim();
                 imports.addImport(importPath);
+                cleaned.append("\n");
                 continue;
             }
 
@@ -210,6 +249,10 @@ public final class PureDefinitionParser {
     // ==================== Class Parsing ====================
 
     private static ParseResult<ClassDefinition> parseClass(String source) {
+        return parseClass(source, 0);
+    }
+
+    private static ParseResult<ClassDefinition> parseClass(String source, int sourceLineOffset) {
         // Parse stereotypes and tagged values before Class keyword
         // Pattern: <<profile::Name.stereotype>> or <<profile::Name.tag: 'value'>>
         List<StereotypeApplication> stereotypes = new ArrayList<>();
@@ -285,9 +328,16 @@ public final class PureDefinitionParser {
         List<ClassDefinition.PropertyDefinition> properties = parseProperties(body);
         List<ClassDefinition.DerivedPropertyDefinition> derivedProperties = parseDerivedProperties(body);
 
+        // Calculate line offset: how many lines are before the class body in the source
+        // Add sourceLineOffset to account for lines before this definition in original
+        // source
+        int bodyLineOffset = sourceLineOffset + countNewlines(remaining.substring(0, bodyStart)) + 1; // +1 because
+                                                                                                      // we're at line
+                                                                                                      // after {
+
         // Validate: Check for unparsed tokens that look like property definitions
         // This catches syntax errors like "name String[1];" (missing colon)
-        validateClassBody(body, properties, derivedProperties, qualifiedName);
+        validateClassBody(body, properties, derivedProperties, qualifiedName, bodyLineOffset);
 
         // Check for constraints block after class body: [ constraint1: expr,
         // constraint2: expr ]
@@ -646,15 +696,51 @@ public final class PureDefinitionParser {
     }
 
     /**
+     * Count the number of newlines in a string.
+     */
+    private static int countNewlines(String s) {
+        int count = 0;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == '\n')
+                count++;
+        }
+        return count;
+    }
+
+    /**
+     * Calculate line number at a given offset in a string (1-indexed).
+     */
+    private static int getLineAtOffset(String s, int offset) {
+        int line = 1;
+        for (int i = 0; i < offset && i < s.length(); i++) {
+            if (s.charAt(i) == '\n')
+                line++;
+        }
+        return line;
+    }
+
+    /**
+     * Calculate column number at a given offset in a string (0-indexed).
+     */
+    private static int getColumnAtOffset(String s, int offset) {
+        int lastNewline = s.lastIndexOf('\n', offset - 1);
+        return lastNewline < 0 ? offset : offset - lastNewline - 1;
+    }
+
+    /**
      * Validates that all tokens in the class body were parsed as properties or
      * derived properties.
      * Throws an error if there are tokens that look like property definitions but
      * have invalid syntax.
+     * 
+     * @param bodyLineOffset The line number in the original source where the class
+     *                       body starts
      */
     private static void validateClassBody(String body,
             List<ClassDefinition.PropertyDefinition> properties,
             List<ClassDefinition.DerivedPropertyDefinition> derivedProperties,
-            String className) {
+            String className,
+            int bodyLineOffset) {
         // Look for patterns that look like properties but weren't parsed
         // Pattern: word followed by word followed by bracket - e.g., "name String[1]"
         // (missing colon)
@@ -670,11 +756,17 @@ public final class PureDefinitionParser {
                     .anyMatch(p -> p.name().equals(possiblePropName));
 
             if (!found) {
+                // Calculate line number within body, then add offset
+                int lineInBody = getLineAtOffset(body, matcher.start());
+                int errorLine = bodyLineOffset + lineInBody - 1; // -1 because lineInBody is 1-indexed
+                int column = getColumnAtOffset(body, matcher.start());
+
                 // Not found - this is invalid syntax (missing colon)
                 throw new PureParseException(
                         "Invalid property syntax in class " + className + ": '" +
                                 possiblePropName + " " + possibleType + "[...]' - missing colon. " +
-                                "Expected: '" + possiblePropName + ": " + possibleType + "[...]'");
+                                "Expected: '" + possiblePropName + ": " + possibleType + "[...]'",
+                        errorLine, column);
             }
         }
     }

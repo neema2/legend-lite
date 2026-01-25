@@ -172,12 +172,13 @@ public class PureLspServer {
             compiler.validate(text);
             // Success - no diagnostics
         } catch (Exception e) {
-            // Parse the error to extract location if possible
+            // Parse the error to extract location
             String message = e.getMessage();
             int line = 0;
             int character = 0;
 
-            // Try to extract line number from common error format: "line X:Y"
+            // First try: extract from "line X:Y" format (from PureParseException with
+            // location)
             if (message != null) {
                 int lineIdx = message.indexOf("line ");
                 if (lineIdx >= 0) {
@@ -204,6 +205,25 @@ public class PureLspServer {
                     } catch (NumberFormatException ignored) {
                     }
                 }
+
+                // Second try: search for pattern in original source if we still have line 0
+                if (line == 0 && text != null) {
+                    // Extract pattern from error message like "'firstName String[...]'"
+                    int quoteStart = message.indexOf("'");
+                    int quoteEnd = message.indexOf("'", quoteStart + 1);
+                    if (quoteStart >= 0 && quoteEnd > quoteStart) {
+                        String pattern = message.substring(quoteStart + 1, quoteEnd);
+                        // Simplify pattern - just take the first word (property name)
+                        String searchTerm = pattern.split("\\s+")[0];
+
+                        // Search in original source
+                        int[] location = findInSource(text, searchTerm);
+                        if (location[0] > 0) {
+                            line = location[0] - 1; // LSP is 0-indexed
+                            character = location[1];
+                        }
+                    }
+                }
             }
 
             Map<String, Object> diagnostic = new LinkedHashMap<>();
@@ -215,7 +235,7 @@ public class PureLspServer {
             startPos.put("character", character);
             Map<String, Object> endPos = new LinkedHashMap<>();
             endPos.put("line", line);
-            endPos.put("character", character + 10); // Approximate
+            endPos.put("character", character + 20); // Approximate end
             range.put("start", startPos);
             range.put("end", endPos);
 
@@ -228,6 +248,21 @@ public class PureLspServer {
         }
 
         return createDiagnosticsNotification(uri, diagnostics);
+    }
+
+    /**
+     * Find a search term in the source and return [line, column] (1-indexed).
+     * Returns [0, 0] if not found.
+     */
+    private int[] findInSource(String source, String searchTerm) {
+        String[] lines = source.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            int col = lines[i].indexOf(searchTerm);
+            if (col >= 0) {
+                return new int[] { i + 1, col }; // 1-indexed
+            }
+        }
+        return new int[] { 0, 0 };
     }
 
     private String publishDiagnosticsEmpty(String uri) {
