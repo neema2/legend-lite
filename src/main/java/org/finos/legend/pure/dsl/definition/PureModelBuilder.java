@@ -35,6 +35,11 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, ServiceDefinition> services = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry();
 
+    // Explicit association-to-join mappings from +AssociationName: Relational {
+    // prop: @Join } syntax
+    // Key: "AssociationName.propertyName", Value: Join
+    private final Map<String, Join> explicitAssociationJoins = new HashMap<>();
+
     /**
      * Adds Pure definitions from source code.
      * 
@@ -274,8 +279,9 @@ public final class PureModelBuilder implements ModelContext {
                 }
             }
 
-            // Build property mappings
+            // Build property mappings (skip join references - handled separately)
             List<PropertyMapping> propertyMappings = classMapping.propertyMappings().stream()
+                    .filter(pm -> !pm.isJoinReference()) // Skip association join references
                     .map(pm -> {
                         if (pm.isExpression()) {
                             // Expression-based mapping (e.g., PAYLOAD->get('price', @Integer))
@@ -287,6 +293,19 @@ public final class PureModelBuilder implements ModelContext {
                         }
                     })
                     .toList();
+
+            // Process join references for association properties
+            for (var pm : classMapping.propertyMappings()) {
+                if (pm.isJoinReference()) {
+                    String joinName = pm.joinReference().joinName();
+                    Join join = joins.get(joinName);
+                    if (join != null) {
+                        // Store with key "ClassName.propertyName" for lookup
+                        String key = classMapping.className() + "." + pm.propertyName();
+                        explicitAssociationJoins.put(key, join);
+                    }
+                }
+            }
 
             // Create and register the mapping
             RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings);
@@ -455,18 +474,50 @@ public final class PureModelBuilder implements ModelContext {
             // (property1 navigates FROM prop2.targetClass TO prop1.targetClass)
             if (prop1.propertyName().equals(propertyName) && prop2.targetClass().equals(fromClassName)) {
                 boolean isToMany = prop1.multiplicity().isMany();
-                Join join = findJoinForAssociation(assoc.name()).orElse(null);
+                Join join = findJoinForAssociationProperty(assoc.name(), propertyName);
                 return Optional.of(new AssociationNavigation(assoc, prop2, prop1, isToMany, join));
             }
 
             // Check if property2's name matches and property1's target is fromClassName
             if (prop2.propertyName().equals(propertyName) && prop1.targetClass().equals(fromClassName)) {
                 boolean isToMany = prop2.multiplicity().isMany();
-                Join join = findJoinForAssociation(assoc.name()).orElse(null);
+                Join join = findJoinForAssociationProperty(assoc.name(), propertyName);
                 return Optional.of(new AssociationNavigation(assoc, prop1, prop2, isToMany, join));
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Finds a join for an association property.
+     * Checks explicit mappings first (from class mapping [DB]@JoinName syntax),
+     * then falls back to convention-based matching.
+     * 
+     * @param associationName The association name
+     * @param propertyName    The property name being navigated
+     * @return The Join to use, or null if not found
+     */
+    private Join findJoinForAssociationProperty(String associationName, String propertyName) {
+        // 1. Check explicit mapping from class mapping (ClassName.propertyName)
+        // This is stored when parsing [DB]@JoinName in property mappings
+        for (String key : explicitAssociationJoins.keySet()) {
+            if (key.endsWith("." + propertyName)) {
+                return explicitAssociationJoins.get(key);
+            }
+        }
+
+        // 2. Check explicit mapping with association name (AssocName.propertyName)
+        String simpleAssocName = associationName.contains("::")
+                ? associationName.substring(associationName.lastIndexOf("::") + 2)
+                : associationName;
+        String key = simpleAssocName + "." + propertyName;
+        Join explicitJoin = explicitAssociationJoins.get(key);
+        if (explicitJoin != null) {
+            return explicitJoin;
+        }
+
+        // 3. Fall back to convention-based matching (Join name = Association name)
+        return findJoinForAssociation(associationName).orElse(null);
     }
 
     /**

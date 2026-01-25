@@ -785,9 +785,9 @@ public final class PureDefinitionParser {
 
         int testSuitesIdx = body.indexOf("testSuites:");
         if (testSuitesIdx >= 0) {
-            String classMappingsBody = body.substring(0, testSuitesIdx).trim();
+            String mappingsBody = body.substring(0, testSuitesIdx).trim();
             String testSuitesBody = body.substring(testSuitesIdx);
-            classMappings = parseClassMappings(classMappingsBody);
+            classMappings = parseClassMappings(mappingsBody);
             testSuites = parseTestSuites(testSuitesBody);
         } else {
             classMappings = parseClassMappings(body);
@@ -802,7 +802,9 @@ public final class PureDefinitionParser {
         List<MappingDefinition.ClassMappingDefinition> mappings = new ArrayList<>();
 
         // Pattern: ClassName: MappingType { ... }
-        Pattern pattern = Pattern.compile("(\\w+)\\s*:\\s*(\\w+)\\s*\\{");
+        // This matches simple class names (no :: package prefix) for class mappings
+        // Association mappings use qualified names with :: (e.g., package::AssocName)
+        Pattern pattern = Pattern.compile("(?<!:)(\\w+)\\s*:\\s*(\\w+)\\s*\\{");
         Matcher matcher = pattern.matcher(body);
 
         while (matcher.find()) {
@@ -1142,6 +1144,21 @@ public final class PureDefinitionParser {
             mappings.add(MappingDefinition.PropertyMappingDefinition.column(
                     propertyName,
                     new MappingDefinition.ColumnReference(databaseName, tableName, columnName)));
+        }
+
+        // Parse join references for association properties
+        // Pattern: propertyName: [DatabaseName]@JoinName
+        Pattern joinPattern = Pattern.compile("(\\w+)\\s*:\\s*\\[(\\w+)]\\s*@\\s*(\\w+)");
+        Matcher joinMatcher = joinPattern.matcher(body);
+
+        while (joinMatcher.find()) {
+            String propertyName = joinMatcher.group(1);
+            String databaseName = joinMatcher.group(2);
+            String joinName = joinMatcher.group(3);
+
+            mappings.add(MappingDefinition.PropertyMappingDefinition.join(
+                    propertyName,
+                    new MappingDefinition.JoinReference(databaseName, joinName)));
         }
 
         return mappings;

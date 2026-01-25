@@ -161,13 +161,16 @@ public record MappingDefinition(
     /**
      * Represents a property mapping within a class mapping.
      * 
-     * Supports two modes:
-     * 1. Simple column reference: propertyName -> columnReference
+     * Supports three modes:
+     * 1. Simple column reference: propertyName -> [DB] TABLE.COLUMN
      * 2. Expression with embedded class: propertyName -> COLUMN->cast(@ClassName)
+     * 3. Join reference for associations: propertyName -> [DB]@JoinName
      * 
      * @param propertyName      The Pure property name
-     * @param columnReference   The column reference (null if using expression)
-     * @param expressionString  The mapping expression (null if using column
+     * @param columnReference   The column reference (null if using join/expression)
+     * @param joinReference     The join reference for association properties (null
+     *                          if using column/expression)
+     * @param expressionString  The mapping expression (null if using column/join
      *                          reference)
      * @param embeddedClassName The target class for embedded JSON (null if not
      *                          embedded)
@@ -175,15 +178,17 @@ public record MappingDefinition(
     public record PropertyMappingDefinition(
             String propertyName,
             ColumnReference columnReference,
+            JoinReference joinReference,
             String expressionString,
             String embeddedClassName) {
 
         public PropertyMappingDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
-            // Either columnReference or expressionString must be present
-            if (columnReference == null && expressionString == null) {
+            // Either columnReference, joinReference, or expressionString must be present
+            if (columnReference == null && joinReference == null && expressionString == null) {
                 throw new IllegalArgumentException(
-                        "Either columnReference or expressionString must be provided for property: " + propertyName);
+                        "Either columnReference, joinReference, or expressionString must be provided for property: "
+                                + propertyName);
             }
         }
 
@@ -191,7 +196,14 @@ public record MappingDefinition(
          * Creates a simple column reference mapping.
          */
         public static PropertyMappingDefinition column(String propertyName, ColumnReference columnRef) {
-            return new PropertyMappingDefinition(propertyName, columnRef, null, null);
+            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null);
+        }
+
+        /**
+         * Creates a join reference mapping for association properties.
+         */
+        public static PropertyMappingDefinition join(String propertyName, JoinReference joinRef) {
+            return new PropertyMappingDefinition(propertyName, null, joinRef, null, null);
         }
 
         /**
@@ -199,7 +211,14 @@ public record MappingDefinition(
          */
         public static PropertyMappingDefinition expression(String propertyName, String expression,
                 String embeddedClass) {
-            return new PropertyMappingDefinition(propertyName, null, expression, embeddedClass);
+            return new PropertyMappingDefinition(propertyName, null, null, expression, embeddedClass);
+        }
+
+        /**
+         * @return true if this mapping references a join for association navigation
+         */
+        public boolean isJoinReference() {
+            return joinReference != null;
         }
 
         /**
@@ -233,6 +252,28 @@ public record MappingDefinition(
             Objects.requireNonNull(databaseName, "Database name cannot be null");
             Objects.requireNonNull(tableName, "Table name cannot be null");
             Objects.requireNonNull(columnName, "Column name cannot be null");
+        }
+    }
+
+    /**
+     * Represents a join reference [DatabaseName]@JoinName for association
+     * properties.
+     * 
+     * Pure syntax:
+     * 
+     * <pre>
+     * employees: [DB]@PERSON_FIRM
+     * </pre>
+     * 
+     * @param databaseName The database name
+     * @param joinName     The join name
+     */
+    public record JoinReference(
+            String databaseName,
+            String joinName) {
+        public JoinReference {
+            Objects.requireNonNull(databaseName, "Database name cannot be null");
+            Objects.requireNonNull(joinName, "Join name cannot be null");
         }
     }
 

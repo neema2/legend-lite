@@ -361,6 +361,68 @@ class PureParserTest {
         assertEquals("*", prop2.multiplicityString());
     }
 
+    @Test
+    @DisplayName("Parse association property with join reference [DB]@JoinName")
+    void testParseAssociationPropertyWithJoinReference() {
+        // GIVEN: A mapping with association properties using join syntax
+        // This is the correct Pure syntax: association properties are mapped inside
+        // class mappings using [DB]@JoinName
+        String pureMapping = """
+                Mapping simple::mapping::Map
+                (
+                    Firm: Relational
+                    {
+                        ~mainTable [DB] FIRM_TABLE
+                        legalName: [DB] FIRM_TABLE.LEGAL_NAME,
+                        id: [DB] FIRM_TABLE.ID,
+                        employees: [DB]@PERSON_FIRM
+                    }
+
+                    Person: Relational
+                    {
+                        ~mainTable [DB] PERSON_TABLE
+                        firstName: [DB] PERSON_TABLE.FIRST_NAME,
+                        lastName: [DB] PERSON_TABLE.LAST_NAME,
+                        employer: [DB]@PERSON_FIRM
+                    }
+                )
+                """;
+
+        // WHEN: We parse it
+        MappingDefinition mappingDef = PureDefinitionParser.parseMappingDefinition(pureMapping);
+
+        // THEN: We get class mappings with property-to-join references
+        assertEquals("simple::mapping::Map", mappingDef.qualifiedName());
+        assertEquals(2, mappingDef.classMappings().size());
+
+        // Verify Firm class mapping has employees join reference
+        var firmMapping = mappingDef.classMappings().getFirst();
+        assertEquals("Firm", firmMapping.className());
+        assertEquals(3, firmMapping.propertyMappings().size());
+
+        // employees should be a join reference
+        var employeesMapping = firmMapping.propertyMappings().stream()
+                .filter(pm -> pm.propertyName().equals("employees"))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(employeesMapping.isJoinReference());
+        assertNotNull(employeesMapping.joinReference());
+        assertEquals("DB", employeesMapping.joinReference().databaseName());
+        assertEquals("PERSON_FIRM", employeesMapping.joinReference().joinName());
+
+        // Verify Person class mapping has employer join reference
+        var personMapping = mappingDef.classMappings().get(1);
+        assertEquals("Person", personMapping.className());
+
+        var employerMapping = personMapping.propertyMappings().stream()
+                .filter(pm -> pm.propertyName().equals("employer"))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(employerMapping.isJoinReference());
+        assertEquals("DB", employerMapping.joinReference().databaseName());
+        assertEquals("PERSON_FIRM", employerMapping.joinReference().joinName());
+    }
+
     // ==================== Complete Model Parsing Tests ====================
 
     @Test
