@@ -42,6 +42,9 @@ public final class PureDefinitionParser {
         int lineOffset = leadingNewlines; // Lines consumed from start
 
         while (!remaining.isEmpty()) {
+            // Track newlines consumed by trimming leading whitespace between definitions
+            int leadingNl = countLeadingNewlines(remaining);
+            lineOffset += leadingNl;
             remaining = remaining.trim();
             if (remaining.isEmpty())
                 break;
@@ -51,10 +54,10 @@ public final class PureDefinitionParser {
                 // values)
                 int bodyStart = findClassBodyBrace(remaining);
                 if (bodyStart < 0) {
-                    throw new PureParseException("Invalid Class definition - missing class body");
+                    throw new PureParseException("Invalid Class definition - missing class body", lineOffset + 1, 0);
                 }
 
-                int braceEnd = findMatchingBrace(remaining, bodyStart);
+                int braceEnd = findMatchingBrace(remaining, bodyStart, lineOffset);
                 String classSource = remaining.substring(0, braceEnd + 1);
 
                 // Parse using ANTLR with line offset for accurate error reporting
@@ -68,14 +71,14 @@ public final class PureDefinitionParser {
                 // Database uses parentheses, not braces: Database name ( ... )
                 int bodyStart = remaining.indexOf('(');
                 if (bodyStart < 0) {
-                    throw new PureParseException("Invalid Database definition - missing body");
+                    throw new PureParseException("Invalid Database definition - missing body", lineOffset + 1, 0);
                 }
 
                 int parenEnd = findMatchingParen(remaining, bodyStart);
                 String dbSource = remaining.substring(0, parenEnd + 1);
 
-                // Parse using ANTLR
-                DatabaseDefinition dbDef = parseDatabaseDefinition(dbSource);
+                // Parse using ANTLR with line offset for accurate error reporting
+                DatabaseDefinition dbDef = parseDatabaseDefinition(dbSource, lineOffset);
                 definitions.add(dbDef);
 
                 lineOffset += countNewlines(dbSource);
@@ -89,14 +92,14 @@ public final class PureDefinitionParser {
                 // '>>')
                 int bodyStart = findClassBodyBrace(remaining);
                 if (bodyStart < 0) {
-                    throw new PureParseException("Invalid Association definition - missing body");
+                    throw new PureParseException("Invalid Association definition - missing body", lineOffset + 1, 0);
                 }
 
-                int braceEnd = findMatchingBrace(remaining, bodyStart);
+                int braceEnd = findMatchingBrace(remaining, bodyStart, lineOffset);
                 String assocSource = remaining.substring(0, braceEnd + 1);
 
-                // Parse using ANTLR
-                AssociationDefinition assocDef = parseAssociationDefinition(assocSource);
+                // Parse using ANTLR with line offset for accurate error reporting
+                AssociationDefinition assocDef = parseAssociationDefinition(assocSource, lineOffset);
                 definitions.add(assocDef);
 
                 lineOffset += countNewlines(assocSource);
@@ -109,14 +112,14 @@ public final class PureDefinitionParser {
                 // Find the enum body brace - similar to Class, first '{' not preceded by '>>'
                 int bodyStart = findClassBodyBrace(remaining); // Same logic works for Enum
                 if (bodyStart < 0) {
-                    throw new PureParseException("Invalid Enum definition - missing body");
+                    throw new PureParseException("Invalid Enum definition - missing body", lineOffset + 1, 0);
                 }
 
-                int braceEnd = findMatchingBrace(remaining, bodyStart);
+                int braceEnd = findMatchingBrace(remaining, bodyStart, lineOffset);
                 String enumSource = remaining.substring(0, braceEnd + 1);
 
-                // Parse using ANTLR
-                EnumDefinition enumDef = parseEnumDefinition(enumSource);
+                // Parse using ANTLR with line offset for accurate error reporting
+                EnumDefinition enumDef = parseEnumDefinition(enumSource, lineOffset);
                 definitions.add(enumDef);
 
                 lineOffset += countNewlines(enumSource);
@@ -126,14 +129,14 @@ public final class PureDefinitionParser {
                 // itself)
                 int bodyStart = remaining.indexOf('{');
                 if (bodyStart < 0) {
-                    throw new PureParseException("Invalid Profile definition - missing body");
+                    throw new PureParseException("Invalid Profile definition - missing body", lineOffset + 1, 0);
                 }
 
-                int braceEnd = findMatchingBrace(remaining, bodyStart);
+                int braceEnd = findMatchingBrace(remaining, bodyStart, lineOffset);
                 String profileSource = remaining.substring(0, braceEnd + 1);
 
-                // Parse using ANTLR
-                ProfileDefinition profileDef = parseProfileDefinition(profileSource);
+                // Parse using ANTLR with line offset for accurate error reporting
+                ProfileDefinition profileDef = parseProfileDefinition(profileSource, lineOffset);
                 definitions.add(profileDef);
 
                 lineOffset += countNewlines(profileSource);
@@ -142,14 +145,14 @@ public final class PureDefinitionParser {
                 // Find the function body brace - first '{' after the signature
                 int bodyStart = remaining.indexOf('{');
                 if (bodyStart < 0) {
-                    throw new PureParseException("Invalid Function definition - missing body");
+                    throw new PureParseException("Invalid Function definition - missing body", lineOffset + 1, 0);
                 }
 
-                int braceEnd = findMatchingBrace(remaining, bodyStart);
+                int braceEnd = findMatchingBrace(remaining, bodyStart, lineOffset);
                 String funcSource = remaining.substring(0, braceEnd + 1);
 
-                // Parse using ANTLR
-                FunctionDefinition funcDef = parseFunctionDefinition(funcSource);
+                // Parse using ANTLR with line offset for accurate error reporting
+                FunctionDefinition funcDef = parseFunctionDefinition(funcSource, lineOffset);
                 definitions.add(funcDef);
 
                 lineOffset += countNewlines(funcSource);
@@ -163,8 +166,11 @@ public final class PureDefinitionParser {
                 definitions.add(result.definition);
                 remaining = result.remaining;
             } else {
-                throw new PureParseException("Unknown definition starting with: " +
-                        remaining.substring(0, Math.min(50, remaining.length())));
+                // Unknown definition - report error at current position with line offset
+                // lineOffset is 0-based (lines consumed), so add 1 for 1-based line number
+                throw new PureParseException(
+                        "Unknown definition starting with: " + remaining.substring(0, Math.min(50, remaining.length())),
+                        lineOffset + 1, 0);
             }
         }
 
@@ -297,22 +303,48 @@ public final class PureDefinitionParser {
      * Parses a single Profile definition using ANTLR.
      */
     public static ProfileDefinition parseProfileDefinition(String pureSource) {
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(pureSource);
-        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
-                .extractFirstProfileDefinition(tree)
-                .orElseThrow(() -> new PureParseException("No profile definition found in source"));
+        return parseProfileDefinition(pureSource, 0);
+    }
+
+    /**
+     * Parses a single Profile definition using ANTLR with line offset.
+     * Line offset is added to ANTLR-reported line numbers for accurate error
+     * location.
+     */
+    public static ProfileDefinition parseProfileDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstProfileDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No profile definition found in source"));
+        } catch (PureParseException e) {
+            throw adjustErrorLineOffset(e, lineOffset);
+        }
     }
 
     /**
      * Parses a single Function definition using ANTLR.
      */
     public static FunctionDefinition parseFunctionDefinition(String pureSource) {
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(pureSource);
-        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
-                .extractFirstFunctionDefinition(tree)
-                .orElseThrow(() -> new PureParseException("No function definition found in source"));
+        return parseFunctionDefinition(pureSource, 0);
+    }
+
+    /**
+     * Parses a single Function definition using ANTLR with line offset.
+     * Line offset is added to ANTLR-reported line numbers for accurate error
+     * location.
+     */
+    public static FunctionDefinition parseFunctionDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstFunctionDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No function definition found in source"));
+        } catch (PureParseException e) {
+            throw adjustErrorLineOffset(e, lineOffset);
+        }
     }
 
     /**
@@ -335,11 +367,38 @@ public final class PureDefinitionParser {
      * Parses a single Database definition using ANTLR.
      */
     public static DatabaseDefinition parseDatabaseDefinition(String pureSource) {
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(pureSource);
-        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
-                .extractFirstDatabaseDefinition(tree)
-                .orElseThrow(() -> new PureParseException("No database definition found in source"));
+        return parseDatabaseDefinition(pureSource, 0);
+    }
+
+    /**
+     * Parses a single Database definition using ANTLR with line offset.
+     * Line offset is added to ANTLR-reported line numbers for accurate error
+     * location.
+     */
+    public static DatabaseDefinition parseDatabaseDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstDatabaseDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No database definition found in source"));
+        } catch (PureParseException e) {
+            throw adjustErrorLineOffset(e, lineOffset);
+        }
+    }
+
+    /**
+     * Adjusts the line number in a parse exception by adding the given offset.
+     * This is used when parsing a substring of a larger source to report
+     * accurate line numbers for IDE integration.
+     */
+    private static PureParseException adjustErrorLineOffset(PureParseException e, int lineOffset) {
+        if (lineOffset > 0 && e.hasLocation()) {
+            return new PureParseException(
+                    e.getMessage().replace("line " + e.getLine(), "line " + (e.getLine() + lineOffset)),
+                    e.getLine() + lineOffset, e.getColumn());
+        }
+        return e;
     }
 
     /**
@@ -530,6 +589,18 @@ public final class PureDefinitionParser {
     }
 
     /**
+     * Count newlines in leading whitespace only.
+     */
+    private static int countLeadingNewlines(String s) {
+        int count = 0;
+        for (int i = 0; i < s.length() && Character.isWhitespace(s.charAt(i)); i++) {
+            if (s.charAt(i) == '\n')
+                count++;
+        }
+        return count;
+    }
+
+    /**
      * Finds the matching closing bracket for an opening bracket.
      */
     private static int findMatchingBracket(String source, int openPos) {
@@ -581,24 +652,6 @@ public final class PureDefinitionParser {
             }
         }
         return -1;
-    }
-
-    private static Integer[] parseMultiplicity(String mult) {
-        mult = mult.trim();
-        if (mult.equals("*")) {
-            return new Integer[] { 0, null };
-        }
-        if (mult.equals("1")) {
-            return new Integer[] { 1, 1 };
-        }
-        if (mult.contains("..")) {
-            String[] parts = mult.split("\\.\\.");
-            int lower = Integer.parseInt(parts[0].trim());
-            Integer upper = parts[1].trim().equals("*") ? null : Integer.parseInt(parts[1].trim());
-            return new Integer[] { lower, upper };
-        }
-        int val = Integer.parseInt(mult);
-        return new Integer[] { val, val };
     }
 
     // ==================== Mapping Parsing ====================
@@ -1136,11 +1189,24 @@ public final class PureDefinitionParser {
      * Parses a single Association definition using ANTLR.
      */
     public static AssociationDefinition parseAssociationDefinition(String pureSource) {
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(pureSource);
-        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
-                .extractFirstAssociationDefinition(tree)
-                .orElseThrow(() -> new PureParseException("No association definition found in source"));
+        return parseAssociationDefinition(pureSource, 0);
+    }
+
+    /**
+     * Parses a single Association definition using ANTLR with line offset.
+     * Line offset is added to ANTLR-reported line numbers for accurate error
+     * location.
+     */
+    public static AssociationDefinition parseAssociationDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstAssociationDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No association definition found in source"));
+        } catch (PureParseException e) {
+            throw adjustErrorLineOffset(e, lineOffset);
+        }
     }
 
     // ==================== Helper Methods ====================
@@ -1157,10 +1223,16 @@ public final class PureDefinitionParser {
                     return i;
             }
         }
-        throw new PureParseException("Unmatched parenthesis");
+        // Calculate line number from source up to openPos
+        int line = 1 + countNewlines(source.substring(0, Math.min(openPos, source.length())));
+        throw new PureParseException("Unmatched parenthesis at line " + line, line, 0);
     }
 
     private static int findMatchingBrace(String source, int openPos) {
+        return findMatchingBrace(source, openPos, 0);
+    }
+
+    private static int findMatchingBrace(String source, int openPos, int baseLineOffset) {
         int depth = 1;
         for (int i = openPos + 1; i < source.length(); i++) {
             char c = source.charAt(i);
@@ -1172,7 +1244,9 @@ public final class PureDefinitionParser {
                     return i;
             }
         }
-        throw new PureParseException("Unmatched brace");
+        // Point to the opening brace - more actionable for the user
+        int line = baseLineOffset + 1 + countNewlines(source.substring(0, openPos));
+        throw new PureParseException("Unmatched brace - missing closing '}'", line, 0);
     }
 
     private record ParseResult<T>(T definition, String remaining) {
@@ -1268,10 +1342,23 @@ public final class PureDefinitionParser {
      * VALUE3 }
      */
     public static EnumDefinition parseEnumDefinition(String pureSource) {
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(pureSource);
-        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
-                .extractFirstEnumDefinition(tree)
-                .orElseThrow(() -> new PureParseException("No enum definition found in source"));
+        return parseEnumDefinition(pureSource, 0);
+    }
+
+    /**
+     * Parses a single Enum definition using ANTLR with line offset.
+     * Line offset is added to ANTLR-reported line numbers for accurate error
+     * location.
+     */
+    public static EnumDefinition parseEnumDefinition(String pureSource, int lineOffset) {
+        try {
+            org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
+                    .parseDefinition(pureSource);
+            return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder
+                    .extractFirstEnumDefinition(tree)
+                    .orElseThrow(() -> new PureParseException("No enum definition found in source"));
+        } catch (PureParseException e) {
+            throw adjustErrorLineOffset(e, lineOffset);
+        }
     }
 }
