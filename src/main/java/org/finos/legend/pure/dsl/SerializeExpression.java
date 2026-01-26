@@ -1,6 +1,5 @@
 package org.finos.legend.pure.dsl;
 
-import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
 
 /**
  * Represents a serialize() call that terminates a graphFetch chain.

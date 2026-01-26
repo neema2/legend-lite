@@ -5,7 +5,7 @@ import org.finos.legend.engine.store.Join;
 import org.finos.legend.engine.store.MappingRegistry;
 import org.finos.legend.engine.store.RelationalMapping;
 import org.finos.legend.pure.dsl.PureCompileException;
-import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
+import org.finos.legend.pure.dsl.GraphFetchTree;
 
 import java.util.ArrayList;
 import java.util.List;

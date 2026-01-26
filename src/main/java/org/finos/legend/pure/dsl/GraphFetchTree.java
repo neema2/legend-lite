@@ -1,7 +1,6 @@
-package org.finos.legend.pure.dsl.graphfetch;
+package org.finos.legend.pure.dsl;
 
 import java.util.List;
-import org.finos.legend.pure.dsl.PureExpression;
 
 /**
  * Represents a graphFetch tree specification.

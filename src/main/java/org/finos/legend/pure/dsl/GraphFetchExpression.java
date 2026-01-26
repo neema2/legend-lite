@@ -1,6 +1,5 @@
 package org.finos.legend.pure.dsl;
 
-import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
 
 /**
  * Represents a graphFetch() call on a class expression.

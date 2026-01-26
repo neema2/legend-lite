@@ -3,7 +3,7 @@ package org.finos.legend.engine.transpiler.json;
 import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
-import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
+import org.finos.legend.pure.dsl.GraphFetchTree;
 
 import java.util.ArrayList;
 import java.util.List;

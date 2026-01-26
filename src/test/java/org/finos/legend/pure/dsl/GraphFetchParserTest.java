@@ -1,27 +1,38 @@
 package org.finos.legend.pure.dsl;
 
-import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
-import org.finos.legend.pure.dsl.graphfetch.GraphFetchParser;
+import org.finos.legend.pure.dsl.GraphFetchTree;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for graphFetch/serialize parsing.
+ * 
+ * All parsing now uses ANTLR via PureParser. The standalone GraphFetchParser
+ * was
+ * removed as redundant - island mode (#{ }#) is handled directly by the ANTLR
+ * grammar.
  */
 class GraphFetchParserTest {
 
     @Test
     void testParseSimpleGraphFetchTree() {
-        String tree = "#{ Person { firstName, lastName } }#";
-        GraphFetchTree result = GraphFetchParser.parse(tree);
+        // Parse a simple graphFetch expression - island mode is parsed via ANTLR
+        String query = "Person.all()->graphFetch(#{ Person { firstName, lastName } }#)";
+        PureExpression expr = PureParser.parse(query);
 
-        assertEquals("Person", result.rootClass());
-        assertEquals(2, result.properties().size());
-        assertEquals("firstName", result.properties().get(0).name());
-        assertEquals("lastName", result.properties().get(1).name());
-        assertFalse(result.properties().get(0).isNested());
-        assertFalse(result.properties().get(1).isNested());
+        assertTrue(expr instanceof GraphFetchExpression,
+                "Expected GraphFetchExpression, got: " + expr.getClass().getSimpleName());
+
+        GraphFetchExpression graphFetch = (GraphFetchExpression) expr;
+        GraphFetchTree tree = graphFetch.fetchTree();
+
+        assertEquals("Person", tree.rootClass());
+        assertEquals(2, tree.properties().size());
+        assertEquals("firstName", tree.properties().get(0).name());
+        assertEquals("lastName", tree.properties().get(1).name());
+        assertFalse(tree.properties().get(0).isNested());
+        assertFalse(tree.properties().get(1).isNested());
     }
 
     @Test

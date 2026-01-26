@@ -4,7 +4,6 @@ import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.store.*;
 import org.finos.legend.pure.dsl.ModelContext.AssociationNavigation;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
-import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
 import org.finos.legend.pure.dsl.m2m.M2MClassMapping;
 import org.finos.legend.pure.dsl.m2m.M2MCompiler;
 

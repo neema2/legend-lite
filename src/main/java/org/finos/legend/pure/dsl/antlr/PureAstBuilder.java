@@ -1,7 +1,7 @@
 package org.finos.legend.pure.dsl.antlr;
 
 import org.finos.legend.pure.dsl.*;
-import org.finos.legend.pure.dsl.graphfetch.GraphFetchTree;
+import org.finos.legend.pure.dsl.GraphFetchTree;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -330,12 +330,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         String contentText = content.toString().trim();
         String trailingText = trailingContent.toString().trim();
 
-        // For GraphFetch only, remove trailing } from nested braces
-        if (!isRelation) {
-            while (contentText.endsWith("}")) {
-                contentText = contentText.substring(0, contentText.length() - 1).trim();
-            }
-        }
+        // GraphFetch content should be passed as-is to the graphFetchTree grammar rule
+        // which expects: qualifiedName { property, property, ... }
 
         // Parse the main content
         PureExpression result = switch (dslType) {
