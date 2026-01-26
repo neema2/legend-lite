@@ -70,6 +70,7 @@ fragment Invalid:                       .;
 WHITESPACE:                             Whitespace      -> skip;
 COMMENT:                                Comment         -> skip;
 LINE_COMMENT:                           LineComment     -> skip;
+SECTION_HEADER:                         '###' ~[\r\n]*  -> skip;
 ISLAND_OPEN:                            '#'  (~[#{])* '{'-> pushMode (ISLAND_MODE);
 
 

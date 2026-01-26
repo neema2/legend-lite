@@ -1533,4 +1533,52 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         List<org.finos.legend.pure.dsl.definition.RuntimeDefinition> defs = extractRuntimeDefinitions(definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
+
+    // ==================== Combined Extraction ====================
+
+    /**
+     * Extracts ALL definitions from a parsed definition context.
+     * Iterates through all elementDefinition nodes and builds the appropriate
+     * PureDefinition based on which grammar rule matched.
+     *
+     * @param definitionCtx The definition context from parsing
+     * @return List of all PureDefinitions found
+     */
+    public static List<org.finos.legend.pure.dsl.definition.PureDefinition> extractAllDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.PureDefinition> result = new ArrayList<>();
+        if (definitionCtx == null) {
+            return result;
+        }
+
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.classDefinition() != null) {
+                result.add(builder.visitClassDefinition(elemCtx.classDefinition()));
+            } else if (elemCtx.enumDefinition() != null) {
+                result.add(builder.visitEnumDefinition(elemCtx.enumDefinition()));
+            } else if (elemCtx.profile() != null) {
+                result.add(builder.visitProfile(elemCtx.profile()));
+            } else if (elemCtx.association() != null) {
+                result.add(builder.visitAssociation(elemCtx.association()));
+            } else if (elemCtx.functionDefinition() != null) {
+                result.add(builder.visitFunctionDefinition(elemCtx.functionDefinition()));
+            } else if (elemCtx.database() != null) {
+                result.add(builder.visitDatabase(elemCtx.database()));
+            } else if (elemCtx.mapping() != null) {
+                result.add(builder.visitMapping(elemCtx.mapping()));
+            } else if (elemCtx.serviceDefinition() != null) {
+                result.add(builder.visitServiceDefinition(elemCtx.serviceDefinition()));
+            } else if (elemCtx.relationalDatabaseConnection() != null) {
+                result.add(builder.visitRelationalDatabaseConnection(elemCtx.relationalDatabaseConnection()));
+            } else if (elemCtx.runtime() != null) {
+                result.add(builder.visitRuntime(elemCtx.runtime()));
+            }
+            // singleConnectionRuntime, nativeFunction, instance, measureDefinition ignored
+            // for now
+        }
+
+        return result;
+    }
 }

@@ -392,11 +392,8 @@ functionIdentifier:                             qualifiedName PAREN_OPEN (functi
 // DOMAIN DEFINITION RULES (from DomainParserGrammar)
 // =============================================================================
 
-definition:                                     imports
-                                                    elementDefinition*
+definition:                                     (importStatement | elementDefinition)*
                                                 EOF
-;
-imports:                                        importStatement*
 ;
 importStatement:                                IMPORT packagePath PATH_SEPARATOR STAR SEMI_COLON
 ;
