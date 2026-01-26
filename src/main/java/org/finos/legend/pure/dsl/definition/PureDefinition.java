@@ -10,7 +10,7 @@ package org.finos.legend.pure.dsl.definition;
  * - Mapping definitions
  */
 public sealed interface PureDefinition
-        permits ClassDefinition, AssociationDefinition, DatabaseDefinition, MappingDefinition,
-        M2MMappingDefinition, ServiceDefinition, EnumDefinition, ProfileDefinition, FunctionDefinition,
-        ConnectionDefinition, RuntimeDefinition {
+                permits ClassDefinition, AssociationDefinition, DatabaseDefinition, MappingDefinition,
+                ServiceDefinition, EnumDefinition, ProfileDefinition, FunctionDefinition,
+                ConnectionDefinition, RuntimeDefinition {
 }

@@ -4,8 +4,6 @@ import org.finos.legend.pure.dsl.PureParseException;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Parser for Pure definition syntax (Class, Database, Mapping).
@@ -547,126 +545,6 @@ public final class PureDefinitionParser {
         return -1;
     }
 
-    // ==================== M2M Mapping Parsing ====================
-
-    /**
-     * Parses a single M2M Mapping definition (mappings with ": Pure" type).
-     */
-    public static M2MMappingDefinition parseM2MMappingDefinition(String pureSource) {
-        var result = parseM2MMapping(pureSource.trim());
-        return result.definition;
-    }
-
-    private static ParseResult<M2MMappingDefinition> parseM2MMapping(String source) {
-        // Pattern: Mapping qualified::Name ( ... )
-        Pattern headerPattern = Pattern.compile("Mapping\\s+([\\w:]+)\\s*\\(");
-        Matcher headerMatcher = headerPattern.matcher(source);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid M2M Mapping definition");
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingParen(source, bodyStart - 1);
-
-        String body = source.substring(bodyStart, bodyEnd);
-        List<M2MMappingDefinition.M2MClassMappingDefinition> classMappings = parseM2MClassMappings(body);
-
-        return new ParseResult<>(
-                new M2MMappingDefinition(qualifiedName, classMappings),
-                source.substring(bodyEnd + 1));
-    }
-
-    private static List<M2MMappingDefinition.M2MClassMappingDefinition> parseM2MClassMappings(String body) {
-        List<M2MMappingDefinition.M2MClassMappingDefinition> mappings = new ArrayList<>();
-
-        // Pattern: ClassName: Pure { ... }
-        Pattern pattern = Pattern.compile("(\\w+)\\s*:\\s*Pure\\s*\\{");
-        Matcher matcher = pattern.matcher(body);
-
-        while (matcher.find()) {
-            String targetClassName = matcher.group(1);
-            int mappingBodyStart = matcher.end();
-            int mappingBodyEnd = findMatchingBrace(body, mappingBodyStart - 1);
-
-            String mappingBody = body.substring(mappingBodyStart, mappingBodyEnd);
-
-            // Parse ~src SourceClass
-            String sourceClassName = parseM2MSource(mappingBody);
-
-            // Parse ~filter expression (optional)
-            String filterExpression = parseM2MFilter(mappingBody);
-
-            // Parse property mappings (propertyName: expression)
-            List<M2MMappingDefinition.M2MPropertyMappingDefinition> propertyMappings = parseM2MPropertyMappings(
-                    mappingBody);
-
-            mappings.add(new M2MMappingDefinition.M2MClassMappingDefinition(
-                    targetClassName, sourceClassName, filterExpression, propertyMappings));
-
-            // Continue searching
-            matcher.region(mappingBodyEnd + 1, body.length());
-        }
-
-        return mappings;
-    }
-
-    private static String parseM2MSource(String body) {
-        // Pattern: ~src SourceClass
-        Pattern pattern = Pattern.compile("~src\\s+(\\w+)");
-        Matcher matcher = pattern.matcher(body);
-
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        throw new PureParseException("M2M mapping must have ~src directive");
-    }
-
-    private static String parseM2MFilter(String body) {
-        // Pattern: ~filter expression (until end of line or comma)
-        Pattern pattern = Pattern.compile("~filter\\s+(.+?)(?:,\\s*\\n|\\n|$)");
-        Matcher matcher = pattern.matcher(body);
-
-        if (matcher.find()) {
-            return matcher.group(1).trim();
-        }
-        return null; // Filter is optional
-    }
-
-    private static List<M2MMappingDefinition.M2MPropertyMappingDefinition> parseM2MPropertyMappings(String body) {
-        List<M2MMappingDefinition.M2MPropertyMappingDefinition> mappings = new ArrayList<>();
-
-        // Split body into lines and look for property: expression patterns
-        // Skip lines starting with ~ (directives)
-        String[] lines = body.split("\n");
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty() || line.startsWith("~")) {
-                continue;
-            }
-
-            // Pattern: propertyName: expression (may end with comma)
-            // Expression can contain $src.prop, functions, operators, etc.
-            Pattern pattern = Pattern.compile("^(\\w+)\\s*:\\s*(.+?)\\s*,?\\s*$");
-            Matcher matcher = pattern.matcher(line);
-
-            if (matcher.find()) {
-                String propertyName = matcher.group(1);
-                String expression = matcher.group(2).trim();
-                // Remove trailing comma if present
-                if (expression.endsWith(",")) {
-                    expression = expression.substring(0, expression.length() - 1).trim();
-                }
-
-                mappings.add(new M2MMappingDefinition.M2MPropertyMappingDefinition(
-                        propertyName, expression));
-            }
-        }
-
-        return mappings;
-    }
-
     // ==================== Association Parsing ====================
 
     /**
@@ -731,9 +609,6 @@ public final class PureDefinitionParser {
         // Point to the opening brace - more actionable for the user
         int line = baseLineOffset + 1 + countNewlines(source.substring(0, openPos));
         throw new PureParseException("Unmatched brace - missing closing '}'", line, 0);
-    }
-
-    private record ParseResult<T>(T definition, String remaining) {
     }
 
     // ==================== Service Parsing ====================

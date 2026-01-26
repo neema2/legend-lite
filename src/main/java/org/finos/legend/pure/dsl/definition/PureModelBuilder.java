@@ -67,7 +67,6 @@ public final class PureModelBuilder implements ModelContext {
                 case AssociationDefinition assocDef -> addAssociation(assocDef);
                 case DatabaseDefinition dbDef -> addDatabase(dbDef);
                 case MappingDefinition mappingDef -> addMapping(mappingDef);
-                case M2MMappingDefinition m2mDef -> addM2MMapping(m2mDef);
                 case ServiceDefinition serviceDef -> addService(serviceDef);
                 case EnumDefinition enumDef -> addEnum(enumDef);
                 case ProfileDefinition profileDef -> addProfile(profileDef);
@@ -354,17 +353,6 @@ public final class PureModelBuilder implements ModelContext {
 
         // Register with MappingRegistry
         mappingRegistry.registerM2M(m2mMapping);
-    }
-
-    /**
-     * Adds an M2M Mapping definition.
-     * M2M mappings are handled directly by M2MCompiler, so this just stores
-     * them for potential later access.
-     */
-    public PureModelBuilder addM2MMapping(M2MMappingDefinition m2mMappingDef) {
-        // M2M mappings are used directly by M2MCompiler at compile time.
-        // The source class must already have a relational mapping registered.
-        return this;
     }
 
     /**
