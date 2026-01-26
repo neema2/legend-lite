@@ -271,6 +271,8 @@ INLINE:                                 'Inline';
 BINDING:                                'Binding';
 SCOPE:                                  'scope';
 RELATIONAL:                             'Relational';
+PURE_MAPPING:                           'Pure';
+SRC_CMD:                                '~src';
 
 NOT_EQUAL:                              '<>';
 QUOTED_STRING:                          ('"' ( EscSeq | ~["\r\n] )*  '"');

@@ -52,7 +52,7 @@ identifier:                                     VALID_STRING | STRING
                                                 | THRU_IS_INCLUSIVE | BUS_SNAPSHOT_DATE
                                                 | PROCESSING_MILESTONING | PROCESSING_MILESTONING_IN | PROCESSING_MILESTONING_OUT
                                                 | OUT_IS_INCLUSIVE | INFINITY_DATE | PROCESSING_SNAPSHOT_DATE
-                                                | ASSOCIATION_MAPPING | ENUMERATION_MAPPING | OTHERWISE | INLINE | BINDING | SCOPE
+                                                | ASSOCIATION_MAPPING | ENUMERATION_MAPPING | OTHERWISE | INLINE | BINDING | SCOPE | PURE_MAPPING
                                                 // Connection keywords
                                                 | STORE | TYPE | MODE | RELATIONAL_DATASOURCE_SPEC | RELATIONAL_AUTH_STRATEGY
                                                 | DB_TIMEZONE | QUOTE_IDENTIFIERS | QUERY_GENERATION_CONFIGS
@@ -641,13 +641,14 @@ treePathPropertyParameterType:                  type multiplicity
 
 
 // =============================================================================
-// MAPPING RULES (from MappingParserGrammar)
+// MAPPING RULES - Fully Typed (Relational, Pure M2M, Association, Enumeration)
 // =============================================================================
 
 mapping:                                        MAPPING qualifiedName
                                                     PAREN_OPEN
                                                         (includeMapping)*
-                                                        (mappingElement)*
+                                                        (classMappingElement | associationMappingElement | enumerationMappingElement)*
+                                                        (mappingTestableDefinition)?
                                                     PAREN_CLOSE
 ;
 includeMapping:                                 INCLUDE qualifiedName
@@ -659,24 +660,198 @@ sourceStore:                                    qualifiedName
 ;
 targetStore:                                    qualifiedName
 ;  
-mappingElement:                                 (STAR)? qualifiedName
+
+// ------------------------------ CLASS MAPPING ------------------------------
+classMappingElement:                            (STAR)? qualifiedName
                                                     (BRACKET_OPEN mappingElementId BRACKET_CLOSE)?
                                                     (EXTENDS BRACKET_OPEN superClassMappingId BRACKET_CLOSE)?
-                                                COLON mappingParserName (mappingElementName)? mappingElementBody
+                                                COLON classMappingType
+                                                    BRACE_OPEN
+                                                        classMappingBody
+                                                    BRACE_CLOSE
 ;
-mappingElementBody:                             BRACE_OPEN mappingElementBodyContent* BRACE_CLOSE
+classMappingType:                               RELATIONAL | PURE_MAPPING
 ;
-mappingElementBodyContent:                      ~(BRACE_OPEN | BRACE_CLOSE) | BRACE_OPEN mappingElementBodyContent* BRACE_CLOSE
-;
-mappingElementName:                             word
-;
-mappingParserName:                              identifier
-;
-superClassMappingId:                            mappingElementId
+classMappingBody:                               relationalClassMappingBody | pureM2MClassMappingBody
 ;
 mappingElementId:                               word
 ;
+superClassMappingId:                            mappingElementId
+;
 
+// ------------------------------ RELATIONAL CLASS MAPPING BODY ------------------------------
+relationalClassMappingBody:                     (mappingFilter)?
+                                                (mappingDistinct)?
+                                                (mappingGroupBy)?
+                                                (mappingPrimaryKey)?
+                                                (mappingMainTable)?
+                                                (relationalPropertyMapping (COMMA relationalPropertyMapping)*)?
+;
+mappingMainTable:                               MAIN_TABLE_CMD databasePointer mappingTableRef
+;
+mappingFilter:                                  FILTER_CMD databasePointer? (mappingJoinSequence PIPE databasePointer)? identifier
+;
+mappingDistinct:                                DISTINCT_CMD
+;
+mappingGroupBy:                                 GROUP_BY_CMD PAREN_OPEN (mappingOperation (COMMA mappingOperation)*)? PAREN_CLOSE
+;
+mappingPrimaryKey:                              PRIMARY_KEY_CMD PAREN_OPEN (mappingOperation (COMMA mappingOperation)*)? PAREN_CLOSE
+;
+mappingTableRef:                                relationalIdentifier (DOT relationalIdentifier)?
+;
+
+// Property mappings for Relational
+relationalPropertyMapping:                      localMappingProperty
+                                                | standardPropertyMapping
+;
+localMappingProperty:                           PLUS identifier COLON qualifiedName multiplicity relationalPropertyValue
+;
+standardPropertyMapping:                        identifier (sourceAndTargetMappingId)? relationalPropertyValue
+;
+sourceAndTargetMappingId:                       BRACKET_OPEN identifier (COMMA identifier)? BRACKET_CLOSE
+;
+relationalPropertyValue:                        COLON (enumTransformer | bindingTransformer)? mappingOperation
+                                                | embeddedPropertyMapping
+                                                | inlineEmbeddedPropertyMapping
+;
+enumTransformer:                                ENUMERATION_MAPPING identifier COLON
+;
+bindingTransformer:                             BINDING qualifiedName COLON
+;
+
+// Operations for column references, joins, functions
+mappingOperation:                               mappingAtomicOperation (mappingOperationRight)?
+;
+mappingOperationRight:                          mappingBooleanOperator mappingOperation
+;
+mappingBooleanOperator:                         RELATIONAL_AND | RELATIONAL_OR
+;
+mappingAtomicOperation:                         mappingGroupOperation
+                                                | (databasePointer? mappingFunctionOperation)
+                                                | mappingColumnOperation
+                                                | (databasePointer? mappingJoinOperation)
+                                                | mappingConstant
+;
+mappingAtomicOperationRight:                    (mappingComparisonOperator mappingAtomicOperation) | mappingAtomicSelfOperator
+;
+mappingComparisonOperator:                      EQUAL | TEST_NOT_EQUAL | NOT_EQUAL | LESS_THAN | GREATER_THAN | LESS_OR_EQUAL | GREATER_OR_EQUAL
+;
+mappingAtomicSelfOperator:                      IS_NULL | IS_NOT_NULL
+;
+mappingColumnOperation:                         databasePointer? mappingTableColumnRef (mappingVariantAccess)? mappingAtomicOperationRight?
+;
+mappingTableColumnRef:                          relationalIdentifier (DOT mappingScopeInfo)?
+;
+mappingScopeInfo:                               relationalIdentifier (DOT relationalIdentifier)?
+;
+// For JSON/Variant: COLUMN->get('key', @Type)
+mappingVariantAccess:                           ARROW identifier PAREN_OPEN STRING (COMMA AT qualifiedName)? PAREN_CLOSE (mappingVariantAccess)?
+;
+mappingJoinOperation:                           mappingJoinSequence (PIPE (mappingAtomicOperation | mappingTableColumnRef))?
+;
+mappingJoinSequence:                            (PAREN_OPEN identifier PAREN_CLOSE)? mappingJoinPointer (GREATER_THAN mappingJoinPointerFull)*
+;
+mappingJoinPointer:                             AT identifier
+;
+mappingJoinPointerFull:                         (PAREN_OPEN identifier PAREN_CLOSE)? databasePointer? mappingJoinPointer
+;
+mappingGroupOperation:                          PAREN_OPEN mappingOperation PAREN_CLOSE
+;
+mappingFunctionOperation:                       identifier PAREN_OPEN (mappingOperation (COMMA mappingOperation)*)? PAREN_CLOSE
+;
+mappingConstant:                                STRING | INTEGER | FLOAT
+;
+
+// Embedded mappings (nested property mappings)
+embeddedPropertyMapping:                        PAREN_OPEN
+                                                    (mappingPrimaryKey)?
+                                                    (relationalPropertyMapping (COMMA relationalPropertyMapping)*)?
+                                                PAREN_CLOSE (otherwiseEmbeddedPropertyMapping)?
+;
+inlineEmbeddedPropertyMapping:                  PAREN_OPEN PAREN_CLOSE INLINE BRACKET_OPEN identifier BRACKET_CLOSE
+;
+otherwiseEmbeddedPropertyMapping:               OTHERWISE PAREN_OPEN otherwisePropertyMapping PAREN_CLOSE
+;
+otherwisePropertyMapping:                       BRACKET_OPEN identifier BRACKET_CLOSE COLON databasePointer? mappingJoinSequence
+;
+
+// ------------------------------ PURE M2M CLASS MAPPING BODY ------------------------------
+pureM2MClassMappingBody:                        (pureM2MSrcClause)?
+                                                (pureM2MFilterClause)?
+                                                (pureM2MPropertyMapping (COMMA pureM2MPropertyMapping)*)?
+;
+pureM2MSrcClause:                               SRC_CMD qualifiedName
+;
+pureM2MFilterClause:                            FILTER_CMD combinedExpression
+;
+pureM2MPropertyMapping:                         identifier COLON combinedExpression
+;
+
+// ------------------------------ ASSOCIATION MAPPING ------------------------------
+associationMappingElement:                      qualifiedName COLON ASSOCIATION_MAPPING
+                                                    PAREN_OPEN
+                                                        (associationPropertyMapping (COMMA associationPropertyMapping)*)?
+                                                    PAREN_CLOSE
+;
+associationPropertyMapping:                     identifier (sourceAndTargetMappingId)? COLON databasePointer? mappingJoinSequence
+;
+
+// ------------------------------ ENUMERATION MAPPING ------------------------------
+enumerationMappingElement:                      qualifiedName (BRACKET_OPEN mappingElementId BRACKET_CLOSE)? COLON ENUMERATION_MAPPING
+                                                    BRACE_OPEN
+                                                        (enumValueMapping (COMMA enumValueMapping)*)?
+                                                    BRACE_CLOSE
+;
+enumValueMapping:                               identifier COLON (enumSourceValue | enumSourceValueArray)
+;
+enumSourceValue:                                STRING | INTEGER | identifier
+;
+enumSourceValueArray:                           BRACKET_OPEN enumSourceValue (COMMA enumSourceValue)* BRACKET_CLOSE
+;
+
+// ------------------------------------- MAPPING TESTABLE ---------------------------------------------
+mappingTestableDefinition:                      MAPPING_TESTABLE_SUITES COLON BRACKET_OPEN (mappingTestSuite (COMMA mappingTestSuite)*)? BRACKET_CLOSE
+;
+mappingTestSuite:                               identifier COLON
+                                                  BRACE_OPEN
+                                                  (
+                                                      mappingTestableDoc
+                                                    | mappingTestableFunc
+                                                    | mappingTests
+                                                  )*
+                                                  BRACE_CLOSE
+;
+mappingTestableDoc:                             MAPPING_TESTABLE_DOC COLON STRING SEMI_COLON
+;
+mappingTestableData:                            MAPPING_TESTABLE_DATA COLON BRACKET_OPEN (mappingTestDataContent (COMMA mappingTestDataContent)*)? BRACKET_CLOSE SEMI_COLON
+;
+mappingTestDataContent:                         qualifiedName COLON embeddedData
+;
+mappingTests:                                   MAPPING_TESTS COLON
+                                                  BRACKET_OPEN
+                                                    (mappingTestContent (COMMA mappingTestContent)*)?
+                                                  BRACKET_CLOSE
+                                                SEMI_COLON
+;
+mappingTestContent:                             identifier COLON
+                                                  BRACE_OPEN
+                                                    (
+                                                      mappingTestableDoc
+                                                      | mappingTestAsserts
+                                                      | mappingTestableData
+                                                    )*
+                                                  BRACE_CLOSE
+;
+mappingTestableFunc:                            FUNCTION COLON combinedExpression SEMI_COLON
+;
+mappingTestAsserts:                             MAPPING_TEST_ASSERTS COLON BRACKET_OPEN (mappingTestAssert (COMMA mappingTestAssert)*)? BRACKET_CLOSE SEMI_COLON
+;
+mappingTestAssert:                              identifier COLON testAssertion
+;
+testAssertion:                                  identifier ISLAND_OPEN (testAssertionContent)*
+;
+testAssertionContent:                           ISLAND_START | ISLAND_BRACE_OPEN | ISLAND_CONTENT | ISLAND_HASH | ISLAND_BRACE_CLOSE | ISLAND_END
+;
 
 // =============================================================================
 // SERVICE RULES (from ServiceParserGrammar)

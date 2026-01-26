@@ -84,9 +84,21 @@ public final class PureDefinitionParser {
                 lineOffset += countNewlines(dbSource);
                 remaining = remaining.substring(parenEnd + 1);
             } else if (remaining.startsWith("Mapping ")) {
-                var result = parseMapping(remaining);
-                definitions.add(result.definition);
-                remaining = result.remaining;
+                // Find the mapping body paren - Mapping uses ( ... ) not { ... }
+                int parenStart = remaining.indexOf('(');
+                if (parenStart < 0) {
+                    throw new PureParseException("Invalid Mapping definition - missing body", lineOffset + 1, 0);
+                }
+
+                int parenEnd = findMatchingParen(remaining, parenStart);
+                String mappingSource = remaining.substring(0, parenEnd + 1);
+
+                // Parse using ANTLR with line offset for accurate error reporting
+                MappingDefinition mappingDef = parseMappingDefinition(mappingSource);
+                definitions.add(mappingDef);
+
+                lineOffset += countNewlines(mappingSource);
+                remaining = remaining.substring(parenEnd + 1);
             } else if (remaining.startsWith("Association ")) {
                 // Find the association body brace - same as Class (first '{' not preceded by
                 // '>>')
@@ -459,11 +471,21 @@ public final class PureDefinitionParser {
     }
 
     /**
-     * Parses a single Mapping definition.
+     * Parses a single Mapping definition using ANTLR.
      */
     public static MappingDefinition parseMappingDefinition(String pureSource) {
-        var result = parseMapping(pureSource.trim());
-        return result.definition;
+        // Use ANTLR parser
+        org.antlr.v4.runtime.CharStream input = org.antlr.v4.runtime.CharStreams.fromString(pureSource);
+        org.finos.legend.pure.dsl.antlr.PureLexer lexer = new org.finos.legend.pure.dsl.antlr.PureLexer(input);
+        org.antlr.v4.runtime.CommonTokenStream tokens = new org.antlr.v4.runtime.CommonTokenStream(lexer);
+        org.finos.legend.pure.dsl.antlr.PureParser parser = new org.finos.legend.pure.dsl.antlr.PureParser(tokens);
+
+        // Parse the definition
+        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = parser.definition();
+
+        // Extract mapping definition
+        return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder.extractFirstMappingDefinition(ctx)
+                .orElseThrow(() -> new PureParseException("Invalid Mapping definition"));
     }
 
     /**
@@ -488,25 +510,6 @@ public final class PureDefinitionParser {
                 count++;
         }
         return count;
-    }
-
-    /**
-     * Finds the matching closing bracket for an opening bracket.
-     */
-    private static int findMatchingBracket(String source, int openPos) {
-        int depth = 1;
-        for (int i = openPos + 1; i < source.length(); i++) {
-            char c = source.charAt(i);
-            if (c == '[') {
-                depth++;
-            } else if (c == ']') {
-                depth--;
-                if (depth == 0) {
-                    return i;
-                }
-            }
-        }
-        throw new PureParseException("Unmatched bracket starting at position " + openPos);
     }
 
     /**
@@ -542,415 +545,6 @@ public final class PureDefinitionParser {
             }
         }
         return -1;
-    }
-
-    // ==================== Mapping Parsing ====================
-
-    private static ParseResult<MappingDefinition> parseMapping(String source) {
-        // Pattern: Mapping qualified::Name ( ... )
-        Pattern headerPattern = Pattern.compile("Mapping\\s+([\\w:]+)\\s*\\(");
-        Matcher headerMatcher = headerPattern.matcher(source);
-
-        if (!headerMatcher.find()) {
-            throw new PureParseException("Invalid Mapping definition");
-        }
-
-        String qualifiedName = headerMatcher.group(1);
-        int bodyStart = headerMatcher.end();
-        int bodyEnd = findMatchingParen(source, bodyStart - 1);
-
-        String body = source.substring(bodyStart, bodyEnd);
-
-        // Separate classMappings from testSuites
-        // testSuites: [ ... ] appears at the end of the body
-        List<MappingDefinition.ClassMappingDefinition> classMappings;
-        List<MappingDefinition.TestSuiteDefinition> testSuites = List.of();
-
-        int testSuitesIdx = body.indexOf("testSuites:");
-        if (testSuitesIdx >= 0) {
-            String mappingsBody = body.substring(0, testSuitesIdx).trim();
-            String testSuitesBody = body.substring(testSuitesIdx);
-            classMappings = parseClassMappings(mappingsBody);
-            testSuites = parseTestSuites(testSuitesBody);
-        } else {
-            classMappings = parseClassMappings(body);
-        }
-
-        return new ParseResult<>(
-                new MappingDefinition(qualifiedName, classMappings, testSuites),
-                source.substring(bodyEnd + 1));
-    }
-
-    private static List<MappingDefinition.ClassMappingDefinition> parseClassMappings(String body) {
-        List<MappingDefinition.ClassMappingDefinition> mappings = new ArrayList<>();
-
-        // Pattern: [package::]ClassName: MappingType { ... }
-        // Captures full qualified name (e.g., "model::Person" or just "Person"), then
-        // mapping type
-        // Changed from negative lookbehind (which incorrectly matched "erson") to
-        // capturing qualified names
-        Pattern pattern = Pattern.compile("([\\w:]+)\\s*:\\s*(Relational|Pure)\\s*\\{");
-        Matcher matcher = pattern.matcher(body);
-
-        while (matcher.find()) {
-            String qualifiedClassName = matcher.group(1);
-            // Extract simple name (after last ::)
-            String className = qualifiedClassName.contains("::")
-                    ? qualifiedClassName.substring(qualifiedClassName.lastIndexOf("::") + 2)
-                    : qualifiedClassName;
-            String mappingType = matcher.group(2);
-            int mappingBodyStart = matcher.end();
-            int mappingBodyEnd = findMatchingBrace(body, mappingBodyStart - 1);
-
-            String mappingBody = body.substring(mappingBodyStart, mappingBodyEnd);
-
-            if ("Pure".equals(mappingType)) {
-                // Parse as M2M mapping
-                String sourceClassName = parseM2MSource(mappingBody);
-                String filterExpression = parseM2MFilter(mappingBody);
-                java.util.Map<String, String> m2mPropertyExpressions = parseM2MPropertyExpressionsMap(mappingBody);
-
-                mappings.add(MappingDefinition.ClassMappingDefinition.pure(
-                        className, sourceClassName, filterExpression, m2mPropertyExpressions));
-            } else {
-                // Parse as Relational mapping
-                MappingDefinition.TableReference mainTable = parseMainTable(mappingBody);
-                List<MappingDefinition.PropertyMappingDefinition> propertyMappings = parsePropertyMappings(mappingBody);
-
-                mappings.add(MappingDefinition.ClassMappingDefinition.relational(
-                        className, mainTable, propertyMappings));
-            }
-
-            // Continue searching
-            matcher.region(mappingBodyEnd + 1, body.length());
-        }
-
-        return mappings;
-    }
-
-    /**
-     * Parses test suites from a mapping body.
-     * 
-     * Expected format:
-     * testSuites:
-     * [
-     * SuiteName: { function: ...; tests: [...]; }
-     * ]
-     */
-    private static List<MappingDefinition.TestSuiteDefinition> parseTestSuites(String source) {
-        List<MappingDefinition.TestSuiteDefinition> suites = new ArrayList<>();
-
-        // Find the opening bracket after 'testSuites:'
-        int bracketStart = source.indexOf('[');
-        if (bracketStart < 0) {
-            return suites;
-        }
-
-        int bracketEnd = findMatchingBracket(source, bracketStart);
-        String suitesContent = source.substring(bracketStart + 1, bracketEnd).trim();
-
-        // Pattern: SuiteName: { ... }
-        Pattern suitePattern = Pattern.compile("(\\w+)\\s*:\\s*\\{");
-        Matcher suiteMatcher = suitePattern.matcher(suitesContent);
-
-        while (suiteMatcher.find()) {
-            String suiteName = suiteMatcher.group(1);
-            int suiteBodyStart = suiteMatcher.end();
-            int suiteBodyEnd = findMatchingBrace(suitesContent, suiteBodyStart - 1);
-
-            String suiteBody = suitesContent.substring(suiteBodyStart, suiteBodyEnd);
-
-            // Extract function body (|...;)
-            String functionBody = extractFunctionBody(suiteBody);
-
-            // Extract tests
-            List<MappingDefinition.TestDefinition> tests = parseTestDefinitions(suiteBody);
-
-            suites.add(new MappingDefinition.TestSuiteDefinition(suiteName, functionBody, tests));
-
-            suiteMatcher.region(suiteBodyEnd + 1, suitesContent.length());
-        }
-
-        return suites;
-    }
-
-    private static String extractFunctionBody(String suiteBody) {
-        // Pattern: function: |...;
-        int funcIdx = suiteBody.indexOf("function:");
-        if (funcIdx < 0) {
-            return null;
-        }
-
-        int start = suiteBody.indexOf('|', funcIdx);
-        if (start < 0) {
-            return null;
-        }
-
-        // Find the end of function (semicolon before 'tests:')
-        int testsIdx = suiteBody.indexOf("tests:", start);
-        if (testsIdx < 0) {
-            testsIdx = suiteBody.length();
-        }
-
-        String funcBody = suiteBody.substring(start, testsIdx).trim();
-        // Remove trailing semicolon
-        if (funcBody.endsWith(";")) {
-            funcBody = funcBody.substring(0, funcBody.length() - 1).trim();
-        }
-
-        return funcBody;
-    }
-
-    private static List<MappingDefinition.TestDefinition> parseTestDefinitions(String suiteBody) {
-        List<MappingDefinition.TestDefinition> tests = new ArrayList<>();
-
-        // Find tests: [ ... ]
-        int testsIdx = suiteBody.indexOf("tests:");
-        if (testsIdx < 0) {
-            return tests;
-        }
-
-        int bracketStart = suiteBody.indexOf('[', testsIdx);
-        if (bracketStart < 0) {
-            return tests;
-        }
-
-        int bracketEnd = findMatchingBracket(suiteBody, bracketStart);
-        String testsContent = suiteBody.substring(bracketStart + 1, bracketEnd).trim();
-
-        // Pattern: TestName: { ... }
-        Pattern testPattern = Pattern.compile("(\\w+)\\s*:\\s*\\{");
-        Matcher testMatcher = testPattern.matcher(testsContent);
-
-        while (testMatcher.find()) {
-            String testName = testMatcher.group(1);
-            int testBodyStart = testMatcher.end();
-            int testBodyEnd = findMatchingBrace(testsContent, testBodyStart - 1);
-
-            String testBody = testsContent.substring(testBodyStart, testBodyEnd);
-
-            // Extract documentation if present
-            String doc = extractDocumentation(testBody);
-
-            // Extract input data
-            List<MappingDefinition.TestData> inputData = parseTestData(testBody);
-
-            // Extract asserts
-            List<MappingDefinition.TestAssertion> asserts = parseTestAsserts(testBody);
-
-            tests.add(new MappingDefinition.TestDefinition(testName, doc, inputData, asserts));
-
-            testMatcher.region(testBodyEnd + 1, testsContent.length());
-        }
-
-        return tests;
-    }
-
-    private static String extractDocumentation(String testBody) {
-        // Pattern: doc: 'text';
-        Pattern docPattern = Pattern.compile("doc:\\s*'([^']*)'");
-        Matcher docMatcher = docPattern.matcher(testBody);
-        if (docMatcher.find()) {
-            return docMatcher.group(1);
-        }
-        return null;
-    }
-
-    private static List<MappingDefinition.TestData> parseTestData(String testBody) {
-        List<MappingDefinition.TestData> dataList = new ArrayList<>();
-
-        // Find data: [ ... ]
-        int dataIdx = testBody.indexOf("data:");
-        if (dataIdx < 0) {
-            return dataList;
-        }
-
-        int bracketStart = testBody.indexOf('[', dataIdx);
-        if (bracketStart < 0) {
-            return dataList;
-        }
-
-        int bracketEnd = findMatchingBracket(testBody, bracketStart);
-        String dataContent = testBody.substring(bracketStart + 1, bracketEnd).trim();
-
-        // Look for inline ExternalFormat or Reference
-        // For now, simplified parsing - extract contentType and data from
-        // ExternalFormat
-        Pattern extFormatPattern = Pattern.compile("contentType:\\s*'([^']+)'[^}]*data:\\s*'([^']*)'");
-        Matcher extFormatMatcher = extFormatPattern.matcher(dataContent);
-
-        if (extFormatMatcher.find()) {
-            String contentType = extFormatMatcher.group(1);
-            String data = extFormatMatcher.group(2);
-            // Unescape JSON newlines
-            data = data.replace("\\n", "\n").replace("\\r", "\r");
-            dataList.add(MappingDefinition.TestData.inline("ModelStore", contentType, data));
-        }
-
-        // Check for Reference
-        Pattern refPattern = Pattern.compile("Reference\\s*#\\{\\s*([\\w:]+)\\s*}#");
-        Matcher refMatcher = refPattern.matcher(dataContent);
-        if (refMatcher.find()) {
-            String refPath = refMatcher.group(1);
-            dataList.add(MappingDefinition.TestData.reference("ModelStore", refPath));
-        }
-
-        return dataList;
-    }
-
-    private static List<MappingDefinition.TestAssertion> parseTestAsserts(String testBody) {
-        List<MappingDefinition.TestAssertion> asserts = new ArrayList<>();
-
-        // Find asserts: [ ... ]
-        int assertsIdx = testBody.indexOf("asserts:");
-        if (assertsIdx < 0) {
-            return asserts;
-        }
-
-        int bracketStart = testBody.indexOf('[', assertsIdx);
-        if (bracketStart < 0) {
-            return asserts;
-        }
-
-        int bracketEnd = findMatchingBracket(testBody, bracketStart);
-        String assertsContent = testBody.substring(bracketStart + 1, bracketEnd).trim();
-
-        // Pattern: assertionName: EqualToJson #{ ... }#
-        Pattern assertPattern = Pattern.compile("(\\w+):\\s*EqualToJson\\s*#\\{");
-        Matcher assertMatcher = assertPattern.matcher(assertsContent);
-
-        if (assertMatcher.find()) {
-            String assertName = assertMatcher.group(1);
-            int assertBodyStart = assertMatcher.end();
-
-            // Extract expected data from ExternalFormat
-            String assertBody = assertsContent.substring(assertBodyStart);
-            Pattern expectedPattern = Pattern.compile("contentType:\\s*'([^']+)'[^}]*data:\\s*'([^']*)'");
-            Matcher expectedMatcher = expectedPattern.matcher(assertBody);
-
-            if (expectedMatcher.find()) {
-                String expectedData = expectedMatcher.group(2);
-                // Unescape JSON newlines
-                expectedData = expectedData.replace("\\n", "\n").replace("\\r", "\r");
-                asserts.add(MappingDefinition.TestAssertion.equalToJson(assertName, expectedData));
-            }
-        }
-
-        return asserts;
-    }
-
-    /**
-     * Parses M2M property expressions into a Map (propertyName -> expression
-     * string).
-     */
-    private static java.util.Map<String, String> parseM2MPropertyExpressionsMap(String body) {
-        java.util.Map<String, String> expressions = new java.util.LinkedHashMap<>();
-
-        // Skip ~src and ~filter lines, then parse propertyName: expression lines
-        String[] lines = body.split("\n");
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty() || line.startsWith("~src") || line.startsWith("~filter")) {
-                continue;
-            }
-
-            // Pattern: propertyName: expression[,]
-            int colonIdx = line.indexOf(':');
-            if (colonIdx > 0) {
-                String propertyName = line.substring(0, colonIdx).trim();
-                String expression = line.substring(colonIdx + 1).trim();
-                // Remove trailing comma if present
-                if (expression.endsWith(",")) {
-                    expression = expression.substring(0, expression.length() - 1).trim();
-                }
-                if (!propertyName.isEmpty() && !expression.isEmpty()) {
-                    expressions.put(propertyName, expression);
-                }
-            }
-        }
-
-        return expressions;
-    }
-
-    private static MappingDefinition.TableReference parseMainTable(String body) {
-        // Pattern: ~mainTable [DatabaseName] TABLE_NAME
-        Pattern pattern = Pattern.compile("~mainTable\\s+\\[(\\w+)\\]\\s+(\\w+)");
-        Matcher matcher = pattern.matcher(body);
-
-        if (matcher.find()) {
-            return new MappingDefinition.TableReference(matcher.group(1), matcher.group(2));
-        }
-        return null;
-    }
-
-    private static List<MappingDefinition.PropertyMappingDefinition> parsePropertyMappings(String body) {
-        List<MappingDefinition.PropertyMappingDefinition> mappings = new ArrayList<>();
-
-        // First, try to parse expression-based mappings (with ->get)
-        // Pattern: propertyName: [DatabaseName] TABLE_NAME.COLUMN_NAME->get('key',
-        // @Type)
-        Pattern getPattern = Pattern.compile(
-                "(\\w+)\\s*:\\s*\\[(\\w+)\\]\\s+(\\w+)\\.(\\w+)\\s*->\\s*get\\s*\\(\\s*'([^']+)'\\s*,\\s*@(\\w+)\\s*\\)");
-        Matcher getMatcher = getPattern.matcher(body);
-
-        java.util.Set<Integer> getMatchEnds = new java.util.HashSet<>();
-        while (getMatcher.find()) {
-            String propertyName = getMatcher.group(1);
-            String databaseName = getMatcher.group(2);
-            String tableName = getMatcher.group(3);
-            String columnName = getMatcher.group(4);
-            String jsonKey = getMatcher.group(5);
-            String typeName = getMatcher.group(6);
-
-            // Store the full expression for compilation
-            String expression = "[" + databaseName + "] " + tableName + "." + columnName
-                    + "->get('" + jsonKey + "', @" + typeName + ")";
-
-            mappings.add(MappingDefinition.PropertyMappingDefinition.expression(
-                    propertyName, expression, null)); // No embedded class, just expression
-            getMatchEnds.add(getMatcher.end());
-        }
-
-        // Then parse simple column references
-        // Pattern: propertyName: [DatabaseName] TABLE_NAME.COLUMN_NAME
-        Pattern simplePattern = Pattern.compile("(\\w+)\\s*:\\s*\\[(\\w+)\\]\\s+(\\w+)\\.(\\w+)");
-        Matcher simpleMatcher = simplePattern.matcher(body);
-
-        while (simpleMatcher.find()) {
-            // Skip if this was already matched as part of a get expression
-            // Check if there's a "->" after this match
-            int matchEnd = simpleMatcher.end();
-            String afterMatch = body.substring(matchEnd).trim();
-            if (afterMatch.startsWith("->") || afterMatch.startsWith("-> ")) {
-                continue; // This is part of an expression, already handled
-            }
-
-            String propertyName = simpleMatcher.group(1);
-            String databaseName = simpleMatcher.group(2);
-            String tableName = simpleMatcher.group(3);
-            String columnName = simpleMatcher.group(4);
-
-            mappings.add(MappingDefinition.PropertyMappingDefinition.column(
-                    propertyName,
-                    new MappingDefinition.ColumnReference(databaseName, tableName, columnName)));
-        }
-
-        // Parse join references for association properties
-        // Pattern: propertyName: [DatabaseName]@JoinName
-        Pattern joinPattern = Pattern.compile("(\\w+)\\s*:\\s*\\[(\\w+)]\\s*@\\s*(\\w+)");
-        Matcher joinMatcher = joinPattern.matcher(body);
-
-        while (joinMatcher.find()) {
-            String propertyName = joinMatcher.group(1);
-            String databaseName = joinMatcher.group(2);
-            String joinName = joinMatcher.group(3);
-
-            mappings.add(MappingDefinition.PropertyMappingDefinition.join(
-                    propertyName,
-                    new MappingDefinition.JoinReference(databaseName, joinName)));
-        }
-
-        return mappings;
     }
 
     // ==================== M2M Mapping Parsing ====================

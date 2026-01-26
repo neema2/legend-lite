@@ -800,6 +800,433 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
 
+    // ==================== Mapping Definition ====================
+
+    /**
+     * Visits a mapping parse tree node and returns a MappingDefinition.
+     * 
+     * Grammar rule:
+     * mapping: MAPPING qualifiedName PAREN_OPEN (includeMapping)*
+     * (classMappingElement
+     * | associationMappingElement | enumerationMappingElement)*
+     * (mappingTestableDefinition)? PAREN_CLOSE
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition visitMapping(
+            PureParser.MappingContext ctx) {
+        String qualifiedName = ctx.qualifiedName().getText();
+
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition.ClassMappingDefinition> classMappings = new ArrayList<>();
+
+        // Process class mappings
+        for (PureParser.ClassMappingElementContext classMappingCtx : ctx.classMappingElement()) {
+            classMappings.add(visitClassMappingElement(classMappingCtx));
+        }
+
+        // Process testSuites
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition.TestSuiteDefinition> testSuites = new ArrayList<>();
+        if (ctx.mappingTestableDefinition() != null) {
+            for (PureParser.MappingTestSuiteContext suiteCtx : ctx.mappingTestableDefinition().mappingTestSuite()) {
+                testSuites.add(visitMappingTestSuite(suiteCtx));
+            }
+        }
+
+        return new org.finos.legend.pure.dsl.definition.MappingDefinition(
+                qualifiedName, classMappings, testSuites);
+    }
+
+    /**
+     * Visits a mapping test suite.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.TestSuiteDefinition visitMappingTestSuite(
+            PureParser.MappingTestSuiteContext ctx) {
+        String suiteName = ctx.identifier().getText();
+        String functionBody = null;
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition.TestDefinition> tests = new ArrayList<>();
+
+        // Extract function
+        for (PureParser.MappingTestableFuncContext funcCtx : ctx.mappingTestableFunc()) {
+            functionBody = getOriginalText(funcCtx.combinedExpression());
+        }
+
+        // Extract tests
+        for (PureParser.MappingTestsContext testsCtx : ctx.mappingTests()) {
+            for (PureParser.MappingTestContentContext testCtx : testsCtx.mappingTestContent()) {
+                tests.add(visitMappingTestContent(testCtx));
+            }
+        }
+
+        return new org.finos.legend.pure.dsl.definition.MappingDefinition.TestSuiteDefinition(
+                suiteName, functionBody, tests);
+    }
+
+    /**
+     * Visits a mapping test content.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.TestDefinition visitMappingTestContent(
+            PureParser.MappingTestContentContext ctx) {
+        String testName = ctx.identifier().getText();
+        String documentation = null;
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition.TestData> inputData = new ArrayList<>();
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition.TestAssertion> asserts = new ArrayList<>();
+
+        // Extract doc
+        for (PureParser.MappingTestableDocContext docCtx : ctx.mappingTestableDoc()) {
+            documentation = unquoteString(docCtx.STRING().getText());
+        }
+
+        // Extract data
+        for (PureParser.MappingTestableDataContext dataCtx : ctx.mappingTestableData()) {
+            for (PureParser.MappingTestDataContentContext contentCtx : dataCtx.mappingTestDataContent()) {
+                inputData.add(visitMappingTestDataContent(contentCtx));
+            }
+        }
+
+        // Extract asserts
+        for (PureParser.MappingTestAssertsContext assertsCtx : ctx.mappingTestAsserts()) {
+            for (PureParser.MappingTestAssertContext assertCtx : assertsCtx.mappingTestAssert()) {
+                asserts.add(visitMappingTestAssert(assertCtx));
+            }
+        }
+
+        return new org.finos.legend.pure.dsl.definition.MappingDefinition.TestDefinition(
+                testName, documentation, inputData, asserts);
+    }
+
+    /**
+     * Visits a mapping test data content.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.TestData visitMappingTestDataContent(
+            PureParser.MappingTestDataContentContext ctx) {
+        String storeName = ctx.qualifiedName().getText();
+
+        PureParser.EmbeddedDataContext embeddedCtx = ctx.embeddedData();
+        String format = embeddedCtx.identifier().getText();
+
+        // Get the raw embedded content
+        StringBuilder content = new StringBuilder();
+        for (PureParser.EmbeddedDataContentContext contentCtx : embeddedCtx.embeddedDataContent()) {
+            content.append(getOriginalText(contentCtx));
+        }
+
+        String contentStr = content.toString().trim();
+
+        // Check if this is a Reference
+        if ("Reference".equals(format)) {
+            // Extract the reference path from the island content
+            // Strip any trailing whitespace and island markers like }#
+            String refPath = contentStr.trim();
+            // Remove trailing }# if present
+            if (refPath.endsWith("}#")) {
+                refPath = refPath.substring(0, refPath.length() - 2).trim();
+            }
+            return new org.finos.legend.pure.dsl.definition.MappingDefinition.TestData(
+                    storeName, null, refPath, true);
+        }
+
+        // Parse ExternalFormat content
+        String contentType = null;
+        String data = null;
+
+        // Look for contentType: '...' and data: '...' in the content
+        java.util.regex.Pattern contentTypePattern = java.util.regex.Pattern.compile("contentType:\\s*'([^']*)'");
+        java.util.regex.Pattern dataPattern = java.util.regex.Pattern.compile("data:\\s*'([^']*)'");
+
+        java.util.regex.Matcher contentTypeMatcher = contentTypePattern.matcher(contentStr);
+        if (contentTypeMatcher.find()) {
+            contentType = contentTypeMatcher.group(1);
+        }
+
+        java.util.regex.Matcher dataMatcher = dataPattern.matcher(contentStr);
+        if (dataMatcher.find()) {
+            data = dataMatcher.group(1);
+        }
+
+        return new org.finos.legend.pure.dsl.definition.MappingDefinition.TestData(
+                storeName, contentType, data, false);
+    }
+
+    /**
+     * Visits a mapping test assert.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.TestAssertion visitMappingTestAssert(
+            PureParser.MappingTestAssertContext ctx) {
+        String assertName = ctx.identifier().getText();
+
+        PureParser.TestAssertionContext assertionCtx = ctx.testAssertion();
+        String assertType = assertionCtx.identifier().getText();
+
+        // Get the raw content
+        StringBuilder content = new StringBuilder();
+        for (PureParser.TestAssertionContentContext contentCtx : assertionCtx.testAssertionContent()) {
+            content.append(getOriginalText(contentCtx));
+        }
+        String contentStr = content.toString().trim();
+
+        // Extract expected data from EqualToJson island
+        String expectedData = null;
+        java.util.regex.Pattern dataPattern = java.util.regex.Pattern.compile("data:\\s*'([^']*)'");
+        java.util.regex.Matcher dataMatcher = dataPattern.matcher(contentStr);
+        if (dataMatcher.find()) {
+            expectedData = dataMatcher.group(1);
+        }
+
+        return new org.finos.legend.pure.dsl.definition.MappingDefinition.TestAssertion(
+                assertName, assertType, null, expectedData);
+    }
+
+    /**
+     * Visits a class mapping element and returns a ClassMappingDefinition.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.ClassMappingDefinition visitClassMappingElement(
+            PureParser.ClassMappingElementContext ctx) {
+        String qualifiedClassName = ctx.qualifiedName().getText();
+        String className = qualifiedClassName.contains("::")
+                ? qualifiedClassName.substring(qualifiedClassName.lastIndexOf("::") + 2)
+                : qualifiedClassName;
+
+        String mappingType = ctx.classMappingType().getText();
+
+        if ("Pure".equals(mappingType)) {
+            return visitPureM2MClassMappingBody(className, ctx.classMappingBody().pureM2MClassMappingBody());
+        } else {
+            return visitRelationalClassMappingBody(className, ctx.classMappingBody().relationalClassMappingBody());
+        }
+    }
+
+    /**
+     * Visits a relational class mapping body.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.ClassMappingDefinition visitRelationalClassMappingBody(
+            String className, PureParser.RelationalClassMappingBodyContext ctx) {
+
+        org.finos.legend.pure.dsl.definition.MappingDefinition.TableReference mainTable = null;
+        if (ctx.mappingMainTable() != null) {
+            mainTable = visitMappingMainTable(ctx.mappingMainTable());
+        }
+
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition> propertyMappings = new ArrayList<>();
+        for (PureParser.RelationalPropertyMappingContext propCtx : ctx.relationalPropertyMapping()) {
+            org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition propMapping = visitRelationalPropertyMapping(
+                    propCtx);
+            if (propMapping != null) {
+                propertyMappings.add(propMapping);
+            }
+        }
+
+        return org.finos.legend.pure.dsl.definition.MappingDefinition.ClassMappingDefinition.relational(
+                className, mainTable, propertyMappings);
+    }
+
+    /**
+     * Visits a mainTable clause.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.TableReference visitMappingMainTable(
+            PureParser.MappingMainTableContext ctx) {
+        String databaseName = ctx.databasePointer().qualifiedName().getText();
+        String tableName = ctx.mappingTableRef().getText();
+        return new org.finos.legend.pure.dsl.definition.MappingDefinition.TableReference(databaseName, tableName);
+    }
+
+    /**
+     * Visits a relational property mapping.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitRelationalPropertyMapping(
+            PureParser.RelationalPropertyMappingContext ctx) {
+        if (ctx.standardPropertyMapping() != null) {
+            return visitStandardPropertyMapping(ctx.standardPropertyMapping());
+        } else if (ctx.localMappingProperty() != null) {
+            return visitLocalMappingProperty(ctx.localMappingProperty());
+        }
+        return null;
+    }
+
+    /**
+     * Visits a standard property mapping.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitStandardPropertyMapping(
+            PureParser.StandardPropertyMappingContext ctx) {
+        String propertyName = ctx.identifier().getText();
+        return visitRelationalPropertyValue(propertyName, ctx.relationalPropertyValue());
+    }
+
+    /**
+     * Visits a local mapping property.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitLocalMappingProperty(
+            PureParser.LocalMappingPropertyContext ctx) {
+        String propertyName = ctx.identifier().getText();
+        return visitRelationalPropertyValue(propertyName, ctx.relationalPropertyValue());
+    }
+
+    /**
+     * Visits a relational property value.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitRelationalPropertyValue(
+            String propertyName, PureParser.RelationalPropertyValueContext ctx) {
+
+        if (ctx.embeddedPropertyMapping() != null || ctx.inlineEmbeddedPropertyMapping() != null) {
+            String expression = getOriginalText(ctx);
+            return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.expression(
+                    propertyName, expression, null);
+        }
+
+        if (ctx.mappingOperation() != null) {
+            return visitMappingOperation(propertyName, ctx.mappingOperation());
+        }
+
+        return null;
+    }
+
+    /**
+     * Visits a mapping operation.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitMappingOperation(
+            String propertyName, PureParser.MappingOperationContext ctx) {
+
+        PureParser.MappingAtomicOperationContext atomicCtx = ctx.mappingAtomicOperation();
+
+        // Check for join operation: [DB]@JoinName
+        if (atomicCtx.databasePointer() != null && atomicCtx.mappingJoinOperation() != null) {
+            return visitMappingJoinOperation(propertyName, atomicCtx);
+        }
+
+        // Check for column operation: [DB] TABLE.COLUMN
+        if (atomicCtx.mappingColumnOperation() != null) {
+            return visitMappingColumnOperation(propertyName, atomicCtx.mappingColumnOperation());
+        }
+
+        // Fallback: store entire operation as expression
+        String expression = getOriginalText(ctx);
+        return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.expression(
+                propertyName, expression, null);
+    }
+
+    /**
+     * Visits a mapping column operation: [DB] TABLE.COLUMN
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitMappingColumnOperation(
+            String propertyName, PureParser.MappingColumnOperationContext ctx) {
+
+        String databaseName = null;
+        if (ctx.databasePointer() != null) {
+            databaseName = ctx.databasePointer().qualifiedName().getText();
+        }
+
+        PureParser.MappingTableColumnRefContext colRef = ctx.mappingTableColumnRef();
+        List<String> identifiers = new ArrayList<>();
+        identifiers.add(colRef.relationalIdentifier().getText());
+
+        if (colRef.mappingScopeInfo() != null) {
+            for (PureParser.RelationalIdentifierContext id : colRef.mappingScopeInfo().relationalIdentifier()) {
+                identifiers.add(id.getText());
+            }
+        }
+
+        if (identifiers.size() >= 2 && databaseName != null) {
+            String tableName = unquote(identifiers.get(identifiers.size() - 2));
+            String columnName = unquote(identifiers.get(identifiers.size() - 1));
+
+            if (ctx.mappingVariantAccess() != null) {
+                String expression = getOriginalText(ctx);
+                return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.expression(
+                        propertyName, expression, null);
+            }
+
+            return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.column(
+                    propertyName,
+                    new org.finos.legend.pure.dsl.definition.MappingDefinition.ColumnReference(
+                            databaseName, tableName, columnName));
+        }
+
+        String expression = getOriginalText(ctx);
+        return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.expression(
+                propertyName, expression, null);
+    }
+
+    private String unquote(String id) {
+        if (id.startsWith("\"") && id.endsWith("\"")) {
+            return id.substring(1, id.length() - 1);
+        }
+        return id;
+    }
+
+    /**
+     * Visits a mapping join operation: [DB]@JoinName
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitMappingJoinOperation(
+            String propertyName, PureParser.MappingAtomicOperationContext ctx) {
+
+        String databaseName = ctx.databasePointer().qualifiedName().getText();
+
+        PureParser.MappingJoinSequenceContext joinSeqCtx = ctx.mappingJoinOperation().mappingJoinSequence();
+        if (joinSeqCtx != null && joinSeqCtx.mappingJoinPointer() != null) {
+            String joinName = joinSeqCtx.mappingJoinPointer().identifier().getText();
+
+            return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.join(
+                    propertyName,
+                    new org.finos.legend.pure.dsl.definition.MappingDefinition.JoinReference(
+                            databaseName, joinName));
+        }
+
+        String expression = getOriginalText(ctx);
+        return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.expression(
+                propertyName, expression, null);
+    }
+
+    /**
+     * Visits a Pure M2M class mapping body.
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.ClassMappingDefinition visitPureM2MClassMappingBody(
+            String className, PureParser.PureM2MClassMappingBodyContext ctx) {
+
+        String sourceClassName = null;
+        String filterExpression = null;
+        java.util.Map<String, String> m2mPropertyExpressions = new java.util.LinkedHashMap<>();
+
+        if (ctx.pureM2MSrcClause() != null) {
+            sourceClassName = ctx.pureM2MSrcClause().qualifiedName().getText();
+        }
+
+        if (ctx.pureM2MFilterClause() != null) {
+            filterExpression = getOriginalText(ctx.pureM2MFilterClause().combinedExpression());
+        }
+
+        for (PureParser.PureM2MPropertyMappingContext propCtx : ctx.pureM2MPropertyMapping()) {
+            String propName = propCtx.identifier().getText();
+            String expression = getOriginalText(propCtx.combinedExpression());
+            m2mPropertyExpressions.put(propName, expression);
+        }
+
+        return org.finos.legend.pure.dsl.definition.MappingDefinition.ClassMappingDefinition.pure(
+                className, sourceClassName, filterExpression, m2mPropertyExpressions);
+    }
+
+    /**
+     * Extracts all MappingDefinitions from a parsed definition context.
+     */
+    public static List<org.finos.legend.pure.dsl.definition.MappingDefinition> extractMappingDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition> result = new ArrayList<>();
+        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.mapping() != null) {
+                result.add(builder.visitMapping(elemCtx.mapping()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts the first MappingDefinition from a parsed definition context.
+     */
+    public static Optional<org.finos.legend.pure.dsl.definition.MappingDefinition> extractFirstMappingDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition> defs = extractMappingDefinitions(definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
+
     // ==================== Service Definition ====================
 
     /**
