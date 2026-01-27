@@ -185,7 +185,15 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "limit", "take" -> parseLimitCall(source, args);
             case "drop" -> parseDropCall(source, args);
             case "slice" -> parseSliceCall(source, args);
-            case "first" -> new FirstExpression(source);
+            case "first" -> {
+                // Distinguish between collection first() and window first($w,$r)
+                if (args.isEmpty()) {
+                    yield new FirstExpression(source);
+                } else {
+                    // Window function: first($w, $r) - use standard MethodCall
+                    yield new MethodCall(source, "first", args);
+                }
+            }
             case "select" -> parseSelectCall(source, args);
             case "extend" -> parseExtendCall(source, args);
             case "from" -> parseFromCall(source, args);

@@ -25,7 +25,8 @@ public record WindowExpression(
         String aggregateColumn,
         List<String> partitionBy,
         List<SortSpec> orderBy,
-        FrameSpec frame) {
+        FrameSpec frame,
+        Integer offset) { // Optional offset for LAG/LEAD
 
     /**
      * Window function types.
@@ -190,7 +191,7 @@ public record WindowExpression(
             WindowFunction function,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, null, partitionBy, orderBy, null);
+        return new WindowExpression(function, null, partitionBy, orderBy, null, null);
     }
 
     /**
@@ -201,7 +202,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, null, partitionBy, orderBy, frame);
+        return new WindowExpression(function, null, partitionBy, orderBy, frame, null);
     }
 
     /**
@@ -212,7 +213,7 @@ public record WindowExpression(
             String aggregateColumn,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null);
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null, null);
     }
 
     /**
@@ -224,7 +225,43 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, frame);
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, frame, null);
+    }
+
+    /**
+     * Creates a LAG or LEAD window function with offset.
+     */
+    public static WindowExpression lagLead(
+            WindowFunction function,
+            String column,
+            int offset,
+            List<String> partitionBy,
+            List<SortSpec> orderBy) {
+        return new WindowExpression(function, column, partitionBy, orderBy, null, offset);
+    }
+
+    /**
+     * Creates a LAG, LEAD, FIRST_VALUE, or LAST_VALUE window function with optional
+     * frame.
+     */
+    public static WindowExpression lagLead(
+            WindowFunction function,
+            String column,
+            int offset,
+            List<String> partitionBy,
+            List<SortSpec> orderBy,
+            FrameSpec frame) {
+        return new WindowExpression(function, column, partitionBy, orderBy, frame, offset);
+    }
+
+    /**
+     * Creates a NTILE window function with bucket count.
+     */
+    public static WindowExpression ntile(
+            int bucketCount,
+            List<String> partitionBy,
+            List<SortSpec> orderBy) {
+        return new WindowExpression(WindowFunction.NTILE, null, partitionBy, orderBy, null, bucketCount);
     }
 
     /**

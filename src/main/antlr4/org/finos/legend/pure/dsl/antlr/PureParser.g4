@@ -192,7 +192,7 @@ atomicExpression:                               dsl
 
 columnBuilders: TILDE (oneColSpec | colSpecArray)
 ;
-oneColSpec: identifier ((COLON (type multiplicity? | anyLambda | combinedExpression) extraFunction? ))?
+oneColSpec: identifier ((COLON (type multiplicity? | anyLambda) extraFunction? ))?
 ;
 colSpecArray: (BRACKET_OPEN (oneColSpec(COMMA oneColSpec)*)? BRACKET_CLOSE)
 ;

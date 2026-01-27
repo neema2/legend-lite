@@ -828,6 +828,17 @@ public final class PureCompiler {
                 ExtendNode.WindowProjection projection = compileWindowProjectionFromFunctionCall(overFunctionCall,
                         colSpec);
                 projections.add(projection);
+            } else if (colExpr instanceof ColumnSpec colSpec && colSpec.lambda() instanceof MethodCall mc
+                    && "over".equals(mc.methodName())) {
+                // Handle: ~prevSalary : lag(~salary, 1)->over(...) where lambda is the over()
+                // call
+                ExtendNode.WindowProjection projection = compileWindowProjectionWithAlias(colSpec.name(), mc);
+                projections.add(projection);
+            } else if (colExpr instanceof ColumnSpec colSpec && colSpec.extraFunction() instanceof MethodCall mc
+                    && "over".equals(mc.methodName())) {
+                // Handle: ~prevSalary : ... extraFunction contains over()
+                ExtendNode.WindowProjection projection = compileWindowProjectionWithAlias(colSpec.name(), mc);
+                projections.add(projection);
             } else {
                 throw new PureCompileException(
                         "extend() currently only supports window functions with over(). Got: " + colExpr);
@@ -853,15 +864,35 @@ public final class PureCompiler {
 
         String newColumnName;
         String functionName;
+        String aggregateColumn = null;
+        Integer offset = null; // For LAG/LEAD
 
         if (source instanceof ColumnSpec colSpec) {
             newColumnName = colSpec.name();
             // The column name IS the function name (e.g., "rowNum" -> "row_number")
             functionName = mapColumnNameToWindowFunction(colSpec.name());
         } else if (source instanceof MethodCall funcCall) {
-            // Nested method call like sum(~val)->over(...)
-            newColumnName = extractColumnName(funcCall.source());
+            // Nested method call like sum(~val)->over(...) or lag(~col, 1)->over(...)
             functionName = funcCall.methodName();
+
+            // Extract column and offset for LAG/LEAD
+            if ("lag".equals(functionName) || "lead".equals(functionName)) {
+                if (!funcCall.arguments().isEmpty()) {
+                    PureExpression firstArg = funcCall.arguments().get(0);
+                    aggregateColumn = extractColumnName(firstArg);
+                    // Second arg is the offset
+                    if (funcCall.arguments().size() > 1) {
+                        PureExpression offsetArg = funcCall.arguments().get(1);
+                        if (offsetArg instanceof IntegerLiteral lit) {
+                            offset = lit.value().intValue();
+                        }
+                    }
+                }
+                newColumnName = aggregateColumn != null ? aggregateColumn : "lag_lead_col";
+            } else {
+                newColumnName = extractColumnName(funcCall.source());
+                aggregateColumn = newColumnName;
+            }
         } else {
             throw new PureCompileException("Unknown window function source: " + source);
         }
@@ -891,13 +922,118 @@ public final class PureCompiler {
 
         // Create the WindowExpression
         WindowExpression.WindowFunction windowFunc = mapWindowFunction(functionName);
-        WindowExpression windowExpr = WindowExpression.ranking(
-                windowFunc,
-                partitionColumns,
-                orderBy,
-                null);
+        WindowExpression windowExpr;
+
+        if (offset != null) {
+            // LAG/LEAD with offset
+            windowExpr = WindowExpression.lagLead(windowFunc, aggregateColumn, offset, partitionColumns, orderBy);
+        } else if (aggregateColumn != null) {
+            // Aggregate window function
+            windowExpr = WindowExpression.aggregate(windowFunc, aggregateColumn, partitionColumns, orderBy);
+        } else {
+            // Ranking function
+            windowExpr = WindowExpression.ranking(windowFunc, partitionColumns, orderBy, null);
+        }
 
         return new ExtendNode.WindowProjection(newColumnName, windowExpr);
+    }
+
+    /**
+     * Compiles a window function with an explicit column alias.
+     * Used for patterns like: ~prevSalary : lag(~salary, 1)->over(...)
+     */
+    private ExtendNode.WindowProjection compileWindowProjectionWithAlias(String alias, MethodCall overCall) {
+        // The source of the over() call contains the function call (e.g., lag(~col,
+        // offset))
+        PureExpression source = overCall.source();
+
+        String functionName;
+        String aggregateColumn = null;
+        Integer offset = null;
+
+        if (source instanceof FunctionCall funcCall) {
+            functionName = funcCall.functionName();
+            // Extract column and offset for value window functions
+            if (!funcCall.arguments().isEmpty()) {
+                PureExpression firstArg = funcCall.arguments().get(0);
+                if ("ntile".equals(functionName)) {
+                    // NTILE takes bucket count as first arg
+                    if (firstArg instanceof IntegerLiteral lit) {
+                        offset = lit.value().intValue();
+                    }
+                } else {
+                    // Value functions: lag, lead, first_value, last_value, nth_value
+                    aggregateColumn = extractColumnName(firstArg);
+                    if (funcCall.arguments().size() > 1 && funcCall.arguments().get(1) instanceof IntegerLiteral lit) {
+                        offset = lit.value().intValue();
+                    }
+                }
+            }
+        } else if (source instanceof MethodCall mc) {
+            functionName = mc.methodName();
+            if (!mc.arguments().isEmpty()) {
+                PureExpression firstArg = mc.arguments().get(0);
+                if ("ntile".equals(functionName)) {
+                    if (firstArg instanceof IntegerLiteral lit) {
+                        offset = lit.value().intValue();
+                    }
+                } else {
+                    aggregateColumn = extractColumnName(firstArg);
+                    if (mc.arguments().size() > 1 && mc.arguments().get(1) instanceof IntegerLiteral lit) {
+                        offset = lit.value().intValue();
+                    }
+                }
+            }
+        } else {
+            throw new PureCompileException("Unknown window function source: " + source);
+        }
+
+        // Parse the over() arguments: partition columns, order columns, and frame
+        List<String> partitionColumns = new ArrayList<>();
+        List<WindowExpression.SortSpec> orderBy = new ArrayList<>();
+        WindowExpression.FrameSpec frame = null;
+
+        for (PureExpression arg : overCall.arguments()) {
+            if (arg instanceof ColumnSpec cs) {
+                partitionColumns.add(cs.name());
+            } else if (arg instanceof MethodCall mc) {
+                if ("desc".equals(mc.methodName()) || "asc".equals(mc.methodName())) {
+                    String colName = extractColumnName(mc.source());
+                    WindowExpression.SortDirection dir = "desc".equals(mc.methodName())
+                            ? WindowExpression.SortDirection.DESC
+                            : WindowExpression.SortDirection.ASC;
+                    orderBy.add(new WindowExpression.SortSpec(colName, dir));
+                } else {
+                    partitionColumns.add(extractColumnName(mc));
+                }
+            } else if (arg instanceof FunctionCall fc) {
+                // Handle rows() or range() frame specifications
+                if ("rows".equals(fc.functionName())) {
+                    frame = parseRowsFrame(fc);
+                } else if ("range".equals(fc.functionName())) {
+                    frame = parseRangeFrame(fc);
+                }
+            }
+        }
+
+        WindowExpression.WindowFunction windowFunc = mapWindowFunction(functionName);
+        WindowExpression windowExpr;
+
+        // NTILE uses offset for bucket count, not for row offset
+        if (windowFunc == WindowExpression.WindowFunction.NTILE && offset != null) {
+            windowExpr = WindowExpression.ntile(offset, partitionColumns, orderBy);
+        } else if (offset != null && aggregateColumn != null) {
+            // LAG/LEAD with offset
+            windowExpr = WindowExpression.lagLead(windowFunc, aggregateColumn, offset, partitionColumns, orderBy);
+        } else if (aggregateColumn != null) {
+            // Value functions like FIRST_VALUE, LAST_VALUE, SUM, etc.
+            windowExpr = WindowExpression.aggregate(windowFunc, aggregateColumn, partitionColumns, orderBy, frame);
+        } else {
+            // Ranking functions: ROW_NUMBER, RANK, DENSE_RANK
+            windowExpr = WindowExpression.ranking(windowFunc, partitionColumns, orderBy, frame);
+        }
+
+        return new ExtendNode.WindowProjection(alias, windowExpr);
     }
 
     /**
@@ -940,33 +1076,87 @@ public final class PureCompiler {
         // Get new column name
         String newColumnName = colSpec.name();
 
-        // Extract aggregate column from the lambda body: {p,w,r|$r.salary}
-        // The lambda body should be a property access on one of the parameters
+        // Extract window function information from the lambda body
+        // Pattern 1: {p,w,r|$p->lag($r).salary} - MethodCall with PropertyAccess
+        // Pattern 2: {p,w,r|$p->ntile($r,2)} - MethodCall with numeric argument
+        // Pattern 3: {p,w,r|$p->rank($w,$r)} - MethodCall with window and relation args
+        // Pattern 4: {p,w,r|$r.salary} - Simple property access for aggregates
+        String functionName = "sum"; // Default
         String aggregateColumn = null;
+        Integer offset = null;
+
         if (colSpec.lambda() instanceof LambdaExpression lambda) {
-            // Lambda body should be something like $r.salary
-            aggregateColumn = extractPropertyName(lambda.body());
+            PureExpression body = lambda.body();
+
+            // Check if body is a property access on a method call: $p->lag($r).salary
+            if (body instanceof PropertyAccessExpression pa) {
+                if (pa.source() instanceof MethodCall mc) {
+                    functionName = mc.methodName();
+                    aggregateColumn = pa.propertyName();
+                } else if (pa.source() instanceof FirstExpression) {
+                    // Special AST node for first() window function
+                    functionName = "first_value";
+                    aggregateColumn = pa.propertyName();
+                } else {
+                    // Fall back to just getting the property name for simple access
+                    aggregateColumn = pa.propertyName();
+                }
+            }
+            // Check if body is a direct method call: $p->ntile($r,2) or $p->rank($w,$r)
+            else if (body instanceof MethodCall mc) {
+                functionName = mc.methodName();
+                // Extract numeric argument (for ntile)
+                for (PureExpression arg : mc.arguments()) {
+                    if (arg instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.INTEGER) {
+                        offset = ((Number) lit.value()).intValue();
+                    } else if (arg instanceof IntegerLiteral lit) {
+                        offset = lit.value().intValue();
+                    }
+                }
+            }
+            // Simple property access: $r.salary (for aggregate functions)
+            else if (body instanceof PropertyAccessExpression pa) {
+                aggregateColumn = pa.propertyName();
+            }
         }
 
-        // Determine function from extraFunction (e.g., y|$y->plus() = sum)
-        String functionName = "sum"; // Default to sum
+        // Determine function from extraFunction (e.g., y|$y->sum() = sum)
         if (colSpec.extraFunction() instanceof LambdaExpression extraLambda) {
-            // The extraFunction body is like $y->plus() - extract the method name
             if (extraLambda.body() instanceof MethodCall mc) {
                 functionName = mapAggregateMethodToFunction(mc.methodName());
             }
         }
 
-        // Create the WindowExpression with aggregate column and frame
+        // Create the WindowExpression
         WindowExpression.WindowFunction windowFunc = mapWindowFunction(functionName);
-        WindowExpression windowExpr = WindowExpression.aggregate(
-                windowFunc,
-                aggregateColumn,
-                partitionColumns,
-                orderBy,
-                frame);
+        WindowExpression windowExpr;
+
+        if (offset != null) {
+            // NTILE with bucket count
+            windowExpr = WindowExpression.ntile(offset, partitionColumns, orderBy);
+        } else if (aggregateColumn != null && isValueFunction(functionName)) {
+            // LAG, LEAD, FIRST_VALUE, LAST_VALUE - value functions accessing a column
+            windowExpr = WindowExpression.lagLead(windowFunc, aggregateColumn, 1, partitionColumns, orderBy, frame);
+        } else if (aggregateColumn != null) {
+            // Aggregate window function
+            windowExpr = WindowExpression.aggregate(windowFunc, aggregateColumn, partitionColumns, orderBy, frame);
+        } else {
+            // Ranking function (RANK, DENSE_RANK, ROW_NUMBER, PERCENT_RANK, etc.)
+            windowExpr = WindowExpression.ranking(windowFunc, partitionColumns, orderBy, frame);
+        }
 
         return new ExtendNode.WindowProjection(newColumnName, windowExpr);
+    }
+
+    /**
+     * Checks if a function name is a value function (returns row values, not
+     * rankings).
+     */
+    private boolean isValueFunction(String functionName) {
+        return switch (functionName.toLowerCase()) {
+            case "lag", "lead", "first", "last", "first_value", "last_value", "nth", "nth_value" -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -1016,6 +1206,12 @@ public final class PureCompiler {
                 return WindowExpression.FrameBound.preceding(-value); // Convert to positive offset
             } else {
                 return WindowExpression.FrameBound.following(value);
+            }
+        } else if (expr instanceof UnaryExpression unary && "-".equals(unary.operator())) {
+            // Handle negative literals like -1, -2
+            if (unary.operand() instanceof LiteralExpr lit && lit.value() instanceof Number num) {
+                int value = num.intValue();
+                return WindowExpression.FrameBound.preceding(value); // Already positive, represents "X PRECEDING"
             }
         }
         throw new PureCompileException("Cannot parse frame bound: " + expr);
@@ -1257,8 +1453,8 @@ public final class PureCompiler {
             case "ntile" -> WindowExpression.WindowFunction.NTILE;
             case "lag" -> WindowExpression.WindowFunction.LAG;
             case "lead" -> WindowExpression.WindowFunction.LEAD;
-            case "first_value" -> WindowExpression.WindowFunction.FIRST_VALUE;
-            case "last_value" -> WindowExpression.WindowFunction.LAST_VALUE;
+            case "first", "first_value" -> WindowExpression.WindowFunction.FIRST_VALUE;
+            case "last", "last_value" -> WindowExpression.WindowFunction.LAST_VALUE;
             case "sum" -> WindowExpression.WindowFunction.SUM;
             case "avg" -> WindowExpression.WindowFunction.AVG;
             case "min" -> WindowExpression.WindowFunction.MIN;

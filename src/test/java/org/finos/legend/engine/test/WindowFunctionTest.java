@@ -9,7 +9,9 @@ import org.finos.legend.engine.transpiler.SQLGenerator;
 import org.finos.legend.pure.dsl.*;
 import org.junit.jupiter.api.*;
 import java.sql.*;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -628,6 +630,406 @@ class WindowFunctionTest {
                 }
             }
             throw new IllegalArgumentException("Column not found: " + columnName);
+        }
+
+        @Test
+        @DisplayName("Execute LAG via Pure -> QueryService -> DuckDB")
+        void testExecuteLagViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->descending()), ~prevSalary:{p,w,r|$p->lag($r).salary})
+                    """;
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            // Build a map of name -> prevSalary for verification
+            Map<String, Object> lagValues = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                Object prevSalary = row.get(findColumnIndex(result, "prevSalary"));
+                lagValues.put(name, prevSalary);
+            }
+
+            // In Engineering (ordered by salary DESC): Alice(100k) -> Bob(90k) ->
+            // Charlie(80k)
+            // LAG(salary,1): Alice=null, Bob=100000, Charlie=90000
+            assertNull(lagValues.get("Alice"), "Alice (first in partition) should have null LAG");
+            assertEquals(100000, ((Number) lagValues.get("Bob")).intValue(), "Bob's LAG should be Alice's salary");
+            assertEquals(90000, ((Number) lagValues.get("Charlie")).intValue(), "Charlie's LAG should be Bob's salary");
+
+            // In Sales: Diana(85k) -> Eve(75k)
+            assertNull(lagValues.get("Diana"), "Diana (first in Sales) should have null LAG");
+            assertEquals(85000, ((Number) lagValues.get("Eve")).intValue(), "Eve's LAG should be Diana's salary");
+
+            // In Marketing: Frank(70k) alone
+            assertNull(lagValues.get("Frank"), "Frank (only in Marketing) should have null LAG");
+        }
+
+        @Test
+        @DisplayName("Execute LEAD via Pure -> QueryService -> DuckDB")
+        void testExecuteLeadViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->descending()), ~nextSalary:{p,w,r|$p->lead($r).salary})
+                    """;
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            // Build a map of name -> nextSalary for verification
+            Map<String, Object> leadValues = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                Object nextSalary = row.get(findColumnIndex(result, "nextSalary"));
+                leadValues.put(name, nextSalary);
+            }
+
+            // In Engineering (ordered by salary DESC): Alice(100k) -> Bob(90k) ->
+            // Charlie(80k)
+            // LEAD(salary,1): Alice=90000, Bob=80000, Charlie=null
+            assertEquals(90000, ((Number) leadValues.get("Alice")).intValue(), "Alice's LEAD should be Bob's salary");
+            assertEquals(80000, ((Number) leadValues.get("Bob")).intValue(), "Bob's LEAD should be Charlie's salary");
+            assertNull(leadValues.get("Charlie"), "Charlie (last in partition) should have null LEAD");
+
+            // In Sales: Diana(85k) -> Eve(75k)
+            assertEquals(75000, ((Number) leadValues.get("Diana")).intValue(), "Diana's LEAD should be Eve's salary");
+            assertNull(leadValues.get("Eve"), "Eve (last in Sales) should have null LEAD");
+
+            // In Marketing: Frank(70k) alone
+            assertNull(leadValues.get("Frank"), "Frank (only in Marketing) should have null LEAD");
+        }
+
+        @Test
+        @DisplayName("Execute FIRST_VALUE via Pure -> QueryService -> DuckDB")
+        void testExecuteFirstValueViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->descending()), ~topSalary:{p,w,r|$p->first($w,$r).salary})
+                    """;
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            // Every employee should see their department's top salary
+            for (var row : result.rows()) {
+                String dept = (String) row.get(findColumnIndex(result, "department"));
+                int topSalary = ((Number) row.get(findColumnIndex(result, "topSalary"))).intValue();
+
+                int expected = switch (dept) {
+                    case "Engineering" -> 100000; // Alice's salary
+                    case "Sales" -> 85000; // Diana's salary
+                    case "Marketing" -> 70000; // Frank's salary
+                    default -> throw new AssertionError("Unexpected department: " + dept);
+                };
+                assertEquals(expected, topSalary, "Top salary for " + dept + " should be " + expected);
+            }
+        }
+
+        @Test
+        @DisplayName("Execute LAST_VALUE via Pure -> QueryService -> DuckDB")
+        void testExecuteLastValueViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->descending()), ~bottomSalary:{p,w,r|$p->last($w,$r).salary})
+                    """;
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            // Build map for verification
+            Map<String, Integer> salaries = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                int bottomSalary = ((Number) row.get(findColumnIndex(result, "bottomSalary"))).intValue();
+                salaries.put(name, bottomSalary);
+            }
+
+            // Without frame spec, LAST_VALUE uses default frame (UNBOUNDED PRECEDING to
+            // CURRENT ROW)
+            // With ORDER BY salary DESC: each row sees its own salary as the "last" value
+            // so far
+            // Engineering (sorted DESC): Alice(100k) -> Bob(90k) -> Charlie(80k)
+            assertEquals(100000, salaries.get("Alice"), "Alice sees her own (first row, so last = first)");
+            assertEquals(90000, salaries.get("Bob"), "Bob sees his own (last value up to row 2)");
+            assertEquals(80000, salaries.get("Charlie"), "Charlie sees his own (last value up to row 3)");
+            // Sales (sorted DESC): Diana(85k) -> Eve(75k)
+            assertEquals(85000, salaries.get("Diana"), "Diana sees her own (first in Sales partition)");
+            assertEquals(75000, salaries.get("Eve"), "Eve sees her own (last value up to row 2)");
+            // Marketing: Frank(70k) alone
+            assertEquals(70000, salaries.get("Frank"), "Frank sees his own salary (only in Marketing)");
+        }
+
+        @Test
+        @DisplayName("Execute NTILE via Pure -> QueryService -> DuckDB")
+        void testExecuteNtileViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->descending()), ~bucket:{p,w,r|$p->ntile($r,2)})
+                    """;
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            // Build map for verification
+            Map<String, Integer> buckets = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                int bucket = ((Number) row.get(findColumnIndex(result, "bucket"))).intValue();
+                buckets.put(name, bucket);
+            }
+
+            // Engineering has 3 employees split into 2 buckets: [Alice, Bob]=1, [Charlie]=2
+            assertEquals(1, buckets.get("Alice"), "Alice should be in first bucket");
+            assertEquals(1, buckets.get("Bob"), "Bob should be in first bucket");
+            assertEquals(2, buckets.get("Charlie"), "Charlie should be in second bucket");
+            // Sales has 2 employees: [Diana]=1, [Eve]=2
+            assertEquals(1, buckets.get("Diana"), "Diana should be in first bucket");
+            assertEquals(2, buckets.get("Eve"), "Eve should be in second bucket");
+        }
+
+        @Test
+        @DisplayName("Execute FIRST_VALUE with unbounded frame via Pure -> QueryService -> DuckDB")
+        void testExecuteFirstValueWithUnboundedFrameViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->descending(), rows(unbounded(), unbounded())), ~topSalary:{p,w,r|$p->first($w,$r).salary})
+                    """;
+
+            // Verify SQL generation includes unbounded frame
+            String sql = generateSql(pureQuery);
+            System.out.println("Generated SQL with unbounded frame: " + sql);
+            assertTrue(sql.contains("FIRST_VALUE"), "SQL should contain FIRST_VALUE");
+            assertTrue(sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"),
+                    "SQL should contain unbounded frame");
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            // Build map for verification
+            Map<String, Integer> topSalaries = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                int topSalary = ((Number) row.get(findColumnIndex(result, "topSalary"))).intValue();
+                topSalaries.put(name, topSalary);
+            }
+
+            // With unbounded frame and ORDER BY salary DESC, FIRST_VALUE is the highest
+            // salary
+            // Engineering (sorted DESC): Alice(100k) is first
+            assertEquals(100000, topSalaries.get("Alice"), "Alice should see top salary (100k)");
+            assertEquals(100000, topSalaries.get("Bob"), "Bob should see top salary (100k)");
+            assertEquals(100000, topSalaries.get("Charlie"), "Charlie should see top salary (100k)");
+            // Sales: Diana(85k) is first
+            assertEquals(85000, topSalaries.get("Diana"), "Diana should see top salary (85k)");
+            assertEquals(85000, topSalaries.get("Eve"), "Eve should see top salary (85k)");
+            // Marketing: Frank(70k) alone
+            assertEquals(70000, topSalaries.get("Frank"), "Frank should see his own salary");
+        }
+
+        @Test
+        @DisplayName("Execute LAST_VALUE with unbounded frame via Pure -> QueryService -> DuckDB")
+        void testExecuteLastValueWithUnboundedFrameViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->descending(), rows(unbounded(), unbounded())), ~bottomSalary:{p,w,r|$p->last($w,$r).salary})
+                    """;
+
+            // Verify SQL generation includes unbounded frame
+            String sql = generateSql(pureQuery);
+            System.out.println("Generated SQL with unbounded frame: " + sql);
+            assertTrue(sql.contains("LAST_VALUE"), "SQL should contain LAST_VALUE");
+            assertTrue(sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"),
+                    "SQL should contain unbounded frame");
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            // Build map for verification
+            Map<String, Integer> bottomSalaries = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                int bottomSalary = ((Number) row.get(findColumnIndex(result, "bottomSalary"))).intValue();
+                bottomSalaries.put(name, bottomSalary);
+            }
+
+            // With unbounded frame and ORDER BY salary DESC, LAST_VALUE is the lowest
+            // salary
+            // Engineering: Alice(100k) -> Bob(90k) -> Charlie(80k) - Charlie is last
+            assertEquals(80000, bottomSalaries.get("Alice"), "Alice should see bottom salary (80k)");
+            assertEquals(80000, bottomSalaries.get("Bob"), "Bob should see bottom salary (80k)");
+            assertEquals(80000, bottomSalaries.get("Charlie"), "Charlie should see bottom salary (80k)");
+            // Sales: Diana(85k) -> Eve(75k) - Eve is last
+            assertEquals(75000, bottomSalaries.get("Diana"), "Diana should see bottom salary (75k)");
+            assertEquals(75000, bottomSalaries.get("Eve"), "Eve should see bottom salary (75k)");
+            // Marketing: Frank(70k) alone
+            assertEquals(70000, bottomSalaries.get("Frank"), "Frank should see his own salary");
+        }
+
+        @Test
+        @DisplayName("Execute SUM with running total frame (unbounded preceding to current row)")
+        void testExecuteSumWithRunningTotalFrame() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningTotal:{p,w,r|$p->sum($w,$r).salary})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Running total SQL: " + sql);
+            assertTrue(sql.contains("SUM"), "SQL should contain SUM");
+            assertTrue(sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"),
+                    "SQL should contain running total frame");
+
+            BufferedResult result = executeQuery(pureQuery);
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            // Verify running sum column exists and has values
+            Map<String, Integer> runningTotals = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                int runningTotal = ((Number) row.get(findColumnIndex(result, "runningTotal"))).intValue();
+                runningTotals.put(name, runningTotal);
+            }
+
+            // Engineering (sorted ASC by salary): Charlie(80k) -> Bob(90k) -> Alice(100k)
+            // Running totals: 80k, 170k, 270k
+            assertEquals(80000, runningTotals.get("Charlie"), "Charlie's running total (first)");
+            assertEquals(170000, runningTotals.get("Bob"), "Bob's running total (80k + 90k)");
+            assertEquals(270000, runningTotals.get("Alice"), "Alice's running total (80k + 90k + 100k)");
+        }
+
+        @Test
+        @DisplayName("Execute AVG with sliding window frame (previous 1 row to next 1 row)")
+        void testExecuteAvgWithSlidingWindowFrame() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~movingAvg:{p,w,r|$p->avg($w,$r).salary})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Sliding window SQL: " + sql);
+            assertTrue(sql.contains("AVG"), "SQL should contain AVG");
+            assertTrue(sql.contains("ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING"),
+                    "SQL should contain sliding window frame");
+
+            BufferedResult result = executeQuery(pureQuery);
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            Map<String, Double> movingAvgs = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                double movingAvg = ((Number) row.get(findColumnIndex(result, "movingAvg"))).doubleValue();
+                movingAvgs.put(name, movingAvg);
+            }
+
+            // Engineering (sorted ASC): Charlie(80k) -> Bob(90k) -> Alice(100k)
+            // Charlie: avg(80k, 90k) = 85k (no previous row)
+            // Bob: avg(80k, 90k, 100k) = 90k
+            // Alice: avg(90k, 100k) = 95k (no following row)
+            assertEquals(85000.0, movingAvgs.get("Charlie"), 0.01, "Charlie's moving avg");
+            assertEquals(90000.0, movingAvgs.get("Bob"), 0.01, "Bob's moving avg");
+            assertEquals(95000.0, movingAvgs.get("Alice"), 0.01, "Alice's moving avg");
+        }
+
+        @Test
+        @DisplayName("Execute SUM with trailing window frame (previous 2 rows to current)")
+        void testExecuteSumWithTrailingWindowFrame() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->ascending(), rows(-2, 0)), ~trailing3Sum:{p,w,r|$p->sum($w,$r).salary})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Trailing window SQL: " + sql);
+            assertTrue(sql.contains("SUM"), "SQL should contain SUM");
+            assertTrue(sql.contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"),
+                    "SQL should contain trailing window frame");
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            Map<String, Integer> trailingSums = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                int trailingSum = ((Number) row.get(findColumnIndex(result, "trailing3Sum"))).intValue();
+                trailingSums.put(name, trailingSum);
+            }
+
+            // Engineering (sorted ASC): Charlie(80k) -> Bob(90k) -> Alice(100k)
+            // Charlie: sum(80k) = 80k (no previous rows)
+            // Bob: sum(80k, 90k) = 170k (only 1 previous row)
+            // Alice: sum(80k, 90k, 100k) = 270k (2 previous rows)
+            assertEquals(80000, trailingSums.get("Charlie"), "Charlie's trailing sum (only current)");
+            assertEquals(170000, trailingSums.get("Bob"), "Bob's trailing sum (Charlie + Bob)");
+            assertEquals(270000, trailingSums.get("Alice"), "Alice's trailing sum (all 3)");
+        }
+
+        @Test
+        @DisplayName("Execute SUM with current row to end frame (0 to unbounded)")
+        void testExecuteSumWithCurrentToEndFrame() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->ascending(), rows(0, unbounded())), ~remainingSum:{p,w,r|$p->sum($w,$r).salary})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Current to end SQL: " + sql);
+            assertTrue(sql.contains("SUM"), "SQL should contain SUM");
+            assertTrue(sql.contains("ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING"),
+                    "SQL should contain current to end frame");
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            Map<String, Integer> remainingSums = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                int remainingSum = ((Number) row.get(findColumnIndex(result, "remainingSum"))).intValue();
+                remainingSums.put(name, remainingSum);
+            }
+
+            // Engineering (sorted ASC): Charlie(80k) -> Bob(90k) -> Alice(100k)
+            // Charlie: sum(80k, 90k, 100k) = 270k (all remaining)
+            // Bob: sum(90k, 100k) = 190k
+            // Alice: sum(100k) = 100k (only current)
+            assertEquals(270000, remainingSums.get("Charlie"), "Charlie's remaining sum (all 3)");
+            assertEquals(190000, remainingSums.get("Bob"), "Bob's remaining sum (Bob + Alice)");
+            assertEquals(100000, remainingSums.get("Alice"), "Alice's remaining sum (only current)");
+        }
+
+        @Test
+        @DisplayName("Execute COUNT with sliding window frame")
+        void testExecuteCountWithSlidingWindowFrame() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~neighborCount:{p,w,r|$p->count($w,$r)})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Sliding COUNT SQL: " + sql);
+            assertTrue(sql.contains("COUNT"), "SQL should contain COUNT");
+            assertTrue(sql.contains("ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING"),
+                    "SQL should contain sliding window frame");
+
+            BufferedResult result = executeQuery(pureQuery);
+
+            Map<String, Long> neighborCounts = new HashMap<>();
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                long count = ((Number) row.get(findColumnIndex(result, "neighborCount"))).longValue();
+                neighborCounts.put(name, count);
+            }
+
+            // Engineering (sorted ASC): Charlie(80k) -> Bob(90k) -> Alice(100k)
+            // Charlie: count of (Charlie, Bob) = 2 (no previous row)
+            // Bob: count of (Charlie, Bob, Alice) = 3 (full window)
+            // Alice: count of (Bob, Alice) = 2 (no following row)
+            assertEquals(2L, neighborCounts.get("Charlie"), "Charlie's neighbor count");
+            assertEquals(3L, neighborCounts.get("Bob"), "Bob's neighbor count");
+            assertEquals(2L, neighborCounts.get("Alice"), "Alice's neighbor count");
         }
     }
 }

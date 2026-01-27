@@ -477,6 +477,15 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         sb.append("(");
         if (w.aggregateColumn() != null) {
             sb.append(dialect.quoteIdentifier(w.aggregateColumn()));
+            // Add offset for LAG/LEAD
+            if (w.offset() != null && (w.function() == WindowExpression.WindowFunction.LAG
+                    || w.function() == WindowExpression.WindowFunction.LEAD)) {
+                sb.append(", ");
+                sb.append(w.offset());
+            }
+        } else if (w.function() == WindowExpression.WindowFunction.NTILE && w.offset() != null) {
+            // NTILE(bucket_count)
+            sb.append(w.offset());
         }
         sb.append(") OVER (");
 
