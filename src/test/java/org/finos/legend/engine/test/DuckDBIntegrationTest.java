@@ -1209,4 +1209,126 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(names.contains("Alice"), "Should have Alice from active users");
         assertTrue(names.contains("Charlie"), "Should have Charlie from inactive users");
     }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with stdDev() aggregate")
+    void testPureSyntaxGroupByWithStdDev() throws Exception {
+        // GIVEN: Create employee table with numeric data
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_STATS");
+            stmt.execute("CREATE TABLE T_STATS (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            // Engineering: 100000, 90000, 80000 - stddev should be ~10000
+            stmt.execute("INSERT INTO T_STATS VALUES (1, 'Engineering', 100000)");
+            stmt.execute("INSERT INTO T_STATS VALUES (2, 'Engineering', 90000)");
+            stmt.execute("INSERT INTO T_STATS VALUES (3, 'Engineering', 80000)");
+            // Sales: 85000, 75000 - stddev should be ~7071
+            stmt.execute("INSERT INTO T_STATS VALUES (4, 'Sales', 85000)");
+            stmt.execute("INSERT INTO T_STATS VALUES (5, 'Sales', 75000)");
+        }
+
+        String pureSource = """
+                Class model::Stats { dept: String[1]; sal: Integer[1]; }
+                Database store::StatsDb ( Table T_STATS ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::StatsMap ( Stats: Relational { ~mainTable [StatsDb] T_STATS dept: [StatsDb] T_STATS.DEPT, sal: [StatsDb] T_STATS.SAL } )
+
+                RelationalDatabaseConnection store::TestConnection
+                {
+                    type: DuckDB;
+                    specification: InMemory { };
+                    auth: NoAuth { };
+                }
+
+                Runtime test::TestRuntime
+                {
+                    mappings: [ model::StatsMap ];
+                    connections: [ store::StatsDb: [ environment: store::TestConnection ] ];
+                }
+                """;
+
+        // Pure query using stdDev() aggregate
+        String pureQuery = "Stats.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->stdDev()}], ['stdDevSal'])";
+
+        // Execute via QueryService
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+
+        System.out.println("StdDev results:");
+        java.util.Map<String, Double> results = new java.util.HashMap<>();
+        for (var row : result.rows()) {
+            String dept = (String) row.get(0);
+            double stddev = ((Number) row.get(1)).doubleValue();
+            results.put(dept, stddev);
+            System.out.printf("  %s: stdDev = %.2f%n", dept, stddev);
+        }
+
+        // Engineering stddev should be ~10000 (sample std dev of 80k, 90k, 100k)
+        assertTrue(results.get("Engineering") > 9000 && results.get("Engineering") < 11000,
+                "Engineering stdDev should be ~10000, got: " + results.get("Engineering"));
+        // Sales stddev should be ~7071 (sample std dev of 75k, 85k)
+        assertTrue(results.get("Sales") > 6000 && results.get("Sales") < 8000,
+                "Sales stdDev should be ~7071, got: " + results.get("Sales"));
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with variance() aggregate")
+    void testPureSyntaxGroupByWithVariance() throws Exception {
+        // Reuse T_STATS table from previous test or create it
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_VAR");
+            stmt.execute("CREATE TABLE T_VAR (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            stmt.execute("INSERT INTO T_VAR VALUES (1, 'Engineering', 100000)");
+            stmt.execute("INSERT INTO T_VAR VALUES (2, 'Engineering', 90000)");
+            stmt.execute("INSERT INTO T_VAR VALUES (3, 'Engineering', 80000)");
+        }
+
+        String pureSource = """
+                Class model::Var { dept: String[1]; sal: Integer[1]; }
+                Database store::VarDb ( Table T_VAR ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::VarMap ( Var: Relational { ~mainTable [VarDb] T_VAR dept: [VarDb] T_VAR.DEPT, sal: [VarDb] T_VAR.SAL } )
+
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::VarMap ]; connections: [ store::VarDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "Var.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->variance()}], ['varSal'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+
+        assertEquals(1, result.rows().size(), "Should have 1 department");
+        double variance = ((Number) result.rows().get(0).get(1)).doubleValue();
+        // Variance of 80k, 90k, 100k = 100,000,000 (sample variance)
+        System.out.printf("Variance of Engineering salaries: %.2f%n", variance);
+        assertTrue(variance > 90_000_000 && variance < 110_000_000,
+                "Variance should be ~100M, got: " + variance);
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with median() aggregate")
+    void testPureSyntaxGroupByWithMedian() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_MED");
+            stmt.execute("CREATE TABLE T_MED (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            stmt.execute("INSERT INTO T_MED VALUES (1, 'Team', 100000)");
+            stmt.execute("INSERT INTO T_MED VALUES (2, 'Team', 90000)");
+            stmt.execute("INSERT INTO T_MED VALUES (3, 'Team', 80000)");
+        }
+
+        String pureSource = """
+                Class model::Med { dept: String[1]; sal: Integer[1]; }
+                Database store::MedDb ( Table T_MED ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::MedMap ( Med: Relational { ~mainTable [MedDb] T_MED dept: [MedDb] T_MED.DEPT, sal: [MedDb] T_MED.SAL } )
+
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::MedMap ]; connections: [ store::MedDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "Med.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->median()}], ['medianSal'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+
+        assertEquals(1, result.rows().size());
+        double median = ((Number) result.rows().get(0).get(1)).doubleValue();
+        // Median of 80k, 90k, 100k = 90k
+        System.out.printf("Median of Team salaries: %.2f%n", median);
+        assertEquals(90000.0, median, 1.0, "Median should be 90000");
+    }
 }

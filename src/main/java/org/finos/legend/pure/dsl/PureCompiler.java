@@ -454,7 +454,22 @@ public final class PureCompiler {
         List<GroupByNode.AggregateProjection> aggregations = new ArrayList<>();
         for (int i = 0; i < groupBy.aggregations().size(); i++) {
             LambdaExpression aggLambda = groupBy.aggregations().get(i);
-            String columnName = extractPropertyName(aggLambda.body());
+
+            // Extract column name and aggregate function from lambda body
+            // Supports: {r | $r.col} (defaults to SUM) or {r | $r.col->stdDev()} (explicit)
+            String columnName;
+            AggregateExpression.AggregateFunction aggFunc;
+
+            PureExpression body = aggLambda.body();
+            if (body instanceof MethodCall methodCall) {
+                // Pattern: $r.col->stdDev() or $r.col->sum()
+                columnName = extractPropertyName(methodCall.source());
+                aggFunc = mapAggregateFunction(methodCall.methodName());
+            } else {
+                // Pattern: $r.col - defaults to SUM
+                columnName = extractPropertyName(body);
+                aggFunc = AggregateExpression.AggregateFunction.SUM;
+            }
 
             // Get alias from the aliases list or generate one
             String alias;
@@ -464,14 +479,32 @@ public final class PureCompiler {
                 alias = columnName + "_agg";
             }
 
-            // Default to SUM for now - in full implementation, parse the aggregate function
-            // from lambda
-            AggregateExpression.AggregateFunction aggFunc = AggregateExpression.AggregateFunction.SUM;
-
             aggregations.add(new GroupByNode.AggregateProjection(alias, columnName, aggFunc));
         }
 
         return new GroupByNode(source, groupingColumns, aggregations);
+    }
+
+    /**
+     * Maps a Pure aggregate function name to the AggregateFunction enum.
+     */
+    private AggregateExpression.AggregateFunction mapAggregateFunction(String functionName) {
+        return switch (functionName.toLowerCase()) {
+            case "sum", "plus" -> AggregateExpression.AggregateFunction.SUM;
+            case "avg", "average" -> AggregateExpression.AggregateFunction.AVG;
+            case "count" -> AggregateExpression.AggregateFunction.COUNT;
+            case "min" -> AggregateExpression.AggregateFunction.MIN;
+            case "max" -> AggregateExpression.AggregateFunction.MAX;
+            // Statistical functions
+            case "stddev" -> AggregateExpression.AggregateFunction.STDDEV;
+            case "stddevsample", "stddev_samp" -> AggregateExpression.AggregateFunction.STDDEV_SAMP;
+            case "stddevpopulation", "stddev_pop" -> AggregateExpression.AggregateFunction.STDDEV_POP;
+            case "variance" -> AggregateExpression.AggregateFunction.VARIANCE;
+            case "variancesample", "var_samp" -> AggregateExpression.AggregateFunction.VAR_SAMP;
+            case "variancepopulation", "var_pop" -> AggregateExpression.AggregateFunction.VAR_POP;
+            case "median" -> AggregateExpression.AggregateFunction.MEDIAN;
+            default -> throw new PureCompileException("Unknown aggregate function: " + functionName);
+        };
     }
 
     /**
@@ -1460,6 +1493,17 @@ public final class PureCompiler {
             case "min" -> WindowExpression.WindowFunction.MIN;
             case "max" -> WindowExpression.WindowFunction.MAX;
             case "count" -> WindowExpression.WindowFunction.COUNT;
+            // Statistical functions
+            case "stddev", "stddev_number_1__number_1_" -> WindowExpression.WindowFunction.STDDEV;
+            case "stddevsample", "stddev_samp" -> WindowExpression.WindowFunction.STDDEV_SAMP;
+            case "stddevpopulation", "stddev_pop" -> WindowExpression.WindowFunction.STDDEV_POP;
+            case "variance" -> WindowExpression.WindowFunction.VARIANCE;
+            case "variancesample", "var_samp" -> WindowExpression.WindowFunction.VAR_SAMP;
+            case "variancepopulation", "var_pop" -> WindowExpression.WindowFunction.VAR_POP;
+            case "median" -> WindowExpression.WindowFunction.MEDIAN;
+            case "corr", "correlation" -> WindowExpression.WindowFunction.CORR;
+            case "covarsample", "covar_samp" -> WindowExpression.WindowFunction.COVAR_SAMP;
+            case "covarpopulation", "covar_pop" -> WindowExpression.WindowFunction.COVAR_POP;
             default -> throw new PureCompileException("Unknown window function: " + functionName);
         };
     }

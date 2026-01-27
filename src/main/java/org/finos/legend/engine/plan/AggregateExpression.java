@@ -21,7 +21,19 @@ public record AggregateExpression(
         AVG("AVG"),
         MIN("MIN"),
         MAX("MAX"),
-        COUNT_DISTINCT("COUNT(DISTINCT"); // special handling needed
+        COUNT_DISTINCT("COUNT(DISTINCT"), // special handling needed
+        // Statistical functions
+        STDDEV("STDDEV"),
+        STDDEV_SAMP("STDDEV_SAMP"),
+        STDDEV_POP("STDDEV_POP"),
+        VARIANCE("VARIANCE"),
+        VAR_SAMP("VAR_SAMP"),
+        VAR_POP("VAR_POP"),
+        MEDIAN("MEDIAN"),
+        // Two-argument statistical functions
+        CORR("CORR"),
+        COVAR_SAMP("COVAR_SAMP"),
+        COVAR_POP("COVAR_POP");
 
         private final String sql;
 

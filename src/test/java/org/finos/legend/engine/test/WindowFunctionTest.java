@@ -1031,5 +1031,66 @@ class WindowFunctionTest {
             assertEquals(3L, neighborCounts.get("Bob"), "Bob's neighbor count");
             assertEquals(2L, neighborCounts.get("Alice"), "Alice's neighbor count");
         }
+
+        @Test
+        @DisplayName("Execute STDDEV window aggregate via Pure -> QueryService -> DuckDB")
+        void testExecuteStdDevWindowViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department), ~deptStdDev:{p,w,r|$p->stdDev($w,$r).salary})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("STDDEV Window SQL: " + sql);
+            assertTrue(sql.contains("STDDEV"), "SQL should contain STDDEV");
+            assertTrue(sql.contains("OVER"), "SQL should contain OVER");
+            assertTrue(sql.contains("PARTITION BY"), "SQL should contain PARTITION BY");
+
+            BufferedResult result = executeQuery(pureQuery);
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            // Verify stdDev column exists
+            assertTrue(result.columns().stream()
+                    .anyMatch(c -> c.name().equals("deptStdDev")),
+                    "Should have deptStdDev column");
+
+            // Print results for verification
+            System.out.println("STDDEV Window Results:");
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                String dept = (String) row.get(findColumnIndex(result, "department"));
+                Object stddev = row.get(findColumnIndex(result, "deptStdDev"));
+                System.out.printf("  %s (%s): stdDev = %s%n", name, dept, stddev);
+            }
+        }
+
+        @Test
+        @DisplayName("Execute VARIANCE window aggregate via Pure -> QueryService -> DuckDB")
+        void testExecuteVarianceWindowViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department), ~deptVar:{p,w,r|$p->variance($w,$r).salary})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("VARIANCE Window SQL: " + sql);
+            assertTrue(sql.contains("VARIANCE"), "SQL should contain VARIANCE");
+            assertTrue(sql.contains("OVER"), "SQL should contain OVER");
+            assertTrue(sql.contains("PARTITION BY"), "SQL should contain PARTITION BY");
+
+            BufferedResult result = executeQuery(pureQuery);
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            // Print results for verification
+            System.out.println("VARIANCE Window Results:");
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                String dept = (String) row.get(findColumnIndex(result, "department"));
+                Object variance = row.get(findColumnIndex(result, "deptVar"));
+                System.out.printf("  %s (%s): variance = %s%n", name, dept, variance);
+            }
+        }
     }
 }

@@ -49,7 +49,19 @@ public record WindowExpression(
         AVG,
         MIN,
         MAX,
-        COUNT
+        COUNT,
+
+        // Statistical aggregate functions
+        STDDEV,
+        STDDEV_SAMP,
+        STDDEV_POP,
+        VARIANCE,
+        VAR_SAMP,
+        VAR_POP,
+        MEDIAN,
+        CORR,
+        COVAR_SAMP,
+        COVAR_POP
     }
 
     /**
