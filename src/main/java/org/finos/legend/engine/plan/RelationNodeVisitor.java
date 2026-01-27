@@ -56,4 +56,19 @@ public interface RelationNodeVisitor<T> {
      * Visit a lateral join node (CROSS JOIN LATERAL UNNEST).
      */
     T visit(LateralJoinNode lateralJoin);
+
+    /**
+     * Visit a distinct node (SELECT DISTINCT).
+     */
+    T visit(DistinctNode distinct);
+
+    /**
+     * Visit a rename node (column aliasing).
+     */
+    T visit(RenameNode rename);
+
+    /**
+     * Visit a concatenate node (UNION ALL).
+     */
+    T visit(ConcatenateNode concatenate);
 }

@@ -196,6 +196,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "delete" -> new DeleteExpression(source);
             case "cast" -> parseCastCall(source, args);
             case "flatten" -> parseFlattenCall(source, args);
+            case "distinct" -> parseDistinctCall(source, args);
+            case "rename" -> parseRenameCall(source, args);
+            case "concatenate" -> parseConcatenateCall(source, args);
             default -> new MethodCall(source, funcName, args);
         };
     }
@@ -407,6 +410,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "sort" -> parseSortCallFromString(source, argsContent);
             case "limit", "take" -> parseLimitCallFromString(source, argsContent);
             case "drop" -> parseDropCallFromString(source, argsContent);
+            case "distinct" -> parseDistinctCallFromString(source, argsContent);
+            case "rename" -> parseRenameCallFromString(source, argsContent);
+            case "concatenate" -> parseConcatenateCallFromString(source, argsContent);
             default -> throw new PureParseException("Unknown function in arrow chain: " + funcName);
         };
     }
@@ -479,6 +485,46 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     private PureExpression parseDropCallFromString(PureExpression source, String argsContent) {
         int dropCount = Integer.parseInt(argsContent.trim());
         return new DropExpression(source, dropCount);
+    }
+
+    private PureExpression parseDistinctCallFromString(PureExpression source, String argsContent) {
+        // distinct() - no args means all columns
+        if (argsContent.trim().isEmpty()) {
+            return DistinctExpression.all(source);
+        }
+        // distinct(~col1, ~col2) - specific columns
+        List<String> columns = new ArrayList<>();
+        for (String part : argsContent.split(",")) {
+            String col = part.trim();
+            if (col.startsWith("~")) {
+                col = col.substring(1);
+            }
+            if (!col.isEmpty()) {
+                columns.add(col);
+            }
+        }
+        return DistinctExpression.columns(source, columns);
+    }
+
+    private PureExpression parseRenameCallFromString(PureExpression source, String argsContent) {
+        // rename(~oldCol, ~newCol)
+        String[] parts = argsContent.split(",");
+        if (parts.length < 2) {
+            throw new PureParseException("rename() requires 2 column references: rename(~oldCol, ~newCol)");
+        }
+        String oldCol = parts[0].trim();
+        String newCol = parts[1].trim();
+        if (oldCol.startsWith("~"))
+            oldCol = oldCol.substring(1);
+        if (newCol.startsWith("~"))
+            newCol = newCol.substring(1);
+        return new RenameExpression(source, oldCol, newCol);
+    }
+
+    private PureExpression parseConcatenateCallFromString(PureExpression source, String argsContent) {
+        // concatenate(otherRelation) - parse the other relation
+        PureExpression other = org.finos.legend.pure.dsl.PureParser.parse(argsContent.trim());
+        return new ConcatenateExpression(source, other);
     }
 
     /**
@@ -1245,6 +1291,58 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             throw new PureParseException("flatten() requires a column reference like ~items, got: " + arg);
         }
         return new FlattenExpression(relExpr, colSpec.name());
+    }
+
+    private PureExpression parseDistinctCall(PureExpression source, List<PureExpression> args) {
+        // distinct() - all columns
+        // distinct(~[col1, col2]) - specific columns
+        if (args.isEmpty()) {
+            return DistinctExpression.all(source);
+        }
+
+        // Parse column list
+        List<String> columns = new ArrayList<>();
+        for (PureExpression arg : args) {
+            if (arg instanceof ColumnSpec colSpec) {
+                columns.add(colSpec.name());
+            } else if (arg instanceof ArrayLiteral arr) {
+                for (PureExpression elem : arr.elements()) {
+                    if (elem instanceof ColumnSpec cs) {
+                        columns.add(cs.name());
+                    }
+                }
+            }
+        }
+        return DistinctExpression.columns(source, columns);
+    }
+
+    private PureExpression parseRenameCall(PureExpression source, List<PureExpression> args) {
+        // rename(~oldCol, ~newCol)
+        if (args.size() < 2) {
+            throw new PureParseException("rename() requires 2 column references: rename(~oldCol, ~newCol)");
+        }
+        String oldCol = extractColumnName(args.get(0));
+        String newCol = extractColumnName(args.get(1));
+        return new RenameExpression(source, oldCol, newCol);
+    }
+
+    private String extractColumnName(PureExpression expr) {
+        if (expr instanceof ColumnSpec colSpec) {
+            return colSpec.name();
+        }
+        if (expr instanceof LiteralExpr lit && lit.value() instanceof String s) {
+            return s;
+        }
+        throw new PureParseException("Expected column reference, got: " + expr);
+    }
+
+    private PureExpression parseConcatenateCall(PureExpression source, List<PureExpression> args) {
+        // concatenate(otherRelation)
+        if (args.isEmpty()) {
+            throw new PureParseException("concatenate() requires a relation argument");
+        }
+        PureExpression other = args.get(0);
+        return new ConcatenateExpression(source, other);
     }
 
     // ========================================

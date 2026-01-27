@@ -105,6 +105,9 @@ public final class PureCompiler {
             case ExtendExpression extend -> compileExtend(extend, context);
             case FromExpression from -> compileFrom(from, context);
             case SerializeExpression serialize -> compileSerialize(serialize, context);
+            case DistinctExpression distinct -> compileDistinct(distinct, context);
+            case RenameExpression rename -> compileRename(rename, context);
+            case ConcatenateExpression concatenate -> compileConcatenate(concatenate, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
@@ -572,6 +575,35 @@ public final class PureCompiler {
 
         // Return a LateralJoinNode that represents the lateral join with unnest
         return new LateralJoinNode(source, arrayCol, columnName);
+    }
+
+    /**
+     * Compiles distinct() expression.
+     * - distinct() - all columns
+     * - distinct(~[col1, col2]) - specific columns
+     */
+    private RelationNode compileDistinct(DistinctExpression distinct, CompilationContext context) {
+        RelationNode source = compileExpression(distinct.source(), context);
+        return new DistinctNode(source, distinct.columns());
+    }
+
+    /**
+     * Compiles rename(~oldCol, ~newCol) expression.
+     * Renames a column in the relation.
+     */
+    private RelationNode compileRename(RenameExpression rename, CompilationContext context) {
+        RelationNode source = compileExpression(rename.source(), context);
+        return new RenameNode(source, rename.oldColumnName(), rename.newColumnName());
+    }
+
+    /**
+     * Compiles concatenate(other) expression.
+     * SQL: UNION ALL
+     */
+    private RelationNode compileConcatenate(ConcatenateExpression concatenate, CompilationContext context) {
+        RelationNode left = compileExpression(concatenate.left(), context);
+        RelationNode right = compileExpression(concatenate.right(), context);
+        return new ConcatenateNode(left, right);
     }
 
     /**
@@ -2143,6 +2175,9 @@ public final class PureCompiler {
             case org.finos.legend.engine.plan.FromNode from -> getTableAlias(from.source());
             case ExtendNode extend -> getTableAlias(extend.source());
             case LateralJoinNode lateral -> getTableAlias(lateral.source());
+            case DistinctNode distinct -> getTableAlias(distinct.source());
+            case RenameNode rename -> getTableAlias(rename.source());
+            case ConcatenateNode concat -> getTableAlias(concat.left());
         };
     }
 

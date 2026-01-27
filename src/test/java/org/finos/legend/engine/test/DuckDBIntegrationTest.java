@@ -1093,4 +1093,120 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Relation API via QueryService: Retrieved " + result.rows().size() + " rows");
         System.out.println("Columns: " + columns.stream().map(c -> c.name()).toList());
     }
+
+    // ==================== Relation Function Tests: distinct, rename, concatenate
+    // ====================
+
+    @Test
+    @DisplayName("Pure Relation: distinct() - remove duplicate rows")
+    void testRelationDistinct() throws Exception {
+        // GIVEN: Create a table with duplicate data
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_ITEMS");
+            stmt.execute("CREATE TABLE T_ITEMS (ID INTEGER, CATEGORY VARCHAR(50), VALUE INTEGER)");
+            stmt.execute("INSERT INTO T_ITEMS VALUES (1, 'A', 100)");
+            stmt.execute("INSERT INTO T_ITEMS VALUES (2, 'A', 100)"); // Same category and value
+            stmt.execute("INSERT INTO T_ITEMS VALUES (3, 'B', 200)");
+            stmt.execute("INSERT INTO T_ITEMS VALUES (4, 'A', 100)"); // Another duplicate
+            stmt.execute("INSERT INTO T_ITEMS VALUES (5, 'B', 300)");
+        }
+
+        // Build model
+        String pureSource = """
+                Class model::Item { category: String[1]; value: Integer[1]; }
+                Database store::ItemDb ( Table T_ITEMS ( ID INTEGER, CATEGORY VARCHAR(50), VALUE INTEGER ) )
+                Mapping model::ItemMap ( Item: Relational { ~mainTable [ItemDb] T_ITEMS category: [ItemDb] T_ITEMS.CATEGORY, value: [ItemDb] T_ITEMS.VALUE } )
+                RelationalDatabaseConnection store::TestConn { store: ItemDb; type: DuckDB; specification: LocalH2{ url: 'jdbc:duckdb:' }; }
+                Runtime test::TestRuntime { mappings: [ItemMap]; connections: [ItemDb: [conn: store::TestConn]]; }
+                """;
+
+        // WHEN: Execute a relation query with distinct()
+        String relationQuery = "#>{store::ItemDb.T_ITEMS}->select(~CATEGORY, ~VALUE)->distinct()->from(test::TestRuntime)";
+
+        org.finos.legend.engine.execution.BufferedResult result = queryService.execute(
+                pureSource, relationQuery, "test::TestRuntime", connection);
+
+        // THEN: Should have 3 distinct category-value combinations (A-100, B-200,
+        // B-300)
+        System.out.println("Distinct result rows: " + result.rows().size());
+        result.rows().forEach(r -> System.out.println("  " + r));
+
+        assertEquals(3, result.rows().size(), "Should have 3 distinct category-value pairs");
+    }
+
+    @Test
+    @DisplayName("Pure Relation: rename() - rename a column")
+    void testRelationRename() throws Exception {
+        // Build model with existing T_PERSON table
+        String pureSource = getCompletePureModelWithRuntime();
+
+        // WHEN: Execute a relation query with rename()
+        String relationQuery = "#>{store::PersonDatabase.T_PERSON}->select(~FIRST_NAME)->rename(~FIRST_NAME, ~givenName)->from(test::TestRuntime)";
+
+        org.finos.legend.engine.execution.BufferedResult result = queryService.execute(
+                pureSource, relationQuery, "test::TestRuntime", connection);
+
+        // THEN: Should have the renamed column
+        var columns = result.columns();
+        System.out.println("Columns after rename: " + columns.stream().map(c -> c.name()).toList());
+
+        assertTrue(columns.stream().anyMatch(c -> c.name().equalsIgnoreCase("givenName")),
+                "Should have renamed column 'givenName'");
+        assertFalse(columns.stream().anyMatch(c -> c.name().equalsIgnoreCase("FIRST_NAME")),
+                "Should not have original column 'FIRST_NAME'");
+
+        assertEquals(3, result.rows().size(), "Should still have 3 rows");
+    }
+
+    @Test
+    @DisplayName("Pure Relation: concatenate() - union two relations")
+    void testRelationConcatenate() throws Exception {
+        // GIVEN: Create two separate tables
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_ACTIVE_USERS");
+            stmt.execute("DROP TABLE IF EXISTS T_INACTIVE_USERS");
+            stmt.execute("CREATE TABLE T_ACTIVE_USERS (ID INTEGER, NAME VARCHAR(100))");
+            stmt.execute("CREATE TABLE T_INACTIVE_USERS (ID INTEGER, NAME VARCHAR(100))");
+            stmt.execute("INSERT INTO T_ACTIVE_USERS VALUES (1, 'Alice')");
+            stmt.execute("INSERT INTO T_ACTIVE_USERS VALUES (2, 'Bob')");
+            stmt.execute("INSERT INTO T_INACTIVE_USERS VALUES (101, 'Charlie')");
+            stmt.execute("INSERT INTO T_INACTIVE_USERS VALUES (102, 'Diana')");
+            stmt.execute("INSERT INTO T_INACTIVE_USERS VALUES (103, 'Eve')");
+        }
+
+        // Build model
+        String pureSource = """
+                Class model::User { name: String[1]; }
+                Database store::UserDb (
+                    Table T_ACTIVE_USERS ( ID INTEGER, NAME VARCHAR(100) )
+                    Table T_INACTIVE_USERS ( ID INTEGER, NAME VARCHAR(100) )
+                )
+                RelationalDatabaseConnection store::TestConn { store: UserDb; type: DuckDB; specification: LocalH2{ url: 'jdbc:duckdb:' }; }
+                Runtime test::TestRuntime { mappings: []; connections: [UserDb: [conn: store::TestConn]]; }
+                """;
+
+        // WHEN: Execute a relation query with concatenate()
+        String relationQuery = """
+                #>{store::UserDb.T_ACTIVE_USERS}->select(~ID, ~NAME)
+                    ->concatenate(#>{store::UserDb.T_INACTIVE_USERS}->select(~ID, ~NAME))
+                    ->from(test::TestRuntime)
+                """;
+
+        org.finos.legend.engine.execution.BufferedResult result = queryService.execute(
+                pureSource, relationQuery, "test::TestRuntime", connection);
+
+        // THEN: Should have all 5 rows (2 active + 3 inactive)
+        System.out.println("Concatenate result rows: " + result.rows().size());
+        result.rows().forEach(r -> System.out.println("  " + r));
+
+        assertEquals(5, result.rows().size(), "Should have 5 total rows (2 + 3)");
+
+        // Verify we have data from both tables
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (var row : result.rows()) {
+            names.add((String) row.get(1));
+        }
+        assertTrue(names.contains("Alice"), "Should have Alice from active users");
+        assertTrue(names.contains("Charlie"), "Should have Charlie from inactive users");
+    }
 }

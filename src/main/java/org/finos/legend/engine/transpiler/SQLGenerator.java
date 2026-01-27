@@ -118,6 +118,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = lateral.accept(this);
                 yield "SELECT * FROM (" + innerSql + ") AS lat WHERE " + whereClause;
             }
+            default -> {
+                // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
+                String innerSql = source.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS src WHERE " + whereClause;
+            }
         };
     }
 
@@ -164,6 +169,12 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String innerSql = lateral.accept(this);
                 String projections = formatProjections(project);
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS lateral_result";
+            }
+            default -> {
+                // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
+                String innerSql = project.source().accept(this);
+                String projections = formatProjections(project);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS src_result";
             }
         };
     }
@@ -232,6 +243,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
             }
             case FromNode from -> generateJoinSource(from.source(), defaultAlias);
+            default -> {
+                // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
+                String innerSql = node.accept(this);
+                yield "(" + innerSql + ") AS " + dialect.quoteIdentifier(defaultAlias);
+            }
         };
     }
 
@@ -404,6 +420,47 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         // unnested)
         return "SELECT * EXCLUDE(" + outputCol + "), UNNEST(CAST(" + arrayColSql + " AS JSON[])) AS " + outputCol +
                 " FROM (" + sourceSql + ") AS t";
+    }
+
+    @Override
+    public String visit(DistinctNode distinct) {
+        String sourceSql = distinct.source().accept(this);
+
+        if (distinct.columns().isEmpty()) {
+            // distinct() - all columns: SELECT DISTINCT * FROM (source)
+            // Replace SELECT * or SELECT cols with SELECT DISTINCT
+            if (sourceSql.startsWith("SELECT ")) {
+                return "SELECT DISTINCT" + sourceSql.substring(6);
+            }
+            return "SELECT DISTINCT * FROM (" + sourceSql + ") AS distinct_src";
+        } else {
+            // distinct(~[col1, col2]) - specific columns only
+            String cols = distinct.columns().stream()
+                    .map(dialect::quoteIdentifier)
+                    .collect(Collectors.joining(", "));
+            return "SELECT DISTINCT " + cols + " FROM (" + sourceSql + ") AS distinct_src";
+        }
+    }
+
+    @Override
+    public String visit(RenameNode rename) {
+        String sourceSql = rename.source().accept(this);
+        String oldCol = dialect.quoteIdentifier(rename.oldColumnName());
+        String newCol = dialect.quoteIdentifier(rename.newColumnName());
+
+        // Generate: SELECT * EXCLUDE(oldCol), oldCol AS newCol FROM (source)
+        // DuckDB's EXCLUDE allows us to remove the old column and add it with new name
+        return "SELECT * EXCLUDE(" + oldCol + "), " + oldCol + " AS " + newCol +
+                " FROM (" + sourceSql + ") AS rename_src";
+    }
+
+    @Override
+    public String visit(ConcatenateNode concatenate) {
+        String leftSql = concatenate.left().accept(this);
+        String rightSql = concatenate.right().accept(this);
+
+        // UNION ALL combines the two relations
+        return "(" + leftSql + ") UNION ALL (" + rightSql + ")";
     }
 
     /**
@@ -596,6 +653,9 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case FromNode from -> extractFilterCondition(from.source());
             case ExtendNode extend -> extractFilterCondition(extend.source());
             case LateralJoinNode lateral -> extractFilterCondition(lateral.source());
+            case DistinctNode distinct -> extractFilterCondition(distinct.source());
+            case RenameNode rename -> extractFilterCondition(rename.source());
+            case ConcatenateNode concat -> null; // No filter to extract from UNION
         };
     }
 
@@ -622,6 +682,9 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case FromNode from -> extractTableNode(from.source());
             case ExtendNode extend -> extractTableNode(extend.source());
             case LateralJoinNode lateral -> extractTableNode(lateral.source());
+            case DistinctNode distinct -> extractTableNode(distinct.source());
+            case RenameNode rename -> extractTableNode(rename.source());
+            case ConcatenateNode concat -> extractTableNode(concat.left()); // Use left side
         };
     }
 
@@ -999,6 +1062,18 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     LateralJoinNode lateral -> {
                 // For EXISTS with lateral join, just use the source
                 yield generateExistsSubquery(lateral.source());
+            }
+            case DistinctNode distinct -> {
+                // For EXISTS, distinct doesn't matter, just use the source
+                yield generateExistsSubquery(distinct.source());
+            }
+            case RenameNode rename -> {
+                // For EXISTS, rename doesn't matter, just use the source
+                yield generateExistsSubquery(rename.source());
+            }
+            case ConcatenateNode concat -> {
+                // For EXISTS with concatenate, wrap the whole thing
+                yield "SELECT 1 FROM (" + concat.accept(this) + ") AS exists_src";
             }
 
         };
