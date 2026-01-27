@@ -76,4 +76,29 @@ public interface ExpressionVisitor<T> {
      * Visit a collection function call (map, filter, fold, flatten).
      */
     T visitCollectionCall(SqlCollectionCall collectionCall);
+
+    /**
+     * Visit a date extraction expression (year, month, day, etc.).
+     */
+    T visit(DateFunctionExpression dateFunction);
+
+    /**
+     * Visit a current date/time expression (now, today).
+     */
+    T visit(CurrentDateExpression currentDate);
+
+    /**
+     * Visit a date difference expression (dateDiff).
+     */
+    T visit(DateDiffExpression dateDiff);
+
+    /**
+     * Visit a date adjustment expression (adjust/dateAdd).
+     */
+    T visit(DateAdjustExpression dateAdjust);
+
+    /**
+     * Visit a date truncation expression (firstDayOfMonth, etc.).
+     */
+    T visit(DateTruncExpression dateTrunc);
 }

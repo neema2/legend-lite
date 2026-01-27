@@ -379,6 +379,62 @@ public final class PureCompiler {
                 // Association navigation - collect join info and create projection
                 Projection proj = compileAssociationProjection(path, alias, joinInfos, baseTableAlias, baseMapping);
                 projections.add(proj);
+            } else if (lambda.body() instanceof MethodCall mc && isDateFunction(mc.methodName())) {
+                // Date function call: $e.birthDate->year()
+                String propertyName = extractPropertyName(mc.source());
+                String columnName = baseMapping.getColumnForProperty(propertyName)
+                        .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
+                Expression colRef = ColumnReference.of(baseTableAlias, columnName);
+                DateFunctionExpression dateExpr = new DateFunctionExpression(
+                        mapDateFunction(mc.methodName()), colRef);
+                projections.add(new Projection(dateExpr, alias));
+            } else if (lambda.body() instanceof MethodCall mc && isCurrentDateFunction(mc.methodName())) {
+                // Zero-arg date function as MethodCall: now() or today()
+                CurrentDateExpression currentDateExpr = new CurrentDateExpression(
+                        mapCurrentDateFunction(mc.methodName()));
+                projections.add(new Projection(currentDateExpr, alias));
+            } else if (lambda.body() instanceof FunctionCall fc && isCurrentDateFunction(fc.functionName())) {
+                // Zero-arg date function as FunctionCall: now() or today()
+                CurrentDateExpression currentDateExpr = new CurrentDateExpression(
+                        mapCurrentDateFunction(fc.functionName()));
+                projections.add(new Projection(currentDateExpr, alias));
+            } else if (lambda.body() instanceof FunctionCall fc && "dateDiff".equalsIgnoreCase(fc.functionName())) {
+                // dateDiff(d1, d2, DurationUnit.DAYS) -> DATE_DIFF('day', d1, d2)
+                if (fc.arguments().size() != 3) {
+                    throw new PureCompileException("dateDiff requires 3 arguments: dateDiff(date1, date2, unit)");
+                }
+                Expression d1 = compileProjectionArg(fc.arguments().get(0), baseTableAlias, baseMapping);
+                Expression d2 = compileProjectionArg(fc.arguments().get(1), baseTableAlias, baseMapping);
+                DurationUnit unit = parseDurationUnit(fc.arguments().get(2));
+                DateDiffExpression dateDiffExpr = new DateDiffExpression(d1, d2, unit);
+                projections.add(new Projection(dateDiffExpr, alias));
+            } else if (lambda.body() instanceof FunctionCall fc && "adjust".equalsIgnoreCase(fc.functionName())) {
+                // adjust(date, amount, DurationUnit.DAYS) -> date + INTERVAL 'amount' DAY
+                if (fc.arguments().size() != 3) {
+                    throw new PureCompileException("adjust requires 3 arguments: adjust(date, amount, unit)");
+                }
+                Expression dateExpr = compileProjectionArg(fc.arguments().get(0), baseTableAlias, baseMapping);
+                Expression amountExpr = compileProjectionArg(fc.arguments().get(1), baseTableAlias, baseMapping);
+                DurationUnit unit = parseDurationUnit(fc.arguments().get(2));
+                DateAdjustExpression adjustExpr = new DateAdjustExpression(dateExpr, amountExpr, unit);
+                projections.add(new Projection(adjustExpr, alias));
+            } else if (lambda.body() instanceof MethodCall mc && isDateTruncFunction(mc.methodName())) {
+                // Date truncation function: $e.date->firstDayOfMonth()
+                Expression argument;
+                if (isDateTruncThisFunction(mc.methodName())) {
+                    // firstDayOfThisMonth() - use CURRENT_DATE as argument
+                    argument = new CurrentDateExpression(CurrentDateExpression.CurrentDateFunction.TODAY);
+                } else {
+                    // firstDayOfMonth($e.date) - use the source expression
+                    String propertyName = extractPropertyName(mc.source());
+                    String columnName = baseMapping.getColumnForProperty(propertyName)
+                            .orElseThrow(
+                                    () -> new PureCompileException("No column mapping for property: " + propertyName));
+                    argument = ColumnReference.of(baseTableAlias, columnName);
+                }
+                DateTruncExpression truncExpr = new DateTruncExpression(
+                        mapDateTruncFunction(mc.methodName()), argument);
+                projections.add(new Projection(truncExpr, alias));
             } else {
                 // Property access - check if expression-based or column-based
                 String propertyName = extractPropertyName(lambda.body());
@@ -555,6 +611,145 @@ public final class PureCompiler {
     private boolean isPercentileFunction(AggregateExpression.AggregateFunction function) {
         return function == AggregateExpression.AggregateFunction.PERCENTILE_CONT
                 || function == AggregateExpression.AggregateFunction.PERCENTILE_DISC;
+    }
+
+    /**
+     * Checks if the given method name is a date extraction function.
+     */
+    private boolean isDateFunction(String methodName) {
+        return switch (methodName.toLowerCase()) {
+            case "year", "month", "dayofmonth", "day", "hour", "minute", "second",
+                    "dayofweek", "dayofyear", "weekofyear", "quarter" ->
+                true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Maps a Pure date function name to the DateFunction enum.
+     */
+    private DateFunctionExpression.DateFunction mapDateFunction(String functionName) {
+        return switch (functionName.toLowerCase()) {
+            case "year" -> DateFunctionExpression.DateFunction.YEAR;
+            case "month" -> DateFunctionExpression.DateFunction.MONTH;
+            case "dayofmonth", "day" -> DateFunctionExpression.DateFunction.DAY;
+            case "hour" -> DateFunctionExpression.DateFunction.HOUR;
+            case "minute" -> DateFunctionExpression.DateFunction.MINUTE;
+            case "second" -> DateFunctionExpression.DateFunction.SECOND;
+            case "dayofweek" -> DateFunctionExpression.DateFunction.DAY_OF_WEEK;
+            case "dayofyear" -> DateFunctionExpression.DateFunction.DAY_OF_YEAR;
+            case "weekofyear" -> DateFunctionExpression.DateFunction.WEEK_OF_YEAR;
+            case "quarter" -> DateFunctionExpression.DateFunction.QUARTER;
+            default -> throw new PureCompileException("Unknown date function: " + functionName);
+        };
+    }
+
+    /**
+     * Checks if the given method name is a zero-argument current date function.
+     */
+    private boolean isCurrentDateFunction(String methodName) {
+        return switch (methodName.toLowerCase()) {
+            case "now", "today" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Maps a zero-argument date function to CurrentDateExpression.
+     */
+    private CurrentDateExpression.CurrentDateFunction mapCurrentDateFunction(String functionName) {
+        return switch (functionName.toLowerCase()) {
+            case "now" -> CurrentDateExpression.CurrentDateFunction.NOW;
+            case "today" -> CurrentDateExpression.CurrentDateFunction.TODAY;
+            default -> throw new PureCompileException("Unknown current date function: " + functionName);
+        };
+    }
+
+    /**
+     * Checks if the given method name is a date truncation function (firstDayOf*).
+     */
+    private boolean isDateTruncFunction(String methodName) {
+        return switch (methodName.toLowerCase()) {
+            case "firstdayofmonth", "firstdayofyear", "firstdayofquarter", "firstdayofweek",
+                    "firstdayofthismonth", "firstdayofthisyear", "firstdayofthisquarter" ->
+                true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Checks if the date truncation function is a "this" variant (no argument).
+     */
+    private boolean isDateTruncThisFunction(String methodName) {
+        return switch (methodName.toLowerCase()) {
+            case "firstdayofthismonth", "firstdayofthisyear", "firstdayofthisquarter" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Maps a date truncation function to TruncPart.
+     */
+    private DateTruncExpression.TruncPart mapDateTruncFunction(String functionName) {
+        return switch (functionName.toLowerCase()) {
+            case "firstdayofmonth", "firstdayofthismonth" -> DateTruncExpression.TruncPart.MONTH;
+            case "firstdayofyear", "firstdayofthisyear" -> DateTruncExpression.TruncPart.YEAR;
+            case "firstdayofquarter", "firstdayofthisquarter" -> DateTruncExpression.TruncPart.QUARTER;
+            case "firstdayofweek" -> DateTruncExpression.TruncPart.WEEK;
+            default -> throw new PureCompileException("Unknown date truncation function: " + functionName);
+        };
+    }
+
+    /**
+     * Compiles a projection argument expression (property access or literal).
+     * Used for multi-argument functions like dateDiff and adjust.
+     */
+    private Expression compileProjectionArg(PureExpression expr, String tableAlias, RelationalMapping mapping) {
+        // Property access: $e.propertyName (from ANTLR: PropertyAccessExpression)
+        if (expr instanceof PropertyAccessExpression pa) {
+            String propertyName = pa.propertyName();
+            String columnName = mapping.getColumnForProperty(propertyName)
+                    .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
+            return ColumnReference.of(tableAlias, columnName);
+        }
+        // LiteralExpr (integers, strings, floats, etc. from ANTLR parser)
+        if (expr instanceof LiteralExpr le) {
+            return compileLiteral(le);
+        }
+        // Integer literal (legacy support)
+        if (expr instanceof IntegerLiteral il) {
+            return Literal.integer(il.value());
+        }
+        // String literal (legacy support)
+        if (expr instanceof StringLiteral sl) {
+            return Literal.string(sl.value());
+        }
+        throw new PureCompileException("Unsupported projection argument: " + expr.getClass().getSimpleName());
+    }
+
+    /**
+     * Parses a DurationUnit from a Pure expression.
+     * Handles: DurationUnit.DAYS, DAYS, 'day'
+     */
+    private DurationUnit parseDurationUnit(PureExpression expr) {
+        // Enum reference: DurationUnit.DAYS (parsed as PropertyAccessExpression)
+        if (expr instanceof PropertyAccessExpression pa) {
+            return DurationUnit.fromPure(pa.propertyName());
+        }
+        // Qualified enum: meta::pure::duration::DurationUnit.DAYS (parsed as
+        // MethodCall)
+        if (expr instanceof MethodCall mc) {
+            return DurationUnit.fromPure(mc.methodName());
+        }
+        // String literal: 'day' or 'DAYS'
+        if (expr instanceof StringLiteral sl) {
+            return DurationUnit.fromPure(sl.value());
+        }
+        // FunctionCall for enum values like DAYS()
+        if (expr instanceof FunctionCall fc) {
+            return DurationUnit.fromPure(fc.functionName());
+        }
+        throw new PureCompileException("Expected DurationUnit, got: " + expr.getClass().getSimpleName());
     }
 
     /**

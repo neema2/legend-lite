@@ -8,21 +8,23 @@ public enum PrimitiveType implements Type {
     STRING("String"),
     INTEGER("Integer"),
     BOOLEAN("Boolean"),
-    DATE("Date"),
+    DATE("Date"), // Abstract supertype of StrictDate and DateTime
+    STRICT_DATE("StrictDate"), // Date only: %YYYY-MM-DD
+    DATE_TIME("DateTime"), // Date + time: %YYYY-MM-DD'T'HH:MM:SS
     FLOAT("Float"),
     DECIMAL("Decimal");
-    
+
     private final String typeName;
-    
+
     PrimitiveType(String typeName) {
         this.typeName = typeName;
     }
-    
+
     @Override
     public String typeName() {
         return typeName;
     }
-    
+
     /**
      * Resolves a primitive type by name.
      * 

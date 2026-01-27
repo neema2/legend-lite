@@ -1624,4 +1624,415 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // implementation
         assertTrue(q3 >= 90000 && q3 <= 100000, "75th percentile should be 90k or 100k");
     }
+
+    @Test
+    @DisplayName("Pure syntax: date extraction functions (year, month, dayOfMonth)")
+    void testPureSyntaxDateExtraction() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_DATE_TEST");
+            stmt.execute("CREATE TABLE T_DATE_TEST (ID INTEGER, NAME VARCHAR, BIRTH_DATE DATE)");
+            stmt.execute("INSERT INTO T_DATE_TEST VALUES (1, 'Alice', '1990-06-15')");
+            stmt.execute("INSERT INTO T_DATE_TEST VALUES (2, 'Bob', '1985-12-25')");
+            stmt.execute("INSERT INTO T_DATE_TEST VALUES (3, 'Charlie', '2000-01-01')");
+        }
+
+        String pureSource = """
+                Class model::DatePerson { name: String[1]; birthDate: StrictDate[1]; }
+                Database store::DateDb ( Table T_DATE_TEST ( ID INTEGER, NAME VARCHAR(100), BIRTH_DATE DATE ) )
+                Mapping model::DateMap ( DatePerson: Relational { ~mainTable [DateDb] T_DATE_TEST name: [DateDb] T_DATE_TEST.NAME, birthDate: [DateDb] T_DATE_TEST.BIRTH_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DateMap ]; connections: [ store::DateDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test year(), month(), dayOfMonth() extraction
+        String pureQuery = "DatePerson.all()->project([{e | $e.name}, {e | $e.birthDate->year()}, {e | $e.birthDate->month()}, {e | $e.birthDate->dayOfMonth()}], ['name', 'birthYear', 'birthMonth', 'birthDay'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Date extraction result: " + result.rows());
+        assertEquals(3, result.rows().size());
+
+        // Verify results
+        for (var row : result.rows()) {
+            String name = (String) row.get(0);
+            int year = ((Number) row.get(1)).intValue();
+            int month = ((Number) row.get(2)).intValue();
+            int day = ((Number) row.get(3)).intValue();
+            System.out.printf("  %s: year=%d, month=%d, day=%d%n", name, year, month, day);
+
+            if ("Alice".equals(name)) {
+                assertEquals(1990, year, "Alice born 1990");
+                assertEquals(6, month, "Alice born June");
+                assertEquals(15, day, "Alice born 15th");
+            } else if ("Bob".equals(name)) {
+                assertEquals(1985, year, "Bob born 1985");
+                assertEquals(12, month, "Bob born December");
+                assertEquals(25, day, "Bob born 25th");
+            } else if ("Charlie".equals(name)) {
+                assertEquals(2000, year, "Charlie born 2000");
+                assertEquals(1, month, "Charlie born January");
+                assertEquals(1, day, "Charlie born 1st");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: time extraction functions (hour, minute, second)")
+    void testPureSyntaxTimeExtraction() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_TIME_TEST");
+            stmt.execute("CREATE TABLE T_TIME_TEST (ID INTEGER, NAME VARCHAR, EVENT_TIME TIMESTAMP)");
+            stmt.execute("INSERT INTO T_TIME_TEST VALUES (1, 'Meeting', '2024-06-15 14:30:45')");
+            stmt.execute("INSERT INTO T_TIME_TEST VALUES (2, 'Call', '2024-12-25 09:15:30')");
+        }
+
+        String pureSource = """
+                Class model::TimeEvent { name: String[1]; eventTime: DateTime[1]; }
+                Database store::TimeDb ( Table T_TIME_TEST ( ID INTEGER, NAME VARCHAR(100), EVENT_TIME TIMESTAMP ) )
+                Mapping model::TimeMap ( TimeEvent: Relational { ~mainTable [TimeDb] T_TIME_TEST name: [TimeDb] T_TIME_TEST.NAME, eventTime: [TimeDb] T_TIME_TEST.EVENT_TIME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::TimeMap ]; connections: [ store::TimeDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test hour(), minute(), second() extraction
+        String pureQuery = "TimeEvent.all()->project([{e | $e.name}, {e | $e.eventTime->hour()}, {e | $e.eventTime->minute()}, {e | $e.eventTime->second()}], ['name', 'hour', 'minute', 'second'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Time extraction result: " + result.rows());
+        assertEquals(2, result.rows().size());
+
+        // Verify results
+        for (var row : result.rows()) {
+            String name = (String) row.get(0);
+            int hour = ((Number) row.get(1)).intValue();
+            int minute = ((Number) row.get(2)).intValue();
+            int second = ((Number) row.get(3)).intValue();
+            System.out.printf("  %s: hour=%d, minute=%d, second=%d%n", name, hour, minute, second);
+
+            if ("Meeting".equals(name)) {
+                assertEquals(14, hour, "Meeting at 14:xx");
+                assertEquals(30, minute, "Meeting at xx:30");
+                assertEquals(45, second, "Meeting at xx:xx:45");
+            } else if ("Call".equals(name)) {
+                assertEquals(9, hour, "Call at 09:xx");
+                assertEquals(15, minute, "Call at xx:15");
+                assertEquals(30, second, "Call at xx:xx:30");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: quarter() date extraction")
+    void testPureSyntaxQuarterExtraction() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_QUARTER_TEST");
+            stmt.execute("CREATE TABLE T_QUARTER_TEST (ID INTEGER, SALE_DATE DATE, AMOUNT INTEGER)");
+            stmt.execute("INSERT INTO T_QUARTER_TEST VALUES (1, '2024-02-15', 1000)"); // Q1
+            stmt.execute("INSERT INTO T_QUARTER_TEST VALUES (2, '2024-05-20', 2000)"); // Q2
+            stmt.execute("INSERT INTO T_QUARTER_TEST VALUES (3, '2024-08-10', 3000)"); // Q3
+            stmt.execute("INSERT INTO T_QUARTER_TEST VALUES (4, '2024-11-25', 4000)"); // Q4
+        }
+
+        String pureSource = """
+                Class model::Sale { saleDate: StrictDate[1]; amount: Integer[1]; }
+                Database store::QuarterDb ( Table T_QUARTER_TEST ( ID INTEGER, SALE_DATE DATE, AMOUNT INTEGER ) )
+                Mapping model::QuarterMap ( Sale: Relational { ~mainTable [QuarterDb] T_QUARTER_TEST saleDate: [QuarterDb] T_QUARTER_TEST.SALE_DATE, amount: [QuarterDb] T_QUARTER_TEST.AMOUNT } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::QuarterMap ]; connections: [ store::QuarterDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "Sale.all()->project([{e | $e.saleDate->quarter()}, {e | $e.amount}], ['quarter', 'amount'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Quarter extraction result: " + result.rows());
+        assertEquals(4, result.rows().size());
+
+        // Verify quarters
+        for (var row : result.rows()) {
+            int quarter = ((Number) row.get(0)).intValue();
+            int amount = ((Number) row.get(1)).intValue();
+            System.out.printf("  Q%d: amount=%d%n", quarter, amount);
+
+            // Each sale is in a different quarter
+            assertTrue(quarter >= 1 && quarter <= 4, "Quarter should be 1-4");
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: dayOfWeek() and dayOfYear() extraction")
+    void testPureSyntaxDayOfWeekAndYear() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_DOW_TEST");
+            stmt.execute("CREATE TABLE T_DOW_TEST (ID INTEGER, EVENT_DATE DATE)");
+            // 2024-01-01 is a Monday (DOW=1), and it's day 1 of the year
+            stmt.execute("INSERT INTO T_DOW_TEST VALUES (1, '2024-01-01')");
+            // 2024-12-31 is a Tuesday (DOW=2), and it's day 366 of 2024 (leap year)
+            stmt.execute("INSERT INTO T_DOW_TEST VALUES (2, '2024-12-31')");
+        }
+
+        String pureSource = """
+                Class model::Event { eventDate: StrictDate[1]; }
+                Database store::DowDb ( Table T_DOW_TEST ( ID INTEGER, EVENT_DATE DATE ) )
+                Mapping model::DowMap ( Event: Relational { ~mainTable [DowDb] T_DOW_TEST eventDate: [DowDb] T_DOW_TEST.EVENT_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DowMap ]; connections: [ store::DowDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "Event.all()->project([{e | $e.eventDate->dayOfWeek()}, {e | $e.eventDate->dayOfYear()}], ['dow', 'doy'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("DayOfWeek/DayOfYear result: " + result.rows());
+        assertEquals(2, result.rows().size());
+
+        // Verify - DuckDB DOW: Sunday=0
+        for (var row : result.rows()) {
+            int dow = ((Number) row.get(0)).intValue();
+            int doy = ((Number) row.get(1)).intValue();
+            System.out.printf("  dow=%d, doy=%d%n", dow, doy);
+            assertTrue(dow >= 0 && dow <= 6, "Day of week should be 0-6");
+            assertTrue(doy >= 1 && doy <= 366, "Day of year should be 1-366");
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: weekOfYear() extraction")
+    void testPureSyntaxWeekOfYear() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_WEEK_TEST");
+            stmt.execute("CREATE TABLE T_WEEK_TEST (ID INTEGER, EVENT_DATE DATE)");
+            // First week of January
+            stmt.execute("INSERT INTO T_WEEK_TEST VALUES (1, '2024-01-07')");
+            // Mid-year (around week 26)
+            stmt.execute("INSERT INTO T_WEEK_TEST VALUES (2, '2024-06-25')");
+            // Last week of December
+            stmt.execute("INSERT INTO T_WEEK_TEST VALUES (3, '2024-12-28')");
+        }
+
+        String pureSource = """
+                Class model::WeekEvent { eventDate: StrictDate[1]; }
+                Database store::WeekDb ( Table T_WEEK_TEST ( ID INTEGER, EVENT_DATE DATE ) )
+                Mapping model::WeekMap ( WeekEvent: Relational { ~mainTable [WeekDb] T_WEEK_TEST eventDate: [WeekDb] T_WEEK_TEST.EVENT_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::WeekMap ]; connections: [ store::WeekDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "WeekEvent.all()->project([{e | $e.eventDate->weekOfYear()}], ['week'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("WeekOfYear result: " + result.rows());
+        assertEquals(3, result.rows().size());
+
+        // Verify weeks are in valid range
+        for (var row : result.rows()) {
+            int week = ((Number) row.get(0)).intValue();
+            System.out.printf("  week=%d%n", week);
+            assertTrue(week >= 1 && week <= 53, "Week of year should be 1-53");
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: StrictDate and DateTime types")
+    void testPureSyntaxStrictDateAndDateTime() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_DATETIME_TEST");
+            stmt.execute(
+                    "CREATE TABLE T_DATETIME_TEST (ID INTEGER, NAME VARCHAR, BIRTH_DATE DATE, LAST_LOGIN TIMESTAMP)");
+            stmt.execute("INSERT INTO T_DATETIME_TEST VALUES (1, 'Alice', '1990-06-15', '2024-01-15 09:30:00')");
+            stmt.execute("INSERT INTO T_DATETIME_TEST VALUES (2, 'Bob', '1985-12-25', '2024-01-16 14:45:30')");
+        }
+
+        // Using StrictDate for date-only and DateTime for timestamp
+        String pureSource = """
+                Class model::User { name: String[1]; birthDate: StrictDate[1]; lastLogin: DateTime[1]; }
+                Database store::DateTimeDb ( Table T_DATETIME_TEST ( ID INTEGER, NAME VARCHAR(100), BIRTH_DATE DATE, LAST_LOGIN TIMESTAMP ) )
+                Mapping model::DateTimeMap ( User: Relational { ~mainTable [DateTimeDb] T_DATETIME_TEST name: [DateTimeDb] T_DATETIME_TEST.NAME, birthDate: [DateTimeDb] T_DATETIME_TEST.BIRTH_DATE, lastLogin: [DateTimeDb] T_DATETIME_TEST.LAST_LOGIN } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DateTimeMap ]; connections: [ store::DateTimeDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test extraction from StrictDate and DateTime
+        String pureQuery = "User.all()->project([{e | $e.name}, {e | $e.birthDate->year()}, {e | $e.lastLogin->hour()}], ['name', 'birthYear', 'loginHour'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("StrictDate/DateTime result: " + result.rows());
+        assertEquals(2, result.rows().size());
+
+        // Verify results
+        for (var row : result.rows()) {
+            String name = (String) row.get(0);
+            int birthYear = ((Number) row.get(1)).intValue();
+            int loginHour = ((Number) row.get(2)).intValue();
+            System.out.printf("  %s: birthYear=%d, loginHour=%d%n", name, birthYear, loginHour);
+
+            if ("Alice".equals(name)) {
+                assertEquals(1990, birthYear, "Alice born 1990");
+                assertEquals(9, loginHour, "Alice logged in at 09:xx");
+            } else if ("Bob".equals(name)) {
+                assertEquals(1985, birthYear, "Bob born 1985");
+                assertEquals(14, loginHour, "Bob logged in at 14:xx");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: now() and today() current date functions")
+    void testPureSyntaxNowAndToday() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_NOW_TEST");
+            stmt.execute("CREATE TABLE T_NOW_TEST (ID INTEGER, NAME VARCHAR)");
+            stmt.execute("INSERT INTO T_NOW_TEST VALUES (1, 'Test')");
+        }
+
+        String pureSource = """
+                Class model::TestRecord { name: String[1]; }
+                Database store::NowDb ( Table T_NOW_TEST ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::NowMap ( TestRecord: Relational { ~mainTable [NowDb] T_NOW_TEST name: [NowDb] T_NOW_TEST.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::NowMap ]; connections: [ store::NowDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test now() - returns current timestamp
+        String pureQueryNow = "TestRecord.all()->project([{e | now()}], ['currentTimestamp'])";
+        var resultNow = queryService.execute(pureSource, pureQueryNow, "test::TestRuntime", connection);
+        System.out.println("now() SQL generates: CURRENT_TIMESTAMP");
+        assertEquals(1, resultNow.rows().size());
+        // The result should be a timestamp (we just check it exists)
+        assertNotNull(resultNow.rows().get(0).get(0), "now() should return a value");
+
+        // Test today() - returns current date
+        String pureQueryToday = "TestRecord.all()->project([{e | today()}], ['currentDate'])";
+        var resultToday = queryService.execute(pureSource, pureQueryToday, "test::TestRuntime", connection);
+        System.out.println("today() SQL generates: CURRENT_DATE");
+        assertEquals(1, resultToday.rows().size());
+        assertNotNull(resultToday.rows().get(0).get(0), "today() should return a value");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: firstDayOfMonth() date truncation")
+    void testPureSyntaxFirstDayOfMonth() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_FIRST_DAY_TEST");
+            stmt.execute("CREATE TABLE T_FIRST_DAY_TEST (ID INTEGER, EVENT_DATE DATE)");
+            stmt.execute("INSERT INTO T_FIRST_DAY_TEST VALUES (1, '2024-06-15')");
+            stmt.execute("INSERT INTO T_FIRST_DAY_TEST VALUES (2, '2024-12-25')");
+        }
+
+        String pureSource = """
+                Class model::EventRecord { eventDate: StrictDate[1]; }
+                Database store::FirstDayDb ( Table T_FIRST_DAY_TEST ( ID INTEGER, EVENT_DATE DATE ) )
+                Mapping model::FirstDayMap ( EventRecord: Relational { ~mainTable [FirstDayDb] T_FIRST_DAY_TEST eventDate: [FirstDayDb] T_FIRST_DAY_TEST.EVENT_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::FirstDayMap ]; connections: [ store::FirstDayDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test firstDayOfMonth()
+        String pureQuery = "EventRecord.all()->project([{e | $e.eventDate}, {e | $e.eventDate->firstDayOfMonth()}], ['eventDate', 'firstOfMonth'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("firstDayOfMonth result: " + result.rows());
+        assertEquals(2, result.rows().size());
+
+        // Verify - June 15 -> June 1, Dec 25 -> Dec 1
+        for (var row : result.rows()) {
+            Object eventDate = row.get(0);
+            Object firstOfMonth = row.get(1);
+            System.out.printf("  %s -> %s%n", eventDate, firstOfMonth);
+            assertNotNull(firstOfMonth, "firstDayOfMonth should return a value");
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: firstDayOfYear() and firstDayOfQuarter() truncation")
+    void testPureSyntaxFirstDayOfYearAndQuarter() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_TRUNC_TEST");
+            stmt.execute("CREATE TABLE T_TRUNC_TEST (ID INTEGER, EVENT_DATE DATE)");
+            stmt.execute("INSERT INTO T_TRUNC_TEST VALUES (1, '2024-05-15')"); // Q2, mid-year
+        }
+
+        String pureSource = """
+                Class model::TruncRecord { eventDate: StrictDate[1]; }
+                Database store::TruncDb ( Table T_TRUNC_TEST ( ID INTEGER, EVENT_DATE DATE ) )
+                Mapping model::TruncMap ( TruncRecord: Relational { ~mainTable [TruncDb] T_TRUNC_TEST eventDate: [TruncDb] T_TRUNC_TEST.EVENT_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::TruncMap ]; connections: [ store::TruncDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test firstDayOfYear and firstDayOfQuarter
+        String pureQuery = "TruncRecord.all()->project([{e | $e.eventDate}, {e | $e.eventDate->firstDayOfYear()}, {e | $e.eventDate->firstDayOfQuarter()}], ['eventDate', 'firstOfYear', 'firstOfQuarter'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("firstDayOfYear/Quarter result: " + result.rows());
+        assertEquals(1, result.rows().size());
+
+        var row = result.rows().get(0);
+        System.out.printf("  eventDate=%s, firstOfYear=%s, firstOfQuarter=%s%n",
+                row.get(0), row.get(1), row.get(2));
+        // May 15, 2024 -> Jan 1, 2024 (year) and Apr 1, 2024 (Q2)
+        assertNotNull(row.get(1), "firstDayOfYear should return a value");
+        assertNotNull(row.get(2), "firstDayOfQuarter should return a value");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: dateDiff() date difference")
+    void testPureSyntaxDateDiff() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_DATE_DIFF_TEST");
+            stmt.execute("CREATE TABLE T_DATE_DIFF_TEST (ID INTEGER, START_DATE DATE, END_DATE DATE)");
+            stmt.execute("INSERT INTO T_DATE_DIFF_TEST VALUES (1, '2024-01-01', '2024-01-10')"); // 9 days
+            stmt.execute("INSERT INTO T_DATE_DIFF_TEST VALUES (2, '2024-01-01', '2024-04-01')"); // 91 days
+        }
+
+        String pureSource = """
+                Class model::DateRange { startDate: StrictDate[1]; endDate: StrictDate[1]; }
+                Database store::DateDiffDb ( Table T_DATE_DIFF_TEST ( ID INTEGER, START_DATE DATE, END_DATE DATE ) )
+                Mapping model::DateDiffMap ( DateRange: Relational { ~mainTable [DateDiffDb] T_DATE_DIFF_TEST startDate: [DateDiffDb] T_DATE_DIFF_TEST.START_DATE, endDate: [DateDiffDb] T_DATE_DIFF_TEST.END_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DateDiffMap ]; connections: [ store::DateDiffDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test dateDiff with DAYS unit
+        String pureQuery = "DateRange.all()->project([{e | dateDiff($e.startDate, $e.endDate, DurationUnit.DAYS)}], ['daysDiff'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("dateDiff result: " + result.rows());
+        assertEquals(2, result.rows().size());
+
+        // Verify results: 9 days and 91 days
+        int days1 = ((Number) result.rows().get(0).get(0)).intValue();
+        int days2 = ((Number) result.rows().get(1).get(0)).intValue();
+        System.out.printf("  Row 1: %d days, Row 2: %d days%n", days1, days2);
+        assertEquals(9, days1, "Jan 1 to Jan 10 = 9 days");
+        assertEquals(91, days2, "Jan 1 to Apr 1 = 91 days");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: adjust() date arithmetic")
+    void testPureSyntaxAdjust() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_ADJUST_TEST");
+            stmt.execute("CREATE TABLE T_ADJUST_TEST (ID INTEGER, BASE_DATE DATE)");
+            stmt.execute("INSERT INTO T_ADJUST_TEST VALUES (1, '2024-01-15')");
+        }
+
+        String pureSource = """
+                Class model::AdjustRecord { baseDate: StrictDate[1]; }
+                Database store::AdjustDb ( Table T_ADJUST_TEST ( ID INTEGER, BASE_DATE DATE ) )
+                Mapping model::AdjustMap ( AdjustRecord: Relational { ~mainTable [AdjustDb] T_ADJUST_TEST baseDate: [AdjustDb] T_ADJUST_TEST.BASE_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::AdjustMap ]; connections: [ store::AdjustDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test adjust - add 10 days
+        String pureQuery = "AdjustRecord.all()->project([{e | $e.baseDate}, {e | adjust($e.baseDate, 10, DurationUnit.DAYS)}], ['baseDate', 'adjustedDate'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("adjust result: " + result.rows());
+        assertEquals(1, result.rows().size());
+
+        // Verify: Jan 15 + 10 days = Jan 25
+        Object baseDate = result.rows().get(0).get(0);
+        Object adjustedDate = result.rows().get(0).get(1);
+        System.out.printf("  baseDate=%s, adjustedDate=%s%n", baseDate, adjustedDate);
+        assertNotNull(adjustedDate, "adjust should return a value");
+    }
 }

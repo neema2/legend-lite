@@ -1,6 +1,5 @@
 package org.finos.legend.pure.dsl;
 
-import org.finos.legend.pure.dsl.GraphFetchTree;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

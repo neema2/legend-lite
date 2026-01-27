@@ -14,7 +14,7 @@ public enum SqlDataType {
     TIMESTAMP,
     DOUBLE,
     DECIMAL;
-    
+
     /**
      * Maps a Pure primitive type to its corresponding SQL type.
      * 
@@ -27,6 +27,8 @@ public enum SqlDataType {
             case INTEGER -> INTEGER;
             case BOOLEAN -> BOOLEAN;
             case DATE -> DATE;
+            case STRICT_DATE -> DATE; // StrictDate maps to SQL DATE
+            case DATE_TIME -> TIMESTAMP; // DateTime maps to SQL TIMESTAMP
             case FLOAT -> DOUBLE;
             case DECIMAL -> DECIMAL;
         };

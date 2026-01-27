@@ -969,6 +969,44 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     }
 
     @Override
+    public String visit(DateFunctionExpression dateFunction) {
+        // EXTRACT(YEAR FROM column)
+        String arg = dateFunction.argument().accept(this);
+        return "EXTRACT(" + dateFunction.function().sql() + " FROM " + arg + ")";
+    }
+
+    @Override
+    public String visit(CurrentDateExpression currentDate) {
+        // now() -> CURRENT_TIMESTAMP
+        // today() -> CURRENT_DATE
+        return currentDate.function().sql();
+    }
+
+    @Override
+    public String visit(DateDiffExpression dateDiff) {
+        // dateDiff(d1, d2, DAYS) -> DATE_DIFF('day', d1, d2)
+        String d1 = dateDiff.date1().accept(this);
+        String d2 = dateDiff.date2().accept(this);
+        return "DATE_DIFF('" + dateDiff.unit().sql() + "', " + d1 + ", " + d2 + ")";
+    }
+
+    @Override
+    public String visit(DateAdjustExpression dateAdjust) {
+        // adjust(date, 5, DAYS) -> date + INTERVAL '5' DAY
+        String date = dateAdjust.date().accept(this);
+        String amount = dateAdjust.amount().accept(this);
+        String unitSql = dateAdjust.unit().sql().toUpperCase();
+        return "(" + date + " + INTERVAL '" + amount + "' " + unitSql + ")";
+    }
+
+    @Override
+    public String visit(DateTruncExpression dateTrunc) {
+        // firstDayOfMonth(date) -> DATE_TRUNC('month', date)
+        String arg = dateTrunc.argument().accept(this);
+        return "DATE_TRUNC('" + dateTrunc.part().sql() + "', " + arg + ")";
+    }
+
+    @Override
     public String visit(JsonObjectExpression jsonObject) {
         // Render nested json_object() for deep fetch
         // Example: json_object('city', t1.CITY, 'street', t1.STREET)

@@ -548,6 +548,8 @@ public final class PureModelBuilder implements ModelContext {
             case "Integer" -> PrimitiveType.INTEGER;
             case "Boolean" -> PrimitiveType.BOOLEAN;
             case "Date" -> PrimitiveType.DATE;
+            case "StrictDate" -> PrimitiveType.STRICT_DATE;
+            case "DateTime" -> PrimitiveType.DATE_TIME;
             case "Float" -> PrimitiveType.FLOAT;
             case "Decimal" -> PrimitiveType.DECIMAL;
             default -> {
