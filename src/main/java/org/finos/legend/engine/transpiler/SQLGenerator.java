@@ -273,6 +273,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             sb.append(agg.function().sql());
             sb.append("(");
             sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+            // Add second column for bi-variate functions (CORR, COVAR_SAMP, COVAR_POP)
+            if (agg.isBivariate()) {
+                sb.append(", ");
+                sb.append(dialect.quoteIdentifier(agg.secondColumn()));
+            }
             sb.append(")");
             if (agg.function() == AggregateExpression.AggregateFunction.COUNT_DISTINCT) {
                 sb.append(")"); // close the extra paren for COUNT(DISTINCT ...)

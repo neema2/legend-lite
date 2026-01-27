@@ -455,16 +455,25 @@ public final class PureCompiler {
         for (int i = 0; i < groupBy.aggregations().size(); i++) {
             LambdaExpression aggLambda = groupBy.aggregations().get(i);
 
-            // Extract column name and aggregate function from lambda body
-            // Supports: {r | $r.col} (defaults to SUM) or {r | $r.col->stdDev()} (explicit)
+            // Extract column name(s) and aggregate function from lambda body
+            // Supports:
+            // {r | $r.col} (defaults to SUM)
+            // {r | $r.col->stdDev()} (explicit single-column)
+            // {r | $r.col1->corr($r.col2)} (bi-variate)
             String columnName;
+            String secondColumnName = null;
             AggregateExpression.AggregateFunction aggFunc;
 
             PureExpression body = aggLambda.body();
             if (body instanceof MethodCall methodCall) {
-                // Pattern: $r.col->stdDev() or $r.col->sum()
+                // Pattern: $r.col->stdDev() or $r.col1->corr($r.col2)
                 columnName = extractPropertyName(methodCall.source());
                 aggFunc = mapAggregateFunction(methodCall.methodName());
+
+                // Check for bi-variate function with second argument
+                if (aggFunc.isBivariate() && !methodCall.arguments().isEmpty()) {
+                    secondColumnName = extractPropertyName(methodCall.arguments().get(0));
+                }
             } else {
                 // Pattern: $r.col - defaults to SUM
                 columnName = extractPropertyName(body);
@@ -479,7 +488,7 @@ public final class PureCompiler {
                 alias = columnName + "_agg";
             }
 
-            aggregations.add(new GroupByNode.AggregateProjection(alias, columnName, aggFunc));
+            aggregations.add(new GroupByNode.AggregateProjection(alias, columnName, secondColumnName, aggFunc));
         }
 
         return new GroupByNode(source, groupingColumns, aggregations);
@@ -503,6 +512,10 @@ public final class PureCompiler {
             case "variancesample", "var_samp" -> AggregateExpression.AggregateFunction.VAR_SAMP;
             case "variancepopulation", "var_pop" -> AggregateExpression.AggregateFunction.VAR_POP;
             case "median" -> AggregateExpression.AggregateFunction.MEDIAN;
+            // Correlation and covariance
+            case "corr" -> AggregateExpression.AggregateFunction.CORR;
+            case "covarsample", "covar_samp" -> AggregateExpression.AggregateFunction.COVAR_SAMP;
+            case "covarpopulation", "covar_pop" -> AggregateExpression.AggregateFunction.COVAR_POP;
             default -> throw new PureCompileException("Unknown aggregate function: " + functionName);
         };
     }

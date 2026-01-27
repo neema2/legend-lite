@@ -1331,4 +1331,218 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.printf("Median of Team salaries: %.2f%n", median);
         assertEquals(90000.0, median, 1.0, "Median should be 90000");
     }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with stdDevSample() aggregate")
+    void testPureSyntaxGroupByWithStdDevSample() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_STDDEV_SAMP");
+            stmt.execute("CREATE TABLE T_STDDEV_SAMP (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            stmt.execute("INSERT INTO T_STDDEV_SAMP VALUES (1, 'Team', 100000)");
+            stmt.execute("INSERT INTO T_STDDEV_SAMP VALUES (2, 'Team', 90000)");
+            stmt.execute("INSERT INTO T_STDDEV_SAMP VALUES (3, 'Team', 80000)");
+        }
+
+        String pureSource = """
+                Class model::StdSamp { dept: String[1]; sal: Integer[1]; }
+                Database store::StdSampDb ( Table T_STDDEV_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::StdSampMap ( StdSamp: Relational { ~mainTable [StdSampDb] T_STDDEV_SAMP dept: [StdSampDb] T_STDDEV_SAMP.DEPT, sal: [StdSampDb] T_STDDEV_SAMP.SAL } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::StdSampMap ]; connections: [ store::StdSampDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "StdSamp.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->stdDevSample()}], ['result'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        assertEquals(1, result.rows().size());
+        double value = ((Number) result.rows().get(0).get(1)).doubleValue();
+        System.out.printf("stdDevSample result: %.2f%n", value);
+        assertTrue(value > 9000 && value < 11000, "stdDevSample should be ~10000");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with stdDevPopulation() aggregate")
+    void testPureSyntaxGroupByWithStdDevPopulation() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_STDDEV_POP");
+            stmt.execute("CREATE TABLE T_STDDEV_POP (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            stmt.execute("INSERT INTO T_STDDEV_POP VALUES (1, 'Team', 100000)");
+            stmt.execute("INSERT INTO T_STDDEV_POP VALUES (2, 'Team', 90000)");
+            stmt.execute("INSERT INTO T_STDDEV_POP VALUES (3, 'Team', 80000)");
+        }
+
+        String pureSource = """
+                Class model::StdPop { dept: String[1]; sal: Integer[1]; }
+                Database store::StdPopDb ( Table T_STDDEV_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::StdPopMap ( StdPop: Relational { ~mainTable [StdPopDb] T_STDDEV_POP dept: [StdPopDb] T_STDDEV_POP.DEPT, sal: [StdPopDb] T_STDDEV_POP.SAL } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::StdPopMap ]; connections: [ store::StdPopDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "StdPop.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->stdDevPopulation()}], ['result'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        assertEquals(1, result.rows().size());
+        double value = ((Number) result.rows().get(0).get(1)).doubleValue();
+        System.out.printf("stdDevPopulation result: %.2f%n", value);
+        // Population stddev is slightly smaller than sample
+        assertTrue(value > 7000 && value < 9000, "stdDevPopulation should be ~8165");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with varianceSample() aggregate")
+    void testPureSyntaxGroupByWithVarianceSample() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_VAR_SAMP");
+            stmt.execute("CREATE TABLE T_VAR_SAMP (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            stmt.execute("INSERT INTO T_VAR_SAMP VALUES (1, 'Team', 100000)");
+            stmt.execute("INSERT INTO T_VAR_SAMP VALUES (2, 'Team', 90000)");
+            stmt.execute("INSERT INTO T_VAR_SAMP VALUES (3, 'Team', 80000)");
+        }
+
+        String pureSource = """
+                Class model::VarSamp { dept: String[1]; sal: Integer[1]; }
+                Database store::VarSampDb ( Table T_VAR_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::VarSampMap ( VarSamp: Relational { ~mainTable [VarSampDb] T_VAR_SAMP dept: [VarSampDb] T_VAR_SAMP.DEPT, sal: [VarSampDb] T_VAR_SAMP.SAL } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::VarSampMap ]; connections: [ store::VarSampDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "VarSamp.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->varianceSample()}], ['result'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        assertEquals(1, result.rows().size());
+        double value = ((Number) result.rows().get(0).get(1)).doubleValue();
+        System.out.printf("varianceSample result: %.2f%n", value);
+        assertTrue(value > 90_000_000 && value < 110_000_000, "varianceSample should be ~100M");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with variancePopulation() aggregate")
+    void testPureSyntaxGroupByWithVariancePopulation() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_VAR_POP");
+            stmt.execute("CREATE TABLE T_VAR_POP (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            stmt.execute("INSERT INTO T_VAR_POP VALUES (1, 'Team', 100000)");
+            stmt.execute("INSERT INTO T_VAR_POP VALUES (2, 'Team', 90000)");
+            stmt.execute("INSERT INTO T_VAR_POP VALUES (3, 'Team', 80000)");
+        }
+
+        String pureSource = """
+                Class model::VarPop { dept: String[1]; sal: Integer[1]; }
+                Database store::VarPopDb ( Table T_VAR_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::VarPopMap ( VarPop: Relational { ~mainTable [VarPopDb] T_VAR_POP dept: [VarPopDb] T_VAR_POP.DEPT, sal: [VarPopDb] T_VAR_POP.SAL } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::VarPopMap ]; connections: [ store::VarPopDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "VarPop.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->variancePopulation()}], ['result'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        assertEquals(1, result.rows().size());
+        double value = ((Number) result.rows().get(0).get(1)).doubleValue();
+        System.out.printf("variancePopulation result: %.2f%n", value);
+        // Population variance is smaller than sample variance
+        assertTrue(value > 60_000_000 && value < 70_000_000, "variancePopulation should be ~66.67M");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with corr() bi-variate aggregate (correlation)")
+    void testPureSyntaxGroupByWithCorr() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_CORR");
+            stmt.execute("CREATE TABLE T_CORR (ID INTEGER, DEPT VARCHAR, SAL INTEGER, YEARS INTEGER)");
+            // Strong positive correlation: salary increases with years
+            stmt.execute("INSERT INTO T_CORR VALUES (1, 'Team', 80000, 3)");
+            stmt.execute("INSERT INTO T_CORR VALUES (2, 'Team', 90000, 5)");
+            stmt.execute("INSERT INTO T_CORR VALUES (3, 'Team', 100000, 7)");
+        }
+
+        String pureSource = """
+                Class model::Corr { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
+                Database store::CorrDb ( Table T_CORR ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
+                Mapping model::CorrMap ( Corr: Relational { ~mainTable [CorrDb] T_CORR dept: [CorrDb] T_CORR.DEPT, sal: [CorrDb] T_CORR.SAL, years: [CorrDb] T_CORR.YEARS } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::CorrMap ]; connections: [ store::CorrDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Bi-variate syntax: $r.sal->corr($r.years) produces CORR(sal, years)
+        String pureQuery = "Corr.all()->project([{e | $e.dept}, {e | $e.sal}, {e | $e.years}], ['dept', 'sal', 'years'])->groupBy([{r | $r.dept}], [{r | $r.sal->corr($r.years)}], ['correlation'])";
+
+        System.out.println("Pure Query: " + pureQuery);
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("corr result: " + result.rows());
+        assertEquals(1, result.rows().size());
+
+        // Perfect linear correlation should give 1.0
+        double corr = ((Number) result.rows().get(0).get(1)).doubleValue();
+        System.out.printf("Correlation between salary and years: %.4f%n", corr);
+        assertEquals(1.0, corr, 0.0001, "Perfect positive correlation expected");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with covarSample() bi-variate aggregate")
+    void testPureSyntaxGroupByWithCovarSample() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_COVAR_SAMP");
+            stmt.execute("CREATE TABLE T_COVAR_SAMP (ID INTEGER, DEPT VARCHAR, SAL INTEGER, YEARS INTEGER)");
+            // Perfect positive covariance: salary increases with years
+            stmt.execute("INSERT INTO T_COVAR_SAMP VALUES (1, 'Team', 80000, 3)");
+            stmt.execute("INSERT INTO T_COVAR_SAMP VALUES (2, 'Team', 90000, 5)");
+            stmt.execute("INSERT INTO T_COVAR_SAMP VALUES (3, 'Team', 100000, 7)");
+        }
+
+        String pureSource = """
+                Class model::CovarSamp { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
+                Database store::CovarSampDb ( Table T_COVAR_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
+                Mapping model::CovarSampMap ( CovarSamp: Relational { ~mainTable [CovarSampDb] T_COVAR_SAMP dept: [CovarSampDb] T_COVAR_SAMP.DEPT, sal: [CovarSampDb] T_COVAR_SAMP.SAL, years: [CovarSampDb] T_COVAR_SAMP.YEARS } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::CovarSampMap ]; connections: [ store::CovarSampDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Bi-variate syntax: $r.sal->covarSample($r.years) produces COVAR_SAMP(sal,
+        // years)
+        String pureQuery = "CovarSamp.all()->project([{e | $e.dept}, {e | $e.sal}, {e | $e.years}], ['dept', 'sal', 'years'])->groupBy([{r | $r.dept}], [{r | $r.sal->covarSample($r.years)}], ['covariance'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("covarSample result: " + result.rows());
+        assertEquals(1, result.rows().size());
+
+        double covar = ((Number) result.rows().get(0).get(1)).doubleValue();
+        System.out.printf("Covariance (sample) between salary and years: %.2f%n", covar);
+        assertTrue(covar > 0, "Positive covariance expected");
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with covarPopulation() bi-variate aggregate")
+    void testPureSyntaxGroupByWithCovarPopulation() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_COVAR_POP");
+            stmt.execute("CREATE TABLE T_COVAR_POP (ID INTEGER, DEPT VARCHAR, SAL INTEGER, YEARS INTEGER)");
+            // Perfect positive covariance: salary increases with years
+            stmt.execute("INSERT INTO T_COVAR_POP VALUES (1, 'Team', 80000, 3)");
+            stmt.execute("INSERT INTO T_COVAR_POP VALUES (2, 'Team', 90000, 5)");
+            stmt.execute("INSERT INTO T_COVAR_POP VALUES (3, 'Team', 100000, 7)");
+        }
+
+        String pureSource = """
+                Class model::CovarPop { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
+                Database store::CovarPopDb ( Table T_COVAR_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
+                Mapping model::CovarPopMap ( CovarPop: Relational { ~mainTable [CovarPopDb] T_COVAR_POP dept: [CovarPopDb] T_COVAR_POP.DEPT, sal: [CovarPopDb] T_COVAR_POP.SAL, years: [CovarPopDb] T_COVAR_POP.YEARS } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::CovarPopMap ]; connections: [ store::CovarPopDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Bi-variate syntax: $r.sal->covarPopulation($r.years) produces COVAR_POP(sal,
+        // years)
+        String pureQuery = "CovarPop.all()->project([{e | $e.dept}, {e | $e.sal}, {e | $e.years}], ['dept', 'sal', 'years'])->groupBy([{r | $r.dept}], [{r | $r.sal->covarPopulation($r.years)}], ['covariance'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("covarPopulation result: " + result.rows());
+        assertEquals(1, result.rows().size());
+
+        double covar = ((Number) result.rows().get(0).get(1)).doubleValue();
+        System.out.printf("Covariance (population) between salary and years: %.2f%n", covar);
+        assertTrue(covar > 0, "Positive covariance expected");
+    }
 }
