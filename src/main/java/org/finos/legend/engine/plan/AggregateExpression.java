@@ -39,7 +39,10 @@ public record AggregateExpression(
         // Two-argument statistical functions (bi-variate)
         CORR("CORR", true),
         COVAR_SAMP("COVAR_SAMP", true),
-        COVAR_POP("COVAR_POP", true);
+        COVAR_POP("COVAR_POP", true),
+        // Percentile functions (ordered-set aggregates)
+        PERCENTILE_CONT("PERCENTILE_CONT", false),
+        PERCENTILE_DISC("PERCENTILE_DISC", false);
 
         private final String sql;
         private final boolean bivariate;

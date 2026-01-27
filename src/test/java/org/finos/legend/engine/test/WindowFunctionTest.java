@@ -1092,5 +1092,79 @@ class WindowFunctionTest {
                 System.out.printf("  %s (%s): variance = %s%n", name, dept, variance);
             }
         }
+
+        @Test
+        @DisplayName("Execute PERCENT_RANK via Pure -> QueryService -> DuckDB")
+        void testExecutePercentRankViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->desc()), ~pctRank:{p,w,r| $p->percentRank($w,$r)})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("PERCENT_RANK SQL: " + sql);
+            assertTrue(sql.contains("PERCENT_RANK"), "SQL should contain PERCENT_RANK");
+            assertTrue(sql.contains("OVER"), "SQL should contain OVER");
+
+            BufferedResult result = executeQuery(pureQuery);
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            // PERCENT_RANK is (rank - 1) / (total_rows - 1)
+            // For Engineering sorted by salary desc: Alice(100k)=0.0, Bob(90k)=0.5,
+            // Charlie(80k)=1.0
+            System.out.println("PERCENT_RANK Results:");
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                String dept = (String) row.get(findColumnIndex(result, "department"));
+                Object pctRank = row.get(findColumnIndex(result, "pctRank"));
+                System.out.printf("  %s (%s): pctRank = %s%n", name, dept, pctRank);
+
+                if ("Engineering".equals(dept)) {
+                    double pctVal = ((Number) pctRank).doubleValue();
+                    switch (name) {
+                        case "Alice" -> assertEquals(0.0, pctVal, 0.01, "Alice should have pctRank 0.0 (highest)");
+                        case "Charlie" -> assertEquals(1.0, pctVal, 0.01, "Charlie should have pctRank 1.0 (lowest)");
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("Execute CUME_DIST via Pure -> QueryService -> DuckDB")
+        void testExecuteCumeDistViaPure() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->desc()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("CUME_DIST SQL: " + sql);
+            assertTrue(sql.contains("CUME_DIST"), "SQL should contain CUME_DIST");
+            assertTrue(sql.contains("OVER"), "SQL should contain OVER");
+
+            BufferedResult result = executeQuery(pureQuery);
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            // CUME_DIST is number_of_rows_with_value_<=_current / total_rows
+            // For Engineering sorted by salary desc: Alice(100k)=0.333, Bob(90k)=0.667,
+            // Charlie(80k)=1.0
+            System.out.println("CUME_DIST Results:");
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                String dept = (String) row.get(findColumnIndex(result, "department"));
+                Object cumeDist = row.get(findColumnIndex(result, "cumeDist"));
+                System.out.printf("  %s (%s): cumeDist = %s%n", name, dept, cumeDist);
+
+                if ("Engineering".equals(dept)) {
+                    double cdVal = ((Number) cumeDist).doubleValue();
+                    switch (name) {
+                        case "Alice" -> assertTrue(cdVal > 0.3 && cdVal < 0.4, "Alice should have cumeDist ~0.333");
+                        case "Charlie" -> assertEquals(1.0, cdVal, 0.01, "Charlie should have cumeDist 1.0 (lowest)");
+                    }
+                }
+            }
+        }
     }
 }

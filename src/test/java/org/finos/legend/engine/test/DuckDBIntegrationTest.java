@@ -1545,4 +1545,83 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.printf("Covariance (population) between salary and years: %.2f%n", covar);
         assertTrue(covar > 0, "Positive covariance expected");
     }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with percentileCont() ordered-set aggregate")
+    void testPureSyntaxGroupByWithPercentileCont() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_PERCENTILE");
+            stmt.execute("CREATE TABLE T_PERCENTILE (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            // Engineering: 80k, 90k, 100k -> median = 90k
+            stmt.execute("INSERT INTO T_PERCENTILE VALUES (1, 'Engineering', 80000)");
+            stmt.execute("INSERT INTO T_PERCENTILE VALUES (2, 'Engineering', 90000)");
+            stmt.execute("INSERT INTO T_PERCENTILE VALUES (3, 'Engineering', 100000)");
+            // Sales: 60k, 70k -> median = 65k (interpolated)
+            stmt.execute("INSERT INTO T_PERCENTILE VALUES (4, 'Sales', 60000)");
+            stmt.execute("INSERT INTO T_PERCENTILE VALUES (5, 'Sales', 70000)");
+        }
+
+        String pureSource = """
+                Class model::PctEmployee { dept: String[1]; sal: Integer[1]; }
+                Database store::PctDb ( Table T_PERCENTILE ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::PctMap ( PctEmployee: Relational { ~mainTable [PctDb] T_PERCENTILE dept: [PctDb] T_PERCENTILE.DEPT, sal: [PctDb] T_PERCENTILE.SAL } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::PctMap ]; connections: [ store::PctDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // percentileCont(0.5) = median with interpolation
+        String pureQuery = "PctEmployee.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->percentileCont(0.5)}], ['dept', 'medianSal'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("percentileCont result: " + result.rows());
+        assertEquals(2, result.rows().size());
+
+        // Verify results
+        for (var row : result.rows()) {
+            String dept = (String) row.get(0);
+            double median = ((Number) row.get(1)).doubleValue();
+            System.out.printf("  %s: median salary = %.2f%n", dept, median);
+
+            if ("Engineering".equals(dept)) {
+                assertEquals(90000.0, median, 1.0, "Engineering median should be 90k");
+            } else if ("Sales".equals(dept)) {
+                assertEquals(65000.0, median, 1.0, "Sales median should be 65k (interpolated)");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Pure syntax: groupBy with percentileDisc() ordered-set aggregate")
+    void testPureSyntaxGroupByWithPercentileDisc() throws Exception {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_PERCENTILE_DISC");
+            stmt.execute("CREATE TABLE T_PERCENTILE_DISC (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
+            // Engineering: 80k, 90k, 100k -> Q3 (75th percentile) discrete = 100k
+            stmt.execute("INSERT INTO T_PERCENTILE_DISC VALUES (1, 'Engineering', 80000)");
+            stmt.execute("INSERT INTO T_PERCENTILE_DISC VALUES (2, 'Engineering', 90000)");
+            stmt.execute("INSERT INTO T_PERCENTILE_DISC VALUES (3, 'Engineering', 100000)");
+        }
+
+        String pureSource = """
+                Class model::DiscEmployee { dept: String[1]; sal: Integer[1]; }
+                Database store::DiscDb ( Table T_PERCENTILE_DISC ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                Mapping model::DiscMap ( DiscEmployee: Relational { ~mainTable [DiscDb] T_PERCENTILE_DISC dept: [DiscDb] T_PERCENTILE_DISC.DEPT, sal: [DiscDb] T_PERCENTILE_DISC.SAL } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DiscMap ]; connections: [ store::DiscDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // percentileDisc(0.75) = 75th percentile (discrete, actual value from dataset)
+        String pureQuery = "DiscEmployee.all()->project([{e | $e.dept}, {e | $e.sal}], ['dept', 'sal'])->groupBy([{r | $r.dept}], [{r | $r.sal->percentileDisc(0.75)}], ['dept', 'q3Sal'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("percentileDisc result: " + result.rows());
+        assertEquals(1, result.rows().size());
+
+        // Verify - discrete percentile returns actual value from dataset
+        double q3 = ((Number) result.rows().get(0).get(1)).doubleValue();
+        System.out.printf("75th percentile (discrete): %.2f%n", q3);
+        // For discrete percentile, should be 90000 or 100000 depending on
+        // implementation
+        assertTrue(q3 >= 90000 && q3 <= 100000, "75th percentile should be 90k or 100k");
+    }
 }

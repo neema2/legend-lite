@@ -460,19 +460,44 @@ public final class PureCompiler {
             // {r | $r.col} (defaults to SUM)
             // {r | $r.col->stdDev()} (explicit single-column)
             // {r | $r.col1->corr($r.col2)} (bi-variate)
+            // {r | $r.col->percentileCont(0.5)} (ordered-set aggregate)
             String columnName;
             String secondColumnName = null;
+            Double percentileValue = null;
             AggregateExpression.AggregateFunction aggFunc;
 
             PureExpression body = aggLambda.body();
             if (body instanceof MethodCall methodCall) {
-                // Pattern: $r.col->stdDev() or $r.col1->corr($r.col2)
+                // Pattern: $r.col->stdDev() or $r.col1->corr($r.col2) or
+                // $r.col->percentileCont(0.5)
                 columnName = extractPropertyName(methodCall.source());
                 aggFunc = mapAggregateFunction(methodCall.methodName());
 
                 // Check for bi-variate function with second argument
                 if (aggFunc.isBivariate() && !methodCall.arguments().isEmpty()) {
                     secondColumnName = extractPropertyName(methodCall.arguments().get(0));
+                }
+
+                // Check for percentile function with percentile value argument
+                if (isPercentileFunction(aggFunc) && !methodCall.arguments().isEmpty()) {
+                    PureExpression arg = methodCall.arguments().get(0);
+                    if (arg instanceof DecimalLiteral dl) {
+                        percentileValue = dl.value().doubleValue();
+                    } else if (arg instanceof IntegerLiteral il) {
+                        percentileValue = il.value().doubleValue();
+                    } else if (arg instanceof LiteralExpr le) {
+                        // Handle LiteralExpr with FLOAT or INTEGER type
+                        if (le.type() == LiteralExpr.LiteralType.FLOAT
+                                || le.type() == LiteralExpr.LiteralType.INTEGER) {
+                            percentileValue = ((Number) le.value()).doubleValue();
+                        } else {
+                            throw new PureCompileException(
+                                    "Percentile function requires a numeric literal argument, got: " + le.type());
+                        }
+                    } else {
+                        throw new PureCompileException(
+                                "Percentile function requires a numeric literal argument, got: " + arg);
+                    }
                 }
             } else {
                 // Pattern: $r.col - defaults to SUM
@@ -488,7 +513,8 @@ public final class PureCompiler {
                 alias = columnName + "_agg";
             }
 
-            aggregations.add(new GroupByNode.AggregateProjection(alias, columnName, secondColumnName, aggFunc));
+            aggregations.add(
+                    new GroupByNode.AggregateProjection(alias, columnName, secondColumnName, aggFunc, percentileValue));
         }
 
         return new GroupByNode(source, groupingColumns, aggregations);
@@ -516,8 +542,19 @@ public final class PureCompiler {
             case "corr" -> AggregateExpression.AggregateFunction.CORR;
             case "covarsample", "covar_samp" -> AggregateExpression.AggregateFunction.COVAR_SAMP;
             case "covarpopulation", "covar_pop" -> AggregateExpression.AggregateFunction.COVAR_POP;
+            // Percentile functions
+            case "percentilecont", "percentile_cont" -> AggregateExpression.AggregateFunction.PERCENTILE_CONT;
+            case "percentiledisc", "percentile_disc" -> AggregateExpression.AggregateFunction.PERCENTILE_DISC;
             default -> throw new PureCompileException("Unknown aggregate function: " + functionName);
         };
+    }
+
+    /**
+     * Checks if the given aggregate function is a percentile function.
+     */
+    private boolean isPercentileFunction(AggregateExpression.AggregateFunction function) {
+        return function == AggregateExpression.AggregateFunction.PERCENTILE_CONT
+                || function == AggregateExpression.AggregateFunction.PERCENTILE_DISC;
     }
 
     /**
@@ -917,6 +954,18 @@ public final class PureCompiler {
             newColumnName = colSpec.name();
             // The column name IS the function name (e.g., "rowNum" -> "row_number")
             functionName = mapColumnNameToWindowFunction(colSpec.name());
+        } else if (source instanceof FunctionCall funcCall) {
+            // Standalone function call like percentRank()->over(...) or ntile(4)->over(...)
+            functionName = funcCall.functionName();
+            newColumnName = functionName; // Use function name as column name if not aliased
+
+            // Extract arguments for functions like ntile(4)
+            if (!funcCall.arguments().isEmpty()) {
+                PureExpression firstArg = funcCall.arguments().get(0);
+                if ("ntile".equals(functionName) && firstArg instanceof IntegerLiteral lit) {
+                    offset = lit.value().intValue();
+                }
+            }
         } else if (source instanceof MethodCall funcCall) {
             // Nested method call like sum(~val)->over(...) or lag(~col, 1)->over(...)
             functionName = funcCall.methodName();
@@ -1100,9 +1149,10 @@ public final class PureCompiler {
                 partitionColumns.add(cs.name());
             } else if (arg instanceof MethodCall mc) {
                 String methodName = mc.methodName();
-                if ("ascending".equals(methodName) || "descending".equals(methodName)) {
+                if ("ascending".equals(methodName) || "descending".equals(methodName)
+                        || "asc".equals(methodName) || "desc".equals(methodName)) {
                     String colName = extractColumnName(mc.source());
-                    WindowExpression.SortDirection dir = "descending".equals(methodName)
+                    WindowExpression.SortDirection dir = ("descending".equals(methodName) || "desc".equals(methodName))
                             ? WindowExpression.SortDirection.DESC
                             : WindowExpression.SortDirection.ASC;
                     orderBy.add(new WindowExpression.SortSpec(colName, dir));
@@ -1517,6 +1567,12 @@ public final class PureCompiler {
             case "corr", "correlation" -> WindowExpression.WindowFunction.CORR;
             case "covarsample", "covar_samp" -> WindowExpression.WindowFunction.COVAR_SAMP;
             case "covarpopulation", "covar_pop" -> WindowExpression.WindowFunction.COVAR_POP;
+            // Ranking distribution functions
+            case "percentrank", "percent_rank" -> WindowExpression.WindowFunction.PERCENT_RANK;
+            case "cumulativedistribution", "cume_dist" -> WindowExpression.WindowFunction.CUME_DIST;
+            // Percentile functions
+            case "percentilecont", "percentile_cont" -> WindowExpression.WindowFunction.PERCENTILE_CONT;
+            case "percentiledisc", "percentile_disc" -> WindowExpression.WindowFunction.PERCENTILE_DISC;
             default -> throw new PureCompileException("Unknown window function: " + functionName);
         };
     }

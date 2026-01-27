@@ -270,17 +270,30 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         // Add aggregate projections
         for (GroupByNode.AggregateProjection agg : groupBy.aggregations()) {
             sb.append(", ");
-            sb.append(agg.function().sql());
-            sb.append("(");
-            sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
-            // Add second column for bi-variate functions (CORR, COVAR_SAMP, COVAR_POP)
-            if (agg.isBivariate()) {
-                sb.append(", ");
-                sb.append(dialect.quoteIdentifier(agg.secondColumn()));
-            }
-            sb.append(")");
-            if (agg.function() == AggregateExpression.AggregateFunction.COUNT_DISTINCT) {
-                sb.append(")"); // close the extra paren for COUNT(DISTINCT ...)
+
+            // Handle percentile functions with WITHIN GROUP syntax
+            if (agg.isPercentile()) {
+                // PERCENTILE_CONT(value) WITHIN GROUP (ORDER BY column)
+                sb.append(agg.function().sql());
+                sb.append("(");
+                sb.append(agg.optionalPercentileValue().orElse(0.5)); // default to median
+                sb.append(") WITHIN GROUP (ORDER BY ");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(")");
+            } else {
+                // Standard aggregate functions
+                sb.append(agg.function().sql());
+                sb.append("(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                // Add second column for bi-variate functions (CORR, COVAR_SAMP, COVAR_POP)
+                if (agg.isBivariate()) {
+                    sb.append(", ");
+                    sb.append(dialect.quoteIdentifier(agg.secondColumn()));
+                }
+                sb.append(")");
+                if (agg.function() == AggregateExpression.AggregateFunction.COUNT_DISTINCT) {
+                    sb.append(")"); // close the extra paren for COUNT(DISTINCT ...)
+                }
             }
             sb.append(" AS ");
             sb.append(dialect.quoteIdentifier(agg.alias()));
@@ -935,9 +948,23 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     public String visitAggregate(AggregateExpression aggregate) {
         String arg = aggregate.argument().accept(this);
         String funcName = aggregate.function().sql();
+
         if (aggregate.function() == AggregateExpression.AggregateFunction.COUNT_DISTINCT) {
             return funcName + " " + arg + ")"; // COUNT(DISTINCT col)
         }
+
+        // Handle ordered-set aggregate functions (PERCENTILE_CONT, PERCENTILE_DISC)
+        if (aggregate.function() == AggregateExpression.AggregateFunction.PERCENTILE_CONT
+                || aggregate.function() == AggregateExpression.AggregateFunction.PERCENTILE_DISC) {
+            // Syntax: PERCENTILE_CONT(percentile_value) WITHIN GROUP (ORDER BY column)
+            // argument = the column to order by
+            // secondArgument = the percentile value (0.0 - 1.0)
+            String percentileValue = aggregate.optionalSecondArgument()
+                    .map(e -> e.accept(this))
+                    .orElse("0.5"); // default to median
+            return funcName + "(" + percentileValue + ") WITHIN GROUP (ORDER BY " + arg + ")";
+        }
+
         return funcName + "(" + arg + ")";
     }
 

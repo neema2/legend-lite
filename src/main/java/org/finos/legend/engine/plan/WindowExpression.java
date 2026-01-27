@@ -37,6 +37,8 @@ public record WindowExpression(
         RANK,
         DENSE_RANK,
         NTILE,
+        PERCENT_RANK,
+        CUME_DIST,
 
         // Value functions
         LAG,
@@ -61,7 +63,11 @@ public record WindowExpression(
         MEDIAN,
         CORR,
         COVAR_SAMP,
-        COVAR_POP
+        COVAR_POP,
+
+        // Percentile functions (ordered-set aggregates)
+        PERCENTILE_CONT,
+        PERCENTILE_DISC
     }
 
     /**
@@ -288,7 +294,7 @@ public record WindowExpression(
      */
     public boolean isRankingFunction() {
         return switch (function) {
-            case ROW_NUMBER, RANK, DENSE_RANK, NTILE -> true;
+            case ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST -> true;
             default -> false;
         };
     }

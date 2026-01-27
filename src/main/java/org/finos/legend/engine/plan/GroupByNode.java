@@ -31,23 +31,37 @@ public record GroupByNode(
      * For bi-variate functions like CORR, COVAR_SAMP:
      * ~alias : x|$x.col1->corr($x.col2)
      * 
-     * @param alias        Output column name
-     * @param sourceColumn First column being aggregated
-     * @param secondColumn Second column (for bi-variate functions like CORR)
-     * @param function     The aggregate function (SUM, COUNT, CORR, etc.)
+     * For ordered-set aggregates like PERCENTILE_CONT:
+     * ~alias : x|$x.col->percentileCont(0.5)
+     * 
+     * @param alias           Output column name
+     * @param sourceColumn    First column being aggregated
+     * @param secondColumn    Second column (for bi-variate functions like CORR)
+     * @param function        The aggregate function (SUM, COUNT, CORR, etc.)
+     * @param percentileValue The percentile value for PERCENTILE_CONT/DISC
+     *                        (0.0-1.0)
      */
     public record AggregateProjection(
             String alias,
             String sourceColumn,
             String secondColumn,
-            AggregateExpression.AggregateFunction function) {
+            AggregateExpression.AggregateFunction function,
+            Double percentileValue) {
 
         /**
          * Constructor for single-column aggregates.
          */
         public AggregateProjection(String alias, String sourceColumn,
                 AggregateExpression.AggregateFunction function) {
-            this(alias, sourceColumn, null, function);
+            this(alias, sourceColumn, null, function, null);
+        }
+
+        /**
+         * Constructor for bi-variate aggregates.
+         */
+        public AggregateProjection(String alias, String sourceColumn, String secondColumn,
+                AggregateExpression.AggregateFunction function) {
+            this(alias, sourceColumn, secondColumn, function, null);
         }
 
         public AggregateProjection {
@@ -57,6 +71,14 @@ public record GroupByNode(
             if (function.isBivariate() && secondColumn == null) {
                 throw new IllegalArgumentException(function.name() + " requires two columns");
             }
+            if (isPercentileFunction(function) && percentileValue == null) {
+                throw new IllegalArgumentException(function.name() + " requires a percentile value");
+            }
+        }
+
+        private static boolean isPercentileFunction(AggregateExpression.AggregateFunction function) {
+            return function == AggregateExpression.AggregateFunction.PERCENTILE_CONT
+                    || function == AggregateExpression.AggregateFunction.PERCENTILE_DISC;
         }
 
         /**
@@ -67,10 +89,24 @@ public record GroupByNode(
         }
 
         /**
+         * Returns true if this is a percentile function.
+         */
+        public boolean isPercentile() {
+            return isPercentileFunction(function);
+        }
+
+        /**
          * Returns the second column if present.
          */
         public Optional<String> optionalSecondColumn() {
             return Optional.ofNullable(secondColumn);
+        }
+
+        /**
+         * Returns the percentile value if present.
+         */
+        public Optional<Double> optionalPercentileValue() {
+            return Optional.ofNullable(percentileValue);
         }
     }
 
