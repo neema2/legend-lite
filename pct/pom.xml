@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.finos.legend</groupId>
+        <artifactId>legend-lite</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>legend-lite-pct</artifactId>
+    <packaging>jar</packaging>
+    <name>Legend Lite - PCT</name>
+    <description>Pure Compatibility Testing for Legend Lite using legend-engine's PCT framework.</description>
+
+    <properties>
+        <!-- Legend Engine versions (isolated to this module only) -->
+        <legend.engine.version>4.91.0</legend.engine.version>
+        <legend.pure.version>5.73.0</legend.pure.version>
+        <eclipse.collections.version>10.2.0</eclipse.collections.version>
+    </properties>
+
+    <dependencies>
+        <!-- Legend-Lite Engine (the code we're testing) -->
+        <dependency>
+            <groupId>org.finos.legend</groupId>
+            <artifactId>legend-lite-engine</artifactId>
+        </dependency>
+
+        <!-- Legend Pure M3/M4 core -->
+        <dependency>
+            <groupId>org.finos.legend.pure</groupId>
+            <artifactId>legend-pure-m3-core</artifactId>
+            <version>${legend.pure.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.finos.legend.pure</groupId>
+            <artifactId>legend-pure-m4</artifactId>
+            <version>${legend.pure.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- PCT Framework -->
+        <dependency>
+            <groupId>org.finos.legend.pure</groupId>
+            <artifactId>legend-pure-runtime-java-engine-compiled</artifactId>
+            <version>${legend.pure.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Legend Engine Test Framework -->
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-test-framework</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Eclipse Collections -->
+        <dependency>
+            <groupId>org.eclipse.collections</groupId>
+            <artifactId>eclipse-collections</artifactId>
+            <version>${eclipse.collections.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.collections</groupId>
+            <artifactId>eclipse-collections-api</artifactId>
+            <version>${eclipse.collections.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit 4 (required by PCT framework) -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.1</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit 5 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.vintage</groupId>
+            <artifactId>junit-vintage-engine</artifactId>
+            <version>5.11.3</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <useSystemClassLoader>false</useSystemClassLoader>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

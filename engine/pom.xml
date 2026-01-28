@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.finos.legend</groupId>
+        <artifactId>legend-lite</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>legend-lite-engine</artifactId>
+    <packaging>jar</packaging>
+    <name>Legend Lite - Engine</name>
+    <description>Core Legend Lite engine with Pure parser, compiler, and SQL generator.</description>
+
+    <dependencies>
+        <!-- ANTLR4 Runtime -->
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr4-runtime</artifactId>
+        </dependency>
+
+        <!-- DuckDB JDBC Driver -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+        </dependency>
+
+        <!-- SQLite JDBC Driver -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 (test scope) -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- ANTLR4 Maven Plugin -->
+            <plugin>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr4-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>antlr</id>
+                        <goals>
+                            <goal>antlr4</goal>
+                        </goals>
+                        <configuration>
+                            <listener>false</listener>
+                            <visitor>true</visitor>
+                            <includes>
+                                <include>**/org/finos/legend/pure/dsl/antlr/*.g4</include>
+                            </includes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Exec Maven Plugin to run the server -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>org.finos.legend.engine.server.LegendHttpServer</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
