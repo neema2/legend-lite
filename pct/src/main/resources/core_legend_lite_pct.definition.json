@@ -1,0 +1,8 @@
+{
+    "name": "core_legend_lite_pct",
+    "pattern": "(meta::legend::lite::pct)(::.*)?",
+    "dependencies": [
+        "platform",
+        "core"
+    ]
+}

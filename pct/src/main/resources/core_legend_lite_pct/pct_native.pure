@@ -1,0 +1,15 @@
+// Copyright 2026 Legend Lite Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+import meta::pure::test::pct::*;
+
+// Result class for Pure compatibility execution
+Class meta::legend::lite::pct::PureCompatibilityResult
+{
+    success: Boolean[1];
+    resultJson: String[1];
+    error: String[0..1];
+}
+
+// Native function implemented in Java - bridges to legend-lite's QueryService
+native function meta::legend::lite::pct::executePureCompatibility(pureGrammar: String[1]): meta::legend::lite::pct::PureCompatibilityResult[1];

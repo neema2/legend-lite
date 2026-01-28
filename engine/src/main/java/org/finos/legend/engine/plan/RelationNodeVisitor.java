@@ -76,4 +76,9 @@ public interface RelationNodeVisitor<T> {
      * Visit a pivot node (PIVOT operation).
      */
     T visit(PivotNode pivot);
+
+    /**
+     * Visit a TDS literal node (inline tabular data).
+     */
+    T visit(TdsLiteralNode tdsLiteral);
 }

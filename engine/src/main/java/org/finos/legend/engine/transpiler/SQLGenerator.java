@@ -527,6 +527,58 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return sb.toString();
     }
 
+    @Override
+    public String visit(TdsLiteralNode tdsLiteral) {
+        // Generate SQL using DuckDB VALUES syntax:
+        // SELECT * FROM (VALUES (v1, v2), (v3, v4)) AS _tds(col1, col2)
+        var sb = new StringBuilder();
+        sb.append("SELECT * FROM (VALUES ");
+
+        boolean firstRow = true;
+        for (var row : tdsLiteral.rows()) {
+            if (!firstRow)
+                sb.append(", ");
+            firstRow = false;
+
+            sb.append("(");
+            boolean firstVal = true;
+            for (var val : row) {
+                if (!firstVal)
+                    sb.append(", ");
+                firstVal = false;
+                sb.append(formatTdsValue(val));
+            }
+            sb.append(")");
+        }
+
+        sb.append(") AS _tds(");
+        sb.append(tdsLiteral.columnNames().stream()
+                .map(dialect::quoteIdentifier)
+                .collect(Collectors.joining(", ")));
+        sb.append(")");
+
+        return sb.toString();
+    }
+
+    /**
+     * Formats a TDS cell value for SQL insertion.
+     */
+    private String formatTdsValue(Object value) {
+        if (value == null) {
+            return "NULL";
+        }
+        if (value instanceof String s) {
+            return dialect.quoteStringLiteral(s);
+        }
+        if (value instanceof Number) {
+            return value.toString();
+        }
+        if (value instanceof Boolean b) {
+            return dialect.formatBoolean(b);
+        }
+        return dialect.quoteStringLiteral(value.toString());
+    }
+
     /**
      * Formats a window expression to SQL.
      * Example: ROW_NUMBER() OVER (PARTITION BY "dept" ORDER BY "salary" DESC)
@@ -730,6 +782,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case RenameNode rename -> extractFilterCondition(rename.source());
             case ConcatenateNode concat -> null; // No filter to extract from UNION
             case PivotNode pivot -> null; // No filter to extract from PIVOT
+            case TdsLiteralNode tds -> null; // No filter in TDS literal
         };
     }
 
@@ -760,6 +813,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case RenameNode rename -> extractTableNode(rename.source());
             case ConcatenateNode concat -> extractTableNode(concat.left()); // Use left side
             case PivotNode pivot -> extractTableNode(pivot.source());
+            case TdsLiteralNode tds -> throw new IllegalArgumentException("TDS literal has no source table");
         };
     }
 
@@ -1272,6 +1326,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case PivotNode pivot -> {
                 // For EXISTS with pivot, wrap the whole thing
                 yield "SELECT 1 FROM (" + pivot.accept(this) + ") AS exists_src";
+            }
+            case TdsLiteralNode tds -> {
+                // For EXISTS with TDS literal, wrap the whole thing
+                yield "SELECT 1 FROM (" + tds.accept(this) + ") AS exists_src";
             }
         };
     }

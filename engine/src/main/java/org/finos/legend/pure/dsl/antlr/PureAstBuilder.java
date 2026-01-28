@@ -271,7 +271,79 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             String typeName = getTypeText(ctx.type());
             return new TypeReference(typeName);
         }
+        if (ctx.tdsLiteral() != null) {
+            return visitTdsLiteral(ctx.tdsLiteral());
+        }
         throw new PureParseException("Unknown atomic expression: " + ctx.getText());
+    }
+
+    /**
+     * Parses TDS (Tabular Data Set) literals.
+     * 
+     * Syntax:
+     * {@code
+     * #TDS
+     *   col1, col2
+     *   val1, val2
+     * #
+     * }
+     */
+    public TdsLiteral visitTdsLiteral(PureParser.TdsLiteralContext ctx) {
+        String raw = ctx.TDS_LITERAL().getText();
+
+        // Strip #TDS prefix and # suffix
+        String content = raw.substring(4, raw.length() - 1).trim();
+
+        // Split into lines
+        String[] lines = content.split("\\n");
+
+        // First line is column names
+        List<String> columnNames = new ArrayList<>();
+        if (lines.length > 0) {
+            for (String col : lines[0].split(",")) {
+                columnNames.add(col.trim());
+            }
+        }
+
+        // Remaining lines are data rows
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 1; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.isEmpty())
+                continue;
+
+            List<Object> row = new ArrayList<>();
+            String[] values = line.split(",", -1); // -1 preserves trailing empty strings
+            for (String val : values) {
+                row.add(parseTdsValue(val.trim()));
+            }
+            rows.add(row);
+        }
+
+        return new TdsLiteral(columnNames, rows);
+    }
+
+    /**
+     * Parse a TDS cell value to appropriate type.
+     */
+    private Object parseTdsValue(String value) {
+        if (value.isEmpty() || "null".equalsIgnoreCase(value)) {
+            return null;
+        }
+        // Try integer
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            // Not an integer
+        }
+        // Try float
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            // Not a number
+        }
+        // String value
+        return value;
     }
 
     /**

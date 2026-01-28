@@ -180,6 +180,7 @@ functionExpressionLatestMilestoningDateParameter:
 functionExpressionParameters:                   PAREN_OPEN (combinedExpression (COMMA combinedExpression)*)? PAREN_CLOSE
 ;
 atomicExpression:                               dsl
+                                                | tdsLiteral
                                                 | instanceLiteralToken
                                                 | expressionInstance
                                                 | unitInstance
@@ -188,6 +189,9 @@ atomicExpression:                               dsl
                                                 | (AT type)
                                                 | anyLambda
                                                 | instanceReference
+;
+
+tdsLiteral:                                     TDS_LITERAL
 ;
 
 columnBuilders: TILDE (oneColSpec | colSpecArray)

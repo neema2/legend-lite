@@ -109,6 +109,7 @@ public final class PureCompiler {
             case RenameExpression rename -> compileRename(rename, context);
             case ConcatenateExpression concatenate -> compileConcatenate(concatenate, context);
             case PivotExpression pivot -> compilePivot(pivot, context);
+            case TdsLiteral tds -> compileTdsLiteral(tds);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
@@ -1711,6 +1712,15 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles a TDS literal: #TDS col1, col2 val1, val2 #
+     *
+     * TDS literals are inline tabular data that become a VALUES clause in SQL.
+     */
+    private RelationNode compileTdsLiteral(TdsLiteral tds) {
+        return new TdsLiteralNode(tds.columnNames(), tds.rows());
+    }
+
+    /**
      * Compiles a select expression: relation->select(~col1, ~col2)
      * 
      * This projects specific columns from the source Relation.
@@ -2817,6 +2827,7 @@ public final class PureCompiler {
             case RenameNode rename -> getTableAlias(rename.source());
             case ConcatenateNode concat -> getTableAlias(concat.left());
             case PivotNode pivot -> getTableAlias(pivot.source());
+            case TdsLiteralNode tds -> "_tds"; // TDS literals use synthetic alias
         };
     }
 

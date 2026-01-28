@@ -808,4 +808,86 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             assertEquals("John", result.rows().get(0).get(0));
         }
     }
+
+    // ==================== TDS Literal Tests ====================
+
+    @Nested
+    @DisplayName("#TDS Literal - Inline Table Data")
+    class TdsLiteralTests {
+
+        @Test
+        @DisplayName("#TDS literal parses and executes correctly")
+        void testTdsLiteralBasic() throws SQLException {
+            String pureQuery = """
+                    #TDS
+                    name, age
+                    Alice, 25
+                    Bob, 30
+                    Charlie, 35
+                    #
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            assertEquals(2, result.columns().size());
+            assertEquals(3, result.rows().size());
+
+            // Verify first row
+            assertEquals("Alice", result.rows().get(0).get(0));
+            assertEquals(25L, ((Number) result.rows().get(0).get(1)).longValue());
+        }
+
+        @Test
+        @DisplayName("#TDS literal generates correct SQL VALUES clause")
+        void testTdsLiteralSqlGeneration() throws SQLException {
+            String pureQuery = """
+                    #TDS
+                    id, value
+                    1, hello
+                    2, world
+                    #
+                    """;
+
+            String sql = generateSql(pureQuery);
+
+            assertTrue(sql.contains("VALUES"), "Should generate VALUES clause");
+            assertTrue(sql.contains("_tds"), "Should use _tds alias");
+        }
+
+        @Test
+        @DisplayName("#TDS literal with single column")
+        void testTdsLiteralSingleColumn() throws SQLException {
+            String pureQuery = """
+                    #TDS
+                    nums
+                    10
+                    20
+                    30
+                    #
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            assertEquals(1, result.columns().size());
+            assertEquals(3, result.rows().size());
+        }
+
+        @Test
+        @DisplayName("#TDS literal with null values")
+        void testTdsLiteralWithNulls() throws SQLException {
+            String pureQuery = """
+                    #TDS
+                    name, score
+                    Alice, 100
+                    Bob,
+                    #
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            assertEquals(2, result.rows().size());
+            // Bob's score should be null
+            assertNull(result.rows().get(1).get(1));
+        }
+    }
 }

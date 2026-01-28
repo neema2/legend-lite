@@ -71,6 +71,9 @@ WHITESPACE:                             Whitespace      -> skip;
 COMMENT:                                Comment         -> skip;
 LINE_COMMENT:                           LineComment     -> skip;
 SECTION_HEADER:                         '###' ~[\r\n]*  -> skip;
+// TDS literal: #TDS ... # (inline tabular data)
+// Must come before ISLAND_OPEN to take precedence
+TDS_LITERAL:                            '#TDS' ~[#]* '#';
 ISLAND_OPEN:                            '#'  (~[#{])* '{'-> pushMode (ISLAND_MODE);
 
 

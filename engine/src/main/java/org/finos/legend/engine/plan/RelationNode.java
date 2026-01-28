@@ -12,7 +12,7 @@ package org.finos.legend.engine.plan;
  */
 public sealed interface RelationNode
         permits TableNode, FilterNode, ProjectNode, JoinNode, GroupByNode, SortNode, LimitNode, FromNode, ExtendNode,
-        LateralJoinNode, DistinctNode, RenameNode, ConcatenateNode, PivotNode {
+        LateralJoinNode, DistinctNode, RenameNode, ConcatenateNode, PivotNode, TdsLiteralNode {
 
     /**
      * Accept method for the visitor pattern.
