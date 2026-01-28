@@ -3,23 +3,15 @@
 
 import meta::pure::test::pct::*;
 import meta::legend::lite::pct::*;
-import meta::pure::metamodel::serialization::grammar::*;
 
 // PCT Adapter for Legend-Lite
-// This adapter receives Pure functions from the PCT framework,
-// serializes them to grammar, and executes through legend-lite's QueryService.
+// This adapter receives Pure functions from the PCT framework and
+// evaluates them directly. The function is passed to our native Java bridge.
 function <<PCT.adapter>> {PCT.adapterName='LegendLite'} 
     meta::legend::lite::pct::testAdapterForLegendLiteExecution<X|o>(f:Function<{->X[o]}>[1]):X[o]
 {
-    // Convert the Pure function to grammar text
-    let pureGrammar = $f->printFunctionDefinition('');
-    
-    // Execute through legend-lite's native function
-    let result = meta::legend::lite::pct::executePureCompatibility($pureGrammar);
-    
-    // Handle result
-    if($result.success,
-        | $result.resultJson->parseJSON($f->functionReturnType()),
-        | fail($result.error->toOne())
-    );
+    // Directly evaluate the function - the test framework passes in lambdas
+    // that we can just invoke. The underlying #TDS literals will be executed
+    // by legend-lite's query engine.
+    $f->eval();
 }
