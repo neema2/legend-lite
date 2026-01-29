@@ -116,19 +116,53 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles a constant lambda expression into a ConstantNode.
+     * Compiles a lambda expression that returns either a scalar or a relation.
      * 
-     * This supports Pure expressions like |1+1 which translate to SELECT 1+1.
-     * The database evaluates the expression and returns a single-row, single-column
-     * result.
+     * For scalar results (e.g., |1+1), creates a ConstantNode with SELECT 1+1.
+     * For relation results (e.g., |#TDS...#->filter(...)), compiles the body as a
+     * relation.
      *
-     * @param lambda  The lambda expression (e.g., |1+1)
+     * @param lambda  The lambda expression
      * @param context Compilation context (may be null for constant expressions)
-     * @return A ConstantNode wrapping the SQL expression
+     * @return A RelationNode (either ConstantNode for scalars or relation node for
+     *         relations)
      */
     private RelationNode compileConstant(LambdaExpression lambda, CompilationContext context) {
-        Expression sqlExpr = compileToSqlExpression(lambda.body(), context);
+        PureExpression body = lambda.body();
+
+        // Check if the body is a relation expression that should go through
+        // compileExpression
+        if (isRelationExpression(body)) {
+            return compileExpression(body, context);
+        }
+
+        // Otherwise, treat as scalar expression for SELECT <expr>
+        Expression sqlExpr = compileToSqlExpression(body, context);
         return new ConstantNode(sqlExpr);
+    }
+
+    /**
+     * Checks if an expression is a relation expression that should be compiled
+     * via compileExpression rather than compileToSqlExpression.
+     */
+    private boolean isRelationExpression(PureExpression expr) {
+        return expr instanceof RelationExpression
+                || expr instanceof ClassAllExpression
+                || expr instanceof ClassFilterExpression
+                || expr instanceof ProjectExpression
+                || expr instanceof GroupByExpression
+                || expr instanceof JoinExpression
+                || expr instanceof FlattenExpression
+                || expr instanceof SortExpression
+                || expr instanceof SortByExpression
+                || expr instanceof LimitExpression
+                || expr instanceof FirstExpression
+                || expr instanceof SliceExpression
+                || expr instanceof DropExpression
+                || expr instanceof DistinctExpression
+                || expr instanceof ConcatenateExpression
+                || expr instanceof PivotExpression
+                || expr instanceof TdsLiteral;
     }
 
     // ========================================================================
