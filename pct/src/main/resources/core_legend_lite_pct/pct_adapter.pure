@@ -6,6 +6,28 @@ import meta::legend::lite::pct::*;
 import meta::pure::metamodel::serialization::grammar::*;
 import meta::pure::metamodel::relation::*;
 
+// Custom grammar extension for proper TDS serialization
+function meta::legend::lite::pct::legendLiteGrammarExtension():GrammarExtension[1]
+{
+    ^GrammarExtension(
+        extraInstanceValueHandlers = 
+          [
+            // Serialize TDS to #TDS\n...\n# format (original format without braces)
+            t:TDS<Any>[1]|'#TDS\n'+$t.csv->replace(' ','')+'\n#'                     
+          ]
+    );
+}
+
+// Legend-Lite configuration with TDS grammar extension
+function meta::legend::lite::pct::legendLiteGrammarConfiguration():Configuration[1]
+{
+  ^Configuration
+  (
+    fullPath = true,
+    extensions = legendLiteGrammarExtension()  
+  );
+}
+
 // PCT Adapter for Legend-Lite
 // This adapter serializes Pure functions to grammar text, executes through
 // legend-lite's QueryService, and converts results back to Pure values.
@@ -13,10 +35,13 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     meta::legend::lite::pct::testAdapterForLegendLiteExecution<X|o>(f:Function<{->X[o]}>[1]):X[o]
 {
     // Serialize the full function definition to Pure grammar text
-    // Use configuration with fullPath=true for proper serialization
-    let config = ^Configuration(fullPath = true);
+    // Use legendLiteGrammarConfiguration() to get proper TDS serialization support
+    let config = legendLiteGrammarConfiguration();
     let pureText = $f->cast(@FunctionDefinition<Any>)
         ->printFunctionDefinition($config, ^GContext(space=''));
+    
+    // Debug: print the serialized Pure text
+    print('[LegendLite PCT] Executing Pure expression: ' + $pureText + '\n');
     
     // Execute through Legend-Lite's QueryService via native bridge
     // Returns either:

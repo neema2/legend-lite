@@ -889,5 +889,65 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             // Bob's score should be null
             assertNull(result.rows().get(1).get(1));
         }
+
+        @Test
+        @DisplayName("#TDS literal chained with ->distinct()")
+        void testTdsLiteralWithDistinct() throws SQLException {
+            String pureQuery = """
+                    #TDS
+                    val, str
+                    2, a
+                    3, a
+                    4, qw
+                    2, a
+                    #
+                    ->distinct(~[val, str])
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            // Should have 3 distinct rows: (2,a), (3,a), (4,qw)
+            assertEquals(3, result.rows().size());
+        }
+
+        @Test
+        @DisplayName("#TDS literal chained with ->limit()")
+        void testTdsLiteralWithLimit() throws SQLException {
+            String pureQuery = """
+                    #TDS
+                    dept, salary
+                    Eng, 100
+                    Eng, 200
+                    Sales, 50
+                    #
+                    ->limit(2)
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            // Should have 2 rows
+            assertEquals(2, result.rows().size());
+        }
+
+        @Test
+        @DisplayName("#TDS literal chained with distinct and limit (PCT pattern)")
+        void testTdsLiteralDistinctThenLimit() throws SQLException {
+            String pureQuery = """
+                    #TDS
+                    id, grp, code
+                    1, 2, A
+                    2, 1, A
+                    3, 3, A
+                    1, 2, A
+                    #
+                    ->distinct(~[id, grp])
+                    ->limit(2)
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            // distinct gives 3 rows, limit(2) gives 2 rows
+            assertEquals(2, result.rows().size());
+        }
     }
 }

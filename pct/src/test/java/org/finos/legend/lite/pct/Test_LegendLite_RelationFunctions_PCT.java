@@ -4,7 +4,6 @@
 package org.finos.legend.lite.pct;
 
 import junit.framework.Test;
-import junit.framework.TestSuite;
 import org.eclipse.collections.api.factory.Lists;
 import org.eclipse.collections.api.list.MutableList;
 import org.finos.legend.pure.code.core.RelationCodeRepositoryProvider;

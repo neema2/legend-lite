@@ -1,7 +1,6 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.store.*;
-import org.finos.legend.engine.execution.Result;
 import org.finos.legend.engine.execution.ScalarResult;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.transpiler.DuckDBDialect;

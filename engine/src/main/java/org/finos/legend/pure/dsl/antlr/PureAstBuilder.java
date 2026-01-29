@@ -175,7 +175,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private PureExpression createFunctionCall(PureExpression source, String funcName, List<PureExpression> args) {
-        return switch (funcName) {
+        // Extract simple function name from fully qualified names
+        // e.g., meta::pure::functions::relation::distinct -> distinct
+        String simpleName = funcName.contains("::")
+                ? funcName.substring(funcName.lastIndexOf("::") + 2)
+                : funcName;
+
+        return switch (simpleName) {
             case "filter" -> parseFilterCall(source, args);
             case "project" -> parseProjectCall(source, args);
             case "groupBy" -> parseGroupByCall(source, args);
@@ -207,7 +213,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "distinct" -> parseDistinctCall(source, args);
             case "rename" -> parseRenameCall(source, args);
             case "concatenate" -> parseConcatenateCall(source, args);
-            default -> new MethodCall(source, funcName, args);
+            default -> new MethodCall(source, simpleName, args);
         };
     }
 
