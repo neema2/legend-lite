@@ -2504,4 +2504,124 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(46L, ((Number) result.rows().get(1).get(0)).longValue(), "Feb 15 should be day 46");
         assertEquals(366L, ((Number) result.rows().get(2).get(0)).longValue(), "Dec 31 of leap year should be day 366");
     }
+
+    // ==================== CONSTANT LAMBDA EXPRESSION TESTS ====================
+    // These test the ConstantNode support for expressions like |1+1 -> SELECT 1+1
+
+    @Test
+    @DisplayName("Constant lambda: simple arithmetic |1+1")
+    void testConstantLambdaSimpleArithmetic() throws Exception {
+        // Minimal model - we just need a valid runtime context
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // This is the key: a lambda expression that doesn't reference any table
+        String pureQuery = "|1 + 1";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Constant lambda |1+1 result: " + result.rows());
+        assertEquals(1, result.rows().size(), "Should return exactly one row");
+        assertEquals(2L, ((Number) result.rows().get(0).get(0)).longValue(), "1+1 should equal 2");
+    }
+
+    @Test
+    @DisplayName("Constant lambda: multiplication |6*7")
+    void testConstantLambdaMultiplication() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "|6 * 7";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Constant lambda |6*7 result: " + result.rows());
+        assertEquals(1, result.rows().size());
+        assertEquals(42L, ((Number) result.rows().get(0).get(0)).longValue(), "6*7 should equal 42");
+    }
+
+    @Test
+    @DisplayName("Constant lambda: complex expression |(10 + 5) * 2 - 3")
+    void testConstantLambdaComplexExpression() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "|(10 + 5) * 2 - 3";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Constant lambda |(10+5)*2-3 result: " + result.rows());
+        assertEquals(1, result.rows().size());
+        // (10+5)*2-3 = 15*2-3 = 30-3 = 27
+        assertEquals(27L, ((Number) result.rows().get(0).get(0)).longValue(), "(10+5)*2-3 should equal 27");
+    }
+
+    @Test
+    @DisplayName("Constant lambda: string literal |'hello'")
+    void testConstantLambdaStringLiteral() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "|'hello'";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Constant lambda |'hello' result: " + result.rows());
+        assertEquals(1, result.rows().size());
+        assertEquals("hello", result.rows().get(0).get(0), "Should return 'hello'");
+    }
+
+    @Test
+    @DisplayName("Constant lambda: boolean expression |true")
+    void testConstantLambdaBooleanLiteral() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "|true";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Constant lambda |true result: " + result.rows());
+        assertEquals(1, result.rows().size());
+        assertEquals(true, result.rows().get(0).get(0), "Should return true");
+    }
+
+    @Test
+    @DisplayName("Constant lambda: comparison |5 > 3")
+    void testConstantLambdaComparison() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        String pureQuery = "|5 > 3";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Constant lambda |5>3 result: " + result.rows());
+        assertEquals(1, result.rows().size());
+        assertEquals(true, result.rows().get(0).get(0), "5 > 3 should be true");
+    }
 }

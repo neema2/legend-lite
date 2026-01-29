@@ -560,6 +560,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return sb.toString();
     }
 
+    @Override
+    public String visit(ConstantNode constant) {
+        // Generate SELECT <expression> without a FROM clause
+        // This supports Pure expressions like |1+1 which translate to SELECT 1+1
+        return "SELECT " + constant.expression().accept(this) + " AS \"value\"";
+    }
+
     /**
      * Formats a TDS cell value for SQL insertion.
      */
@@ -783,6 +790,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case ConcatenateNode concat -> null; // No filter to extract from UNION
             case PivotNode pivot -> null; // No filter to extract from PIVOT
             case TdsLiteralNode tds -> null; // No filter in TDS literal
+            case ConstantNode constant -> null; // No filter in constant expression
         };
     }
 
@@ -814,6 +822,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case ConcatenateNode concat -> extractTableNode(concat.left()); // Use left side
             case PivotNode pivot -> extractTableNode(pivot.source());
             case TdsLiteralNode tds -> throw new IllegalArgumentException("TDS literal has no source table");
+            case ConstantNode constant -> throw new IllegalArgumentException("Constant expression has no source table");
         };
     }
 
@@ -1330,6 +1339,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case TdsLiteralNode tds -> {
                 // For EXISTS with TDS literal, wrap the whole thing
                 yield "SELECT 1 FROM (" + tds.accept(this) + ") AS exists_src";
+            }
+            case ConstantNode constant -> {
+                // For EXISTS with constant, wrap the expression
+                yield "SELECT 1 FROM (" + constant.accept(this) + ") AS exists_src";
             }
         };
     }

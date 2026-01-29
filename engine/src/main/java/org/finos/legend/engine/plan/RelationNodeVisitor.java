@@ -81,4 +81,9 @@ public interface RelationNodeVisitor<T> {
      * Visit a TDS literal node (inline tabular data).
      */
     T visit(TdsLiteralNode tdsLiteral);
+
+    /**
+     * Visit a constant node (SELECT expression without FROM).
+     */
+    T visit(ConstantNode constant);
 }

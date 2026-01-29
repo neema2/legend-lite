@@ -110,8 +110,25 @@ public final class PureCompiler {
             case ConcatenateExpression concatenate -> compileConcatenate(concatenate, context);
             case PivotExpression pivot -> compilePivot(pivot, context);
             case TdsLiteral tds -> compileTdsLiteral(tds);
+            case LambdaExpression lambda -> compileConstant(lambda, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
+    }
+
+    /**
+     * Compiles a constant lambda expression into a ConstantNode.
+     * 
+     * This supports Pure expressions like |1+1 which translate to SELECT 1+1.
+     * The database evaluates the expression and returns a single-row, single-column
+     * result.
+     *
+     * @param lambda  The lambda expression (e.g., |1+1)
+     * @param context Compilation context (may be null for constant expressions)
+     * @return A ConstantNode wrapping the SQL expression
+     */
+    private RelationNode compileConstant(LambdaExpression lambda, CompilationContext context) {
+        Expression sqlExpr = compileToSqlExpression(lambda.body(), context);
+        return new ConstantNode(sqlExpr);
     }
 
     // ========================================================================
@@ -2828,6 +2845,7 @@ public final class PureCompiler {
             case ConcatenateNode concat -> getTableAlias(concat.left());
             case PivotNode pivot -> getTableAlias(pivot.source());
             case TdsLiteralNode tds -> "_tds"; // TDS literals use synthetic alias
+            case ConstantNode constant -> "_const"; // Constants have no source table
         };
     }
 
