@@ -111,15 +111,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     return wrapPrimitiveValue(value, processorSupport);
                 }
 
-                // For TDS results, convert to string format for stringToTDS()
+                // For TDS results, wrap in TDSResult class so Pure can distinguish from scalar
+                // strings
                 BufferedResult buffered = result.toBuffered();
                 String tdsString = formatResultForStringToTds(buffered);
 
                 System.out.println("[LegendLite PCT] Result TDS: " + tdsString.replace("\n", "\\n"));
 
-                // Return the result as a Pure string value
-                return ValueSpecificationBootstrap.newStringLiteral(
-                        modelRepository, tdsString, processorSupport);
+                // Create a TDSResult instance: ^TDSResult(tdsString = '...')
+                return createTDSResult(tdsString, processorSupport);
             }
         } catch (SQLException e) {
             throw new PureExecutionException(
@@ -235,5 +235,30 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         // Default to string representation
         return ValueSpecificationBootstrap.newStringLiteral(modelRepository, value.toString(), processorSupport);
+    }
+
+    /**
+     * Creates a TDSResult instance to wrap TDS string results.
+     * This allows the Pure adapter to distinguish TDS results from scalar String
+     * values.
+     */
+    private CoreInstance createTDSResult(String tdsString, ProcessorSupport processorSupport) {
+        // Get the TDSResult class
+        CoreInstance tdsResultClass = processorSupport.package_getByUserPath("meta::legend::lite::pct::TDSResult");
+        if (tdsResultClass == null) {
+            throw new RuntimeException("TDSResult class not found in Pure model");
+        }
+
+        // Create an instance with tdsString property
+        CoreInstance instance = modelRepository.newCoreInstance(
+                "TDSResult", tdsResultClass, null);
+
+        // Set the tdsString property
+        CoreInstance tdsStringValue = ValueSpecificationBootstrap.newStringLiteral(
+                modelRepository, tdsString, processorSupport);
+        Instance.addValueToProperty(instance, "tdsString", tdsStringValue, processorSupport);
+
+        // Wrap in value specification
+        return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, processorSupport);
     }
 }

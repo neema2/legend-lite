@@ -1,0 +1,9 @@
+// Copyright 2026 Legend Lite Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+// Wrapper class for TDS string results from Legend-Lite native execution.
+// This allows distinguishing TDS results from scalar String values.
+Class meta::legend::lite::pct::TDSResult
+{
+    tdsString: String[1];
+}

@@ -19,13 +19,14 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
         ->printFunctionDefinition($config, ^GContext(space=''));
     
     // Execute through Legend-Lite's QueryService via native bridge
-    // Returns either a scalar value (Integer, Float, etc.) or a TDS string
+    // Returns either:
+    //   - TDSResult wrapper containing TDS string (for relation queries)
+    //   - Scalar value directly (Integer, Float, Boolean, String)
     let result = executeLegendLiteQuery($pureText);
     
-    // If result is a String, it's a TDS string that needs parsing
-    // Otherwise, it's already a scalar value (from constant queries)
-    if($result->instanceOf(String),
-        | $result->cast(@String)->stringToTDS()->cast(@X)->toMultiplicity(@[o]),
+    // Check if this is a TDS result (wrapped in TDSResult class)
+    if($result->instanceOf(TDSResult),
+        | $result->cast(@TDSResult).tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]),
         | $result->cast(@X)->toMultiplicity(@[o])
     );
 }
