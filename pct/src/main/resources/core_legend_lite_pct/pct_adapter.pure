@@ -8,7 +8,7 @@ import meta::pure::metamodel::relation::*;
 
 // PCT Adapter for Legend-Lite
 // This adapter serializes Pure functions to grammar text, executes through
-// legend-lite's QueryService, and converts results back to Pure Relations.
+// legend-lite's QueryService, and converts results back to Pure values.
 function <<PCT.adapter>> {PCT.adapterName='LegendLite'} 
     meta::legend::lite::pct::testAdapterForLegendLiteExecution<X|o>(f:Function<{->X[o]}>[1]):X[o]
 {
@@ -19,9 +19,13 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
         ->printFunctionDefinition($config, ^GContext(space=''));
     
     // Execute through Legend-Lite's QueryService via native bridge
-    // Returns a TDS-formatted string: "col:Type,col:Type\nval,val\nval,val"
-    let tdsString = executeLegendLiteQuery($pureText);
+    // Returns either a scalar value (Integer, Float, etc.) or a TDS string
+    let result = executeLegendLiteQuery($pureText);
     
-    // Convert TDS string to Relation using legend-pure's stringToTDS()
-    $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);
+    // If result is a String, it's a TDS string that needs parsing
+    // Otherwise, it's already a scalar value (from constant queries)
+    if($result->instanceOf(String),
+        | $result->cast(@String)->stringToTDS()->cast(@X)->toMultiplicity(@[o]),
+        | $result->cast(@X)->toMultiplicity(@[o])
+    );
 }

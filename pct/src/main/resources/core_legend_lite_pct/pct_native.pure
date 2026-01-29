@@ -5,6 +5,6 @@
 // The Java implementation is in ExecuteLegendLiteQuery.java and is registered
 // via LegendLitePCTExtensionInterpreted with the interpreted runtime.
 //
-// Input: Pure expression as grammar text (e.g., "#TDS\nname,age\n'Bob',30\n#->select(~name)")
-// Output: TDS-formatted string (e.g., "name:String\nBob") for use with stringToTDS()
-native function meta::legend::lite::pct::executeLegendLiteQuery(pureGrammar: String[1]): String[1];
+// Input: Pure expression as grammar text (e.g., "|1+1" or "|Person.all()->project(~name)")
+// Output: Either a scalar value (Integer, Float, Boolean, String) or a TDS string
+native function meta::legend::lite::pct::executeLegendLiteQuery(pureGrammar: String[1]): Any[1];
