@@ -18,6 +18,7 @@ import org.eclipse.collections.api.list.ListIterable;
 import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
 import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.Column;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.m3.compiler.Context;
 import org.finos.legend.pure.m3.exception.PureExecutionException;
@@ -49,31 +50,21 @@ import java.util.Stack;
  * text,
  * then executed via QueryService which compiles to SQL and runs against DuckDB.
  * 
- * Signature: executeLegendLiteQuery(pureExpression:String[1]):Any[1]
+ * Returns a TDS-formatted string for use with stringToTDS():
+ * Format: "col1:Type,col2:Type\nval1,val2\nval3,val4"
+ * 
+ * Signature: executeLegendLiteQuery(pureExpression:String[1]):String[1]
  */
 public class ExecuteLegendLiteQuery extends NativeFunction {
 
+    // Minimal model for TDS-based testing - no classes needed for pure relation
+    // operations
     private static final String PURE_MODEL = """
-            Class test::Person {
-                name: String[1];
-                age: Integer[1];
-            }
-
-            ###Mapping
-            Mapping test::PersonMapping()
-
-            ###Connection
-            RelationalDatabaseConnection test::TestConnection {
-                type: DuckDB;
-                specification: LocalDuckDB { };
-                auth: Test { };
-            }
-
-            ###Runtime
-            Runtime test::TestRuntime {
-                mappings: [ test::PersonMapping ];
-                connections: [ test::TestConnection ];
-            }
+                Class model::DoyRecord { eventDate: StrictDate[1]; }
+                Database store::DoyDb ( Table T_DOY ( ID INTEGER, EVENT_DATE DATE ) )
+                Mapping model::DoyMap ( DoyRecord: Relational { ~mainTable [DoyDb] T_DOY eventDate: [DoyDb] T_DOY.EVENT_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
             """;
 
     private final ModelRepository modelRepository;
@@ -99,6 +90,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         String pureExpression = PrimitiveUtilities.getStringValue(
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
 
+        System.out.println("[LegendLite PCT] Executing Pure expression: " + pureExpression);
+
         try {
             // Execute through Legend-Lite's QueryService
             QueryService queryService = new QueryService();
@@ -108,14 +101,21 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 BufferedResult result = queryService.execute(PURE_MODEL, pureExpression, "test::TestRuntime",
                         connection);
 
-                // Convert result to a Pure string representation
-                String resultString = formatResultAsTds(result);
+                // Convert result to TDS string format for stringToTDS()
+                String tdsString = formatResultForStringToTds(result);
+
+                System.out.println("[LegendLite PCT] Result TDS: " + tdsString.replace("\n", "\\n"));
 
                 // Return the result as a Pure string value
                 return ValueSpecificationBootstrap.newStringLiteral(
-                        modelRepository, resultString, processorSupport);
+                        modelRepository, tdsString, processorSupport);
             }
         } catch (SQLException e) {
+            throw new PureExecutionException(
+                    functionExpressionCallStack.peek().getSourceInformation(),
+                    "Legend-Lite execution failed: " + e.getMessage(),
+                    e);
+        } catch (Exception e) {
             throw new PureExecutionException(
                     functionExpressionCallStack.peek().getSourceInformation(),
                     "Legend-Lite execution failed: " + e.getMessage(),
@@ -124,35 +124,67 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     }
 
     /**
-     * Formats a BufferedResult as a TDS string for comparison.
+     * Formats a BufferedResult as a TDS string for stringToTDS().
+     * 
+     * Format: col1:Type,col2:Type\nval1,val2\nval3,val4
+     * 
+     * This matches the format expected by legend-engine's stringToTDS() function.
      */
-    private String formatResultAsTds(BufferedResult result) {
-        StringBuilder sb = new StringBuilder("#TDS\n");
+    private String formatResultForStringToTds(BufferedResult result) {
+        StringBuilder sb = new StringBuilder();
 
-        // Header row
+        // Column header: name:Type,name:Type
         var columns = result.columns();
-        sb.append("   ");
         for (int i = 0; i < columns.size(); i++) {
             if (i > 0)
                 sb.append(",");
-            sb.append(columns.get(i).name());
+            Column col = columns.get(i);
+            sb.append(col.name()).append(":").append(mapToLegendType(col.sqlType()));
         }
-        sb.append("\n");
 
-        // Data rows
+        // Data rows: value,value\nvalue,value
         for (var row : result.rows()) {
-            sb.append("   ");
+            sb.append("\n");
             var values = row.values();
             for (int i = 0; i < values.size(); i++) {
                 if (i > 0)
                     sb.append(",");
                 Object value = values.get(i);
-                sb.append(value == null ? "" : value.toString());
+                sb.append(formatValue(value));
             }
-            sb.append("\n");
         }
 
-        sb.append("#");
         return sb.toString();
+    }
+
+    /**
+     * Maps Java/SQL types to Pure type names.
+     */
+    private String mapToLegendType(String sqlType) {
+        if (sqlType == null)
+            return "String";
+        return switch (sqlType.toLowerCase()) {
+            case "integer", "int", "bigint", "smallint", "tinyint" -> "Integer";
+            case "double", "float", "real", "decimal", "numeric" -> "Float";
+            case "boolean", "bool" -> "Boolean";
+            case "date" -> "StrictDate";
+            case "timestamp", "datetime" -> "DateTime";
+            default -> "String";
+        };
+    }
+
+    /**
+     * Formats a value for CSV output, escaping as needed.
+     */
+    private String formatValue(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        String str = value.toString();
+        // Escape strings that contain commas, quotes, or newlines
+        if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
+            return "\"" + str.replace("\"", "\"\"") + "\"";
+        }
+        return str;
     }
 }

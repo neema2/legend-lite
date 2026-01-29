@@ -27,13 +27,12 @@ import org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExten
  * to Legend-Lite's QueryService execution engine.
  */
 public class LegendLitePCTExtensionInterpreted extends BaseInterpretedExtension {
-    
+
     public LegendLitePCTExtensionInterpreted() {
         super(
-            Tuples.pair("executeLegendLiteQuery_String_1__Any_1_", ExecuteLegendLiteQuery::new)
-        );
+                Tuples.pair("executeLegendLiteQuery_String_1__String_1_", ExecuteLegendLiteQuery::new));
     }
-    
+
     public static InterpretedExtension extension() {
         return new LegendLitePCTExtensionInterpreted();
     }

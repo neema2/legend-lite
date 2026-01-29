@@ -3,6 +3,7 @@
     "pattern": "(meta::legend::lite::pct)(::.*)?",
     "dependencies": [
         "platform",
+        "platform_dsl_tds",
         "core"
     ]
 }

@@ -66,6 +66,22 @@
             <version>${legend.engine.version}</version>
             <scope>test</scope>
         </dependency>
+        
+        <!-- Standard Functions ReportScope -->
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-pure-functions-standard-pure</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- Unclassified Functions ReportScope -->
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-pure-functions-unclassified-pure</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- Interpreted Runtime (for native function registration) -->
         <dependency>
@@ -105,6 +121,22 @@
             <groupId>org.finos.legend.engine</groupId>
             <artifactId>legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified</artifactId>
             <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- TDS DSL Interpreted Extension (provides stringToTDS native function) -->
+        <dependency>
+            <groupId>org.finos.legend.pure</groupId>
+            <artifactId>legend-pure-runtime-java-extension-interpreted-dsl-tds</artifactId>
+            <version>${legend.pure.version}</version>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- TDS DSL Pure definitions (provides stringToTDS Pure signature) -->
+        <dependency>
+            <groupId>org.finos.legend.pure</groupId>
+            <artifactId>legend-pure-m2-dsl-tds-pure</artifactId>
+            <version>${legend.pure.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -174,6 +206,12 @@
                         <groupId>org.finos.legend.engine</groupId>
                         <artifactId>legend-engine-pure-code-compiled-core</artifactId>
                         <version>${legend.engine.version}</version>
+                    </dependency>
+                    <!-- TDS DSL Pure (provides stringToTDS) -->
+                    <dependency>
+                        <groupId>org.finos.legend.pure</groupId>
+                        <artifactId>legend-pure-m2-dsl-tds-pure</artifactId>
+                        <version>${legend.pure.version}</version>
                     </dependency>
                 </dependencies>
             </plugin>

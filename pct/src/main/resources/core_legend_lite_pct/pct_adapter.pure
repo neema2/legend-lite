@@ -3,15 +3,25 @@
 
 import meta::pure::test::pct::*;
 import meta::legend::lite::pct::*;
+import meta::pure::metamodel::serialization::grammar::*;
+import meta::pure::metamodel::relation::*;
 
 // PCT Adapter for Legend-Lite
-// This adapter receives Pure functions from the PCT framework and
-// evaluates them directly. The function is passed to our native Java bridge.
+// This adapter serializes Pure functions to grammar text, executes through
+// legend-lite's QueryService, and converts results back to Pure Relations.
 function <<PCT.adapter>> {PCT.adapterName='LegendLite'} 
     meta::legend::lite::pct::testAdapterForLegendLiteExecution<X|o>(f:Function<{->X[o]}>[1]):X[o]
 {
-    // Directly evaluate the function - the test framework passes in lambdas
-    // that we can just invoke. The underlying #TDS literals will be executed
-    // by legend-lite's query engine.
-    $f->eval();
+    // Serialize the full function definition to Pure grammar text
+    // Use configuration with fullPath=true for proper serialization
+    let config = ^Configuration(fullPath = true);
+    let pureText = $f->cast(@FunctionDefinition<Any>)
+        ->printFunctionDefinition($config, ^GContext(space=''));
+    
+    // Execute through Legend-Lite's QueryService via native bridge
+    // Returns a TDS-formatted string: "col:Type,col:Type\nval,val\nval,val"
+    let tdsString = executeLegendLiteQuery($pureText);
+    
+    // Convert TDS string to Relation using legend-pure's stringToTDS()
+    $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);
 }
