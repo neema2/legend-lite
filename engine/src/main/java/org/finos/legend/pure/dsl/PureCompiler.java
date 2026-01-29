@@ -2350,7 +2350,7 @@ public final class PureCompiler {
             case MethodCall methodCall -> compileMethodCall(methodCall, context);
             case VariableExpr var -> {
                 // Check if this is a lambda parameter (e.g., `i` in map(i | $i->get('price')))
-                if (context.lambdaParameters() != null && context.isLambdaParameter(var.name())) {
+                if (context != null && context.lambdaParameters() != null && context.isLambdaParameter(var.name())) {
                     // Lambda parameters become unqualified column references
                     yield ColumnReference.of(var.name());
                 }
@@ -2642,7 +2642,7 @@ public final class PureCompiler {
         }
 
         // Verify the variable matches the lambda parameter
-        if (!var.name().equals(context.lambdaParameter())) {
+        if (context == null || context.lambdaParameter() == null || !var.name().equals(context.lambdaParameter())) {
             return null;
         }
 
@@ -2791,9 +2791,9 @@ public final class PureCompiler {
         // Standard property access handling
         String varName = extractVariableName(propAccess.source());
 
-        if (!varName.equals(context.lambdaParameter())) {
+        if (context == null || context.lambdaParameter() == null || !varName.equals(context.lambdaParameter())) {
             throw new PureCompileException(
-                    "Unknown variable: $" + varName + ", expected: $" + context.lambdaParameter());
+                    "Unknown variable: $" + varName + ", expected lambda parameter");
         }
 
         // Check if this is an extended column (from extend/flatten) - use unqualified
