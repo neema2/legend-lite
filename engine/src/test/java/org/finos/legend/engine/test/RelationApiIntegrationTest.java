@@ -949,5 +949,53 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             // distinct gives 3 rows, limit(2) gives 2 rows
             assertEquals(2, result.rows().size());
         }
+
+        @Test
+        @DisplayName("#TDS literal with ->extend() and ->filter() (PCT pattern)")
+        void testTdsLiteralExtendFilter() throws SQLException {
+            // Simplified version of PCT pattern without fully qualified names
+            String pureQuery = """
+                    #TDS
+                    val, str
+                    1, a
+                    3, ewe
+                    4, qw
+                    5, wwe
+                    6, weq
+                    #
+                    ->extend(~newCol: x | $x.str + $x.val->toString())
+                    ->filter(x | $x.newCol == 'qw4')
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            // Only row where str + val = 'qw4' is (4, 'qw') -> 'qw' + '4' = 'qw4'
+            assertEquals(1, result.rows().size());
+            assertEquals(4L, ((Number) result.rows().get(0).get(0)).longValue());
+            assertEquals("qw", result.rows().get(0).get(1));
+            assertEquals("qw4", result.rows().get(0).get(2));
+        }
+
+        @Test
+        @DisplayName("#TDS literal with ->extend() and ->filter() (exact PCT syntax)")
+        void testTdsLiteralExtendFilterPctSyntax() throws SQLException {
+            // Exact PCT test syntax with fully qualified names and typed lambdas
+            String pureQuery = "|#TDS\n" +
+                    "val,str\n" +
+                    "1,a\n" +
+                    "3,ewe\n" +
+                    "4,qw\n" +
+                    "5,wwe\n" +
+                    "6,weq\n" +
+                    "#->meta::pure::functions::relation::extend(~newCol:x: (val:Integer, str:String)[1]|$x.str->meta::pure::functions::multiplicity::toOne() + $x.val->meta::pure::functions::multiplicity::toOne()->meta::pure::functions::string::toString())->meta::pure::functions::relation::filter(x: (val:Integer, str:String, newCol:String)[1]|$x.newCol == 'qw4')";
+
+            var result = executeRelation(pureQuery);
+
+            // Only row where str + val = 'qw4' is (4, 'qw') -> 'qw' + '4' = 'qw4'
+            assertEquals(1, result.rows().size());
+            assertEquals(4L, ((Number) result.rows().get(0).get(0)).longValue());
+            assertEquals("qw", result.rows().get(0).get(1));
+            assertEquals("qw4", result.rows().get(0).get(2));
+        }
     }
 }

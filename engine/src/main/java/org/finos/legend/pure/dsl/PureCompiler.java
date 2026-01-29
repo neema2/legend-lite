@@ -2460,6 +2460,12 @@ public final class PureCompiler {
             case "fold" -> compileFoldCall(methodCall, context);
             case "flatten" -> compileFlattenCall(methodCall, context);
             case "get" -> compileGetCall(methodCall, context);
+            // Pure multiplicity functions - identity in SQL context
+            case "toOne" -> compileToSqlExpression(methodCall.source(), context);
+            // Type conversion functions
+            case "toString" -> new SqlFunctionCall("cast",
+                    compileToSqlExpression(methodCall.source(), context),
+                    java.util.List.of(), SqlType.VARCHAR);
             default -> compileSimpleMethodCall(methodCall, context);
         };
     }
@@ -2617,7 +2623,27 @@ public final class PureCompiler {
      * Checks if a Pure expression is a string type.
      */
     private boolean isStringExpression(PureExpression expr) {
-        return expr instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.STRING;
+        // Check literal strings
+        if (expr instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.STRING) {
+            return true;
+        }
+        // Check toString() method call
+        if (expr instanceof MethodCall mc && "toString".equals(mc.methodName())) {
+            return true;
+        }
+        // Check binary expressions where one side is string (propagates string type)
+        if (expr instanceof BinaryExpression bin && "+".equals(bin.operator())) {
+            return isStringExpression(bin.left()) || isStringExpression(bin.right());
+        }
+        // Property access on a known string column (heuristic - 'str' in name suggests
+        // string)
+        if (expr instanceof PropertyAccessExpression prop) {
+            String propName = prop.propertyName().toLowerCase();
+            if (propName.contains("str") || propName.contains("name") || propName.contains("text")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Expression compileComparison(ComparisonExpr comp, CompilationContext context) {
