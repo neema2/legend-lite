@@ -19,7 +19,7 @@ import java.util.stream.Stream;
  * GraalVM native-image compatible.
  */
 public sealed interface Result extends AutoCloseable
-        permits BufferedResult, StreamingResult {
+        permits BufferedResult, StreamingResult, ScalarResult {
 
     /**
      * Gets the column metadata for this result.

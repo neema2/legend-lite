@@ -133,7 +133,16 @@ public class PlanExecutor {
         return switch (mode) {
             case BUFFERED -> executeBuffered(conn, sql);
             case STREAMING -> executeStreaming(conn, sql);
+            case SCALAR -> executeScalar(conn, sql);
         };
+    }
+
+    private Result executeScalar(Connection conn, String sql) throws SQLException {
+        BufferedResult buffered = executeBuffered(conn, sql);
+        if (buffered.rowCount() == 1 && buffered.columnCount() == 1) {
+            return new ScalarResult(buffered.getValue(0, 0));
+        }
+        return buffered;
     }
 
     private BufferedResult executeBuffered(Connection conn, String sql) throws SQLException {

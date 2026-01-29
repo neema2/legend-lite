@@ -1,6 +1,9 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.store.*;
+import org.finos.legend.engine.execution.Result;
+import org.finos.legend.engine.execution.ScalarResult;
+import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
 import org.finos.legend.pure.dsl.definition.*;
@@ -2623,5 +2626,29 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Constant lambda |5>3 result: " + result.rows());
         assertEquals(1, result.rows().size());
         assertEquals(true, result.rows().get(0).get(0), "5 > 3 should be true");
+    }
+
+    @Test
+    @DisplayName("Constant lambda: qualified function |meta::pure::functions::math::abs(-123)")
+    void testConstantLambdaQualifiedFunction() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Qualified function call - should strip package prefix and use just 'abs'
+        String pureQuery = "|meta::pure::functions::math::abs(-123456789123456789.99)";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection,
+                QueryService.ResultMode.BUFFERED);
+
+        // Should return a ScalarResult for constant queries
+        assertTrue(result instanceof ScalarResult, "Constant query should return ScalarResult");
+        ScalarResult scalar = (ScalarResult) result;
+        System.out.println("Constant lambda qualified abs result: " + scalar.value());
+        assertNotNull(scalar.value());
     }
 }

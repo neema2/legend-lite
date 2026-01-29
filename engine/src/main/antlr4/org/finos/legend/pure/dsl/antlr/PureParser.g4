@@ -1180,7 +1180,7 @@ dbConnectionSpec:                               RELATIONAL_DATASOURCE_SPEC COLON
 ;
 dbConnectionAuth:                               RELATIONAL_AUTH_STRATEGY COLON dbConnectionAuthValue SEMI_COLON
 ;
-dbConnectionTimezone:                           DB_TIMEZONE COLON TIMEZONE_VALUE SEMI_COLON
+dbConnectionTimezone:                           DB_TIMEZONE COLON (PLUS | MINUS) INTEGER SEMI_COLON
 ;
 dbConnectionQuoteIdentifiers:                   QUOTE_IDENTIFIERS COLON BOOLEAN SEMI_COLON
 ;

@@ -19,6 +19,8 @@ import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.Column;
+import org.finos.legend.engine.execution.Result;
+import org.finos.legend.engine.execution.ScalarResult;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.m3.compiler.Context;
 import org.finos.legend.pure.m3.exception.PureExecutionException;
@@ -36,6 +38,7 @@ import org.finos.legend.pure.runtime.java.interpreted.natives.InstantiationConte
 import org.finos.legend.pure.runtime.java.interpreted.natives.NativeFunction;
 import org.finos.legend.pure.runtime.java.interpreted.profiler.Profiler;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -98,11 +101,19 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
             // Create in-memory DuckDB connection
             try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-                BufferedResult result = queryService.execute(PURE_MODEL, pureExpression, "test::TestRuntime",
-                        connection);
+                Result result = queryService.execute(PURE_MODEL, pureExpression, "test::TestRuntime",
+                        connection, QueryService.ResultMode.BUFFERED);
 
-                // Convert result to TDS string format for stringToTDS()
-                String tdsString = formatResultForStringToTds(result);
+                // For scalar results (constant queries), return the primitive value directly
+                if (result instanceof ScalarResult scalarResult) {
+                    Object value = scalarResult.value();
+                    System.out.println("[LegendLite PCT] Scalar result: " + value);
+                    return wrapPrimitiveValue(value, processorSupport);
+                }
+
+                // For TDS results, convert to string format for stringToTDS()
+                BufferedResult buffered = result.toBuffered();
+                String tdsString = formatResultForStringToTds(buffered);
 
                 System.out.println("[LegendLite PCT] Result TDS: " + tdsString.replace("\n", "\\n"));
 
@@ -186,5 +197,43 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return "\"" + str.replace("\"", "\"\"") + "\"";
         }
         return str;
+    }
+
+    /**
+     * Wraps a Java primitive value into a Pure CoreInstance.
+     * Used for scalar results from constant queries.
+     */
+    private CoreInstance wrapPrimitiveValue(Object value, ProcessorSupport processorSupport) {
+        if (value == null) {
+            // Return Pure's nil/empty
+            return ValueSpecificationBootstrap.wrapValueSpecification(
+                    org.eclipse.collections.api.factory.Lists.immutable.empty(), true, processorSupport);
+        }
+        if (value instanceof Boolean b) {
+            return ValueSpecificationBootstrap.newBooleanLiteral(modelRepository, b, processorSupport);
+        }
+        if (value instanceof Integer i) {
+            return ValueSpecificationBootstrap.newIntegerLiteral(modelRepository, i, processorSupport);
+        }
+        if (value instanceof Long l) {
+            return ValueSpecificationBootstrap.newIntegerLiteral(modelRepository, l, processorSupport);
+        }
+        if (value instanceof Double d) {
+            return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(d),
+                    processorSupport);
+        }
+        if (value instanceof Float f) {
+            return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(f.doubleValue()),
+                    processorSupport);
+        }
+        if (value instanceof Number n) {
+            return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(n.doubleValue()),
+                    processorSupport);
+        }
+        if (value instanceof String s) {
+            return ValueSpecificationBootstrap.newStringLiteral(modelRepository, s, processorSupport);
+        }
+        // Default to string representation
+        return ValueSpecificationBootstrap.newStringLiteral(modelRepository, value.toString(), processorSupport);
     }
 }

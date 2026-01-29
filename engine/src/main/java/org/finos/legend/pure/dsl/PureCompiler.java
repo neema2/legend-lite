@@ -2357,6 +2357,34 @@ public final class PureCompiler {
                 throw new PureCompileException("Unexpected variable in expression context: " + var);
             }
             case CastExpression cast -> compileCastExpression(cast, context);
+            case FunctionCall funcCall -> {
+                // Handle function calls like abs(), exp(), sin(), etc.
+                List<Expression> sqlArgs = funcCall.arguments().stream()
+                        .map(arg -> compileToSqlExpression(arg, context))
+                        .toList();
+                if (sqlArgs.isEmpty()) {
+                    throw new PureCompileException(
+                            "Function call requires at least one argument: " + funcCall.functionName());
+                }
+                // First arg is the target, rest are additional arguments
+                Expression target = sqlArgs.getFirst();
+                if (sqlArgs.size() == 1) {
+                    yield SqlFunctionCall.of(funcCall.functionName(), target);
+                } else {
+                    Expression[] additionalArgs = sqlArgs.subList(1, sqlArgs.size()).toArray(new Expression[0]);
+                    yield SqlFunctionCall.of(funcCall.functionName(), target, additionalArgs);
+                }
+            }
+            case UnaryExpression unary -> {
+                // Handle unary expressions like -5, +3
+                Expression operand = compileToSqlExpression(unary.operand(), context);
+                yield switch (unary.operator()) {
+                    case "-" -> ArithmeticExpression.multiply(Literal.integer(-1), operand);
+                    case "+" -> operand;
+                    case "!" -> SqlFunctionCall.of("NOT", operand);
+                    default -> throw new PureCompileException("Unknown unary operator: " + unary.operator());
+                };
+            }
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
         };
     }

@@ -295,7 +295,8 @@ RELATIONAL_AUTH_STRATEGY:               'auth';
 RELATIONAL_POST_PROCESSORS:             'postProcessors';
 QUERY_TIMEOUT:                          'queryTimeOutInSeconds';
 DB_TIMEZONE:                            'timezone';
-TIMEZONE_VALUE:                         ('+' | '-') Digit Digit Digit Digit;
+// TIMEZONE_VALUE removed - was causing ambiguity with negative numbers
+// Timezone is now parsed as (PLUS | MINUS) INTEGER in the parser
 QUOTE_IDENTIFIERS:                      'quoteIdentifiers';
 QUERY_GENERATION_CONFIGS:               'queryGenerationConfigs';
 

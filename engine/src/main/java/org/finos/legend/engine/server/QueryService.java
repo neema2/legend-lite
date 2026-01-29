@@ -3,6 +3,7 @@ package org.finos.legend.engine.server;
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.ConnectionResolver;
 import org.finos.legend.engine.execution.Result;
+import org.finos.legend.engine.execution.ScalarResult;
 import org.finos.legend.engine.execution.StreamingResult;
 import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.serialization.ResultSerializer;
@@ -227,8 +228,11 @@ public class QueryService {
         System.out.println("Pure Query: " + query);
         System.out.println("Generated SQL: " + sql);
 
-        // 5. Execute using provided connection
-        return executeWithMode(connection, sql, mode);
+        // 5. For constant queries, use SCALAR mode to unwrap the result
+        ResultMode effectiveMode = (ir instanceof ConstantNode) ? ResultMode.SCALAR : mode;
+
+        // 6. Execute using the appropriate mode
+        return executeWithMode(connection, sql, effectiveMode);
     }
 
     /**
@@ -271,7 +275,16 @@ public class QueryService {
         return switch (mode) {
             case BUFFERED -> executeBuffered(conn, sql);
             case STREAMING -> executeStreaming(conn, sql);
+            case SCALAR -> executeScalar(conn, sql);
         };
+    }
+
+    private Result executeScalar(Connection conn, String sql) throws SQLException {
+        BufferedResult buffered = executeBuffered(conn, sql);
+        if (buffered.rowCount() == 1 && buffered.columnCount() == 1) {
+            return new ScalarResult(buffered.getValue(0, 0));
+        }
+        return buffered;
     }
 
     private BufferedResult executeBuffered(Connection conn, String sql) throws SQLException {
@@ -431,9 +444,11 @@ public class QueryService {
      * Determines whether to buffer or stream results.
      */
     public enum ResultMode {
-        /** Materialize all rows in memory (current behavior) */
+        /** Materialize all rows in memory */
         BUFFERED,
         /** Lazy iteration with held connection */
-        STREAMING
+        STREAMING,
+        /** Single scalar value (for constant queries) */
+        SCALAR
     }
 }
