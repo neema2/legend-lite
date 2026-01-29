@@ -253,12 +253,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         CoreInstance instance = modelRepository.newCoreInstance(
                 "TDSResult", tdsResultClass, null);
 
-        // Set the tdsString property
-        CoreInstance tdsStringValue = ValueSpecificationBootstrap.newStringLiteral(
-                modelRepository, tdsString, processorSupport);
+        // Set the tdsString property - use raw string value, not wrapped
+        // ValueSpecification
+        // The property expects a String primitive, not a ValueSpecification wrapper
+        CoreInstance tdsStringValue = modelRepository.newStringCoreInstance(tdsString);
         Instance.addValueToProperty(instance, "tdsString", tdsStringValue, processorSupport);
 
-        // Wrap in value specification
+        // Wrap in value specification for return
         return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, processorSupport);
     }
 }

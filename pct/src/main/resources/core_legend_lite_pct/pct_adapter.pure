@@ -28,6 +28,39 @@ function meta::legend::lite::pct::legendLiteGrammarConfiguration():Configuration
   );
 }
 
+// Get simple type name from a generic type (e.g., Integer, String, Float)
+function meta::legend::lite::pct::getSimpleTypeName(gt:GenericType[1]):String[1]
+{
+  let rawType = $gt.rawType->toOne();
+  // Get just the simple name, not fully qualified
+  if($rawType->instanceOf(PrimitiveType),
+    | $rawType->cast(@PrimitiveType).name->toOne(),
+    | if($rawType->instanceOf(Enumeration),
+        | 'String', // Enums serialize as strings
+        | 'String'  // Default fallback
+      )
+  );
+}
+
+// Build typed column header from expected return type
+// This is needed to preserve column types when parsing TDS results
+// Format: col1:Type,col2:Type (NO multiplicity - stringToTDS uses just Type names)
+function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]):String[0..1]
+{
+  if ($funcReturnType.rawType->toOne()->subTypeOf(Relation) && 
+      $funcReturnType.typeArguments->at(0).rawType->toOne()->instanceOf(RelationType),
+    | let relType = $funcReturnType.typeArguments->at(0).rawType->cast(@RelationType<Any>)->toOne();
+      let columns = $relType.columns->map(col |
+        let colName = $col.name->toOne();
+        // Use simple type name (Integer, String, Float, Boolean) - NO multiplicity
+        let colType = getSimpleTypeName($col->functionReturnType());
+        $colName + ':' + $colType;
+      );
+      $columns->joinStrings(',');,
+    | []
+  );
+}
+
 // PCT Adapter for Legend-Lite
 // This adapter serializes Pure functions to grammar text, executes through
 // legend-lite's QueryService, and converts results back to Pure values.
@@ -51,7 +84,32 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     
     // Check if this is a TDS result (wrapped in TDSResult class)
     if($result->instanceOf(TDSResult),
-        | $result->cast(@TDSResult).tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]),
+        | // For TDS results, build a properly typed TDS by constructing header from expected return type
+          let tdsData = $result->cast(@TDSResult).tdsString;
+          
+          // Debug: print original TDS data from Java
+          print('[LegendLite PCT] Original TDS data from Java: <<<' + $tdsData + '>>>\n');
+          
+          let typedHeader = buildTypedHeader($f->functionReturnType());
+          
+          // If we have type info, prepend the typed header to the data rows
+          // Otherwise fall back to raw parsing (Java already provides col:Type format)
+          let tdsString = if($typedHeader->isEmpty(),
+            | $tdsData,
+            | // Replace the first line (SQL-inferred types) with Pure-inferred types from return type
+              let lines = $tdsData->split('\n');
+              print('[LegendLite PCT] Lines after split: ' + $lines->size()->toString() + ' lines\n');
+              if($lines->size() > 1,
+                | let tail = $lines->tail();
+                  print('[LegendLite PCT] Tail has: ' + $tail->size()->toString() + ' lines\n');
+                  $typedHeader->toOne() + '\n' + $tail->joinStrings('\n');,
+                | // No data rows, just return header
+                  $typedHeader->toOne()
+              );
+          );
+          
+          print('[LegendLite PCT] TDS String for parsing: <<<' + $tdsString + '>>>\n');
+          $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
         | $result->cast(@X)->toMultiplicity(@[o])
     );
 }
