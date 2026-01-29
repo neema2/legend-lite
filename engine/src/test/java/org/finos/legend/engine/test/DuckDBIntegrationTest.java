@@ -2651,4 +2651,28 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Constant lambda qualified abs result: " + scalar.value());
         assertNotNull(scalar.value());
     }
+
+    @Test
+    @DisplayName("Constant lambda: string concatenation |'a' + 'b'")
+    void testConstantLambdaStringConcatenation() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // String concatenation using + operator
+        String pureQuery = "|'Hello' + ' ' + 'World'";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection,
+                QueryService.ResultMode.BUFFERED);
+
+        // Should return a ScalarResult for constant queries
+        assertTrue(result instanceof ScalarResult, "Constant query should return ScalarResult");
+        ScalarResult scalar = (ScalarResult) result;
+        System.out.println("Constant lambda string concat result: " + scalar.value());
+        assertEquals("Hello World", scalar.value());
+    }
 }

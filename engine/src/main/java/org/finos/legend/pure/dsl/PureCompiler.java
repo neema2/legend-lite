@@ -2564,13 +2564,26 @@ public final class PureCompiler {
             case ">" -> new ComparisonExpression(left, ComparisonExpression.ComparisonOperator.GREATER_THAN, right);
             case ">=" ->
                 new ComparisonExpression(left, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, right);
-            // Arithmetic operators - wrap in ArithmeticExpression
-            case "+" -> ArithmeticExpression.add(left, right);
+            // Plus operator - check if string concatenation or arithmetic addition
+            case "+" -> {
+                if (isStringExpression(binary.left()) || isStringExpression(binary.right())) {
+                    // String concatenation: use CONCAT or || operator
+                    yield ConcatExpression.of(left, right);
+                }
+                yield ArithmeticExpression.add(left, right);
+            }
             case "-" -> ArithmeticExpression.subtract(left, right);
             case "*" -> ArithmeticExpression.multiply(left, right);
             case "/" -> ArithmeticExpression.divide(left, right);
             default -> throw new PureCompileException("Unknown binary operator: " + op);
         };
+    }
+
+    /**
+     * Checks if a Pure expression is a string type.
+     */
+    private boolean isStringExpression(PureExpression expr) {
+        return expr instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.STRING;
     }
 
     private Expression compileComparison(ComparisonExpr comp, CompilationContext context) {
