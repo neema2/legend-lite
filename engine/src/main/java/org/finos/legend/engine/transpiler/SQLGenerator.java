@@ -1186,6 +1186,26 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     }
 
     @Override
+    public String visit(InExpression inExpr) {
+        // expr IN (val1, val2, ...) or expr NOT IN (val1, val2, ...)
+        String operand = inExpr.operand().accept(this);
+        String values = inExpr.values().stream()
+                .map(v -> v.accept(this))
+                .collect(Collectors.joining(", "));
+        String notPart = inExpr.negated() ? " NOT" : "";
+        return operand + notPart + " IN (" + values + ")";
+    }
+
+    @Override
+    public String visit(ListLiteral listLiteral) {
+        // DuckDB list literal: [elem1, elem2, ...]
+        String elements = listLiteral.elements().stream()
+                .map(e -> e.accept(this))
+                .collect(Collectors.joining(", "));
+        return "[" + elements + "]";
+    }
+
+    @Override
     public String visit(JsonObjectExpression jsonObject) {
         // Render nested json_object() for deep fetch
         // Example: json_object('city', t1.CITY, 'street', t1.STREET)

@@ -827,22 +827,18 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
     @Override
     public PureExpression visitLambdaFunction(PureParser.LambdaFunctionContext ctx) {
-        // {x, y | body} - capture ALL params as comma-separated string for fold()
-        // support
+        // {x, y | body} - capture ALL params as List<String> for multi-param lambdas
         List<PureParser.LambdaParamContext> params = ctx.lambdaParam();
-        String param;
+        List<String> paramList;
         if (params.isEmpty()) {
-            param = "_";
-        } else if (params.size() == 1) {
-            param = getIdentifierText(params.get(0).identifier());
+            paramList = List.of("_");
         } else {
-            // Multiple parameters - join as comma-separated for fold() lambda
-            param = params.stream()
+            paramList = params.stream()
                     .map(p -> getIdentifierText(p.identifier()))
-                    .collect(java.util.stream.Collectors.joining(", "));
+                    .toList();
         }
         PureExpression body = visitLambdaBody(ctx.lambdaPipe());
-        return new LambdaExpression(param, body);
+        return new LambdaExpression(paramList, body);
     }
 
     private PureExpression visitLambdaBody(PureParser.LambdaPipeContext ctx) {

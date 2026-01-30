@@ -121,4 +121,14 @@ public interface ExpressionVisitor<T> {
      * Visit a min/max expression (GREATEST/LEAST).
      */
     T visit(MinMaxExpression minMax);
+
+    /**
+     * Visit an IN expression (operand IN (values)).
+     */
+    T visit(InExpression inExpr);
+
+    /**
+     * Visit a list literal expression ([elem1, elem2, ...]).
+     */
+    T visit(ListLiteral listLiteral);
 }

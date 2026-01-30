@@ -61,17 +61,90 @@ function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]
   );
 }
 
+// Substitute open (captured) variables in the function's expression sequence
+// This replaces VariableExpression nodes with their captured values from outer scope
+function meta::legend::lite::pct::substituteOpenVariables(f:FunctionDefinition<Any>[1]):FunctionDefinition<Any>[1]
+{
+  // Get captured variables from closure (variables from outer scope)
+  let openVars = $f->openVariableValues();
+  
+  if ($openVars->isEmpty(),
+    | $f,
+    | // Substitute variables in expression sequence
+      let substitutedExprs = $f.expressionSequence->evaluateAndDeactivate()->map(e |
+        substituteInExpression($e, $openVars->toOne())
+      );
+      ^$f(expressionSequence = $substitutedExprs->cast(@ValueSpecification)->toOneMany());
+  );
+}
+
+// Recursively substitute variables in an expression
+function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:Map<String, Any>[1]):Any[1]
+{
+  $expr->match([
+    // Variable reference - check if it's in openVars and substitute
+    v:VariableExpression[1] | 
+      let value = $openVars->get($v.name);
+      if ($value->isEmpty(),
+        | $v,  // Not a captured variable, keep as-is
+        | // Create InstanceValue with the captured value
+          let capturedVal = $value->toOne()->cast(@List<Any>).values;
+          ^InstanceValue(
+            genericType = $capturedVal->genericType()->toOne(),
+            multiplicity = if($capturedVal->size() == 1, |PureOne, |ZeroMany),
+            values = $capturedVal
+          );
+      );,
+      
+    // Function expression - recursively substitute in parameters
+    sfe:SimpleFunctionExpression[1] |
+      let substitutedParams = $sfe.parametersValues->evaluateAndDeactivate()->map(p |
+        substituteInExpression($p, $openVars)->cast(@ValueSpecification)
+      );
+      ^$sfe(parametersValues = $substitutedParams);,
+      
+    // Instance value - recursively substitute in nested values
+    iv:InstanceValue[1] |
+      let substitutedValues = $iv.values->map(v |
+        $v->match([
+          vs:ValueSpecification[1] | substituteInExpression($vs, $openVars),
+          fd:FunctionDefinition<Any>[1] | 
+            // Handle nested lambdas
+            let substExprs = $fd.expressionSequence->evaluateAndDeactivate()->map(e |
+              substituteInExpression($e, $openVars)
+            );
+            ^$fd(expressionSequence = $substExprs->cast(@ValueSpecification)->toOneMany());,
+          a:Any[1] | $a
+        ])
+      );
+      ^$iv(values = $substitutedValues);,
+      
+    // Lambda function - recursively substitute in body
+    lf:LambdaFunction<Any>[1] |
+      let substExprs = $lf.expressionSequence->evaluateAndDeactivate()->map(e |
+        substituteInExpression($e, $openVars)
+      );
+      ^$lf(expressionSequence = $substExprs->cast(@ValueSpecification)->toOneMany());,
+    
+    // Pass through anything else
+    a:Any[1] | $a
+  ]);
+}
+
 // PCT Adapter for Legend-Lite
 // This adapter serializes Pure functions to grammar text, executes through
 // legend-lite's QueryService, and converts results back to Pure values.
 function <<PCT.adapter>> {PCT.adapterName='LegendLite'} 
     meta::legend::lite::pct::testAdapterForLegendLiteExecution<X|o>(f:Function<{->X[o]}>[1]):X[o]
 {
-    // Serialize the full function definition to Pure grammar text
-    // Use legendLiteGrammarConfiguration() to get proper TDS serialization support
+    // Substitute captured closure variables before serialization
+    // This replaces VariableExpression nodes with their actual values
+    let funcDef = $f->cast(@FunctionDefinition<Any>);
+    let substituted = substituteOpenVariables($funcDef);
+    
+    // Serialize the substituted function definition to Pure grammar text
     let config = legendLiteGrammarConfiguration();
-    let pureText = $f->cast(@FunctionDefinition<Any>)
-        ->printFunctionDefinition($config, ^GContext(space=''));
+    let pureText = $substituted->printFunctionDefinition($config, ^GContext(space=''));
     
     // Debug: print the serialized Pure text
     print('[LegendLite PCT] Executing Pure expression: ' + $pureText + '\n');
@@ -113,3 +186,4 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
         | $result->cast(@X)->toMultiplicity(@[o])
     );
 }
+

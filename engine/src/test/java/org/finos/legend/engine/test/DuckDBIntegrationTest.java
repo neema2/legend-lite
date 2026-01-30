@@ -2746,4 +2746,44 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Let with newlines result: " + scalar.value());
         assertEquals("Hello Variable", scalar.value());
     }
+
+    @Test
+    @DisplayName("ArrayLiteral: greatest([1, 2]) should return 2")
+    void testArrayLiteralGreatest() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // This is the PCT pattern: greatest([1, 2])
+        String pureQuery = "|greatest([1, 2])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("greatest([1, 2]) result: " + result.rows());
+        assertEquals(1, result.rows().size(), "Should return exactly one row");
+        assertEquals(2L, ((Number) result.rows().get(0).get(0)).longValue(), "greatest([1, 2]) should equal 2");
+    }
+
+    @Test
+    @DisplayName("ArrayLiteral: least([1, 2]) should return 1")
+    void testArrayLiteralLeast() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // This is the PCT pattern: least([1, 2])
+        String pureQuery = "|least([1, 2])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("least([1, 2]) result: " + result.rows());
+        assertEquals(1, result.rows().size(), "Should return exactly one row");
+        assertEquals(1L, ((Number) result.rows().get(0).get(0)).longValue(), "least([1, 2]) should equal 1");
+    }
 }

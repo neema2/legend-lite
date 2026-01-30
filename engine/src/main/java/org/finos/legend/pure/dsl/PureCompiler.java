@@ -997,21 +997,26 @@ public final class PureCompiler {
         RelationNode right = compileExpression(join.right(), context);
 
         // Use consistent aliases that match SQLGenerator.generateJoinSource
-        // When the source is a ProjectNode, SQLGenerator wraps it in a subquery with
-        // these aliases
         String leftAlias = "left_src";
         String rightAlias = "right_src";
 
-        // Get the lambda parameter names to map to left/right aliases
-        // Lambda format: {l, r | $l.col == $r.col}
-        // Unfortunately our LambdaExpression only supports single parameter
-        // So we need to extract column references differently
+        // Get the lambda parameter names from multi-param lambda: {l, r | ...}
         LambdaExpression condLambda = join.condition();
-        String leftParam = condLambda.parameter();
+        List<String> params = condLambda.parameters();
 
-        // Compile the join condition, mapping parameter names to aliases
-        Expression condition = compileJoinConditionWithParams(condLambda.body(),
-                leftParam, leftAlias, rightAlias);
+        // Build context with row bindings for both left and right parameters
+        // If context is null (top-level call), create a fresh context
+        CompilationContext joinContext = context != null ? context
+                : new CompilationContext(null, null, null, null, false);
+        if (params.size() >= 1) {
+            joinContext = joinContext.withRowBinding(params.get(0), leftAlias);
+        }
+        if (params.size() >= 2) {
+            joinContext = joinContext.withRowBinding(params.get(1), rightAlias);
+        }
+
+        // Compile the join condition using the enriched context
+        Expression condition = compileToSqlExpression(condLambda.body(), joinContext);
 
         // Map JoinExpression.JoinType to JoinNode.JoinType
         JoinNode.JoinType joinType = switch (join.joinType()) {
@@ -2610,24 +2615,7 @@ public final class PureCompiler {
                 throw new PureCompileException("Unexpected variable in expression context: " + var);
             }
             case CastExpression cast -> compileCastExpression(cast, context);
-            case FunctionCall funcCall -> {
-                // Handle function calls like abs(), exp(), sin(), etc.
-                List<Expression> sqlArgs = funcCall.arguments().stream()
-                        .map(arg -> compileToSqlExpression(arg, context))
-                        .toList();
-                if (sqlArgs.isEmpty()) {
-                    throw new PureCompileException(
-                            "Function call requires at least one argument: " + funcCall.functionName());
-                }
-                // First arg is the target, rest are additional arguments
-                Expression target = sqlArgs.getFirst();
-                if (sqlArgs.size() == 1) {
-                    yield SqlFunctionCall.of(funcCall.functionName(), target);
-                } else {
-                    Expression[] additionalArgs = sqlArgs.subList(1, sqlArgs.size()).toArray(new Expression[0]);
-                    yield SqlFunctionCall.of(funcCall.functionName(), target, additionalArgs);
-                }
-            }
+            case FunctionCall funcCall -> compileFunctionCallToSql(funcCall, context);
             case UnaryExpression unary -> {
                 // Handle unary expressions like -5, +3
                 Expression operand = compileToSqlExpression(unary.operand(), context);
@@ -2637,6 +2625,14 @@ public final class PureCompiler {
                     case "!" -> SqlFunctionCall.of("NOT", operand);
                     default -> throw new PureCompileException("Unknown unary operator: " + unary.operator());
                 };
+            }
+            // ArrayLiteral - compile elements and create SQL list
+            case ArrayLiteral array -> {
+                // Compile ArrayLiteral to DuckDB list literal: [elem1, elem2, ...]
+                List<Expression> sqlElements = array.elements().stream()
+                        .map(e -> compileToSqlExpression(e, context))
+                        .toList();
+                yield ListLiteral.of(sqlElements);
             }
             // Relation expressions that reach here need special handling
             case TdsLiteral tds -> {
@@ -2659,6 +2655,136 @@ public final class PureCompiler {
             }
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
         };
+    }
+
+    /**
+     * Compiles Pure function calls to SQL, with special handling for
+     * functions like greatest(), least(), in() that take array arguments.
+     */
+    private Expression compileFunctionCallToSql(FunctionCall funcCall, CompilationContext context) {
+        String funcName = funcCall.functionName();
+        List<PureExpression> args = funcCall.arguments();
+
+        // Special handling for functions that take arrays
+        return switch (funcName) {
+            // greatest([a,b,c]) -> list_max([a, b, c])
+            case "greatest" -> {
+                if (args.isEmpty()) {
+                    throw new PureCompileException("greatest() requires at least one argument");
+                }
+                Expression list = compileToSqlExpression(args.getFirst(), context);
+                yield SqlFunctionCall.of("list_max", list);
+            }
+            // least([a,b,c]) -> list_min([a, b, c])
+            case "least" -> {
+                if (args.isEmpty()) {
+                    throw new PureCompileException("least() requires at least one argument");
+                }
+                Expression list = compileToSqlExpression(args.getFirst(), context);
+                yield SqlFunctionCall.of("list_min", list);
+            }
+            case "in" -> compilePureFunctionIn(args, context);
+            default -> {
+                // Standard function call: first arg is target, rest are additional
+                List<Expression> sqlArgs = args.stream()
+                        .map(arg -> compileToSqlExpression(arg, context))
+                        .toList();
+                if (sqlArgs.isEmpty()) {
+                    throw new PureCompileException(
+                            "Function call requires at least one argument: " + funcName);
+                }
+                Expression target = sqlArgs.getFirst();
+                if (sqlArgs.size() == 1) {
+                    yield SqlFunctionCall.of(funcName, target);
+                } else {
+                    Expression[] additionalArgs = sqlArgs.subList(1, sqlArgs.size()).toArray(new Expression[0]);
+                    yield SqlFunctionCall.of(funcName, target, additionalArgs);
+                }
+            }
+        };
+    }
+
+    /**
+     * Compiles greatest([a,b,c]) or least([a,b,c]) to GREATEST(a,b,c) /
+     * LEAST(a,b,c)
+     */
+    private Expression compileGreatestLeast(List<PureExpression> args, CompilationContext context,
+            MinMaxExpression.MinMaxFunction function) {
+        if (args.isEmpty()) {
+            throw new PureCompileException(function.name().toLowerCase() + "() requires at least one argument");
+        }
+
+        // The argument should be an ArrayLiteral or a list of values
+        PureExpression arg = args.getFirst();
+        List<Expression> sqlArgs;
+
+        if (arg instanceof ArrayLiteral array) {
+            sqlArgs = array.elements().stream()
+                    .map(e -> compileToSqlExpression(e, context))
+                    .toList();
+        } else {
+            // Single argument - compile as-is
+            sqlArgs = args.stream()
+                    .map(e -> compileToSqlExpression(e, context))
+                    .toList();
+        }
+
+        if (sqlArgs.isEmpty()) {
+            // Empty array - return NULL
+            return Literal.nullValue();
+        }
+
+        return new MinMaxExpression(function, sqlArgs);
+    }
+
+    /**
+     * Compiles [1,2,3]->greatest() or [1,2,3]->least() as MethodCall to SQL
+     * GREATEST/LEAST
+     */
+    private Expression compileGreatestLeastMethodCall(MethodCall methodCall, CompilationContext context,
+            MinMaxExpression.MinMaxFunction function) {
+        PureExpression source = methodCall.source();
+        List<Expression> sqlArgs;
+
+        if (source instanceof ArrayLiteral array) {
+            sqlArgs = array.elements().stream()
+                    .map(e -> compileToSqlExpression(e, context))
+                    .toList();
+        } else {
+            // For non-array source, compile the source directly
+            // This handles cases like $x->greatest() where $x is a scalar
+            sqlArgs = List.of(compileToSqlExpression(source, context));
+        }
+
+        if (sqlArgs.isEmpty()) {
+            // Empty array - return NULL
+            return Literal.nullValue();
+        }
+
+        if (sqlArgs.size() == 1) {
+            // Single element - just return it
+            return sqlArgs.getFirst();
+        }
+
+        return new MinMaxExpression(function, sqlArgs);
+    }
+
+    /**
+     * Compiles in(value, [array]) Pure function to SQL: value IN (array elements)
+     */
+    private Expression compilePureFunctionIn(List<PureExpression> args, CompilationContext context) {
+        if (args.size() < 2) {
+            throw new PureCompileException("in() requires at least two arguments: value and array");
+        }
+
+        // First arg is the value to check
+        Expression operand = compileToSqlExpression(args.getFirst(), context);
+
+        // Second arg should be the array of values
+        PureExpression arrayArg = args.get(1);
+        List<Expression> values = extractArrayValues(arrayArg, context);
+
+        return new InExpression(operand, values, false);
     }
 
     /**
@@ -2692,7 +2818,13 @@ public final class PureCompiler {
         String methodName = methodCall.methodName();
 
         // Handle collection functions that take lambdas
-        return switch (methodName) {
+        // Also handle fully-qualified Pure paths like
+        // meta::pure::functions::collection::greatest
+        String shortMethodName = methodName.contains("::")
+                ? methodName.substring(methodName.lastIndexOf("::") + 2)
+                : methodName;
+
+        return switch (shortMethodName) {
             case "map" -> compileMapCall(methodCall, context);
             case "filter" -> compileFilterCollectionCall(methodCall, context);
             case "fold" -> compileFoldCall(methodCall, context);
@@ -2700,6 +2832,12 @@ public final class PureCompiler {
             case "get" -> compileGetCall(methodCall, context);
             // Pure multiplicity functions - identity in SQL context
             case "toOne" -> compileToSqlExpression(methodCall.source(), context);
+            // IN expression: $x->in([a, b, c]) -> list_contains([a, b, c], x)
+            case "in" -> compileListContains(methodCall, context);
+            case "contains" -> compileListContainsMethod(methodCall, context);
+            // greatest/least on arrays: [1,2,3]->greatest() -> list_max([1, 2, 3])
+            case "greatest" -> SqlFunctionCall.of("list_max", compileToSqlExpression(methodCall.source(), context));
+            case "least" -> SqlFunctionCall.of("list_min", compileToSqlExpression(methodCall.source(), context));
             // Type conversion functions
             case "toString" -> new SqlFunctionCall("cast",
                     compileToSqlExpression(methodCall.source(), context),
@@ -2748,6 +2886,93 @@ public final class PureCompiler {
 
         // Return SqlFunctionCall which will be handled by SQLGenerator
         return new SqlFunctionCall(methodCall.methodName(), source, additionalArgs, SqlType.UNKNOWN);
+    }
+
+    /**
+     * Compiles $value->in(['a', 'b', 'c']) to SQL: value IN ('a', 'b', 'c')
+     */
+    private Expression compileInCall(MethodCall methodCall, CompilationContext context, boolean negated) {
+        // The source is the value to check
+        Expression operand = compileToSqlExpression(methodCall.source(), context);
+
+        // The argument is the array of values
+        if (methodCall.arguments().isEmpty()) {
+            throw new PureCompileException("in() requires an array argument");
+        }
+
+        PureExpression arg = methodCall.arguments().getFirst();
+        List<Expression> values = extractArrayValues(arg, context);
+
+        return new InExpression(operand, values, negated);
+    }
+
+    /**
+     * Compiles ['a', 'b', 'c']->contains($value) to SQL: value IN ('a', 'b', 'c')
+     */
+    private Expression compileContainsCall(MethodCall methodCall, CompilationContext context) {
+        // For contains, the source is the array and the argument is the value to check
+        if (methodCall.arguments().isEmpty()) {
+            throw new PureCompileException("contains() requires an argument");
+        }
+
+        // Extract values from the source array
+        List<Expression> values = extractArrayValues(methodCall.source(), context);
+
+        // The argument is the value to check
+        Expression operand = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+
+        return new InExpression(operand, values, false);
+    }
+
+    /**
+     * Extracts SQL expressions from an ArrayLiteral or other array-like expression.
+     */
+    private List<Expression> extractArrayValues(PureExpression expr, CompilationContext context) {
+        if (expr instanceof ArrayLiteral array) {
+            return array.elements().stream()
+                    .map(e -> compileToSqlExpression(e, context))
+                    .toList();
+        }
+
+        // For non-literal arrays, fall back to attempting SQL compilation
+        // This handles cases like variable references to arrays
+        throw new PureCompileException("in() expects an array literal, got: " + expr);
+    }
+
+    /**
+     * Compiles $x->in([a, b, c]) to list_contains([a, b, c], x)
+     * Uses DuckDB's native list_contains function.
+     */
+    private Expression compileListContains(MethodCall methodCall, CompilationContext context) {
+        // The source is the value to check
+        Expression valueToCheck = compileToSqlExpression(methodCall.source(), context);
+
+        // The argument is the list
+        if (methodCall.arguments().isEmpty()) {
+            throw new PureCompileException("in() requires an array argument");
+        }
+
+        Expression list = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+        // list_contains(list, value)
+        return SqlFunctionCall.of("list_contains", list, valueToCheck);
+    }
+
+    /**
+     * Compiles [a, b, c]->contains($value) to list_contains([a, b, c], value)
+     * Uses DuckDB's native list_contains function.
+     */
+    private Expression compileListContainsMethod(MethodCall methodCall, CompilationContext context) {
+        // The source is the list
+        Expression list = compileToSqlExpression(methodCall.source(), context);
+
+        // The argument is the value to check
+        if (methodCall.arguments().isEmpty()) {
+            throw new PureCompileException("contains() requires an argument");
+        }
+
+        Expression valueToCheck = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+        // list_contains(list, value)
+        return SqlFunctionCall.of("list_contains", list, valueToCheck);
     }
 
     /**
@@ -2802,14 +3027,12 @@ public final class PureCompiler {
         }
 
         // Fold lambda has two parameters: accumulator and current element
-        // Parse as "{acc, x | expr}" format
-        String lambdaParams = lambda.parameter(); // This contains "acc, x" format
-        String[] params = lambdaParams.split(",");
-        if (params.length < 2) {
+        List<String> params = lambda.parameters();
+        if (params.size() < 2) {
             throw new PureCompileException("fold() lambda requires two parameters (accumulator, element)");
         }
-        String accParam = params[0].trim();
-        String elemParam = params[1].trim();
+        String accParam = params.get(0);
+        String elemParam = params.get(1);
 
         Expression lambdaBody = compileToSqlExpression(lambda.body(),
                 context.withFoldParameters(accParam, elemParam));
