@@ -153,16 +153,11 @@ equalNotEqual:                                  (TEST_EQUAL | TEST_NOT_EQUAL) co
 ;
 combinedArithmeticOnly:                         expression arithmeticPart*
 ;
-// comparisonExpression handles arithmetic and comparison ops (higher precedence)
-comparisonExpression:                           expression arithmeticPart*
-;
-// expressionPart was previously booleanPart | arithmeticPart - now only booleanPart since comparison moved
-expressionPart:                                 booleanPart
+expressionPart:                                 booleanPart | arithmeticPart
 ;
 letExpression:                                  LET identifier EQUAL combinedExpression
 ;
-// combinedExpression now chains comparison expressions with boolean ops (lower precedence)
-combinedExpression:                             comparisonExpression booleanPart*
+combinedExpression:                             expression expressionPart*
 ;
 expressionsArray:                               BRACKET_OPEN ( expression (COMMA expression)* )? BRACKET_CLOSE
 ;
@@ -276,7 +271,7 @@ arithmeticPart:                                 (
                                                     | (GREATER_OR_EQUAL expression)
                                                 )
 ;
-booleanPart:                                    (AND comparisonExpression) | (OR  comparisonExpression)
+booleanPart:                                    (AND combinedArithmeticOnly) | (OR  combinedArithmeticOnly)
 ;
 functionVariableExpression:                     identifier COLON type multiplicity
 ;

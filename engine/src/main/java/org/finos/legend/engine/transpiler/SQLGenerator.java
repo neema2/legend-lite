@@ -416,6 +416,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     case ExtendNode.SimpleProjection sp -> {
                         extendCols.append(sp.expression().accept(this));
                     }
+                    default -> throw new IllegalStateException("Unknown projection type: " + proj);
                 }
                 extendCols.append(" AS ");
                 extendCols.append(dialect.quoteIdentifier(proj.alias()));
@@ -1344,6 +1345,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 // For EXISTS with constant, wrap the expression
                 yield "SELECT 1 FROM (" + constant.accept(this) + ") AS exists_src";
             }
+            default -> throw new IllegalStateException(
+                    "Unknown node type in generateExistsSubquery: " + node.getClass().getSimpleName());
         };
     }
 

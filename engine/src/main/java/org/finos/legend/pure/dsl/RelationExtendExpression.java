@@ -22,7 +22,7 @@ import java.util.Objects;
  *                      expressions)
  */
 public record RelationExtendExpression(
-        RelationExpression source,
+        PureExpression source,
         String newColumnName,
         LambdaExpression expression,
         WindowFunctionSpec windowSpec) implements RelationExpression {
@@ -189,14 +189,14 @@ public record RelationExtendExpression(
     /**
      * Creates a simple extend expression (no window function).
      */
-    public RelationExtendExpression(RelationExpression source, String newColumnName, LambdaExpression expression) {
+    public RelationExtendExpression(PureExpression source, String newColumnName, LambdaExpression expression) {
         this(source, newColumnName, expression, null);
     }
 
     /**
      * Creates a window function extend expression.
      */
-    public static RelationExtendExpression window(RelationExpression source, String newColumnName,
+    public static RelationExtendExpression window(PureExpression source, String newColumnName,
             WindowFunctionSpec windowSpec) {
         return new RelationExtendExpression(source, newColumnName, null, windowSpec);
     }

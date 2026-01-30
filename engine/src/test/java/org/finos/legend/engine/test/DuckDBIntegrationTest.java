@@ -2674,4 +2674,76 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Constant lambda string concat result: " + scalar.value());
         assertEquals("Hello World", scalar.value());
     }
+
+    // ==================== LET STATEMENT COMPILATION TESTS ====================
+    // These test let statement support with scalar variable binding
+
+    @Test
+    @DisplayName("Let statement: simple scalar binding |let x = 42; $x")
+    void testLetStatementSimpleScalar() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Let statement assigns variable x, then returns $x
+        String pureQuery = "|let x = 42; $x;";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection,
+                QueryService.ResultMode.BUFFERED);
+
+        assertTrue(result instanceof ScalarResult, "Let with scalar should return ScalarResult");
+        ScalarResult scalar = (ScalarResult) result;
+        System.out.println("Let statement |let x = 42; $x; result: " + scalar.value());
+        assertEquals(42L, ((Number) scalar.value()).longValue(), "Should return 42");
+    }
+
+    @Test
+    @DisplayName("Let statement: arithmetic with let-bound variables |let x = 10; let y = 5; $x + $y;")
+    void testLetStatementArithmetic() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Multiple let statements, then use variables in arithmetic
+        String pureQuery = "|let x = 10; let y = 5; $x + $y;";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection,
+                QueryService.ResultMode.BUFFERED);
+
+        assertTrue(result instanceof ScalarResult, "Should return ScalarResult");
+        ScalarResult scalar = (ScalarResult) result;
+        System.out.println("Let arithmetic result: " + scalar.value());
+        assertEquals(15L, ((Number) scalar.value()).longValue(), "10 + 5 should equal 15");
+    }
+
+    @Test
+    @DisplayName("Let statement: with newlines like PCT expressions")
+    void testLetStatementWithNewlines() throws Exception {
+        String pureSource = """
+                Class model::Dummy { name: String[1]; }
+                Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Newline-separated statements like PCT expressions
+        String pureQuery = "|let var = 'Hello Variable';\n $var;";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection,
+                QueryService.ResultMode.BUFFERED);
+
+        assertTrue(result instanceof ScalarResult, "Should return ScalarResult");
+        ScalarResult scalar = (ScalarResult) result;
+        System.out.println("Let with newlines result: " + scalar.value());
+        assertEquals("Hello Variable", scalar.value());
+    }
 }

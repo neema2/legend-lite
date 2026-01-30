@@ -111,6 +111,8 @@ public final class PureCompiler {
             case PivotExpression pivot -> compilePivot(pivot, context);
             case TdsLiteral tds -> compileTdsLiteral(tds);
             case LambdaExpression lambda -> compileConstant(lambda, context);
+            case VariableExpr var -> compileRelationVariable(var, context);
+            case BlockExpression block -> compileBlock(block, context);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
@@ -142,6 +144,69 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles a block expression containing let statements and a result.
+     * 
+     * Let statements are processed first to bind variables to the symbol table,
+     * then the result expression is compiled with the enriched context.
+     *
+     * @param block   The block expression
+     * @param context The compilation context (may be null)
+     * @return The compiled relation node
+     */
+    private RelationNode compileBlock(BlockExpression block, CompilationContext context) {
+        // Start with input context or create empty one
+        CompilationContext workingContext = context;
+        if (workingContext == null) {
+            workingContext = new CompilationContext(null, null, null, null, false);
+        }
+
+        // Process let statements, binding each to the symbol table
+        for (LetExpression let : block.letStatements()) {
+            PureExpression valueExpr = let.value();
+            String varName = let.variableName();
+
+            // Determine the type of the value and bind appropriately
+            if (isRelationExpression(valueExpr)) {
+                // Relation-valued let: compile to RelationNode and bind
+                RelationNode relationNode = compileExpression(valueExpr, workingContext);
+                workingContext = workingContext.withRelationBinding(varName, relationNode);
+            } else if (valueExpr instanceof LambdaExpression lambdaValue
+                    && isRelationExpression(lambdaValue.body())) {
+                // Lambda that returns a relation
+                RelationNode relationNode = compileExpression(lambdaValue.body(), workingContext);
+                workingContext = workingContext.withRelationBinding(varName, relationNode);
+            } else {
+                // Scalar-valued let: compile to Expression and bind
+                Expression scalarExpr = compileToSqlExpression(valueExpr, workingContext);
+                workingContext = workingContext.withScalarBinding(varName, scalarExpr);
+            }
+        }
+
+        // Compile the result expression with the enriched context
+        PureExpression result = block.result();
+
+        // For VariableExpr results, check the symbol table to determine type
+        if (result instanceof VariableExpr varResult && workingContext.hasSymbol(varResult.name())) {
+            SymbolBinding binding = workingContext.lookupSymbol(varResult.name());
+            if (binding.kind() == SymbolBinding.BindingKind.SCALAR) {
+                // Scalar binding - return as ConstantNode
+                return new ConstantNode((Expression) binding.value());
+            }
+            // RELATION binding - compile via compileExpression
+            return compileExpression(result, workingContext);
+        }
+
+        // For other expressions, use the standard approach
+        if (isRelationExpression(result)) {
+            return compileExpression(result, workingContext);
+        } else {
+            // Scalar result - compile to SQL expression and wrap in ConstantNode
+            Expression sqlExpr = compileToSqlExpression(result, workingContext);
+            return new ConstantNode(sqlExpr);
+        }
+    }
+
+    /**
      * Checks if an expression is a relation expression that should be compiled
      * via compileExpression rather than compileToSqlExpression.
      */
@@ -162,7 +227,13 @@ public final class PureCompiler {
                 || expr instanceof DistinctExpression
                 || expr instanceof ConcatenateExpression
                 || expr instanceof PivotExpression
-                || expr instanceof TdsLiteral;
+                || expr instanceof TdsLiteral
+                || expr instanceof ExtendExpression
+                || expr instanceof RenameExpression
+                || expr instanceof FromExpression
+                || expr instanceof SerializeExpression
+                || expr instanceof BlockExpression
+                || expr instanceof VariableExpr; // Variable could be a let-bound relation
     }
 
     // ========================================================================
@@ -252,12 +323,13 @@ public final class PureCompiler {
                     .orElse(null);
             String className = extractClassNameFromSource(cfe.source());
 
+            // Create context with ROW binding for the lambda parameter
             CompilationContext ctx = new CompilationContext(
                     cfe.lambda().parameter(),
                     "t0", // Default alias
                     mapping,
                     className,
-                    true);
+                    true).withRowBinding(cfe.lambda().parameter(), "t0");
             return compileToSqlExpression(cfe.lambda().body(), ctx);
         }
         return null; // No filter
@@ -349,14 +421,14 @@ public final class PureCompiler {
         RelationalMapping mapping = getMappingFromSource(filter.source());
         String className = getClassNameFromSource(filter.source());
 
-        // Create context for the lambda
+        // Create context for the lambda with ROW binding for the parameter
         CompilationContext lambdaContext = new CompilationContext(
                 filter.lambda().parameter(),
                 tableAlias,
                 mapping,
                 className,
                 true // We're in a filter context
-        );
+        ).withRowBinding(filter.lambda().parameter(), tableAlias);
 
         // Compile the filter condition
         Expression condition = compileToSqlExpression(filter.lambda().body(), lambdaContext);
@@ -375,15 +447,16 @@ public final class PureCompiler {
         // For Relation API filters (chained after extend, etc.), use empty alias
         // Column references should be unqualified since they reference the subquery
         // result
-        String tableAlias = "";
+        String rowAlias = "";
 
-        // Create a context where property names ARE column names (no mapping)
+        // Create a context with ROW binding for the lambda parameter
+        // This binds $x in filter(x | $x.col > 5) to the row alias
         CompilationContext lambdaContext = new CompilationContext(
                 filter.lambda().parameter(),
-                tableAlias,
+                rowAlias,
                 null, // No class mapping - we're working with Relation columns
                 null,
-                true);
+                true).withRowBinding(filter.lambda().parameter(), rowAlias);
 
         // Compile the filter condition
         Expression condition = compileToSqlExpression(filter.lambda().body(), lambdaContext);
@@ -411,12 +484,13 @@ public final class PureCompiler {
             LambdaExpression lambda = project.projections().get(i);
 
             // Analyze if this projection navigates through an association
+            // Create context for this projection with ROW binding for the lambda parameter
             CompilationContext projContext = new CompilationContext(
                     lambda.parameter(),
                     baseTableAlias,
                     baseMapping,
                     baseClassName,
-                    false);
+                    false).withRowBinding(lambda.parameter(), baseTableAlias);
 
             AssociationPath path = analyzePropertyPath(lambda.body(), projContext);
 
@@ -1282,6 +1356,20 @@ public final class PureCompiler {
             columns = columns.subList(1, columns.size()); // Skip the over() for column processing
         }
 
+        // Also check for MethodCall-style over() as first column (e.g., ~grp->over([]))
+        // BUT only if there are additional ColumnSpec columns after it.
+        // If the MethodCall with over() is the only column, it should be processed
+        // directly.
+        MethodCall overMethodCall = null;
+        if (columns.size() > 1 && columns.get(0) instanceof MethodCall mc && "over".equals(mc.methodName())) {
+            // Check if the second column is a ColumnSpec (legend-engine style with separate
+            // over + aggregate)
+            if (columns.get(1) instanceof ColumnSpec) {
+                overMethodCall = mc;
+                columns = columns.subList(1, columns.size()); // Skip the over() for column processing
+            }
+        }
+
         for (PureExpression colExpr : columns) {
             if (colExpr instanceof MethodCall overCall && "over".equals(overCall.methodName())) {
                 // Old style: MethodCall with over()
@@ -1290,6 +1378,11 @@ public final class PureCompiler {
             } else if (colExpr instanceof ColumnSpec colSpec && overFunctionCall != null) {
                 // Legend-engine style: over() + ColumnSpec with aggregation
                 ExtendNode.WindowProjection projection = compileWindowProjectionFromFunctionCall(overFunctionCall,
+                        colSpec);
+                projections.add(projection);
+            } else if (colExpr instanceof ColumnSpec colSpec && overMethodCall != null) {
+                // Legend-engine style with MethodCall: ~grp->over([]) + ~newCol:{...}
+                ExtendNode.WindowProjection projection = compileWindowProjectionFromMethodCall(overMethodCall,
                         colSpec);
                 projections.add(projection);
             } else if (colExpr instanceof ColumnSpec colSpec && colSpec.lambda() instanceof MethodCall mc
@@ -1626,6 +1719,83 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles a window projection from a MethodCall-style over() specification.
+     * 
+     * Input format: MethodCall[source=ColumnSpec[name=grp], methodName=over,
+     * arguments=[]]
+     * where the source ColumnSpec's name is the partition column.
+     * 
+     * The colSpec contains the new column name and aggregate function in its
+     * extraFunction.
+     */
+    private ExtendNode.WindowProjection compileWindowProjectionFromMethodCall(MethodCall overCall,
+            ColumnSpec colSpec) {
+        // Extract partition column from the source of over()
+        List<String> partitionColumns = new ArrayList<>();
+        List<WindowExpression.SortSpec> orderBy = new ArrayList<>();
+        WindowExpression.FrameSpec frame = null;
+
+        if (overCall.source() instanceof ColumnSpec partitionSpec) {
+            partitionColumns.add(partitionSpec.name());
+        }
+
+        // Process over() arguments for additional partition/order specs
+        for (PureExpression arg : overCall.arguments()) {
+            if (arg instanceof ColumnSpec cs) {
+                partitionColumns.add(cs.name());
+            } else if (arg instanceof MethodCall mc) {
+                String methodName = mc.methodName();
+                if ("ascending".equals(methodName) || "descending".equals(methodName)
+                        || "asc".equals(methodName) || "desc".equals(methodName)) {
+                    String colName = extractColumnName(mc.source());
+                    WindowExpression.SortDirection dir = ("descending".equals(methodName) || "desc".equals(methodName))
+                            ? WindowExpression.SortDirection.DESC
+                            : WindowExpression.SortDirection.ASC;
+                    orderBy.add(new WindowExpression.SortSpec(colName, dir));
+                }
+            }
+        }
+
+        // Get new column name
+        String newColumnName = colSpec.name();
+
+        // Extract aggregate column from lambda (e.g., {p,w,r|$r.id} -> "id")
+        String aggregateColumn = null;
+        if (colSpec.lambda() instanceof LambdaExpression lambda) {
+            if (lambda.body() instanceof PropertyAccessExpression pa) {
+                aggregateColumn = pa.propertyName();
+            }
+        }
+
+        // Extract window function from extraFunction (e.g., y|$y->size() = count)
+        String functionName = "sum"; // Default
+        if (colSpec.extraFunction() instanceof LambdaExpression extraLambda) {
+            if (extraLambda.body() instanceof MethodCall mc) {
+                functionName = mapAggregateMethodToFunction(mc.methodName());
+            } else if (extraLambda.body() instanceof UnaryExpression unary) {
+                // Handle unary +$y which means sum
+                if ("+".equals(unary.operator())) {
+                    functionName = "sum";
+                }
+            }
+        }
+
+        // Create the WindowExpression
+        WindowExpression.WindowFunction windowFunc = mapWindowFunction(functionName);
+        WindowExpression windowExpr;
+
+        if (aggregateColumn != null) {
+            // Aggregate window function (SUM, COUNT, etc.)
+            windowExpr = WindowExpression.aggregate(windowFunc, aggregateColumn, partitionColumns, orderBy, frame);
+        } else {
+            // Ranking function
+            windowExpr = WindowExpression.ranking(windowFunc, partitionColumns, orderBy, frame);
+        }
+
+        return new ExtendNode.WindowProjection(newColumnName, windowExpr);
+    }
+
+    /**
      * Checks if a function name is a value function (returns row values, not
      * rankings).
      */
@@ -1772,6 +1942,45 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles a variable reference in relation context.
+     * 
+     * This handles cases like {@code $t->select(~col)} where $t is a lambda
+     * parameter referring to the input relation. The variable resolves via:
+     * 1. Symbol table RELATION bindings (for let-bound relations)
+     * 2. Legacy relationSources map
+     * 
+     * @param var     The variable expression
+     * @param context Compilation context with symbol table and lambda parameter
+     *                info
+     * @return The resolved RelationNode
+     * @throws PureCompileException if the variable cannot be resolved
+     */
+    private RelationNode compileRelationVariable(VariableExpr var, CompilationContext context) {
+        // First check symbol table for RELATION bindings (new approach)
+        if (context != null && context.hasSymbol(var.name())) {
+            SymbolBinding binding = context.lookupSymbol(var.name());
+            if (binding.kind() == SymbolBinding.BindingKind.RELATION) {
+                // Return the inlined relation node
+                return binding.relationNode();
+            }
+            // ROW variables shouldn't be used as relations - throw error
+            throw new PureCompileException(
+                    "Variable '$" + var.name() + "' is a " + binding.kind() + " binding, not a RELATION");
+        }
+
+        // Legacy: Check if this variable is bound to a relation source in the context
+        if (context != null && context.isRelationSource(var.name())) {
+            // Return the actual relation node that this variable refers to
+            return context.getRelationSource(var.name());
+        }
+
+        // Unbound variable - fail early with clear error
+        throw new PureCompileException(
+                "Unbound relation variable '$" + var.name() + "'. " +
+                        "This variable must be bound via a let statement or lambda parameter.");
+    }
+
+    /**
      * Compiles a select expression: relation->select(~col1, ~col2)
      * 
      * This projects specific columns from the source Relation.
@@ -1860,7 +2069,10 @@ public final class PureCompiler {
                     null,
                     false,
                     new java.util.HashMap<>(),
-                    extendedColumns);
+                    extendedColumns,
+                    new java.util.HashMap<>(),
+                    new java.util.HashMap<>())
+                    .withRowBinding(extend.expression().parameter(), tableAlias);
 
             Expression calculatedExpr = compileToSqlExpression(extend.expression().body(), lambdaContext);
 
@@ -2041,7 +2253,7 @@ public final class PureCompiler {
                     rootAlias,
                     sourceMapping,
                     sourceClassName,
-                    true);
+                    true).withRowBinding(filterExpr.lambda().parameter(), rootAlias);
 
             Expression filterCondition = compileToSqlExpression(filterExpr.lambda().body(), lambdaContext);
 
@@ -2388,6 +2600,13 @@ public final class PureCompiler {
                     // Lambda parameters become unqualified column references
                     yield ColumnReference.of(var.name());
                 }
+                // Check symbol table for SCALAR bindings (let-bound values)
+                if (context != null && context.hasSymbol(var.name())) {
+                    SymbolBinding binding = context.lookupSymbol(var.name());
+                    if (binding.kind() == SymbolBinding.BindingKind.SCALAR) {
+                        yield (Expression) binding.value();
+                    }
+                }
                 throw new PureCompileException("Unexpected variable in expression context: " + var);
             }
             case CastExpression cast -> compileCastExpression(cast, context);
@@ -2418,6 +2637,25 @@ public final class PureCompiler {
                     case "!" -> SqlFunctionCall.of("NOT", operand);
                     default -> throw new PureCompileException("Unknown unary operator: " + unary.operator());
                 };
+            }
+            // Relation expressions that reach here need special handling
+            case TdsLiteral tds -> {
+                // TdsLiteral should be handled by compileExpression, not compileToSqlExpression
+                // This likely means aggregation source is being passed here incorrectly
+                throw new PureCompileException(
+                        "TdsLiteral should be compiled via compileExpression. Got: " + tds);
+            }
+            case FilterExpression filter -> {
+                throw new PureCompileException(
+                        "FilterExpression should be compiled via compileExpression. Got: " + filter);
+            }
+            case SortExpression sort -> {
+                throw new PureCompileException(
+                        "SortExpression should be compiled via compileExpression. Got: " + sort);
+            }
+            case GroupByExpression groupBy -> {
+                throw new PureCompileException(
+                        "GroupByExpression should be compiled via compileExpression. Got: " + groupBy);
             }
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
         };
@@ -2848,9 +3086,38 @@ public final class PureCompiler {
     private Expression compilePropertyAccess(PropertyAccessExpression propAccess, CompilationContext context) {
         String propertyName = propAccess.propertyName();
 
-        // Standard property access handling
+        // Extract the variable name from the source (e.g., "x" from $x.col)
         String varName = extractVariableName(propAccess.source());
 
+        // First check symbol table for ROW binding (new approach)
+        if (context != null && context.hasSymbol(varName)) {
+            SymbolBinding binding = context.lookupSymbol(varName);
+            if (binding.kind() == SymbolBinding.BindingKind.ROW) {
+                String rowAlias = binding.tableAlias();
+
+                // Check if this is an extended column (from extend/flatten) - use unqualified
+                // reference
+                if (context.isExtendedColumn(propertyName)) {
+                    return ColumnReference.of(propertyName);
+                }
+
+                // If there's a mapping, use it to translate property -> column
+                if (context.mapping() != null) {
+                    String columnName = context.mapping().getColumnForProperty(propertyName)
+                            .orElseThrow(
+                                    () -> new PureCompileException("No column mapping for property: " + propertyName));
+                    return ColumnReference.of(rowAlias, columnName);
+                }
+
+                // No mapping - use property name directly as column name
+                return ColumnReference.of(rowAlias, propertyName);
+            }
+            // SCALAR and RELATION bindings with property access not yet supported
+            throw new PureCompileException(
+                    "Cannot access property '" + propertyName + "' on " + binding.kind() + " variable: $" + varName);
+        }
+
+        // Legacy fallback: check lambdaParameter directly
         if (context == null || context.lambdaParameter() == null || !varName.equals(context.lambdaParameter())) {
             throw new PureCompileException(
                     "Unknown variable: $" + varName + ", expected lambda parameter");
@@ -2947,6 +3214,7 @@ public final class PureCompiler {
             case PivotNode pivot -> getTableAlias(pivot.source());
             case TdsLiteralNode tds -> "_tds"; // TDS literals use synthetic alias
             case ConstantNode constant -> "_const"; // Constants have no source table
+            default -> throw new PureCompileException("Cannot get table alias for: " + node.getClass().getSimpleName());
         };
     }
 
@@ -2971,6 +3239,11 @@ public final class PureCompiler {
 
     /**
      * Context for compiling within a lambda expression.
+     * 
+     * The symbol table (symbols) provides first-class variable binding support for:
+     * - ROW: Lambda row parameters (e.g., $t in filter(t | $t.col > 5))
+     * - RELATION: Let-bound relations (e.g., let tds = #TDS...#; $tds->filter(...))
+     * - SCALAR: Let-bound scalar values (e.g., let x = 5; $x + 1)
      */
     public record CompilationContext(
             String lambdaParameter,
@@ -2979,12 +3252,15 @@ public final class PureCompiler {
             String className,
             boolean inFilterContext,
             java.util.Map<String, String> lambdaParameters,
-            java.util.Set<String> extendedColumns) {
+            java.util.Set<String> extendedColumns,
+            java.util.Map<String, RelationNode> relationSources,
+            java.util.Map<String, SymbolBinding> symbols) {
 
         public CompilationContext(String lambdaParameter, String tableAlias,
                 RelationalMapping mapping, String className, boolean inFilterContext) {
             this(lambdaParameter, tableAlias, mapping, className, inFilterContext,
-                    new java.util.HashMap<>(), new java.util.HashSet<>());
+                    new java.util.HashMap<>(), new java.util.HashSet<>(), new java.util.HashMap<>(),
+                    new java.util.HashMap<>());
         }
 
         /**
@@ -2992,7 +3268,8 @@ public final class PureCompiler {
          */
         public CompilationContext(String lambdaParameter, String tableAlias, RelationalMapping mapping) {
             this(lambdaParameter, tableAlias, mapping, mapping.pureClass().name(), false,
-                    new java.util.HashMap<>(), new java.util.HashSet<>());
+                    new java.util.HashMap<>(), new java.util.HashSet<>(), new java.util.HashMap<>(),
+                    new java.util.HashMap<>());
         }
 
         /**
@@ -3002,7 +3279,20 @@ public final class PureCompiler {
             var newParams = new java.util.HashMap<>(lambdaParameters);
             newParams.put(paramName, alias);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, newParams, extendedColumns);
+                    inFilterContext, newParams, extendedColumns, relationSources, symbols);
+        }
+
+        /**
+         * Creates a new context with a lambda parameter bound to a relation source.
+         * Used for relation lambda expressions like {t | $t->select(~col)}.
+         */
+        public CompilationContext withRelationSource(String paramName, RelationNode source) {
+            var newParams = new java.util.HashMap<>(lambdaParameters);
+            newParams.put(paramName, "");
+            var newSources = new java.util.HashMap<>(relationSources);
+            newSources.put(paramName, source);
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
+                    inFilterContext, newParams, extendedColumns, newSources, symbols);
         }
 
         /**
@@ -3013,7 +3303,7 @@ public final class PureCompiler {
             newParams.put(accParam, "");
             newParams.put(elemParam, "");
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, newParams, extendedColumns);
+                    inFilterContext, newParams, extendedColumns, relationSources, symbols);
         }
 
         /**
@@ -3024,7 +3314,60 @@ public final class PureCompiler {
             var newExtended = new java.util.HashSet<>(extendedColumns);
             newExtended.add(columnName);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, newExtended);
+                    inFilterContext, lambdaParameters, newExtended, relationSources, symbols);
+        }
+
+        // ========== Symbol Table Methods (Phase 1 of Variable Binding) ==========
+
+        /**
+         * Creates a new context with a ROW binding for lambda row parameters.
+         * Example: filter(t | $t.col > 5) binds "t" to table alias "t0"
+         */
+        public CompilationContext withRowBinding(String paramName, String alias) {
+            var newSymbols = new java.util.HashMap<>(symbols);
+            newSymbols.put(paramName, SymbolBinding.row(paramName, alias));
+            // Also update lambdaParameter for backward compatibility
+            return new CompilationContext(paramName, alias, mapping, className,
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols);
+        }
+
+        /**
+         * Creates a new context with a RELATION binding for let-bound relations.
+         * Example: let tds = #TDS...#; $tds->filter(...) binds "tds" to the relation
+         * node
+         */
+        public CompilationContext withRelationBinding(String paramName, RelationNode relation) {
+            var newSymbols = new java.util.HashMap<>(symbols);
+            newSymbols.put(paramName, SymbolBinding.relation(paramName, relation));
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols);
+        }
+
+        /**
+         * Creates a new context with a SCALAR binding for let-bound scalars.
+         * Example: let x = 5; $x + 1 binds "x" to the literal expression
+         */
+        public CompilationContext withScalarBinding(String paramName, Expression expr) {
+            var newSymbols = new java.util.HashMap<>(symbols);
+            newSymbols.put(paramName, SymbolBinding.scalar(paramName, expr));
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols);
+        }
+
+        /**
+         * Looks up a symbol binding by name.
+         * 
+         * @return The binding, or null if not found
+         */
+        public SymbolBinding lookupSymbol(String name) {
+            return symbols.get(name);
+        }
+
+        /**
+         * Checks if a symbol is bound in the current context.
+         */
+        public boolean hasSymbol(String name) {
+            return symbols.containsKey(name);
         }
 
         /**
@@ -3039,6 +3382,20 @@ public final class PureCompiler {
          */
         public boolean isExtendedColumn(String name) {
             return extendedColumns.contains(name);
+        }
+
+        /**
+         * Gets the relation source bound to a lambda parameter, if any.
+         */
+        public RelationNode getRelationSource(String paramName) {
+            return relationSources.get(paramName);
+        }
+
+        /**
+         * Checks if a variable represents a relation source.
+         */
+        public boolean isRelationSource(String paramName) {
+            return relationSources.containsKey(paramName);
         }
     }
 

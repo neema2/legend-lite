@@ -47,7 +47,8 @@ public final class PureParser {
         parser.removeErrorListeners();
         parser.addErrorListener(new ErrorListener());
 
-        org.finos.legend.pure.dsl.antlr.PureParser.CombinedExpressionContext tree = parser.combinedExpression();
+        // Use programLine to support both expressions and let statements
+        org.finos.legend.pure.dsl.antlr.PureParser.ProgramLineContext tree = parser.programLine();
         PureAstBuilder visitor = new PureAstBuilder();
         return visitor.visit(tree);
     }

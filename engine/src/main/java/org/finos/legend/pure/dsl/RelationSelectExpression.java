@@ -14,6 +14,6 @@ import java.util.List;
  * </pre>
  */
 public record RelationSelectExpression(
-        RelationExpression source,
-        List<String> columns) implements RelationExpression {
+                PureExpression source,
+                List<String> columns) implements RelationExpression {
 }

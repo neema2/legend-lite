@@ -155,4 +155,55 @@ class AntlrPureParserTest {
             assertNotNull(result);
         }
     }
+
+    // ========================================
+    // Let Expression Tests
+    // ========================================
+
+    @Nested
+    class LetTests {
+        @Test
+        void simpleLetExpression() {
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("let x = 42");
+            assertInstanceOf(LetExpression.class, result);
+            LetExpression let = (LetExpression) result;
+            assertEquals("x", let.variableName());
+            assertInstanceOf(LiteralExpr.class, let.value());
+        }
+
+        @Test
+        void letWithStringValue() {
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse("let name = 'John'");
+            assertInstanceOf(LetExpression.class, result);
+            LetExpression let = (LetExpression) result;
+            assertEquals("name", let.variableName());
+        }
+
+        @Test
+        void blockWithLetAndResult() {
+            // Lambda containing let statement followed by expression
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse(
+                    "{| let x = 42; $x;}");
+            assertInstanceOf(LambdaExpression.class, result);
+            LambdaExpression lambda = (LambdaExpression) result;
+            assertInstanceOf(BlockExpression.class, lambda.body());
+            BlockExpression block = (BlockExpression) lambda.body();
+            assertEquals(1, block.letStatements().size());
+            assertEquals("x", block.letStatements().get(0).variableName());
+            assertInstanceOf(VariableExpr.class, block.result());
+        }
+
+        @Test
+        void blockWithMultipleLets() {
+            PureExpression result = org.finos.legend.pure.dsl.PureParser.parse(
+                    "{| let x = 1; let y = 2; $x;}");
+            assertInstanceOf(LambdaExpression.class, result);
+            LambdaExpression lambda = (LambdaExpression) result;
+            assertInstanceOf(BlockExpression.class, lambda.body());
+            BlockExpression block = (BlockExpression) lambda.body();
+            assertEquals(2, block.letStatements().size());
+            assertEquals("x", block.letStatements().get(0).variableName());
+            assertEquals("y", block.letStatements().get(1).variableName());
+        }
+    }
 }

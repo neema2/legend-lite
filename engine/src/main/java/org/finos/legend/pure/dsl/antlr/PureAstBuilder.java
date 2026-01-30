@@ -34,32 +34,35 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
     @Override
     public PureExpression visitCombinedExpression(PureParser.CombinedExpressionContext ctx) {
-        // Start with the first comparison expression
-        PureExpression expr = visitComparisonExpression(ctx.comparisonExpression());
+        // Start with the first expression
+        PureExpression expr = visit(ctx.expression());
 
-        // Process boolean parts (&& / ||) which chain comparison expressions
-        for (PureParser.BooleanPartContext bp : ctx.booleanPart()) {
-            PureExpression right = visitComparisonExpression(bp.comparisonExpression());
-            if (bp.AND() != null) {
-                expr = LogicalExpr.and(expr, right);
-            } else {
-                expr = LogicalExpr.or(expr, right);
-            }
+        // Process expression parts (booleanPart | arithmeticPart)
+        for (PureParser.ExpressionPartContext part : ctx.expressionPart()) {
+            expr = processExpressionPart(expr, part);
         }
 
         return expr;
     }
 
-    public PureExpression visitComparisonExpression(PureParser.ComparisonExpressionContext ctx) {
-        // Start with the base expression
-        PureExpression expr = visit(ctx.expression());
-
-        // Process arithmetic parts (including comparison operators like >, <, etc.)
-        for (PureParser.ArithmeticPartContext ap : ctx.arithmeticPart()) {
-            expr = processArithmeticPart(expr, ap);
+    private PureExpression processExpressionPart(PureExpression left, PureParser.ExpressionPartContext ctx) {
+        if (ctx.booleanPart() != null) {
+            return processBooleanPart(left, ctx.booleanPart());
+        } else if (ctx.arithmeticPart() != null) {
+            return processArithmeticPart(left, ctx.arithmeticPart());
         }
+        return left;
+    }
 
-        return expr;
+    private PureExpression processBooleanPart(PureExpression left, PureParser.BooleanPartContext bp) {
+        // Use combinedArithmeticOnly to ensure comparisons are evaluated before boolean
+        // ops
+        PureExpression right = visitCombinedArithmeticOnly(bp.combinedArithmeticOnly());
+        if (bp.AND() != null) {
+            return LogicalExpr.and(left, right);
+        } else {
+            return LogicalExpr.or(left, right);
+        }
     }
 
     private PureExpression processArithmeticPart(PureExpression left, PureParser.ArithmeticPartContext ctx) {
@@ -855,11 +858,37 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (lines.size() == 1) {
             return visit(lines.get(0));
         }
+
+        // Multiple statements - collect let statements and final result
+        List<LetExpression> letStatements = new java.util.ArrayList<>();
         PureExpression result = null;
-        for (PureParser.ProgramLineContext line : lines) {
-            result = visit(line);
+
+        for (int i = 0; i < lines.size(); i++) {
+            PureExpression expr = visit(lines.get(i));
+            if (expr instanceof LetExpression let) {
+                letStatements.add(let);
+            } else if (i == lines.size() - 1) {
+                // Last expression is the result
+                result = expr;
+            }
+            // Intermediate non-let expressions are executed for side effects (rare)
         }
-        return result;
+
+        if (result == null) {
+            // If the last statement was a let, return the last let value
+            if (!letStatements.isEmpty()) {
+                LetExpression lastLet = letStatements.get(letStatements.size() - 1);
+                result = new VariableExpr(lastLet.variableName());
+            } else {
+                result = LiteralExpr.string("");
+            }
+        }
+
+        if (letStatements.isEmpty()) {
+            return result;
+        }
+
+        return new BlockExpression(letStatements, result);
     }
 
     @Override
@@ -1066,7 +1095,17 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                             "Use project() first to create a relation: Class.all()->project(...)->groupBy(...)");
         }
 
-        // groupBy requires exactly 3 arguments: [groupByCols], [aggCols], [aliases]
+        // Support two syntaxes:
+        // 1. Relation API syntax: groupBy(~groupCol, ~aggSpec) - 2 args with ColumnSpec
+        // 2. Legacy syntax: groupBy([lambdas], [aggLambdas], [aliases]) - 3 args with
+        // arrays
+
+        // Check for Relation API syntax (ColumnSpec or ColumnSpecArray args)
+        if (args.size() >= 2 && isColumnSpecArg(args.get(0))) {
+            return parseRelationApiGroupBy(source, args);
+        }
+
+        // Legacy 3-arg syntax: [groupByCols], [aggCols], [aliases]
         if (args.size() < 3) {
             throw new PureParseException(
                     "groupBy() requires 3 arguments: groupBy columns, aggregation columns, and aliases");
@@ -1090,6 +1129,81 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         return new MethodCall(source, "groupBy", args);
     }
 
+    /**
+     * Parse Relation API groupBy syntax: groupBy(~groupCol, ~aggSpec)
+     * The aggSpec is a ColumnSpec with aggregation lambda
+     */
+    private PureExpression parseRelationApiGroupBy(PureExpression source, List<PureExpression> args) {
+        List<String> groupByColumnNames = new java.util.ArrayList<>();
+        List<LambdaExpression> aggregations = new java.util.ArrayList<>();
+        List<String> aliases = new java.util.ArrayList<>();
+
+        // First arg: group-by column(s) - can be ColumnSpec or ColumnSpecArray
+        PureExpression groupByArg = args.get(0);
+        if (groupByArg instanceof ColumnSpec cs) {
+            groupByColumnNames.add(cs.name());
+        } else if (groupByArg instanceof ColumnSpecArray csa) {
+            for (PureExpression spec : csa.specs()) {
+                if (spec instanceof ColumnSpec cs) {
+                    groupByColumnNames.add(cs.name());
+                }
+            }
+        }
+
+        // Second and subsequent args: aggregation column specs
+        for (int i = 1; i < args.size(); i++) {
+            PureExpression aggArg = args.get(i);
+            if (aggArg instanceof ColumnSpec cs) {
+                aliases.add(cs.name());
+                if (cs.lambda() instanceof LambdaExpression le) {
+                    aggregations.add(le);
+                } else if (cs.extraFunction() instanceof LambdaExpression le) {
+                    aggregations.add(le);
+                }
+            } else if (aggArg instanceof ColumnSpecArray csa) {
+                for (PureExpression spec : csa.specs()) {
+                    if (spec instanceof ColumnSpec cs) {
+                        aliases.add(cs.name());
+                        if (cs.lambda() instanceof LambdaExpression le) {
+                            aggregations.add(le);
+                        } else if (cs.extraFunction() instanceof LambdaExpression le) {
+                            aggregations.add(le);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Convert group-by column names to lambdas
+        List<LambdaExpression> groupByLambdas = new java.util.ArrayList<>();
+        for (String colName : groupByColumnNames) {
+            // Create property access lambda: r | $r.colName
+            String paramName = "r";
+            PropertyAccessExpression propAccess = new PropertyAccessExpression(
+                    new VariableExpr(paramName), colName);
+            groupByLambdas.add(new LambdaExpression(paramName, propAccess));
+        }
+
+        // Also add the group-by column names to aliases (they appear in output)
+        List<String> fullAliases = new java.util.ArrayList<>(groupByColumnNames);
+        fullAliases.addAll(aliases);
+
+        // Source can be RelationExpression or VariableExpr (for lambda contexts)
+        if (source instanceof RelationExpression || source instanceof VariableExpr) {
+            return new GroupByExpression((RelationExpression) source, groupByLambdas, aggregations, fullAliases);
+        }
+
+        // Fallback to MethodCall for other source types
+        return new MethodCall(source, "groupBy", args);
+    }
+
+    /**
+     * Check if an argument is a ColumnSpec-style argument (for Relation API syntax)
+     */
+    private boolean isColumnSpecArg(PureExpression arg) {
+        return arg instanceof ColumnSpec || arg instanceof ColumnSpecArray;
+    }
+
     private PureExpression parseJoinCall(PureExpression source, List<PureExpression> args) {
         // Validate: join cannot be called directly on Class.all() - must use project()
         // first
@@ -1105,14 +1219,14 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     "join() requires 3 arguments: right relation, join type, and condition lambda");
         }
 
-        // First arg: right relation (must be RelationExpression)
+        // First arg: right relation (must be RelationExpression or VariableExpr for
+        // lambda contexts)
         PureExpression rightArg = args.get(0);
-        if (!(rightArg instanceof RelationExpression)) {
+        if (!(rightArg instanceof RelationExpression) && !(rightArg instanceof VariableExpr)) {
             throw new PureParseException(
                     "join() first argument must be a Relation (use project() first), got: " +
                             rightArg.getClass().getSimpleName());
         }
-        RelationExpression right = (RelationExpression) rightArg;
 
         // Second arg: join type (enum reference like JoinType.LEFT_OUTER)
         JoinExpression.JoinType joinType = extractJoinType(args.get(1));
@@ -1126,9 +1240,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         }
         LambdaExpression condition = (LambdaExpression) condArg;
 
-        // Source must be a RelationExpression
-        if (source instanceof RelationExpression leftRelation) {
-            return new JoinExpression(leftRelation, right, joinType, condition);
+        // Source can be RelationExpression or VariableExpr (for lambda contexts)
+        if (source instanceof RelationExpression || source instanceof VariableExpr) {
+            return new JoinExpression(source, rightArg, joinType, condition);
         }
 
         // Fallback to MethodCall for other source types
@@ -1265,18 +1379,23 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private PureExpression parseSelectCall(PureExpression source, List<PureExpression> args) {
-        if (!(source instanceof RelationExpression relExpr)) {
+        // Accept RelationExpression or VariableExpr (for lambda parameters like
+        // $t->select())
+        // Type validation happens at compile time
+        if (!(source instanceof RelationExpression) && !(source instanceof VariableExpr)) {
             throw new PureParseException(
                     "select() requires a Relation source, got: " + source.getClass().getSimpleName());
         }
         // Extract column names from args (ColumnSpec or ColumnSpecArray)
         List<String> columns = extractColumnsFromArgs(args);
-        return new RelationSelectExpression(relExpr, columns);
+        return new RelationSelectExpression(source, columns);
     }
 
     private PureExpression parseExtendCall(PureExpression source, List<PureExpression> args) {
-        // extend() is Relation-only
-        if (!(source instanceof RelationExpression relExpr)) {
+        // Accept RelationExpression or VariableExpr (for lambda parameters like
+        // $t->extend())
+        // Type validation happens at compile time
+        if (!(source instanceof RelationExpression) && !(source instanceof VariableExpr)) {
             throw new PureParseException(
                     "extend() requires a Relation source, got: " + source.getClass().getSimpleName());
         }
@@ -1284,7 +1403,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // Check for simple ColumnSpec with lambda: ~col: x | expr
         if (args.size() == 1 && args.get(0) instanceof ColumnSpec cs
                 && cs.lambda() instanceof LambdaExpression lambda) {
-            return new RelationExtendExpression(relExpr, cs.name(), lambda);
+            return new RelationExtendExpression(source, cs.name(), lambda);
         }
 
         // For window functions and other complex cases, keep using ExtendExpression

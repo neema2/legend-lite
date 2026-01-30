@@ -18,8 +18,8 @@ import java.util.Objects;
  * @param condition The join condition lambda with two parameters
  */
 public record JoinExpression(
-        RelationExpression left,
-        RelationExpression right,
+        PureExpression left,
+        PureExpression right,
         JoinType joinType,
         LambdaExpression condition) implements RelationExpression {
 
