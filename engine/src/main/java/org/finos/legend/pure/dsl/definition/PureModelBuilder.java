@@ -33,6 +33,7 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, ConnectionDefinition> connections = new HashMap<>();
     private final Map<String, RuntimeDefinition> runtimes = new HashMap<>();
     private final Map<String, ServiceDefinition> services = new HashMap<>();
+    private final Map<String, EnumDefinition> enums = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry();
 
     // Explicit association-to-join mappings from +AssociationName: Relational {
@@ -49,7 +50,14 @@ public final class PureModelBuilder implements ModelContext {
     public PureModelBuilder addSource(String pureSource) {
         List<PureDefinition> definitions = PureDefinitionParser.parse(pureSource);
 
-        // PHASE 1: Register all classes first (without superclass resolution)
+        // PHASE 0: Register all enums first (needed for type resolution in classes)
+        for (PureDefinition def : definitions) {
+            if (def instanceof EnumDefinition enumDef) {
+                addEnum(enumDef);
+            }
+        }
+
+        // PHASE 1: Register all classes (without superclass resolution)
         for (PureDefinition def : definitions) {
             if (def instanceof ClassDefinition classDef) {
                 addClass(classDef);
@@ -64,11 +72,12 @@ public final class PureModelBuilder implements ModelContext {
             switch (def) {
                 case ClassDefinition classDef -> {
                 } // Already processed in Phase 1
+                case EnumDefinition enumDef -> {
+                } // Already processed in Phase 0
                 case AssociationDefinition assocDef -> addAssociation(assocDef);
                 case DatabaseDefinition dbDef -> addDatabase(dbDef);
                 case MappingDefinition mappingDef -> addMapping(mappingDef);
                 case ServiceDefinition serviceDef -> addService(serviceDef);
-                case EnumDefinition enumDef -> addEnum(enumDef);
                 case ProfileDefinition profileDef -> addProfile(profileDef);
                 case FunctionDefinition funcDef -> addFunction(funcDef);
                 case ConnectionDefinition connDef -> addConnection(connDef);
@@ -370,9 +379,19 @@ public final class PureModelBuilder implements ModelContext {
      * Enums are type-safe value sets used for properties.
      */
     public PureModelBuilder addEnum(EnumDefinition enumDef) {
-        // Store enum for validation and type checking
-        // Enum values are stored as strings in SQL
+        enums.put(enumDef.qualifiedName(), enumDef);
+        enums.put(enumDef.simpleName(), enumDef);
         return this;
+    }
+
+    /**
+     * Looks up an enum definition by name (simple or qualified).
+     * 
+     * @param enumName The enum name to look up
+     * @return The EnumDefinition, or null if not found
+     */
+    public EnumDefinition getEnum(String enumName) {
+        return enums.get(enumName);
     }
 
     /**
@@ -534,6 +553,17 @@ public final class PureModelBuilder implements ModelContext {
         return Optional.ofNullable(tables.get(tableName));
     }
 
+    @Override
+    public Optional<EnumDefinition> findEnum(String enumName) {
+        return Optional.ofNullable(enums.get(enumName));
+    }
+
+    @Override
+    public boolean hasEnumValue(String enumName, String valueName) {
+        EnumDefinition enumDef = enums.get(enumName);
+        return enumDef != null && enumDef.hasValue(valueName);
+    }
+
     // ==================== Conversion Helpers ====================
 
     private Property convertProperty(ClassDefinition.PropertyDefinition propDef) {
@@ -557,6 +587,11 @@ public final class PureModelBuilder implements ModelContext {
                 PureClass classType = classes.get(typeName);
                 if (classType != null) {
                     yield classType;
+                }
+                // Look up as enum type
+                EnumDefinition enumDef = enums.get(typeName);
+                if (enumDef != null) {
+                    yield new PureEnumType(enumDef);
                 }
                 throw new IllegalStateException("Unknown type: " + typeName);
             }

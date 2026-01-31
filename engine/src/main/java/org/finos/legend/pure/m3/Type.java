@@ -8,8 +8,8 @@ package org.finos.legend.pure.m3;
  * - PrimitiveType: Built-in scalar types (String, Integer, Boolean, Date)
  * - PureClass: User-defined composite types with properties
  */
-public sealed interface Type permits PrimitiveType, PureClass {
-    
+public sealed interface Type permits PrimitiveType, PureClass, PureEnumType {
+
     /**
      * @return The name of this type
      */

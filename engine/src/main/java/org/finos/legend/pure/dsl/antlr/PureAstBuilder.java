@@ -157,6 +157,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new MethodCall(source, propName, args);
         }
 
+        // Check if this is an enum value access: ClassReference.VALUE ->
+        // EnumValueReference
+        if (source instanceof ClassReference classRef) {
+            // EnumType.VALUE pattern - return EnumValueReference
+            return new EnumValueReference(classRef.className(), propName);
+        }
+
         // It's a property access
         return new PropertyAccessExpression(source, propName);
     }
@@ -1246,7 +1253,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private JoinExpression.JoinType extractJoinType(PureExpression arg) {
-        // Handle enum reference like JoinType.LEFT_OUTER or PropertyAccess
+        // EnumValueReference from proper parsing: JoinType.LEFT_OUTER ->
+        // EnumValueReference(JoinType, LEFT_OUTER)
+        if (arg instanceof EnumValueReference enumRef) {
+            return JoinExpression.JoinType.fromString(enumRef.valueName());
+        }
+        // Handle enum reference like JoinType.LEFT_OUTER or PropertyAccess - legacy
+        // fallback
         if (arg instanceof PropertyAccessExpression propAccess) {
             return JoinExpression.JoinType.fromString(propAccess.propertyName());
         }

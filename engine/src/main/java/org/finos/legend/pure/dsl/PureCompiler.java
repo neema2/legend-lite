@@ -937,7 +937,13 @@ public final class PureCompiler {
      * Handles: DurationUnit.DAYS, DAYS, 'day'
      */
     private DurationUnit parseDurationUnit(PureExpression expr) {
-        // Enum reference: DurationUnit.DAYS (parsed as PropertyAccessExpression)
+        // EnumValueReference from proper parsing: DurationUnit.DAYS ->
+        // EnumValueReference(DurationUnit, DAYS)
+        if (expr instanceof EnumValueReference enumRef) {
+            return DurationUnit.fromPure(enumRef.valueName());
+        }
+        // Enum reference: DurationUnit.DAYS (parsed as PropertyAccessExpression) -
+        // legacy fallback
         if (expr instanceof PropertyAccessExpression pa) {
             return DurationUnit.fromPure(pa.propertyName());
         }
@@ -955,6 +961,20 @@ public final class PureCompiler {
             return DurationUnit.fromPure(fc.functionName());
         }
         throw new PureCompileException("Expected DurationUnit, got: " + expr.getClass().getSimpleName());
+    }
+
+    /**
+     * Test helper: Expose parseDurationUnit for testing.
+     */
+    public DurationUnit testParseDurationUnit(PureExpression expr) {
+        return parseDurationUnit(expr);
+    }
+
+    /**
+     * Test helper: Compile an EnumValueReference to SQL expression.
+     */
+    public Expression compileEnumToSql(EnumValueReference enumRef) {
+        return Literal.string(enumRef.valueName());
     }
 
     /**
@@ -2595,6 +2615,7 @@ public final class PureCompiler {
         return switch (expr) {
             case ComparisonExpr comp -> compileComparison(comp, context);
             case LogicalExpr logical -> compileLogical(logical, context);
+            case EnumValueReference enumRef -> Literal.string(enumRef.valueName()); // DurationUnit.DAYS -> 'DAYS'
             case PropertyAccessExpression propAccess -> compilePropertyAccess(propAccess, context);
             case LiteralExpr literal -> compileLiteral(literal);
             case BinaryExpression binary -> compileBinaryExpression(binary, context);
@@ -2842,6 +2863,245 @@ public final class PureCompiler {
             case "toString" -> new SqlFunctionCall("cast",
                     compileToSqlExpression(methodCall.source(), context),
                     java.util.List.of(), SqlType.VARCHAR);
+
+            // ===== STRING FUNCTIONS =====
+            case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx)
+                var args = methodCall.arguments();
+                if (args.size() < 2)
+                    throw new PureCompileException("splitPart requires 2 arguments");
+                yield SqlFunctionCall.of("split_part",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(args.get(0), context),
+                        compileToSqlExpression(args.get(1), context));
+            }
+            case "toUpperFirstCharacter" -> { // upper(s[1]) || s[2:]
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                // DuckDB: upper(s[1]) || s[2:]
+                yield new ConcatExpression(java.util.List.of(
+                        SqlFunctionCall.of("upper",
+                                new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
+                                        SqlType.VARCHAR)),
+                        new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), SqlType.VARCHAR)));
+            }
+            case "toLowerFirstCharacter" -> { // lower(s[1]) || s[2:]
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                yield new ConcatExpression(java.util.List.of(
+                        SqlFunctionCall.of("lower",
+                                new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
+                                        SqlType.VARCHAR)),
+                        new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), SqlType.VARCHAR)));
+            }
+            case "indexOf" -> { // indexOf(s, sub) -> position(sub IN s) - returns 0 if not found
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("indexOf requires an argument");
+                // DuckDB uses instr(string, search) which returns position (1-based) or 0
+                yield SqlFunctionCall.of("instr",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "repeatString" -> { // repeatString(s, n) -> repeat(s, n)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("repeatString requires a count argument");
+                yield SqlFunctionCall.of("repeat",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "startsWith" -> { // startsWith(s, prefix) -> starts_with(s, prefix)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("startsWith requires an argument");
+                yield SqlFunctionCall.of("starts_with",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "endsWith" -> { // endsWith(s, suffix) -> suffix_search(s, suffix)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("endsWith requires an argument");
+                yield SqlFunctionCall.of("ends_with",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "joinStrings" -> { // [a,b,c]->joinStrings(sep) -> list_aggr(list, 'string_agg', sep)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("joinStrings requires a separator argument");
+                yield SqlFunctionCall.of("array_to_string",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "decodeBase64" -> // decodeBase64(s) -> from_base64(s)
+                SqlFunctionCall.of("from_base64", compileToSqlExpression(methodCall.source(), context));
+            case "encodeBase64" -> // encodeBase64(s) -> to_base64(s)
+                SqlFunctionCall.of("to_base64", compileToSqlExpression(methodCall.source(), context));
+
+            // ===== MATH FUNCTIONS =====
+            case "rem", "mod" -> { // rem(a, b) -> a % b via mod function
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("rem requires an argument");
+                // Use DuckDB mod() function: mod(a, b) = a % b
+                yield SqlFunctionCall.of("mod",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "compare" -> { // compare(a, b) -> CASE WHEN a < b THEN -1 WHEN a > b THEN 1 ELSE 0 END
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("compare requires an argument");
+                Expression a = compileToSqlExpression(methodCall.source(), context);
+                Expression b = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                // Build nested CASE: CASE WHEN a < b THEN -1 ELSE (CASE WHEN a > b THEN 1 ELSE
+                // 0 END) END
+                yield CaseExpression.of(
+                        ComparisonExpression.lessThan(a, b),
+                        Literal.of(-1),
+                        CaseExpression.of(
+                                ComparisonExpression.greaterThan(a, b),
+                                Literal.of(1),
+                                Literal.of(0)));
+            }
+            case "eq", "equal" -> { // eq(a, b) -> a = b
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("eq requires an argument");
+                yield ComparisonExpression.equals(
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "average" -> // [list]->average() -> list_avg(list)
+                SqlFunctionCall.of("list_avg", compileToSqlExpression(methodCall.source(), context));
+            case "stdDevSample" -> // [list]->stdDevSample() -> list_aggr(list, 'stddev_samp')
+                SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of("stddev_samp"));
+            case "stdDevPopulation" -> // [list]->stdDevPopulation()
+                SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of("stddev_pop"));
+            case "toFloat" -> // toFloat(x) -> CAST(x AS DOUBLE)
+                new SqlFunctionCall("cast", compileToSqlExpression(methodCall.source(), context),
+                        java.util.List.of(), SqlType.DOUBLE);
+            case "toDecimal" -> // toDecimal(x) -> CAST(x AS DECIMAL) - using DOUBLE as closest
+                new SqlFunctionCall("cast", compileToSqlExpression(methodCall.source(), context),
+                        java.util.List.of(), SqlType.DOUBLE);
+
+            // ===== LIST FUNCTIONS =====
+            case "zip" -> { // zip(l1, l2) -> list_zip(l1, l2)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("zip requires an argument");
+                yield SqlFunctionCall.of("list_zip",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "head" -> // head(list) -> list[1]
+                SqlFunctionCall.of("list_extract",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of(1));
+            case "first" -> // first(list) -> list[1]
+                SqlFunctionCall.of("list_extract",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of(1));
+            case "last" -> // last(list) -> list[-1]
+                SqlFunctionCall.of("list_extract",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of(-1));
+            case "tail" -> // tail(list) -> list_slice(list, 2, NULL)
+                SqlFunctionCall.of("list_slice",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of(2),
+                        Literal.ofNull());
+            case "init" -> // init(list) -> list_slice(list, 1, -2) - all but last
+                SqlFunctionCall.of("list_slice",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of(1),
+                        Literal.of(-2));
+            case "at" -> { // at(list, idx) -> list_extract(list, idx)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("at requires an index argument");
+                yield SqlFunctionCall.of("list_extract",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "size" -> // size(list) -> len(list)
+                SqlFunctionCall.of("len", compileToSqlExpression(methodCall.source(), context));
+            case "length" -> // length(s) -> len(s) or length(s)
+                SqlFunctionCall.of("length", compileToSqlExpression(methodCall.source(), context));
+            case "removeDuplicates" -> // removeDuplicates(list) -> list_distinct(list)
+                SqlFunctionCall.of("list_distinct", compileToSqlExpression(methodCall.source(), context));
+            case "distinct" -> // distinct(list) -> list_distinct(list)
+                SqlFunctionCall.of("list_distinct", compileToSqlExpression(methodCall.source(), context));
+            case "reverse" -> // reverse(list) -> list_reverse(list)
+                SqlFunctionCall.of("list_reverse", compileToSqlExpression(methodCall.source(), context));
+            case "sort" -> // sort(list) -> list_sort(list)
+                SqlFunctionCall.of("list_sort", compileToSqlExpression(methodCall.source(), context));
+
+            // ===== DATE FUNCTIONS =====
+            case "date" -> { // date(y, m, d) -> make_date(y, m, d)
+                var args = methodCall.arguments();
+                if (args.size() < 2) {
+                    // date(y, m, d) style call where source is year
+                    throw new PureCompileException("date() as method requires month and day arguments");
+                }
+                yield SqlFunctionCall.of("make_date",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(args.get(0), context),
+                        compileToSqlExpression(args.get(1), context));
+            }
+            case "parseDate" -> { // parseDate(s, fmt) -> strptime(s, fmt)::DATE
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("parseDate requires a format argument");
+                yield new SqlFunctionCall("cast",
+                        SqlFunctionCall.of("strptime",
+                                compileToSqlExpression(methodCall.source(), context),
+                                compileToSqlExpression(methodCall.arguments().getFirst(), context)),
+                        java.util.List.of(), SqlType.DATE);
+            }
+            case "timeBucket" -> { // timeBucket(count, unit) -> time_bucket(interval, timestamp)
+                // DuckDB time_bucket expects INTERVAL like 'to_days(1)' etc.
+                var args = methodCall.arguments();
+                if (args.size() < 2)
+                    throw new PureCompileException("timeBucket requires count and DurationUnit arguments");
+                Expression timestamp = compileToSqlExpression(methodCall.source(), context);
+                Expression count = compileToSqlExpression(args.get(0), context);
+                Expression unitExpr = compileToSqlExpression(args.get(1), context); // e.g., 'DAYS'
+                // Get the unit name from the literal
+                String unitName = unitExpr instanceof Literal lit && lit.value() instanceof String s ? s : "DAYS";
+                // Map DurationUnit to DuckDB interval function
+                String intervalFunc = switch (unitName.toUpperCase()) {
+                    case "DAYS" -> "to_days";
+                    case "HOURS" -> "to_hours";
+                    case "MINUTES" -> "to_minutes";
+                    case "SECONDS" -> "to_seconds";
+                    case "WEEKS" -> "to_weeks";
+                    case "MONTHS" -> "to_months";
+                    case "YEARS" -> "to_years";
+                    default -> "to_days";
+                };
+                yield SqlFunctionCall.of("time_bucket",
+                        SqlFunctionCall.of(intervalFunc, count),
+                        timestamp);
+            }
+
+            // ===== BITWISE FUNCTIONS =====
+            case "bitAnd" -> { // bitAnd(a, b) -> a & b
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("bitAnd requires an argument");
+                yield SqlFunctionCall.of("bit_and",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "bitOr" -> { // bitOr(a, b) -> a | b
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("bitOr requires an argument");
+                yield SqlFunctionCall.of("bit_or",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "bitXor" -> { // bitXor(a, b) -> xor(a, b)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("bitXor requires an argument");
+                yield SqlFunctionCall.of("xor",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "bitNot" -> // bitNot(a) -> ~a via bit_not function
+                SqlFunctionCall.of("bit_not", compileToSqlExpression(methodCall.source(), context));
+
             default -> compileSimpleMethodCall(methodCall, context);
         };
     }

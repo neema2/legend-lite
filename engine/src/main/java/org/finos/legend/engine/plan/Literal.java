@@ -76,6 +76,27 @@ public record Literal(
         return new Literal(null, LiteralType.NULL);
     }
 
+    /**
+     * Convenience factory for integer literals.
+     */
+    public static Literal of(int value) {
+        return integer(value);
+    }
+
+    /**
+     * Convenience factory for string literals.
+     */
+    public static Literal of(String value) {
+        return string(value);
+    }
+
+    /**
+     * Convenience factory for null literals.
+     */
+    public static Literal ofNull() {
+        return nullValue();
+    }
+
     @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitLiteral(this);
