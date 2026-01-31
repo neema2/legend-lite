@@ -62,8 +62,10 @@ class GraphFetchParserTest {
 
     @Test
     void testGraphFetchRequiresClassExpression() {
-        // graphFetch on a non-class expression should fail
-        String invalidQuery = "#>{store::DB.TABLE}->graphFetch(#{ Person { name } }#)";
+        // graphFetch on a non-class expression should fail - this is semantic
+        // validation
+        // to ensure class functions are not used on relation expressions
+        String invalidQuery = "#>{store::DB.TABLE}#->graphFetch(#{ Person { name } }#)";
 
         assertThrows(PureParseException.class, () -> {
             PureParser.parse(invalidQuery);

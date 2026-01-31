@@ -389,238 +389,60 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // Extract DSL type: everything between '#' and '{'
         String dslType = islandOpen.substring(1, islandOpen.length() - 1);
 
-        // Collect island content tokens
-        // For relation literals (>), stop at first ISLAND_BRACE_CLOSE since they use
-        // }-> not }#
-        // For GraphFetch (empty), collect everything except ISLAND_END
-        boolean isRelation = ">".equals(dslType);
+        // Collect island content tokens as text
         StringBuilder content = new StringBuilder();
-        StringBuilder trailingContent = new StringBuilder();
-        boolean seenBraceClose = false;
-
         for (PureParser.DslExtensionContentContext contentCtx : ctx.dslExtensionContent()) {
-            // Skip ISLAND_END token
-            if (contentCtx.ISLAND_END() != null) {
-                continue;
-            }
-
-            if (isRelation) {
-                if (!seenBraceClose && contentCtx.ISLAND_BRACE_CLOSE() != null) {
-                    // First } marks end of relation literal
-                    seenBraceClose = true;
-                    continue;
-                }
-                if (seenBraceClose) {
-                    // Collect trailing content including braces
-                    if (contentCtx.ISLAND_BRACE_OPEN() != null) {
-                        trailingContent.append("{");
-                    } else if (contentCtx.ISLAND_BRACE_CLOSE() != null) {
-                        trailingContent.append("}");
-                    } else {
-                        trailingContent.append(contentCtx.getText());
-                    }
-                } else {
-                    content.append(contentCtx.getText());
-                }
+            if (contentCtx.ISLAND_BRACE_OPEN() != null) {
+                content.append("{");
+            } else if (contentCtx.ISLAND_BRACE_CLOSE() != null) {
+                content.append("}");
             } else {
                 content.append(contentCtx.getText());
             }
         }
         String contentText = content.toString().trim();
-        String trailingText = trailingContent.toString().trim();
 
-        // GraphFetch content should be passed as-is to the graphFetchTree grammar rule
-        // which expects: qualifiedName { property, property, ... }
-
-        // Parse the main content
+        // Parse the main DSL content
         PureExpression result = switch (dslType) {
             case "" -> parseGraphFetchTree(contentText);
             case ">" -> parseRelationLiteral(contentText);
             default -> throw new PureParseException("Unknown DSL type: #" + dslType + "{");
         };
 
-        // For relation literals, parse trailing arrow chains and wrap the result
-        if (isRelation && !trailingText.isEmpty()) {
-            result = parseTrailingArrowChain(result, trailingText);
+        // Handle arrow chains via ANTLR-parsed functionChainAfterArrow (from
+        // ISLAND_ARROW_EXIT path)
+        if (ctx.functionChainAfterArrow() != null) {
+            result = processFunctionChainAfterArrow(result, ctx.functionChainAfterArrow());
         }
 
         return result;
     }
 
     /**
-     * Parses trailing arrow chain content and applies it to the source expression.
-     * Example: "->from(myRuntime)" or "->select(~name, ~age)->from(duckdb)"
+     * Processes a function chain that starts after the arrow is already consumed.
+     * The grammar rule is: qualifiedName functionExpressionParameters (ARROW
+     * qualifiedName functionExpressionParameters)*
      */
-    private PureExpression parseTrailingArrowChain(PureExpression source, String trailingText) {
-        // Build a synthetic expression: "source" + trailing
-        // We'll re-parse the trailing as a combinedExpression and extract function
-        // calls
+    private PureExpression processFunctionChainAfterArrow(PureExpression source,
+            PureParser.FunctionChainAfterArrowContext ctx) {
+        PureExpression current = source;
 
-        // Parse the trailing content - format is like "->from(runtime)" or
-        // "->select(...)->from(...)"
-        // For each arrow function, wrap the source
-        PureExpression result = source;
-        String remaining = trailingText.trim();
+        // Process all function calls in the chain
+        var qualifiedNames = ctx.qualifiedName();
+        var params = ctx.functionExpressionParameters();
 
-        while (remaining.startsWith("->")) {
-            remaining = remaining.substring(2); // Skip "->"
-
-            // Find function name (up to '(')
-            int parenIdx = remaining.indexOf('(');
-            if (parenIdx == -1) {
-                throw new PureParseException("Invalid arrow chain: " + trailingText);
+        for (int i = 0; i < qualifiedNames.size(); i++) {
+            String funcName = qualifiedNames.get(i).getText();
+            List<PureExpression> args = new ArrayList<>();
+            if (i < params.size()) {
+                for (var argCtx : params.get(i).combinedExpression()) {
+                    args.add(visit(argCtx));
+                }
             }
-            String funcName = remaining.substring(0, parenIdx).trim();
-
-            // Find matching closing paren
-            int depth = 1;
-            int closeIdx = parenIdx + 1;
-            while (closeIdx < remaining.length() && depth > 0) {
-                char c = remaining.charAt(closeIdx);
-                if (c == '(')
-                    depth++;
-                else if (c == ')')
-                    depth--;
-                closeIdx++;
-            }
-
-            String argsContent = remaining.substring(parenIdx + 1, closeIdx - 1).trim();
-            remaining = (closeIdx < remaining.length()) ? remaining.substring(closeIdx).trim() : "";
-
-            // Parse arguments and create function expression
-            result = createFunctionCall(result, funcName, argsContent);
+            current = createFunctionCall(current, funcName, args);
         }
 
-        return result;
-    }
-
-    /**
-     * Creates a function call expression wrapping the source.
-     */
-    private PureExpression createFunctionCall(PureExpression source, String funcName, String argsContent) {
-        return switch (funcName) {
-            case "from" -> new FromExpression(source, argsContent);
-            case "select" -> parseSelectCall(source, argsContent);
-            case "filter" -> parseFilterCallFromString(source, argsContent);
-            case "extend" -> parseExtendCallFromString(source, argsContent);
-            case "sort" -> parseSortCallFromString(source, argsContent);
-            case "limit", "take" -> parseLimitCallFromString(source, argsContent);
-            case "drop" -> parseDropCallFromString(source, argsContent);
-            case "distinct" -> parseDistinctCallFromString(source, argsContent);
-            case "rename" -> parseRenameCallFromString(source, argsContent);
-            case "concatenate" -> parseConcatenateCallFromString(source, argsContent);
-            default -> throw new PureParseException("Unknown function in arrow chain: " + funcName);
-        };
-    }
-
-    /**
-     * Parses select arguments and creates a RelationSelectExpression.
-     */
-    private PureExpression parseSelectCall(PureExpression source, String argsContent) {
-        // Parse column specs like "~name, ~age"
-        List<String> columns = new ArrayList<>();
-        for (String part : argsContent.split(",")) {
-            String col = part.trim();
-            if (col.startsWith("~")) {
-                col = col.substring(1);
-            }
-            if (!col.isEmpty()) {
-                columns.add(col);
-            }
-        }
-        return new RelationSelectExpression((RelationExpression) source, columns);
-    }
-
-    private PureExpression parseFilterCallFromString(PureExpression source, String argsContent) {
-        PureExpression predicate = org.finos.legend.pure.dsl.PureParser.parse(argsContent);
-        LambdaExpression lambda = (predicate instanceof LambdaExpression)
-                ? (LambdaExpression) predicate
-                : new LambdaExpression("x", predicate);
-        // Relation API chains always start from RelationExpression
-        return new RelationFilterExpression((RelationExpression) source, lambda);
-    }
-
-    private PureExpression parseExtendCallFromString(PureExpression source, String argsContent) {
-        // Format: ~columnName : {param | body}
-        // or: ~columnName : expression
-        String content = argsContent.trim();
-
-        // Extract column name
-        if (content.startsWith("~")) {
-            content = content.substring(1);
-        }
-
-        int colonIdx = content.indexOf(':');
-        if (colonIdx > 0) {
-            String columnName = content.substring(0, colonIdx).trim();
-            String exprContent = content.substring(colonIdx + 1).trim();
-
-            PureExpression extension = org.finos.legend.pure.dsl.PureParser.parse(exprContent);
-            LambdaExpression lambda = (extension instanceof LambdaExpression)
-                    ? (LambdaExpression) extension
-                    : new LambdaExpression("x", extension);
-
-            return new RelationExtendExpression((RelationExpression) source, columnName, lambda);
-        }
-
-        // Fallback for simple extend
-        PureExpression extension = org.finos.legend.pure.dsl.PureParser.parse(content);
-        return new ExtendExpression(source, List.of(extension));
-    }
-
-    private PureExpression parseSortCallFromString(PureExpression source, String argsContent) {
-        PureExpression sortSpec = org.finos.legend.pure.dsl.PureParser.parse(argsContent);
-        return new SortExpression(source, List.of(sortSpec));
-    }
-
-    private PureExpression parseLimitCallFromString(PureExpression source, String argsContent) {
-        int limit = Integer.parseInt(argsContent.trim());
-        return new LimitExpression(source, limit);
-    }
-
-    private PureExpression parseDropCallFromString(PureExpression source, String argsContent) {
-        int dropCount = Integer.parseInt(argsContent.trim());
-        return new DropExpression(source, dropCount);
-    }
-
-    private PureExpression parseDistinctCallFromString(PureExpression source, String argsContent) {
-        // distinct() - no args means all columns
-        if (argsContent.trim().isEmpty()) {
-            return DistinctExpression.all(source);
-        }
-        // distinct(~col1, ~col2) - specific columns
-        List<String> columns = new ArrayList<>();
-        for (String part : argsContent.split(",")) {
-            String col = part.trim();
-            if (col.startsWith("~")) {
-                col = col.substring(1);
-            }
-            if (!col.isEmpty()) {
-                columns.add(col);
-            }
-        }
-        return DistinctExpression.columns(source, columns);
-    }
-
-    private PureExpression parseRenameCallFromString(PureExpression source, String argsContent) {
-        // rename(~oldCol, ~newCol)
-        String[] parts = argsContent.split(",");
-        if (parts.length < 2) {
-            throw new PureParseException("rename() requires 2 column references: rename(~oldCol, ~newCol)");
-        }
-        String oldCol = parts[0].trim();
-        String newCol = parts[1].trim();
-        if (oldCol.startsWith("~"))
-            oldCol = oldCol.substring(1);
-        if (newCol.startsWith("~"))
-            newCol = newCol.substring(1);
-        return new RenameExpression(source, oldCol, newCol);
-    }
-
-    private PureExpression parseConcatenateCallFromString(PureExpression source, String argsContent) {
-        // concatenate(otherRelation) - parse the other relation
-        PureExpression other = org.finos.legend.pure.dsl.PureParser.parse(argsContent.trim());
-        return new ConcatenateExpression(source, other);
+        return current;
     }
 
     /**
@@ -1449,6 +1271,14 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private PureExpression parseGraphFetchCall(PureExpression source, List<PureExpression> args) {
+        // graphFetch() requires a ClassExpression as source (e.g., Person.all())
+        // It cannot be used on RelationExpressions (e.g., #>{DB.TABLE}#)
+        if (source instanceof RelationExpression) {
+            throw new PureParseException(
+                    "graphFetch() can only be called on class expressions like Person.all(), " +
+                            "not on relation expressions like #>{db.table}#");
+        }
+
         // The argument should be a GraphFetchTree from island mode parsing (#{...}#)
         if (args.size() >= 1 && args.get(0) instanceof GraphFetchTree tree) {
             // Source should be a ClassExpression (e.g., Person.all())
@@ -1522,6 +1352,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         for (PureExpression arg : args) {
             if (arg instanceof ColumnSpec colSpec) {
                 columns.add(colSpec.name());
+            } else if (arg instanceof ColumnSpecArray csArray) {
+                // Handle ColSpecArray from PCT: distinct(~[col1, col2])
+                for (PureExpression elem : csArray.specs()) {
+                    if (elem instanceof ColumnSpec cs) {
+                        columns.add(cs.name());
+                    }
+                }
             } else if (arg instanceof ArrayLiteral arr) {
                 for (PureExpression elem : arr.elements()) {
                     if (elem instanceof ColumnSpec cs) {

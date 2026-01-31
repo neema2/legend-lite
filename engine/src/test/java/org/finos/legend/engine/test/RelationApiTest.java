@@ -21,13 +21,13 @@ class RelationApiTest {
     // ==================== Relation Literal Parsing ====================
 
     @Nested
-    @DisplayName("Relation Literal Parsing: #>{db.table}")
+    @DisplayName("Relation Literal Parsing: #>{db.table}#")
     class RelationLiteralParsingTests {
 
         @Test
         @DisplayName("Parse simple Relation literal")
         void testParseSimpleRelationLiteral() {
-            String query = "#>{MyDB.T_PERSON}";
+            String query = "#>{MyDB.T_PERSON}#";
             PureExpression expr = PureParser.parse(query);
 
             assertInstanceOf(RelationLiteral.class, expr);
@@ -39,9 +39,9 @@ class RelationApiTest {
         @Test
         @DisplayName("Parse Relation literals with various names")
         void testParseRelationLiteralVariousNames() {
-            assertRelationLiteral("#>{Store.EMPLOYEES}", "Store", "EMPLOYEES");
-            assertRelationLiteral("#>{db.orders}", "db", "orders");
-            assertRelationLiteral("#>{TestDB.T_CUSTOMER}", "TestDB", "T_CUSTOMER");
+            assertRelationLiteral("#>{Store.EMPLOYEES}#", "Store", "EMPLOYEES");
+            assertRelationLiteral("#>{db.orders}#", "db", "orders");
+            assertRelationLiteral("#>{TestDB.T_CUSTOMER}#", "TestDB", "T_CUSTOMER");
         }
 
         private void assertRelationLiteral(String query, String expectedDb, String expectedTable) {
@@ -155,7 +155,7 @@ class RelationApiTest {
         @Test
         @DisplayName("RelationLiteral is a RelationExpression")
         void testRelationLiteralIsRelationExpression() {
-            String query = "#>{DB.TABLE}";
+            String query = "#>{DB.TABLE}#";
             PureExpression expr = PureParser.parse(query);
 
             assertInstanceOf(RelationExpression.class, expr);

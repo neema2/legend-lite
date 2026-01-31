@@ -38,7 +38,7 @@ class AntlrParserIntegrationTest {
 
         @Test
         void relationLiteral() {
-            String query = "#>{store::PersonDb.T_PERSON}";
+            String query = "#>{store::PersonDb.T_PERSON}#";
             PureExpression result = org.finos.legend.pure.dsl.PureParser.parse(query);
 
             assertInstanceOf(RelationLiteral.class, result);

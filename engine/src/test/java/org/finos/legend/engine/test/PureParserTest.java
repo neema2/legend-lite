@@ -526,10 +526,10 @@ class PureParserTest {
     // ==================== Relation Literal Parsing Tests ====================
 
     @Test
-    @DisplayName("Parse Relation literal: #>{db.table}")
+    @DisplayName("Parse Relation literal: #>{db.table}#")
     void testParseRelationLiteral() {
         // GIVEN: A Relation literal expression
-        String query = "#>{MyDB.T_PERSON}";
+        String query = "#>{MyDB.T_PERSON}#";
 
         // WHEN: We parse it
         var expr = org.finos.legend.pure.dsl.PureParser.parse(query);

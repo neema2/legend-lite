@@ -336,6 +336,9 @@ INVALID:                                Invalid;
 mode ISLAND_MODE;
 ISLAND_START:                           '#{'        -> pushMode (ISLAND_MODE);
 ISLAND_END:                             '}#'        -> popMode;
+// Handle }-> pattern: exit island mode and let parser handle arrow chain
+// This MUST come before ISLAND_BRACE_CLOSE to take precedence
+ISLAND_ARROW_EXIT:                      '}->'       -> popMode;
 ISLAND_HASH:                            '#';
 ISLAND_BRACE_OPEN:                      '{';
 ISLAND_BRACE_CLOSE:                     '}';

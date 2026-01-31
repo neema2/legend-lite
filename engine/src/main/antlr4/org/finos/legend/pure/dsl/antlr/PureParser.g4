@@ -279,9 +279,12 @@ dsl:                                            dslExtension | dslNavigationPath
 ;
 dslNavigationPath:                              NAVIGATION_PATH_BLOCK
 ;
-dslExtension:                                   ISLAND_OPEN (dslExtensionContent)*
+dslExtension:                                   ISLAND_OPEN (dslExtensionContent)* (ISLAND_END | ISLAND_ARROW_EXIT functionChainAfterArrow?)
 ;
-dslExtensionContent:                            ISLAND_START | ISLAND_BRACE_OPEN | ISLAND_CONTENT | ISLAND_HASH | ISLAND_BRACE_CLOSE | ISLAND_END
+dslExtensionContent:                            ISLAND_START | ISLAND_BRACE_OPEN | ISLAND_CONTENT | ISLAND_HASH | ISLAND_BRACE_CLOSE
+;
+// Function chain starting after }-> (arrow already consumed by ISLAND_ARROW_EXIT)
+functionChainAfterArrow:                        qualifiedName functionExpressionParameters (ARROW qualifiedName functionExpressionParameters)*
 ;
 
 // =============================================================================
