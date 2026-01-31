@@ -822,6 +822,12 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
             classMappings.add(visitClassMappingElement(classMappingCtx));
         }
 
+        // Process enumeration mappings
+        List<org.finos.legend.pure.dsl.definition.MappingDefinition.EnumerationMappingDefinition> enumerationMappings = new ArrayList<>();
+        for (PureParser.EnumerationMappingElementContext enumMappingCtx : ctx.enumerationMappingElement()) {
+            enumerationMappings.add(visitEnumerationMappingElement(enumMappingCtx));
+        }
+
         // Process testSuites
         List<org.finos.legend.pure.dsl.definition.MappingDefinition.TestSuiteDefinition> testSuites = new ArrayList<>();
         if (ctx.mappingTestableDefinition() != null) {
@@ -831,7 +837,64 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         }
 
         return new org.finos.legend.pure.dsl.definition.MappingDefinition(
-                qualifiedName, classMappings, testSuites);
+                qualifiedName, classMappings, enumerationMappings, testSuites);
+    }
+
+    /**
+     * Visits an enumeration mapping element.
+     * 
+     * Grammar: qualifiedName (BRACKET_OPEN mappingElementId BRACKET_CLOSE)? COLON
+     * ENUMERATION_MAPPING (mappingElementId)?
+     * BRACE_OPEN (enumValueMapping (COMMA enumValueMapping)*)? BRACE_CLOSE
+     */
+    public org.finos.legend.pure.dsl.definition.MappingDefinition.EnumerationMappingDefinition visitEnumerationMappingElement(
+            PureParser.EnumerationMappingElementContext ctx) {
+        String enumType = ctx.qualifiedName().getText();
+
+        // Get optional mapping ID (after ENUMERATION_MAPPING keyword)
+        String id = null;
+        if (ctx.mappingElementId() != null && !ctx.mappingElementId().isEmpty()) {
+            // Use the last mappingElementId (after ENUMERATION_MAPPING, not the bracketed
+            // one)
+            id = ctx.mappingElementId(ctx.mappingElementId().size() - 1).getText();
+        }
+
+        // Parse value mappings: EnumValue: ['dbVal1', 'dbVal2'] or EnumValue: 'dbVal'
+        java.util.Map<String, java.util.List<Object>> valueMappings = new java.util.LinkedHashMap<>();
+        for (PureParser.EnumValueMappingContext valueMappingCtx : ctx.enumValueMapping()) {
+            String enumValue = valueMappingCtx.identifier().getText();
+            java.util.List<Object> sourceValues = new ArrayList<>();
+
+            if (valueMappingCtx.enumSourceValueArray() != null) {
+                // Multiple source values: ['P', 'PEND']
+                for (PureParser.EnumSourceValueContext srcCtx : valueMappingCtx.enumSourceValueArray()
+                        .enumSourceValue()) {
+                    sourceValues.add(parseEnumSourceValue(srcCtx));
+                }
+            } else if (valueMappingCtx.enumSourceValue() != null) {
+                // Single source value: 'P'
+                sourceValues.add(parseEnumSourceValue(valueMappingCtx.enumSourceValue()));
+            }
+
+            valueMappings.put(enumValue, sourceValues);
+        }
+
+        return new org.finos.legend.pure.dsl.definition.MappingDefinition.EnumerationMappingDefinition(
+                enumType, id, valueMappings);
+    }
+
+    /**
+     * Parses an enum source value (STRING, INTEGER, or enum reference).
+     */
+    private Object parseEnumSourceValue(PureParser.EnumSourceValueContext ctx) {
+        if (ctx.STRING() != null) {
+            return unquoteString(ctx.STRING().getText());
+        } else if (ctx.INTEGER() != null) {
+            return Integer.parseInt(ctx.INTEGER().getText());
+        } else {
+            // Enum reference: EnumType.VALUE - return as string
+            return ctx.getText();
+        }
     }
 
     /**
@@ -1071,7 +1134,18 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
         }
 
         if (ctx.mappingOperation() != null) {
-            return visitMappingOperation(propertyName, ctx.mappingOperation());
+            // Check for enumTransformer: EnumerationMapping id:
+            String enumMappingId = null;
+            if (ctx.enumTransformer() != null) {
+                // Grammar: enumTransformer: ENUMERATION_MAPPING (identifier)? COLON
+                if (ctx.enumTransformer().identifier() != null) {
+                    enumMappingId = ctx.enumTransformer().identifier().getText();
+                } else {
+                    // No ID specified - use empty string to indicate "use default enum mapping"
+                    enumMappingId = "";
+                }
+            }
+            return visitMappingOperation(propertyName, ctx.mappingOperation(), enumMappingId);
         }
 
         return null;
@@ -1081,7 +1155,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
      * Visits a mapping operation.
      */
     public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitMappingOperation(
-            String propertyName, PureParser.MappingOperationContext ctx) {
+            String propertyName, PureParser.MappingOperationContext ctx, String enumMappingId) {
 
         PureParser.MappingAtomicOperationContext atomicCtx = ctx.mappingAtomicOperation();
 
@@ -1092,7 +1166,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
 
         // Check for column operation: [DB] TABLE.COLUMN
         if (atomicCtx.mappingColumnOperation() != null) {
-            return visitMappingColumnOperation(propertyName, atomicCtx.mappingColumnOperation());
+            return visitMappingColumnOperation(propertyName, atomicCtx.mappingColumnOperation(), enumMappingId);
         }
 
         // Fallback: store entire operation as expression
@@ -1105,7 +1179,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
      * Visits a mapping column operation: [DB] TABLE.COLUMN
      */
     public org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition visitMappingColumnOperation(
-            String propertyName, PureParser.MappingColumnOperationContext ctx) {
+            String propertyName, PureParser.MappingColumnOperationContext ctx, String enumMappingId) {
 
         String databaseName = null;
         if (ctx.databasePointer() != null) {
@@ -1132,10 +1206,17 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
                         propertyName, expression, null);
             }
 
-            return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.column(
-                    propertyName,
-                    new org.finos.legend.pure.dsl.definition.MappingDefinition.ColumnReference(
-                            databaseName, tableName, columnName));
+            org.finos.legend.pure.dsl.definition.MappingDefinition.ColumnReference colRefObj = new org.finos.legend.pure.dsl.definition.MappingDefinition.ColumnReference(
+                    databaseName, tableName, columnName);
+
+            if (enumMappingId != null) {
+                return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition
+                        .columnWithEnumMapping(
+                                propertyName, colRefObj, enumMappingId);
+            } else {
+                return org.finos.legend.pure.dsl.definition.MappingDefinition.PropertyMappingDefinition.column(
+                        propertyName, colRefObj);
+            }
         }
 
         String expression = getOriginalText(ctx);

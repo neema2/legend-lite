@@ -295,6 +295,29 @@ public final class PureModelBuilder implements ModelContext {
                             // Expression-based mapping (e.g., PAYLOAD->get('price', @Integer))
                             String colName = extractColumnNameFromExpression(pm.expressionString());
                             return PropertyMapping.expression(pm.propertyName(), colName, pm.expressionString());
+                        } else if (pm.hasEnumMapping()) {
+                            // Enum column mapping with enumeration mapping
+                            String columnName = pm.columnReference().columnName();
+                            String enumMappingId = pm.enumMappingId();
+
+                            // Find the property's enum type from the class definition
+                            var prop = pureClass.properties().stream()
+                                    .filter(p -> p.name().equals(pm.propertyName()))
+                                    .findFirst()
+                                    .orElse(null);
+                            String enumType = prop != null ? prop.genericType().typeName() : null;
+
+                            // Find the enumeration mapping
+                            var enumMapping = mappingDef.findEnumerationMapping(enumType,
+                                    enumMappingId.isEmpty() ? null : enumMappingId);
+
+                            if (enumMapping.isPresent()) {
+                                return PropertyMapping.enumColumn(pm.propertyName(), columnName,
+                                        enumMapping.get().enumType(), enumMapping.get().valueMappings());
+                            } else {
+                                // Fallback to simple column if enum mapping not found
+                                return PropertyMapping.column(pm.propertyName(), columnName);
+                            }
                         } else {
                             // Simple column reference
                             return PropertyMapping.column(pm.propertyName(), pm.columnReference().columnName());

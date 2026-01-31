@@ -42,20 +42,86 @@ import java.util.Optional;
 public record MappingDefinition(
         String qualifiedName,
         List<ClassMappingDefinition> classMappings,
+        List<EnumerationMappingDefinition> enumerationMappings,
         List<TestSuiteDefinition> testSuites) implements PureDefinition {
 
     public MappingDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(classMappings, "Class mappings cannot be null");
         classMappings = List.copyOf(classMappings);
+        enumerationMappings = enumerationMappings != null ? List.copyOf(enumerationMappings) : List.of();
         testSuites = testSuites != null ? List.copyOf(testSuites) : List.of();
     }
 
     /**
      * Convenience constructor for mappings without test suites.
      */
+    /**
+     * Convenience constructor for mappings without enumeration mappings or test
+     * suites.
+     */
     public MappingDefinition(String qualifiedName, List<ClassMappingDefinition> classMappings) {
-        this(qualifiedName, classMappings, List.of());
+        this(qualifiedName, classMappings, List.of(), List.of());
+    }
+
+    /**
+     * Looks up an enumeration mapping by ID.
+     * If id is null, returns the first enumeration mapping for the given enum type.
+     */
+    public Optional<EnumerationMappingDefinition> findEnumerationMapping(String enumType, String id) {
+        return enumerationMappings.stream()
+                .filter(em -> enumType == null || em.enumType().endsWith(enumType))
+                .filter(em -> id == null || id.equals(em.id()))
+                .findFirst();
+    }
+
+    /**
+     * Represents an enumeration mapping that defines how database values translate
+     * to enum values.
+     * 
+     * Pure syntax:
+     * 
+     * <pre>
+     * model::OrderStatus: EnumerationMapping StatusMapping
+     * {
+     *     PENDING: ['P', 'PEND'],
+     *     SHIPPED: ['S']
+     * }
+     * </pre>
+     * 
+     * @param enumType      The fully qualified enum type name
+     * @param id            Optional mapping ID (can be null for default)
+     * @param valueMappings Map from enum value name to list of source values
+     *                      (strings or integers)
+     */
+    public record EnumerationMappingDefinition(
+            String enumType,
+            String id,
+            java.util.Map<String, java.util.List<Object>> valueMappings) {
+
+        public EnumerationMappingDefinition {
+            Objects.requireNonNull(enumType, "Enum type cannot be null");
+            Objects.requireNonNull(valueMappings, "Value mappings cannot be null");
+            valueMappings = java.util.Map.copyOf(valueMappings);
+        }
+
+        /**
+         * Finds the enum value that a database value maps to.
+         * 
+         * @param dbValue The database value (String or Integer)
+         * @return The enum value name, or null if not found
+         */
+        public String findEnumValueForDbValue(Object dbValue) {
+            for (var entry : valueMappings.entrySet()) {
+                for (Object sourceValue : entry.getValue()) {
+                    if (sourceValue.equals(dbValue) ||
+                            (sourceValue instanceof String s && s.equals(String.valueOf(dbValue)))) {
+                        return entry.getKey();
+                    }
+                }
+            }
+            return null;
+        }
     }
 
     /**
@@ -180,7 +246,8 @@ public record MappingDefinition(
             ColumnReference columnReference,
             JoinReference joinReference,
             String expressionString,
-            String embeddedClassName) {
+            String embeddedClassName,
+            String enumMappingId) {
 
         public PropertyMappingDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
@@ -196,14 +263,22 @@ public record MappingDefinition(
          * Creates a simple column reference mapping.
          */
         public static PropertyMappingDefinition column(String propertyName, ColumnReference columnRef) {
-            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null);
+            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, null);
+        }
+
+        /**
+         * Creates a column mapping with an enumeration mapping transformer.
+         */
+        public static PropertyMappingDefinition columnWithEnumMapping(String propertyName, ColumnReference columnRef,
+                String enumMappingId) {
+            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, enumMappingId);
         }
 
         /**
          * Creates a join reference mapping for association properties.
          */
         public static PropertyMappingDefinition join(String propertyName, JoinReference joinRef) {
-            return new PropertyMappingDefinition(propertyName, null, joinRef, null, null);
+            return new PropertyMappingDefinition(propertyName, null, joinRef, null, null, null);
         }
 
         /**
@@ -211,7 +286,14 @@ public record MappingDefinition(
          */
         public static PropertyMappingDefinition expression(String propertyName, String expression,
                 String embeddedClass) {
-            return new PropertyMappingDefinition(propertyName, null, null, expression, embeddedClass);
+            return new PropertyMappingDefinition(propertyName, null, null, expression, embeddedClass, null);
+        }
+
+        /**
+         * @return true if this property uses an enumeration mapping transformer
+         */
+        public boolean hasEnumMapping() {
+            return enumMappingId != null || enumMappingId == "";
         }
 
         /**

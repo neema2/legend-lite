@@ -566,4 +566,177 @@ class EnumIntegrationTest {
             assertTrue(rows.stream().anyMatch(r -> "DELIVERED".equals(r.values().get(1))));
         }
     }
+
+    // ==================== EnumerationMapping Tests ====================
+
+    @Nested
+    @DisplayName("EnumerationMapping: DB Value to Enum Translation")
+    class EnumerationMappingTests {
+
+        @Test
+        @DisplayName("EnumerationMapping translates db codes to enum values")
+        void testEnumerationMappingTranslation() throws SQLException {
+            // GIVEN: Database with short codes, EnumerationMapping defines translation
+            Statement stmt = connection.createStatement();
+            stmt.execute("""
+                    CREATE TABLE ORDERS (
+                        ID INTEGER PRIMARY KEY,
+                        CUSTOMER VARCHAR(100),
+                        STATUS_CODE VARCHAR(10)
+                    )
+                    """);
+            stmt.execute("INSERT INTO ORDERS VALUES (1, 'Alice', 'P')"); // P -> PENDING
+            stmt.execute("INSERT INTO ORDERS VALUES (2, 'Bob', 'S')"); // S -> SHIPPED
+            stmt.execute("INSERT INTO ORDERS VALUES (3, 'Charlie', 'D')"); // D -> DELIVERED
+            stmt.execute("INSERT INTO ORDERS VALUES (4, 'Diana', 'C')"); // C -> CANCELLED
+
+            // Pure source with EnumerationMapping (legend-engine syntax)
+            String pureSource = """
+                    Enum model::OrderStatus
+                    {
+                        PENDING,
+                        SHIPPED,
+                        DELIVERED,
+                        CANCELLED
+                    }
+
+                    Class model::Order
+                    {
+                        id: Integer[1];
+                        customer: String[1];
+                        status: OrderStatus[1];
+                    }
+
+                    Database store::OrderDB
+                    (
+                        Table ORDERS
+                        (
+                            ID INTEGER PRIMARY KEY,
+                            CUSTOMER VARCHAR(100),
+                            STATUS_CODE VARCHAR(10)
+                        )
+                    )
+
+                    Mapping model::OrderMapping
+                    (
+                        model::OrderStatus: EnumerationMapping StatusMapping
+                        {
+                            PENDING: ['P'],
+                            SHIPPED: ['S'],
+                            DELIVERED: ['D'],
+                            CANCELLED: ['C']
+                        }
+
+                        Order: Relational
+                        {
+                            ~mainTable [store::OrderDB] ORDERS
+                            id: [store::OrderDB]ORDERS.ID,
+                            customer: [store::OrderDB]ORDERS.CUSTOMER,
+                            status: EnumerationMapping StatusMapping: [store::OrderDB]ORDERS.STATUS_CODE
+                        }
+                    )
+
+                    RelationalDatabaseConnection store::OrderConnection { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+
+                    Runtime app::OrderRuntime { mappings: [ model::OrderMapping ]; connections: [ store::OrderDB: [ environment: store::OrderConnection ] ]; }
+                    """;
+
+            // WHEN: Query orders
+            String pureQuery = """
+                    Order.all()
+                        ->project({o | $o.customer}, {o | $o.status})
+                    """;
+
+            BufferedResult result = queryService.execute(
+                    pureSource, pureQuery, "app::OrderRuntime", connection);
+
+            // THEN: DB codes are translated to enum values
+            assertEquals(4, result.rows().size());
+            var rows = result.rows();
+            assertTrue(rows.stream().anyMatch(r -> "PENDING".equals(r.values().get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "SHIPPED".equals(r.values().get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "DELIVERED".equals(r.values().get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "CANCELLED".equals(r.values().get(1))));
+        }
+
+        @Test
+        @DisplayName("EnumerationMapping with multiple source values per enum")
+        void testEnumerationMappingMultipleSources() throws SQLException {
+            // GIVEN: Database with various codes that map to same enum values
+            Statement stmt = connection.createStatement();
+            stmt.execute("""
+                    CREATE TABLE TASKS (
+                        ID INTEGER PRIMARY KEY,
+                        NAME VARCHAR(100),
+                        STATUS_CODE VARCHAR(20)
+                    )
+                    """);
+            stmt.execute("INSERT INTO TASKS VALUES (1, 'Task A', 'P')"); // P -> PENDING
+            stmt.execute("INSERT INTO TASKS VALUES (2, 'Task B', 'PEND')"); // PEND -> PENDING
+            stmt.execute("INSERT INTO TASKS VALUES (3, 'Task C', 'D')"); // D -> DONE
+            stmt.execute("INSERT INTO TASKS VALUES (4, 'Task D', 'COMPLETE')"); // COMPLETE -> DONE
+
+            String pureSource = """
+                    Enum model::TaskStatus { PENDING, IN_PROGRESS, DONE }
+
+                    Class model::Task
+                    {
+                        id: Integer[1];
+                        name: String[1];
+                        status: TaskStatus[1];
+                    }
+
+                    Database store::TaskDB
+                    (
+                        Table TASKS
+                        (
+                            ID INTEGER PRIMARY KEY,
+                            NAME VARCHAR(100),
+                            STATUS_CODE VARCHAR(20)
+                        )
+                    )
+
+                    Mapping model::TaskMapping
+                    (
+                        model::TaskStatus: EnumerationMapping
+                        {
+                            PENDING: ['P', 'PEND', 'WAITING'],
+                            IN_PROGRESS: ['IP', 'WORKING'],
+                            DONE: ['D', 'COMPLETE', 'FINISHED']
+                        }
+
+                        Task: Relational
+                        {
+                            ~mainTable [store::TaskDB] TASKS
+                            id: [store::TaskDB]TASKS.ID,
+                            name: [store::TaskDB]TASKS.NAME,
+                            status: EnumerationMapping: [store::TaskDB]TASKS.STATUS_CODE
+                        }
+                    )
+
+                    RelationalDatabaseConnection store::TaskConnection { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+
+                    Runtime app::TaskRuntime { mappings: [ model::TaskMapping ]; connections: [ store::TaskDB: [ environment: store::TaskConnection ] ]; }
+                    """;
+
+            String pureQuery = """
+                    Task.all()
+                        ->project({t | $t.name}, {t | $t.status})
+                    """;
+
+            BufferedResult result = queryService.execute(
+                    pureSource, pureQuery, "app::TaskRuntime", connection);
+
+            // THEN: Both P and PEND map to PENDING, both D and COMPLETE map to DONE
+            assertEquals(4, result.rows().size());
+            long pendingCount = result.rows().stream()
+                    .filter(r -> "PENDING".equals(r.values().get(1)))
+                    .count();
+            long doneCount = result.rows().stream()
+                    .filter(r -> "DONE".equals(r.values().get(1)))
+                    .count();
+            assertEquals(2, pendingCount, "P and PEND should both map to PENDING");
+            assertEquals(2, doneCount, "D and COMPLETE should both map to DONE");
+        }
+    }
 }

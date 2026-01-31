@@ -710,7 +710,7 @@ relationalPropertyValue:                        COLON (enumTransformer | binding
                                                 | embeddedPropertyMapping
                                                 | inlineEmbeddedPropertyMapping
 ;
-enumTransformer:                                ENUMERATION_MAPPING identifier COLON
+enumTransformer:                                ENUMERATION_MAPPING (identifier)? COLON
 ;
 bindingTransformer:                             BINDING qualifiedName COLON
 ;
@@ -793,7 +793,7 @@ associationPropertyMapping:                     identifier (sourceAndTargetMappi
 ;
 
 // ------------------------------ ENUMERATION MAPPING ------------------------------
-enumerationMappingElement:                      qualifiedName (BRACKET_OPEN mappingElementId BRACKET_CLOSE)? COLON ENUMERATION_MAPPING
+enumerationMappingElement:                      qualifiedName (BRACKET_OPEN mappingElementId BRACKET_CLOSE)? COLON ENUMERATION_MAPPING (mappingElementId)?
                                                     BRACE_OPEN
                                                         (enumValueMapping (COMMA enumValueMapping)*)?
                                                     BRACE_CLOSE

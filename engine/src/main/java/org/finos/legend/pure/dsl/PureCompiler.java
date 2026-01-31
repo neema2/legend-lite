@@ -646,6 +646,15 @@ public final class PureCompiler {
                     String expressionStr = propertyMapping.get().expressionString();
                     Expression expr = compileExpressionMapping(expressionStr, baseTableAlias);
                     projections.add(new Projection(expr, alias));
+                } else if (propertyMapping.isPresent() && propertyMapping.get().hasEnumMapping()) {
+                    // Enum column mapping: generate CASE expression to translate db values to enum
+                    // values
+                    String columnName = propertyMapping.get().columnName();
+                    Expression caseExpr = buildEnumMappingCaseExpression(
+                            baseTableAlias, columnName,
+                            propertyMapping.get().enumType(),
+                            propertyMapping.get().enumMapping());
+                    projections.add(new Projection(caseExpr, alias));
                 } else {
                     String columnName = baseMapping.getColumnForProperty(propertyName)
                             .orElseThrow(
@@ -3651,6 +3660,66 @@ public final class PureCompiler {
         }
 
         throw new PureCompileException("Cannot parse expression mapping: " + expressionStr);
+    }
+
+    /**
+     * Builds a CASE expression to translate database values to enum values.
+     * 
+     * Example: For enum ProductType with mapping { 'OPTION' -> ['O', 0], 'FUTURE'
+     * -> ['F', 1] }
+     * Generates: CASE WHEN column='O' OR column=0 THEN 'model::ProductType.OPTION'
+     * WHEN column='F' OR column=1 THEN 'model::ProductType.FUTURE'
+     * ELSE NULL END
+     *
+     * @param tableAlias  The table alias for the column
+     * @param columnName  The column containing database values
+     * @param enumType    The enum type name (e.g., 'ProductType')
+     * @param enumMapping Map from enum value name to list of source db values
+     */
+    private Expression buildEnumMappingCaseExpression(
+            String tableAlias, String columnName, String enumType,
+            java.util.Map<String, java.util.List<Object>> enumMapping) {
+
+        Expression columnRef = ColumnReference.of(tableAlias, columnName);
+
+        // Build nested CASE WHEN expressions
+        // Start from the end with NULL as the final ELSE
+        Expression result = Literal.nullValue();
+
+        // Process each enum value mapping
+        java.util.List<String> enumValues = new java.util.ArrayList<>(enumMapping.keySet());
+        java.util.Collections.reverse(enumValues); // Process in reverse for proper nesting
+
+        for (String enumValue : enumValues) {
+            java.util.List<Object> dbValues = enumMapping.get(enumValue);
+
+            // Build OR condition for all db values that map to this enum value
+            Expression condition = null;
+            for (Object dbValue : dbValues) {
+                Expression valueCheck;
+                if (dbValue instanceof String s) {
+                    valueCheck = ComparisonExpression.equals(columnRef, Literal.string(s));
+                } else if (dbValue instanceof Number n) {
+                    valueCheck = ComparisonExpression.equals(columnRef, Literal.integer(n.longValue()));
+                } else {
+                    valueCheck = ComparisonExpression.equals(columnRef, Literal.string(dbValue.toString()));
+                }
+
+                if (condition == null) {
+                    condition = valueCheck;
+                } else {
+                    condition = LogicalExpression.or(condition, valueCheck);
+                }
+            }
+
+            // Create the enum value string (just the value name, not fully qualified)
+            Expression thenValue = Literal.string(enumValue);
+
+            // Build CASE WHEN condition THEN enumValue ELSE previousResult END
+            result = new CaseExpression(condition, thenValue, result);
+        }
+
+        return result;
     }
 
     private Expression compileLiteral(LiteralExpr literal) {
