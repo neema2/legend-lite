@@ -1236,6 +1236,18 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new RelationExtendExpression(source, cs.name(), lambda);
         }
 
+        // Multiple simple calculated columns: extend(~[col1:{x|...}, col2:{x|...}])
+        if (args.size() == 1 && args.get(0) instanceof ColumnSpecArray csa) {
+            // Create chain of extend expressions for each column
+            PureExpression result = source;
+            for (PureExpression spec : csa.specs()) {
+                if (spec instanceof ColumnSpec cs && cs.lambda() instanceof LambdaExpression lambda) {
+                    result = new RelationExtendExpression(result, cs.name(), lambda);
+                }
+            }
+            return result;
+        }
+
         // Window function pattern 1: extend(over(...), ~col:{p,w,r|...})
         if (!args.isEmpty() && isOverCall(args.get(0))) {
             return parseTypedWindowExtend(source, args);
