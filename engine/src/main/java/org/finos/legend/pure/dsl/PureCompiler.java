@@ -775,9 +775,13 @@ public final class PureCompiler {
             }
 
             // Get alias from the aliases list or generate one
+            // Note: aliases list contains grouping column names first, then aggregate
+            // aliases
+            // So we need to offset by the number of grouping columns
             String alias;
-            if (i < groupBy.aliases().size()) {
-                alias = groupBy.aliases().get(i);
+            int aliasIndex = groupingColumns.size() + i;
+            if (aliasIndex < groupBy.aliases().size()) {
+                alias = groupBy.aliases().get(aliasIndex);
             } else {
                 alias = columnName + "_agg";
             }

@@ -3381,4 +3381,43 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(foundGeorge, "Should find George's joined data");
         assertTrue(foundDavid, "Should find David's joined data");
     }
+
+    /**
+     * Test distinct->groupBy->filter chain with proper aggregate aliasing.
+     * Regression test for: aggregate alias was incorrectly using groupBy column
+     * name.
+     * 
+     * Pattern: #TDS...#->distinct()->groupBy(~[col],
+     * ~newCol:...)->filter(x|$x.newCol > n)
+     */
+    @Test
+    void testDistinctGroupByFilterChain() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    val, str, str2
+                    2, a, b
+                    2, a, b
+                    4, qw, b
+                    5, qw, c
+                    2, weq, c
+                #->distinct()
+                ->groupBy(~[str], ~newCol:x|$x.val:y|$y->plus())
+                ->filter(x|$x.newCol > 2)
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Distinct->GroupBy->Filter result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // After distinct: (2,a,b), (4,qw,b), (5,qw,c), (2,weq,c)
+        // After groupBy 'str' with SUM(val) as 'newCol':
+        // a -> 2, qw -> 9, weq -> 2
+        // After filter newCol > 2:
+        // qw -> 9
+        assertEquals(1, result.rows().size(), "Only qw group (sum=9) should pass filter > 2");
+        assertEquals("qw", result.rows().get(0).values().get(0), "str column should be 'qw'");
+        assertEquals(9, ((Number) result.rows().get(0).values().get(1)).intValue(), "newCol should be 9 (4+5)");
+    }
 }
