@@ -3557,4 +3557,35 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 .findFirst();
         assertTrue(combinedCol.isPresent(), "Should have 'combined' column");
     }
+
+    /**
+     * Test that filter() works after pivot->cast.
+     * This tests support for CastExpression as a valid source in parseFilterCall.
+     * Pattern: ->pivot()->cast(@Relation)->filter()
+     */
+    @Test
+    void testPivotCastFilter() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    city, country, year, treePlanted
+                    NYC, USA, 2011, 5000
+                    SAN, USA, 2011, 2600
+                    LDN, UK, 2011, 3000
+                    NYC, USA, 2012, 15200
+                #->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
+                ->filter(x|$x.city == 'NYC')
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Pivot->Cast->Filter result: " + result.rows());
+
+        // Verify we get only NYC rows
+        assertEquals(1, result.rows().size(), "Should have 1 NYC row");
+
+        // Verify the city column value
+        var cityCol = result.columns().stream()
+                .filter(c -> c.name().equals("city"))
+                .findFirst();
+        assertTrue(cityCol.isPresent(), "Should have 'city' column");
+    }
 }

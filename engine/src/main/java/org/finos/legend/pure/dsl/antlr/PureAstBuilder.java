@@ -858,6 +858,10 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (source instanceof RelationExpression relExpr) {
             return new RelationFilterExpression(relExpr, (LambdaExpression) args.get(0));
         }
+        // Support CastExpression - unwrap and treat inner pivot/relation as source
+        if (source instanceof CastExpression cast && cast.source() instanceof RelationExpression castSource) {
+            return new RelationFilterExpression(castSource, (LambdaExpression) args.get(0));
+        }
         // Generic filter
         return new FilterExpression(source, (LambdaExpression) args.get(0));
     }
