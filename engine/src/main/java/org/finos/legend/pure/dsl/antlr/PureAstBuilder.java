@@ -225,6 +225,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "concatenate" -> parseConcatenateCall(source, args);
             case "asOfJoin" -> parseAsOfJoinCall(source, args);
             case "aggregate" -> parseAggregateCall(source, args);
+            case "pivot" -> parsePivotCall(source, args);
             default -> new MethodCall(source, simpleName, args);
         };
     }
@@ -1085,6 +1086,127 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         }
 
         return new MethodCall(source, "aggregate", args);
+    }
+
+    /**
+     * Parse pivot() call.
+     * 
+     * Syntax: pivot(~[pivotCols], ~[aggName : x | $x.col : y | $y->plus()])
+     * 
+     * First arg: pivot column(s) as ColumnSpec/ColumnSpecArray
+     * Second arg: aggregate spec(s) as ColumnSpec/ColumnSpecArray
+     */
+    private PureExpression parsePivotCall(PureExpression source, List<PureExpression> args) {
+        if (args.size() < 2) {
+            throw new PureParseException("pivot() requires at least 2 arguments: pivot columns and aggregates");
+        }
+
+        // Extract pivot column names from first arg
+        List<String> pivotColumns = new ArrayList<>();
+        PureExpression pivotColArg = args.get(0);
+        if (pivotColArg instanceof ColumnSpec cs) {
+            pivotColumns.add(cs.name());
+        } else if (pivotColArg instanceof ColumnSpecArray csa) {
+            for (PureExpression spec : csa.specs()) {
+                if (spec instanceof ColumnSpec cs) {
+                    pivotColumns.add(cs.name());
+                } else if (spec instanceof StringLiteral sl) {
+                    pivotColumns.add(sl.value());
+                }
+            }
+        } else {
+            throw new PureParseException(
+                    "pivot() first arg must be column spec(s), got: " + pivotColArg.getClass().getSimpleName());
+        }
+
+        // Extract aggregate specs from second arg
+        List<PivotExpression.AggregateSpec> aggregates = new ArrayList<>();
+        PureExpression aggArg = args.get(1);
+        if (aggArg instanceof ColumnSpec cs) {
+            aggregates.add(extractPivotAggSpec(cs));
+        } else if (aggArg instanceof ColumnSpecArray csa) {
+            for (PureExpression spec : csa.specs()) {
+                if (spec instanceof ColumnSpec cs) {
+                    aggregates.add(extractPivotAggSpec(cs));
+                }
+            }
+        } else {
+            throw new PureParseException(
+                    "pivot() second arg must be aggregate spec(s), got: " + aggArg.getClass().getSimpleName());
+        }
+
+        // Check for static values (optional third arg)
+        List<Object> staticValues = new ArrayList<>();
+        if (args.size() >= 3) {
+            PureExpression valuesArg = args.get(2);
+            if (valuesArg instanceof ArrayLiteral al) {
+                for (PureExpression elem : al.elements()) {
+                    if (elem instanceof StringLiteral sl) {
+                        staticValues.add(sl.value());
+                    } else if (elem instanceof IntegerLiteral il) {
+                        staticValues.add(il.value());
+                    } else if (elem instanceof LiteralExpr le) {
+                        staticValues.add(le.value());
+                    }
+                }
+            }
+        }
+
+        if (staticValues.isEmpty()) {
+            return PivotExpression.dynamic(source, pivotColumns, aggregates);
+        } else {
+            return PivotExpression.withValues(source, pivotColumns, staticValues, aggregates);
+        }
+    }
+
+    /**
+     * Extract aggregate spec from ColumnSpec for pivot.
+     * 
+     * Format: ~aggName : x | $x.col : y | $y->aggFunc()
+     */
+    private PivotExpression.AggregateSpec extractPivotAggSpec(ColumnSpec cs) {
+        String name = cs.name();
+        String valueColumn = null;
+        String aggFunction = "sum"; // default
+
+        // The lambda body should give us the value column
+        if (cs.lambda() instanceof LambdaExpression mapLambda) {
+            // First lambda: x | $x.col - extracts the value column
+            valueColumn = extractColumnFromExpression(mapLambda.body());
+        }
+
+        // The extra function should give us the aggregate function
+        if (cs.extraFunction() instanceof LambdaExpression aggLambda) {
+            // Second lambda: y | $y->plus() - extracts the aggregate
+            PureExpression body = aggLambda.body();
+            if (body instanceof MethodCall mc) {
+                aggFunction = mapAggFunctionName(mc.methodName());
+            } else if (body instanceof FunctionCall fc) {
+                aggFunction = mapAggFunctionName(fc.functionName());
+            }
+        }
+
+        if (valueColumn == null) {
+            valueColumn = name; // fallback to using the name
+        }
+
+        return new PivotExpression.AggregateSpec(name, valueColumn, aggFunction);
+    }
+
+    /**
+     * Map Pure aggregate function name to SQL aggregate function name.
+     */
+    private String mapAggFunctionName(String pureName) {
+        return switch (pureName) {
+            case "plus" -> "sum";
+            case "count" -> "count";
+            case "average", "avg", "mean" -> "avg";
+            case "min" -> "min";
+            case "max" -> "max";
+            case "stdDev", "stdDevSample" -> "stddev_samp";
+            case "stdDevPopulation" -> "stddev_pop";
+            default -> pureName.toLowerCase();
+        };
     }
 
     /**

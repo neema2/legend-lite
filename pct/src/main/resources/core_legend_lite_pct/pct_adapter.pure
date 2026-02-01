@@ -52,9 +52,14 @@ function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]
     | let relType = $funcReturnType.typeArguments->at(0).rawType->cast(@RelationType<Any>)->toOne();
       let columns = $relType.columns->map(col |
         let colName = $col.name->toOne();
+        // Quote column names containing '__|__' (pivot columns) with single quotes
+        let quotedName = if($colName->contains('__|__'),
+          | '\'' + $colName + '\'',
+          | $colName
+        );
         // Use simple type name (Integer, String, Float, Boolean) - NO multiplicity
         let colType = getSimpleTypeName($col->functionReturnType());
-        $colName + ':' + $colType;
+        $quotedName + ':' + $colType;
       );
       $columns->joinStrings(',');,
     | []

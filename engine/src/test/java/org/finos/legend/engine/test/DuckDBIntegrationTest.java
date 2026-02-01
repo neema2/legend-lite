@@ -3420,4 +3420,72 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals("qw", result.rows().get(0).values().get(0), "str column should be 'qw'");
         assertEquals(9, ((Number) result.rows().get(0).values().get(1)).intValue(), "newCol should be 9 (4+5)");
     }
+
+    /**
+     * Test pivot parsing with groupBy source.
+     * 
+     * Pattern: #TDS...#->groupBy(~[city,country], ~[...])->pivot(~[year],
+     * ~[aggSpec])
+     */
+    @Test
+    void testGroupByPivot() throws SQLException {
+        // Simple pivot on TDS
+        String pureQuery = """
+                #TDS
+                    city, year, treePlanted
+                    NYC, 2011, 5000
+                    NYC, 2012, 7600
+                    SAN, 2011, 2000
+                #->pivot(~[year], ~[total:x|$x.treePlanted:y|$y->plus()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Pivot result columns: " + result.columns());
+        System.out.println("Pivot result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // The pivot should create columns for each unique year value
+        assertFalse(result.rows().isEmpty(), "Should have pivot results");
+    }
+
+    /**
+     * Complex test: extend->filter->select->groupBy->pivot chain.
+     * Mirrors PCT test: test_Extend_Filter_Select_ComplexGroupBy_Pivot
+     */
+    @Test
+    void testExtendFilterSelectGroupByPivot() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    city, country, year, treePlanted
+                    NYC, USA, 2011, 5000
+                    NYC, USA, 2000, 5000
+                    SAN, USA, 2000, 2000
+                    SAN, USA, 2011, 100
+                    LDN, UK, 2011, 3000
+                    SAN, USA, 2011, 2500
+                    NYC, USA, 2000, 10000
+                    NYC, USA, 2012, 7600
+                    NYC, USA, 2012, 7600
+                #->extend(~yr:x|$x.year->toOne() - 2000)
+                ->filter(x|$x.yr > 10)
+                ->select(~[city,country,year,treePlanted])
+                ->groupBy(~[city,country], ~[year:x|$x.year:y|$y->plus(),treePlanted:x|$x.treePlanted:y|$y->plus()])
+                ->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Extend->Filter->Select->GroupBy->Pivot result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // After extend: adds 'yr' column = year - 2000
+        // After filter yr > 10: keeps 2011, 2012 (yr=11, 12)
+        // After select: drops 'yr' column
+        // After groupBy: groups by city,country with sum of year and treePlanted
+        // After pivot: pivots by year values (summed years)
+        assertFalse(result.rows().isEmpty(), "Should have pivot results");
+    }
 }

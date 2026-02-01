@@ -586,7 +586,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 sb.append(dialect.quoteIdentifier(agg.valueColumn()));
             }
             sb.append(") AS ");
-            sb.append(dialect.quoteIdentifier(agg.name()));
+            // Pure expects pivot columns named '{value}__|__{name}'
+            // DuckDB produces '{value}_{alias}' - so we prefix with '_|__' to get the right
+            // separator
+            sb.append(dialect.quoteIdentifier("_|__" + agg.name()));
         }
 
         return sb.toString();

@@ -156,7 +156,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             if (i > 0)
                 sb.append(",");
             Column col = columns.get(i);
-            sb.append(col.name()).append(":").append(mapToLegendType(col.sqlType()));
+            String colName = col.name();
+            // Quote column names containing '__|__' (pivot columns) with single quotes
+            if (colName.contains("__|__")) {
+                colName = "'" + colName + "'";
+            }
+            sb.append(colName).append(":").append(mapToLegendType(col.sqlType()));
         }
 
         // Data rows: value,value\nvalue,value
@@ -181,7 +186,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         if (sqlType == null)
             return "String";
         return switch (sqlType.toLowerCase()) {
-            case "integer", "int", "bigint", "smallint", "tinyint" -> "Integer";
+            case "integer", "int", "bigint", "smallint", "tinyint", "hugeint" -> "Integer";
             case "double", "float", "real", "decimal", "numeric" -> "Float";
             case "boolean", "bool" -> "Boolean";
             case "date" -> "StrictDate";
