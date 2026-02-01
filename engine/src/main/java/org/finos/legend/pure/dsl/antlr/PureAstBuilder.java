@@ -1514,6 +1514,15 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return parseTypedWindowExtendFromLambda(source, cs);
         }
 
+        // Aggregate extend pattern (no explicit over):
+        // extend(~col:c|$c.id:y|$y->plus())
+        // This is an aggregate function applied to the entire relation (implicit
+        // over())
+        if (args.size() == 1 && args.get(0) instanceof ColumnSpec cs
+                && cs.lambda() != null && cs.extraFunction() != null) {
+            return parseAggregateExtendNoOver(source, cs);
+        }
+
         throw new PureParseException("extend() requires a simple column spec or window function pattern. Got: " + args);
     }
 
@@ -1571,6 +1580,45 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
         RelationExtendExpression.TypedWindowSpec typedSpec = RelationExtendExpression.TypedWindowSpec.of(
                 funcSpec, ctx.partitionCols, ctx.orderSpecs, ctx.frame);
+
+        return RelationExtendExpression.window(source, cs.name(), typedSpec);
+    }
+
+    /**
+     * Parses: extend(~col:c|$c.id:y|$y->plus())
+     * This is an aggregate extend without explicit over() - uses entire relation as
+     * window.
+     * - cs.lambda() is the map function (extract column value)
+     * - cs.extraFunction() is the aggregate function (plus/sum, avg, etc.)
+     */
+    private PureExpression parseAggregateExtendNoOver(PureExpression source, ColumnSpec cs) {
+        // Extract the column name from the map lambda
+        String columnName = extractColumnFromMapLambda(cs.lambda());
+
+        // Get the aggregate function from extraFunction
+        AggregateFunctionSpec.AggregateFunction aggFunc = AggregateFunctionSpec.AggregateFunction.SUM; // default
+        if (cs.extraFunction() instanceof LambdaExpression aggLambda) {
+            PureExpression aggBody = aggLambda.body();
+            if (aggBody instanceof MethodCall mc) {
+                aggFunc = switch (mc.methodName().toLowerCase()) {
+                    case "plus", "sum" -> AggregateFunctionSpec.AggregateFunction.SUM;
+                    case "avg", "average" -> AggregateFunctionSpec.AggregateFunction.AVG;
+                    case "count" -> AggregateFunctionSpec.AggregateFunction.COUNT;
+                    case "min" -> AggregateFunctionSpec.AggregateFunction.MIN;
+                    case "max" -> AggregateFunctionSpec.AggregateFunction.MAX;
+                    case "stddev" -> AggregateFunctionSpec.AggregateFunction.STDDEV;
+                    case "variance" -> AggregateFunctionSpec.AggregateFunction.VARIANCE;
+                    default -> AggregateFunctionSpec.AggregateFunction.SUM;
+                };
+            }
+        }
+
+        // Create aggregate function spec with empty partition (entire relation)
+        AggregateFunctionSpec funcSpec = AggregateFunctionSpec.of(aggFunc, columnName, List.of(), List.of());
+
+        // Create window spec with no partition and no order (entire relation as window)
+        RelationExtendExpression.TypedWindowSpec typedSpec = RelationExtendExpression.TypedWindowSpec.of(
+                funcSpec, List.of(), List.of(), null);
 
         return RelationExtendExpression.window(source, cs.name(), typedSpec);
     }

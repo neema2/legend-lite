@@ -1170,5 +1170,33 @@ class WindowFunctionTest {
                 }
             }
         }
+
+        @Test
+        @DisplayName("Execute aggregate extend without over() - SUM over entire relation")
+        void testAggregateExtendNoOver() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.salary})
+                        ->extend(~totalSalary:c|$c.salary:y|$y->plus())
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Aggregate extend (no over) SQL: " + sql);
+            assertTrue(sql.contains("SUM"), "SQL should contain SUM");
+            assertTrue(sql.contains("OVER"), "SQL should contain OVER (empty window = entire relation)");
+
+            BufferedResult result = executeQuery(pureQuery);
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            // Total salary should be sum of all: 100k + 90k + 80k + 85k + 75k + 70k = 500k
+            int expectedTotal = 100000 + 90000 + 80000 + 85000 + 75000 + 70000;
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                long totalSalary = ((Number) row.get(findColumnIndex(result, "totalSalary"))).longValue();
+                System.out.printf("  %s: totalSalary = %d%n", name, totalSalary);
+                assertEquals(expectedTotal, totalSalary,
+                        "Total salary should be same for all rows (entire relation aggregate)");
+            }
+        }
     }
 }
