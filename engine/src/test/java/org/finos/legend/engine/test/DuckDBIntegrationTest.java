@@ -3302,4 +3302,37 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     "For grp=" + grp + ", sum should be " + expectedSum);
         }
     }
+
+    /**
+     * Test TDS-based project() with column transformations including toLower.
+     * This mirrors the PCT test pattern for TDS project.
+     * 
+     * Pattern: #TDS...#->project(~[col:x|$x.col->toLower()])
+     */
+    @Test
+    void testRelationProjectWithTransformation() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    id, name
+                    1, George
+                    2, David
+                #->project(~[id:x|$x.id, lowerName:x|$x.name->toLower()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Relation project result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        assertEquals(2, result.rows().size(), "Should have 2 rows");
+
+        // Verify data is correctly projected and lowercased
+        var firstRow = result.rows().get(0);
+        assertEquals(1, ((Number) firstRow.values().get(0)).intValue());
+        assertEquals("george", firstRow.values().get(1)); // Should be lowercase
+
+        var secondRow = result.rows().get(1);
+        assertEquals("david", secondRow.values().get(1)); // Should be lowercase
+    }
 }

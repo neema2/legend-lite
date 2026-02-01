@@ -17,8 +17,9 @@ package org.finos.legend.pure.dsl;
  * ->groupBy() → RelationExpression
  */
 public sealed interface RelationExpression extends PureExpression
-        permits ProjectExpression, GroupByExpression, AggregateExpression, RelationFilterExpression,
-        RelationSortExpression, RelationLimitExpression, RelationLiteral, RelationSelectExpression,
-        RelationExtendExpression, JoinExpression, AsOfJoinExpression, FlattenExpression, DistinctExpression,
-        RenameExpression, ConcatenateExpression, TdsLiteral {
+                permits ProjectExpression, GroupByExpression, AggregateExpression, RelationFilterExpression,
+                RelationSortExpression, RelationLimitExpression, RelationLiteral, RelationSelectExpression,
+                RelationExtendExpression, RelationProjectExpression, JoinExpression, AsOfJoinExpression,
+                FlattenExpression, DistinctExpression,
+                RenameExpression, ConcatenateExpression, TdsLiteral {
 }

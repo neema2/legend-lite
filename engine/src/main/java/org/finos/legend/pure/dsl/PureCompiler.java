@@ -103,6 +103,7 @@ public final class PureCompiler {
             case DropExpression drop -> compileDrop(drop, context);
             case RelationLiteral literal -> compileRelationLiteral(literal);
             case RelationSelectExpression select -> compileRelationSelect(select, context);
+            case RelationProjectExpression relationProject -> compileRelationProject(relationProject, context);
             case RelationExtendExpression extend -> compileRelationExtend(extend, context);
             case ExtendExpression extend -> compileExtend(extend, context);
             case FromExpression from -> compileFrom(from, context);
@@ -2204,6 +2205,39 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles a relation project expression:
+     * #TDS...#->project(~[col:x|$x.col->transform()])
+     * 
+     * This handles TDS-to-TDS column projections with optional transformations.
+     * Unlike class-based project(), this doesn't require a mapping.
+     */
+    private RelationNode compileRelationProject(RelationProjectExpression project, CompilationContext context) {
+        RelationNode source = compileExpression(project.source(), context);
+
+        List<Projection> projections = new ArrayList<>();
+
+        for (int i = 0; i < project.projections().size(); i++) {
+            LambdaExpression lambda = project.projections().get(i);
+            String alias = i < project.aliases().size() ? project.aliases().get(i)
+                    : extractFinalPropertyName(lambda.body());
+
+            // Compile the lambda body as an expression
+            // Use empty table alias for unqualified column references (like RelationSelect)
+            CompilationContext projContext = new CompilationContext(
+                    lambda.parameter(),
+                    "", // Empty alias for unqualified column references
+                    null, // No mapping needed for relation-based project
+                    null, // No class name
+                    false).withRowBinding(lambda.parameter(), "");
+
+            Expression expr = compileToSqlExpression(lambda.body(), projContext);
+            projections.add(new Projection(expr, alias));
+        }
+
+        return new ProjectNode(source, projections);
+    }
+
+    /**
      * Compiles an extend expression: relation->extend(~newCol : ...)
      * 
      * Supports both:
@@ -3181,6 +3215,10 @@ public final class PureCompiler {
                 SqlFunctionCall.of("from_base64", compileToSqlExpression(methodCall.source(), context));
             case "encodeBase64" -> // encodeBase64(s) -> to_base64(s)
                 SqlFunctionCall.of("to_base64", compileToSqlExpression(methodCall.source(), context));
+            case "toLower" -> // toLower(s) -> LOWER(s)
+                SqlFunctionCall.of("lower", compileToSqlExpression(methodCall.source(), context));
+            case "toUpper" -> // toUpper(s) -> UPPER(s)
+                SqlFunctionCall.of("upper", compileToSqlExpression(methodCall.source(), context));
 
             // ===== MATH FUNCTIONS =====
             case "rem", "mod" -> { // rem(a, b) -> a % b via mod function

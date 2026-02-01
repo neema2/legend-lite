@@ -909,8 +909,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (source instanceof ClassExpression classExpr) {
             return new ProjectExpression(classExpr, columns, aliases);
         }
-        // For RelationExpression, create appropriate type
-        return new ProjectExpression((ClassExpression) source, columns, aliases);
+        // For RelationExpression (TDS, etc.), create RelationProjectExpression
+        return new RelationProjectExpression(source, columns, aliases);
     }
 
     private PureExpression parseGroupByCall(PureExpression source, List<PureExpression> args) {
