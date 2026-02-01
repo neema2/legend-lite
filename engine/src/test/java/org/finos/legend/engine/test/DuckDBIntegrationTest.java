@@ -3184,4 +3184,122 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(codes.contains("A") && codes.contains("B") && codes.contains("C"),
                 "Should contain all codes: " + codes);
     }
+
+    /**
+     * Test window aggregate with partition - SUM over partition.
+     * This mirrors the PCT test: testOLAPCastExtractAggWithPartitionWindow
+     * 
+     * Pattern: extend(~grp->over(),
+     * ~newCol:{p,w,r|$r.id->cast(@Integer)}:y|$y->plus())
+     * Expected: SUM(id) OVER (PARTITION BY grp)
+     */
+    @Test
+    void testWindowAggregateWithPartition() throws SQLException {
+        // GIVEN: A TDS with groups for partition testing
+        // grp=0: id=10 -> sum=10
+        // grp=1: id=2,6,8 -> sum=16
+        // grp=2: id=1,5 -> sum=6
+        // grp=3: id=3,7 -> sum=10
+        // grp=4: id=4 -> sum=4
+        // grp=5: id=9 -> sum=9
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                    6, 1, F
+                    7, 3, G
+                    8, 1, H
+                    9, 5, I
+                    10, 0, J
+                #->extend(over(~grp), ~newCol:{p,w,r|$r.id}:y|$y->plus())
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Window aggregate result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: newCol should be the SUM of id values within each grp partition
+        assertEquals(10, result.rows().size(), "Should have 10 rows");
+
+        // Verify specific expected values
+        for (var row : result.rows()) {
+            int id = ((Number) row.values().get(0)).intValue();
+            int grp = ((Number) row.values().get(1)).intValue();
+            int newCol = ((Number) row.values().get(3)).intValue();
+
+            int expectedSum = switch (grp) {
+                case 0 -> 10; // id=10
+                case 1 -> 16; // id=2+6+8
+                case 2 -> 6; // id=1+5
+                case 3 -> 10; // id=3+7
+                case 4 -> 4; // id=4
+                case 5 -> 9; // id=9
+                default -> throw new AssertionError("Unexpected grp: " + grp);
+            };
+            assertEquals(expectedSum, newCol,
+                    "For grp=" + grp + ", sum should be " + expectedSum + " but got " + newCol);
+        }
+    }
+
+    /**
+     * Test window aggregate with cast in the map lambda.
+     * This mirrors the PCT test: testOLAPCastExtractAggWithPartitionWindow
+     * 
+     * Pattern: extend(~grp->over(),
+     * ~newCol:{p,w,r|$r.id->cast(@Integer)}:y|$y->plus())
+     * Expected: SUM(id) OVER (PARTITION BY grp)
+     */
+    @Test
+    void testWindowAggregateWithCast() throws SQLException {
+        // Same data as PCT test
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                    6, 1, F
+                    7, 3, G
+                    8, 1, H
+                    9, 5, I
+                    10, 0, J
+                #->extend(over(~grp), ~newCol:{p,w,r|$r.id->cast(@Integer)}:y|$y->plus())
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Window aggregate with cast result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: newCol should be SUM(id) partitioned by grp
+        assertEquals(10, result.rows().size(), "Should have 10 rows");
+
+        // Verify the SQL contains SUM("id") not SUM("value")
+        // and verify the partition sums match expected
+        for (var row : result.rows()) {
+            int grp = ((Number) row.values().get(1)).intValue();
+            int newCol = ((Number) row.values().get(3)).intValue();
+
+            int expectedSum = switch (grp) {
+                case 0 -> 10; // id=10
+                case 1 -> 16; // id=2+6+8
+                case 2 -> 6; // id=1+5
+                case 3 -> 10; // id=3+7
+                case 4 -> 4; // id=4
+                case 5 -> 9; // id=9
+                default -> throw new AssertionError("Unexpected grp: " + grp);
+            };
+            assertEquals(expectedSum, newCol,
+                    "For grp=" + grp + ", sum should be " + expectedSum);
+        }
+    }
 }

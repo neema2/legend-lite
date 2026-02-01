@@ -1518,6 +1518,34 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private WindowFunctionSpec parseWindowFunctionFromColumnSpec(ColumnSpec cs) {
+        // Pattern with extraFunction:
+        // ~newCol:{p,w,r|$r.id->cast(@Integer)}:y|$y->plus()
+        // - cs.lambda() is the map function that extracts the column
+        // - cs.extraFunction() is the agg function (e.g., plus for SUM)
+        if (cs.extraFunction() instanceof LambdaExpression aggLambda) {
+            String columnName = extractColumnFromMapLambda(cs.lambda());
+
+            // Get the aggregate function from the agg lambda body
+            PureExpression aggBody = aggLambda.body();
+            if (aggBody instanceof MethodCall mc) {
+                // Pattern: $y->plus() or $y->sum()
+                AggregateFunctionSpec.AggregateFunction aggFunc = switch (mc.methodName().toLowerCase()) {
+                    case "plus", "sum" -> AggregateFunctionSpec.AggregateFunction.SUM;
+                    case "avg", "average" -> AggregateFunctionSpec.AggregateFunction.AVG;
+                    case "count" -> AggregateFunctionSpec.AggregateFunction.COUNT;
+                    case "min" -> AggregateFunctionSpec.AggregateFunction.MIN;
+                    case "max" -> AggregateFunctionSpec.AggregateFunction.MAX;
+                    case "stddev" -> AggregateFunctionSpec.AggregateFunction.STDDEV;
+                    case "variance" -> AggregateFunctionSpec.AggregateFunction.VARIANCE;
+                    default -> AggregateFunctionSpec.AggregateFunction.SUM;
+                };
+                return AggregateFunctionSpec.of(aggFunc, columnName, List.of(), List.of());
+            }
+            // If no method call, default to SUM on extracted column
+            return AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
+                    columnName, List.of(), List.of());
+        }
+
         if (!(cs.lambda() instanceof LambdaExpression lambda)) {
             return RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
         }
@@ -1569,6 +1597,50 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         }
 
         return RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+    }
+
+    /**
+     * Extracts the column name from a map lambda like
+     * {p,w,r|$r.id->cast(@Integer)}.
+     */
+    private String extractColumnFromMapLambda(PureExpression expr) {
+        if (expr instanceof LambdaExpression lambda) {
+            return extractColumnFromExpression(lambda.body());
+        }
+        return extractColumnFromExpression(expr);
+    }
+
+    /**
+     * Extracts the column name from an expression like $r.id->cast(@Integer).
+     */
+    private String extractColumnFromExpression(PureExpression expr) {
+        // Pattern: $r.id->cast(@Integer) - property access with method call
+        if (expr instanceof MethodCall mc) {
+            return extractColumnFromExpression(mc.source());
+        }
+
+        // Pattern: $r.id->cast(@Integer) - parsed as CastExpression
+        if (expr instanceof CastExpression cast) {
+            return extractColumnFromExpression(cast.source());
+        }
+
+        // Pattern: meta::pure::functions::lang::cast($r.id, @Integer) - qualified
+        // function call
+        if (expr instanceof FunctionCall fc) {
+            if (!fc.arguments().isEmpty()) {
+                return extractColumnFromExpression(fc.arguments().get(0));
+            }
+        }
+
+        // Pattern: $r.id - direct property access
+        if (expr instanceof PropertyAccessExpression pae) {
+            return pae.propertyName();
+        }
+        if (expr instanceof PropertyAccess pa) {
+            return pa.propertyName();
+        }
+
+        return "value"; // fallback
     }
 
     private WindowFunctionSpec parseWindowFunctionFromExpr(PureExpression expr) {
@@ -1628,7 +1700,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     ValueFunctionSpec.ValueFunction.LAST_VALUE, extractValueColumn(mc), List.of(), List.of(), null);
 
             // Aggregate functions
-            case "sum" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
+            case "sum", "plus" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
                     extractColFromMethodCall(mc), List.of(), List.of());
             case "avg", "average" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.AVG,
                     extractColFromMethodCall(mc), List.of(), List.of());
