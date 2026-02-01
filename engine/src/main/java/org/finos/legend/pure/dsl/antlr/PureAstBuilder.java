@@ -1062,7 +1062,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // Source can be RelationExpression, VariableExpr, or CastExpression (for cast
         // to Relation)
         if (source instanceof RelationExpression || source instanceof VariableExpr) {
-            return new GroupByExpression((RelationExpression) source, groupByLambdas, aggregations, fullAliases);
+            return new GroupByExpression(source, groupByLambdas, aggregations, fullAliases);
         }
         // Support CastExpression - unwrap and treat inner pivot/relation as source
         if (source instanceof CastExpression cast && cast.source() instanceof RelationExpression castSource) {

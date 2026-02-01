@@ -3701,4 +3701,28 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
             }
         }
     }
+
+    /**
+     * Test let binding with groupBy.
+     * Pattern: let t = #TDS...#; $t->groupBy(...)
+     */
+    @Test
+    void testLetBindingWithGroupBy() throws SQLException {
+        String pureQuery = """
+                |let t = #TDS
+                    id, grp, name
+                    1, 1, A
+                    2, 1, B
+                    3, 2, C
+                    4, 2, D
+                #;
+                $t->groupBy(~[grp], ~[total:x|$x.id]);
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Let binding with groupBy result: " + result.rows());
+
+        // Should have 2 groups
+        assertEquals(2, result.rows().size(), "Should have 2 groups");
+    }
 }

@@ -6,20 +6,18 @@ import java.util.Objects;
 /**
  * Represents a groupBy() function call.
  * 
- * Only works on RelationExpression (from project() or another Relation
- * operation).
- * This is enforced at compile time!
+ * Works on RelationExpression or VariableExpr (for let bindings).
  * 
  * Example: ->groupBy([{p | $p.department}], [{p | $p.salary}], ['totalSalary'])
  * 
- * @param source         The RELATION expression being grouped (compile-time
- *                       enforced!)
+ * @param source         The source expression (RelationExpression or
+ *                       VariableExpr)
  * @param groupByColumns The column lambda expressions to group by
  * @param aggregations   The aggregation lambda expressions
  * @param aliases        Optional aliases for the aggregation results
  */
 public record GroupByExpression(
-        RelationExpression source,
+        PureExpression source,
         List<LambdaExpression> groupByColumns,
         List<LambdaExpression> aggregations,
         List<String> aliases) implements RelationExpression {
