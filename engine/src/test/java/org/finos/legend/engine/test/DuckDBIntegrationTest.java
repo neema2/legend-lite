@@ -2786,4 +2786,232 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(1, result.rows().size(), "Should return exactly one row");
         assertEquals(1L, ((Number) result.rows().get(0).get(0)).longValue(), "least([1, 2]) should equal 1");
     }
+
+    // ==================== Date Literal Tests ====================
+
+    @Test
+    @DisplayName("Pure: Date literal %2024-01-15 in filter")
+    void testDateLiteralInFilter() throws Exception {
+        // GIVEN: Create employee table with hire dates
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_EMPLOYEE");
+            stmt.execute("""
+                        CREATE TABLE T_EMPLOYEE (
+                            ID INTEGER PRIMARY KEY,
+                            NAME VARCHAR(100),
+                            HIRE_DATE DATE
+                        )
+                    """);
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (1, 'Alice', DATE '2024-01-15')");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (2, 'Bob', DATE '2024-06-01')");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (3, 'Charlie', DATE '2023-12-01')");
+        }
+
+        String pureSource = """
+                Class model::Employee {
+                    name: String[1];
+                    hireDate: Date[1];
+                }
+                Database store::EmpDb ( Table T_EMPLOYEE ( ID INTEGER, NAME VARCHAR(100), HIRE_DATE DATE ) )
+                Mapping model::EmpMap ( Employee: Relational {
+                    ~mainTable [EmpDb] T_EMPLOYEE
+                    name: [EmpDb] T_EMPLOYEE.NAME,
+                    hireDate: [EmpDb] T_EMPLOYEE.HIRE_DATE
+                } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::EmpMap ]; connections: [ store::EmpDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // WHEN: Query for employees hired on a specific date using Pure date literal
+        String pureQuery = """
+                Employee.all()
+                    ->filter({e | $e.hireDate == %2024-01-15})
+                    ->project({e | $e.name})
+                """;
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+
+        // THEN: Only Alice matches
+        assertEquals(1, result.rows().size(), "Should find 1 employee hired on 2024-01-15");
+        assertEquals("Alice", result.rows().get(0).get(0));
+    }
+
+    @Test
+    @DisplayName("Pure: Date literal comparison %2024-01-01 in range filter")
+    void testDateLiteralRangeFilter() throws Exception {
+        // Reuse table from previous test
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_EMPLOYEE");
+            stmt.execute("""
+                        CREATE TABLE T_EMPLOYEE (
+                            ID INTEGER PRIMARY KEY,
+                            NAME VARCHAR(100),
+                            HIRE_DATE DATE
+                        )
+                    """);
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (1, 'Alice', DATE '2024-01-15')");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (2, 'Bob', DATE '2024-06-01')");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (3, 'Charlie', DATE '2023-12-01')");
+        }
+
+        String pureSource = """
+                Class model::Employee {
+                    name: String[1];
+                    hireDate: Date[1];
+                }
+                Database store::EmpDb ( Table T_EMPLOYEE ( ID INTEGER, NAME VARCHAR(100), HIRE_DATE DATE ) )
+                Mapping model::EmpMap ( Employee: Relational {
+                    ~mainTable [EmpDb] T_EMPLOYEE
+                    name: [EmpDb] T_EMPLOYEE.NAME,
+                    hireDate: [EmpDb] T_EMPLOYEE.HIRE_DATE
+                } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::EmpMap ]; connections: [ store::EmpDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // WHEN: Query for employees hired after 2024-01-01
+        String pureQuery = """
+                Employee.all()
+                    ->filter({e | $e.hireDate > %2024-01-01})
+                    ->project({e | $e.name}, {e | $e.hireDate})
+                """;
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Employees hired after 2024-01-01: " + result.rows());
+
+        // THEN: Alice (2024-01-15) and Bob (2024-06-01) match
+        assertEquals(2, result.rows().size(), "Should find 2 employees hired after 2024-01-01");
+    }
+
+    @Test
+    @DisplayName("Pure: Date literal in Relation API")
+    void testDateLiteralInRelationApi() throws Exception {
+        // Create a simple table for testing with dates
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_EVENTS");
+            stmt.execute("""
+                        CREATE TABLE T_EVENTS (
+                            ID INTEGER PRIMARY KEY,
+                            EVENT_NAME VARCHAR(100),
+                            EVENT_DATE DATE
+                        )
+                    """);
+            stmt.execute("INSERT INTO T_EVENTS VALUES (1, 'Meeting', DATE '2024-01-15')");
+            stmt.execute("INSERT INTO T_EVENTS VALUES (2, 'Conference', DATE '2024-02-20')");
+        }
+
+        String pureSource = """
+                Database store::EventDb ( Table T_EVENTS ( ID INTEGER, EVENT_NAME VARCHAR(100), EVENT_DATE DATE ) )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: []; connections: [ store::EventDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Use Relation API with date literal
+        String pureQuery = """
+                #>{store::EventDb.T_EVENTS}#
+                    ->filter(e | $e.EVENT_DATE == %2024-01-15)
+                    ->select(~[EVENT_NAME])
+                """;
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Event on 2024-01-15: " + result.rows());
+
+        assertEquals(1, result.rows().size(), "Should find 1 event on 2024-01-15");
+        assertEquals("Meeting", result.rows().get(0).get(0));
+    }
+
+    @Test
+    @DisplayName("Pure: DateTime literal %2024-01-15T10:30:00 in filter")
+    void testDateTimeLiteralInFilter() throws Exception {
+        // GIVEN: Create table with timestamp column
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_APPOINTMENTS");
+            stmt.execute("""
+                        CREATE TABLE T_APPOINTMENTS (
+                            ID INTEGER PRIMARY KEY,
+                            TITLE VARCHAR(100),
+                            SCHEDULED_AT TIMESTAMP
+                        )
+                    """);
+            stmt.execute("INSERT INTO T_APPOINTMENTS VALUES (1, 'Morning Meeting', TIMESTAMP '2024-01-15 10:30:00')");
+            stmt.execute("INSERT INTO T_APPOINTMENTS VALUES (2, 'Afternoon Call', TIMESTAMP '2024-01-15 14:00:00')");
+            stmt.execute("INSERT INTO T_APPOINTMENTS VALUES (3, 'Next Day', TIMESTAMP '2024-01-16 09:00:00')");
+        }
+
+        String pureSource = """
+                Class model::Appointment {
+                    title: String[1];
+                    scheduledAt: DateTime[1];
+                }
+                Database store::ApptDb ( Table T_APPOINTMENTS ( ID INTEGER, TITLE VARCHAR(100), SCHEDULED_AT TIMESTAMP ) )
+                Mapping model::ApptMap ( Appointment: Relational {
+                    ~mainTable [ApptDb] T_APPOINTMENTS
+                    title: [ApptDb] T_APPOINTMENTS.TITLE,
+                    scheduledAt: [ApptDb] T_APPOINTMENTS.SCHEDULED_AT
+                } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::ApptMap ]; connections: [ store::ApptDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // WHEN: Query with DateTime literal (includes time)
+        String pureQuery = """
+                Appointment.all()
+                    ->filter({a | $a.scheduledAt == %2024-01-15T10:30:00})
+                    ->project({a | $a.title})
+                """;
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Appointment at 2024-01-15 10:30:00: " + result.rows());
+
+        // THEN: Only Morning Meeting matches
+        assertEquals(1, result.rows().size(), "Should find 1 appointment at exact datetime");
+        assertEquals("Morning Meeting", result.rows().get(0).get(0));
+    }
+
+    @Test
+    @DisplayName("Pure: DateTime comparison with > operator")
+    void testDateTimeComparisonOperator() throws Exception {
+        // Reuse table from previous test
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_APPOINTMENTS");
+            stmt.execute("""
+                        CREATE TABLE T_APPOINTMENTS (
+                            ID INTEGER PRIMARY KEY,
+                            TITLE VARCHAR(100),
+                            SCHEDULED_AT TIMESTAMP
+                        )
+                    """);
+            stmt.execute("INSERT INTO T_APPOINTMENTS VALUES (1, 'Morning Meeting', TIMESTAMP '2024-01-15 10:30:00')");
+            stmt.execute("INSERT INTO T_APPOINTMENTS VALUES (2, 'Afternoon Call', TIMESTAMP '2024-01-15 14:00:00')");
+            stmt.execute("INSERT INTO T_APPOINTMENTS VALUES (3, 'Next Day', TIMESTAMP '2024-01-16 09:00:00')");
+        }
+
+        String pureSource = """
+                Class model::Appointment {
+                    title: String[1];
+                    scheduledAt: DateTime[1];
+                }
+                Database store::ApptDb ( Table T_APPOINTMENTS ( ID INTEGER, TITLE VARCHAR(100), SCHEDULED_AT TIMESTAMP ) )
+                Mapping model::ApptMap ( Appointment: Relational {
+                    ~mainTable [ApptDb] T_APPOINTMENTS
+                    title: [ApptDb] T_APPOINTMENTS.TITLE,
+                    scheduledAt: [ApptDb] T_APPOINTMENTS.SCHEDULED_AT
+                } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::ApptMap ]; connections: [ store::ApptDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // WHEN: Query for appointments after noon on Jan 15
+        String pureQuery = """
+                Appointment.all()
+                    ->filter({a | $a.scheduledAt > %2024-01-15T12:00:00})
+                    ->project({a | $a.title}, {a | $a.scheduledAt})
+                """;
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("Appointments after noon Jan 15: " + result.rows());
+
+        // THEN: Afternoon Call and Next Day match
+        assertEquals(2, result.rows().size(), "Should find 2 appointments after noon on Jan 15");
+    }
 }

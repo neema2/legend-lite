@@ -3799,6 +3799,8 @@ public final class PureCompiler {
             case INTEGER -> Literal.integer(((Number) literal.value()).longValue());
             case FLOAT -> new Literal(literal.value(), Literal.LiteralType.DOUBLE);
             case BOOLEAN -> Literal.bool((Boolean) literal.value());
+            case DATE -> Literal.date((String) literal.value());
+            case STRICTTIME -> Literal.time((String) literal.value());
         };
     }
 

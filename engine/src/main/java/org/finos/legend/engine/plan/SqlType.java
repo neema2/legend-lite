@@ -13,6 +13,7 @@ public enum SqlType {
     JSON,
     LIST,
     DATE,
+    TIME,
     TIMESTAMP,
     UNKNOWN;
 

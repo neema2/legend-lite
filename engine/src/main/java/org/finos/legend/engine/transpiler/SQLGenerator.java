@@ -888,6 +888,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case BOOLEAN -> dialect.formatBoolean((Boolean) literal.value());
             case DOUBLE -> String.valueOf(literal.value());
             case NULL -> dialect.formatNull();
+            case DATE -> dialect.formatDate((String) literal.value());
+            case TIME -> dialect.formatTime((String) literal.value());
         };
     }
 

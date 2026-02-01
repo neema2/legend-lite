@@ -18,7 +18,9 @@ public record Literal(
         INTEGER,
         BOOLEAN,
         DOUBLE,
-        NULL
+        NULL,
+        DATE,
+        TIME
     }
 
     public Literal {
@@ -52,6 +54,11 @@ public record Literal(
                         throw new IllegalArgumentException("NULL literal cannot have a value");
                     }
                 }
+                case DATE, TIME -> {
+                    if (!(value instanceof String)) {
+                        throw new IllegalArgumentException("DATE/TIME literal must have String value");
+                    }
+                }
             }
         }
     }
@@ -74,6 +81,20 @@ public record Literal(
 
     public static Literal nullValue() {
         return new Literal(null, LiteralType.NULL);
+    }
+
+    /**
+     * Factory for DATE literals. Value should be in 'YYYY-MM-DD' format.
+     */
+    public static Literal date(String value) {
+        return new Literal(value, LiteralType.DATE);
+    }
+
+    /**
+     * Factory for TIME literals. Value should be in 'HH:MM:SS' format.
+     */
+    public static Literal time(String value) {
+        return new Literal(value, LiteralType.TIME);
     }
 
     /**
@@ -110,6 +131,8 @@ public record Literal(
             case BOOLEAN -> SqlType.BOOLEAN;
             case DOUBLE -> SqlType.DOUBLE;
             case NULL -> SqlType.UNKNOWN;
+            case DATE -> SqlType.DATE;
+            case TIME -> SqlType.TIME;
         };
     }
 
@@ -120,6 +143,12 @@ public record Literal(
         }
         if (literalType == LiteralType.STRING) {
             return "'" + value + "'";
+        }
+        if (literalType == LiteralType.DATE) {
+            return "DATE '" + value + "'";
+        }
+        if (literalType == LiteralType.TIME) {
+            return "TIME '" + value + "'";
         }
         return String.valueOf(value);
     }

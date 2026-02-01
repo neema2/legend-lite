@@ -42,7 +42,13 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Stack;
+
+import org.finos.legend.pure.m4.coreinstance.primitive.date.DateFunctions;
+import org.finos.legend.pure.m4.coreinstance.primitive.date.PureDate;
 
 /**
  * Native function that executes Pure expressions through Legend-Lite's
@@ -229,6 +235,34 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         if (value instanceof Number n) {
             return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(n.doubleValue()),
                     processorSupport);
+        }
+        // Handle date types - convert to PureDate and wrap as date literal
+        if (value instanceof java.sql.Date sqlDate) {
+            LocalDate ld = sqlDate.toLocalDate();
+            PureDate pureDate = DateFunctions.newPureDate(ld.getYear(), ld.getMonthValue(), ld.getDayOfMonth());
+            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+        }
+        if (value instanceof LocalDate ld) {
+            PureDate pureDate = DateFunctions.newPureDate(ld.getYear(), ld.getMonthValue(), ld.getDayOfMonth());
+            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+        }
+        if (value instanceof java.sql.Timestamp ts) {
+            LocalDateTime ldt = ts.toLocalDateTime();
+            PureDate pureDate = DateFunctions.newPureDate(
+                    ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                    ldt.getHour(), ldt.getMinute(), ldt.getSecond());
+            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+        }
+        if (value instanceof LocalDateTime ldt) {
+            PureDate pureDate = DateFunctions.newPureDate(
+                    ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                    ldt.getHour(), ldt.getMinute(), ldt.getSecond());
+            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+        }
+        if (value instanceof LocalTime lt) {
+            // StrictTime - just time part, use arbitrary date
+            PureDate pureDate = DateFunctions.newPureDate(1, 1, 1, lt.getHour(), lt.getMinute(), lt.getSecond());
+            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
         }
         if (value instanceof String s) {
             return ValueSpecificationBootstrap.newStringLiteral(modelRepository, s, processorSupport);

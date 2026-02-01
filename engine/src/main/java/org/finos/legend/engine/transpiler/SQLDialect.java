@@ -54,4 +54,38 @@ public interface SQLDialect {
     default JsonSqlDialect getJsonDialect() {
         return null;
     }
+
+    /**
+     * Format a DATE literal from Pure's %YYYY-MM-DD format.
+     * 
+     * @param pureDate The Pure date string (e.g., "%2024-01-15" or
+     *                 "%2024-01-15T10:30:00")
+     * @return SQL date/timestamp literal (e.g., "DATE '2024-01-15'" or "TIMESTAMP
+     *         '2024-01-15 10:30:00'")
+     */
+    default String formatDate(String pureDate) {
+        // Strip the % prefix
+        String dateValue = pureDate.startsWith("%") ? pureDate.substring(1) : pureDate;
+
+        // If it contains 'T', it's a DateTime - render as TIMESTAMP
+        if (dateValue.contains("T")) {
+            // Replace T with space for SQL TIMESTAMP format
+            String timestampValue = dateValue.replace("T", " ");
+            return "TIMESTAMP '" + timestampValue + "'";
+        }
+
+        return "DATE '" + dateValue + "'";
+    }
+
+    /**
+     * Format a TIME literal from Pure's %HH:MM:SS format.
+     * 
+     * @param pureTime The Pure time string (e.g., "%12:30:00")
+     * @return SQL time literal (e.g., "TIME '12:30:00'")
+     */
+    default String formatTime(String pureTime) {
+        // Strip the % prefix and return as TIME literal
+        String timeValue = pureTime.startsWith("%") ? pureTime.substring(1) : pureTime;
+        return "TIME '" + timeValue + "'";
+    }
 }

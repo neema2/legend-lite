@@ -609,10 +609,10 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return LiteralExpr.bool(Boolean.parseBoolean(ctx.BOOLEAN().getText()));
         }
         if (ctx.DATE() != null) {
-            return LiteralExpr.string(ctx.DATE().getText());
+            return LiteralExpr.date(ctx.DATE().getText());
         }
         if (ctx.STRICTTIME() != null) {
-            return LiteralExpr.string(ctx.STRICTTIME().getText());
+            return LiteralExpr.strictTime(ctx.STRICTTIME().getText());
         }
         throw new PureParseException("Unknown literal: " + ctx.getText());
     }
