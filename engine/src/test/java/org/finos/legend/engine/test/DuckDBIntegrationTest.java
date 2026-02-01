@@ -3588,4 +3588,40 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 .findFirst();
         assertTrue(cityCol.isPresent(), "Should have 'city' column");
     }
+
+    /**
+     * Test let bindings with multiple filter expressions.
+     * Tests that $a->filter() and $b->filter() work correctly with variable
+     * resolution.
+     * Pattern: let a = #TDS...#; let b = $a->filter(...); $b->filter(...);
+     */
+    @Test
+    void testLetBindingWithMultipleFilters() throws SQLException {
+        String pureQuery = """
+                |let a = #TDS
+                    val
+                    1
+                    3
+                    4
+                    5
+                #;
+                let b = $a->filter(x|$x.val > 2);
+                $b->filter(x|$x.val > 3);
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Let binding with multiple filters result: " + result.rows());
+
+        // 1 is filtered by first filter (>2)
+        // 3 is filtered by second filter (>3)
+        // Only 4 and 5 should remain
+        assertEquals(2, result.rows().size(), "Should have 2 rows (4 and 5)");
+
+        // Verify the values
+        var vals = result.rows().stream()
+                .map(r -> ((Number) r.get(0)).intValue())
+                .sorted()
+                .toList();
+        assertEquals(List.of(4, 5), vals, "Should have values 4 and 5");
+    }
 }

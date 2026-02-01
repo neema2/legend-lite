@@ -862,6 +862,11 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (source instanceof CastExpression cast && cast.source() instanceof RelationExpression castSource) {
             return new RelationFilterExpression(castSource, (LambdaExpression) args.get(0));
         }
+        // VariableExpr as source (from let bindings like $a->filter(...))
+        // Treat as relation filter - the variable will be resolved at compile time
+        if (source instanceof VariableExpr) {
+            return new RelationFilterExpression(source, (LambdaExpression) args.get(0));
+        }
         // Generic filter
         return new FilterExpression(source, (LambdaExpression) args.get(0));
     }
