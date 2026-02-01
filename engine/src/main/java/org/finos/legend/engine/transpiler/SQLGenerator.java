@@ -312,6 +312,70 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     }
 
     @Override
+    public String visit(AggregateNode aggregate) {
+        var sb = new StringBuilder();
+
+        // Generate the source subquery
+        String sourceSql = aggregate.source().accept(this);
+
+        // Build SELECT clause with only aggregations (no grouping columns)
+        sb.append("SELECT ");
+
+        // Add aggregate projections
+        boolean first = true;
+        for (GroupByNode.AggregateProjection agg : aggregate.aggregations()) {
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+
+            // Handle percentile functions with WITHIN GROUP syntax
+            if (agg.isPercentile()) {
+                // PERCENTILE_CONT(value) WITHIN GROUP (ORDER BY column)
+                sb.append(agg.function().sql());
+                sb.append("(");
+                sb.append(agg.optionalPercentileValue().orElse(0.5)); // default to median
+                sb.append(") WITHIN GROUP (ORDER BY ");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(")");
+            } else if (agg.isStringAgg()) {
+                // STRING_AGG(column, separator)
+                sb.append(agg.function().sql());
+                sb.append("(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(", ");
+                sb.append("'");
+                sb.append(agg.optionalSeparator().orElse(","));
+                sb.append("'");
+                sb.append(")");
+            } else {
+                // Standard aggregate functions
+                sb.append(agg.function().sql());
+                sb.append("(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                // Add second column for bi-variate functions (CORR, COVAR_SAMP, COVAR_POP)
+                if (agg.isBivariate()) {
+                    sb.append(", ");
+                    sb.append(dialect.quoteIdentifier(agg.secondColumn()));
+                }
+                sb.append(")");
+                if (agg.function() == AggregateExpression.AggregateFunction.COUNT_DISTINCT) {
+                    sb.append(")"); // close the extra paren for COUNT(DISTINCT ...)
+                }
+            }
+            sb.append(" AS ");
+            sb.append(dialect.quoteIdentifier(agg.alias()));
+        }
+
+        // FROM subquery (no GROUP BY clause - aggregates entire relation)
+        sb.append(" FROM (");
+        sb.append(sourceSql);
+        sb.append(") AS agg_src");
+
+        return sb.toString();
+    }
+
+    @Override
     public String visit(SortNode sort) {
         var sb = new StringBuilder();
 
@@ -797,6 +861,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case PivotNode pivot -> null; // No filter to extract from PIVOT
             case TdsLiteralNode tds -> null; // No filter in TDS literal
             case ConstantNode constant -> null; // No filter in constant expression
+            case AggregateNode agg -> extractFilterCondition(agg.source());
         };
     }
 
@@ -827,6 +892,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case RenameNode rename -> extractTableNode(rename.source());
             case ConcatenateNode concat -> extractTableNode(concat.left()); // Use left side
             case PivotNode pivot -> extractTableNode(pivot.source());
+            case AggregateNode agg -> extractTableNode(agg.source());
             case TdsLiteralNode tds -> throw new IllegalArgumentException("TDS literal has no source table");
             case ConstantNode constant -> throw new IllegalArgumentException("Constant expression has no source table");
         };

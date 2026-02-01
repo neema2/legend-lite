@@ -34,26 +34,31 @@ public record GroupByNode(
      * For ordered-set aggregates like PERCENTILE_CONT:
      * ~alias : x|$x.col->percentileCont(0.5)
      * 
+     * For string aggregation with separator:
+     * ~alias : x|$x.col->joinStrings(':')
+     * 
      * @param alias           Output column name
      * @param sourceColumn    First column being aggregated
      * @param secondColumn    Second column (for bi-variate functions like CORR)
      * @param function        The aggregate function (SUM, COUNT, CORR, etc.)
      * @param percentileValue The percentile value for PERCENTILE_CONT/DISC
      *                        (0.0-1.0)
+     * @param separator       The separator string for STRING_AGG
      */
     public record AggregateProjection(
             String alias,
             String sourceColumn,
             String secondColumn,
             AggregateExpression.AggregateFunction function,
-            Double percentileValue) {
+            Double percentileValue,
+            String separator) {
 
         /**
          * Constructor for single-column aggregates.
          */
         public AggregateProjection(String alias, String sourceColumn,
                 AggregateExpression.AggregateFunction function) {
-            this(alias, sourceColumn, null, function, null);
+            this(alias, sourceColumn, null, function, null, null);
         }
 
         /**
@@ -61,7 +66,15 @@ public record GroupByNode(
          */
         public AggregateProjection(String alias, String sourceColumn, String secondColumn,
                 AggregateExpression.AggregateFunction function) {
-            this(alias, sourceColumn, secondColumn, function, null);
+            this(alias, sourceColumn, secondColumn, function, null, null);
+        }
+
+        /**
+         * Constructor with percentile value (for PERCENTILE_CONT/DISC).
+         */
+        public AggregateProjection(String alias, String sourceColumn, String secondColumn,
+                AggregateExpression.AggregateFunction function, Double percentileValue) {
+            this(alias, sourceColumn, secondColumn, function, percentileValue, null);
         }
 
         public AggregateProjection {
@@ -73,6 +86,9 @@ public record GroupByNode(
             }
             if (isPercentileFunction(function) && percentileValue == null) {
                 throw new IllegalArgumentException(function.name() + " requires a percentile value");
+            }
+            if (function == AggregateExpression.AggregateFunction.STRING_AGG && separator == null) {
+                throw new IllegalArgumentException("STRING_AGG requires a separator");
             }
         }
 
@@ -96,6 +112,13 @@ public record GroupByNode(
         }
 
         /**
+         * Returns true if this is a string aggregation function.
+         */
+        public boolean isStringAgg() {
+            return function == AggregateExpression.AggregateFunction.STRING_AGG;
+        }
+
+        /**
          * Returns the second column if present.
          */
         public Optional<String> optionalSecondColumn() {
@@ -107,6 +130,13 @@ public record GroupByNode(
          */
         public Optional<Double> optionalPercentileValue() {
             return Optional.ofNullable(percentileValue);
+        }
+
+        /**
+         * Returns the separator if present.
+         */
+        public Optional<String> optionalSeparator() {
+            return Optional.ofNullable(separator);
         }
     }
 

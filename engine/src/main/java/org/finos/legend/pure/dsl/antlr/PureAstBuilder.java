@@ -224,6 +224,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "rename" -> parseRenameCall(source, args);
             case "concatenate" -> parseConcatenateCall(source, args);
             case "asOfJoin" -> parseAsOfJoinCall(source, args);
+            case "aggregate" -> parseAggregateCall(source, args);
             default -> new MethodCall(source, simpleName, args);
         };
     }
@@ -1021,6 +1022,69 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
         // Fallback to MethodCall for other source types
         return new MethodCall(source, "groupBy", args);
+    }
+
+    /**
+     * Parse aggregate() function - groupBy with no grouping columns.
+     * 
+     * Syntax: aggregate(~aggSpec) or aggregate(~[aggSpec1, aggSpec2])
+     * 
+     * AggColSpec: ~name : mapFn : aggFn
+     * - mapFn extracts value from row (x | $x.id)
+     * - aggFn aggregates values (y | $y->plus())
+     * 
+     * This aggregates the entire relation into a single row.
+     */
+    private PureExpression parseAggregateCall(PureExpression source, List<PureExpression> args) {
+        if (args.isEmpty()) {
+            throw new PureParseException("aggregate() requires at least one aggregation specification");
+        }
+
+        List<LambdaExpression> mapFunctions = new java.util.ArrayList<>();
+        List<LambdaExpression> aggFunctions = new java.util.ArrayList<>();
+        List<String> aliases = new java.util.ArrayList<>();
+
+        // All args are aggregation specs - can be ColumnSpec or ColumnSpecArray
+        for (PureExpression arg : args) {
+            if (arg instanceof ColumnSpec cs) {
+                aliases.add(cs.name());
+                // lambda is the map function, extraFunction is the agg function
+                if (cs.lambda() instanceof LambdaExpression mapLe) {
+                    mapFunctions.add(mapLe);
+                }
+                if (cs.extraFunction() instanceof LambdaExpression aggLe) {
+                    aggFunctions.add(aggLe);
+                } else {
+                    // No agg function, default to SUM - use map function
+                    if (cs.lambda() instanceof LambdaExpression le) {
+                        aggFunctions.add(le);
+                    }
+                }
+            } else if (arg instanceof ColumnSpecArray csa) {
+                for (PureExpression spec : csa.specs()) {
+                    if (spec instanceof ColumnSpec cs) {
+                        aliases.add(cs.name());
+                        if (cs.lambda() instanceof LambdaExpression mapLe) {
+                            mapFunctions.add(mapLe);
+                        }
+                        if (cs.extraFunction() instanceof LambdaExpression aggLe) {
+                            aggFunctions.add(aggLe);
+                        } else {
+                            if (cs.lambda() instanceof LambdaExpression le) {
+                                aggFunctions.add(le);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Use AggregateExpression (no grouping columns)
+        if (source instanceof RelationExpression relExpr) {
+            return new AggregateExpression(relExpr, mapFunctions, aggFunctions, aliases);
+        }
+
+        return new MethodCall(source, "aggregate", args);
     }
 
     /**

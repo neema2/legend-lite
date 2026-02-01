@@ -33,6 +33,11 @@ public interface RelationNodeVisitor<T> {
     T visit(GroupByNode groupBy);
 
     /**
+     * Visit an aggregate node (aggregate entire relation without grouping).
+     */
+    T visit(AggregateNode aggregate);
+
+    /**
      * Visit a sort node (ORDER BY clause).
      */
     T visit(SortNode sort);

@@ -42,7 +42,9 @@ public record AggregateExpression(
         COVAR_POP("COVAR_POP", true),
         // Percentile functions (ordered-set aggregates)
         PERCENTILE_CONT("PERCENTILE_CONT", false),
-        PERCENTILE_DISC("PERCENTILE_DISC", false);
+        PERCENTILE_DISC("PERCENTILE_DISC", false),
+        // String aggregation
+        STRING_AGG("STRING_AGG", false);
 
         private final String sql;
         private final boolean bivariate;

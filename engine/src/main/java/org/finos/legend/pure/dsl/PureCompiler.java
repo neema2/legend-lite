@@ -87,6 +87,7 @@ public final class PureCompiler {
             case RelationFilterExpression relationFilter -> compileRelationFilter(relationFilter, context);
             case ProjectExpression project -> compileProject(project, context);
             case GroupByExpression groupBy -> compileGroupBy(groupBy, context);
+            case AggregateExpression aggregate -> compileAggregate(aggregate, context);
             case JoinExpression join -> compileJoin(join, context);
             case AsOfJoinExpression asOfJoin -> compileAsOfJoin(asOfJoin, context);
             case FlattenExpression flatten -> compileFlatten(flatten, context);
@@ -731,7 +732,7 @@ public final class PureCompiler {
             String columnName;
             String secondColumnName = null;
             Double percentileValue = null;
-            AggregateExpression.AggregateFunction aggFunc;
+            org.finos.legend.engine.plan.AggregateExpression.AggregateFunction aggFunc;
 
             PureExpression body = aggLambda.body();
             if (body instanceof MethodCall methodCall) {
@@ -769,7 +770,7 @@ public final class PureCompiler {
             } else {
                 // Pattern: $r.col - defaults to SUM
                 columnName = extractPropertyName(body);
-                aggFunc = AggregateExpression.AggregateFunction.SUM;
+                aggFunc = org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.SUM;
             }
 
             // Get alias from the aliases list or generate one
@@ -788,30 +789,127 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles an AggregateExpression into a GroupByNode with no grouping columns.
+     * 
+     * This aggregates the entire relation into a single row.
+     * Example: ->aggregate(~idSum : x | $x.id : y | $y->plus())
+     * SQL: SELECT SUM(id) AS idSum FROM source
+     *
+     * @param aggregate    The aggregate expression
+     * @param outerContext Compilation context
+     * @return A GroupByNode with empty grouping columns
+     */
+    private RelationNode compileAggregate(AggregateExpression aggregate, CompilationContext outerContext) {
+        RelationNode source = compileExpression(aggregate.source(), outerContext);
+
+        // Use AggregateNode (no grouping columns - aggregates entire relation)
+
+        // Extract aggregations: mapFunctions give column, aggFunctions give aggregation
+        // type
+        List<GroupByNode.AggregateProjection> aggregations = new ArrayList<>();
+        for (int i = 0; i < aggregate.mapFunctions().size(); i++) {
+            LambdaExpression mapLambda = aggregate.mapFunctions().get(i);
+            LambdaExpression aggLambda = aggregate.aggFunctions().get(i);
+
+            // Extract column name from map function body (e.g., x | $x.id -> id)
+            String columnName = extractPropertyName(mapLambda.body());
+            String secondColumnName = null;
+            Double percentileValue = null;
+            String separator = null;
+            org.finos.legend.engine.plan.AggregateExpression.AggregateFunction aggFunc;
+
+            // Extract aggregation function from agg function body
+            PureExpression aggBody = aggLambda.body();
+            if (aggBody instanceof MethodCall methodCall) {
+                // Pattern: y | $y->plus() or y | $y->sum()
+                aggFunc = mapAggregateFunction(methodCall.methodName());
+
+                // Check for bi-variate function with second argument
+                if (aggFunc.isBivariate() && !methodCall.arguments().isEmpty()) {
+                    secondColumnName = extractPropertyName(methodCall.arguments().get(0));
+                }
+
+                // Check for percentile function with percentile value argument
+                if (isPercentileFunction(aggFunc) && !methodCall.arguments().isEmpty()) {
+                    PureExpression arg = methodCall.arguments().get(0);
+                    if (arg instanceof DecimalLiteral dl) {
+                        percentileValue = dl.value().doubleValue();
+                    } else if (arg instanceof IntegerLiteral il) {
+                        percentileValue = il.value().doubleValue();
+                    } else if (arg instanceof LiteralExpr le) {
+                        if (le.type() == LiteralExpr.LiteralType.FLOAT
+                                || le.type() == LiteralExpr.LiteralType.INTEGER) {
+                            percentileValue = ((Number) le.value()).doubleValue();
+                        } else {
+                            throw new PureCompileException(
+                                    "Percentile function requires a numeric literal argument");
+                        }
+                    }
+                }
+
+                // Check for joinStrings with separator argument
+                if (isStringAggFunction(aggFunc) && !methodCall.arguments().isEmpty()) {
+                    PureExpression arg = methodCall.arguments().get(0);
+                    if (arg instanceof StringLiteral sl) {
+                        separator = sl.value();
+                    } else if (arg instanceof LiteralExpr le && le.type() == LiteralExpr.LiteralType.STRING) {
+                        separator = (String) le.value();
+                    } else {
+                        throw new PureCompileException("joinStrings requires a string literal separator");
+                    }
+                }
+            } else {
+                // No method call - defaults to SUM
+                aggFunc = org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.SUM;
+            }
+
+            // Get alias from the aliases list
+            String alias = i < aggregate.aliases().size() ? aggregate.aliases().get(i) : columnName + "_agg";
+
+            aggregations.add(
+                    new GroupByNode.AggregateProjection(alias, columnName, secondColumnName, aggFunc, percentileValue,
+                            separator));
+        }
+
+        return new AggregateNode(source, aggregations);
+    }
+
+    /**
      * Maps a Pure aggregate function name to the AggregateFunction enum.
      */
-    private AggregateExpression.AggregateFunction mapAggregateFunction(String functionName) {
+    private org.finos.legend.engine.plan.AggregateExpression.AggregateFunction mapAggregateFunction(
+            String functionName) {
         return switch (functionName.toLowerCase()) {
-            case "sum", "plus" -> AggregateExpression.AggregateFunction.SUM;
-            case "avg", "average" -> AggregateExpression.AggregateFunction.AVG;
-            case "count" -> AggregateExpression.AggregateFunction.COUNT;
-            case "min" -> AggregateExpression.AggregateFunction.MIN;
-            case "max" -> AggregateExpression.AggregateFunction.MAX;
+            case "sum", "plus" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.SUM;
+            case "avg", "average" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.AVG;
+            case "count" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COUNT;
+            case "min" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.MIN;
+            case "max" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.MAX;
             // Statistical functions
-            case "stddev" -> AggregateExpression.AggregateFunction.STDDEV;
-            case "stddevsample", "stddev_samp" -> AggregateExpression.AggregateFunction.STDDEV_SAMP;
-            case "stddevpopulation", "stddev_pop" -> AggregateExpression.AggregateFunction.STDDEV_POP;
-            case "variance" -> AggregateExpression.AggregateFunction.VARIANCE;
-            case "variancesample", "var_samp" -> AggregateExpression.AggregateFunction.VAR_SAMP;
-            case "variancepopulation", "var_pop" -> AggregateExpression.AggregateFunction.VAR_POP;
-            case "median" -> AggregateExpression.AggregateFunction.MEDIAN;
+            case "stddev" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.STDDEV;
+            case "stddevsample", "stddev_samp" ->
+                org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.STDDEV_SAMP;
+            case "stddevpopulation", "stddev_pop" ->
+                org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.STDDEV_POP;
+            case "variance" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.VARIANCE;
+            case "variancesample", "var_samp" ->
+                org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.VAR_SAMP;
+            case "variancepopulation", "var_pop" ->
+                org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.VAR_POP;
+            case "median" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.MEDIAN;
             // Correlation and covariance
-            case "corr" -> AggregateExpression.AggregateFunction.CORR;
-            case "covarsample", "covar_samp" -> AggregateExpression.AggregateFunction.COVAR_SAMP;
-            case "covarpopulation", "covar_pop" -> AggregateExpression.AggregateFunction.COVAR_POP;
+            case "corr" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.CORR;
+            case "covarsample", "covar_samp" ->
+                org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_SAMP;
+            case "covarpopulation", "covar_pop" ->
+                org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_POP;
             // Percentile functions
-            case "percentilecont", "percentile_cont" -> AggregateExpression.AggregateFunction.PERCENTILE_CONT;
-            case "percentiledisc", "percentile_disc" -> AggregateExpression.AggregateFunction.PERCENTILE_DISC;
+            case "percentilecont", "percentile_cont" ->
+                org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_CONT;
+            case "percentiledisc", "percentile_disc" ->
+                org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_DISC;
+            // String aggregation
+            case "joinstrings" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.STRING_AGG;
             default -> throw new PureCompileException("Unknown aggregate function: " + functionName);
         };
     }
@@ -819,9 +917,16 @@ public final class PureCompiler {
     /**
      * Checks if the given aggregate function is a percentile function.
      */
-    private boolean isPercentileFunction(AggregateExpression.AggregateFunction function) {
-        return function == AggregateExpression.AggregateFunction.PERCENTILE_CONT
-                || function == AggregateExpression.AggregateFunction.PERCENTILE_DISC;
+    private boolean isPercentileFunction(org.finos.legend.engine.plan.AggregateExpression.AggregateFunction function) {
+        return function == org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_CONT
+                || function == org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_DISC;
+    }
+
+    /**
+     * Checks if the given aggregate function is a string aggregation function.
+     */
+    private boolean isStringAggFunction(org.finos.legend.engine.plan.AggregateExpression.AggregateFunction function) {
+        return function == org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.STRING_AGG;
     }
 
     /**

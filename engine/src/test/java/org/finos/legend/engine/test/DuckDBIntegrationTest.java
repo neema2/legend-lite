@@ -3114,4 +3114,74 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertNotNull(result);
         assertEquals(1, result.rows().size());
     }
+
+    // ========================================
+    // AGGREGATE TESTS
+    // ========================================
+
+    @Test
+    void testAggregateSimple() throws SQLException {
+        // GIVEN: A TDS with numeric values to sum
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                #->aggregate(~idSum : x | $x.id : y | $y->plus())
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Aggregate result: " + result.rows());
+
+        // THEN: Should get single row with sum of all ids (1+2+3=6)
+        assertEquals(1, result.rows().size(), "Should have single aggregated row");
+        // DuckDB returns BigInteger for SUM, so convert to long for comparison
+        Number sum = (Number) result.rows().getFirst().values().getFirst();
+        assertEquals(6L, sum.longValue(), "Sum should be 6");
+    }
+
+    @Test
+    void testAggregateMultipleColumns() throws SQLException {
+        // GIVEN: A TDS with values for multiple aggregations
+        String pureQuery = """
+                #TDS
+                    id, grp, value
+                    1, 2, 10
+                    2, 1, 20
+                    3, 3, 30
+                #->aggregate(~[idSum : x | $x.id : y | $y->plus(), valueSum : x | $x.value : y | $y->plus()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Aggregate multiple cols: " + result.rows());
+
+        // THEN: Should get single row with idSum=6 and valueSum=60
+        assertEquals(1, result.rows().size(), "Should have single aggregated row");
+        var row = result.rows().getFirst();
+        assertEquals(2, row.values().size(), "Should have 2 columns");
+    }
+
+    @Test
+    void testAggregateJoinStrings() throws SQLException {
+        // GIVEN: A TDS with string values to concatenate
+        String pureQuery = """
+                #TDS
+                    id, code
+                    1, A
+                    2, B
+                    3, C
+                #->aggregate(~codes : x | $x.code : y | $y->joinStrings(':'))
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Aggregate joinStrings result: " + result.rows());
+
+        // THEN: Should get single row with codes='A:B:C' (or some order)
+        assertEquals(1, result.rows().size(), "Should have single aggregated row");
+        String codes = (String) result.rows().getFirst().values().getFirst();
+        // Order may vary, so just check length and contains
+        assertTrue(codes.contains("A") && codes.contains("B") && codes.contains("C"),
+                "Should contain all codes: " + codes);
+    }
 }
