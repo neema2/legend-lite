@@ -8,79 +8,54 @@ import java.util.Objects;
  * 
  * Syntax variants:
  * 1. Simple expression: extend(~newCol : x | $x.col1 + $x.col2)
- * 2. Window function: extend(~rowNum : row_number()->over(~department))
- * 3. Aggregate window: extend(~runningSum : sum(~salary)->over(~department,
- * ~salary))
- * 4. With frame: extend(~runningSum : sum(~salary)->over(~department, ~salary,
- * rows(unbounded(), 0)))
+ * 2. Window function: extend(over(~dept, ~sal->desc()),
+ * ~rowNum:{p,w,r|$p->rowNumber($r)})
+ * 3. Aggregate window: extend(over(~dept), ~sum:{p,w,r|$r.salary}:y|$y->plus())
  * 
  * @param source        The source Relation
  * @param newColumnName The name of the new column
  * @param expression    The lambda expression for calculating the column value
  *                      (may be null for window functions)
- * @param windowSpec    The window function specification (null for simple
+ * @param windowSpec    The TYPED window function specification (null for simple
  *                      expressions)
  */
 public record RelationExtendExpression(
         PureExpression source,
         String newColumnName,
         LambdaExpression expression,
-        WindowFunctionSpec windowSpec) implements RelationExpression {
+        TypedWindowSpec windowSpec) implements RelationExpression {
 
     /**
-     * Window function specification.
-     * 
-     * @param functionName     The window function (row_number, rank, sum, etc.)
-     * @param aggregateColumn  Column for aggregate functions (null for ranking
-     *                         functions)
-     * @param partitionColumns PARTITION BY columns
-     * @param orderColumns     ORDER BY columns with direction
-     * @param frame            Optional frame specification (rows/range)
+     * Typed window function specification using sealed interface.
+     * This wraps the typed spec (Ranking/Value/Aggregate) with window context.
      */
-    public record WindowFunctionSpec(
-            String functionName,
-            String aggregateColumn,
+    public record TypedWindowSpec(
+            WindowFunctionSpec spec,
             List<String> partitionColumns,
             List<SortSpec> orderColumns,
             FrameSpec frame) {
 
-        public WindowFunctionSpec {
-            Objects.requireNonNull(functionName, "Function name cannot be null");
+        public TypedWindowSpec {
+            Objects.requireNonNull(spec, "Window function spec cannot be null");
             Objects.requireNonNull(partitionColumns, "Partition columns cannot be null");
             Objects.requireNonNull(orderColumns, "Order columns cannot be null");
             // frame can be null (uses SQL default)
         }
 
         /**
-         * Creates a ranking window function spec (no aggregate column, no frame).
+         * Creates a typed window spec with all components.
          */
-        public static WindowFunctionSpec ranking(String functionName,
-                List<String> partitionColumns, List<SortSpec> orderColumns) {
-            return new WindowFunctionSpec(functionName, null, partitionColumns, orderColumns, null);
-        }
-
-        /**
-         * Creates a ranking window function spec with frame.
-         */
-        public static WindowFunctionSpec ranking(String functionName,
+        public static TypedWindowSpec of(WindowFunctionSpec spec,
                 List<String> partitionColumns, List<SortSpec> orderColumns, FrameSpec frame) {
-            return new WindowFunctionSpec(functionName, null, partitionColumns, orderColumns, frame);
+            return new TypedWindowSpec(spec, partitionColumns, orderColumns, frame);
         }
 
         /**
-         * Creates an aggregate window function spec (no frame).
+         * Creates a typed window spec without frame.
          */
-        public static WindowFunctionSpec aggregate(String functionName, String aggregateColumn,
+        public static TypedWindowSpec of(WindowFunctionSpec spec,
                 List<String> partitionColumns, List<SortSpec> orderColumns) {
-            return new WindowFunctionSpec(functionName, aggregateColumn, partitionColumns, orderColumns, null);
-        }
-
-        /**
-         * Creates an aggregate window function spec with frame.
-         */
-        public static WindowFunctionSpec aggregate(String functionName, String aggregateColumn,
-                List<String> partitionColumns, List<SortSpec> orderColumns, FrameSpec frame) {
-            return new WindowFunctionSpec(functionName, aggregateColumn, partitionColumns, orderColumns, frame);
+            return new TypedWindowSpec(spec, partitionColumns, orderColumns, null);
         }
 
         /**
@@ -93,10 +68,6 @@ public record RelationExtendExpression(
 
     /**
      * Frame specification for window functions (ROWS or RANGE).
-     * 
-     * Legend-Engine syntax:
-     * - rows(start, end)
-     * - range(start, end)
      */
     public record FrameSpec(FrameType type, FrameBound start, FrameBound end) {
         public FrameSpec {
@@ -123,12 +94,6 @@ public record RelationExtendExpression(
 
     /**
      * Frame boundary.
-     * 
-     * Legend-Engine encoding:
-     * - unbounded() = UNBOUNDED
-     * - 0 = CURRENT ROW
-     * - negative = N PRECEDING
-     * - positive = N FOLLOWING
      */
     public record FrameBound(BoundType type, int offset) {
 
@@ -150,6 +115,7 @@ public record RelationExtendExpression(
 
         /**
          * Creates from integer value (Legend-Engine encoding).
+         * 0 = current row, negative = preceding, positive = following
          */
         public static FrameBound fromInteger(int value) {
             if (value == 0) {
@@ -194,10 +160,10 @@ public record RelationExtendExpression(
     }
 
     /**
-     * Creates a window function extend expression.
+     * Creates a window function extend expression with typed spec.
      */
     public static RelationExtendExpression window(PureExpression source, String newColumnName,
-            WindowFunctionSpec windowSpec) {
+            TypedWindowSpec windowSpec) {
         return new RelationExtendExpression(source, newColumnName, null, windowSpec);
     }
 

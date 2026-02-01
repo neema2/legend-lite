@@ -2038,22 +2038,20 @@ public final class PureCompiler {
      * 
      * Supports both:
      * 1. Simple calculated columns: extend(~newCol : x | $x.col1 + $x.col2)
-     * 2. Window functions: extend(~rowNum : row_number()->over(~department))
-     * 3. Window with frame: extend(~sum : sum(~val)->over(~dept, ~date,
-     * rows(unbounded(), 0)))
+     * 2. Window functions: extend(over(~dept), ~rowNum:{p,w,r|$p->rowNumber($r)})
+     * 3. Window with frame: extend(over(~dept, ~date, rows(unbounded(), 0)),
+     * ~sum:{...})
      */
     private RelationNode compileRelationExtend(RelationExtendExpression extend, CompilationContext context) {
         RelationNode source = compileExpression(extend.source(), context);
 
         if (extend.isWindowFunction()) {
-            // Compile window function
-            RelationExtendExpression.WindowFunctionSpec spec = extend.windowSpec();
-
-            // Map function name to WindowFunction enum
-            WindowExpression.WindowFunction windowFunc = mapWindowFunction(spec.functionName());
+            // Compile window function using typed spec
+            RelationExtendExpression.TypedWindowSpec typedSpec = extend.windowSpec();
+            WindowFunctionSpec spec = typedSpec.spec();
 
             // Map sort specs
-            List<WindowExpression.SortSpec> orderBy = spec.orderColumns().stream()
+            List<WindowExpression.SortSpec> orderBy = typedSpec.orderColumns().stream()
                     .map(s -> new WindowExpression.SortSpec(
                             s.column(),
                             s.direction() == RelationExtendExpression.SortDirection.DESC
@@ -2063,25 +2061,19 @@ public final class PureCompiler {
 
             // Map frame spec if present
             WindowExpression.FrameSpec frameSpec = null;
-            if (spec.hasFrame()) {
-                frameSpec = mapFrameSpec(spec.frame());
+            if (typedSpec.hasFrame()) {
+                frameSpec = mapFrameSpec(typedSpec.frame());
             }
 
-            WindowExpression windowExpr;
-            if (spec.aggregateColumn() != null) {
-                windowExpr = WindowExpression.aggregate(
-                        windowFunc,
-                        spec.aggregateColumn(),
-                        spec.partitionColumns(),
-                        orderBy,
-                        frameSpec);
-            } else {
-                windowExpr = WindowExpression.ranking(
-                        windowFunc,
-                        spec.partitionColumns(),
-                        orderBy,
-                        frameSpec);
-            }
+            // Type-safe pattern matching on sealed WindowFunctionSpec
+            WindowExpression windowExpr = switch (spec) {
+                case RankingFunctionSpec ranking -> compileRankingWindowFunction(
+                        ranking, typedSpec.partitionColumns(), orderBy, frameSpec);
+                case ValueFunctionSpec value -> compileValueWindowFunction(
+                        value, typedSpec.partitionColumns(), orderBy, frameSpec);
+                case AggregateFunctionSpec aggregate -> compileAggregateWindowFunction(
+                        aggregate, typedSpec.partitionColumns(), orderBy, frameSpec);
+            };
 
             ExtendNode.WindowProjection projection = new ExtendNode.WindowProjection(extend.newColumnName(),
                     windowExpr);
@@ -2116,6 +2108,85 @@ public final class PureCompiler {
 
             return new ExtendNode(source, List.of(simpleProj));
         }
+    }
+
+    /**
+     * Compiles a ranking window function (row_number, rank, dense_rank, etc.)
+     */
+    private WindowExpression compileRankingWindowFunction(
+            RankingFunctionSpec ranking,
+            List<String> partitionColumns,
+            List<WindowExpression.SortSpec> orderBy,
+            WindowExpression.FrameSpec frameSpec) {
+
+        // Special handling for NTILE which requires bucket count
+        if (ranking.function() == RankingFunctionSpec.RankingFunction.NTILE) {
+            int buckets = ranking.ntileBuckets() != null ? ranking.ntileBuckets() : 1;
+            return WindowExpression.ntile(buckets, partitionColumns, orderBy);
+        }
+
+        WindowExpression.WindowFunction windowFunc = switch (ranking.function()) {
+            case ROW_NUMBER -> WindowExpression.WindowFunction.ROW_NUMBER;
+            case RANK -> WindowExpression.WindowFunction.RANK;
+            case DENSE_RANK -> WindowExpression.WindowFunction.DENSE_RANK;
+            case PERCENT_RANK -> WindowExpression.WindowFunction.PERCENT_RANK;
+            case CUME_DIST -> WindowExpression.WindowFunction.CUME_DIST;
+            case NTILE -> WindowExpression.WindowFunction.NTILE; // Won't reach here
+        };
+
+        return WindowExpression.ranking(windowFunc, partitionColumns, orderBy, frameSpec);
+    }
+
+    /**
+     * Compiles a value window function (lag, lead, first_value, etc.)
+     */
+    private WindowExpression compileValueWindowFunction(
+            ValueFunctionSpec value,
+            List<String> partitionColumns,
+            List<WindowExpression.SortSpec> orderBy,
+            WindowExpression.FrameSpec frameSpec) {
+
+        WindowExpression.WindowFunction windowFunc = switch (value.function()) {
+            case LAG -> WindowExpression.WindowFunction.LAG;
+            case LEAD -> WindowExpression.WindowFunction.LEAD;
+            case FIRST_VALUE -> WindowExpression.WindowFunction.FIRST_VALUE;
+            case LAST_VALUE -> WindowExpression.WindowFunction.LAST_VALUE;
+            case NTH_VALUE -> WindowExpression.WindowFunction.NTH_VALUE;
+        };
+
+        int offset = value.offset() != null ? value.offset() : 1;
+        // Use frame-aware overload if frame is present
+        if (frameSpec != null) {
+            return WindowExpression.lagLead(windowFunc, value.column(), offset, partitionColumns, orderBy, frameSpec);
+        }
+        return WindowExpression.lagLead(windowFunc, value.column(), offset, partitionColumns, orderBy);
+    }
+
+    /**
+     * Compiles an aggregate window function (sum, avg, count, etc.)
+     */
+    private WindowExpression compileAggregateWindowFunction(
+            AggregateFunctionSpec aggregate,
+            List<String> partitionColumns,
+            List<WindowExpression.SortSpec> orderBy,
+            WindowExpression.FrameSpec frameSpec) {
+
+        WindowExpression.WindowFunction windowFunc = switch (aggregate.function()) {
+            case SUM -> WindowExpression.WindowFunction.SUM;
+            case AVG -> WindowExpression.WindowFunction.AVG;
+            case COUNT -> WindowExpression.WindowFunction.COUNT;
+            case MIN -> WindowExpression.WindowFunction.MIN;
+            case MAX -> WindowExpression.WindowFunction.MAX;
+            case STDDEV -> WindowExpression.WindowFunction.STDDEV;
+            case STDDEV_SAMP -> WindowExpression.WindowFunction.STDDEV_SAMP;
+            case STDDEV_POP -> WindowExpression.WindowFunction.STDDEV_POP;
+            case VARIANCE -> WindowExpression.WindowFunction.VARIANCE;
+            case VAR_SAMP -> WindowExpression.WindowFunction.VAR_SAMP;
+            case VAR_POP -> WindowExpression.WindowFunction.VAR_POP;
+            case MEDIAN -> WindowExpression.WindowFunction.MEDIAN;
+        };
+
+        return WindowExpression.aggregate(windowFunc, aggregate.column(), partitionColumns, orderBy, frameSpec);
     }
 
     /**

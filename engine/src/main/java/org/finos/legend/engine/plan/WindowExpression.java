@@ -45,6 +45,7 @@ public record WindowExpression(
         LEAD,
         FIRST_VALUE,
         LAST_VALUE,
+        NTH_VALUE,
 
         // Aggregate functions (can be used as window functions)
         SUM,

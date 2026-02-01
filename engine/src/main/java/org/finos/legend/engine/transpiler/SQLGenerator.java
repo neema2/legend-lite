@@ -600,7 +600,12 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         sb.append(w.function().name());
         sb.append("(");
         if (w.aggregateColumn() != null) {
-            sb.append(dialect.quoteIdentifier(w.aggregateColumn()));
+            // Don't quote '*' for COUNT(*)
+            if ("*".equals(w.aggregateColumn())) {
+                sb.append("*");
+            } else {
+                sb.append(dialect.quoteIdentifier(w.aggregateColumn()));
+            }
             // Add offset for LAG/LEAD
             if (w.offset() != null && (w.function() == WindowExpression.WindowFunction.LAG
                     || w.function() == WindowExpression.WindowFunction.LEAD)) {

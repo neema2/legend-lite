@@ -1223,23 +1223,326 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private PureExpression parseExtendCall(PureExpression source, List<PureExpression> args) {
-        // Accept RelationExpression or VariableExpr (for lambda parameters like
-        // $t->extend())
-        // Type validation happens at compile time
+        // Accept RelationExpression or VariableExpr
         if (!(source instanceof RelationExpression) && !(source instanceof VariableExpr)) {
             throw new PureParseException(
                     "extend() requires a Relation source, got: " + source.getClass().getSimpleName());
         }
 
-        // Check for simple ColumnSpec with lambda: ~col: x | expr
+        // Simple calculated column: extend(~col: x | expr) with no window
         if (args.size() == 1 && args.get(0) instanceof ColumnSpec cs
-                && cs.lambda() instanceof LambdaExpression lambda) {
+                && cs.lambda() instanceof LambdaExpression lambda
+                && cs.extraFunction() == null) {
             return new RelationExtendExpression(source, cs.name(), lambda);
         }
 
-        // For window functions and other complex cases, keep using ExtendExpression
-        // The compiler will handle it
-        return new ExtendExpression(source, args);
+        // Window function pattern 1: extend(over(...), ~col:{p,w,r|...})
+        if (!args.isEmpty() && isOverCall(args.get(0))) {
+            return parseTypedWindowExtend(source, args);
+        }
+
+        // Window function pattern 2: extend(~col : func()->over(...)) where over is in
+        // extraFunction
+        if (args.size() == 1 && args.get(0) instanceof ColumnSpec cs && isOverCall(cs.extraFunction())) {
+            return parseTypedWindowExtendFromChain(source, cs);
+        }
+
+        // Window function pattern 3: extend(~col : row_number()->over()) where lambda
+        // is MethodCall
+        if (args.size() == 1 && args.get(0) instanceof ColumnSpec cs && isOverCall(cs.lambda())) {
+            return parseTypedWindowExtendFromLambda(source, cs);
+        }
+
+        throw new PureParseException("extend() requires a simple column spec or window function pattern. Got: " + args);
+    }
+
+    // ===================== TYPED WINDOW PARSING =====================
+
+    private boolean isOverCall(PureExpression expr) {
+        return (expr instanceof FunctionCall fc && "over".equals(fc.functionName())) ||
+                (expr instanceof MethodCall mc && "over".equals(mc.methodName()));
+    }
+
+    /**
+     * Parses: extend(over(...), ~col:{p,w,r|...})
+     */
+    private PureExpression parseTypedWindowExtend(PureExpression source, List<PureExpression> args) {
+        PureExpression overExpr = args.get(0);
+        WindowContext ctx = parseWindowContext(overExpr);
+
+        if (args.size() < 2) {
+            throw new PureParseException("extend(over(...)) requires column specification");
+        }
+
+        PureExpression colArg = args.get(1);
+        if (colArg instanceof ColumnSpec cs) {
+            WindowFunctionSpec funcSpec = parseWindowFunctionFromColumnSpec(cs);
+            RelationExtendExpression.TypedWindowSpec typedSpec = RelationExtendExpression.TypedWindowSpec.of(
+                    funcSpec, ctx.partitionCols, ctx.orderSpecs, ctx.frame);
+            return RelationExtendExpression.window(source, cs.name(), typedSpec);
+        }
+
+        throw new PureParseException("extend(over(...)) requires a ColumnSpec, got: " + colArg.getClass());
+    }
+
+    /**
+     * Parses: extend(~col : row_number()->over(...))
+     */
+    private PureExpression parseTypedWindowExtendFromChain(PureExpression source, ColumnSpec cs) {
+        MethodCall overCall = (MethodCall) cs.extraFunction();
+        WindowContext ctx = parseWindowContext(overCall);
+        WindowFunctionSpec funcSpec = parseWindowFunctionFromExpr(overCall.source());
+
+        RelationExtendExpression.TypedWindowSpec typedSpec = RelationExtendExpression.TypedWindowSpec.of(
+                funcSpec, ctx.partitionCols, ctx.orderSpecs, ctx.frame);
+
+        return RelationExtendExpression.window(source, cs.name(), typedSpec);
+    }
+
+    /**
+     * Parses: extend(~col : row_number()->over()) where cs.lambda() is a MethodCall
+     * to over()
+     */
+    private PureExpression parseTypedWindowExtendFromLambda(PureExpression source, ColumnSpec cs) {
+        MethodCall overCall = (MethodCall) cs.lambda();
+        WindowContext ctx = parseWindowContext(overCall);
+        WindowFunctionSpec funcSpec = parseWindowFunctionFromExpr(overCall.source());
+
+        RelationExtendExpression.TypedWindowSpec typedSpec = RelationExtendExpression.TypedWindowSpec.of(
+                funcSpec, ctx.partitionCols, ctx.orderSpecs, ctx.frame);
+
+        return RelationExtendExpression.window(source, cs.name(), typedSpec);
+    }
+
+    private record WindowContext(
+            List<String> partitionCols,
+            List<RelationExtendExpression.SortSpec> orderSpecs,
+            RelationExtendExpression.FrameSpec frame) {
+    }
+
+    private WindowContext parseWindowContext(PureExpression overExpr) {
+        List<PureExpression> overArgs = (overExpr instanceof FunctionCall fc)
+                ? fc.arguments()
+                : (overExpr instanceof MethodCall mc)
+                        ? concatWithSource(mc.source(), mc.arguments())
+                        : List.of();
+
+        List<String> partitionCols = new ArrayList<>();
+        List<RelationExtendExpression.SortSpec> orderSpecs = new ArrayList<>();
+        RelationExtendExpression.FrameSpec frame = null;
+
+        for (PureExpression arg : overArgs) {
+            if (arg instanceof ColumnSpec cs) {
+                partitionCols.add(cs.name());
+            } else if (arg instanceof ColumnSpecArray csa) {
+                for (PureExpression spec : csa.specs()) {
+                    if (spec instanceof ColumnSpec c)
+                        partitionCols.add(c.name());
+                }
+            } else if (arg instanceof MethodCall mc) {
+                String method = mc.methodName();
+                if ("descending".equals(method) || "desc".equals(method)) {
+                    orderSpecs.add(new RelationExtendExpression.SortSpec(
+                            extractColName(mc.source()), RelationExtendExpression.SortDirection.DESC));
+                } else if ("ascending".equals(method) || "asc".equals(method)) {
+                    orderSpecs.add(new RelationExtendExpression.SortSpec(
+                            extractColName(mc.source()), RelationExtendExpression.SortDirection.ASC));
+                }
+            } else if (arg instanceof FunctionCall fc) {
+                if ("rows".equals(fc.functionName())) {
+                    frame = parseFrame(fc, RelationExtendExpression.FrameType.ROWS);
+                } else if ("range".equals(fc.functionName()) || "_range".equals(fc.functionName())) {
+                    frame = parseFrame(fc, RelationExtendExpression.FrameType.RANGE);
+                }
+            }
+        }
+
+        return new WindowContext(partitionCols, orderSpecs, frame);
+    }
+
+    private List<PureExpression> concatWithSource(PureExpression source, List<PureExpression> args) {
+        List<PureExpression> result = new ArrayList<>();
+        result.add(source);
+        result.addAll(args);
+        return result;
+    }
+
+    private RelationExtendExpression.FrameSpec parseFrame(FunctionCall fc, RelationExtendExpression.FrameType type) {
+        if (fc.arguments().size() < 2)
+            return null;
+        return new RelationExtendExpression.FrameSpec(type,
+                parseFrameBound(fc.arguments().get(0)),
+                parseFrameBound(fc.arguments().get(1)));
+    }
+
+    private RelationExtendExpression.FrameBound parseFrameBound(PureExpression expr) {
+        if (expr instanceof FunctionCall fc && "unbounded".equals(fc.functionName())) {
+            return RelationExtendExpression.FrameBound.unbounded();
+        } else if (expr instanceof IntegerLiteral lit) {
+            return RelationExtendExpression.FrameBound.fromInteger(lit.value().intValue());
+        } else if (expr instanceof LiteralExpr lit && lit.value() instanceof Number num) {
+            return RelationExtendExpression.FrameBound.fromInteger(num.intValue());
+        } else if (expr instanceof UnaryExpression unary && "-".equals(unary.operator())) {
+            // Handle negative numbers like -1 for PRECEDING
+            if (unary.operand() instanceof LiteralExpr lit && lit.value() instanceof Number num) {
+                return RelationExtendExpression.FrameBound.fromInteger(-num.intValue());
+            } else if (unary.operand() instanceof IntegerLiteral lit) {
+                return RelationExtendExpression.FrameBound.fromInteger(-lit.value().intValue());
+            }
+        }
+        return RelationExtendExpression.FrameBound.currentRow();
+    }
+
+    private WindowFunctionSpec parseWindowFunctionFromColumnSpec(ColumnSpec cs) {
+        if (!(cs.lambda() instanceof LambdaExpression lambda)) {
+            return RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+        }
+
+        PureExpression body = lambda.body();
+
+        // Pattern: {p,w,r|$p->rowNumber($r)} - ranking functions
+        if (body instanceof MethodCall mc) {
+            return parseWindowFunctionFromMethodCall(mc);
+        }
+
+        // Pattern: {p,w,r|$p->lead($r).salary} or {p,w,r|$p->sum($w,$r).salary}
+        // - value/aggregate functions with PropertyAccessExpression
+        if (body instanceof PropertyAccessExpression pae && pae.source() instanceof MethodCall mc) {
+            // The property name (salary) becomes the column for the function
+            WindowFunctionSpec spec = parseWindowFunctionFromMethodCall(mc);
+            // Update the column name based on function type
+            if (spec instanceof ValueFunctionSpec vfs) {
+                return new ValueFunctionSpec(vfs.function(), pae.propertyName(),
+                        vfs.offset(), vfs.partitionBy(), vfs.orderBy(), vfs.frame());
+            }
+            if (spec instanceof AggregateFunctionSpec afs) {
+                return AggregateFunctionSpec.of(afs.function(), pae.propertyName(),
+                        afs.partitionBy(), afs.orderBy());
+            }
+            return spec;
+        }
+
+        // Pattern: {p,w,r|$r.salary} - aggregate with property access (column
+        // extraction)
+        if (body instanceof PropertyAccessExpression pae) {
+            return AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
+                    pae.propertyName(), List.of(), List.of());
+        }
+
+        // Also check PropertyAccess for compatibility
+        if (body instanceof PropertyAccess pa && pa.source() instanceof MethodCall mc) {
+            WindowFunctionSpec spec = parseWindowFunctionFromMethodCall(mc);
+            if (spec instanceof ValueFunctionSpec vfs) {
+                return new ValueFunctionSpec(vfs.function(), pa.propertyName(),
+                        vfs.offset(), vfs.partitionBy(), vfs.orderBy(), vfs.frame());
+            }
+            return spec;
+        }
+
+        if (body instanceof PropertyAccess pa) {
+            return AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
+                    pa.propertyName(), List.of(), List.of());
+        }
+
+        return RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+    }
+
+    private WindowFunctionSpec parseWindowFunctionFromExpr(PureExpression expr) {
+        if (expr instanceof FunctionCall fc) {
+            return switch (fc.functionName()) {
+                case "row_number", "rowNumber" -> RankingFunctionSpec.of(
+                        RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+                case "rank" -> RankingFunctionSpec.of(
+                        RankingFunctionSpec.RankingFunction.RANK, List.of(), List.of());
+                case "dense_rank", "denseRank" -> RankingFunctionSpec.of(
+                        RankingFunctionSpec.RankingFunction.DENSE_RANK, List.of(), List.of());
+                case "ntile" -> {
+                    int n = fc.arguments().isEmpty() ? 1 : ((IntegerLiteral) fc.arguments().get(0)).value().intValue();
+                    yield RankingFunctionSpec.ntile(n, List.of(), List.of());
+                }
+                default -> RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+            };
+        }
+        return RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+    }
+
+    private WindowFunctionSpec parseWindowFunctionFromMethodCall(MethodCall mc) {
+        return switch (mc.methodName()) {
+            // Ranking functions
+            case "rowNumber" -> RankingFunctionSpec.of(
+                    RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+            case "rank" -> RankingFunctionSpec.of(
+                    RankingFunctionSpec.RankingFunction.RANK, List.of(), List.of());
+            case "denseRank" -> RankingFunctionSpec.of(
+                    RankingFunctionSpec.RankingFunction.DENSE_RANK, List.of(), List.of());
+            case "percentRank" -> RankingFunctionSpec.of(
+                    RankingFunctionSpec.RankingFunction.PERCENT_RANK, List.of(), List.of());
+            case "cumulativeDistribution" -> RankingFunctionSpec.of(
+                    RankingFunctionSpec.RankingFunction.CUME_DIST, List.of(), List.of());
+            case "ntile" -> {
+                // ntile($r, 2) - relation is first arg, bucket count is second
+                int n = 1;
+                if (mc.arguments().size() >= 2) {
+                    var bucketArg = mc.arguments().get(1);
+                    if (bucketArg instanceof LiteralExpr lit && lit.value() instanceof Number num) {
+                        n = num.intValue();
+                    } else if (bucketArg instanceof IntegerLiteral lit) {
+                        n = lit.value().intValue();
+                    }
+                }
+                yield RankingFunctionSpec.ntile(n, List.of(), List.of());
+            }
+
+            // Value functions (LAG, LEAD, FIRST_VALUE, LAST_VALUE)
+            case "lag" -> ValueFunctionSpec.lagLead(
+                    ValueFunctionSpec.ValueFunction.LAG, extractValueColumn(mc), 1, List.of(), List.of());
+            case "lead" -> ValueFunctionSpec.lagLead(
+                    ValueFunctionSpec.ValueFunction.LEAD, extractValueColumn(mc), 1, List.of(), List.of());
+            case "first", "firstValue" -> ValueFunctionSpec.firstLast(
+                    ValueFunctionSpec.ValueFunction.FIRST_VALUE, extractValueColumn(mc), List.of(), List.of(), null);
+            case "last", "lastValue" -> ValueFunctionSpec.firstLast(
+                    ValueFunctionSpec.ValueFunction.LAST_VALUE, extractValueColumn(mc), List.of(), List.of(), null);
+
+            // Aggregate functions
+            case "sum" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
+                    extractColFromMethodCall(mc), List.of(), List.of());
+            case "avg", "average" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.AVG,
+                    extractColFromMethodCall(mc), List.of(), List.of());
+            case "count" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.COUNT,
+                    "*", List.of(), List.of()); // COUNT(*) when no column specified
+            case "min" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.MIN,
+                    extractColFromMethodCall(mc), List.of(), List.of());
+            case "max" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.MAX,
+                    extractColFromMethodCall(mc), List.of(), List.of());
+            case "stdDev" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.STDDEV,
+                    extractColFromMethodCall(mc), List.of(), List.of());
+            case "variance" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.VARIANCE,
+                    extractColFromMethodCall(mc), List.of(), List.of());
+
+            default -> RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+        };
+    }
+
+    private String extractValueColumn(MethodCall mc) {
+        // For lag($r).salary, the column comes from property access after the method
+        // call
+        // For now, extract from the source if it's a property access
+        if (mc.source() instanceof PropertyAccess pa) {
+            return pa.propertyName();
+        }
+        return "value"; // fallback
+    }
+
+    private String extractColName(PureExpression expr) {
+        if (expr instanceof ColumnSpec cs)
+            return cs.name();
+        if (expr instanceof PropertyAccess pa)
+            return pa.propertyName();
+        return "unknown";
+    }
+
+    private String extractColFromMethodCall(MethodCall mc) {
+        return "value"; // placeholder for aggregate column extraction
     }
 
     /**

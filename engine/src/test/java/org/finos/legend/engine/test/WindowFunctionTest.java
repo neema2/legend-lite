@@ -32,24 +32,25 @@ class WindowFunctionTest {
     class ParserTests {
 
         @Test
-        @DisplayName("Parse row_number without partition")
+        @DisplayName("Parse row_number with typed window spec")
         void testParseRowNumberNoPartition() {
+            // Legend-engine syntax: extend(over(...), ~col:{p,w,r|...window func...})
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.department})
-                        ->extend(~rowNum : row_number()->over())
+                        ->extend(over(), ~rowNum:{p,w,r|$p->rowNumber($r)})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
 
-            // New parser returns ExtendExpression with MethodCall
-            assertInstanceOf(ExtendExpression.class, ast);
-            ExtendExpression extend = (ExtendExpression) ast;
+            // New parser returns RelationExtendExpression with TypedWindowSpec
+            assertInstanceOf(RelationExtendExpression.class, ast);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
 
-            assertEquals(1, extend.columns().size());
-            assertInstanceOf(MethodCall.class, extend.columns().get(0));
-            MethodCall overCall = (MethodCall) extend.columns().get(0);
-            assertEquals("over", overCall.methodName());
+            assertEquals("rowNum", extend.newColumnName());
+            assertTrue(extend.isWindowFunction());
+            assertNotNull(extend.windowSpec());
+            assertInstanceOf(RankingFunctionSpec.class, extend.windowSpec().spec());
         }
 
         @Test
@@ -58,15 +59,16 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.department})
-                        ->extend(~rank : rank()->over(~department))
+                        ->extend(over(~department), ~rank:{p,w,r|$p->rank($w,$r)})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
 
-            assertInstanceOf(ExtendExpression.class, ast);
-            ExtendExpression extend = (ExtendExpression) ast;
+            assertInstanceOf(RelationExtendExpression.class, ast);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
 
-            assertFalse(extend.columns().isEmpty());
+            assertTrue(extend.isWindowFunction());
+            assertFalse(extend.windowSpec().partitionColumns().isEmpty());
         }
 
         @Test
@@ -75,17 +77,17 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(~rank : rank()->over(~department, ~salary->desc()))
+                        ->extend(over(~department, ~salary->desc()), ~rank:{p,w,r|$p->rank($w,$r)})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
 
-            assertInstanceOf(ExtendExpression.class, ast);
-            ExtendExpression extend = (ExtendExpression) ast;
+            assertInstanceOf(RelationExtendExpression.class, ast);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
 
-            // Check that over() call has arguments
-            MethodCall overCall = (MethodCall) extend.columns().get(0);
-            assertFalse(overCall.arguments().isEmpty());
+            // Check that over() has partition and order specs
+            assertFalse(extend.windowSpec().partitionColumns().isEmpty());
+            assertFalse(extend.windowSpec().orderColumns().isEmpty());
         }
 
         @Test
@@ -94,14 +96,14 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(over(~department, ~salary->ascending()), ~runningTotal:{p,w,r|$r.salary}:y|$y->plus())
+                        ->extend(over(~department, ~salary->ascending()), ~runningTotal:{p,w,r|$r.salary})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
 
-            assertInstanceOf(ExtendExpression.class, ast);
-            ExtendExpression extend = (ExtendExpression) ast;
-            assertFalse(extend.columns().isEmpty());
+            assertInstanceOf(RelationExtendExpression.class, ast);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
+            assertTrue(extend.isWindowFunction());
         }
 
         @Test
@@ -110,14 +112,14 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(~denseRank : dense_rank()->over(~department, ~salary->desc()))
+                        ->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
 
-            assertInstanceOf(ExtendExpression.class, ast);
-            ExtendExpression extend = (ExtendExpression) ast;
-            assertEquals(1, extend.columns().size());
+            assertInstanceOf(RelationExtendExpression.class, ast);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
+            assertEquals("denseRank", extend.newColumnName());
         }
 
         @Test
@@ -126,12 +128,14 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningSum:{p,w,r|$r.salary}:y|$y->plus())
+                        ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningSum:{p,w,r|$r.salary})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
 
-            assertInstanceOf(ExtendExpression.class, ast);
+            assertInstanceOf(RelationExtendExpression.class, ast);
+            RelationExtendExpression extend = (RelationExtendExpression) ast;
+            assertNotNull(extend.windowSpec().frame());
         }
 
         @Test
@@ -140,12 +144,12 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.salary})
-                        ->extend(over(~salary->ascending(), range(unbounded(), unbounded())), ~total:{p,w,r|$r.salary}:y|$y->plus())
+                        ->extend(over(~salary->ascending(), range(unbounded(), unbounded())), ~total:{p,w,r|$r.salary})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
 
-            assertInstanceOf(ExtendExpression.class, ast);
+            assertInstanceOf(RelationExtendExpression.class, ast);
         }
 
         @Test
@@ -154,12 +158,12 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.salary})
-                        ->extend(over(~salary->ascending(), rows(-3, 0)), ~movingAvg:{p,w,r|$r.salary}:y|$y->average())
+                        ->extend(over(~salary->ascending(), rows(-3, 0)), ~movingAvg:{p,w,r|$r.salary})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
 
-            assertInstanceOf(ExtendExpression.class, ast);
+            assertInstanceOf(RelationExtendExpression.class, ast);
         }
     }
 
@@ -450,7 +454,7 @@ class WindowFunctionTest {
             String pureQuery = """
                     Employee.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(~rowNum : row_number()->over(~department, ~salary->desc()))
+                        ->extend(over(~department, ~salary->desc()), ~rowNum:{p,w,r|$p->rowNumber($r)})
                     """;
 
             // Verify SQL generation
@@ -495,7 +499,7 @@ class WindowFunctionTest {
             String pureQuery = """
                     Employee.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(~salaryRank : rank()->over(~department, ~salary->desc()))
+                        ->extend(over(~department, ~salary->desc()), ~salaryRank:{p,w,r|$p->rank($w,$r)})
                     """;
 
             BufferedResult result = executeQuery(pureQuery);
@@ -573,7 +577,7 @@ class WindowFunctionTest {
             String pureQuery = """
                     Employee.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(~denseRank : dense_rank()->over(~department, ~salary->desc()))
+                        ->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
                     """;
 
             BufferedResult result = executeQuery(pureQuery);
