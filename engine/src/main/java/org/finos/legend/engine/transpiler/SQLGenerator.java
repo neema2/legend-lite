@@ -1083,6 +1083,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 };
                 yield "CAST(" + target + " AS " + sqlType + ")";
             }
+            case "floor", "ceiling" -> {
+                // FLOOR/CEIL return DOUBLE in DuckDB but Pure expects Integer
+                yield "CAST(" + funcName + "(" + target + ") AS INTEGER)";
+            }
             default -> {
                 // Standard function call
                 if (functionCall.arguments().isEmpty()) {
