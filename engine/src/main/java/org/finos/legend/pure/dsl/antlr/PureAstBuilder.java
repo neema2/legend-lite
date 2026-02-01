@@ -223,6 +223,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "distinct" -> parseDistinctCall(source, args);
             case "rename" -> parseRenameCall(source, args);
             case "concatenate" -> parseConcatenateCall(source, args);
+            case "asOfJoin" -> parseAsOfJoinCall(source, args);
             default -> new MethodCall(source, simpleName, args);
         };
     }
@@ -1072,6 +1073,53 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
         // Fallback to MethodCall for other source types
         return new MethodCall(source, "join", args);
+    }
+
+    /**
+     * Parses asOfJoin(rightRelation, matchCondition) or
+     * asOfJoin(rightRelation, matchCondition, keyCondition)
+     * 
+     * asOfJoin is a temporal join that finds the closest matching row from the
+     * right
+     * based on the match condition (typically time comparison).
+     */
+    private PureExpression parseAsOfJoinCall(PureExpression source, List<PureExpression> args) {
+        // asOfJoin requires 2 or 3 arguments
+        if (args.size() < 2 || args.size() > 3) {
+            throw new PureParseException(
+                    "asOfJoin() requires 2 or 3 arguments: right relation, match condition, [optional key condition]");
+        }
+
+        // First arg: right relation (TdsLiteral, RelationExpression, or VariableExpr)
+        PureExpression rightArg = args.get(0);
+        if (!(rightArg instanceof RelationExpression) && !(rightArg instanceof VariableExpr)) {
+            throw new PureParseException(
+                    "asOfJoin() first argument must be a Relation, got: " +
+                            rightArg.getClass().getSimpleName());
+        }
+
+        // Second arg: match condition lambda {x,y | $x.time > $y.time}
+        PureExpression matchArg = args.get(1);
+        if (!(matchArg instanceof LambdaExpression)) {
+            throw new PureParseException(
+                    "asOfJoin() second argument must be a lambda condition, got: " +
+                            matchArg.getClass().getSimpleName());
+        }
+        LambdaExpression matchCondition = (LambdaExpression) matchArg;
+
+        // Optional third arg: key condition lambda {x,y | $x.key == $y.key}
+        LambdaExpression keyCondition = null;
+        if (args.size() == 3) {
+            PureExpression keyArg = args.get(2);
+            if (!(keyArg instanceof LambdaExpression)) {
+                throw new PureParseException(
+                        "asOfJoin() third argument must be a lambda condition, got: " +
+                                keyArg.getClass().getSimpleName());
+            }
+            keyCondition = (LambdaExpression) keyArg;
+        }
+
+        return new AsOfJoinExpression(source, rightArg, matchCondition, keyCondition);
     }
 
     private JoinExpression.JoinType extractJoinType(PureExpression arg) {

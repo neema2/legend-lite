@@ -3014,4 +3014,104 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // THEN: Afternoon Call and Next Day match
         assertEquals(2, result.rows().size(), "Should find 2 appointments after noon on Jan 15");
     }
+
+    // ========================================
+    // ASOF JOIN TESTS
+    // ========================================
+
+    @Test
+    void testAsOfJoinSimple() throws SQLException {
+        // GIVEN: Two TDS literals - trades and quotes with timestamps
+        // Trade times: 10:30, 11:30, 12:30
+        // Quote times: 10:15, 10:45, 11:15, 12:00, 12:45
+        // AsOf join should match each trade with the most recent quote BEFORE the trade
+        // time
+
+        String pureQuery = """
+                #TDS
+                    trade_id, trade_time
+                    1, %2024-01-15T10:30:00
+                    2, %2024-01-15T11:30:00
+                    3, %2024-01-15T12:30:00
+                #->asOfJoin(
+                    #TDS
+                        quote_id, quote_time, price
+                        A, %2024-01-15T10:15:00, 100
+                        B, %2024-01-15T10:45:00, 102
+                        C, %2024-01-15T11:15:00, 105
+                        D, %2024-01-15T12:00:00, 108
+                        E, %2024-01-15T12:45:00, 110
+                    #,
+                    {t, q | $t.trade_time > $q.quote_time}
+                )
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("AsOf Join Result: " + result.rows());
+
+        // THEN: Should get 3 rows (one for each trade)
+        // Trade 1 (10:30) matches Quote A (10:15) - the only quote before it
+        // Trade 2 (11:30) matches Quote C (11:15) - most recent before 11:30
+        // Trade 3 (12:30) matches Quote D (12:00) - most recent before 12:30
+        assertEquals(3, result.rows().size(), "Should have 3 rows (one per trade)");
+    }
+
+    @Test
+    void testAsOfJoinWithKeyMatch() throws SQLException {
+        // GIVEN: Trades and quotes with symbol keys
+        // Each trade should match with the most recent quote for the SAME symbol
+
+        String pureQuery = """
+                #TDS
+                    trade_id, symbol, trade_time
+                    1, AAPL, %2024-01-15T10:30:00
+                    2, MSFT, %2024-01-15T10:30:00
+                    3, AAPL, %2024-01-15T11:30:00
+                #->asOfJoin(
+                    #TDS
+                        quote_id, quote_symbol, quote_time, price
+                        A, AAPL, %2024-01-15T10:00:00, 180
+                        B, MSFT, %2024-01-15T10:00:00, 350
+                        C, AAPL, %2024-01-15T11:00:00, 182
+                        D, MSFT, %2024-01-15T11:00:00, 355
+                    #,
+                    {t, q | $t.trade_time > $q.quote_time},
+                    {t, q | $t.symbol == $q.quote_symbol}
+                )
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("AsOf Join with Key Match: " + result.rows());
+
+        // THEN: Should get 3 rows
+        // Trade 1 (AAPL 10:30) matches Quote A (AAPL 10:00)
+        // Trade 2 (MSFT 10:30) matches Quote B (MSFT 10:00)
+        // Trade 3 (AAPL 11:30) matches Quote C (AAPL 11:00) - most recent AAPL before
+        // 11:30
+        assertEquals(3, result.rows().size(), "Should have 3 rows with key matching");
+    }
+
+    @Test
+    void testAsOfJoinSqlGeneration() throws SQLException {
+        // Verify the generated SQL syntax is correct for ASOF join
+        String pureQuery = """
+                #TDS
+                    id, time
+                    1, %2024-01-15T10:00:00
+                #->asOfJoin(
+                    #TDS
+                        id2, time2
+                        A, %2024-01-15T09:00:00
+                    #,
+                    {x, y | $x.time > $y.time2}
+                )
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("AsOf Join SQL test result: " + result.rows());
+
+        // Should execute without error and return result
+        assertNotNull(result);
+        assertEquals(1, result.rows().size());
+    }
 }

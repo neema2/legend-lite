@@ -88,6 +88,7 @@ public final class PureCompiler {
             case ProjectExpression project -> compileProject(project, context);
             case GroupByExpression groupBy -> compileGroupBy(groupBy, context);
             case JoinExpression join -> compileJoin(join, context);
+            case AsOfJoinExpression asOfJoin -> compileAsOfJoin(asOfJoin, context);
             case FlattenExpression flatten -> compileFlatten(flatten, context);
             case ClassSortByExpression classSortBy -> compileClassSortBy(classSortBy, context);
             case RelationSortExpression relationSort -> compileRelationSort(relationSort, context);
@@ -1056,6 +1057,70 @@ public final class PureCompiler {
         };
 
         return new JoinNode(left, right, condition, joinType);
+    }
+
+    /**
+     * Compiles an asOfJoin expression into a JoinNode with ASOF_LEFT type.
+     * 
+     * asOfJoin is a temporal join that finds the closest matching row from the
+     * right
+     * where the temporal condition is satisfied.
+     * 
+     * Example Pure: ->asOfJoin(other, {x,y | $x.time > $y.time})
+     * DuckDB SQL: left_src ASOF LEFT JOIN right_src ON left_src.time >
+     * right_src.time
+     * 
+     * With optional key match:
+     * Example: ->asOfJoin(other, {x,y | $x.time > $y.time}, {x,y | $x.key ==
+     * $y.key})
+     * DuckDB SQL: left_src ASOF LEFT JOIN right_src ON left_src.key = right_src.key
+     * AND left_src.time > right_src.time
+     *
+     * @param asOfJoin The asOfJoin expression
+     * @param context  Compilation context
+     * @return The compiled JoinNode with ASOF_LEFT type
+     */
+    private RelationNode compileAsOfJoin(AsOfJoinExpression asOfJoin, CompilationContext context) {
+        // Compile left and right relations
+        RelationNode left = compileExpression(asOfJoin.left(), context);
+        RelationNode right = compileExpression(asOfJoin.right(), context);
+
+        // Use consistent aliases
+        String leftAlias = "left_src";
+        String rightAlias = "right_src";
+
+        // Get lambda parameters from match condition
+        LambdaExpression matchLambda = asOfJoin.matchCondition();
+        List<String> params = matchLambda.parameters();
+
+        // Build context with row bindings for both parameters
+        CompilationContext joinContext = context != null ? context
+                : new CompilationContext(null, null, null, null, false);
+        if (params.size() >= 1) {
+            joinContext = joinContext.withRowBinding(params.get(0), leftAlias);
+        }
+        if (params.size() >= 2) {
+            joinContext = joinContext.withRowBinding(params.get(1), rightAlias);
+        }
+
+        // Compile the match condition
+        Expression matchCondition = compileToSqlExpression(matchLambda.body(), joinContext);
+
+        // If there's a key condition, combine with AND
+        Expression finalCondition;
+        if (asOfJoin.hasKeyCondition()) {
+            // Compile key condition with same bindings
+            LambdaExpression keyLambda = asOfJoin.keyCondition();
+            Expression keyCondition = compileToSqlExpression(keyLambda.body(), joinContext);
+
+            // DuckDB requires: key condition AND time condition
+            // So: ON left.key = right.key AND left.time > right.time
+            finalCondition = LogicalExpression.and(keyCondition, matchCondition);
+        } else {
+            finalCondition = matchCondition;
+        }
+
+        return new JoinNode(left, right, finalCondition, JoinNode.JoinType.ASOF_LEFT);
     }
 
     /**

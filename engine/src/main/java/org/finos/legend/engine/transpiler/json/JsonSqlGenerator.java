@@ -150,6 +150,7 @@ public final class JsonSqlGenerator {
             case LEFT_OUTER -> "LEFT JOIN";
             case RIGHT_OUTER -> "RIGHT JOIN";
             case FULL_OUTER -> "FULL OUTER JOIN";
+            case ASOF_LEFT -> "ASOF LEFT JOIN";
         };
 
         String condition = generateExpression(join.condition());
