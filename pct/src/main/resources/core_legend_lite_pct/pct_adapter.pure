@@ -13,7 +13,7 @@ function meta::legend::lite::pct::legendLiteGrammarExtension():GrammarExtension[
         extraInstanceValueHandlers = 
           [
             // Serialize TDS to #TDS\n...\n# format (original format without braces)
-            t:TDS<Any>[1]|'#TDS\n'+$t.csv->replace(' ','')+'\n#'                     
+            t:TDS<Any>[1]|'#TDS\n'+$t.csv+'\n#'                                          
           ]
     );
 }

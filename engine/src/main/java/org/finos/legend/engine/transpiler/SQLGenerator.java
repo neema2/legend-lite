@@ -800,9 +800,9 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     private String visitProjectWithJoin(ProjectNode project, JoinNode join, Expression whereCondition) {
         var sb = new StringBuilder();
 
-        // Extract table info and any filter conditions from the left side
-        TableNode leftTable = extractTableNode(join.left());
-        TableNode rightTable = extractTableNode(join.right());
+        // Use generateJoinSource to handle both table and TDS sources
+        String leftFrom = generateJoinSource(join.left(), "left_src");
+        String rightFrom = generateJoinSource(join.right(), "right_src");
 
         // Check if the left side has a filter condition (e.g., EXISTS from association
         // filter)
@@ -814,17 +814,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
         // FROM clause with JOIN
         sb.append(" FROM ");
-        sb.append(dialect.quoteIdentifier(leftTable.table().name()));
-        sb.append(" AS ");
-        sb.append(dialect.quoteIdentifier(leftTable.alias()));
+        sb.append(leftFrom);
 
         sb.append(" ");
         sb.append(join.joinType().toSql());
         sb.append(" ");
 
-        sb.append(dialect.quoteIdentifier(rightTable.table().name()));
-        sb.append(" AS ");
-        sb.append(dialect.quoteIdentifier(rightTable.alias()));
+        sb.append(rightFrom);
 
         sb.append(" ON ");
         sb.append(join.condition().accept(this));

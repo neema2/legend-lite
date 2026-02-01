@@ -3335,4 +3335,50 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var secondRow = result.rows().get(1);
         assertEquals("david", secondRow.values().get(1)); // Should be lowercase
     }
+
+    /**
+     * Test TDS-based project->join->project pattern.
+     * This mirrors the PCT test: testProjectJoinWithProjectProject
+     * 
+     * Pattern: #TDS...#->project(~[...])->join(#TDS...#->project(~[...]), INNER,
+     * {...})->project(~[...])
+     */
+    @Test
+    void testTdsProjectJoinProject() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    id, name
+                    1, George
+                    4, David
+                #->project(~[id1:x|$x.id, name1:x|$x.name])
+                ->join(
+                    #TDS
+                        id, col
+                        1, MoreGeorge
+                        4, MoreDavid
+                    #->project(~[id2:x|$x.id, col:x|$x.col]),
+                    meta::pure::functions::relation::JoinKind.INNER,
+                    {x, y|$x.id1 == $y.id2}
+                )
+                ->project(~[resultId:x|$x.id1, resultCol:x|$x.col])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("TDS project->join->project result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        assertEquals(2, result.rows().size(), "Should have 2 rows from INNER join");
+
+        // Verify joined data
+        var rows = result.rows();
+        boolean foundGeorge = rows.stream().anyMatch(r -> ((Number) r.values().get(0)).intValue() == 1 &&
+                "MoreGeorge".equals(r.values().get(1)));
+        boolean foundDavid = rows.stream().anyMatch(r -> ((Number) r.values().get(0)).intValue() == 4 &&
+                "MoreDavid".equals(r.values().get(1)));
+
+        assertTrue(foundGeorge, "Should find George's joined data");
+        assertTrue(foundDavid, "Should find David's joined data");
+    }
 }
