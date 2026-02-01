@@ -971,6 +971,44 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     /**
+     * Builds an aggregation lambda from a ColumnSpec with potentially two lambdas.
+     * 
+     * Pattern: ~col:x|$x.name:y|$y->joinStrings('')
+     * - First lambda (cs.lambda): extracts column ($x.name)
+     * - Second lambda (cs.extraFunction): applies aggregate ($y->joinStrings(''))
+     * 
+     * We merge these into a single lambda: r | $r.name->joinStrings('')
+     * which the compiler expects.
+     */
+    private LambdaExpression buildAggregationLambda(ColumnSpec cs) {
+        LambdaExpression mapLambda = cs.lambda() instanceof LambdaExpression le ? le : null;
+        LambdaExpression aggLambda = cs.extraFunction() instanceof LambdaExpression le ? le : null;
+
+        if (mapLambda != null && aggLambda != null) {
+            // Two-lambda pattern: merge them
+            // Extract the property access from mapLambda body (e.g., $x.name)
+            PureExpression columnAccess = mapLambda.body();
+
+            // Get the aggregate function from aggLambda body (e.g., $y->joinStrings(''))
+            if (aggLambda.body() instanceof MethodCall aggCall) {
+                // Replace the variable reference in aggCall.source() with the column access
+                // The aggCall.source() is $y, we replace it with the actual property access
+                // Create: $x.name->joinStrings('') style expression wrapped in lambda
+                PureExpression mergedBody = new MethodCall(columnAccess, aggCall.methodName(), aggCall.arguments());
+                return new LambdaExpression(mapLambda.parameter(), mergedBody);
+            }
+            // Fallback: just use the map lambda if agg pattern doesn't match
+            return mapLambda;
+        } else if (mapLambda != null) {
+            return mapLambda;
+        } else if (aggLambda != null) {
+            return aggLambda;
+        } else {
+            throw new PureParseException("ColumnSpec has no lambda for aggregation: " + cs.name());
+        }
+    }
+
+    /**
      * Parse Relation API groupBy syntax: groupBy(~groupCol, ~aggSpec)
      * The aggSpec is a ColumnSpec with aggregation lambda
      */
@@ -996,20 +1034,12 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             PureExpression aggArg = args.get(i);
             if (aggArg instanceof ColumnSpec cs) {
                 aliases.add(cs.name());
-                if (cs.lambda() instanceof LambdaExpression le) {
-                    aggregations.add(le);
-                } else if (cs.extraFunction() instanceof LambdaExpression le) {
-                    aggregations.add(le);
-                }
+                aggregations.add(buildAggregationLambda(cs));
             } else if (aggArg instanceof ColumnSpecArray csa) {
                 for (PureExpression spec : csa.specs()) {
                     if (spec instanceof ColumnSpec cs) {
                         aliases.add(cs.name());
-                        if (cs.lambda() instanceof LambdaExpression le) {
-                            aggregations.add(le);
-                        } else if (cs.extraFunction() instanceof LambdaExpression le) {
-                            aggregations.add(le);
-                        }
+                        aggregations.add(buildAggregationLambda(cs));
                     }
                 }
             }

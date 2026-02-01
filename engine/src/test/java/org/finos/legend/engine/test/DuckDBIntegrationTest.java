@@ -3624,4 +3624,81 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 .toList();
         assertEquals(List.of(4, 5), vals, "Should have values 4 and 5");
     }
+
+    /**
+     * Test sort()->groupBy() chain with complex sort expression.
+     * Tests that SortExpression can be used as source for groupBy.
+     * Pattern: #TDS...#->sort(~col->ascending())->groupBy(...)
+     */
+    @Test
+    void testSortThenGroupBy() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                    6, 1, F
+                #->sort(~name->ascending())
+                ->groupBy(~[grp], ~[total:x|$x.id])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Sort->GroupBy result: " + result.rows());
+
+        // Should have 4 groups: grp=1,2,3,4
+        assertEquals(4, result.rows().size(), "Should have 4 groups");
+
+        // Verify column names
+        var colNames = result.columns().stream().map(c -> c.name()).toList();
+        assertTrue(colNames.contains("grp"), "Should have 'grp' column");
+        assertTrue(colNames.contains("total"), "Should have 'total' column");
+    }
+
+    /**
+     * Test groupBy with joinStrings (STRING_AGG) aggregate function.
+     * Tests the two-lambda pattern: ~col:x|$x.name:y|$y->joinStrings(',')
+     */
+    @Test
+    void testGroupByWithJoinStrings() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 1, Alice
+                    2, 1, Bob
+                    3, 2, Charlie
+                    4, 2, Diana
+                #->groupBy(~[grp], ~[names:x|$x.name->joinStrings(',')])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("GroupBy with joinStrings result: " + result.rows());
+
+        // Should have 2 groups
+        assertEquals(2, result.rows().size(), "Should have 2 groups");
+
+        // Verify column names
+        var colNames = result.columns().stream().map(c -> c.name()).toList();
+        assertTrue(colNames.contains("grp"), "Should have 'grp' column");
+        assertTrue(colNames.contains("names"), "Should have 'names' column");
+
+        // Verify concatenated names contain expected values
+        for (var row : result.rows()) {
+            int grpIdx = colNames.indexOf("grp");
+            int namesIdx = colNames.indexOf("names");
+            int grp = ((Number) row.get(grpIdx)).intValue();
+            String names = (String) row.get(namesIdx);
+            System.out.printf("  grp=%d, names=%s%n", grp, names);
+
+            if (grp == 1) {
+                assertTrue(names.contains("Alice") && names.contains("Bob"),
+                        "Group 1 should contain Alice and Bob, got: " + names);
+            } else if (grp == 2) {
+                assertTrue(names.contains("Charlie") && names.contains("Diana"),
+                        "Group 2 should contain Charlie and Diana, got: " + names);
+            }
+        }
+    }
 }

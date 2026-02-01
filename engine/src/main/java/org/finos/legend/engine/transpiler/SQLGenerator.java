@@ -280,6 +280,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 sb.append(") WITHIN GROUP (ORDER BY ");
                 sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
                 sb.append(")");
+            } else if (agg.isStringAgg()) {
+                // STRING_AGG(column, separator)
+                sb.append(agg.function().sql());
+                sb.append("(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(", ");
+                sb.append("'");
+                sb.append(agg.optionalSeparator().orElse(","));
+                sb.append("'");
+                sb.append(")");
             } else {
                 // Standard aggregate functions
                 sb.append(agg.function().sql());

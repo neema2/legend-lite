@@ -733,15 +733,17 @@ public final class PureCompiler {
             // {r | $r.col->stdDev()} (explicit single-column)
             // {r | $r.col1->corr($r.col2)} (bi-variate)
             // {r | $r.col->percentileCont(0.5)} (ordered-set aggregate)
+            // {r | $r.col->joinStrings(',')} (string aggregation)
             String columnName;
             String secondColumnName = null;
             Double percentileValue = null;
+            String separator = null;
             org.finos.legend.engine.plan.AggregateExpression.AggregateFunction aggFunc;
 
             PureExpression body = aggLambda.body();
             if (body instanceof MethodCall methodCall) {
                 // Pattern: $r.col->stdDev() or $r.col1->corr($r.col2) or
-                // $r.col->percentileCont(0.5)
+                // $r.col->percentileCont(0.5) or $r.col->joinStrings(',')
                 columnName = extractPropertyName(methodCall.source());
                 aggFunc = mapAggregateFunction(methodCall.methodName());
 
@@ -771,6 +773,18 @@ public final class PureCompiler {
                                 "Percentile function requires a numeric literal argument, got: " + arg);
                     }
                 }
+
+                // Check for joinStrings/STRING_AGG with separator argument
+                if (isStringAggFunction(aggFunc) && !methodCall.arguments().isEmpty()) {
+                    PureExpression arg = methodCall.arguments().get(0);
+                    if (arg instanceof StringLiteral sl) {
+                        separator = sl.value();
+                    } else if (arg instanceof LiteralExpr le && le.type() == LiteralExpr.LiteralType.STRING) {
+                        separator = (String) le.value();
+                    } else {
+                        throw new PureCompileException("joinStrings requires a string literal separator");
+                    }
+                }
             } else {
                 // Pattern: $r.col - defaults to SUM
                 columnName = extractPropertyName(body);
@@ -790,7 +804,8 @@ public final class PureCompiler {
             }
 
             aggregations.add(
-                    new GroupByNode.AggregateProjection(alias, columnName, secondColumnName, aggFunc, percentileValue));
+                    new GroupByNode.AggregateProjection(alias, columnName, secondColumnName, aggFunc, percentileValue,
+                            separator));
         }
 
         return new GroupByNode(source, groupingColumns, aggregations);
