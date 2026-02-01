@@ -53,9 +53,13 @@ function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]
       let columns = $relType.columns->map(col |
         let colName = $col.name->toOne();
         // Quote column names containing '__|__' (pivot columns) with single quotes
-        let quotedName = if($colName->contains('__|__'),
-          | '\'' + $colName + '\'',
-          | $colName
+        // Note: RelationType column names may already include quotes from Pure type system
+        let quotedName = if($colName->startsWith('\''),
+          | $colName,  // Already quoted
+          | if($colName->contains('__|__'),
+              | '\'' + $colName + '\'',
+              | $colName
+            )
         );
         // Use simple type name (Integer, String, Float, Boolean) - NO multiplicity
         let colType = getSimpleTypeName($col->functionReturnType());

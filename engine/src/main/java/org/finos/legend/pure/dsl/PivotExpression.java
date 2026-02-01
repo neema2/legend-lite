@@ -17,7 +17,7 @@ public record PivotExpression(
         List<String> pivotColumns,
         List<AggregateSpec> aggregates,
         List<Object> staticValues // For static pivot - optional IN clause values
-) implements PureExpression {
+) implements RelationExpression {
 
     /**
      * Represents an aggregate specification in pivot.

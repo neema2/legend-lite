@@ -112,6 +112,9 @@ public final class PureCompiler {
             case RenameExpression rename -> compileRename(rename, context);
             case ConcatenateExpression concatenate -> compileConcatenate(concatenate, context);
             case PivotExpression pivot -> compilePivot(pivot, context);
+            // CastExpression to Relation - compile the source expression (cast is type
+            // annotation only)
+            case CastExpression cast -> compileExpression(cast.source(), context);
             case TdsLiteral tds -> compileTdsLiteral(tds);
             case LambdaExpression lambda -> compileConstant(lambda, context);
             case VariableExpr var -> compileRelationVariable(var, context);

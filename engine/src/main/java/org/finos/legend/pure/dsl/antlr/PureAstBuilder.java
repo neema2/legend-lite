@@ -948,9 +948,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // Extract aliases from third ArrayLiteral
         List<String> aliases = extractStringsFromArg(args.get(2), "aliases");
 
-        // Source must be a RelationExpression
+        // Source must be a RelationExpression or CastExpression (for cast to Relation)
         if (source instanceof RelationExpression relationSource) {
             return new GroupByExpression(relationSource, groupByColumns, aggregations, aliases);
+        }
+        // Support CastExpression - unwrap and treat inner pivot/relation as source
+        if (source instanceof CastExpression cast && cast.source() instanceof RelationExpression castSource) {
+            return new GroupByExpression(castSource, groupByColumns, aggregations, aliases);
         }
 
         // Fallback to MethodCall for other source types
@@ -1016,9 +1020,14 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         List<String> fullAliases = new java.util.ArrayList<>(groupByColumnNames);
         fullAliases.addAll(aliases);
 
-        // Source can be RelationExpression or VariableExpr (for lambda contexts)
+        // Source can be RelationExpression, VariableExpr, or CastExpression (for cast
+        // to Relation)
         if (source instanceof RelationExpression || source instanceof VariableExpr) {
             return new GroupByExpression((RelationExpression) source, groupByLambdas, aggregations, fullAliases);
+        }
+        // Support CastExpression - unwrap and treat inner pivot/relation as source
+        if (source instanceof CastExpression cast && cast.source() instanceof RelationExpression castSource) {
+            return new GroupByExpression(castSource, groupByLambdas, aggregations, fullAliases);
         }
 
         // Fallback to MethodCall for other source types
@@ -1447,7 +1456,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // Accept RelationExpression or VariableExpr (for lambda parameters like
         // $t->select())
         // Type validation happens at compile time
-        if (!(source instanceof RelationExpression) && !(source instanceof VariableExpr)) {
+        if (!(source instanceof RelationExpression) && !(source instanceof VariableExpr)
+                && !(source instanceof CastExpression)) {
             throw new PureParseException(
                     "select() requires a Relation source, got: " + source.getClass().getSimpleName());
         }
@@ -1458,7 +1468,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
     private PureExpression parseExtendCall(PureExpression source, List<PureExpression> args) {
         // Accept RelationExpression or VariableExpr
-        if (!(source instanceof RelationExpression) && !(source instanceof VariableExpr)) {
+        if (!(source instanceof RelationExpression) && !(source instanceof VariableExpr)
+                && !(source instanceof CastExpression)) {
             throw new PureParseException(
                     "extend() requires a Relation source, got: " + source.getClass().getSimpleName());
         }
@@ -1947,7 +1958,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private PureExpression parseFlattenCall(PureExpression source, List<PureExpression> args) {
-        if (!(source instanceof RelationExpression relExpr)) {
+        // Accept RelationExpression or CastExpression (for
+        // ->cast(@Relation<...>)->flatten())
+        if (!(source instanceof RelationExpression) && !(source instanceof CastExpression)) {
             throw new PureParseException(
                     "flatten() requires a Relation source, got: " + source.getClass().getSimpleName());
         }
@@ -1958,7 +1971,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (!(arg instanceof ColumnSpec colSpec)) {
             throw new PureParseException("flatten() requires a column reference like ~items, got: " + arg);
         }
-        return new FlattenExpression(relExpr, colSpec.name());
+        return new FlattenExpression(source, colSpec.name());
     }
 
     private PureExpression parseDistinctCall(PureExpression source, List<PureExpression> args) {

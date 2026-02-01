@@ -3488,4 +3488,73 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // After pivot: pivots by year values (summed years)
         assertFalse(result.rows().isEmpty(), "Should have pivot results");
     }
+
+    /**
+     * Test that extend() chain works after pivot.
+     * This tests support for PivotExpression as a valid RelationExpression source.
+     * Pattern: ->pivot()->extend()
+     */
+    @Test
+    void testPivotExtend() throws SQLException {
+        // Test that pivot expression is recognized as valid RelationExpression
+        String pureQuery = """
+                #TDS
+                    city, year, value
+                    NYC, 2011, 100
+                    NYC, 2012, 200
+                    SAN, 2011, 50
+                #->pivot(~[year], ~[total:x|$x.value:y|$y->plus()])
+                ->extend(~combined:x|$x.city->toOne() + '_test')
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Pivot->Extend result columns: " + result.columns());
+
+        // Verify we get results with the extended column
+        assertFalse(result.rows().isEmpty(), "Should have results");
+
+        // Verify the combined column exists and has correct values (city + '_test')
+        var combinedCol = result.columns().stream()
+                .filter(c -> c.name().equals("combined"))
+                .findFirst();
+        assertTrue(combinedCol.isPresent(), "Should have 'combined' column");
+
+        // Verify values end with '_test' (combined is last column)
+        var firstRow = result.rows().get(0);
+        int combinedIdx = result.columns().size() - 1; // combined is the last column added by extend
+        String combinedValue = (String) firstRow.values().get(combinedIdx);
+        assertTrue(combinedValue.endsWith("_test"), "Combined column should end with '_test': " + combinedValue);
+    }
+
+    /**
+     * Test that groupBy() chain works after pivot->cast.
+     * This tests support for CastExpression as a valid source in parseGroupByCall.
+     * Pattern: ->pivot()->cast(@Relation)->groupBy()->extend()
+     */
+    @Test
+    void testPivotCastGroupByExtend() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    city, country, year, treePlanted
+                    NYC, USA, 2011, 5000
+                    SAN, USA, 2011, 2600
+                    LDN, UK, 2011, 3000
+                    NYC, USA, 2012, 15200
+                #->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
+                ->groupBy(~[country], ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->plus()])
+                ->extend(~combined:x|$x.country->toOne() + '_test')
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Pivot->Cast->GroupBy->Extend result columns: " + result.columns());
+
+        // Verify we get results
+        assertFalse(result.rows().isEmpty(), "Should have results");
+
+        // Verify the combined column exists
+        var combinedCol = result.columns().stream()
+                .filter(c -> c.name().equals("combined"))
+                .findFirst();
+        assertTrue(combinedCol.isPresent(), "Should have 'combined' column");
+    }
 }

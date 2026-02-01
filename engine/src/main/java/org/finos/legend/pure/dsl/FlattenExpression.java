@@ -11,6 +11,6 @@ package org.finos.legend.pure.dsl;
  * for each element.
  */
 public record FlattenExpression(
-        RelationExpression source,
-        String columnName) implements RelationExpression {
+                PureExpression source,
+                String columnName) implements RelationExpression {
 }

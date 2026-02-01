@@ -461,11 +461,18 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             if (sourceSql.startsWith("SELECT ")) {
                 int fromIdx = sourceSql.toUpperCase().indexOf(" FROM ");
                 if (fromIdx > 0) {
-                    return sourceSql.substring(0, fromIdx) + extendCols + sourceSql.substring(fromIdx);
+                    // If source is a subquery (has ') AS '), strip table prefixes from expressions
+                    // since inner aliases like _tds aren't accessible from outer query
+                    String cols = sourceSql.contains(") AS ")
+                            ? stripTablePrefixes(extendCols.toString())
+                            : extendCols.toString();
+                    return sourceSql.substring(0, fromIdx) + cols + sourceSql.substring(fromIdx);
                 }
             }
-            // Fallback: wrap in subquery
-            return "SELECT *" + extendCols + " FROM (" + sourceSql + ") AS extend_src";
+            // Fallback: wrap in subquery - strip table prefixes since inner aliases aren't
+            // accessible
+            String strippedCols = stripTablePrefixes(extendCols.toString());
+            return "SELECT *" + strippedCols + " FROM (" + sourceSql + ") AS extend_src";
         } else {
             // Window functions need subquery for proper semantics
             String sourceSql = extend.source().accept(this);
@@ -652,6 +659,17 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             return dialect.formatBoolean(b);
         }
         return dialect.quoteStringLiteral(value.toString());
+    }
+
+    /**
+     * Strips table prefixes from column references in SQL expressions.
+     * Used when wrapping in subquery where outer query doesn't have access to inner
+     * aliases.
+     * Converts "table"."column" to just "column".
+     */
+    private String stripTablePrefixes(String sql) {
+        // Pattern: "tablename"."colname" -> "colname"
+        return sql.replaceAll("\"[^\"]+\"\\.", "");
     }
 
     /**
