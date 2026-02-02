@@ -3356,53 +3356,66 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
-     * Test window STRING_AGG with partition and order.
-     * This mirrors PCT test:
+     * Test window STRING_AGG with partition, order, and unbounded frame.
+     * This is the EXACT PCT test:
      * testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow
      * 
-     * Pattern: extend(over(~grp, ~id->ascending(), unbounded()->rows(unbounded())),
-     * ~newCol:{p,w,r|$r.name}:y|$y->joinStrings(''))
-     * Expected: STRING_AGG(name, '') OVER (PARTITION BY grp ORDER BY id ASC ROWS
-     * UNBOUNDED)
+     * Expected: Each partition's STRING_AGG should include ALL names in the
+     * partition
+     * (not cumulative) because of the unbounded frame.
      */
     @Test
-    void testWindowStringAggWithPartitionAndOrder() throws SQLException {
+    void testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow() throws SQLException {
+        // Exact data from PCT test
         String pureQuery = """
                 #TDS
                     id, grp, name
                     1, 2, A
                     2, 1, B
-                    3, 1, C
-                    4, 2, D
-                #->extend(over(~grp, ~id->ascending()), ~names:{p,w,r|$r.name}:y|$y->joinStrings(''))
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                    6, 1, F
+                    7, 3, G
+                    8, 1, H
+                    9, 5, I
+                    10, 0, J
+                #->extend(over(~grp, ~id->ascending(), unbounded()->rows(unbounded())), ~newCol:{p,w,r|$r.name}:y|$y->joinStrings(''))
                 """;
 
         var result = executeRelation(pureQuery);
-        System.out.println("Window STRING_AGG result:");
+        System.out.println("testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow result:");
         for (var row : result.rows()) {
             System.out.println("  " + row);
         }
 
-        assertEquals(4, result.rows().size(), "Should have 4 rows");
+        assertEquals(10, result.rows().size(), "Should have 10 rows");
 
-        // Window STRING_AGG is cumulative - each row shows names up to that point
-        // grp=2, id=1: "A" (first row in partition)
-        // grp=2, id=4: "AD" (A + D, cumulative)
-        // grp=1, id=2: "B" (first row in partition)
-        // grp=1, id=3: "BC" (B + C, cumulative)
+        // With unbounded frame (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED
+        // FOLLOWING),
+        // all rows in a partition should have the SAME aggregated value
+        // Expected per partition:
+        // grp=0: "J"
+        // grp=1: "BFH" (ids 2,6,8 -> B,F,H)
+        // grp=2: "AE" (ids 1,5 -> A,E)
+        // grp=3: "CG" (ids 3,7 -> C,G)
+        // grp=4: "D"
+        // grp=5: "I"
         for (var row : result.rows()) {
-            int id = ((Number) row.values().get(0)).intValue();
-            String names = (String) row.values().get(3);
+            int grp = ((Number) row.values().get(1)).intValue();
+            String newCol = (String) row.values().get(3);
 
-            String expected = switch (id) {
-                case 1 -> "A"; // First in grp=2
-                case 4 -> "AD"; // Cumulative in grp=2
-                case 2 -> "B"; // First in grp=1
-                case 3 -> "BC"; // Cumulative in grp=1
-                default -> throw new AssertionError("Unexpected id: " + id);
+            String expected = switch (grp) {
+                case 0 -> "J";
+                case 1 -> "BFH";
+                case 2 -> "AE";
+                case 3 -> "CG";
+                case 4 -> "D";
+                case 5 -> "I";
+                default -> throw new AssertionError("Unexpected grp: " + grp);
             };
-            assertEquals(expected, names,
-                    "For id=" + id + ", cumulative names should be " + expected);
+            assertEquals(expected, newCol,
+                    "For grp=" + grp + ", all rows should have " + expected);
         }
     }
 

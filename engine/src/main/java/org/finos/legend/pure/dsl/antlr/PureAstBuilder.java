@@ -1700,6 +1700,12 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 } else if ("ascending".equals(method) || "asc".equals(method)) {
                     orderSpecs.add(new RelationExtendExpression.SortSpec(
                             extractColName(mc.source()), RelationExtendExpression.SortDirection.ASC));
+                } else if ("rows".equals(method)) {
+                    // Handle: unbounded()->rows(unbounded()) as MethodCall
+                    frame = parseFrameFromMethodCall(mc, RelationExtendExpression.FrameType.ROWS);
+                } else if ("range".equals(method) || "_range".equals(method)) {
+                    // Handle: unbounded()->range(unbounded()) as MethodCall
+                    frame = parseFrameFromMethodCall(mc, RelationExtendExpression.FrameType.RANGE);
                 }
             } else if (arg instanceof FunctionCall fc) {
                 if ("rows".equals(fc.functionName())) {
@@ -1726,6 +1732,19 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         return new RelationExtendExpression.FrameSpec(type,
                 parseFrameBound(fc.arguments().get(0)),
                 parseFrameBound(fc.arguments().get(1)));
+    }
+
+    /**
+     * Parses frame from MethodCall pattern: unbounded()->rows(unbounded())
+     * Source is the start bound, first argument is the end bound.
+     */
+    private RelationExtendExpression.FrameSpec parseFrameFromMethodCall(MethodCall mc,
+            RelationExtendExpression.FrameType type) {
+        RelationExtendExpression.FrameBound startBound = parseFrameBound(mc.source());
+        RelationExtendExpression.FrameBound endBound = mc.arguments().isEmpty()
+                ? RelationExtendExpression.FrameBound.currentRow()
+                : parseFrameBound(mc.arguments().get(0));
+        return new RelationExtendExpression.FrameSpec(type, startBound, endBound);
     }
 
     private RelationExtendExpression.FrameBound parseFrameBound(PureExpression expr) {
