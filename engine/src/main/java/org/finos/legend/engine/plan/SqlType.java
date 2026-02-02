@@ -35,6 +35,10 @@ public enum SqlType {
      * @return true if this type needs CAST for arithmetic operations
      */
     public boolean needsNumericCast() {
-        return this == VARCHAR || this == JSON || this == UNKNOWN;
+        // Only cast VARCHAR and JSON to numeric - UNKNOWN type columns should pass
+        // through
+        // since they may be correctly typed integers that shouldn't be converted to
+        // DOUBLE
+        return this == VARCHAR || this == JSON;
     }
 }

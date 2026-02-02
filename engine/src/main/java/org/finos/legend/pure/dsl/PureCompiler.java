@@ -3434,7 +3434,8 @@ public final class PureCompiler {
         Expression keyArg = compileToSqlExpression(args.get(0), context);
 
         // Check for optional type argument (@Type)
-        SqlType returnType = SqlType.UNKNOWN;
+        // Default to JSON since get() extracts from JSON and returns JSON unless typed
+        SqlType returnType = SqlType.JSON;
         if (args.size() >= 2 && args.get(1) instanceof TypeReference typeRef) {
             returnType = mapTypeName(typeRef.typeName());
         }

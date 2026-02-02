@@ -3518,6 +3518,50 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
+     * Test simple extend with integer arithmetic.
+     * This is the EXACT PCT test: testSimpleExtendInt
+     * 
+     * Verifies that integer columns preserve their type in arithmetic operations,
+     * producing Integer results (not Float/Double).
+     * 
+     * Pattern: extend(~name:c|$c.val->toOne() + 1)
+     */
+    @Test
+    void testSimpleExtendInt() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    val, str
+                    1, a
+                    3, ewe
+                    4, qw
+                    5, wwe
+                    6, weq
+                #->extend(~name:c|$c.val + 1)
+                """;
+
+        // Verify generated SQL does NOT cast integer to DOUBLE
+        String sql = generateSql(pureQuery);
+        assertFalse(sql.contains("CAST") && sql.contains("AS DOUBLE"),
+                "Integer arithmetic should NOT cast to DOUBLE. Got: " + sql);
+
+        var result = executeRelation(pureQuery);
+        System.out.println("testSimpleExtendInt result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        assertEquals(5, result.rows().size(), "Should have 5 rows");
+
+        // Verify integer results (not floats)
+        var expected = List.of(2, 4, 5, 6, 7);
+        var actual = result.rows().stream()
+                .map(row -> ((Number) row.values().get(2)).intValue())
+                .sorted()
+                .toList();
+        assertEquals(expected, actual, "Extended column should have integer values");
+    }
+
+    /**
      * Test TDS-based project() with column transformations including toLower.
      * This mirrors the PCT test pattern for TDS project.
      * 

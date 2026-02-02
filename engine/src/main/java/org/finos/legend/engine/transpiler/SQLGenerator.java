@@ -1482,11 +1482,18 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visitCollectionCall(SqlCollectionCall call) {
-        // get() now returns JSON by default, so arrays work correctly
         String source = call.source().accept(this);
 
-        // Wrap JSON array source with CAST to JSON[] for DuckDB list functions
-        String listSource = "CAST(" + source + " AS JSON[])";
+        // Only cast to JSON[] if source is a raw JSON extraction (function call like
+        // get())
+        // Don't cast if source is already a collection operation (list_transform, etc.)
+        // because those produce properly typed arrays
+        String listSource;
+        if (call.source() instanceof SqlCollectionCall) {
+            listSource = source; // Already a list operation - don't re-cast
+        } else {
+            listSource = "CAST(" + source + " AS JSON[])"; // JSON extraction needs cast
+        }
 
         return switch (call.function()) {
             case MAP -> {

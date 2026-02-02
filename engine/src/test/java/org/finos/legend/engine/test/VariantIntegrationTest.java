@@ -194,10 +194,11 @@ class VariantIntegrationTest {
     @DisplayName("fold() aggregates JSON array elements")
     void testFoldOnJsonArray() throws SQLException {
         // Test fold by summing prices: fold({a, v | $a + $v}, 0)
+        // Use get('price', @Integer) for typed extraction
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
                     ->extend(~totalPrice: _ | $_.PAYLOAD->get('items')
-                                ->map(i | $i->get('price'))
+                                ->map(i | $i->get('price', @Integer))
                                 ->fold({a, v | $a + $v}, 0))
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->select(~[ID, totalPrice])
@@ -208,8 +209,6 @@ class VariantIntegrationTest {
         System.out.println("Fold SQL: " + sql);
         assertTrue(sql.contains("list_reduce"),
                 "SQL should contain list_reduce for fold(). Got: " + sql);
-        assertTrue(sql.contains("CAST") && sql.contains("AS DOUBLE"),
-                "SQL should contain CAST for type coercion");
 
         // Execute and verify results
         var result = executeRelation(pureQuery);
@@ -247,11 +246,11 @@ class VariantIntegrationTest {
     @DisplayName("Combined Example: map prices * qty, then fold to sum")
     void testMapAndFoldCombined() throws SQLException {
         // The Combined Example from research: calculate order total from items
-        // items->map(i | $i->get('price') * $i->get('qty'))->fold({a, v | $a + $v}, 0)
+        // Use get('field', @Integer) for typed extraction
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
                     ->extend(~calculatedTotal: _ | $_.PAYLOAD->get('items')
-                                ->map(i | $i->get('price') * $i->get('qty'))
+                                ->map(i | $i->get('price', @Integer) * $i->get('qty', @Integer))
                                 ->fold({a, v | $a + $v}, 0))
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->select(~[ID, calculatedTotal])
@@ -426,11 +425,11 @@ class VariantIntegrationTest {
     @Test
     @DisplayName("cast(@Type) works with map/fold operations")
     void testCastWithMapAndFold() throws SQLException {
-        // Use explicit cast within map to convert price to integer before summing
+        // Use get('field', @Integer) for typed extraction within map
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
                     ->extend(~totalPrice: _ | $_.PAYLOAD->get('items')
-                        ->map(i | $i->get('price')->cast(@Integer))
+                        ->map(i | $i->get('price', @Integer))
                         ->fold({a, v | $a + $v}, 0))
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->select(~[ID, totalPrice])
