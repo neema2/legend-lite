@@ -1520,13 +1520,22 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new RelationExtendExpression(source, cs.name(), lambda);
         }
 
-        // Multiple simple calculated columns: extend(~[col1:{x|...}, col2:{x|...}])
+        // Multiple calculated columns: extend(~[col1:{x|...}, col2:{x|...}])
+        // Each column may be simple (no extraFunction) or OLAP aggregate (with
+        // extraFunction)
         if (args.size() == 1 && args.get(0) instanceof ColumnSpecArray csa) {
             // Create chain of extend expressions for each column
             PureExpression result = source;
             for (PureExpression spec : csa.specs()) {
-                if (spec instanceof ColumnSpec cs && cs.lambda() instanceof LambdaExpression lambda) {
-                    result = new RelationExtendExpression(result, cs.name(), lambda);
+                if (spec instanceof ColumnSpec cs) {
+                    // Check if this is an OLAP aggregate pattern (has extraFunction)
+                    if (cs.lambda() != null && cs.extraFunction() != null) {
+                        // OLAP aggregate: ~col:c|$c.id:y|$y->plus()
+                        result = parseAggregateExtendNoOver(result, cs);
+                    } else if (cs.lambda() instanceof LambdaExpression lambda) {
+                        // Simple calculated column: ~col:x|$x.col1 + $x.col2
+                        result = new RelationExtendExpression(result, cs.name(), lambda);
+                    }
                 }
             }
             return result;

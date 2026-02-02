@@ -3141,6 +3141,59 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(6L, sum.longValue(), "Sum should be 6");
     }
 
+    /**
+     * Test OLAP aggregate using extend() with multiple columns (no explicit over).
+     * This mirrors PCT test: testOLAPAggNoWindowMultipleColums
+     * 
+     * Pattern: extend(~[col1:c|$c.id:y|$y->plus(), col2:c|$c.grp:y|$y->plus()])
+     * Expected: SUM(id) OVER() as col1, SUM(grp) OVER() as col2
+     */
+    @Test
+    void testOlapAggregateNoWindowMultipleColumns() throws SQLException {
+        // Same data as PCT test
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                    6, 1, F
+                    7, 3, G
+                    8, 1, H
+                    9, 5, I
+                    10, 0, J
+                #->extend(~[newCol:c|$c.id:y|$y->plus(), other:c|$c.grp:y|$y->plus()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("OLAP aggregate no window multiple columns result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: Should have 10 rows with newCol=55 (sum of all ids) and other=22 (sum
+        // of all grps)
+        assertEquals(10, result.rows().size(), "Should have 10 rows");
+
+        // Sum of ids 1-10 = 55
+        // Sum of grps 0+1+1+1+2+2+3+3+4+5 = 22
+        int expectedIdSum = 55;
+        int expectedGrpSum = 22;
+
+        for (var row : result.rows()) {
+            // Columns are: id, grp, name, newCol, other
+            int newCol = ((Number) row.values().get(3)).intValue();
+            int other = ((Number) row.values().get(4)).intValue();
+
+            assertEquals(expectedIdSum, newCol,
+                    "newCol should be sum of all ids (55), got: " + newCol);
+            assertEquals(expectedGrpSum, other,
+                    "other should be sum of all grps (22), got: " + other);
+        }
+    }
+
     @Test
     void testAggregateMultipleColumns() throws SQLException {
         // GIVEN: A TDS with values for multiple aggregations
