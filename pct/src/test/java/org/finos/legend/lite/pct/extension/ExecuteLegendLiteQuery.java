@@ -253,16 +253,35 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         if (value instanceof java.sql.Timestamp ts) {
             LocalDateTime ldt = ts.toLocalDateTime();
-            PureDate pureDate = DateFunctions.newPureDate(
-                    ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                    ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            int nanos = ldt.getNano();
+            if (nanos > 0) {
+                // Format subseconds and strip trailing zeros to match Pure format
+                String subsecond = stripTrailingZeros(String.format("%09d", nanos));
+                PureDate pureDate = DateFunctions.newPureDate(
+                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                        ldt.getHour(), ldt.getMinute(), ldt.getSecond(), subsecond);
+                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            } else {
+                PureDate pureDate = DateFunctions.newPureDate(
+                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                        ldt.getHour(), ldt.getMinute(), ldt.getSecond());
+                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            }
         }
         if (value instanceof LocalDateTime ldt) {
-            PureDate pureDate = DateFunctions.newPureDate(
-                    ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                    ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            int nanos = ldt.getNano();
+            if (nanos > 0) {
+                String subsecond = stripTrailingZeros(String.format("%09d", nanos));
+                PureDate pureDate = DateFunctions.newPureDate(
+                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                        ldt.getHour(), ldt.getMinute(), ldt.getSecond(), subsecond);
+                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            } else {
+                PureDate pureDate = DateFunctions.newPureDate(
+                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                        ldt.getHour(), ldt.getMinute(), ldt.getSecond());
+                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            }
         }
         if (value instanceof LocalTime lt) {
             // StrictTime - just time part, use arbitrary date
@@ -300,5 +319,18 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
         // Wrap in value specification for return
         return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, processorSupport);
+    }
+
+    /**
+     * Strips trailing zeros from a subsecond string.
+     * Pure normalizes subseconds without trailing zeros (e.g., "338001" not
+     * "338001000").
+     */
+    private String stripTrailingZeros(String subsecond) {
+        int end = subsecond.length();
+        while (end > 1 && subsecond.charAt(end - 1) == '0') {
+            end--;
+        }
+        return subsecond.substring(0, end);
     }
 }

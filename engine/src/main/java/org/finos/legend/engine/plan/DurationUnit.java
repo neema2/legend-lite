@@ -14,7 +14,8 @@ public enum DurationUnit {
     HOURS("hour"),
     MINUTES("minute"),
     SECONDS("second"),
-    MILLISECONDS("millisecond");
+    MILLISECONDS("millisecond"),
+    MICROSECONDS("microsecond");
 
     private final String sql;
 
@@ -54,6 +55,7 @@ public enum DurationUnit {
             case "MINUTES", "MINUTE" -> MINUTES;
             case "SECONDS", "SECOND" -> SECONDS;
             case "MILLISECONDS", "MILLISECOND" -> MILLISECONDS;
+            case "MICROSECONDS", "MICROSECOND" -> MICROSECONDS;
             default -> throw new IllegalArgumentException("Unknown duration unit: " + name);
         };
     }

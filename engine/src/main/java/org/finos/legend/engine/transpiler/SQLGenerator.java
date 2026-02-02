@@ -1221,11 +1221,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visit(DateAdjustExpression dateAdjust) {
-        // adjust(date, 5, DAYS) -> date + INTERVAL '5' DAY
+        // adjust(date, 5, DAYS) -> date + INTERVAL '1' DAY * 5
+        // Using multiplication handles negative and expression amounts properly
         String date = dateAdjust.date().accept(this);
         String amount = dateAdjust.amount().accept(this);
         String unitSql = dateAdjust.unit().sql().toUpperCase();
-        return "(" + date + " + INTERVAL '" + amount + "' " + unitSql + ")";
+
+        // Use: date + (INTERVAL '1' UNIT * amount) to handle expressions and negatives
+        String expr = "(" + date + " + (INTERVAL '1' " + unitSql + " * " + amount + "))";
+
+        // For day-level units (DAYS, WEEKS, MONTHS, YEARS), cast result to DATE
+        // to preserve StrictDate type. For time-level units, return TIMESTAMP.
+        return switch (dateAdjust.unit()) {
+            case DAYS, WEEKS, MONTHS, YEARS -> "CAST(" + expr + " AS DATE)";
+            default -> expr;
+        };
     }
 
     @Override

@@ -74,6 +74,17 @@ public interface SQLDialect {
             return "TIMESTAMP '" + timestampValue + "'";
         }
 
+        // Handle partial dates - Pure supports YYYY and YYYY-MM formats
+        // DuckDB requires full YYYY-MM-DD, so default missing parts
+        String[] parts = dateValue.split("-");
+        if (parts.length == 1) {
+            // Year only: 2012 -> 2012-01-01
+            dateValue = dateValue + "-01-01";
+        } else if (parts.length == 2) {
+            // Year-month only: 2012-03 -> 2012-03-01
+            dateValue = dateValue + "-01";
+        }
+
         return "DATE '" + dateValue + "'";
     }
 

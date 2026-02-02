@@ -2039,6 +2039,163 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    @DisplayName("Pure literal syntax: date->adjust() method call")
+    void testDateLiteralAdjustMethodCall() throws Exception {
+        // This matches the PCT pattern: |%2016-02-29->adjust(10, DurationUnit.DAYS)
+        // Create test data so we can test the relation path
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS T_ADJUST_METHOD_TEST");
+            stmt.execute("CREATE TABLE T_ADJUST_METHOD_TEST (ID INTEGER, BASE_DATE DATE)");
+            stmt.execute("INSERT INTO T_ADJUST_METHOD_TEST VALUES (1, '2024-01-15')");
+        }
+
+        String pureSource = """
+                Class model::AdjustMethodRecord { baseDate: StrictDate[1]; }
+                Database store::AdjustMethodDb ( Table T_ADJUST_METHOD_TEST ( ID INTEGER, BASE_DATE DATE ) )
+                Mapping model::AdjustMethodMap ( AdjustMethodRecord: Relational { ~mainTable [AdjustMethodDb] T_ADJUST_METHOD_TEST baseDate: [AdjustMethodDb] T_ADJUST_METHOD_TEST.BASE_DATE } )
+                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::TestRuntime { mappings: [ model::AdjustMethodMap ]; connections: [ store::AdjustMethodDb: [ environment: store::TestConn ] ]; }
+                """;
+
+        // Test method call syntax: date->adjust(amount, unit) with 2 args
+        String pureQuery = "AdjustMethodRecord.all()->project([{e | $e.baseDate->meta::pure::functions::date::adjust(10, meta::pure::functions::date::DurationUnit.DAYS)}], ['adjustedDate'])";
+
+        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        System.out.println("adjust method call result: " + result.rows());
+        assertEquals(1, result.rows().size());
+
+        // The result should be Jan 15 + 10 days = Jan 25
+        Object adjustedDate = result.rows().get(0).get(0);
+        System.out.println("  adjustedDate=" + adjustedDate);
+        assertNotNull(adjustedDate, "adjust method call should return a value");
+    }
+
+    // Note: DuckDB cannot handle intervals larger than INT32 (~2.1 billion days =
+    // ~5.8 million years).
+    // PCT test testAdjustByDaysBigNumber with value 12345678912 days (~33.8 million
+    // years) will fail.
+    // This is a DuckDB limitation, not a Legend-Lite bug - should be an expected
+    // failure.
+
+    @Test
+    @DisplayName("Comprehensive adjust() function tests - all PCT fixes")
+    void testAdjustComprehensive() throws Exception {
+        // Test all the fixes made for adjust():
+        // 1. Method call syntax (date->adjust(amount, unit))
+        // 2. Negative amounts
+        // 3. Various duration units
+        // 4. Partial dates (year-only, year-month)
+
+        System.out.println("=== Comprehensive adjust() Tests ===");
+
+        // Test 1: Method call with positive days
+        String sql = generateSql(
+                "|%2024-01-15->meta::pure::functions::date::adjust(10, meta::pure::functions::date::DurationUnit.DAYS)");
+        System.out.println("1. Positive days: " + sql);
+        assertTrue(sql.contains("INTERVAL '1' DAY * 10"), "Should use multiplication for interval");
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1));
+        }
+
+        // Test 2: Negative amount (subtract hours)
+        sql = generateSql(
+                "|%2024-01-15T12:00:00->meta::pure::functions::date::adjust(-3, meta::pure::functions::date::DurationUnit.HOURS)");
+        System.out.println("2. Negative hours: " + sql);
+        assertTrue(sql.contains("INTERVAL '1' HOUR"), "Should use HOUR interval");
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1)); // Expected: 09:00:00
+        }
+
+        // Test 3: Minutes
+        sql = generateSql(
+                "|%2024-01-15T12:30:00->meta::pure::functions::date::adjust(45, meta::pure::functions::date::DurationUnit.MINUTES)");
+        System.out.println("3. Minutes: " + sql);
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1)); // Expected: 13:15:00
+        }
+
+        // Test 4: Seconds
+        sql = generateSql(
+                "|%2024-01-15T12:00:00->meta::pure::functions::date::adjust(90, meta::pure::functions::date::DurationUnit.SECONDS)");
+        System.out.println("4. Seconds: " + sql);
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1)); // Expected: 12:01:30
+        }
+
+        // Test 5: Milliseconds
+        sql = generateSql(
+                "|%2024-01-15T12:00:00.000->meta::pure::functions::date::adjust(500, meta::pure::functions::date::DurationUnit.MILLISECONDS)");
+        System.out.println("5. Milliseconds: " + sql);
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1)); // Expected: 12:00:00.500
+        }
+
+        // Test 6: Microseconds (newly added)
+        sql = generateSql(
+                "|%2024-01-15T12:00:00.000000->meta::pure::functions::date::adjust(1, meta::pure::functions::date::DurationUnit.MICROSECONDS)");
+        System.out.println("6. Microseconds: " + sql);
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1));
+        }
+
+        // Test 7: Months
+        sql = generateSql(
+                "|%2024-01-15->meta::pure::functions::date::adjust(3, meta::pure::functions::date::DurationUnit.MONTHS)");
+        System.out.println("7. Months: " + sql);
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1)); // Expected: 2024-04-15
+        }
+
+        // Test 8: Years
+        sql = generateSql(
+                "|%2024-01-15->meta::pure::functions::date::adjust(2, meta::pure::functions::date::DurationUnit.YEARS)");
+        System.out.println("8. Years: " + sql);
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1)); // Expected: 2026-01-15
+        }
+
+        // Test 9: Partial date - year-month only (should default to first of month)
+        sql = generateSql(
+                "|%2024-03->meta::pure::functions::date::adjust(1, meta::pure::functions::date::DurationUnit.MONTHS)");
+        System.out.println("9. Partial date (year-month): " + sql);
+        assertTrue(sql.contains("DATE '2024-03-01'"), "Year-month should default to -01");
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1)); // Expected: 2024-04-01
+        }
+
+        // Test 10: Partial date - year only (should default to Jan 1)
+        sql = generateSql(
+                "|%2024->meta::pure::functions::date::adjust(6, meta::pure::functions::date::DurationUnit.MONTHS)");
+        System.out.println("10. Partial date (year only): " + sql);
+        assertTrue(sql.contains("DATE '2024-01-01'"), "Year only should default to -01-01");
+        try (Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            System.out.println("   Result: " + rs.getObject(1)); // Expected: 2024-07-01
+        }
+
+        System.out.println("=== All adjust() tests passed ===");
+    }
+
+    @Test
     @DisplayName("Pure syntax: toEpochValue() converts date to unix timestamp")
     void testPureSyntaxToEpochValue() throws Exception {
         try (Statement stmt = connection.createStatement()) {

@@ -620,6 +620,16 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(mc.arguments().get(1));
                 TimeBucketExpression timeBucketExpr = TimeBucketExpression.of(dateExpr, quantity, unit);
                 projections.add(new Projection(timeBucketExpr, alias));
+            } else if (lambda.body() instanceof MethodCall mc && "adjust".equalsIgnoreCase(mc.methodName())) {
+                // $e.date->adjust(amount, DurationUnit.DAYS) - method call syntax with 2 args
+                if (mc.arguments().size() != 2) {
+                    throw new PureCompileException("adjust as method requires 2 arguments: date->adjust(amount, unit)");
+                }
+                Expression dateExpr = compileProjectionArg(mc.source(), baseTableAlias, baseMapping);
+                Expression amountExpr = compileProjectionArg(mc.arguments().get(0), baseTableAlias, baseMapping);
+                DurationUnit unit = parseDurationUnit(mc.arguments().get(1));
+                DateAdjustExpression adjustExpr = new DateAdjustExpression(dateExpr, amountExpr, unit);
+                projections.add(new Projection(adjustExpr, alias));
             } else if (lambda.body() instanceof FunctionCall fc && "timeBucket".equalsIgnoreCase(fc.functionName())) {
                 // timeBucket(date, quantity, unit)
                 if (fc.arguments().size() != 3) {
@@ -3407,6 +3417,16 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(args.get(0), context),
                         compileToSqlExpression(args.get(1), context));
+            }
+            case "adjust" -> { // date->adjust(amount, DurationUnit.DAYS) -> date + INTERVAL 'amount' DAY
+                var args = methodCall.arguments();
+                if (args.size() < 2) {
+                    throw new PureCompileException("adjust requires 2 arguments: adjust(amount, unit)");
+                }
+                Expression dateExpr = compileToSqlExpression(methodCall.source(), context);
+                Expression amountExpr = compileToSqlExpression(args.get(0), context);
+                DurationUnit unit = parseDurationUnit(args.get(1));
+                yield new DateAdjustExpression(dateExpr, amountExpr, unit);
             }
             case "parseDate" -> { // parseDate(s, fmt) -> strptime(s, fmt)::DATE
                 if (methodCall.arguments().isEmpty())
