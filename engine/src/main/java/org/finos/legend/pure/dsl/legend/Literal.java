@@ -6,7 +6,7 @@ package org.finos.legend.pure.dsl.legend;
 public record Literal(Object value, Type type) implements Expression {
 
     public enum Type {
-        STRING, INTEGER, DECIMAL, BOOLEAN, DATE, DATETIME, STRICT_TIME, NULL
+        STRING, INTEGER, DECIMAL, BOOLEAN, STRICT_DATE, DATETIME, STRICT_TIME, NULL
     }
 
     public static Literal string(String value) {

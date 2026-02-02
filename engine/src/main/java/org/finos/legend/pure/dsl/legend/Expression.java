@@ -18,5 +18,6 @@ public sealed interface Expression permits
                 Lambda,
                 Literal,
                 Collection,
-                TdsLiteral {
+                TdsLiteral,
+                RelationLiteral {
 }

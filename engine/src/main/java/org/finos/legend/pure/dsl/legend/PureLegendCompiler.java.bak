@@ -1,0 +1,1340 @@
+package org.finos.legend.pure.dsl.legend;
+
+import org.finos.legend.engine.plan.*;
+import org.finos.legend.engine.store.*;
+import org.finos.legend.pure.dsl.ModelContext;
+
+import java.util.*;
+
+/**
+ * Clean compiler that interprets Expression AST into RelationNode execution
+ * plans.
+ * 
+ * Design Principles:
+ * 1. NO FALLBACKS - Explicit errors, never silent defaults
+ * 2. TYPE-SAFE IR - Always use typed Expression nodes, never raw SQL
+ * 3. EXHAUSTIVE PATTERNS - Handle each AST case explicitly
+ * 4. CLASS vs RELATION - Separate paths for class-based and relation-based
+ * sources
+ */
+public final class PureLegendCompiler {
+
+    private final MappingRegistry mappingRegistry;
+    private final ModelContext modelContext;
+    private int aliasCounter = 0;
+
+    public PureLegendCompiler(MappingRegistry mappingRegistry) {
+        this(mappingRegistry, null);
+    }
+
+    public PureLegendCompiler(MappingRegistry mappingRegistry, ModelContext modelContext) {
+        this.mappingRegistry = Objects.requireNonNull(mappingRegistry, "Mapping registry cannot be null");
+        this.modelContext = modelContext;
+    }
+
+    // ========================================================================
+    // PUBLIC API
+    // ========================================================================
+
+    /**
+     * Compiles a Pure query string to RelationNode.
+     */
+    public RelationNode compile(String pureQuery) {
+        Expression ast = PureLegendParser.parse(pureQuery);
+        return compileToRelation(ast, CompilationContext.empty());
+    }
+
+    /**
+     * Compiles an Expression AST to RelationNode.
+     */
+    public RelationNode compile(Expression ast) {
+        return compileToRelation(ast, CompilationContext.empty());
+    }
+
+    // ========================================================================
+    // RELATION COMPILATION - Main entry point for relation-returning expressions
+    // ========================================================================
+
+    /**
+     * Compiles an Expression to a RelationNode.
+     * This is the main dispatch for relation-level expressions.
+     */
+    private RelationNode compileToRelation(Expression expr, CompilationContext ctx) {
+        return switch (expr) {
+            case Function f -> compileFunction(f, ctx);
+            case TdsLiteral tds -> compileTdsLiteral(tds);
+            case RelationLiteral rel -> compileRelationLiteral(rel);
+            case Variable v -> compileRelationVariable(v, ctx);
+            case Lambda lambda -> compileConstantLambda(lambda, ctx);
+            // These cannot be relations - explicit errors, no fallback
+            case Property p -> throw new CompileException(
+                    "Property access '" + p.property() + "' cannot be compiled as a relation. " +
+                            "Property access returns a scalar value, not a relation.");
+            case Literal l -> throw new CompileException(
+                    "Literal value cannot be compiled as a relation. " +
+                            "Use TDS literal #TDS...# for inline data.");
+            case Collection c -> throw new CompileException(
+                    "Collection cannot be compiled as a relation. " +
+                            "Use TDS literal #TDS...# for inline data.");
+        };
+    }
+
+    // ========================================================================
+    // SOURCE TYPE CLASSIFICATION
+    // ========================================================================
+
+    /**
+     * Classifies the source type of an expression chain.
+     * This determines whether we use class-based (mapping) or relation-based
+     * (column) resolution.
+     */
+    private SourceKind classifySource(Expression source) {
+        return switch (source) {
+            case Function f -> switch (f.function()) {
+                case "all" -> SourceKind.CLASS;
+                case "filter", "project", "groupBy", "extend", "select",
+                        "rename", "distinct", "sort", "sortBy", "limit", "take",
+                        "drop", "slice", "first", "join", "concatenate" -> {
+                    // Recurse to find the original source type
+                    if (f.parameters().isEmpty()) {
+                        throw new CompileException("Function " + f.function() + " requires a source parameter");
+                    }
+                    yield classifySource(f.parameters().get(0));
+                }
+                default -> throw new CompileException(
+                        "Cannot classify source for function: " + f.function());
+            };
+            case TdsLiteral tds -> SourceKind.TDS;
+            case RelationLiteral rel -> SourceKind.RELATION;
+            case Variable v -> {
+                if (ctx.hasRelationBinding(v.name())) {
+                    yield SourceKind.RELATION;
+                }
+                throw new CompileException(
+                        "Cannot classify source for variable $" + v.name() + ". " +
+                                "Variable is not bound to a known relation.");
+            }
+            case Lambda l -> classifySource(l.body());
+            case Property p2 -> throw new CompileException(
+                    "Cannot classify " + source.getClass().getSimpleName() + " as a source type");
+            case Literal lit2 -> throw new CompileException(
+                    "Cannot classify " + source.getClass().getSimpleName() + " as a source type");
+            case Collection coll2 -> throw new CompileException(
+                    "Cannot classify " + source.getClass().getSimpleName() + " as a source type");
+        };
+    }
+
+    // Placeholder for ctx in classifySource - will be passed properly
+    private CompilationContext ctx = CompilationContext.empty();
+
+    private enum SourceKind {
+        CLASS, // Source is all(class('X')) - uses mapping
+        TDS, // Source is #TDS...# - uses column names
+        RELATION // Source is #>{db.table}# or variable - uses column names
+    }
+
+    // ========================================================================
+    // FUNCTION DISPATCH
+    // ========================================================================
+
+    /**
+     * Compiles a Function node - main semantic dispatch for relation operations.
+     */
+    private RelationNode compileFunction(Function f, CompilationContext ctx) {
+        String name = f.function();
+        List<Expression> params = f.parameters();
+
+        return switch (name) {
+            // ===== CLASS OPERATIONS =====
+            case "all" -> compileAll(params);
+
+            // ===== RELATION TRANSFORMATIONS =====
+            case "filter" -> compileFilter(params, ctx);
+            case "project" -> compileProject(params, ctx);
+            case "groupBy" -> compileGroupBy(params, ctx);
+            case "extend" -> compileExtend(params, ctx);
+            case "select" -> compileSelect(params, ctx);
+            case "rename" -> compileRename(params, ctx);
+            case "distinct" -> compileDistinct(params, ctx);
+            case "concatenate" -> compileConcatenate(params, ctx);
+
+            // ===== SORTING =====
+            case "sort" -> compileSort(params, ctx);
+            case "sortBy" -> compileSortBy(params, ctx);
+
+            // ===== LIMITING =====
+            case "limit", "take" -> compileLimit(params, ctx);
+            case "drop" -> compileDrop(params, ctx);
+            case "slice" -> compileSlice(params, ctx);
+            case "first" -> compileFirst(params, ctx);
+
+            // ===== JOINS =====
+            case "join" -> compileJoin(params, ctx);
+            case "asOfJoin" -> compileAsOfJoin(params, ctx);
+
+            // ===== AGGREGATION (standalone) =====
+            case "aggregate" -> compileAggregate(params, ctx);
+
+            // ===== OTHER =====
+            case "flatten" -> compileFlatten(params, ctx);
+            case "pivot" -> compilePivot(params, ctx);
+            case "from" -> compileFrom(params, ctx);
+            case "nth" -> compileNth(params, ctx);
+
+            // ===== EXPLICIT ERROR - No default catch-all =====
+            default -> throw new CompileException(
+                    "Unknown relation function: '" + name + "'. " +
+                            "If this is a scalar function, it should not appear at relation level.");
+        };
+    }
+
+    // ========================================================================
+    // CLASS OPERATIONS
+    // ========================================================================
+
+    private RelationNode compileAll(List<Expression> params) {
+        if (params.isEmpty()) {
+            throw new CompileException("all() requires a class reference: all(class('ClassName'))");
+        }
+
+        String className = extractClassName(params.get(0));
+        RelationalMapping mapping = mappingRegistry.getByClassName(className);
+
+        if (mapping == null) {
+            throw new CompileException(
+                    "No mapping found for class '" + className + "'. " +
+                            "Ensure the class is mapped in the mapping registry.");
+        }
+
+        return new TableNode(mapping.table(), nextAlias());
+    }
+
+    private String extractClassName(Expression expr) {
+        if (expr instanceof Function f && "class".equals(f.function())) {
+            if (!f.parameters().isEmpty() && f.parameters().get(0) instanceof Literal lit) {
+                if (lit.type() == Literal.Type.STRING) {
+                    return (String) lit.value();
+                }
+            }
+        }
+        throw new CompileException(
+                "Expected class('ClassName') reference, got: " + describeExpression(expr));
+    }
+
+    // ========================================================================
+    // FILTER COMPILATION - Separate paths for Class vs Relation
+    // ========================================================================
+
+    private RelationNode compileFilter(List<Expression> params, CompilationContext ctx) {
+        requireParams("filter", params, 2);
+
+        Expression sourceExpr = params.get(0);
+        Expression predicateExpr = params.get(1);
+
+        RelationNode source = compileToRelation(sourceExpr, ctx);
+        SourceKind kind = classifySourceWithContext(sourceExpr, ctx);
+
+        return switch (kind) {
+            case CLASS -> compileClassFilter(source, sourceExpr, predicateExpr, ctx);
+            case TDS, RELATION -> compileRelationFilter(source, predicateExpr, ctx);
+        };
+    }
+
+    /**
+     * Compiles filter on a class-based source (uses mapping for property
+     * resolution).
+     */
+    private RelationNode compileClassFilter(
+            RelationNode source,
+            Expression sourceExpr,
+            Expression predicateExpr,
+            CompilationContext ctx) {
+
+        String tableAlias = getTableAlias(source);
+        RelationalMapping mapping = extractMappingFromSource(sourceExpr);
+        String className = mapping.pureClass().name();
+
+        // Create context with ROW binding for the lambda parameter
+        Lambda predicate = requireLambda(predicateExpr, "filter predicate");
+        String paramName = predicate.parameters().get(0);
+
+        CompilationContext filterCtx = ctx
+                .withMapping(mapping)
+                .withClassName(className)
+                .withRowBinding(paramName, tableAlias);
+
+        org.finos.legend.engine.plan.Expression condition = compileScalar(predicate.body(), filterCtx);
+
+        return new FilterNode(source, condition);
+    }
+
+    /**
+     * Compiles filter on a relation-based source (uses column names directly).
+     */
+    private RelationNode compileRelationFilter(
+            RelationNode source,
+            Expression predicateExpr,
+            CompilationContext ctx) {
+
+        Lambda predicate = requireLambda(predicateExpr, "filter predicate");
+        String paramName = predicate.parameters().get(0);
+
+        // For relation filters, we don't have a mapping - use empty alias
+        CompilationContext filterCtx = ctx
+                .withRowBinding(paramName, "");
+
+        org.finos.legend.engine.plan.Expression condition = compileScalar(predicate.body(), filterCtx);
+
+        return new FilterNode(source, condition);
+    }
+
+    // ========================================================================
+    // PROJECT COMPILATION
+    // ========================================================================
+
+    private RelationNode compileProject(List<Expression> params, CompilationContext ctx) {
+        requireParams("project", params, 2);
+
+        Expression sourceExpr = params.get(0);
+        Expression columnsExpr = params.get(1);
+
+        RelationNode source = compileToRelation(sourceExpr, ctx);
+        SourceKind kind = classifySourceWithContext(sourceExpr, ctx);
+
+        return switch (kind) {
+            case CLASS -> compileClassProject(source, sourceExpr, columnsExpr, ctx);
+            case TDS, RELATION -> compileRelationProject(source, columnsExpr, ctx);
+        };
+    }
+
+    private RelationNode compileClassProject(
+            RelationNode source,
+            Expression sourceExpr,
+            Expression columnsExpr,
+            CompilationContext ctx) {
+
+        String tableAlias = getTableAlias(source);
+        RelationalMapping mapping = extractMappingFromSource(sourceExpr);
+
+        List<Projection> projections = new ArrayList<>();
+
+        for (Expression colExpr : extractList(columnsExpr)) {
+            Projection proj = compileClassProjection(colExpr, tableAlias, mapping);
+            projections.add(proj);
+        }
+
+        return new ProjectNode(source, projections);
+    }
+
+    private RelationNode compileRelationProject(
+            RelationNode source,
+            Expression columnsExpr,
+            CompilationContext ctx) {
+
+        List<Projection> projections = new ArrayList<>();
+
+        for (Expression colExpr : extractList(columnsExpr)) {
+            Projection proj = compileRelationProjection(colExpr, ctx);
+            projections.add(proj);
+        }
+
+        return new ProjectNode(source, projections);
+    }
+
+    private Projection compileClassProjection(Expression expr, String tableAlias, RelationalMapping mapping) {
+        // Handle ~columnName : {x | $x.property} pattern
+        if (expr instanceof Function f && "column".equals(f.function())) {
+            String alias = extractString(f.parameters().get(0));
+
+            if (f.parameters().size() > 1) {
+                // Has a lambda for transformation
+                Lambda lambda = requireLambda(f.parameters().get(1), "projection lambda");
+                String propertyName = extractPropertyFromLambda(lambda);
+                String columnName = mapping.getPropertyMapping(propertyName)
+                        .orElseThrow(() -> new CompileException(
+                                "Property '" + propertyName + "' not found in mapping for class '" +
+                                        mapping.pureClass().name() + "'. Available: " + mapping.propertyNames()))
+                        .columnName();
+                return Projection.column(tableAlias, columnName, alias);
+            } else {
+                // Simple ~col - alias is also the property name
+                String columnName = mapping.getPropertyMapping(alias)
+                        .orElseThrow(() -> new CompileException(
+                                "Property '" + alias + "' not found in mapping"))
+                        .columnName();
+                return Projection.column(tableAlias, columnName, alias);
+            }
+        }
+
+        // Handle lambda {x | $x.property}
+        if (expr instanceof Lambda lambda) {
+            String propertyName = extractPropertyFromLambda(lambda);
+            String columnName = mapping.getPropertyMapping(propertyName)
+                    .orElseThrow(() -> new CompileException(
+                            "Property '" + propertyName + "' not found in mapping"))
+                    .columnName();
+            return Projection.column(tableAlias, columnName, propertyName);
+        }
+
+        throw new CompileException(
+                "Invalid class projection: " + describeExpression(expr) + ". " +
+                        "Expected ~columnName or {x | $x.property}");
+    }
+
+    private Projection compileRelationProjection(Expression expr, CompilationContext ctx) {
+        // Handle ~columnName
+        if (expr instanceof Function f && "column".equals(f.function())) {
+            String colName = extractString(f.parameters().get(0));
+            return Projection.column("", colName, colName);
+        }
+
+        // Handle string literal "columnName"
+        if (expr instanceof Literal lit && lit.type() == Literal.Type.STRING) {
+            String colName = (String) lit.value();
+            return Projection.column("", colName, colName);
+        }
+
+        throw new CompileException(
+                "Invalid relation projection: " + describeExpression(expr) + ". " +
+                        "Expected ~columnName or 'columnName'");
+    }
+
+    // ========================================================================
+    // SCALAR EXPRESSION COMPILATION
+    // ========================================================================
+
+    /**
+     * Compiles an Expression to a scalar SQL Expression.
+     * This is the main dispatch for scalar expressions (predicates, computed
+     * columns).
+     */
+    private org.finos.legend.engine.plan.Expression compileScalar(Expression expr, CompilationContext ctx) {
+        return switch (expr) {
+            case Function f -> compileScalarFunction(f, ctx);
+            case Variable v -> compileVariable(v, ctx);
+            case Property p -> compileProperty(p, ctx);
+            case Literal l -> compileLiteral(l);
+            case Lambda lambda -> compileScalar(lambda.body(), ctx.withLambdaParam(lambda.parameters().get(0)));
+            // These cannot be scalar expressions
+            case TdsLiteral tds2 -> throw new CompileException(
+                    "TDS literal cannot be used in scalar context. " +
+                            "TDS literals are relation-level expressions.");
+            case RelationLiteral rel2 -> throw new CompileException(
+                    "Relation literal cannot be used in scalar context.");
+            case Collection c -> throw new CompileException(
+                    "Collection cannot be used directly in scalar context.");
+        };
+    }
+
+    /**
+     * Compiles a Function in scalar context.
+     */
+    private org.finos.legend.engine.plan.Expression compileScalarFunction(Function f, CompilationContext ctx) {
+        String name = f.function();
+        List<Expression> params = f.parameters();
+
+        // Strip qualified names (meta::pure::functions::math::abs -> abs)
+        if (name.contains("::")) {
+            name = name.substring(name.lastIndexOf("::") + 2);
+        }
+
+        return switch (name) {
+            // ===== COMPARISON =====
+            case "equal" -> ComparisonExpression.equals(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+            case "notEqual" -> new ComparisonExpression(
+                    compileScalar(params.get(0), ctx),
+                    ComparisonExpression.ComparisonOperator.NOT_EQUALS,
+                    compileScalar(params.get(1), ctx));
+            case "lessThan" -> ComparisonExpression.lessThan(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+            case "greaterThan" -> ComparisonExpression.greaterThan(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+            case "lessThanEqual" -> new ComparisonExpression(
+                    compileScalar(params.get(0), ctx),
+                    ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS,
+                    compileScalar(params.get(1), ctx));
+            case "greaterThanEqual" -> new ComparisonExpression(
+                    compileScalar(params.get(0), ctx),
+                    ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS,
+                    compileScalar(params.get(1), ctx));
+
+            // ===== LOGICAL =====
+            case "and" -> LogicalExpression.and(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+            case "or" -> LogicalExpression.or(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+            case "not" -> LogicalExpression.not(compileScalar(params.get(0), ctx));
+
+            // ===== ARITHMETIC =====
+            case "plus" -> ArithmeticExpression.add(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+            case "minus" -> ArithmeticExpression.subtract(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+            case "times" -> ArithmeticExpression.multiply(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+            case "divide" -> ArithmeticExpression.divide(
+                    compileScalar(params.get(0), ctx),
+                    compileScalar(params.get(1), ctx));
+
+            // ===== MATH FUNCTIONS =====
+            case "abs" -> SqlFunctionCall.of("abs", compileScalar(params.get(0), ctx), SqlType.DECIMAL);
+            case "round" -> SqlFunctionCall.of("round", compileScalar(params.get(0), ctx), SqlType.DECIMAL);
+            case "ceiling", "ceil" -> SqlFunctionCall.of("ceil", compileScalar(params.get(0), ctx), SqlType.DECIMAL);
+            case "floor" -> SqlFunctionCall.of("floor", compileScalar(params.get(0), ctx), SqlType.DECIMAL);
+
+            // ===== COLUMN REFERENCE =====
+            case "column" -> {
+                String colName = extractString(params.get(0));
+                yield ColumnReference.of(colName);
+            }
+
+            // ===== DATE FUNCTIONS =====
+            case "year" ->
+                new DateFunctionExpression(DateFunctionExpression.DateFunction.YEAR, compileScalar(params.get(0), ctx));
+            case "month" -> new DateFunctionExpression(DateFunctionExpression.DateFunction.MONTH,
+                    compileScalar(params.get(0), ctx));
+            case "day", "dayOfMonth" ->
+                new DateFunctionExpression(DateFunctionExpression.DateFunction.DAY, compileScalar(params.get(0), ctx));
+            case "hour" ->
+                new DateFunctionExpression(DateFunctionExpression.DateFunction.HOUR, compileScalar(params.get(0), ctx));
+            case "minute" -> new DateFunctionExpression(DateFunctionExpression.DateFunction.MINUTE,
+                    compileScalar(params.get(0), ctx));
+            case "second" -> new DateFunctionExpression(DateFunctionExpression.DateFunction.SECOND,
+                    compileScalar(params.get(0), ctx));
+            case "dayOfWeek" -> new DateFunctionExpression(DateFunctionExpression.DateFunction.DAY_OF_WEEK,
+                    compileScalar(params.get(0), ctx));
+            case "dayOfYear" -> new DateFunctionExpression(DateFunctionExpression.DateFunction.DAY_OF_YEAR,
+                    compileScalar(params.get(0), ctx));
+            case "weekOfYear" -> new DateFunctionExpression(DateFunctionExpression.DateFunction.WEEK_OF_YEAR,
+                    compileScalar(params.get(0), ctx));
+            case "quarter" -> new DateFunctionExpression(DateFunctionExpression.DateFunction.QUARTER,
+                    compileScalar(params.get(0), ctx));
+
+            // ===== STRING FUNCTIONS =====
+            case "toUpper", "toUpperCase" ->
+                SqlFunctionCall.of("upper", compileScalar(params.get(0), ctx), SqlType.VARCHAR);
+            case "toLower", "toLowerCase" ->
+                SqlFunctionCall.of("lower", compileScalar(params.get(0), ctx), SqlType.VARCHAR);
+            case "length" -> SqlFunctionCall.of("length", compileScalar(params.get(0), ctx), SqlType.INTEGER);
+            case "trim" -> SqlFunctionCall.of("trim", compileScalar(params.get(0), ctx), SqlType.VARCHAR);
+
+            // ===== CURRENT DATE =====
+            case "now" -> new CurrentDateExpression(CurrentDateExpression.CurrentDateFunction.NOW);
+            case "today" -> new CurrentDateExpression(CurrentDateExpression.CurrentDateFunction.TODAY);
+
+            // ===== EXPLICIT ERROR =====
+            default -> throw new CompileException(
+                    "Unknown scalar function: '" + name + "'. " +
+                            "This function is not yet implemented in PureLegendCompiler.");
+        };
+    }
+
+    private org.finos.legend.engine.plan.Expression compileVariable(Variable v, CompilationContext ctx) {
+        String name = v.name();
+
+        // Check for ROW binding (lambda parameter like $x in filter(x | $x.col > 5))
+        if (ctx.hasRowBinding(name)) {
+            // Return column reference - the variable represents "the row"
+            throw new CompileException(
+                    "Variable $" + name + " is a row reference and cannot be used directly. " +
+                            "Use property access like $" + name + ".propertyName");
+        }
+
+        // Check for SCALAR binding (let-bound value)
+        if (ctx.hasScalarBinding(name)) {
+            return ctx.getScalarBinding(name);
+        }
+
+        // Check for lambda parameter (simple column reference context)
+        if (ctx.isLambdaParam(name)) {
+            return ColumnReference.of(name);
+        }
+
+        throw new CompileException(
+                "Unknown variable: $" + name + ". " +
+                        "Variable is not bound in current context. " +
+                        "Available bindings: " + ctx.describeBindings());
+    }
+
+    private org.finos.legend.engine.plan.Expression compileProperty(Property p, CompilationContext ctx) {
+        String propertyName = p.property();
+
+        // Property source should be a variable (e.g., $x in $x.firstName)
+        if (!(p.source() instanceof Variable v)) {
+            throw new CompileException(
+                    "Property access source must be a variable, got: " + describeExpression(p.source()));
+        }
+
+        String varName = v.name();
+
+        // Check if variable has a ROW binding (table alias)
+        if (ctx.hasRowBinding(varName)) {
+            String tableAlias = ctx.getRowBinding(varName);
+
+            // If we have a mapping, resolve property to column
+            if (ctx.hasMapping()) {
+                RelationalMapping mapping = ctx.getMapping();
+                PropertyMapping propMapping = mapping.getPropertyMapping(propertyName)
+                        .orElseThrow(() -> new CompileException(
+                                "Property '" + propertyName + "' not found in mapping for class '" +
+                                        mapping.pureClass().name() + "'. " +
+                                        "Available properties: " + mapping.propertyNames()));
+
+                return ColumnReference.of(tableAlias, propMapping.columnName());
+            } else {
+                // No mapping - use property name as column name (relation context)
+                if (tableAlias.isEmpty()) {
+                    return ColumnReference.of(propertyName);
+                }
+                return ColumnReference.of(tableAlias, propertyName);
+            }
+        }
+
+        throw new CompileException(
+                "Cannot resolve property '" + propertyName + "': " +
+                        "variable $" + varName + " is not bound to a row context.");
+    }
+
+    private org.finos.legend.engine.plan.Expression compileLiteral(Literal l) {
+        return switch (l.type()) {
+            case STRING -> org.finos.legend.engine.plan.Literal.string((String) l.value());
+            case INTEGER -> org.finos.legend.engine.plan.Literal.integer(((Number) l.value()).longValue());
+            case DECIMAL -> org.finos.legend.engine.plan.Literal.decimal(((Number) l.value()).doubleValue());
+            case BOOLEAN -> org.finos.legend.engine.plan.Literal.bool((Boolean) l.value());
+            case NULL -> org.finos.legend.engine.plan.Literal.nullValue();
+            case DATE -> org.finos.legend.engine.plan.Literal.string(l.value().toString()); // TODO: proper date
+                                                                                            // handling
+        };
+    }
+
+    // ========================================================================
+    // GROUPBY COMPILATION
+    // ========================================================================
+
+    private RelationNode compileGroupBy(List<Expression> params, CompilationContext ctx) {
+        // Legacy format: source, groupCols, aggLambdas, aliases (4 params)
+        // New format: source, ~[cols], ~[agg:...] (2-3 params styled with ~)
+
+        if (params.isEmpty()) {
+            throw new CompileException("groupBy() requires at least source and grouping columns");
+        }
+
+        Expression sourceExpr = params.get(0);
+        RelationNode source = compileToRelation(sourceExpr, ctx);
+
+        if (params.size() == 2) {
+            // New style: groupBy(~[cols], ~[agg:...]) - cols is params[1]
+            return compileGroupByNewStyle(source, params.get(1), null, ctx);
+        } else if (params.size() == 3) {
+            // Could be new style with 2 collections or old style without aliases
+            // Check if it's new style (~[cols], ~[agg:])
+            return compileGroupByNewStyle(source, params.get(1), params.get(2), ctx);
+        } else if (params.size() == 4) {
+            // Legacy format: source, [groupColLambdas], [aggLambdas], [aliases]
+            return compileGroupByLegacy(source, params.get(1), params.get(2), params.get(3), ctx);
+        }
+
+        throw new CompileException("Invalid groupBy() parameter count: " + params.size());
+    }
+
+    private RelationNode compileGroupByNewStyle(
+            RelationNode source,
+            Expression groupColsExpr,
+            Expression aggsExpr,
+            CompilationContext ctx) {
+
+        List<String> groupingColumns = new ArrayList<>();
+        for (Expression col : extractList(groupColsExpr)) {
+            groupingColumns.add(extractColumnName(col));
+        }
+
+        List<GroupByNode.AggregateProjection> aggregations = new ArrayList<>();
+        if (aggsExpr != null) {
+            for (Expression aggExpr : extractList(aggsExpr)) {
+                aggregations.add(compileAggregation(aggExpr, ctx));
+            }
+        }
+
+        return new GroupByNode(source, groupingColumns, aggregations);
+    }
+
+    private RelationNode compileGroupByLegacy(
+            RelationNode source,
+            Expression groupColLambdas,
+            Expression aggLambdas,
+            Expression aliasesExpr,
+            CompilationContext ctx) {
+
+        // Extract grouping column names from lambdas like [{r | $r.dept}]
+        List<String> groupingColumns = new ArrayList<>();
+        for (Expression col : extractList(groupColLambdas)) {
+            Lambda lambda = requireLambda(col, "groupBy column");
+            groupingColumns.add(extractColumnFromLambda(lambda));
+        }
+
+        // Extract aliases
+        List<String> aliases = new ArrayList<>();
+        for (Expression a : extractList(aliasesExpr)) {
+            aliases.add(extractString(a));
+        }
+
+        // Extract aggregations from lambdas like [{r | $r.sal}] or [{r |
+        // $r.sal->stdDev()}]
+        List<GroupByNode.AggregateProjection> aggregations = new ArrayList<>();
+        List<Expression> aggExprs = extractList(aggLambdas);
+
+        for (int i = 0; i < aggExprs.size(); i++) {
+            Lambda lambda = requireLambda(aggExprs.get(i), "aggregation");
+
+            // Get alias from aliases list (offset by grouping columns count)
+            int aliasIndex = groupingColumns.size() + i;
+            String alias = (aliasIndex < aliases.size()) ? aliases.get(aliasIndex) : "agg" + i;
+
+            // Parse the lambda body to determine column and aggregate function
+            Expression body = lambda.body();
+            String columnName;
+            AggregateExpression.AggregateFunction aggFunc;
+
+            if (body instanceof Function f) {
+                // Pattern: $r.sal->stdDev() - function call on property
+                if (!f.parameters().isEmpty()) {
+                    columnName = extractPropertyOrColumn(f.parameters().get(0));
+                } else {
+                    throw new CompileException("Aggregate function requires a source column");
+                }
+                aggFunc = mapAggregateFunctionName(f.function());
+            } else if (body instanceof Property p) {
+                // Pattern: $r.sal - defaults to SUM
+                columnName = p.property();
+                aggFunc = AggregateExpression.AggregateFunction.SUM;
+            } else {
+                throw new CompileException("Invalid aggregation body: " + describeExpression(body));
+            }
+
+            AggregateExpression aggExpr = new AggregateExpression(aggFunc, ColumnReference.of(columnName));
+            aggregations.add(new GroupByNode.AggregateProjection(alias, aggExpr));
+        }
+
+        return new GroupByNode(source, groupingColumns, aggregations);
+    }
+
+    private String extractPropertyOrColumn(Expression expr) {
+        if (expr instanceof Property p) {
+            return p.property();
+        }
+        if (expr instanceof Variable v) {
+            // Could be {y | $y->plus()} where y is the accumulator - return empty means
+            // "the row"
+            return v.name();
+        }
+        return extractColumnName(expr);
+    }
+
+    private AggregateExpression.AggregateFunction mapAggregateFunctionName(String name) {
+        return switch (name) {
+            case "sum", "plus" -> AggregateExpression.AggregateFunction.SUM;
+            case "count" -> AggregateExpression.AggregateFunction.COUNT;
+            case "avg", "average" -> AggregateExpression.AggregateFunction.AVG;
+            case "min" -> AggregateExpression.AggregateFunction.MIN;
+            case "max" -> AggregateExpression.AggregateFunction.MAX;
+            case "stdDev", "stdDevSample" -> AggregateExpression.AggregateFunction.STDDEV_SAMP;
+            case "stdDevPopulation" -> AggregateExpression.AggregateFunction.STDDEV_POP;
+            case "variance", "varianceSample" -> AggregateExpression.AggregateFunction.VAR_SAMP;
+            case "variancePopulation" -> AggregateExpression.AggregateFunction.VAR_POP;
+            case "median" -> AggregateExpression.AggregateFunction.MEDIAN;
+            case "corr" -> AggregateExpression.AggregateFunction.CORR;
+            case "covarSample" -> AggregateExpression.AggregateFunction.COVAR_SAMP;
+            case "covarPopulation" -> AggregateExpression.AggregateFunction.COVAR_POP;
+            case "percentileCont" -> AggregateExpression.AggregateFunction.PERCENTILE_CONT;
+            case "percentileDisc" -> AggregateExpression.AggregateFunction.PERCENTILE_DISC;
+            case "joinStrings" -> AggregateExpression.AggregateFunction.STRING_AGG;
+            default -> throw new CompileException(
+                    "Unknown aggregate function: '" + name + "'");
+        };
+    }
+
+    private GroupByNode.AggregateProjection compileAggregation(Expression expr, CompilationContext ctx) {
+        // Expected format: ~alias : {x | $x.col} : {y | $y->sum()}
+        // Parsed as: Function("column", [Literal("alias"), Lambda1, Lambda2])
+
+        if (!(expr instanceof Function f) || !"column".equals(f.function())) {
+            throw new CompileException(
+                    "Invalid aggregation format: " + describeExpression(expr) + ". " +
+                            "Expected ~alias : {x | $x.col} : {y | $y->aggFunc()}");
+        }
+
+        List<Expression> parts = f.parameters();
+        if (parts.size() < 3) {
+            throw new CompileException(
+                    "Aggregation requires alias, source lambda, and aggregate lambda");
+        }
+
+        String alias = extractString(parts.get(0));
+        Lambda sourceLambda = requireLambda(parts.get(1), "aggregation source");
+        Lambda aggLambda = requireLambda(parts.get(2), "aggregation function");
+
+        // Extract column from source lambda
+        String columnName = extractColumnFromLambda(sourceLambda);
+
+        // Extract aggregate function from agg lambda
+        AggregateExpression.AggregateFunction aggFunc = extractAggregateFunction(aggLambda);
+
+        AggregateExpression aggExpr = new AggregateExpression(aggFunc, ColumnReference.of(columnName));
+
+        return new GroupByNode.AggregateProjection(alias, aggExpr);
+    }
+
+    private AggregateExpression.AggregateFunction extractAggregateFunction(Lambda lambda) {
+        Expression body = lambda.body();
+
+        if (!(body instanceof Function f)) {
+            throw new CompileException(
+                    "Aggregate lambda body must be a function call, got: " + describeExpression(body));
+        }
+
+        String funcName = f.function();
+
+        return switch (funcName) {
+            case "sum", "plus" -> AggregateExpression.AggregateFunction.SUM;
+            case "count" -> AggregateExpression.AggregateFunction.COUNT;
+            case "avg", "average" -> AggregateExpression.AggregateFunction.AVG;
+            case "min" -> AggregateExpression.AggregateFunction.MIN;
+            case "max" -> AggregateExpression.AggregateFunction.MAX;
+            case "stdDev", "stdDevSample" -> AggregateExpression.AggregateFunction.STDDEV_SAMP;
+            case "stdDevPopulation" -> AggregateExpression.AggregateFunction.STDDEV_POP;
+            case "variance", "varianceSample" -> AggregateExpression.AggregateFunction.VAR_SAMP;
+            case "variancePopulation" -> AggregateExpression.AggregateFunction.VAR_POP;
+            case "median" -> AggregateExpression.AggregateFunction.MEDIAN;
+            default -> throw new CompileException(
+                    "Unknown aggregate function: '" + funcName + "'. " +
+                            "Supported: sum, count, avg, min, max, stdDev, variance, median");
+        };
+    }
+
+    // ========================================================================
+    // STUB IMPLEMENTATIONS - These need to be ported from legacy compiler
+    // ========================================================================
+
+    private RelationNode compileExtend(List<Expression> params, CompilationContext ctx) {
+        throw new CompileException("extend() not yet implemented in clean compiler");
+    }
+
+    private RelationNode compileSelect(List<Expression> params, CompilationContext ctx) {
+        requireParams("select", params, 2);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        List<String> columns = new ArrayList<>();
+        for (Expression col : extractList(params.get(1))) {
+            columns.add(extractColumnName(col));
+        }
+        List<Projection> projections = columns.stream()
+                .map(c -> Projection.column("", c, c))
+                .toList();
+        return new ProjectNode(source, projections);
+    }
+
+    private RelationNode compileRename(List<Expression> params, CompilationContext ctx) {
+        requireParams("rename", params, 3);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        String oldName = extractColumnName(params.get(1));
+        String newName = extractColumnName(params.get(2));
+        return new RenameNode(source, oldName, newName);
+    }
+
+    private RelationNode compileDistinct(List<Expression> params, CompilationContext ctx) {
+        requireParams("distinct", params, 1, 2);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        return new DistinctNode(source);
+    }
+
+    private RelationNode compileConcatenate(List<Expression> params, CompilationContext ctx) {
+        requireParams("concatenate", params, 2);
+        RelationNode left = compileToRelation(params.get(0), ctx);
+        RelationNode right = compileToRelation(params.get(1), ctx);
+        return new UnionNode(left, right, true);
+    }
+
+    private RelationNode compileSort(List<Expression> params, CompilationContext ctx) {
+        requireParams("sort", params, 2);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        List<SortNode.SortColumn> sortCols = new ArrayList<>();
+        for (Expression sortExpr : extractList(params.get(1))) {
+            sortCols.add(compileSortColumn(sortExpr));
+        }
+        return new SortNode(source, sortCols);
+    }
+
+    private RelationNode compileSortBy(List<Expression> params, CompilationContext ctx) {
+        return compileSort(params, ctx); // Same logic for now
+    }
+
+    private SortNode.SortColumn compileSortColumn(Expression expr) {
+        // Handle ~col->desc() or ~col->ascending() patterns
+        if (expr instanceof Function f) {
+            if ("desc".equals(f.function()) || "descending".equals(f.function())) {
+                String col = extractColumnName(f.parameters().get(0));
+                return new SortNode.SortColumn(col, SortNode.SortDirection.DESC);
+            }
+            if ("asc".equals(f.function()) || "ascending".equals(f.function())) {
+                String col = extractColumnName(f.parameters().get(0));
+                return new SortNode.SortColumn(col, SortNode.SortDirection.ASC);
+            }
+            // Plain column reference
+            if ("column".equals(f.function())) {
+                String col = extractString(f.parameters().get(0));
+                return new SortNode.SortColumn(col, SortNode.SortDirection.ASC);
+            }
+        }
+        throw new CompileException("Invalid sort column: " + describeExpression(expr));
+    }
+
+    private RelationNode compileLimit(List<Expression> params, CompilationContext ctx) {
+        requireParams("limit", params, 2);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        int limit = extractInteger(params.get(1));
+        return new LimitNode(source, limit, 0);
+    }
+
+    private RelationNode compileDrop(List<Expression> params, CompilationContext ctx) {
+        requireParams("drop", params, 2);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        int offset = extractInteger(params.get(1));
+        return new LimitNode(source, Integer.MAX_VALUE, offset);
+    }
+
+    private RelationNode compileSlice(List<Expression> params, CompilationContext ctx) {
+        requireParams("slice", params, 3);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        int start = extractInteger(params.get(1));
+        int end = extractInteger(params.get(2));
+        return new LimitNode(source, end - start, start);
+    }
+
+    private RelationNode compileFirst(List<Expression> params, CompilationContext ctx) {
+        requireParams("first", params, 1);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        return new LimitNode(source, 1, 0);
+    }
+
+    private RelationNode compileJoin(List<Expression> params, CompilationContext ctx) {
+        throw new CompileException("join() not yet implemented in clean compiler");
+    }
+
+    private RelationNode compileAsOfJoin(List<Expression> params, CompilationContext ctx) {
+        throw new CompileException("asOfJoin() not yet implemented in clean compiler");
+    }
+
+    private RelationNode compileAggregate(List<Expression> params, CompilationContext ctx) {
+        // aggregate() is like groupBy with no grouping columns
+        // Format: aggregate(source, aggLambdas, aliases)
+        requireParams("aggregate", params, 3);
+
+        RelationNode source = compileToRelation(params.get(0), ctx);
+
+        // Empty grouping columns - aggregate over entire result
+        List<String> groupingColumns = List.of();
+
+        List<GroupByNode.AggregateProjection> aggregations = new ArrayList<>();
+        List<Expression> aggExprs = extractList(params.get(1));
+        List<String> aliases = new ArrayList<>();
+        for (Expression a : extractList(params.get(2))) {
+            aliases.add(extractString(a));
+        }
+
+        for (int i = 0; i < aggExprs.size(); i++) {
+            Lambda lambda = requireLambda(aggExprs.get(i), "aggregate");
+            String alias = (i < aliases.size()) ? aliases.get(i) : "agg" + i;
+
+            Expression body = lambda.body();
+            String columnName;
+            AggregateExpression.AggregateFunction aggFunc;
+
+            if (body instanceof Function f) {
+                if (!f.parameters().isEmpty()) {
+                    columnName = extractPropertyOrColumn(f.parameters().get(0));
+                } else {
+                    throw new CompileException("Aggregate function requires a source column");
+                }
+                aggFunc = mapAggregateFunctionName(f.function());
+            } else if (body instanceof Property p) {
+                columnName = p.property();
+                aggFunc = AggregateExpression.AggregateFunction.SUM;
+            } else {
+                throw new CompileException("Invalid aggregate body: " + describeExpression(body));
+            }
+
+            AggregateExpression aggExpr = new AggregateExpression(aggFunc, ColumnReference.of(columnName));
+            aggregations.add(new GroupByNode.AggregateProjection(alias, aggExpr));
+        }
+
+        return new GroupByNode(source, groupingColumns, aggregations);
+    }
+
+    private RelationNode compileNth(List<Expression> params, CompilationContext ctx) {
+        requireParams("nth", params, 2);
+        RelationNode source = compileToRelation(params.get(0), ctx);
+        int n = extractInteger(params.get(1));
+        // nth is 0-indexed offset with limit 1
+        return new LimitNode(source, 1, n);
+    }
+
+    private RelationNode compileFlatten(List<Expression> params, CompilationContext ctx) {
+        throw new CompileException("flatten() not yet implemented in clean compiler");
+    }
+
+    private RelationNode compilePivot(List<Expression> params, CompilationContext ctx) {
+        throw new CompileException("pivot() not yet implemented in clean compiler");
+    }
+
+    private RelationNode compileFrom(List<Expression> params, CompilationContext ctx) {
+        // from() just returns the source - runtime binding handled elsewhere
+        requireParams("from", params, 1, 2);
+        return compileToRelation(params.get(0), ctx);
+    }
+
+    // ========================================================================
+    // LITERAL SOURCES
+    // ========================================================================
+
+    private RelationNode compileTdsLiteral(TdsLiteral tds) {
+        return new TdsLiteralNode(tds.columnNames(), tds.rows());
+    }
+
+    private RelationNode compileRelationLiteral(RelationLiteral rel) {
+        // Parse the relation reference (e.g., store::DB.TABLE)
+        String ref = rel.reference();
+        String[] parts = ref.split("\\.");
+        if (parts.length != 2) {
+            throw new CompileException(
+                    "Invalid relation literal reference: '" + ref + "'. " +
+                            "Expected format: store::database.TABLE");
+        }
+
+        String tableName = parts[1];
+
+        // Try to find table in model context
+        if (modelContext != null) {
+            Optional<TableDefinition> tableDef = modelContext.findTable(tableName);
+            if (tableDef.isPresent()) {
+                return new TableNode(tableDef.get(), nextAlias());
+            }
+        }
+
+        // Fall back to simple table reference
+        return new TableNode(new TableDefinition(tableName, List.of()), nextAlias());
+    }
+
+    private RelationNode compileRelationVariable(Variable v, CompilationContext ctx) {
+        String name = v.name();
+
+        if (ctx.hasRelationBinding(name)) {
+            return ctx.getRelationBinding(name);
+        }
+
+        throw new CompileException(
+                "Variable $" + name + " is not bound to a relation. " +
+                        "Available relation bindings: " + ctx.describeRelationBindings());
+    }
+
+    private RelationNode compileConstantLambda(Lambda lambda, CompilationContext ctx) {
+        Expression body = lambda.body();
+
+        // If body is a relation expression, compile as relation
+        if (isRelationExpression(body)) {
+            return compileToRelation(body, ctx);
+        }
+
+        // Otherwise compile as scalar constant
+        org.finos.legend.engine.plan.Expression scalarExpr = compileScalar(body, ctx);
+        return new ConstantNode(scalarExpr);
+    }
+
+    private boolean isRelationExpression(Expression expr) {
+        return switch (expr) {
+            case Function f -> isRelationFunction(f.function());
+            case TdsLiteral tds3 -> true;
+            case RelationLiteral rel3 -> true;
+            case Variable v -> ctx.hasRelationBinding(v.name());
+            default -> false;
+        };
+    }
+
+    private boolean isRelationFunction(String name) {
+        return switch (name) {
+            case "all", "filter", "project", "groupBy", "extend", "select",
+                    "rename", "distinct", "concatenate", "sort", "sortBy",
+                    "limit", "take", "drop", "slice", "first", "join",
+                    "flatten", "pivot", "from" ->
+                true;
+            default -> false;
+        };
+    }
+
+    // ========================================================================
+    // HELPER METHODS
+    // ========================================================================
+
+    private String nextAlias() {
+        return "t" + (aliasCounter++);
+    }
+
+    private String getTableAlias(RelationNode node) {
+        if (node instanceof TableNode tn) {
+            return tn.alias();
+        }
+        return "t0";
+    }
+
+    private RelationalMapping extractMappingFromSource(Expression source) {
+        return switch (source) {
+            case Function f when "all".equals(f.function()) -> {
+                String className = extractClassName(f.parameters().get(0));
+                yield mappingRegistry.getByClassName(className);
+            }
+            case Function f -> extractMappingFromSource(f.parameters().get(0));
+            default -> throw new CompileException(
+                    "Cannot extract mapping from: " + describeExpression(source));
+        };
+    }
+
+    private SourceKind classifySourceWithContext(Expression source, CompilationContext ctx) {
+        this.ctx = ctx; // Set for classifySource
+        return classifySource(source);
+    }
+
+    private void requireParams(String funcName, List<Expression> params, int min) {
+        if (params.size() < min) {
+            throw new CompileException(
+                    funcName + "() requires at least " + min + " parameter(s), got " + params.size());
+        }
+    }
+
+    private void requireParams(String funcName, List<Expression> params, int min, int max) {
+        if (params.size() < min || params.size() > max) {
+            throw new CompileException(
+                    funcName + "() requires " + min + "-" + max + " parameter(s), got " + params.size());
+        }
+    }
+
+    private Lambda requireLambda(Expression expr, String context) {
+        if (expr instanceof Lambda lambda) {
+            return lambda;
+        }
+        throw new CompileException(
+                "Expected lambda for " + context + ", got: " + describeExpression(expr));
+    }
+
+    private String extractString(Expression expr) {
+        if (expr instanceof Literal lit && lit.type() == Literal.Type.STRING) {
+            return (String) lit.value();
+        }
+        throw new CompileException("Expected string literal, got: " + describeExpression(expr));
+    }
+
+    private int extractInteger(Expression expr) {
+        if (expr instanceof Literal lit) {
+            Object value = lit.value();
+            if (value instanceof Number n) {
+                return n.intValue();
+            }
+        }
+        throw new CompileException("Expected integer literal, got: " + describeExpression(expr));
+    }
+
+    private String extractColumnName(Expression expr) {
+        return switch (expr) {
+            case Function f when "column".equals(f.function()) -> extractString(f.parameters().get(0));
+            case Literal lit when lit.type() == Literal.Type.STRING -> (String) lit.value();
+            case Lambda lambda -> extractColumnFromLambda(lambda);
+            default -> throw new CompileException(
+                    "Cannot extract column name from: " + describeExpression(expr));
+        };
+    }
+
+    private String extractColumnFromLambda(Lambda lambda) {
+        Expression body = lambda.body();
+        if (body instanceof Property p) {
+            return p.property();
+        }
+        throw new CompileException(
+                "Cannot extract column from lambda body: " + describeExpression(body));
+    }
+
+    private String extractPropertyFromLambda(Lambda lambda) {
+        Expression body = lambda.body();
+        if (body instanceof Property p) {
+            return p.property();
+        }
+        throw new CompileException(
+                "Lambda body must be a property access, got: " + describeExpression(body));
+    }
+
+    private List<Expression> extractList(Expression expr) {
+        if (expr instanceof Collection coll) {
+            return coll.values();
+        }
+        return List.of(expr);
+    }
+
+    private String describeExpression(Expression expr) {
+        return expr.getClass().getSimpleName() + "[" + expr + "]";
+    }
+
+    // ========================================================================
+    // COMPILATION CONTEXT
+    // ========================================================================
+
+    /**
+     * Immutable compilation context for tracking bindings during compilation.
+     */
+    public record CompilationContext(
+            Map<String, String> rowBindings, // varName -> tableAlias
+            Map<String, RelationNode> relationBindings, // varName -> RelationNode
+            Map<String, org.finos.legend.engine.plan.Expression> scalarBindings, // varName -> Expression
+            Set<String> lambdaParams, // Lambda parameter names
+            RelationalMapping mapping, // Current mapping (for class-based sources)
+            String className // Current class name
+    ) {
+        public static CompilationContext empty() {
+            return new CompilationContext(
+                    Map.of(), Map.of(), Map.of(), Set.of(), null, null);
+        }
+
+        public CompilationContext withRowBinding(String param, String alias) {
+            var newBindings = new HashMap<>(rowBindings);
+            newBindings.put(param, alias);
+            return new CompilationContext(newBindings, relationBindings, scalarBindings, lambdaParams, mapping,
+                    className);
+        }
+
+        public CompilationContext withRelationBinding(String param, RelationNode relation) {
+            var newBindings = new HashMap<>(relationBindings);
+            newBindings.put(param, relation);
+            return new CompilationContext(rowBindings, newBindings, scalarBindings, lambdaParams, mapping, className);
+        }
+
+        public CompilationContext withScalarBinding(String param, org.finos.legend.engine.plan.Expression expr) {
+            var newBindings = new HashMap<>(scalarBindings);
+            newBindings.put(param, expr);
+            return new CompilationContext(rowBindings, relationBindings, newBindings, lambdaParams, mapping, className);
+        }
+
+        public CompilationContext withLambdaParam(String param) {
+            var newParams = new HashSet<>(lambdaParams);
+            newParams.add(param);
+            return new CompilationContext(rowBindings, relationBindings, scalarBindings, newParams, mapping, className);
+        }
+
+        public CompilationContext withMapping(RelationalMapping mapping) {
+            return new CompilationContext(rowBindings, relationBindings, scalarBindings, lambdaParams, mapping,
+                    className);
+        }
+
+        public CompilationContext withClassName(String className) {
+            return new CompilationContext(rowBindings, relationBindings, scalarBindings, lambdaParams, mapping,
+                    className);
+        }
+
+        public CompilationContext withSource(RelationNode source) {
+            // No-op for now - source tracking can be added later
+            return this;
+        }
+
+        public boolean hasRowBinding(String name) {
+            return rowBindings.containsKey(name);
+        }
+
+        public String getRowBinding(String name) {
+            return rowBindings.get(name);
+        }
+
+        public boolean hasRelationBinding(String name) {
+            return relationBindings.containsKey(name);
+        }
+
+        public RelationNode getRelationBinding(String name) {
+            return relationBindings.get(name);
+        }
+
+        public boolean hasScalarBinding(String name) {
+            return scalarBindings.containsKey(name);
+        }
+
+        public org.finos.legend.engine.plan.Expression getScalarBinding(String name) {
+            return scalarBindings.get(name);
+        }
+
+        public boolean isLambdaParam(String name) {
+            return lambdaParams.contains(name);
+        }
+
+        public boolean hasMapping() {
+            return mapping != null;
+        }
+
+        public RelationalMapping getMapping() {
+            return mapping;
+        }
+
+        public String describeBindings() {
+            List<String> parts = new ArrayList<>();
+            if (!rowBindings.isEmpty())
+                parts.add("rows=" + rowBindings.keySet());
+            if (!relationBindings.isEmpty())
+                parts.add("relations=" + relationBindings.keySet());
+            if (!scalarBindings.isEmpty())
+                parts.add("scalars=" + scalarBindings.keySet());
+            if (!lambdaParams.isEmpty())
+                parts.add("lambdaParams=" + lambdaParams);
+            return parts.isEmpty() ? "(none)" : String.join(", ", parts);
+        }
+
+        public String describeRelationBindings() {
+            return relationBindings.isEmpty() ? "(none)" : relationBindings.keySet().toString();
+        }
+
+        // Legacy compatibility
+        public boolean hasSymbol(String name) {
+            return hasRowBinding(name) || hasRelationBinding(name) || hasScalarBinding(name);
+        }
+
+        public SymbolBinding lookupSymbol(String name) {
+            if (hasRelationBinding(name)) {
+                return SymbolBinding.relation(name, getRelationBinding(name));
+            }
+            if (hasScalarBinding(name)) {
+                return SymbolBinding.scalar(name, getScalarBinding(name));
+            }
+            if (hasRowBinding(name)) {
+                return SymbolBinding.row(name, getRowBinding(name));
+            }
+            return null;
+        }
+
+        public boolean isRelationSource(String name) {
+            return hasRelationBinding(name);
+        }
+
+        public RelationNode getRelationSource(String name) {
+            return getRelationBinding(name);
+        }
+    }
+
+    // ========================================================================
+    // EXCEPTION
+    // ========================================================================
+
+    public static class CompileException extends RuntimeException {
+        public CompileException(String message) {
+            super(message);
+        }
+    }
+}

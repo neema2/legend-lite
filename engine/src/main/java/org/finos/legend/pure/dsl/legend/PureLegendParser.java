@@ -232,7 +232,92 @@ public class PureLegendParser extends PureParserBaseVisitor<Expression> {
             return visitTdsLiteral(ctx.tdsLiteral());
         }
 
+        if (ctx.dsl() != null) {
+            return visitDsl(ctx.dsl());
+        }
+
         return Literal.nil();
+    }
+
+    /**
+     * Handles DSL/island expressions like #>{db.table}# and #{ graphFetch }
+     */
+    public Expression visitDsl(PureParser.DslContext ctx) {
+        if (ctx.dslExtension() != null) {
+            return visitDslExtension(ctx.dslExtension());
+        }
+        throw new RuntimeException("Unknown DSL: " + ctx.getText());
+    }
+
+    /**
+     * Handles dslExtension like #>{db.table}# or #{graphFetch}
+     */
+    public Expression visitDslExtension(PureParser.DslExtensionContext ctx) {
+        String islandOpen = ctx.ISLAND_OPEN().getText();
+        String dslType = islandOpen.substring(1, islandOpen.length() - 1);
+
+        // Collect content
+        StringBuilder content = new StringBuilder();
+        for (PureParser.DslExtensionContentContext contentCtx : ctx.dslExtensionContent()) {
+            if (contentCtx.ISLAND_BRACE_OPEN() != null) {
+                content.append("{");
+            } else if (contentCtx.ISLAND_BRACE_CLOSE() != null) {
+                content.append("}");
+            } else {
+                content.append(contentCtx.getText());
+            }
+        }
+        String contentText = content.toString().trim();
+
+        // Parse based on DSL type
+        Expression result = switch (dslType) {
+            case ">" -> parseRelationLiteral(contentText);
+            default -> throw new RuntimeException("Unsupported DSL type: #" + dslType + "{");
+        };
+
+        // Handle arrow chain after DSL: #>{db.table}#->filter(...)
+        if (ctx.functionChainAfterArrow() != null) {
+            result = processFunctionChainAfterArrow(result, ctx.functionChainAfterArrow());
+        }
+
+        return result;
+    }
+
+    /**
+     * Parses relation literal content: store::DB.TABLE
+     */
+    private Expression parseRelationLiteral(String content) {
+        // Parse: qualifiedName.identifier (e.g., store::PersonDB.T_PERSON)
+        int lastDot = content.lastIndexOf('.');
+        if (lastDot == -1) {
+            throw new RuntimeException("Invalid relation literal format: " + content);
+        }
+        String dbRef = content.substring(0, lastDot);
+        String tableName = content.substring(lastDot + 1);
+        return new RelationLiteral(dbRef, tableName);
+    }
+
+    /**
+     * Processes function chain after arrow exit from DSL.
+     */
+    private Expression processFunctionChainAfterArrow(Expression source,
+            PureParser.FunctionChainAfterArrowContext ctx) {
+        Expression current = source;
+
+        var qualifiedNames = ctx.qualifiedName();
+        var params = ctx.functionExpressionParameters();
+
+        for (int i = 0; i < qualifiedNames.size(); i++) {
+            String funcName = getSimpleName(qualifiedNames.get(i).getText());
+            List<Expression> args = new ArrayList<>();
+            args.add(current);
+            if (i < params.size()) {
+                args.addAll(parseFunctionArgs(params.get(i)));
+            }
+            current = new Function(funcName, args);
+        }
+
+        return current;
     }
 
     /**
@@ -321,6 +406,24 @@ public class PureLegendParser extends PureParserBaseVisitor<Expression> {
         }
         if (ctx.BOOLEAN() != null) {
             return Literal.bool(Boolean.parseBoolean(ctx.BOOLEAN().getText()));
+        }
+        if (ctx.DATE() != null) {
+            // DATE token is %2024-01-15 or %2024-01-15T10:30:00
+            String text = ctx.DATE().getText();
+            // Strip leading % sign
+            String dateValue = text.substring(1);
+            // Check if it has time component (DateTime)
+            if (dateValue.contains("T")) {
+                return new Literal(dateValue, Literal.Type.DATETIME);
+            } else {
+                return new Literal(dateValue, Literal.Type.STRICT_DATE);
+            }
+        }
+        if (ctx.STRICTTIME() != null) {
+            // STRICTTIME is %HH:MM:SS format
+            String text = ctx.STRICTTIME().getText();
+            String timeValue = text.substring(1); // Strip leading %
+            return new Literal(timeValue, Literal.Type.STRICT_TIME);
         }
         return Literal.nil();
     }
