@@ -1730,6 +1730,20 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 } else if ("range".equals(fc.functionName()) || "_range".equals(fc.functionName())) {
                     frame = parseFrame(fc, RelationExtendExpression.FrameType.RANGE);
                 }
+            } else if (arg instanceof ArrayLiteral arr) {
+                // Handle: [~col1->ascending(), ~col2->descending()] as array of order specs
+                for (PureExpression element : arr.elements()) {
+                    if (element instanceof MethodCall mc) {
+                        String method = mc.methodName();
+                        if ("descending".equals(method) || "desc".equals(method)) {
+                            orderSpecs.add(new RelationExtendExpression.SortSpec(
+                                    extractColName(mc.source()), RelationExtendExpression.SortDirection.DESC));
+                        } else if ("ascending".equals(method) || "asc".equals(method)) {
+                            orderSpecs.add(new RelationExtendExpression.SortSpec(
+                                    extractColName(mc.source()), RelationExtendExpression.SortDirection.ASC));
+                        }
+                    }
+                }
             }
         }
 
