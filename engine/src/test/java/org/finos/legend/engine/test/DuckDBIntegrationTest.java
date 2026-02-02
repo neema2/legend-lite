@@ -3420,6 +3420,69 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
+     * Test OLAP aggregate with multiple window columns.
+     * This is the EXACT PCT test:
+     * testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns
+     * 
+     * Pattern: extend(over(~grp, ~id->descending(),
+     * unbounded()->rows(unbounded())),
+     * ~[newCol:...:y|$y->joinStrings(''), other:...:y|$y->plus()])
+     */
+    @Test
+    void testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns() throws SQLException {
+        // Exact data from PCT test
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                    6, 1, F
+                    7, 3, G
+                    8, 1, H
+                    9, 5, I
+                    10, 0, J
+                #->extend(over(~grp, ~id->descending(), unbounded()->rows(unbounded())), ~[newCol:{p,w,r|$r.name}:y|$y->joinStrings(''),other:{p,w,r|$r.id}:y|$y->plus()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        assertEquals(10, result.rows().size(), "Should have 10 rows");
+
+        // With unbounded frame, all rows in a partition have the same values
+        // With DESC order, names are concatenated in descending id order:
+        // grp=0: "J", sum=10
+        // grp=1: "HFB" (ids 8,6,2 -> H,F,B), sum=16
+        // grp=2: "EA" (ids 5,1 -> E,A), sum=6
+        // grp=3: "GC" (ids 7,3 -> G,C), sum=10
+        // grp=4: "D", sum=4
+        // grp=5: "I", sum=9
+        for (var row : result.rows()) {
+            int grp = ((Number) row.values().get(1)).intValue();
+            String newCol = (String) row.values().get(3);
+            int other = ((Number) row.values().get(4)).intValue();
+
+            var expected = switch (grp) {
+                case 0 -> new Object[] { "J", 10 };
+                case 1 -> new Object[] { "HFB", 16 };
+                case 2 -> new Object[] { "EA", 6 };
+                case 3 -> new Object[] { "GC", 10 };
+                case 4 -> new Object[] { "D", 4 };
+                case 5 -> new Object[] { "I", 9 };
+                default -> throw new AssertionError("Unexpected grp: " + grp);
+            };
+            assertEquals(expected[0], newCol, "For grp=" + grp + ", newCol should be " + expected[0]);
+            assertEquals(expected[1], other, "For grp=" + grp + ", other should be " + expected[1]);
+        }
+    }
+
+    /**
      * Test TDS-based project() with column transformations including toLower.
      * This mirrors the PCT test pattern for TDS project.
      * 

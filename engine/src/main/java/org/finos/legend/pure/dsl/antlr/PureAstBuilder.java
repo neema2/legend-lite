@@ -1589,6 +1589,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         }
 
         PureExpression colArg = args.get(1);
+
+        // Single column spec
         if (colArg instanceof ColumnSpec cs) {
             WindowFunctionSpec funcSpec = parseWindowFunctionFromColumnSpec(cs);
             RelationExtendExpression.TypedWindowSpec typedSpec = RelationExtendExpression.TypedWindowSpec.of(
@@ -1596,7 +1598,22 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return RelationExtendExpression.window(source, cs.name(), typedSpec);
         }
 
-        throw new PureParseException("extend(over(...)) requires a ColumnSpec, got: " + colArg.getClass());
+        // Multiple column specs in array: ~[col1:..., col2:...]
+        if (colArg instanceof ColumnSpecArray csa) {
+            PureExpression result = source;
+            for (PureExpression spec : csa.specs()) {
+                if (spec instanceof ColumnSpec cs) {
+                    WindowFunctionSpec funcSpec = parseWindowFunctionFromColumnSpec(cs);
+                    RelationExtendExpression.TypedWindowSpec typedSpec = RelationExtendExpression.TypedWindowSpec.of(
+                            funcSpec, ctx.partitionCols, ctx.orderSpecs, ctx.frame);
+                    result = RelationExtendExpression.window(result, cs.name(), typedSpec);
+                }
+            }
+            return result;
+        }
+
+        throw new PureParseException(
+                "extend(over(...)) requires a ColumnSpec or ColumnSpecArray, got: " + colArg.getClass());
     }
 
     /**
