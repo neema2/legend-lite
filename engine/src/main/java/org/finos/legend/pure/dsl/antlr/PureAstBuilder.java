@@ -1757,7 +1757,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             // Get the aggregate function from the agg lambda body
             PureExpression aggBody = aggLambda.body();
             if (aggBody instanceof MethodCall mc) {
-                // Pattern: $y->plus() or $y->sum()
+                // Pattern: $y->plus() or $y->sum() or $y->joinStrings('')
                 AggregateFunctionSpec.AggregateFunction aggFunc = switch (mc.methodName().toLowerCase()) {
                     case "plus", "sum" -> AggregateFunctionSpec.AggregateFunction.SUM;
                     case "avg", "average" -> AggregateFunctionSpec.AggregateFunction.AVG;
@@ -1766,6 +1766,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     case "max" -> AggregateFunctionSpec.AggregateFunction.MAX;
                     case "stddev" -> AggregateFunctionSpec.AggregateFunction.STDDEV;
                     case "variance" -> AggregateFunctionSpec.AggregateFunction.VARIANCE;
+                    case "joinstrings" -> AggregateFunctionSpec.AggregateFunction.STRING_AGG;
                     default -> AggregateFunctionSpec.AggregateFunction.SUM;
                 };
                 return AggregateFunctionSpec.of(aggFunc, columnName, List.of(), List.of());

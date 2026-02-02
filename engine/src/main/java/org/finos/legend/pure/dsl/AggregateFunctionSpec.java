@@ -34,7 +34,8 @@ public record AggregateFunctionSpec(
         VARIANCE,
         VAR_SAMP,
         VAR_POP,
-        MEDIAN;
+        MEDIAN,
+        STRING_AGG;
 
         /**
          * Parses a Pure function name to AggregateFunction.
@@ -53,6 +54,7 @@ public record AggregateFunctionSpec(
                 case "variancesample", "var_samp" -> VAR_SAMP;
                 case "variancepopulation", "var_pop" -> VAR_POP;
                 case "median" -> MEDIAN;
+                case "joinstrings", "string_agg" -> STRING_AGG;
                 default -> null;
             };
         }

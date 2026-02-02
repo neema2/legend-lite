@@ -3356,6 +3356,57 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
+     * Test window STRING_AGG with partition and order.
+     * This mirrors PCT test:
+     * testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow
+     * 
+     * Pattern: extend(over(~grp, ~id->ascending(), unbounded()->rows(unbounded())),
+     * ~newCol:{p,w,r|$r.name}:y|$y->joinStrings(''))
+     * Expected: STRING_AGG(name, '') OVER (PARTITION BY grp ORDER BY id ASC ROWS
+     * UNBOUNDED)
+     */
+    @Test
+    void testWindowStringAggWithPartitionAndOrder() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 1, C
+                    4, 2, D
+                #->extend(over(~grp, ~id->ascending()), ~names:{p,w,r|$r.name}:y|$y->joinStrings(''))
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Window STRING_AGG result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        assertEquals(4, result.rows().size(), "Should have 4 rows");
+
+        // Window STRING_AGG is cumulative - each row shows names up to that point
+        // grp=2, id=1: "A" (first row in partition)
+        // grp=2, id=4: "AD" (A + D, cumulative)
+        // grp=1, id=2: "B" (first row in partition)
+        // grp=1, id=3: "BC" (B + C, cumulative)
+        for (var row : result.rows()) {
+            int id = ((Number) row.values().get(0)).intValue();
+            String names = (String) row.values().get(3);
+
+            String expected = switch (id) {
+                case 1 -> "A"; // First in grp=2
+                case 4 -> "AD"; // Cumulative in grp=2
+                case 2 -> "B"; // First in grp=1
+                case 3 -> "BC"; // Cumulative in grp=1
+                default -> throw new AssertionError("Unexpected id: " + id);
+            };
+            assertEquals(expected, names,
+                    "For id=" + id + ", cumulative names should be " + expected);
+        }
+    }
+
+    /**
      * Test TDS-based project() with column transformations including toLower.
      * This mirrors the PCT test pattern for TDS project.
      * 

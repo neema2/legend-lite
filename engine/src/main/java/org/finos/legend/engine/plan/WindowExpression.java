@@ -68,7 +68,10 @@ public record WindowExpression(
 
         // Percentile functions (ordered-set aggregates)
         PERCENTILE_CONT,
-        PERCENTILE_DISC
+        PERCENTILE_DISC,
+
+        // String aggregation
+        STRING_AGG
     }
 
     /**

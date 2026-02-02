@@ -2410,6 +2410,7 @@ public final class PureCompiler {
             case VAR_SAMP -> WindowExpression.WindowFunction.VAR_SAMP;
             case VAR_POP -> WindowExpression.WindowFunction.VAR_POP;
             case MEDIAN -> WindowExpression.WindowFunction.MEDIAN;
+            case STRING_AGG -> WindowExpression.WindowFunction.STRING_AGG;
         };
 
         return WindowExpression.aggregate(windowFunc, aggregate.column(), partitionColumns, orderBy, frameSpec);

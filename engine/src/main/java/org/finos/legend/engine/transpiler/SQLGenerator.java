@@ -701,6 +701,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             } else {
                 sb.append(dialect.quoteIdentifier(w.aggregateColumn()));
             }
+            // Add separator for STRING_AGG (default to empty string for joinStrings(''))
+            if (w.function() == WindowExpression.WindowFunction.STRING_AGG) {
+                sb.append(", ''");
+            }
             // Add offset for LAG/LEAD
             if (w.offset() != null && (w.function() == WindowExpression.WindowFunction.LAG
                     || w.function() == WindowExpression.WindowFunction.LEAD)) {
