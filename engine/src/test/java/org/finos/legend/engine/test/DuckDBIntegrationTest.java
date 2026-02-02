@@ -3229,7 +3229,6 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Verify specific expected values
         for (var row : result.rows()) {
-            int id = ((Number) row.values().get(0)).intValue();
             int grp = ((Number) row.values().get(1)).intValue();
             int newCol = ((Number) row.values().get(3)).intValue();
 

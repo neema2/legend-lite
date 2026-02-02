@@ -17,6 +17,7 @@ import org.finos.legend.engine.transpiler.json.DuckDbJsonDialect;
 import org.finos.legend.engine.transpiler.json.JsonSqlDialect;
 import org.finos.legend.engine.transpiler.json.JsonSqlGenerator;
 import org.finos.legend.pure.dsl.PureCompiler;
+import org.finos.legend.pure.dsl.legend.PureLegendCompiler;
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
 import org.finos.legend.pure.dsl.definition.RuntimeDefinition;
@@ -61,6 +62,29 @@ public class QueryService {
     private static final int DEFAULT_FETCH_SIZE = 100;
 
     private final ConnectionResolver connectionResolver = new ConnectionResolver();
+
+    /**
+     * Compiler mode toggle - allows switching between legacy and new compiler.
+     * LEGEND = New PureLegendCompiler (ANTLR-based, feature parity in progress)
+     * LEGACY = Original PureCompiler (hand-written parser, feature complete)
+     */
+    private CompilerMode compilerMode = CompilerMode.LEGACY;
+
+    public QueryService() {
+        // Default: use legacy compiler for maximum compatibility
+    }
+
+    public QueryService(CompilerMode mode) {
+        this.compilerMode = mode;
+    }
+
+    public void setCompilerMode(CompilerMode mode) {
+        this.compilerMode = mode;
+    }
+
+    public CompilerMode getCompilerMode() {
+        return compilerMode;
+    }
 
     /**
      * Compiles Pure source, generates a plan, and executes - all in one call.
@@ -173,8 +197,7 @@ public class QueryService {
 
         // 3. Compile query to IR
         MappingRegistry mappingRegistry = model.getMappingRegistry();
-        PureCompiler compiler = new PureCompiler(mappingRegistry, model);
-        RelationNode ir = compiler.compile(query);
+        RelationNode ir = compileQuery(query, mappingRegistry, model);
 
         // 4. Get connection and generate SQL
         String storeRef = runtime.connectionBindings().keySet().iterator().next();
@@ -210,8 +233,7 @@ public class QueryService {
 
         // 3. Compile query to IR
         MappingRegistry mappingRegistry = model.getMappingRegistry();
-        PureCompiler compiler = new PureCompiler(mappingRegistry, model);
-        RelationNode ir = compiler.compile(query);
+        RelationNode ir = compileQuery(query, mappingRegistry, model);
 
         // 4. Get dialect from runtime's connection
         String storeRef = runtime.connectionBindings().keySet().iterator().next();
@@ -321,8 +343,7 @@ public class QueryService {
 
         // 3. Compile query to IR
         MappingRegistry mappingRegistry = model.getMappingRegistry();
-        PureCompiler compiler = new PureCompiler(mappingRegistry, model);
-        RelationNode ir = compiler.compile(query);
+        RelationNode ir = compileQuery(query, mappingRegistry, model);
 
         // 4. Generate SQL for all connections in runtime
         Map<String, ExecutionPlan.GeneratedSql> sqlByStore = new HashMap<>();
@@ -377,8 +398,7 @@ public class QueryService {
 
         // 3. Compile query to IR (PureCompiler handles graphFetch/serialize)
         MappingRegistry mappingRegistry = model.getMappingRegistry();
-        PureCompiler compiler = new PureCompiler(mappingRegistry, model);
-        RelationNode ir = compiler.compile(query);
+        RelationNode ir = compileQuery(query, mappingRegistry, model);
 
         // 4. Get JSON dialect from runtime's connection
         String storeRef = runtime.connectionBindings().keySet().iterator().next();
@@ -423,6 +443,22 @@ public class QueryService {
         }
     }
 
+    /**
+     * Compiles a Pure query to RelationNode IR using the configured compiler.
+     * 
+     * @param query           The Pure query string
+     * @param mappingRegistry The mapping registry for class->table resolution
+     * @param model           The Pure model builder containing classes and
+     *                        connections
+     * @return The compiled RelationNode IR
+     */
+    private RelationNode compileQuery(String query, MappingRegistry mappingRegistry, PureModelBuilder model) {
+        return switch (compilerMode) {
+            case LEGACY -> new PureCompiler(mappingRegistry, model).compile(query);
+            case LEGEND -> new PureLegendCompiler(mappingRegistry, model).compile(query);
+        };
+    }
+
     private SQLDialect getDialect(ConnectionDefinition.DatabaseType dbType) {
         return switch (dbType) {
             case DuckDB -> DuckDBDialect.INSTANCE;
@@ -450,5 +486,15 @@ public class QueryService {
         STREAMING,
         /** Single scalar value (for constant queries) */
         SCALAR
+    }
+
+    /**
+     * Compiler mode selection for switching between implementations.
+     */
+    public enum CompilerMode {
+        /** Original hand-written parser + compiler (feature complete) */
+        LEGACY,
+        /** New ANTLR-based parser + PureLegendCompiler (feature parity in progress) */
+        LEGEND
     }
 }
