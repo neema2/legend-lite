@@ -3562,6 +3562,43 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
+     * Test nth() window function for accessing the nth row value in a window.
+     * This mirrors the PCT test pattern: testOLAPWithPartitionAndOrderNthWindow2
+     * 
+     * Pattern: extend(~partition->over(~order->descending()),
+     * ~newCol:{p,w,r|$p->nth($w,$r,N).column})
+     * Should generate: NTH_VALUE("column", N) OVER (PARTITION BY "partition" ORDER
+     * BY "order" DESC)
+     */
+    @Test
+    void testNthValueWindowFunction() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                #->extend(~grp->over(~id->descending()), ~newCol:{p,w,r|$p->nth($w, $r, 2).id})
+                """;
+
+        // Verify generated SQL uses NTH_VALUE
+        String sql = generateSql(pureQuery);
+        System.out.println("nth() window function SQL: " + sql);
+        assertTrue(sql.contains("NTH_VALUE"), "Should generate NTH_VALUE window function. Got: " + sql);
+        assertTrue(sql.contains("\"id\", 2"), "NTH_VALUE should have column and offset. Got: " + sql);
+
+        var result = executeRelation(pureQuery);
+        System.out.println("nth() results:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        assertEquals(5, result.rows().size(), "Should have 5 rows");
+    }
+
+    /**
      * Test TDS-based project() with column transformations including toLower.
      * This mirrors the PCT test pattern for TDS project.
      * 

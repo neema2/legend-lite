@@ -705,9 +705,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             if (w.function() == WindowExpression.WindowFunction.STRING_AGG) {
                 sb.append(", ''");
             }
-            // Add offset for LAG/LEAD
+            // Add offset for LAG/LEAD/NTH_VALUE
             if (w.offset() != null && (w.function() == WindowExpression.WindowFunction.LAG
-                    || w.function() == WindowExpression.WindowFunction.LEAD)) {
+                    || w.function() == WindowExpression.WindowFunction.LEAD
+                    || w.function() == WindowExpression.WindowFunction.NTH_VALUE)) {
                 sb.append(", ");
                 sb.append(w.offset());
             }

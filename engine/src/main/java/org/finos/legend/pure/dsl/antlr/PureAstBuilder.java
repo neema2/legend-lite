@@ -1969,7 +1969,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 yield RankingFunctionSpec.ntile(n, List.of(), List.of());
             }
 
-            // Value functions (LAG, LEAD, FIRST_VALUE, LAST_VALUE)
+            // Value functions (LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE)
             case "lag" -> ValueFunctionSpec.lagLead(
                     ValueFunctionSpec.ValueFunction.LAG, extractValueColumn(mc), 1, List.of(), List.of());
             case "lead" -> ValueFunctionSpec.lagLead(
@@ -1978,6 +1978,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     ValueFunctionSpec.ValueFunction.FIRST_VALUE, extractValueColumn(mc), List.of(), List.of(), null);
             case "last", "lastValue" -> ValueFunctionSpec.firstLast(
                     ValueFunctionSpec.ValueFunction.LAST_VALUE, extractValueColumn(mc), List.of(), List.of(), null);
+            case "nth", "nthValue" -> ValueFunctionSpec.lagLead(
+                    ValueFunctionSpec.ValueFunction.NTH_VALUE, extractValueColumn(mc), extractNthOffset(mc), List.of(),
+                    List.of());
 
             // Aggregate functions
             case "sum", "plus" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
@@ -2007,6 +2010,18 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return pa.propertyName();
         }
         return "value"; // fallback
+    }
+
+    private int extractNthOffset(MethodCall mc) {
+        // For nth($w, $r, N), extract the integer offset from arguments
+        for (PureExpression arg : mc.arguments()) {
+            if (arg instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.INTEGER) {
+                return ((Number) lit.value()).intValue();
+            } else if (arg instanceof IntegerLiteral lit) {
+                return lit.value().intValue();
+            }
+        }
+        return 1; // default offset
     }
 
     private String extractColName(PureExpression expr) {

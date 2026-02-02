@@ -1885,11 +1885,21 @@ public final class PureCompiler {
         if (colSpec.lambda() instanceof LambdaExpression lambda) {
             PureExpression body = lambda.body();
 
-            // Check if body is a property access on a method call: $p->lag($r).salary
+            // Check if body is a property access on a method call: $p->lag($r).salary or
+            // $p->nth($w,$r,2).id
             if (body instanceof PropertyAccessExpression pa) {
                 if (pa.source() instanceof MethodCall mc) {
                     functionName = mc.methodName();
                     aggregateColumn = pa.propertyName();
+                    // Extract offset for nth() - it's the last integer argument
+                    // Pattern: $p->nth($w, $r, 2).id - args are [$w, $r, 2]
+                    for (PureExpression arg : mc.arguments()) {
+                        if (arg instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.INTEGER) {
+                            offset = ((Number) lit.value()).intValue();
+                        } else if (arg instanceof IntegerLiteral lit) {
+                            offset = lit.value().intValue();
+                        }
+                    }
                 } else if (pa.source() instanceof FirstExpression) {
                     // Special AST node for first() window function
                     functionName = "first_value";
@@ -1928,9 +1938,14 @@ public final class PureCompiler {
         WindowExpression.WindowFunction windowFunc = mapWindowFunction(functionName);
         WindowExpression windowExpr;
 
-        if (offset != null) {
+        if (offset != null && "ntile".equalsIgnoreCase(functionName)) {
             // NTILE with bucket count
             windowExpr = WindowExpression.ntile(offset, partitionColumns, orderBy);
+        } else if (offset != null && aggregateColumn != null
+                && ("nth".equalsIgnoreCase(functionName) || "nth_value".equalsIgnoreCase(functionName))) {
+            // NTH_VALUE(column, n) - needs both aggregateColumn and offset
+            windowExpr = WindowExpression.lagLead(windowFunc, aggregateColumn, offset, partitionColumns, orderBy,
+                    frame);
         } else if (aggregateColumn != null && isValueFunction(functionName)) {
             // LAG, LEAD, FIRST_VALUE, LAST_VALUE - value functions accessing a column
             windowExpr = WindowExpression.lagLead(windowFunc, aggregateColumn, 1, partitionColumns, orderBy, frame);
@@ -1986,16 +2001,36 @@ public final class PureCompiler {
         // Get new column name
         String newColumnName = colSpec.name();
 
-        // Extract aggregate column from lambda (e.g., {p,w,r|$r.id} -> "id")
+        // Extract function, aggregate column, and offset from lambda
+        // Pattern 1: {p,w,r|$r.id} -> simple property access for aggregates
+        // Pattern 2: {p,w,r|$p->nth($w,$r,2).id} -> method call with property access
+        // for nth()
         String aggregateColumn = null;
+        String functionName = "sum"; // Default
+        Integer offset = null;
+
         if (colSpec.lambda() instanceof LambdaExpression lambda) {
-            if (lambda.body() instanceof PropertyAccessExpression pa) {
+            PureExpression body = lambda.body();
+
+            if (body instanceof PropertyAccessExpression pa) {
                 aggregateColumn = pa.propertyName();
+
+                // Check if this is a method call with property access: $p->nth($w,$r,2).id
+                if (pa.source() instanceof MethodCall mc) {
+                    functionName = mc.methodName();
+                    // Extract offset for nth() - it's the last integer argument
+                    for (PureExpression arg : mc.arguments()) {
+                        if (arg instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.INTEGER) {
+                            offset = ((Number) lit.value()).intValue();
+                        } else if (arg instanceof IntegerLiteral lit) {
+                            offset = lit.value().intValue();
+                        }
+                    }
+                }
             }
         }
 
         // Extract window function from extraFunction (e.g., y|$y->size() = count)
-        String functionName = "sum"; // Default
         if (colSpec.extraFunction() instanceof LambdaExpression extraLambda) {
             if (extraLambda.body() instanceof MethodCall mc) {
                 functionName = mapAggregateMethodToFunction(mc.methodName());
@@ -2011,7 +2046,14 @@ public final class PureCompiler {
         WindowExpression.WindowFunction windowFunc = mapWindowFunction(functionName);
         WindowExpression windowExpr;
 
-        if (aggregateColumn != null) {
+        if (offset != null && ("nth".equalsIgnoreCase(functionName) || "nth_value".equalsIgnoreCase(functionName))) {
+            // NTH_VALUE(column, n)
+            windowExpr = WindowExpression.lagLead(windowFunc, aggregateColumn, offset, partitionColumns, orderBy,
+                    frame);
+        } else if (aggregateColumn != null && isValueFunction(functionName)) {
+            // LAG, LEAD, FIRST_VALUE, LAST_VALUE
+            windowExpr = WindowExpression.lagLead(windowFunc, aggregateColumn, 1, partitionColumns, orderBy, frame);
+        } else if (aggregateColumn != null) {
             // Aggregate window function (SUM, COUNT, etc.)
             windowExpr = WindowExpression.aggregate(windowFunc, aggregateColumn, partitionColumns, orderBy, frame);
         } else {
@@ -2485,6 +2527,7 @@ public final class PureCompiler {
             case "lead" -> WindowExpression.WindowFunction.LEAD;
             case "first", "first_value" -> WindowExpression.WindowFunction.FIRST_VALUE;
             case "last", "last_value" -> WindowExpression.WindowFunction.LAST_VALUE;
+            case "nth", "nth_value" -> WindowExpression.WindowFunction.NTH_VALUE;
             case "sum" -> WindowExpression.WindowFunction.SUM;
             case "avg" -> WindowExpression.WindowFunction.AVG;
             case "min" -> WindowExpression.WindowFunction.MIN;
