@@ -1827,7 +1827,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         }
 
         if (!(cs.lambda() instanceof LambdaExpression lambda)) {
-            return RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+            throw new PureParseException("Expected lambda expression for window function column spec: " + cs.name());
         }
 
         PureExpression body = lambda.body();
@@ -1854,11 +1854,10 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return spec;
         }
 
-        // Pattern: {p,w,r|$r.salary} - aggregate with property access (column
-        // extraction)
+        // Pattern: {p,w,r|$r.salary} - bare property access is ambiguous
         if (body instanceof PropertyAccessExpression pae) {
-            return AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
-                    pae.propertyName(), List.of(), List.of());
+            throw new PureParseException("Bare property access '" + pae.propertyName()
+                    + "' in window function - specify explicit function (sum, avg, count, etc.)");
         }
 
         // Also check PropertyAccess for compatibility
@@ -1872,11 +1871,12 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         }
 
         if (body instanceof PropertyAccess pa) {
-            return AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.SUM,
-                    pa.propertyName(), List.of(), List.of());
+            throw new PureParseException("Bare property access '" + pa.propertyName()
+                    + "' in window function - specify explicit function (sum, avg, count, etc.)");
         }
 
-        return RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+        throw new PureParseException(
+                "Unrecognized window function pattern in lambda body: " + body.getClass().getSimpleName());
     }
 
     /**
@@ -1920,7 +1920,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return pa.propertyName();
         }
 
-        return "value"; // fallback
+        throw new PureParseException(
+                "Unable to extract column name from expression: " + expr.getClass().getSimpleName());
     }
 
     private WindowFunctionSpec parseWindowFunctionFromExpr(PureExpression expr) {
@@ -1936,10 +1937,11 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     int n = fc.arguments().isEmpty() ? 1 : ((IntegerLiteral) fc.arguments().get(0)).value().intValue();
                     yield RankingFunctionSpec.ntile(n, List.of(), List.of());
                 }
-                default -> RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+                default -> throw new PureParseException("Unknown window function: " + fc.functionName());
             };
         }
-        return RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+        throw new PureParseException(
+                "Expected FunctionCall for window function, got: " + expr.getClass().getSimpleName());
     }
 
     private WindowFunctionSpec parseWindowFunctionFromMethodCall(MethodCall mc) {
@@ -1998,18 +2000,24 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "variance" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.VARIANCE,
                     extractColFromMethodCall(mc), List.of(), List.of());
 
-            default -> RankingFunctionSpec.of(RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
+            default -> throw new PureParseException("Unknown window function method: " + mc.methodName());
         };
     }
 
     private String extractValueColumn(MethodCall mc) {
-        // For lag($r).salary, the column comes from property access after the method
-        // call
-        // For now, extract from the source if it's a property access
+        // For lag($r).salary, the column name comes from the property access AFTER the
+        // method call
+        // (the outer PropertyAccessExpression), not from inside the MethodCall.
+        // This method tries to extract from the source if it happens to be a
+        // PropertyAccess,
+        // otherwise returns null (the caller will override with the correct property
+        // name).
         if (mc.source() instanceof PropertyAccess pa) {
             return pa.propertyName();
         }
-        return "value"; // fallback
+        // Return null - the caller will provide the actual column name from the outer
+        // PropertyAccessExpression
+        return null;
     }
 
     private int extractNthOffset(MethodCall mc) {
@@ -2021,7 +2029,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 return lit.value().intValue();
             }
         }
-        return 1; // default offset
+        throw new PureParseException("nth() function requires an integer offset argument");
     }
 
     private String extractColName(PureExpression expr) {

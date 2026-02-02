@@ -1878,7 +1878,7 @@ public final class PureCompiler {
         // Pattern 2: {p,w,r|$p->ntile($r,2)} - MethodCall with numeric argument
         // Pattern 3: {p,w,r|$p->rank($w,$r)} - MethodCall with window and relation args
         // Pattern 4: {p,w,r|$r.salary} - Simple property access for aggregates
-        String functionName = "sum"; // Default
+        String functionName = null; // Must be explicitly set
         String aggregateColumn = null;
         Integer offset = null;
 
@@ -1932,6 +1932,12 @@ public final class PureCompiler {
             if (extraLambda.body() instanceof MethodCall mc) {
                 functionName = mapAggregateMethodToFunction(mc.methodName());
             }
+        }
+
+        // Validate that we determined a function
+        if (functionName == null) {
+            throw new PureParseException("Unable to determine window function from column spec: " + colSpec.name()
+                    + ". Specify explicit function (sum, avg, count, rank, etc.)");
         }
 
         // Create the WindowExpression
@@ -2006,7 +2012,7 @@ public final class PureCompiler {
         // Pattern 2: {p,w,r|$p->nth($w,$r,2).id} -> method call with property access
         // for nth()
         String aggregateColumn = null;
-        String functionName = "sum"; // Default
+        String functionName = null; // Must be explicitly set
         Integer offset = null;
 
         if (colSpec.lambda() instanceof LambdaExpression lambda) {
@@ -2040,6 +2046,12 @@ public final class PureCompiler {
                     functionName = "sum";
                 }
             }
+        }
+
+        // Validate that we determined a function
+        if (functionName == null) {
+            throw new PureParseException("Unable to determine window function from column spec: " + colSpec.name()
+                    + ". Specify explicit function (sum, avg, count, rank, etc.)");
         }
 
         // Create the WindowExpression

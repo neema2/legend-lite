@@ -96,7 +96,7 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(over(~department, ~salary->ascending()), ~runningTotal:{p,w,r|$r.salary})
+                        ->extend(over(~department, ~salary->ascending()), ~runningTotal:{p,w,r|$p->sum($w,$r).salary})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
@@ -128,7 +128,7 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
-                        ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningSum:{p,w,r|$r.salary})
+                        ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningSum:{p,w,r|$p->sum($w,$r).salary})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
@@ -144,7 +144,7 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.salary})
-                        ->extend(over(~salary->ascending(), range(unbounded(), unbounded())), ~total:{p,w,r|$r.salary})
+                        ->extend(over(~salary->ascending(), range(unbounded(), unbounded())), ~total:{p,w,r|$p->sum($w,$r).salary})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
@@ -158,7 +158,7 @@ class WindowFunctionTest {
             String pure = """
                     Person.all()
                         ->project({e | $e.name}, {e | $e.salary})
-                        ->extend(over(~salary->ascending(), rows(-3, 0)), ~movingAvg:{p,w,r|$r.salary})
+                        ->extend(over(~salary->ascending(), rows(-3, 0)), ~movingAvg:{p,w,r|$p->avg($w,$r).salary})
                     """;
 
             PureExpression ast = PureParser.parse(pure);
