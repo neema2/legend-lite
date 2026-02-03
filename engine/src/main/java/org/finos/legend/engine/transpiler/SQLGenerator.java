@@ -1545,13 +1545,18 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
         // Only cast to JSON[] if source is a raw JSON extraction (function call like
         // get())
-        // Don't cast if source is already a collection operation (list_transform, etc.)
-        // because those produce properly typed arrays
+        // Don't cast if source is already a collection operation (list_transform,
+        // etc.),
+        // a list literal, or other already-typed arrays
         String listSource;
-        if (call.source() instanceof SqlCollectionCall) {
-            listSource = source; // Already a list operation - don't re-cast
-        } else {
+        if (call.source() instanceof SqlCollectionCall || call.source() instanceof ListLiteral) {
+            listSource = source; // Already a properly typed list - don't cast
+        } else if (call.source() instanceof SqlFunctionCall func
+                && (func.functionName().equals("get") || func.functionName().equals("fromjson"))) {
             listSource = "CAST(" + source + " AS JSON[])"; // JSON extraction needs cast
+        } else {
+            // Default: use as-is (covers literals, column refs to array columns, etc.)
+            listSource = source;
         }
 
         return switch (call.function()) {

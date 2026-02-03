@@ -4528,4 +4528,25 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(5, ((Number) firstRow.get(0)).intValue(), "First row id should be 5 (descending)");
         assertEquals("David", firstRow.get(1), "First row name should be David");
     }
+
+    /**
+     * Test for collection map() followed by at() - requires proper context for
+     * lambda.
+     * 
+     * This was failing with NullPointerException because compileConstant
+     * wasn't creating an empty context when context was null.
+     */
+    @Test
+    void testCollectionMapWithAt() throws SQLException {
+        // GIVEN: A Pure query that uses map() with a lambda, then at()
+        String pureQuery = "|['a', 'b', 'c']->map(x: String[1]|$x + 'z')->at(0)";
+
+        // WHEN: We compile and execute
+        var result = executeRelation(pureQuery);
+        System.out.println("map->at result: " + result.rows());
+
+        // THEN: Should get 'az' - first element after transformation
+        assertEquals(1, result.rows().size(), "Should have 1 row");
+        assertEquals("az", result.rows().get(0).get(0), "First element should be 'az'");
+    }
 }

@@ -144,8 +144,15 @@ public final class PureCompiler {
             return compileExpression(body, context);
         }
 
+        // Create empty context if null - needed for method calls like map() that use
+        // lambdas
+        CompilationContext workingContext = context;
+        if (workingContext == null) {
+            workingContext = new CompilationContext(null, null, null, null, false);
+        }
+
         // Otherwise, treat as scalar expression for SELECT <expr>
-        Expression sqlExpr = compileToSqlExpression(body, context);
+        Expression sqlExpr = compileToSqlExpression(body, workingContext);
         return new ConstantNode(sqlExpr);
     }
 
@@ -3393,12 +3400,16 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         Literal.of(1),
                         Literal.of(-2));
-            case "at" -> { // at(list, idx) -> list_extract(list, idx)
+            case "at" -> { // at(list, idx) -> list_extract(list, idx+1)
+                // Pure at() is 0-indexed, DuckDB list_extract is 1-indexed
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("at requires an index argument");
+                Expression index = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                // Add 1 to convert 0-based Pure index to 1-based DuckDB index
+                Expression adjustedIndex = ArithmeticExpression.add(index, Literal.integer(1));
                 yield SqlFunctionCall.of("list_extract",
                         compileToSqlExpression(methodCall.source(), context),
-                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+                        adjustedIndex);
             }
             case "size" -> {
                 // Check if source is a relation expression (TdsLiteral, FilterExpression, etc.)
