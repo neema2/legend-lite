@@ -4355,4 +4355,31 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Should have 2 groups
         assertEquals(2, result.rows().size(), "Should have 2 groups");
     }
+
+    /**
+     * Test TdsLiteral->size() comparison operation.
+     * This is the EXACT PCT test: testComparisonOperationAfterSize
+     * 
+     * Pattern: #TDS...#->size() > 0
+     * Tests that relation->size() returns a scalar count that can be compared.
+     * Should compile to: (SELECT COUNT(*) FROM ...) > 0
+     */
+    @Test
+    void testComparisonOperationAfterSize() throws SQLException {
+        String pureQuery = """
+                |#TDS
+                    val, str
+                    1, a
+                    3, ewe
+                    4, qw
+                #->meta::pure::functions::relation::size() > 0
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("TDS->size() > 0 result: " + result.rows());
+
+        // A TDS with 3 rows has size 3, so 3 > 0 = true
+        assertEquals(1, result.rows().size(), "Should have 1 row");
+        assertTrue((Boolean) result.rows().get(0).get(0), "TDS with 3 rows should have size > 0");
+    }
 }

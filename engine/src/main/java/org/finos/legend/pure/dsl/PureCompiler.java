@@ -3399,8 +3399,16 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
-            case "size" -> // size(list) -> len(list)
-                SqlFunctionCall.of("len", compileToSqlExpression(methodCall.source(), context));
+            case "size" -> {
+                // Check if source is a relation expression (TdsLiteral, FilterExpression, etc.)
+                // If so, compile as COUNT(*) scalar subquery
+                if (isRelationExpression(methodCall.source())) {
+                    RelationNode relationNode = compileExpression(methodCall.source(), context);
+                    yield new SubqueryExpression(relationNode, SqlFunctionCall.of("count", Literal.of("*")));
+                }
+                // Otherwise, it's a list -> len(list)
+                yield SqlFunctionCall.of("len", compileToSqlExpression(methodCall.source(), context));
+            }
             case "length" -> // length(s) -> len(s) or length(s)
                 SqlFunctionCall.of("length", compileToSqlExpression(methodCall.source(), context));
             case "removeDuplicates" -> // removeDuplicates(list) -> list_distinct(list)
