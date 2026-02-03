@@ -2279,6 +2279,12 @@ public final class PureCompiler {
     private RelationNode compileRelationSelect(RelationSelectExpression select, CompilationContext context) {
         RelationNode source = compileExpression(select.source(), context);
 
+        // Handle select() with no arguments - equivalent to SELECT * (returns all
+        // columns)
+        if (select.columns().isEmpty()) {
+            return source;
+        }
+
         // Build projection for each selected column - use empty alias for Relation API
         // Column references should be unqualified to work correctly in chained
         // operations

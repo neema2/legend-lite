@@ -3173,6 +3173,70 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     // ========================================
+    // SELECT TESTS
+    // ========================================
+
+    @Test
+    @DisplayName("select() with no arguments returns all columns (SELECT *)")
+    void testSelectAllColumns() throws SQLException {
+        // This matches the PCT pattern: #TDS...#->select()
+        String pureQuery = """
+                #TDS
+                    val, str, other
+                    1, a, x
+                    3, ewe, y
+                    4, qw, z
+                #->select()
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("select() result: " + result.rows());
+
+        // Should return all 3 rows with all 3 columns
+        assertEquals(3, result.rows().size(), "Should have 3 rows");
+        assertEquals(3, result.columns().size(), "Should have 3 columns");
+    }
+
+    @Test
+    @DisplayName("select(~col) selects specific column")
+    void testSelectSpecificColumn() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    val, str, other
+                    1, a, x
+                    3, ewe, y
+                    4, qw, z
+                #->select(~str)
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("select(~str) result: " + result.rows());
+
+        assertEquals(3, result.rows().size(), "Should have 3 rows");
+        assertEquals(1, result.columns().size(), "Should have 1 column");
+        assertEquals("str", result.columns().get(0).name());
+    }
+
+    @Test
+    @DisplayName("select(~[col1, col2]) selects multiple columns")
+    void testSelectMultipleColumns() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    val, str, other
+                    1, a, x
+                    3, ewe, y
+                    4, qw, z
+                #->select(~[val, other])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("select(~[val, other]) result: " + result.rows());
+
+        assertEquals(3, result.rows().size(), "Should have 3 rows");
+        assertEquals(2, result.columns().size(), "Should have 2 columns");
+    }
+
+    // ========================================
     // ASOF JOIN TESTS
     // ========================================
 
