@@ -4171,6 +4171,52 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = executeRelation(pureQuery);
         System.out.println("Pivot weighted sum result: " + result.rows());
         assertFalse(result.rows().isEmpty(), "Should have results");
+
+        // Verify multi-column pivot uses __|__ separator for column names
+        // Column names should be like UK__|__LDN_|__weightedSum
+        assertTrue(sql.contains("|| '__|__' ||"), "Multi-column pivot should concatenate with __|__ separator");
+    }
+
+    /**
+     * Test multi-column pivot produces correct column naming with __|__ separator
+     * AND proper aggregation (rows are grouped correctly).
+     * Pure expects columns named: country__|__city__|__aggName
+     * Not: country_city__|__aggName (which DuckDB would produce natively)
+     */
+    @Test
+    void testMultiColumnPivotColumnNaming() throws SQLException {
+        // Use data with multiple rows per year to verify aggregation works
+        String pureQuery = """
+                #TDS
+                    country, city, year, sales
+                    USA, NYC, 2020, 100
+                    USA, NYC, 2020, 50
+                    USA, LA, 2020, 200
+                    UK, LDN, 2021, 300
+                #->pivot(~[country, city], ~[total:x|$x.sales:y|$y->plus()])
+                """;
+
+        String sql = generateSql(pureQuery);
+        System.out.println("Multi-column pivot SQL: " + sql);
+
+        // Verify the EXCLUDE clause removes original pivot columns (prevents wrong
+        // grouping)
+        assertTrue(sql.contains("EXCLUDE"), "Should use EXCLUDE to remove pivot columns");
+        // Verify the concatenation with __|__ separator is in the SQL
+        assertTrue(sql.contains("|| '__|__' ||"), "Should use __|__ separator for multi-column pivot");
+        assertTrue(sql.contains("_pivot_key"), "Should create _pivot_key for concatenated columns");
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Multi-column pivot result columns: " + result.columns());
+        System.out.println("Multi-column pivot result: " + result.rows());
+
+        // Should have 2 rows (2020 and 2021), NOT 4 rows (one per original row)
+        assertEquals(2, result.rows().size(), "Should aggregate into 2 rows (one per year)");
+
+        // Column names should contain __|__ between pivoted values
+        boolean hasCorrectSeparator = result.columns().stream()
+                .anyMatch(c -> c.name().contains("__|__"));
+        assertTrue(hasCorrectSeparator, "Column names should use __|__ separator");
     }
 
     /**
