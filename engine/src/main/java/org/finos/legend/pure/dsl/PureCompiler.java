@@ -2130,14 +2130,15 @@ public final class PureCompiler {
     }
 
     /**
-     * Parses a frame bound: unbounded(), 0 (current row), or integer
-     * (preceding/following)
+     * Parses a frame bound: unbounded(), 0 (current row), or number
+     * (preceding/following).
+     * Supports decimal bounds for RANGE frames (e.g., 0.5D->_range(2.5)).
      */
     private WindowExpression.FrameBound parseFrameBound(PureExpression expr) {
         if (expr instanceof FunctionCall fc && "unbounded".equals(fc.functionName())) {
             return WindowExpression.FrameBound.unbounded();
         } else if (expr instanceof LiteralExpr lit && lit.value() instanceof Number num) {
-            int value = num.intValue();
+            double value = num.doubleValue();
             if (value == 0) {
                 return WindowExpression.FrameBound.currentRow();
             } else if (value < 0) {
@@ -2146,9 +2147,9 @@ public final class PureCompiler {
                 return WindowExpression.FrameBound.following(value);
             }
         } else if (expr instanceof UnaryExpression unary && "-".equals(unary.operator())) {
-            // Handle negative literals like -1, -2
+            // Handle negative literals like -1, -2, -0.5
             if (unary.operand() instanceof LiteralExpr lit && lit.value() instanceof Number num) {
-                int value = num.intValue();
+                double value = num.doubleValue();
                 return WindowExpression.FrameBound.preceding(value); // Already positive, represents "X PRECEDING"
             }
         }

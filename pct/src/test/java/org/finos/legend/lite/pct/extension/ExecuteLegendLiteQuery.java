@@ -130,12 +130,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         } catch (SQLException e) {
             throw new PureExecutionException(
                     functionExpressionCallStack.peek().getSourceInformation(),
-                    "Legend-Lite execution failed: " + e.getMessage(),
+                    e.getMessage(),
                     e);
         } catch (Exception e) {
             throw new PureExecutionException(
                     functionExpressionCallStack.peek().getSourceInformation(),
-                    "Legend-Lite execution failed: " + e.getMessage(),
+                    e.getMessage(),
                     e);
         }
     }

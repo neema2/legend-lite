@@ -94,8 +94,10 @@ public record RelationExtendExpression(
 
     /**
      * Frame boundary.
+     * Uses double for offset to support decimal RANGE bounds (e.g.,
+     * 0.5D->_range(2.5)).
      */
-    public record FrameBound(BoundType type, int offset) {
+    public record FrameBound(BoundType type, double offset) {
 
         public static FrameBound unbounded() {
             return new FrameBound(BoundType.UNBOUNDED, 0);
@@ -109,7 +111,15 @@ public record RelationExtendExpression(
             return new FrameBound(BoundType.PRECEDING, n);
         }
 
+        public static FrameBound preceding(double n) {
+            return new FrameBound(BoundType.PRECEDING, n);
+        }
+
         public static FrameBound following(int n) {
+            return new FrameBound(BoundType.FOLLOWING, n);
+        }
+
+        public static FrameBound following(double n) {
             return new FrameBound(BoundType.FOLLOWING, n);
         }
 
@@ -118,6 +128,20 @@ public record RelationExtendExpression(
          * 0 = current row, negative = preceding, positive = following
          */
         public static FrameBound fromInteger(int value) {
+            if (value == 0) {
+                return currentRow();
+            } else if (value < 0) {
+                return preceding(-value);
+            } else {
+                return following(value);
+            }
+        }
+
+        /**
+         * Creates from double value (for decimal RANGE bounds).
+         * 0 = current row, negative = preceding, positive = following
+         */
+        public static FrameBound fromDouble(double value) {
             if (value == 0) {
                 return currentRow();
             } else if (value < 0) {

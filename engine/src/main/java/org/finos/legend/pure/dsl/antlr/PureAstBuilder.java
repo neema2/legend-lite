@@ -1782,15 +1782,15 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (expr instanceof FunctionCall fc && "unbounded".equals(fc.functionName())) {
             return RelationExtendExpression.FrameBound.unbounded();
         } else if (expr instanceof IntegerLiteral lit) {
-            return RelationExtendExpression.FrameBound.fromInteger(lit.value().intValue());
+            return RelationExtendExpression.FrameBound.fromDouble(lit.value().doubleValue());
         } else if (expr instanceof LiteralExpr lit && lit.value() instanceof Number num) {
-            return RelationExtendExpression.FrameBound.fromInteger(num.intValue());
+            return RelationExtendExpression.FrameBound.fromDouble(num.doubleValue());
         } else if (expr instanceof UnaryExpression unary && "-".equals(unary.operator())) {
             // Handle negative numbers like -1 for PRECEDING
             if (unary.operand() instanceof LiteralExpr lit && lit.value() instanceof Number num) {
-                return RelationExtendExpression.FrameBound.fromInteger(-num.intValue());
+                return RelationExtendExpression.FrameBound.fromDouble(-num.doubleValue());
             } else if (unary.operand() instanceof IntegerLiteral lit) {
-                return RelationExtendExpression.FrameBound.fromInteger(-lit.value().intValue());
+                return RelationExtendExpression.FrameBound.fromDouble(-lit.value().doubleValue());
             }
         }
         return RelationExtendExpression.FrameBound.currentRow();

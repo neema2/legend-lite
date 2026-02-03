@@ -334,6 +334,23 @@ class WindowFunctionTest {
             assertTrue(sql.contains("3 PRECEDING"), "Should have 3 PRECEDING");
             assertTrue(sql.contains("1 FOLLOWING"), "Should have 1 FOLLOWING");
         }
+
+        @Test
+        @DisplayName("Invalid window frame boundary throws error when lower > upper bound")
+        void testInvalidWindowFrameBoundaryThrowsError() {
+            // This matches the PCT test case: 4->_range(2) which means
+            // RANGE BETWEEN 4 FOLLOWING AND 2 FOLLOWING - invalid because 4 > 2
+
+            Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+                WindowExpression.FrameSpec.range(
+                        WindowExpression.FrameBound.following(4), // 4 FOLLOWING
+                        WindowExpression.FrameBound.following(2)); // 2 FOLLOWING - invalid!
+            });
+
+            assertTrue(exception.getMessage().contains(
+                    "Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!"),
+                    "Error message should indicate invalid frame boundary");
+        }
     }
 
     // ==================== Integration Tests ====================
@@ -1034,6 +1051,70 @@ class WindowFunctionTest {
             assertEquals(2L, neighborCounts.get("Charlie"), "Charlie's neighbor count");
             assertEquals(3L, neighborCounts.get("Bob"), "Bob's neighbor count");
             assertEquals(2L, neighborCounts.get("Alice"), "Alice's neighbor count");
+        }
+
+        @Test
+        @DisplayName("Window function with NULL values and DESC ordering - NULLS FIRST semantics")
+        void testWindowFunctionWithNullValuesDescOrdering() throws Exception {
+            // This test verifies that NULL values are ordered FIRST in DESC ordering
+            // matching Pure semantics (opposite of SQL default NULLS LAST)
+
+            // Use TDS literal to test window function with nulls
+            String pureQuery = """
+                    #TDS
+                        p, o, i
+                        0, 1, 10
+                        0, 1, 10
+                        0, null, 30
+                        100, 1, 10
+                        100, 2, 20
+                        100, null, 20
+                        100, 3, 30
+                        100, null, 30
+                    #->extend(~p->over(~o->descending(), unbounded()->_range(1)),
+                              ~sumI:{p,w,r|$r.i}:y:Integer[*]|$y->plus())
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Window with NULLs SQL: " + sql);
+
+            // Verify NULLS FIRST is in the SQL for DESC ordering
+            assertTrue(sql.contains("NULLS FIRST"),
+                    "SQL should contain NULLS FIRST for DESC ordering");
+            assertTrue(sql.contains("DESC NULLS FIRST"),
+                    "SQL should have DESC NULLS FIRST");
+        }
+
+        @Test
+        @DisplayName("Decimal RANGE frame bounds - 0.5D->_range(2.5)")
+        void testDecimalRangeFrameBounds() throws Exception {
+            // This test verifies that decimal frame bounds work correctly
+            // Example: 0.5D->_range(2.5) means RANGE BETWEEN 0.5 FOLLOWING AND 2.5
+            // FOLLOWING
+
+            String pureQuery = """
+                    #TDS
+                        menu_category, menu_cogs_usd
+                        Beverage, 0.5
+                        Beverage, 0.65
+                        Beverage, 0.75
+                        Dessert, 0.50
+                        Dessert, 1.00
+                        Dessert, 1.25
+                    #->extend(~menu_cogs_usd->ascending()->over(0.5D->_range(2.5)),
+                              ~sum_cogs:{p,w,r|$r.menu_cogs_usd}:y:Float[*]|$y->plus())
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Decimal RANGE frame SQL: " + sql);
+
+            // Verify decimal bounds appear in the SQL
+            assertTrue(sql.contains("RANGE BETWEEN"),
+                    "SQL should contain RANGE BETWEEN");
+            assertTrue(sql.contains("0.5 FOLLOWING"),
+                    "SQL should contain 0.5 FOLLOWING for start bound");
+            assertTrue(sql.contains("2.5 FOLLOWING"),
+                    "SQL should contain 2.5 FOLLOWING for end bound");
         }
 
         @Test

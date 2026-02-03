@@ -109,6 +109,46 @@ public record WindowExpression(
             Objects.requireNonNull(type, "Frame type cannot be null");
             Objects.requireNonNull(start, "Frame start cannot be null");
             Objects.requireNonNull(end, "Frame end cannot be null");
+
+            // Validate that lower bound is not greater than upper bound
+            // Frame bounds order: UNBOUNDED PRECEDING < N PRECEDING < CURRENT ROW < N
+            // FOLLOWING < UNBOUNDED FOLLOWING
+            if (!isValidFrameOrder(start, end)) {
+                throw new IllegalArgumentException(
+                        "Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!");
+            }
+        }
+
+        /**
+         * Validates that start bound is not after end bound.
+         * Order: UNBOUNDED PRECEDING < N PRECEDING < CURRENT ROW < N FOLLOWING <
+         * UNBOUNDED FOLLOWING
+         * 
+         * @param isStartBound true if computing ordinal for start bound, false for end
+         *                     bound
+         */
+        private static boolean isValidFrameOrder(FrameBound start, FrameBound end) {
+            double startOrdinal = boundOrdinal(start, true);
+            double endOrdinal = boundOrdinal(end, false);
+            return startOrdinal <= endOrdinal;
+        }
+
+        /**
+         * Returns an ordinal value for frame bound ordering.
+         * Lower values come before higher values in the frame.
+         * 
+         * @param isStartBound true if this is the start bound (UNBOUNDED = PRECEDING),
+         *                     false if this is the end bound (UNBOUNDED = FOLLOWING)
+         */
+        private static double boundOrdinal(FrameBound bound, boolean isStartBound) {
+            return switch (bound.type()) {
+                // UNBOUNDED at start means PRECEDING (min value), at end means FOLLOWING (max
+                // value)
+                case UNBOUNDED -> isStartBound ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+                case PRECEDING -> -bound.offset(); // e.g., 5 PRECEDING = -5
+                case CURRENT_ROW -> 0;
+                case FOLLOWING -> bound.offset(); // e.g., 5 FOLLOWING = 5
+            };
         }
 
         /**
@@ -135,8 +175,10 @@ public record WindowExpression(
 
     /**
      * Frame boundary specification.
+     * Uses double for offset to support decimal RANGE bounds (e.g.,
+     * 0.5D->_range(2.5))
      */
-    public record FrameBound(BoundType type, int offset) {
+    public record FrameBound(BoundType type, double offset) {
 
         /**
          * Creates an UNBOUNDED boundary.
@@ -162,9 +204,27 @@ public record WindowExpression(
         }
 
         /**
+         * Creates a PRECEDING boundary with decimal offset (for RANGE frames).
+         */
+        public static FrameBound preceding(double n) {
+            if (n < 0)
+                throw new IllegalArgumentException("Preceding offset must be non-negative");
+            return new FrameBound(BoundType.PRECEDING, n);
+        }
+
+        /**
          * Creates a FOLLOWING boundary with offset.
          */
         public static FrameBound following(int n) {
+            if (n < 0)
+                throw new IllegalArgumentException("Following offset must be non-negative");
+            return new FrameBound(BoundType.FOLLOWING, n);
+        }
+
+        /**
+         * Creates a FOLLOWING boundary with decimal offset (for RANGE frames).
+         */
+        public static FrameBound following(double n) {
             if (n < 0)
                 throw new IllegalArgumentException("Following offset must be non-negative");
             return new FrameBound(BoundType.FOLLOWING, n);
@@ -178,6 +238,22 @@ public record WindowExpression(
          * - positive = FOLLOWING
          */
         public static FrameBound fromInteger(int value) {
+            if (value == 0) {
+                return currentRow();
+            } else if (value < 0) {
+                return preceding(-value); // Convert negative to positive offset
+            } else {
+                return following(value);
+            }
+        }
+
+        /**
+         * Creates a bound from a double value using Legend-Engine encoding:
+         * - 0 = CURRENT ROW
+         * - negative = PRECEDING
+         * - positive = FOLLOWING
+         */
+        public static FrameBound fromDouble(double value) {
             if (value == 0) {
                 return currentRow();
             } else if (value < 0) {

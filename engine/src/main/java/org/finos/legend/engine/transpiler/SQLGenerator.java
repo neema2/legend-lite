@@ -731,13 +731,19 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         }
 
         // ORDER BY clause
+        // Pure orders NULLs FIRST for DESC, LAST for ASC (opposite of SQL defaults)
         if (hasOrder) {
             if (hasPartition) {
                 sb.append(" ");
             }
             sb.append("ORDER BY ");
             sb.append(w.orderBy().stream()
-                    .map(s -> dialect.quoteIdentifier(s.column()) + " " + s.direction().name())
+                    .map(s -> {
+                        String nullOrder = s.direction() == WindowExpression.SortDirection.DESC
+                                ? " NULLS FIRST"
+                                : " NULLS LAST";
+                        return dialect.quoteIdentifier(s.column()) + " " + s.direction().name() + nullOrder;
+                    })
                     .collect(Collectors.joining(", ")));
         }
 
@@ -772,9 +778,19 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return switch (bound.type()) {
             case UNBOUNDED -> "UNBOUNDED " + (isStart ? "PRECEDING" : "FOLLOWING");
             case CURRENT_ROW -> "CURRENT ROW";
-            case PRECEDING -> bound.offset() + " PRECEDING";
-            case FOLLOWING -> bound.offset() + " FOLLOWING";
+            case PRECEDING -> formatOffset(bound.offset()) + " PRECEDING";
+            case FOLLOWING -> formatOffset(bound.offset()) + " FOLLOWING";
         };
+    }
+
+    /**
+     * Formats a frame offset as a clean number (1 instead of 1.0 for integers).
+     */
+    private String formatOffset(double offset) {
+        if (offset == (int) offset) {
+            return String.valueOf((int) offset);
+        }
+        return String.valueOf(offset);
     }
 
     /**
