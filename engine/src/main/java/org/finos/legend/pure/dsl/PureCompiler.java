@@ -915,7 +915,7 @@ public final class PureCompiler {
         return switch (functionName.toLowerCase()) {
             case "sum", "plus" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.SUM;
             case "avg", "average" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.AVG;
-            case "count" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COUNT;
+            case "count", "size" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COUNT;
             case "min" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.MIN;
             case "max" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.MAX;
             // Statistical functions
@@ -2560,7 +2560,7 @@ public final class PureCompiler {
             case "avg" -> WindowExpression.WindowFunction.AVG;
             case "min" -> WindowExpression.WindowFunction.MIN;
             case "max" -> WindowExpression.WindowFunction.MAX;
-            case "count" -> WindowExpression.WindowFunction.COUNT;
+            case "count", "size" -> WindowExpression.WindowFunction.COUNT;
             // Statistical functions
             case "stddev", "stddev_number_1__number_1_" -> WindowExpression.WindowFunction.STDDEV;
             case "stddevsample", "stddev_samp" -> WindowExpression.WindowFunction.STDDEV_SAMP;

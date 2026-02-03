@@ -4382,4 +4382,82 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(1, result.rows().size(), "Should have 1 row");
         assertTrue((Boolean) result.rows().get(0).get(0), "TDS with 3 rows should have size > 0");
     }
+
+    /**
+     * Test size() as aggregate function in groupBy.
+     * This is the EXACT PCT test: testSize_Relation_Aggregate
+     * 
+     * Pattern: #TDS...#->groupBy(~grp, ~newCol:x|$x.col:y|$y->size())
+     * Tests that size() is recognized as an aggregate function (COUNT).
+     */
+    @Test
+    void testSizeAsAggregateInGroupBy() throws SQLException {
+        String pureQuery = """
+                |#TDS
+                    id, grp, name, employeeNumber
+                    1, 2, A, 21
+                    2, 1, B, 41
+                    3, 3, C, 71
+                    4, 4, D, 31
+                    5, 2, E, 11
+                    6, 1, F, 1
+                    7, 3, G, 91
+                    8, 1, H, 81
+                    9, 5, I, 51
+                    10, 0, J, 101
+                #->groupBy(~[grp], ~[newCol:x|$x.employeeNumber:y|$y->size()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("GroupBy with size() result: " + result.rows());
+
+        // Should have 6 groups (0, 1, 2, 3, 4, 5)
+        assertEquals(6, result.rows().size(), "Should have 6 groups");
+
+        // Find group 1 which has 3 rows (B, F, H)
+        var grp1 = result.rows().stream()
+                .filter(r -> ((Number) r.get(0)).intValue() == 1)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(3, ((Number) grp1.get(1)).intValue(), "Group 1 should have count 3");
+    }
+
+    /**
+     * Test size() as window aggregate function in extend.
+     * This is the EXACT PCT test: testSize_Relation_Window
+     * 
+     * Pattern: #TDS...#->extend(~grp->over(), ~newCol:{...}:y|$y->size())
+     * Tests that size() maps to COUNT in window context.
+     */
+    @Test
+    void testSizeAsWindowAggregate() throws SQLException {
+        String pureQuery = """
+                |#TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                    6, 1, F
+                    7, 3, G
+                    8, 1, H
+                    9, 5, I
+                    10, 0, J
+                #->extend(~grp->over(), ~newCol:x|$x.id:y|$y->size())
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Extend with size() window result: " + result.rows());
+
+        // Should have 10 rows
+        assertEquals(10, result.rows().size(), "Should have 10 rows");
+
+        // Find a row from group 1 (should have count = 3 since B, F, H are in group 1)
+        var grp1Row = result.rows().stream()
+                .filter(r -> ((Number) r.get(1)).intValue() == 1)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(3, ((Number) grp1Row.get(3)).intValue(), "Group 1 should have window count 3");
+    }
 }

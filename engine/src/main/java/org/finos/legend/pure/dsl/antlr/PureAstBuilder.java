@@ -1725,12 +1725,12 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 aggFunc = switch (mc.methodName().toLowerCase()) {
                     case "plus", "sum" -> AggregateFunctionSpec.AggregateFunction.SUM;
                     case "avg", "average" -> AggregateFunctionSpec.AggregateFunction.AVG;
-                    case "count" -> AggregateFunctionSpec.AggregateFunction.COUNT;
+                    case "count", "size" -> AggregateFunctionSpec.AggregateFunction.COUNT;
                     case "min" -> AggregateFunctionSpec.AggregateFunction.MIN;
                     case "max" -> AggregateFunctionSpec.AggregateFunction.MAX;
                     case "stddev" -> AggregateFunctionSpec.AggregateFunction.STDDEV;
                     case "variance" -> AggregateFunctionSpec.AggregateFunction.VARIANCE;
-                    default -> AggregateFunctionSpec.AggregateFunction.SUM;
+                    default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
                 };
             }
         }
@@ -1872,13 +1872,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 AggregateFunctionSpec.AggregateFunction aggFunc = switch (mc.methodName().toLowerCase()) {
                     case "plus", "sum" -> AggregateFunctionSpec.AggregateFunction.SUM;
                     case "avg", "average" -> AggregateFunctionSpec.AggregateFunction.AVG;
-                    case "count" -> AggregateFunctionSpec.AggregateFunction.COUNT;
+                    case "count", "size" -> AggregateFunctionSpec.AggregateFunction.COUNT;
                     case "min" -> AggregateFunctionSpec.AggregateFunction.MIN;
                     case "max" -> AggregateFunctionSpec.AggregateFunction.MAX;
                     case "stddev" -> AggregateFunctionSpec.AggregateFunction.STDDEV;
                     case "variance" -> AggregateFunctionSpec.AggregateFunction.VARIANCE;
                     case "joinstrings" -> AggregateFunctionSpec.AggregateFunction.STRING_AGG;
-                    default -> AggregateFunctionSpec.AggregateFunction.SUM;
+                    default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
                 };
                 return AggregateFunctionSpec.of(aggFunc, columnName, List.of(), List.of());
             }
