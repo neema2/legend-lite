@@ -601,6 +601,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             sb.append("(");
             if (agg.valueColumn() != null) {
                 sb.append(dialect.quoteIdentifier(agg.valueColumn()));
+            } else if (agg.valueExpression() != null) {
+                sb.append(agg.valueExpression());
+            } else {
+                sb.append("1"); // Default for count-like aggregates
             }
             sb.append(") AS ");
             // Pure expects pivot columns named '{value}__|__{name}'

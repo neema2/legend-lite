@@ -1211,16 +1211,26 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
      * Extract aggregate spec from ColumnSpec for pivot.
      * 
      * Format: ~aggName : x | $x.col : y | $y->aggFunc()
+     * 
+     * Handles both:
+     * - Simple column references: $x.treePlanted
+     * - Computed expressions: 1, $x.a * $x.b
      */
     private PivotExpression.AggregateSpec extractPivotAggSpec(ColumnSpec cs) {
         String name = cs.name();
         String valueColumn = null;
+        String valueExpression = null;
         String aggFunction = "sum"; // default
 
-        // The lambda body should give us the value column
+        // The lambda body should give us the value column or expression
         if (cs.lambda() instanceof LambdaExpression mapLambda) {
-            // First lambda: x | $x.col - extracts the value column
-            valueColumn = extractColumnFromExpression(mapLambda.body());
+            PureExpression body = mapLambda.body();
+            // Try to extract a column name first
+            valueColumn = tryExtractColumnFromExpression(body);
+            if (valueColumn == null) {
+                // For computed expressions (literals, binary ops), convert to expression string
+                valueExpression = expressionToSqlString(body);
+            }
         }
 
         // The extra function should give us the aggregate function
@@ -1234,11 +1244,62 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             }
         }
 
-        if (valueColumn == null) {
-            valueColumn = name; // fallback to using the name
+        if (valueColumn != null) {
+            return PivotExpression.AggregateSpec.column(name, valueColumn, aggFunction);
+        } else if (valueExpression != null) {
+            return PivotExpression.AggregateSpec.expression(name, valueExpression, aggFunction);
+        } else {
+            // Fallback to name
+            return PivotExpression.AggregateSpec.column(name, name, aggFunction);
         }
+    }
 
-        return new PivotExpression.AggregateSpec(name, valueColumn, aggFunction);
+    /**
+     * Try to extract a column name from expression. Returns null if not a simple
+     * column reference.
+     */
+    private String tryExtractColumnFromExpression(PureExpression expr) {
+        try {
+            return extractColumnFromExpression(expr);
+        } catch (PureParseException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Convert a Pure expression to SQL expression string for use in aggregations.
+     * Handles literals and binary expressions.
+     */
+    private String expressionToSqlString(PureExpression expr) {
+        if (expr instanceof LiteralExpr lit) {
+            Object value = lit.value();
+            if (value instanceof String s) {
+                return "'" + s.replace("'", "''") + "'";
+            }
+            return String.valueOf(value);
+        } else if (expr instanceof IntegerLiteral lit) {
+            return lit.value().toString();
+        } else if (expr instanceof PropertyAccessExpression pae) {
+            return "\"" + pae.propertyName() + "\"";
+        } else if (expr instanceof PropertyAccess pa) {
+            return "\"" + pa.propertyName() + "\"";
+        } else if (expr instanceof BinaryExpression bin) {
+            String left = expressionToSqlString(bin.left());
+            String right = expressionToSqlString(bin.right());
+            return "(" + left + " " + bin.operator() + " " + right + ")";
+        } else if (expr instanceof MethodCall mc) {
+            if ("toOne".equals(mc.methodName())) {
+                // toOne() just unwraps - return the source
+                return expressionToSqlString(mc.source());
+            }
+            return expressionToSqlString(mc.source());
+        } else if (expr instanceof FunctionCall fc) {
+            // Handle meta::pure::functions::multiplicity::toOne and similar
+            if (fc.functionName().endsWith("toOne") && !fc.arguments().isEmpty()) {
+                return expressionToSqlString(fc.arguments().get(0));
+            }
+        }
+        return "1"; // Default fallback for count-like expressions
     }
 
     /**

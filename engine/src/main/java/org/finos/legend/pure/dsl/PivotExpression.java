@@ -22,15 +22,42 @@ public record PivotExpression(
     /**
      * Represents an aggregate specification in pivot.
      * Maps to: ~aggName : x | $x.col : y | $y->aggFunc()
+     * 
+     * For computed expressions (like |1 for count, or $x.a * $x.b), valueColumn is
+     * null
+     * and valueExpression contains the expression string.
      */
     public record AggregateSpec(
             String name, // Output column name
-            String valueColumn, // Column to aggregate
+            String valueColumn, // Column to aggregate (null for expressions)
+            String valueExpression, // Expression string for computed values (null for columns)
             String aggFunction // Aggregate function (sum, count, etc.)
     ) {
         public AggregateSpec {
             Objects.requireNonNull(name, "Aggregate name cannot be null");
             Objects.requireNonNull(aggFunction, "Aggregate function cannot be null");
+            // Either valueColumn or valueExpression must be non-null
+        }
+
+        /**
+         * Creates an aggregate spec with a simple column reference.
+         */
+        public static AggregateSpec column(String name, String column, String aggFunction) {
+            return new AggregateSpec(name, column, null, aggFunction);
+        }
+
+        /**
+         * Creates an aggregate spec with a computed expression.
+         */
+        public static AggregateSpec expression(String name, String expression, String aggFunction) {
+            return new AggregateSpec(name, null, expression, aggFunction);
+        }
+
+        /**
+         * Returns true if this uses a column reference (vs a computed expression).
+         */
+        public boolean isColumnBased() {
+            return valueColumn != null;
         }
     }
 

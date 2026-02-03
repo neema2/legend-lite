@@ -1361,12 +1361,11 @@ public final class PureCompiler {
         // Convert string pivot columns
         List<String> pivotColumns = pivot.pivotColumns();
 
-        // Convert aggregate specs
+        // Convert aggregate specs - preserve column vs expression distinction
         List<PivotNode.AggregateSpec> aggregates = pivot.aggregates().stream()
-                .map(agg -> new PivotNode.AggregateSpec(
-                        agg.name(),
-                        agg.valueColumn(),
-                        agg.aggFunction()))
+                .map(agg -> agg.isColumnBased()
+                        ? PivotNode.AggregateSpec.column(agg.name(), agg.valueColumn(), agg.aggFunction())
+                        : PivotNode.AggregateSpec.expression(agg.name(), agg.valueExpression(), agg.aggFunction()))
                 .toList();
 
         // Convert static values if present

@@ -4106,6 +4106,74 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
+     * Test pivot with literal expression for count.
+     * Pattern: ~[count:x|1:y|$y->plus()]
+     * This tests that |1 is correctly handled as an expression, not a column.
+     */
+    @Test
+    void testPivotWithLiteralCountExpression() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    city, country, year, treePlanted
+                    NYC, USA, 2011, 5000
+                    NYC, USA, 2000, 5000
+                    SAN, USA, 2000, 2000
+                    SAN, USA, 2011, 100
+                    LDN, UK, 2011, 3000
+                    SAN, USA, 2011, 2500
+                    NYC, USA, 2000, 10000
+                    NYC, USA, 2012, 7600
+                    NYC, USA, 2012, 7600
+                #->pivot(~[country,city], ~[sum:x|$x.treePlanted:y|$y->plus(),count:x|1:y|$y->plus()])
+                """;
+
+        String sql = generateSql(pureQuery);
+        System.out.println("Pivot with literal count SQL: " + sql);
+
+        // Verify the SQL includes both aggregations
+        assertTrue(sql.contains("SUM("), "SQL should contain SUM function");
+        assertTrue(sql.contains("SUM(1)"), "SQL should contain SUM(1) for count");
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Pivot count result: " + result.rows());
+        assertFalse(result.rows().isEmpty(), "Should have results");
+    }
+
+    /**
+     * Test pivot with computed expression (multiplication).
+     * Pattern: ~[sum:x|$x.treePlanted * $x.coefficient:y|$y->plus()]
+     * This tests that binary expressions are correctly compiled to SQL.
+     */
+    @Test
+    void testPivotWithComputedMultiplicationExpression() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    city, country, year, treePlanted, coefficient
+                    NYC, USA, 2011, 5000, 1
+                    NYC, USA, 2000, 5000, 2
+                    SAN, USA, 2000, 2000, 1
+                    SAN, USA, 2011, 100, 2
+                    LDN, UK, 2011, 3000, 2
+                    SAN, USA, 2011, 2500, 1
+                    NYC, USA, 2000, 10000, 2
+                    NYC, USA, 2012, 7600, 1
+                    NYC, USA, 2012, 7600, 2
+                #->pivot(~[country,city], ~[weightedSum:x|$x.treePlanted * $x.coefficient:y|$y->plus()])
+                """;
+
+        String sql = generateSql(pureQuery);
+        System.out.println("Pivot with computed expression SQL: " + sql);
+
+        // Verify the SQL includes the multiplication expression
+        assertTrue(sql.contains("SUM("), "SQL should contain SUM function");
+        assertTrue(sql.contains("*"), "SQL should contain multiplication operator");
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Pivot weighted sum result: " + result.rows());
+        assertFalse(result.rows().isEmpty(), "Should have results");
+    }
+
+    /**
      * Test let bindings with multiple filter expressions.
      * Tests that $a->filter() and $b->filter() work correctly with variable
      * resolution.

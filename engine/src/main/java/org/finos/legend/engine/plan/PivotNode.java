@@ -18,15 +18,29 @@ public record PivotNode(
 
     /**
      * Aggregate specification for pivot.
+     * Supports both column references and computed expressions.
      */
     public record AggregateSpec(
             String name, // Output column name suffix
-            String valueColumn, // Column to aggregate
+            String valueColumn, // Column to aggregate (null for expressions)
+            String valueExpression, // Expression string for computed values (null for columns)
             String aggFunction // Aggregate function (SUM, COUNT, etc.)
     ) {
         public AggregateSpec {
             Objects.requireNonNull(name, "Aggregate name cannot be null");
             Objects.requireNonNull(aggFunction, "Aggregate function cannot be null");
+        }
+
+        public static AggregateSpec column(String name, String column, String aggFunction) {
+            return new AggregateSpec(name, column, null, aggFunction);
+        }
+
+        public static AggregateSpec expression(String name, String expression, String aggFunction) {
+            return new AggregateSpec(name, null, expression, aggFunction);
+        }
+
+        public boolean isColumnBased() {
+            return valueColumn != null;
         }
     }
 
