@@ -1548,11 +1548,12 @@ public final class PureCompiler {
 
     /**
      * Extracts sort direction from expression (defaults to ASC).
-     * Handles MethodCall with .desc() or .asc() suffix.
+     * Handles MethodCall with .desc()/.descending() or .asc()/.ascending() suffix.
      */
     private SortNode.SortDirection extractSortDirection(PureExpression expr) {
         if (expr instanceof MethodCall method) {
-            if ("desc".equalsIgnoreCase(method.methodName())) {
+            String methodName = method.methodName().toLowerCase();
+            if ("desc".equals(methodName) || "descending".equals(methodName)) {
                 return SortNode.SortDirection.DESC;
             }
         }

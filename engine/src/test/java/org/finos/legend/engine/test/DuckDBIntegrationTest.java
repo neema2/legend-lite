@@ -4460,4 +4460,72 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 .orElseThrow();
         assertEquals(3, ((Number) grp1Row.get(3)).intValue(), "Group 1 should have window count 3");
     }
+
+    /**
+     * Test sort() with array of sort specs.
+     * This is the EXACT PCT test: testSimpleSortShared
+     * 
+     * Pattern: #TDS...#->sort([~id->ascending(), ~name->ascending()])
+     * Tests that sort array arguments are flattened correctly.
+     */
+    @Test
+    void testSortWithArrayOfSortSpecs() throws SQLException {
+        String pureQuery = """
+                |#TDS
+                    id, name
+                    2, George
+                    3, Pierre
+                    1, Sachin
+                    1, Neema
+                    5, David
+                    4, Alex
+                    2, Thierry
+                #->sort([~id->ascending(), ~name->ascending()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Sort with array result: " + result.rows());
+
+        // Should have 7 rows sorted by id, then by name
+        assertEquals(7, result.rows().size(), "Should have 7 rows");
+
+        // First row should be (1, Neema) - id=1, name alphabetically first
+        var firstRow = result.rows().get(0);
+        assertEquals(1, ((Number) firstRow.get(0)).intValue(), "First row id should be 1");
+        assertEquals("Neema", firstRow.get(1), "First row name should be Neema (alphabetically before Sachin)");
+    }
+
+    /**
+     * Test sort() with descending direction.
+     * This is the EXACT PCT test: testSimpleSortShared with descending
+     * 
+     * Pattern: #TDS...#->sort([~id->descending(), ~name->ascending()])
+     * Tests that descending() is correctly detected.
+     */
+    @Test
+    void testSortWithDescending() throws SQLException {
+        String pureQuery = """
+                |#TDS
+                    id, name
+                    2, George
+                    3, Pierre
+                    1, Sachin
+                    1, Neema
+                    5, David
+                    4, Alex
+                    2, Thierry
+                #->sort([~id->descending(), ~name->ascending()])
+                """;
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Sort with descending result: " + result.rows());
+
+        // Should have 7 rows sorted by id DESC, then by name ASC
+        assertEquals(7, result.rows().size(), "Should have 7 rows");
+
+        // First row should be (5, David) - highest id
+        var firstRow = result.rows().get(0);
+        assertEquals(5, ((Number) firstRow.get(0)).intValue(), "First row id should be 5 (descending)");
+        assertEquals("David", firstRow.get(1), "First row name should be David");
+    }
 }

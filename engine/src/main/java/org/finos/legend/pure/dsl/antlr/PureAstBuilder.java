@@ -1518,7 +1518,17 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     private PureExpression parseSortCall(PureExpression source, List<PureExpression> args) {
-        return new SortExpression(source, args);
+        // Flatten ArrayLiteral if passed: sort([~a->asc(), ~b->desc()]) ->
+        // sort(~a->asc(), ~b->desc())
+        List<PureExpression> flatArgs = new ArrayList<>();
+        for (PureExpression arg : args) {
+            if (arg instanceof ArrayLiteral arr) {
+                flatArgs.addAll(arr.elements());
+            } else {
+                flatArgs.add(arg);
+            }
+        }
+        return new SortExpression(source, flatArgs);
     }
 
     private PureExpression parseLimitCall(PureExpression source, List<PureExpression> args) {
