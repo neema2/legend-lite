@@ -127,6 +127,7 @@ public final class PureCompiler {
             case VariableExpr var -> compileRelationVariable(var, context);
             case BlockExpression block -> compileBlock(block, context);
             case ArrayLiteral array when isInstanceArray(array) -> compileInstanceArray(array);
+            case InstanceExpression inst -> compileSingleInstance(inst);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
@@ -2287,6 +2288,22 @@ public final class PureCompiler {
         // ALL instances should have Lists for that property (for DuckDB type
         // consistency)
         instances = normalizeStructTypes(instances);
+
+        return new StructLiteralNode(className, instances);
+    }
+
+    /**
+     * Compiles a single InstanceExpression (e.g., ^ClassName(prop=value)) to a
+     * relation.
+     * This is treated as a single-row relation with struct columns.
+     */
+    private RelationNode compileSingleInstance(InstanceExpression inst) {
+        String className = inst.className();
+        StructInstance structInstance = toStructInstance(inst);
+        List<StructInstance> instances = List.of(structInstance);
+
+        // Still need to normalize in case properties have empty arrays
+        instances = normalizeStructTypes(new ArrayList<>(instances));
 
         return new StructLiteralNode(className, instances);
     }
