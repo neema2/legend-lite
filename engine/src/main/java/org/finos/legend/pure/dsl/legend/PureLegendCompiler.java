@@ -1411,7 +1411,11 @@ public final class PureLegendCompiler {
     // ========================================================================
 
     private RelationNode compileTdsLiteral(TdsLiteral tds) {
-        return new TdsLiteralNode(tds.columnNames(), tds.rows());
+        // Convert AST columns to IR columns, preserving types
+        List<TdsLiteralNode.TdsColumn> irColumns = tds.columns().stream()
+                .map(c -> TdsLiteralNode.TdsColumn.of(c.name(), c.type()))
+                .toList();
+        return new TdsLiteralNode(irColumns, tds.rows());
     }
 
     private RelationNode compileRelationLiteral(RelationLiteral rel) {

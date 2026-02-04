@@ -131,4 +131,9 @@ public interface ExpressionVisitor<T> {
      * Visit a list literal expression ([elem1, elem2, ...]).
      */
     T visit(ListLiteral listLiteral);
+
+    /**
+     * Visit a CAST expression (CAST(expr AS type)).
+     */
+    T visit(CastExpression castExpr);
 }

@@ -13,12 +13,42 @@ import java.util.List;
  * ) AS _tds(col1, col2, col3)
  * }
  *
- * @param columnNames Column names for the inline table
- * @param rows        Data rows, each row is a list of values
+ * @param columns Columns with names and optional types
+ * @param rows    Data rows, each row is a list of values
  */
 public record TdsLiteralNode(
-        List<String> columnNames,
+        List<TdsColumn> columns,
         List<List<Object>> rows) implements RelationNode {
+
+    /**
+     * Column definition with name and optional type for TDS literals.
+     * Type is used for proper SQL generation (e.g., casting Variant columns to
+     * JSON).
+     */
+    public record TdsColumn(String name, String type) {
+        public static TdsColumn of(String name) {
+            return new TdsColumn(name, null);
+        }
+
+        public static TdsColumn of(String name, String type) {
+            return new TdsColumn(name, type);
+        }
+
+        /**
+         * Returns true if this column has a Variant type
+         */
+        public boolean isVariant() {
+            return type != null &&
+                    (type.contains("Variant") || type.equalsIgnoreCase("Variant"));
+        }
+    }
+
+    /**
+     * Returns just the column names for backward compatibility.
+     */
+    public List<String> columnNames() {
+        return columns.stream().map(TdsColumn::name).toList();
+    }
 
     @Override
     public <T> T accept(RelationNodeVisitor<T> visitor) {

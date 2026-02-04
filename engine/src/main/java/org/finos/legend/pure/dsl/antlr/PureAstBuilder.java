@@ -316,11 +316,22 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // Split into lines
         String[] lines = content.split("\\n");
 
-        // First line is column names
-        List<String> columnNames = new ArrayList<>();
+        // First line is column definitions - columns can have type annotations like
+        // payload:meta::pure::metamodel::variant::Variant
+        // We parse both name and type
+        List<TdsLiteral.TdsColumn> columns = new ArrayList<>();
         if (lines.length > 0) {
-            for (String col : lines[0].split(",")) {
-                columnNames.add(col.trim());
+            for (String col : parseTdsCsvLine(lines[0])) {
+                col = col.trim();
+                // Parse name:Type annotation if present
+                int colonIdx = col.indexOf(':');
+                if (colonIdx > 0) {
+                    String colName = col.substring(0, colonIdx).trim();
+                    String colType = col.substring(colonIdx + 1).trim();
+                    columns.add(TdsLiteral.TdsColumn.of(colName, colType));
+                } else {
+                    columns.add(TdsLiteral.TdsColumn.of(col));
+                }
             }
         }
 
@@ -331,15 +342,45 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             if (line.isEmpty())
                 continue;
 
+            List<String> values = parseTdsCsvLine(line);
             List<Object> row = new ArrayList<>();
-            String[] values = line.split(",", -1); // -1 preserves trailing empty strings
             for (String val : values) {
                 row.add(parseTdsValue(val.trim()));
             }
             rows.add(row);
         }
 
-        return new TdsLiteral(columnNames, rows);
+        return new TdsLiteral(columns, rows);
+    }
+
+    /**
+     * Parse a CSV-style line respecting quoted strings.
+     * Commas inside quotes are not treated as delimiters.
+     * Handles: 1, "[1,2,3]", "hello, world" -> [1, "[1,2,3]", "hello, world"]
+     */
+    private List<String> parseTdsCsvLine(String line) {
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inQuotes = false;
+
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+
+            if (c == '"') {
+                inQuotes = !inQuotes;
+                current.append(c);
+            } else if (c == ',' && !inQuotes) {
+                result.add(current.toString().trim());
+                current = new StringBuilder();
+            } else {
+                current.append(c);
+            }
+        }
+
+        // Add the last field
+        result.add(current.toString().trim());
+
+        return result;
     }
 
     /**
@@ -360,6 +401,11 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return Double.parseDouble(value);
         } catch (NumberFormatException e) {
             // Not a number
+        }
+        // Strip surrounding quotes from string values (e.g., "[1,2,3]" -> [1,2,3])
+        // This is important for JSON/Variant values that need to be parsed correctly
+        if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+            return value.substring(1, value.length() - 1);
         }
         // String value
         return value;

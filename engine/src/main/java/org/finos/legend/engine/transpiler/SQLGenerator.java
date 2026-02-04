@@ -657,6 +657,9 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     public String visit(TdsLiteralNode tdsLiteral) {
         // Generate SQL using DuckDB VALUES syntax:
         // SELECT * FROM (VALUES (v1, v2), (v3, v4)) AS _tds(col1, col2)
+        // For Variant columns, we cast values to JSON to preserve type information
+
+        var columns = tdsLiteral.columns();
         var sb = new StringBuilder();
         sb.append("SELECT * FROM (VALUES ");
 
@@ -668,11 +671,22 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
             sb.append("(");
             boolean firstVal = true;
+            int colIdx = 0;
             for (var val : row) {
                 if (!firstVal)
                     sb.append(", ");
                 firstVal = false;
-                sb.append(formatTdsValue(val));
+
+                String formattedValue = formatTdsValue(val);
+
+                // Cast Variant columns to JSON for proper type reporting
+                if (colIdx < columns.size() && columns.get(colIdx).isVariant()) {
+                    // For Variant columns, cast the value to JSON
+                    sb.append(formattedValue).append("::JSON");
+                } else {
+                    sb.append(formattedValue);
+                }
+                colIdx++;
             }
             sb.append(")");
         }
@@ -1504,6 +1518,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 .map(e -> e.accept(this))
                 .collect(Collectors.joining(", "));
         return "[" + elements + "]";
+    }
+
+    @Override
+    public String visit(CastExpression castExpr) {
+        // CAST(expr AS type)
+        String source = castExpr.source().accept(this);
+        return "CAST(" + source + " AS " + castExpr.targetType() + ")";
     }
 
     @Override

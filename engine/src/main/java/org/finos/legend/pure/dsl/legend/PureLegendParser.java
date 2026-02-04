@@ -338,11 +338,19 @@ public class PureLegendParser extends PureParserBaseVisitor<Expression> {
         // Split into lines
         String[] lines = content.split("\\n");
 
-        // First line is column names
-        java.util.List<String> columnNames = new ArrayList<>();
+        // First line is column definitions - can have type annotations like col:Type
+        java.util.List<TdsLiteral.TdsColumn> columns = new ArrayList<>();
         if (lines.length > 0) {
             for (String col : lines[0].split(",")) {
-                columnNames.add(col.trim());
+                col = col.trim();
+                int colonIdx = col.indexOf(':');
+                if (colonIdx > 0) {
+                    String colName = col.substring(0, colonIdx).trim();
+                    String colType = col.substring(colonIdx + 1).trim();
+                    columns.add(TdsLiteral.TdsColumn.of(colName, colType));
+                } else {
+                    columns.add(TdsLiteral.TdsColumn.of(col));
+                }
             }
         }
 
@@ -361,7 +369,7 @@ public class PureLegendParser extends PureParserBaseVisitor<Expression> {
             rows.add(row);
         }
 
-        return new TdsLiteral(columnNames, rows);
+        return new TdsLiteral(columns, rows);
     }
 
     /**

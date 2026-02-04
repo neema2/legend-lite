@@ -28,16 +28,23 @@ function meta::legend::lite::pct::legendLiteGrammarConfiguration():Configuration
   );
 }
 
-// Get simple type name from a generic type (e.g., Integer, String, Float)
+// Get simple type name from a generic type (e.g., Integer, String, Float, Variant)
+// For non-primitive types like Variant, we must return the full path because stringToTDS()
+// doesn't scan imports for type resolution.
 function meta::legend::lite::pct::getSimpleTypeName(gt:GenericType[1]):String[1]
 {
   let rawType = $gt.rawType->toOne();
+  let typeName = $rawType->elementToPath();
   // Get just the simple name, not fully qualified
   if($rawType->instanceOf(PrimitiveType),
     | $rawType->cast(@PrimitiveType).name->toOne(),
     | if($rawType->instanceOf(Enumeration),
         | 'String', // Enums serialize as strings
-        | 'String'  // Default fallback
+        | // Check for Variant type - use full path because stringToTDS requires it
+          if($typeName->contains('Variant'),
+            | $typeName,  // Full path: meta::pure::metamodel::variant::Variant
+            | 'String'    // Default fallback
+          )
       )
   );
 }

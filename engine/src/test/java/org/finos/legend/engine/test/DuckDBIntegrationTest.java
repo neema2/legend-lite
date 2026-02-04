@@ -4549,4 +4549,48 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(1, result.rows().size(), "Should have 1 row");
         assertEquals("az", result.rows().get(0).get(0), "First element should be 'az'");
     }
+
+    // ==================== Variant Type Tests ====================
+
+    /**
+     * Test for variant array column with reverse operation.
+     * This is the exact PCT test: testVariantArrayColumn_reverse
+     * 
+     * Pure expression pattern:
+     * TDS->extend(~reversed:x|$x.payload->toMany(@Integer)->reverse()->toVariant())
+     */
+    @Test
+    @DisplayName("PCT: Variant array column with reverse - toMany(@Integer)->reverse()->toVariant()")
+    void testVariantArrayColumn_reverse() throws SQLException {
+        // GIVEN: The exact Pure expression from PCT
+        String pureQuery = """
+                |#TDS
+                    id, payload:meta::pure::metamodel::variant::Variant
+                    1, "[1,2,3]"
+                    2, "[4,5,6]"
+                    3, "[7,8,9]"
+                    4, "[10,11,12]"
+                    5, "[13,14,15]"
+                #->meta::pure::functions::relation::extend(~reversed:x: (id:Integer, payload:meta::pure::metamodel::variant::Variant)[1]|$x.payload->meta::pure::functions::variant::convert::toMany(@Integer)->meta::pure::functions::collection::reverse()->meta::pure::functions::variant::convert::toVariant())
+                """;
+
+        // WHEN: We compile and execute
+        var result = executeRelation(pureQuery);
+        System.out.println("Variant reverse result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: Should have 5 rows with reversed arrays
+        assertEquals(5, result.rows().size(), "Should have 5 rows");
+
+        // Row 1: [1,2,3] -> [3,2,1]
+        // Row 2: [4,5,6] -> [6,5,4]
+        // etc.
+        var row1 = result.rows().get(0);
+        assertEquals(1, ((Number) row1.get(0)).intValue(), "ID should be 1");
+        String reversed1 = row1.get(2).toString(); // reversed column (DuckDB returns JsonNode)
+        assertTrue(reversed1.contains("3") && reversed1.contains("2") && reversed1.contains("1"),
+                "Row 1 reversed should contain 3,2,1");
+    }
 }

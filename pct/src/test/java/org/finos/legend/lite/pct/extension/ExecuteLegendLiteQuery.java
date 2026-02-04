@@ -200,6 +200,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             case "boolean", "bool" -> "Boolean";
             case "date" -> "StrictDate";
             case "timestamp", "datetime" -> "DateTime";
+            // JSON types map to Pure Variant
+            case "json", "jsonb" -> "Variant";
             default -> "String";
         };
     }

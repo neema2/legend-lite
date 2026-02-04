@@ -2246,7 +2246,11 @@ public final class PureCompiler {
      * TDS literals are inline tabular data that become a VALUES clause in SQL.
      */
     private RelationNode compileTdsLiteral(TdsLiteral tds) {
-        return new TdsLiteralNode(tds.columnNames(), tds.rows());
+        // Convert AST columns to IR columns, preserving types
+        List<TdsLiteralNode.TdsColumn> irColumns = tds.columns().stream()
+                .map(c -> TdsLiteralNode.TdsColumn.of(c.name(), c.type()))
+                .toList();
+        return new TdsLiteralNode(irColumns, tds.rows());
     }
 
     /**
@@ -3219,7 +3223,36 @@ public final class PureCompiler {
                 throw new PureCompileException(
                         "GroupByExpression should be compiled via compileExpression. Got: " + groupBy);
             }
+            // TypeReference (@Type syntax) - used in variant conversion functions
+            case TypeReference typeRef -> {
+                // Convert Pure type name to SQL type literal string
+                // This is used by functions like toMany(@Integer) for variant conversion
+                String sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                yield Literal.string(sqlType);
+            }
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
+        };
+    }
+
+    /**
+     * Maps Pure type names to DuckDB SQL type names.
+     * Used for variant conversion functions like toMany(@Integer).
+     */
+    private String mapPureTypeToSqlType(String pureType) {
+        // Extract simple type name if fully qualified
+        String simpleName = pureType.contains("::")
+                ? pureType.substring(pureType.lastIndexOf("::") + 2)
+                : pureType;
+
+        return switch (simpleName) {
+            case "Integer" -> "BIGINT";
+            case "Float" -> "DOUBLE";
+            case "String" -> "VARCHAR";
+            case "Boolean" -> "BOOLEAN";
+            case "Date", "StrictDate" -> "DATE";
+            case "DateTime" -> "TIMESTAMP";
+            case "Decimal", "Number" -> "DECIMAL";
+            default -> simpleName.toUpperCase();
         };
     }
 
@@ -3231,8 +3264,14 @@ public final class PureCompiler {
         String funcName = funcCall.functionName();
         List<PureExpression> args = funcCall.arguments();
 
+        // Extract simple name from fully qualified name (e.g.,
+        // meta::pure::functions::collection::reverse -> reverse)
+        String simpleName = funcName.contains("::")
+                ? funcName.substring(funcName.lastIndexOf("::") + 2)
+                : funcName;
+
         // Special handling for functions that take arrays
-        return switch (funcName) {
+        return switch (simpleName) {
             // greatest([a,b,c]) -> list_max([a, b, c])
             case "greatest" -> {
                 if (args.isEmpty()) {
@@ -3248,6 +3287,36 @@ public final class PureCompiler {
                 }
                 Expression list = compileToSqlExpression(args.getFirst(), context);
                 yield SqlFunctionCall.of("list_min", list);
+            }
+            // Variant conversion: toMany(@Type) -> CAST(json_value AS Type[])
+            case "toMany" -> {
+                if (args.size() < 2) {
+                    throw new PureCompileException("toMany() requires source and type arguments");
+                }
+                Expression source = compileToSqlExpression(args.get(0), context);
+                // Second arg is TypeReference - get the SQL type
+                String sqlType = "VARCHAR"; // default
+                if (args.get(1) instanceof TypeReference typeRef) {
+                    sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                }
+                // In DuckDB: CAST(json_column AS BIGINT[])
+                yield new org.finos.legend.engine.plan.CastExpression(source, sqlType + "[]");
+            }
+            // Variant conversion: toVariant() -> to_json(value)
+            case "toVariant" -> {
+                if (args.isEmpty()) {
+                    throw new PureCompileException("toVariant() requires an argument");
+                }
+                Expression source = compileToSqlExpression(args.getFirst(), context);
+                yield SqlFunctionCall.of("to_json", source);
+            }
+            // Collection: reverse() -> list_reverse(list)
+            case "reverse" -> {
+                if (args.isEmpty()) {
+                    throw new PureCompileException("reverse() requires an argument");
+                }
+                Expression source = compileToSqlExpression(args.getFirst(), context);
+                yield SqlFunctionCall.of("list_reverse", source);
             }
             case "in" -> compilePureFunctionIn(args, context);
             default -> {
@@ -3672,6 +3741,20 @@ public final class PureCompiler {
             }
             case "bitNot" -> // bitNot(a) -> ~a via bit_not function
                 SqlFunctionCall.of("bit_not", compileToSqlExpression(methodCall.source(), context));
+
+            // ===== VARIANT FUNCTIONS =====
+            case "toMany" -> { // $x.payload->toMany(@Integer) -> CAST(payload AS BIGINT[])
+                var args = methodCall.arguments();
+                String sqlType = "VARCHAR"; // default
+                if (!args.isEmpty() && args.get(0) instanceof TypeReference typeRef) {
+                    sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                }
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context),
+                        sqlType + "[]");
+            }
+            case "toVariant" -> // value->toVariant() -> to_json(value)
+                SqlFunctionCall.of("to_json", compileToSqlExpression(methodCall.source(), context));
 
             default -> compileSimpleMethodCall(methodCall, context);
         };
