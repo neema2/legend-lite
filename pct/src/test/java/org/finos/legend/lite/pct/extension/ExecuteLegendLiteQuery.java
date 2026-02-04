@@ -102,13 +102,22 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         System.out.println("[LegendLite PCT] Executing Pure expression: " + pureExpression);
 
         try {
-            // Execute through Legend-Lite's QueryService
-            QueryService queryService = new QueryService();
-
             // Create in-memory DuckDB connection
             try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-                Result result = queryService.execute(PURE_MODEL, pureExpression, "test::TestRuntime",
-                        connection, QueryService.ResultMode.BUFFERED);
+                Result result;
+
+                // Check for InstanceExpression-based queries (e.g.,
+                // [^FirmType(...)...]->project(...))
+                InstanceExpressionHandler instanceHandler = new InstanceExpressionHandler();
+                if (instanceHandler.requiresInstanceHandling(pureExpression)) {
+                    System.out.println("[LegendLite PCT] Detected InstanceExpression pattern, using handler");
+                    result = instanceHandler.execute(pureExpression, connection);
+                } else {
+                    // Execute through Legend-Lite's QueryService for TDS-based queries
+                    QueryService queryService = new QueryService();
+                    result = queryService.execute(PURE_MODEL, pureExpression, "test::TestRuntime",
+                            connection, QueryService.ResultMode.BUFFERED);
+                }
 
                 // For scalar results (constant queries), return the primitive value directly
                 if (result instanceof ScalarResult scalarResult) {

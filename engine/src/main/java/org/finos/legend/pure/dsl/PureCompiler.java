@@ -9,9 +9,12 @@ import org.finos.legend.pure.dsl.m2m.M2MCompiler;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Compiles Pure AST expressions into RelationNode execution plans.
@@ -38,9 +41,13 @@ public final class PureCompiler {
 
     /**
      * Creates a compiler with full model context for association navigation.
+     * 
+     * @param mappingRegistry The mapping registry (can be null for STRUCT literal
+     *                        compilation)
+     * @param modelContext    The model context (optional)
      */
     public PureCompiler(MappingRegistry mappingRegistry, ModelContext modelContext) {
-        this.mappingRegistry = Objects.requireNonNull(mappingRegistry, "Mapping registry cannot be null");
+        this.mappingRegistry = mappingRegistry; // Allow null for STRUCT literal compilation
         this.modelContext = modelContext;
     }
 
@@ -119,6 +126,7 @@ public final class PureCompiler {
             case LambdaExpression lambda -> compileConstant(lambda, context);
             case VariableExpr var -> compileRelationVariable(var, context);
             case BlockExpression block -> compileBlock(block, context);
+            case ArrayLiteral array when isInstanceArray(array) -> compileInstanceArray(array);
             default -> throw new PureCompileException("Cannot compile expression to RelationNode: " + expr);
         };
     }
@@ -2241,6 +2249,140 @@ public final class PureCompiler {
     }
 
     /**
+     * Checks if an ArrayLiteral contains InstanceExpressions; (^Class(...)
+     * instances).
+     */
+    private boolean isInstanceArray(ArrayLiteral array) {
+        return !array.elements().isEmpty() &&
+                array.elements().get(0) instanceof InstanceExpression;
+    }
+
+    /**
+     * Compiles an array of instance expressions into a StructLiteralNode.
+     * 
+     * Pure: [^Person(firstName='John', age=30), ^Person(firstName='Jane', age=25)]
+     * SQL: SELECT * FROM (VALUES ({firstName: 'John', age: 30}), ({firstName:
+     * 'Jane', age: 25})) AS t(person)
+     */
+    private RelationNode compileInstanceArray(ArrayLiteral array) {
+        if (array.elements().isEmpty()) {
+            throw new PureCompileException("Instance array cannot be empty");
+        }
+
+        // Get class name from first instance
+        InstanceExpression first = (InstanceExpression) array.elements().get(0);
+        String className = first.className();
+
+        // Convert each InstanceExpression to StructInstance
+        List<StructInstance> instances = new ArrayList<>();
+        for (PureExpression elem : array.elements()) {
+            if (elem instanceof InstanceExpression inst) {
+                instances.add(toStructInstance(inst));
+            } else {
+                throw new PureCompileException("Expected InstanceExpression in array, got: " + elem);
+            }
+        }
+
+        // Normalize types across instances - if ANY instance has a List for a property,
+        // ALL instances should have Lists for that property (for DuckDB type
+        // consistency)
+        instances = normalizeStructTypes(instances);
+
+        return new StructLiteralNode(className, instances);
+    }
+
+    /**
+     * Normalizes struct types across all instances to ensure consistent DuckDB
+     * types.
+     * If any instance has a List for a property, all instances get Lists for that
+     * property.
+     */
+    private List<StructInstance> normalizeStructTypes(List<StructInstance> instances) {
+        if (instances.isEmpty())
+            return instances;
+
+        // Find properties that have List values in any instance
+        Set<String> listProperties = new HashSet<>();
+        for (StructInstance inst : instances) {
+            for (var entry : inst.fields().entrySet()) {
+                if (entry.getValue() instanceof List<?>) {
+                    listProperties.add(entry.getKey());
+                }
+            }
+        }
+
+        if (listProperties.isEmpty())
+            return instances;
+
+        // Normalize: wrap single values as single-element Lists for list properties
+        List<StructInstance> normalized = new ArrayList<>();
+        for (StructInstance inst : instances) {
+            Map<String, Object> normalizedFields = new LinkedHashMap<>();
+            for (var entry : inst.fields().entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+
+                if (listProperties.contains(key) && !(value instanceof List<?>)) {
+                    // Wrap single value as single-element List
+                    normalizedFields.put(key, List.of(value));
+                } else {
+                    normalizedFields.put(key, value);
+                }
+            }
+            normalized.add(new StructInstance(normalizedFields));
+        }
+        return normalized;
+    }
+
+    /**
+     * Converts an InstanceExpression to a StructInstance for SQL generation.
+     * Handles nested objects and collections recursively.
+     */
+    private StructInstance toStructInstance(InstanceExpression expr) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+
+        for (var entry : expr.properties().entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            fields.put(key, convertInstanceValue(value));
+        }
+
+        return new StructInstance(fields);
+    }
+
+    /**
+     * Converts a property value from an InstanceExpression to a value suitable for
+     * StructInstance.
+     */
+    private Object convertInstanceValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof InstanceExpression nested) {
+            return toStructInstance(nested);
+        }
+        if (value instanceof ArrayLiteral arr) {
+            List<Object> list = new ArrayList<>();
+            for (PureExpression elem : arr.elements()) {
+                list.add(convertInstanceValue(elem));
+            }
+            return list;
+        }
+        if (value instanceof LiteralExpr lit) {
+            return lit.value();
+        }
+        if (value instanceof String || value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        // For other expressions, try to extract the value
+        if (value instanceof PureExpression) {
+            // This might be a more complex expression - stringify for now
+            return value.toString();
+        }
+        return value;
+    }
+
+    /**
      * Compiles a variable reference in relation context.
      * 
      * This handles cases like {@code $t->select(~col)} where $t is a lambda
@@ -3982,6 +4124,10 @@ public final class PureCompiler {
     private Expression compilePropertyAccess(PropertyAccessExpression propAccess, CompilationContext context) {
         String propertyName = propAccess.propertyName();
 
+        // Check if this is a chained property access (e.g., employees.firstName)
+        // If so, build the full path for STRUCT array UNNEST support
+        String fullPath = buildPropertyPath(propAccess);
+
         // Extract the variable name from the source (e.g., "x" from $x.col)
         String varName = extractVariableName(propAccess.source());
 
@@ -4005,8 +4151,9 @@ public final class PureCompiler {
                     return ColumnReference.of(rowAlias, columnName);
                 }
 
-                // No mapping - use property name directly as column name
-                return ColumnReference.of(rowAlias, propertyName);
+                // No mapping - use full path (for nested STRUCT access like
+                // employees.firstName)
+                return ColumnReference.of(rowAlias, fullPath);
             }
             // SCALAR and RELATION bindings with property access not yet supported
             throw new PureCompileException(
@@ -4025,16 +4172,31 @@ public final class PureCompiler {
             return ColumnReference.of(propertyName);
         }
 
-        // If no mapping exists (direct Relation API access), use property name as
-        // column name
+        // If no mapping exists (direct Relation API access), use full path for STRUCT
+        // access
         if (context.mapping() == null) {
-            return ColumnReference.of(context.tableAlias(), propertyName);
+            return ColumnReference.of(context.tableAlias(), fullPath);
         }
 
         String columnName = context.mapping().getColumnForProperty(propertyName)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
 
         return ColumnReference.of(context.tableAlias(), columnName);
+    }
+
+    /**
+     * Builds the full property path from a PropertyAccessExpression.
+     * For $x.employees.firstName, returns "employees.firstName"
+     * For $x.legalName, returns "legalName"
+     */
+    private String buildPropertyPath(PropertyAccessExpression propAccess) {
+        PureExpression source = propAccess.source();
+        if (source instanceof PropertyAccessExpression parentAccess) {
+            // Chained access: parent.child
+            return buildPropertyPath(parentAccess) + "." + propAccess.propertyName();
+        }
+        // Base case: $x.property -> just the property name
+        return propAccess.propertyName();
     }
 
     /**

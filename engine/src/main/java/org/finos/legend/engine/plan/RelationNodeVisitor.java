@@ -91,4 +91,9 @@ public interface RelationNodeVisitor<T> {
      * Visit a constant node (SELECT expression without FROM).
      */
     T visit(ConstantNode constant);
+
+    /**
+     * Visit a struct literal node (inline instance data as DuckDB STRUCTs).
+     */
+    T visit(StructLiteralNode structLiteral);
 }

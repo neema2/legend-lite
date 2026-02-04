@@ -171,6 +171,15 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String projections = formatProjections(project);
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS lateral_result";
             }
+            case StructLiteralNode structLit -> {
+                // When projecting from STRUCT literals, access fields via dot notation
+                // Example: SELECT alias.field1 AS field1 FROM VALUES({'field1': 'val'}) AS
+                // t(alias)
+                String innerSql = structLit.accept(this);
+                String structAlias = structLit.alias();
+                String projections = formatProjectionsWithStructPrefix(project, structAlias);
+                yield "SELECT " + projections + " FROM (" + innerSql + ") AS struct_src";
+            }
             default -> {
                 // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
                 String innerSql = project.source().accept(this);
@@ -684,6 +693,89 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return "SELECT " + constant.expression().accept(this) + " AS \"value\"";
     }
 
+    @Override
+    public String visit(StructLiteralNode structLiteral) {
+        // Generate SQL for inline instance data using DuckDB STRUCT literals
+        // Syntax: SELECT * FROM (VALUES ({'key': 'val'}), ({'key': 'val2'})) AS t(col)
+        // Each struct must be wrapped in parentheses like regular VALUES rows
+
+        if (structLiteral.instances().isEmpty()) {
+            throw new IllegalArgumentException("StructLiteralNode has no instances");
+        }
+
+        var sb = new StringBuilder();
+        sb.append("SELECT * FROM (VALUES ");
+
+        boolean firstRow = true;
+        for (StructInstance instance : structLiteral.instances()) {
+            if (!firstRow)
+                sb.append(", ");
+            firstRow = false;
+            // Wrap each struct in parentheses to make it a separate row
+            sb.append("(").append(renderStruct(instance)).append(")");
+        }
+
+        sb.append(") AS t(").append(structLiteral.alias()).append(")");
+        return sb.toString();
+    }
+
+    /**
+     * Renders a StructInstance as a DuckDB STRUCT literal.
+     * DuckDB accepts JSON-style syntax: {'key': 'value', 'key2': 123}
+     */
+    private String renderStruct(StructInstance instance) {
+        var sb = new StringBuilder("{");
+        boolean first = true;
+
+        for (var entry : instance.fields().entrySet()) {
+            if (!first)
+                sb.append(", ");
+            first = false;
+            // DuckDB JSON-style: 'key': value
+            sb.append("'").append(entry.getKey()).append("': ");
+            sb.append(renderStructValue(entry.getValue()));
+        }
+
+        sb.append("}");
+        return sb.toString();
+    }
+
+    /**
+     * Renders a value for a STRUCT field.
+     * Handles primitives, nested STRUCTs, and LISTs.
+     * 
+     * TODO: For type consistency in VALUES clauses with mixed single/multi-valued
+     * properties,
+     * use Class model multiplicity to determine if field should be array or single
+     * struct.
+     * Currently, a single StructInstance is rendered as a struct, not wrapped in
+     * array.
+     */
+    private String renderStructValue(Object value) {
+        if (value == null) {
+            return "NULL";
+        }
+        if (value instanceof String s) {
+            return "'" + s.replace("'", "''") + "'";
+        }
+        if (value instanceof Number) {
+            return value.toString();
+        }
+        if (value instanceof Boolean b) {
+            return b.toString();
+        }
+        if (value instanceof StructInstance nested) {
+            return renderStruct(nested);
+        }
+        if (value instanceof List<?> list) {
+            return "[" + list.stream()
+                    .map(this::renderStructValue)
+                    .collect(Collectors.joining(", ")) + "]";
+        }
+        // Fallback: stringify
+        return "'" + value.toString().replace("'", "''") + "'";
+    }
+
     /**
      * Formats a TDS cell value for SQL insertion.
      */
@@ -942,6 +1034,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case TdsLiteralNode tds -> null; // No filter in TDS literal
             case ConstantNode constant -> null; // No filter in constant expression
             case AggregateNode agg -> extractFilterCondition(agg.source());
+            case StructLiteralNode struct -> null; // No filter in struct literal
         };
     }
 
@@ -975,6 +1068,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case AggregateNode agg -> extractTableNode(agg.source());
             case TdsLiteralNode tds -> throw new IllegalArgumentException("TDS literal has no source table");
             case ConstantNode constant -> throw new IllegalArgumentException("Constant expression has no source table");
+            case StructLiteralNode struct -> throw new IllegalArgumentException("Struct literal has no source table");
         };
     }
 
@@ -1004,6 +1098,37 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return project.projections().stream()
                 .map(this::formatProjection)
                 .collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Formats projections with a STRUCT prefix for dot-notation field access.
+     * Example: structAlias.fieldName AS fieldName
+     */
+    private String formatProjectionsWithStructPrefix(ProjectNode project, String structAlias) {
+        return project.projections().stream()
+                .map(p -> formatProjectionWithStructPrefix(p, structAlias))
+                .collect(Collectors.joining(", "));
+    }
+
+    private String formatProjectionWithStructPrefix(Projection projection, String structAlias) {
+        // For STRUCT sources, access fields via dot notation: alias.fieldName
+        String fieldName = projection.alias(); // The field name is the alias
+        Expression expr = projection.expression();
+
+        // Check if the expression represents a nested path (e.g., employees.firstName)
+        // For nested arrays, we need UNNEST syntax:
+        // unnest(alias.arrayField).nestedField
+        if (expr instanceof ColumnReference colRef && colRef.columnName().contains(".")) {
+            // This is a chained property access like "employees.firstName"
+            String[] parts = colRef.columnName().split("\\.", 2);
+            String arrayField = parts[0];
+            String nestedField = parts[1];
+            // Use UNNEST for array field access
+            return "unnest(" + structAlias + "." + arrayField + ")." + nestedField + " AS "
+                    + dialect.quoteIdentifier(fieldName);
+        }
+
+        return structAlias + "." + fieldName + " AS " + dialect.quoteIdentifier(fieldName);
     }
 
     private String formatProjection(Projection projection) {
