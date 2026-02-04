@@ -1111,24 +1111,33 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     }
 
     private String formatProjectionWithStructPrefix(Projection projection, String structAlias) {
-        // For STRUCT sources, access fields via dot notation: alias.fieldName
-        String fieldName = projection.alias(); // The field name is the alias
+        // For STRUCT sources, access fields via dot notation: alias.propertyName AS
+        // outputAlias
+        String outputAlias = projection.alias(); // The alias for the output column
         Expression expr = projection.expression();
+
+        // Get the actual property name from the expression
+        // For ColumnReference like "firstName", use that as the STRUCT field name
+        // The alias might be different (e.g., "first" -> $x.firstName)
+        String propertyName = outputAlias; // Default to alias
+        if (expr instanceof ColumnReference colRef) {
+            propertyName = colRef.columnName();
+        }
 
         // Check if the expression represents a nested path (e.g., employees.firstName)
         // For nested arrays, we need UNNEST syntax:
         // unnest(alias.arrayField).nestedField
-        if (expr instanceof ColumnReference colRef && colRef.columnName().contains(".")) {
+        if (propertyName.contains(".")) {
             // This is a chained property access like "employees.firstName"
-            String[] parts = colRef.columnName().split("\\.", 2);
+            String[] parts = propertyName.split("\\.", 2);
             String arrayField = parts[0];
             String nestedField = parts[1];
             // Use UNNEST for array field access
             return "unnest(" + structAlias + "." + arrayField + ")." + nestedField + " AS "
-                    + dialect.quoteIdentifier(fieldName);
+                    + dialect.quoteIdentifier(outputAlias);
         }
 
-        return structAlias + "." + fieldName + " AS " + dialect.quoteIdentifier(fieldName);
+        return structAlias + "." + propertyName + " AS " + dialect.quoteIdentifier(outputAlias);
     }
 
     private String formatProjection(Projection projection) {

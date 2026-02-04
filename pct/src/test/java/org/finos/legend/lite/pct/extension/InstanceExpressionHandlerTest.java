@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.List;
 
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.Result;
@@ -235,6 +236,49 @@ class InstanceExpressionHandlerTest {
             for (var row : buffered.rows()) {
                 assertEquals("Firm X", row.values().get(0), "All rows should be Firm X");
             }
+        }
+    }
+
+    /**
+     * PCT testWindowFunctionsAfterProject pattern with aliased projections.
+     * Tests that STRUCT field access uses property names, not projection aliases.
+     * 
+     * Example: first : x | $x.firstName
+     * - Output alias: "first"
+     * - STRUCT field: "firstName"
+     * - Should generate: struct.firstName AS "first"
+     */
+    @Test
+    void testAliasedProjections() throws Exception {
+        InstanceExpressionHandler handler = new InstanceExpressionHandler();
+
+        // Projection aliases differ from property names (first vs firstName, last vs
+        // lastName)
+        String expr = """
+                [
+                    ^meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests(firstName = 'Peter', lastName = 'Smith'),
+                    ^meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests(firstName = 'John', lastName = 'Johnson')
+                ]->project(~[
+                    first : x | $x.firstName,
+                    last : x | $x.lastName
+                ])
+                """;
+
+        assertTrue(handler.requiresInstanceHandling(expr));
+
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+            Result result = handler.execute(expr, connection);
+
+            BufferedResult buffered = result.toBuffered();
+
+            // Should have 2 rows
+            assertEquals(2, buffered.rows().size(), "Should have 2 persons");
+
+            // Column headers should be the aliases (first, last), not the property names
+            List<String> columnNames = buffered.columns().stream()
+                    .map(col -> col.name())
+                    .toList();
+            assertEquals(List.of("first", "last"), columnNames, "Column names should be aliases");
         }
     }
 }
