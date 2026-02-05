@@ -68,64 +68,63 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case ProjectNode project -> {
                 // Push filter down into the project
-                yield visitProjectWithFilter(project, filter);
-            }
-            case
+    yield visitProjectWithFilter(project, filter);
+            }case
 
-                    FilterNode nestedFilter -> {
-                // Combine filters with AND
-                String innerSql = nestedFilter.accept(this);
-                yield innerSql + " AND " + whereClause;
-            }
-            case
-                    JoinNode join -> {
-                // Filter on top of join
-                String innerSql = join.accept(this);
-                yield innerSql + " WHERE " + whereClause;
-            }
-            case
-                    GroupByNode groupBy -> {
-                // Filter on top of group by
-                String innerSql = groupBy.accept(this);
-                yield "SELECT * FROM (" + innerSql + ") AS grp WHERE " + whereClause;
-            }
-            case
-                    SortNode sort -> {
-                // Filter on top of sort
-                String innerSql = sort.accept(this);
-                yield "SELECT * FROM (" + innerSql + ") AS srt WHERE " + whereClause;
-            }
-            case
-                    LimitNode limit -> {
-                // Filter on top of limit
-                String innerSql = limit.accept(this);
-                yield "SELECT * FROM (" + innerSql + ") AS lim WHERE " + whereClause;
-            }
-            case
-                    FromNode from -> {
-                // Filter on top of from (unwrap and process)
-                String innerSql = from.accept(this);
-                yield "SELECT * FROM (" + innerSql + ") AS frm WHERE " + whereClause;
-            }
-            case
-                    ExtendNode extend -> {
-                // Filter on top of extend (window functions)
-                String innerSql = extend.accept(this);
-                yield "SELECT * FROM (" + innerSql + ") AS ext WHERE " + whereClause;
-            }
-            case
-                    LateralJoinNode lateral -> {
-                // Filter on top of lateral join (unnest)
-                String innerSql = lateral.accept(this);
-                yield "SELECT * FROM (" + innerSql + ") AS lat WHERE " + whereClause;
-            }
-            default -> {
-                // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
-                String innerSql = source.accept(this);
-                yield "SELECT * FROM (" + innerSql + ") AS src WHERE " + whereClause;
-            }
-        };
+    FilterNode nestedFilter->
+    {
+        // Combine filters with AND
+        String innerSql = nestedFilter.accept(this);
+        yield innerSql + " AND " + whereClause;
+    }case
+    JoinNode join->
+    {
+        // Filter on top of join
+        String innerSql = join.accept(this);
+        yield innerSql + " WHERE " + whereClause;
+    }case
+    GroupByNode groupBy->
+    {
+        // Filter on top of group by
+        String innerSql = groupBy.accept(this);
+        yield "SELECT * FROM (" + innerSql + ") AS grp WHERE " + whereClause;
+    }case
+    SortNode sort->
+    {
+        // Filter on top of sort
+        String innerSql = sort.accept(this);
+        yield "SELECT * FROM (" + innerSql + ") AS srt WHERE " + whereClause;
+    }case
+    LimitNode limit->
+    {
+        // Filter on top of limit
+        String innerSql = limit.accept(this);
+        yield "SELECT * FROM (" + innerSql + ") AS lim WHERE " + whereClause;
+    }case
+    FromNode from->
+    {
+        // Filter on top of from (unwrap and process)
+        String innerSql = from.accept(this);
+        yield "SELECT * FROM (" + innerSql + ") AS frm WHERE " + whereClause;
+    }case
+    ExtendNode extend->
+    {
+        // Filter on top of extend (window functions)
+        String innerSql = extend.accept(this);
+        yield "SELECT * FROM (" + innerSql + ") AS ext WHERE " + whereClause;
+    }case
+    LateralJoinNode lateral->
+    {
+        // Filter on top of lateral join (unnest)
+        String innerSql = lateral.accept(this);
+        yield "SELECT * FROM (" + innerSql + ") AS lat WHERE " + whereClause;
+    }default->
+    {
+        // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
+        String innerSql = source.accept(this);
+        yield "SELECT * FROM (" + innerSql + ") AS src WHERE " + whereClause;
     }
+    };}
 
     @Override
     public String visit(ProjectNode project) {
@@ -898,6 +897,19 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         }
 
         sb.append(")");
+
+        // Apply post-processor if present (e.g., round(2) -> ROUND(..., 2))
+        if (w.postProcessor() != null) {
+            String inner = sb.toString();
+            sb = new StringBuilder();
+            sb.append(w.postProcessor().function().toUpperCase());
+            sb.append("(").append(inner);
+            for (Object arg : w.postProcessor().arguments()) {
+                sb.append(", ").append(arg);
+            }
+            sb.append(")");
+        }
+
         return sb.toString();
     }
 
@@ -1642,71 +1654,77 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case ProjectNode project -> {
                 // For EXISTS, we don't need the projections, just the source with filter
-                yield generateExistsSubquery(project.source());
-            }
-            case
+    yield generateExistsSubquery(project.source());
+            }case
 
-                    GroupByNode groupBy -> {
+    GroupByNode groupBy->
+    {
                 // For EXISTS, we don't need aggregations, just the source
-                yield generateExistsSubquery(groupBy.source());
-            }
-            case
+    yield generateExistsSubquery(groupBy.source());
+            }case
 
-                    SortNode sort -> {
+    SortNode sort->
+    {
                 // For EXISTS, sorting doesn't matter, just use the source
-                yield generateExistsSubquery(sort.source());
-            }
-            case
+    yield generateExistsSubquery(sort.source());
+            }case
 
-                    LimitNode limit -> {
+    LimitNode limit->
+    {
                 // For EXISTS with limit, we need to preserve the limit
                 yield "SELECT 1 FROM (" + limit.accept(this) + ") AS exists_src";
-            }
-            case
-                    FromNode from -> {
+            }case
+    FromNode from->
+    {
                 // For EXISTS, unwrap the from and process the source
-                yield generateExistsSubquery(from.source());
-            }
-            case
+    yield generateExistsSubquery(from.source());
+            }case
 
-                    ExtendNode extend -> {
+    ExtendNode extend->
+    {
                 // For EXISTS with window functions, just use the source
-                yield generateExistsSubquery(extend.source());
-            }
-            case
+    yield generateExistsSubquery(extend.source());
+            }case
 
-                    LateralJoinNode lateral -> {
+    LateralJoinNode lateral->
+    {
                 // For EXISTS with lateral join, just use the source
-                yield generateExistsSubquery(lateral.source());
-            }
-            case DistinctNode distinct -> {
+    yield generateExistsSubquery(lateral.source());
+            }case
+
+    DistinctNode distinct->
+    {
                 // For EXISTS, distinct doesn't matter, just use the source
-                yield generateExistsSubquery(distinct.source());
-            }
-            case RenameNode rename -> {
+    yield generateExistsSubquery(distinct.source());
+            }case
+
+    RenameNode rename->
+    {
                 // For EXISTS, rename doesn't matter, just use the source
-                yield generateExistsSubquery(rename.source());
-            }
-            case ConcatenateNode concat -> {
+    yield generateExistsSubquery(rename.source());
+            }case
+
+    ConcatenateNode concat->
+    {
                 // For EXISTS with concatenate, wrap the whole thing
                 yield "SELECT 1 FROM (" + concat.accept(this) + ") AS exists_src";
-            }
-            case PivotNode pivot -> {
+            }case
+    PivotNode pivot->
+    {
                 // For EXISTS with pivot, wrap the whole thing
                 yield "SELECT 1 FROM (" + pivot.accept(this) + ") AS exists_src";
-            }
-            case TdsLiteralNode tds -> {
+            }case
+    TdsLiteralNode tds->
+    {
                 // For EXISTS with TDS literal, wrap the whole thing
                 yield "SELECT 1 FROM (" + tds.accept(this) + ") AS exists_src";
-            }
-            case ConstantNode constant -> {
+            }case
+    ConstantNode constant->
+    {
                 // For EXISTS with constant, wrap the expression
                 yield "SELECT 1 FROM (" + constant.accept(this) + ") AS exists_src";
-            }
-            default -> throw new IllegalStateException(
-                    "Unknown node type in generateExistsSubquery: " + node.getClass().getSimpleName());
-        };
-    }
+            }default->throw new IllegalStateException("Unknown node type in generateExistsSubquery: "+node.getClass().getSimpleName());
+    };}
 
     // ==================== Collection Function Support ====================
 

@@ -1253,6 +1253,43 @@ class WindowFunctionTest {
         }
 
         @Test
+        @DisplayName("Execute CUME_DIST with chained round() post-processor")
+        void testExecuteCumeDistWithRound() throws Exception {
+            String pureQuery = """
+                    Employee.all()
+                        ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                        ->extend(over(~department, ~salary->desc()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)->round(2)})
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("CUME_DIST with round SQL: " + sql);
+            assertTrue(sql.contains("ROUND"), "SQL should contain ROUND wrapping the window function");
+            assertTrue(sql.contains("CUME_DIST"), "SQL should contain CUME_DIST");
+            assertTrue(sql.contains("OVER"), "SQL should contain OVER");
+
+            BufferedResult result = executeQuery(pureQuery);
+            assertEquals(6, result.rowCount(), "Should have 6 employees");
+
+            // Verify results are rounded to 2 decimal places
+            System.out.println("CUME_DIST with round Results:");
+            for (var row : result.rows()) {
+                String name = (String) row.get(findColumnIndex(result, "name"));
+                String dept = (String) row.get(findColumnIndex(result, "department"));
+                Object cumeDist = row.get(findColumnIndex(result, "cumeDist"));
+                System.out.printf("  %s (%s): cumeDist = %s%n", name, dept, cumeDist);
+
+                if ("Engineering".equals(dept)) {
+                    double cdVal = ((Number) cumeDist).doubleValue();
+                    switch (name) {
+                        case "Alice" -> assertEquals(0.33, cdVal, 0.01, "Alice should have rounded cumeDist ~0.33");
+                        case "Bob" -> assertEquals(0.67, cdVal, 0.01, "Bob should have rounded cumeDist ~0.67");
+                        case "Charlie" -> assertEquals(1.0, cdVal, 0.01, "Charlie should have cumeDist 1.0");
+                    }
+                }
+            }
+        }
+
+        @Test
         @DisplayName("Execute aggregate extend without over() - SUM over entire relation")
         void testAggregateExtendNoOver() throws Exception {
             String pureQuery = """

@@ -1950,7 +1950,19 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         PureExpression body = lambda.body();
 
         // Pattern: {p,w,r|$p->rowNumber($r)} - ranking functions
+        // Pattern: {p,w,r|$p->cumulativeDistribution($w,$r)->round(2)} - with
+        // post-processor
         if (body instanceof MethodCall mc) {
+            // Check if this is a chain: window_func()->scalar_func()
+            if (isScalarPostProcessor(mc.methodName()) && mc.source() instanceof MethodCall innerMc) {
+                // outer mc is post-processor, inner is the window function
+                WindowFunctionSpec spec = parseWindowFunctionFromMethodCall(innerMc);
+                // Extract post-processor args as Objects
+                List<Object> postProcessorArgs = mc.arguments().stream()
+                        .map(this::extractLiteralValue)
+                        .toList();
+                return new PostProcessedWindowFunctionSpec(spec, mc.methodName(), postProcessorArgs);
+            }
             return parseWindowFunctionFromMethodCall(mc);
         }
 
@@ -2119,6 +2131,34 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
             default -> throw new PureParseException("Unknown window function method: " + mc.methodName());
         };
+    }
+
+    /**
+     * Checks if the method name is a scalar post-processor function.
+     */
+    private boolean isScalarPostProcessor(String methodName) {
+        return switch (methodName.toLowerCase()) {
+            case "round", "abs", "floor", "ceiling", "ceil", "sqrt", "exp", "log", "log10",
+                 "sin", "cos", "tan", "asin", "acos", "atan", "toone" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Extracts a literal value from a PureExpression for post-processor arguments.
+     */
+    private Object extractLiteralValue(PureExpression expr) {
+        if (expr instanceof LiteralExpr lit) {
+            return lit.value();
+        }
+        if (expr instanceof IntegerLiteral intLit) {
+            return intLit.value();
+        }
+        if (expr instanceof StringLiteral strLit) {
+            return strLit.value();
+        }
+        // For unsupported types, return string representation
+        return expr.toString();
     }
 
     private String extractValueColumn(MethodCall mc) {

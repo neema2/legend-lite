@@ -2540,6 +2540,30 @@ public final class PureCompiler {
                         value, typedSpec.partitionColumns(), orderBy, frameSpec);
                 case AggregateFunctionSpec aggregate -> compileAggregateWindowFunction(
                         aggregate, typedSpec.partitionColumns(), orderBy, frameSpec);
+                case PostProcessedWindowFunctionSpec postProcessed -> {
+                    // Compile the inner window function first
+                    WindowExpression inner = switch (postProcessed.inner()) {
+                        case RankingFunctionSpec ranking -> compileRankingWindowFunction(
+                                ranking, typedSpec.partitionColumns(), orderBy, frameSpec);
+                        case ValueFunctionSpec value -> compileValueWindowFunction(
+                                value, typedSpec.partitionColumns(), orderBy, frameSpec);
+                        case AggregateFunctionSpec aggregate -> compileAggregateWindowFunction(
+                                aggregate, typedSpec.partitionColumns(), orderBy, frameSpec);
+                        case PostProcessedWindowFunctionSpec nested ->
+                            throw new PureCompileException("Nested post-processors not supported");
+                    };
+                    // Wrap with post-processor
+                    yield new WindowExpression(
+                            inner.function(),
+                            inner.aggregateColumn(),
+                            inner.partitionBy(),
+                            inner.orderBy(),
+                            inner.frame(),
+                            inner.offset(),
+                            new WindowExpression.PostProcessor(
+                                    postProcessed.postProcessorFunction(),
+                                    postProcessed.postProcessorArgs()));
+                }
             };
 
             ExtendNode.WindowProjection projection = new ExtendNode.WindowProjection(extend.newColumnName(),

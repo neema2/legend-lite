@@ -15,7 +15,7 @@ import java.util.List;
  * code.
  */
 public sealed interface WindowFunctionSpec permits
-        RankingFunctionSpec, ValueFunctionSpec, AggregateFunctionSpec {
+        RankingFunctionSpec, ValueFunctionSpec, AggregateFunctionSpec, PostProcessedWindowFunctionSpec {
 
     /**
      * Columns to partition the window by.

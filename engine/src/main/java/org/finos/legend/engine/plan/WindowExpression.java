@@ -26,7 +26,16 @@ public record WindowExpression(
         List<String> partitionBy,
         List<SortSpec> orderBy,
         FrameSpec frame,
-        Integer offset) { // Optional offset for LAG/LEAD
+        Integer offset,
+        PostProcessor postProcessor) { // Optional post-processor for chained scalar functions
+
+    /**
+     * Post-processor function applied to the window result.
+     * E.g., for cumulativeDistribution(...)->round(2), stores function="round",
+     * args=[2]
+     */
+    public record PostProcessor(String function, List<Object> arguments) {
+    }
 
     /**
      * Window function types.
@@ -289,7 +298,7 @@ public record WindowExpression(
             WindowFunction function,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, null, partitionBy, orderBy, null, null);
+        return new WindowExpression(function, null, partitionBy, orderBy, null, null, null);
     }
 
     /**
@@ -300,7 +309,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, null, partitionBy, orderBy, frame, null);
+        return new WindowExpression(function, null, partitionBy, orderBy, frame, null, null);
     }
 
     /**
@@ -311,7 +320,7 @@ public record WindowExpression(
             String aggregateColumn,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null, null);
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null, null, null);
     }
 
     /**
@@ -323,7 +332,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, frame, null);
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, frame, null, null);
     }
 
     /**
@@ -335,7 +344,7 @@ public record WindowExpression(
             int offset,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, column, partitionBy, orderBy, null, offset);
+        return new WindowExpression(function, column, partitionBy, orderBy, null, offset, null);
     }
 
     /**
@@ -349,7 +358,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, column, partitionBy, orderBy, frame, offset);
+        return new WindowExpression(function, column, partitionBy, orderBy, frame, offset, null);
     }
 
     /**
@@ -359,7 +368,7 @@ public record WindowExpression(
             int bucketCount,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(WindowFunction.NTILE, null, partitionBy, orderBy, null, bucketCount);
+        return new WindowExpression(WindowFunction.NTILE, null, partitionBy, orderBy, null, bucketCount, null);
     }
 
     /**
