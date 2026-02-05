@@ -4729,4 +4729,44 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(filtered1.contains("2") && !filtered1.contains("1") && !filtered1.contains("3"),
                 "First row should contain only [2], got: " + filtered1);
     }
+
+    /**
+     * Test for variant column with JSON object key extraction.
+     * This is the exact PCT test: testVariantColumn_keyExtraction
+     * 
+     * Pure expression pattern:
+     * TDS->extend(~[booleanKey:x|$x.payload->get('boolean'),
+     * integerKey:x|$x.payload->get('integer'), ...])
+     */
+    @Test
+    @DisplayName("PCT: Variant JSON object key extraction - get('key')")
+    void testVariantColumn_keyExtraction() throws SQLException {
+        // GIVEN: JSON objects with escaped quotes in TDS literal
+        String pureQuery = """
+                |#TDS
+                    id, payload:meta::pure::metamodel::variant::Variant
+                    1, "{""boolean"":true,  ""integer"":1, ""string"":""hello""}"
+                    2, "{""boolean"":false, ""integer"":2, ""string"":""world""}"
+                    3, "{""boolean"":true,  ""integer"":3, ""string"":""world""}"
+                #->meta::pure::functions::relation::extend(~[booleanKey:x: (id:Integer, payload:meta::pure::metamodel::variant::Variant)[1]|$x.payload->meta::pure::functions::variant::navigation::get('boolean'),integerKey:x: (id:Integer, payload:meta::pure::metamodel::variant::Variant)[1]|$x.payload->meta::pure::functions::variant::navigation::get('integer'),stringKey:x: (id:Integer, payload:meta::pure::metamodel::variant::Variant)[1]|$x.payload->meta::pure::functions::variant::navigation::get('string')])
+                """;
+
+        // WHEN: We compile and execute
+        var result = executeRelation(pureQuery);
+        System.out.println("Variant key extraction result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: Should have 3 rows with extracted keys
+        assertEquals(3, result.rows().size(), "Should have 3 rows");
+
+        // Row 1: {boolean:true, integer:1, string:hello}
+        var row1 = result.rows().get(0);
+        assertEquals(1, ((Number) row1.get(0)).intValue(), "First row ID should be 1");
+        // Keys should be extracted (exact format depends on how variant handles JSON)
+        assertNotNull(row1.get(2), "booleanKey should not be null");
+        assertNotNull(row1.get(3), "integerKey should not be null");
+        assertNotNull(row1.get(4), "stringKey should not be null");
+    }
 }

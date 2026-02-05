@@ -798,7 +798,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             return "NULL";
         }
         if (value instanceof String s) {
-            return dialect.quoteStringLiteral(s);
+            // Pure uses "" to escape double quotes within strings (like CSV)
+            // For JSON values, we need to convert "" back to " for valid JSON
+            // Example: {"boolean":true} in Pure is written as {""boolean"":true}
+            String unescaped = s.replace("\"\"", "\"");
+            return dialect.quoteStringLiteral(unescaped);
         }
         if (value instanceof Number) {
             return value.toString();
