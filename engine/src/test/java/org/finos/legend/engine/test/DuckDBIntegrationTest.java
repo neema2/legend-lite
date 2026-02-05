@@ -4684,4 +4684,49 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(2, ((Number) row2.get(0)).intValue(), "Second row ID should be 2");
         assertEquals(4, ((Number) row2.get(2)).intValue(), "Second row atCol0 should be 4");
     }
+
+    /**
+     * Test for variant column with collection filter operation.
+     * This is the exact PCT test: testVariantColumn_filter
+     * 
+     * Pure expression pattern:
+     * TDS->extend(~divBy2:x|$x.payload->toMany(@Integer)->filter(t|$t->mod(2) ==
+     * 0)->toVariant())
+     */
+    @Test
+    @DisplayName("PCT: Variant collection filter - toMany(@Integer)->filter(t|mod(2)==0)->toVariant()")
+    void testVariantColumn_filter() throws SQLException {
+        // GIVEN: The exact Pure expression from PCT
+        String pureQuery = """
+                |#TDS
+                    id, payload:meta::pure::metamodel::variant::Variant
+                    1, "[1,2,3]"
+                    2, "[4,5,6]"
+                    3, "[7,8,9]"
+                    4, "[10,11,12]"
+                    5, "[13,14,15]"
+                #->meta::pure::functions::relation::extend(~divBy2:x: (id:Integer, payload:meta::pure::metamodel::variant::Variant)[1]|$x.payload->meta::pure::functions::variant::convert::toMany(@Integer)->meta::pure::functions::collection::filter(t|$t->meta::pure::functions::math::mod(2) == 0)->meta::pure::functions::variant::convert::toVariant())
+                """;
+
+        // WHEN: We compile and execute
+        var result = executeRelation(pureQuery);
+        System.out.println("Variant filter result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: Should have 5 rows with filtered arrays (only even numbers)
+        // Row 1: [1,2,3] -> [2]
+        // Row 2: [4,5,6] -> [4,6]
+        // Row 3: [7,8,9] -> [8]
+        // Row 4: [10,11,12] -> [10,12]
+        // Row 5: [13,14,15] -> [14]
+        assertEquals(5, result.rows().size(), "Should have 5 rows");
+
+        var row1 = result.rows().get(0);
+        assertEquals(1, ((Number) row1.get(0)).intValue(), "First row ID should be 1");
+        String filtered1 = row1.get(2).toString();
+        assertTrue(filtered1.contains("2") && !filtered1.contains("1") && !filtered1.contains("3"),
+                "First row should contain only [2], got: " + filtered1);
+    }
 }

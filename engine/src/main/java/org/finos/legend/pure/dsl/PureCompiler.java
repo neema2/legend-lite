@@ -3212,8 +3212,27 @@ public final class PureCompiler {
                         "TdsLiteral should be compiled via compileExpression. Got: " + tds);
             }
             case FilterExpression filter -> {
-                throw new PureCompileException(
-                        "FilterExpression should be compiled via compileExpression. Got: " + filter);
+                // Check if this is a collection filter vs relation filter
+                // Collection filter: $list->filter(x|predicate) compiles to list_filter(list, x
+                // -> condition)
+                // We detect collection filter by checking if source is NOT a relation-returning
+                // expression
+                // For now, assume it's a collection filter if we reach here through
+                // compileToSqlExpression
+                Expression source = compileToSqlExpression(filter.source(), context);
+
+                // Compile the lambda predicate for list_filter
+                // DuckDB syntax: list_filter(array, x -> condition)
+                LambdaExpression lambda = filter.predicate();
+                String lambdaParam = lambda.parameters().isEmpty() ? "x" : lambda.parameters().get(0);
+
+                // Create a new context with the lambda parameter bound to itself (for direct
+                // use in SQL)
+                CompilationContext lambdaContext = context.withLambdaParameter(lambdaParam, lambdaParam);
+                Expression condition = compileToSqlExpression(lambda.body(), lambdaContext);
+
+                // Build list_filter with lambda expression
+                yield new ListFilterExpression(source, lambdaParam, condition);
             }
             case SortExpression sort -> {
                 // Check if this is a collection sort (no sort columns) vs relation sort

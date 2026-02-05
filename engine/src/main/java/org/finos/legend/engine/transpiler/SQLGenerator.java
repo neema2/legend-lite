@@ -1528,6 +1528,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     }
 
     @Override
+    public String visit(ListFilterExpression listFilter) {
+        // list_filter(array, x -> condition)
+        // DuckDB lambda syntax: list_filter([1,2,3,4], x -> x % 2 = 0)
+        String source = listFilter.source().accept(this);
+        String param = listFilter.lambdaParameter();
+        String condition = listFilter.condition().accept(this);
+        return "list_filter(" + source + ", " + param + " -> " + condition + ")";
+    }
+
+    @Override
     public String visit(JsonObjectExpression jsonObject) {
         // Render nested json_object() for deep fetch
         // Example: json_object('city', t1.CITY, 'street', t1.STREET)

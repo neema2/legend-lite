@@ -136,4 +136,9 @@ public interface ExpressionVisitor<T> {
      * Visit a CAST expression (CAST(expr AS type)).
      */
     T visit(CastExpression castExpr);
+
+    /**
+     * Visit a list_filter expression (list_filter(array, x -> condition)).
+     */
+    T visit(ListFilterExpression listFilter);
 }
