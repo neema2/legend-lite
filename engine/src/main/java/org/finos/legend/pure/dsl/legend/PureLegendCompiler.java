@@ -1196,18 +1196,6 @@ public final class PureLegendCompiler {
     }
 
     /**
-     * Extracts a SortColumn from an expression.
-     * Supports patterns:
-     * - ~col->ascending() / ~col->descending() (Relation API)
-     * - ~col (Relation API, defaults to ASC)
-     * - 'col' (legacy string column name)
-     * - {e | $e.col} (legacy lambda)
-     */
-    private SortNode.SortColumn extractSortColumn(Expression expr) {
-        return extractSortColumnWithDirection(expr, SortNode.SortDirection.ASC);
-    }
-
-    /**
      * Extracts a SortColumn with an optional pending direction override.
      */
     private SortNode.SortColumn extractSortColumnWithDirection(Expression expr,
@@ -1523,13 +1511,6 @@ public final class PureLegendCompiler {
         if (params.size() < min) {
             throw new CompileException(
                     funcName + "() requires at least " + min + " parameter(s), got " + params.size());
-        }
-    }
-
-    private void requireParams(String funcName, List<Expression> params, int min, int max) {
-        if (params.size() < min || params.size() > max) {
-            throw new CompileException(
-                    funcName + "() requires " + min + "-" + max + " parameter(s), got " + params.size());
         }
     }
 

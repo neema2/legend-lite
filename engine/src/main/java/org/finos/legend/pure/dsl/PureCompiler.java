@@ -13,7 +13,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -1277,49 +1276,6 @@ public final class PureCompiler {
         }
 
         return new JoinNode(left, right, finalCondition, JoinNode.JoinType.ASOF_LEFT);
-    }
-
-    /**
-     * Compiles a join condition expression with parameter name mapping.
-     * First property access goes to leftAlias, second goes to rightAlias.
-     */
-    private Expression compileJoinConditionWithParams(PureExpression expr,
-            String leftParam, String leftAlias, String rightAlias) {
-        // Track which side we're on based on position in comparison
-        return compileJoinConditionInternal(expr, leftAlias, rightAlias, new int[] { 0 });
-    }
-
-    private Expression compileJoinConditionInternal(PureExpression expr,
-            String leftAlias, String rightAlias, int[] accessCount) {
-        return switch (expr) {
-            case ComparisonExpr cmp -> {
-                // Reset counter and compile each side
-                accessCount[0] = 0;
-                Expression leftExpr = compileJoinConditionInternal(cmp.left(), leftAlias, rightAlias, accessCount);
-                Expression rightExpr = compileJoinConditionInternal(cmp.right(), leftAlias, rightAlias, accessCount);
-                yield switch (cmp.operator()) {
-                    case EQUALS -> ComparisonExpression.equals(leftExpr, rightExpr);
-                    case NOT_EQUALS -> new ComparisonExpression(leftExpr,
-                            ComparisonExpression.ComparisonOperator.NOT_EQUALS, rightExpr);
-                    case LESS_THAN -> ComparisonExpression.lessThan(leftExpr, rightExpr);
-                    case LESS_THAN_OR_EQUALS -> new ComparisonExpression(leftExpr,
-                            ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, rightExpr);
-                    case GREATER_THAN -> ComparisonExpression.greaterThan(leftExpr, rightExpr);
-                    case GREATER_THAN_OR_EQUALS -> new ComparisonExpression(leftExpr,
-                            ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, rightExpr);
-                };
-            }
-            case PropertyAccessExpression prop -> {
-                // First property access uses left alias, second uses right
-                String columnName = prop.propertyName();
-                String alias = (accessCount[0] == 0) ? leftAlias : rightAlias;
-                accessCount[0]++;
-                yield ColumnReference.of(alias, columnName);
-            }
-            case LiteralExpr lit -> compileLiteral(lit);
-            default -> throw new PureCompileException(
-                    "Cannot compile join condition expression: " + expr.getClass().getSimpleName());
-        };
     }
 
     /**
@@ -3456,71 +3412,6 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles greatest([a,b,c]) or least([a,b,c]) to GREATEST(a,b,c) /
-     * LEAST(a,b,c)
-     */
-    private Expression compileGreatestLeast(List<PureExpression> args, CompilationContext context,
-            MinMaxExpression.MinMaxFunction function) {
-        if (args.isEmpty()) {
-            throw new PureCompileException(function.name().toLowerCase() + "() requires at least one argument");
-        }
-
-        // The argument should be an ArrayLiteral or a list of values
-        PureExpression arg = args.getFirst();
-        List<Expression> sqlArgs;
-
-        if (arg instanceof ArrayLiteral array) {
-            sqlArgs = array.elements().stream()
-                    .map(e -> compileToSqlExpression(e, context))
-                    .toList();
-        } else {
-            // Single argument - compile as-is
-            sqlArgs = args.stream()
-                    .map(e -> compileToSqlExpression(e, context))
-                    .toList();
-        }
-
-        if (sqlArgs.isEmpty()) {
-            // Empty array - return NULL
-            return Literal.nullValue();
-        }
-
-        return new MinMaxExpression(function, sqlArgs);
-    }
-
-    /**
-     * Compiles [1,2,3]->greatest() or [1,2,3]->least() as MethodCall to SQL
-     * GREATEST/LEAST
-     */
-    private Expression compileGreatestLeastMethodCall(MethodCall methodCall, CompilationContext context,
-            MinMaxExpression.MinMaxFunction function) {
-        PureExpression source = methodCall.source();
-        List<Expression> sqlArgs;
-
-        if (source instanceof ArrayLiteral array) {
-            sqlArgs = array.elements().stream()
-                    .map(e -> compileToSqlExpression(e, context))
-                    .toList();
-        } else {
-            // For non-array source, compile the source directly
-            // This handles cases like $x->greatest() where $x is a scalar
-            sqlArgs = List.of(compileToSqlExpression(source, context));
-        }
-
-        if (sqlArgs.isEmpty()) {
-            // Empty array - return NULL
-            return Literal.nullValue();
-        }
-
-        if (sqlArgs.size() == 1) {
-            // Single element - just return it
-            return sqlArgs.getFirst();
-        }
-
-        return new MinMaxExpression(function, sqlArgs);
-    }
-
-    /**
      * Compiles in(value, [array]) Pure function to SQL: value IN (array elements)
      */
     private Expression compilePureFunctionIn(List<PureExpression> args, CompilationContext context) {
@@ -3936,42 +3827,6 @@ public final class PureCompiler {
 
         // Return SqlFunctionCall which will be handled by SQLGenerator
         return new SqlFunctionCall(methodCall.methodName(), source, additionalArgs, SqlType.UNKNOWN);
-    }
-
-    /**
-     * Compiles $value->in(['a', 'b', 'c']) to SQL: value IN ('a', 'b', 'c')
-     */
-    private Expression compileInCall(MethodCall methodCall, CompilationContext context, boolean negated) {
-        // The source is the value to check
-        Expression operand = compileToSqlExpression(methodCall.source(), context);
-
-        // The argument is the array of values
-        if (methodCall.arguments().isEmpty()) {
-            throw new PureCompileException("in() requires an array argument");
-        }
-
-        PureExpression arg = methodCall.arguments().getFirst();
-        List<Expression> values = extractArrayValues(arg, context);
-
-        return new InExpression(operand, values, negated);
-    }
-
-    /**
-     * Compiles ['a', 'b', 'c']->contains($value) to SQL: value IN ('a', 'b', 'c')
-     */
-    private Expression compileContainsCall(MethodCall methodCall, CompilationContext context) {
-        // For contains, the source is the array and the argument is the value to check
-        if (methodCall.arguments().isEmpty()) {
-            throw new PureCompileException("contains() requires an argument");
-        }
-
-        // Extract values from the source array
-        List<Expression> values = extractArrayValues(methodCall.source(), context);
-
-        // The argument is the value to check
-        Expression operand = compileToSqlExpression(methodCall.arguments().getFirst(), context);
-
-        return new InExpression(operand, values, false);
     }
 
     /**
