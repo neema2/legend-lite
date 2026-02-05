@@ -1255,9 +1255,12 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 Expression arg = functionCall.arguments().getFirst();
 
                 // Check if there's a type argument (second argument)
-                // get('key') -> returns JSON using ->
-                // get('key', @Type) -> returns typed value using ->> + CAST
-                boolean hasTypeArg = functionCall.returnType() != SqlType.UNKNOWN;
+                // get('key') -> returns JSON using -> (returnType is JSON or UNKNOWN)
+                // get('key', @Type) -> returns typed value using ->> + CAST (returnType is
+                // scalar)
+                // JSON is the default, so we only cast for explicit scalar types
+                SqlType type = functionCall.returnType();
+                boolean hasTypeArg = type != SqlType.UNKNOWN && type != SqlType.JSON;
 
                 if (arg instanceof Literal lit && lit.literalType() == Literal.LiteralType.INTEGER) {
                     // Array index access - always returns JSON
@@ -1267,7 +1270,6 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     if (hasTypeArg) {
                         // get('key', @Type) - extract as text and cast
                         String textValue = dialect.getJsonDialect().variantGet(target, key);
-                        SqlType type = functionCall.returnType();
                         String sqlType = switch (type) {
                             case INTEGER -> "INTEGER";
                             case DOUBLE -> "DOUBLE";
