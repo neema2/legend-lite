@@ -14,7 +14,6 @@
 
 package org.finos.legend.lite.pct.extension;
 
-import org.eclipse.collections.impl.tuple.Tuples;
 import org.finos.legend.pure.runtime.java.interpreted.extension.BaseInterpretedExtension;
 import org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension;
 
@@ -29,8 +28,7 @@ import org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExten
 public class LegendLitePCTExtensionInterpreted extends BaseInterpretedExtension {
 
     public LegendLitePCTExtensionInterpreted() {
-        super(
-                Tuples.pair("executeLegendLiteQuery_String_1__Any_1_", ExecuteLegendLiteQuery::new));
+        super("executeLegendLiteQuery_String_1__Any_1_", ExecuteLegendLiteQuery::new);
     }
 
     public static InterpretedExtension extension() {
