@@ -3216,6 +3216,14 @@ public final class PureCompiler {
                         "FilterExpression should be compiled via compileExpression. Got: " + filter);
             }
             case SortExpression sort -> {
+                // Check if this is a collection sort (no sort columns) vs relation sort
+                // Collection sort: $list->sort() has empty sortColumns and non-relation source
+                if (sort.sortColumns().isEmpty()) {
+                    // This is a collection sort - compile source and wrap with list_sort
+                    Expression source = compileToSqlExpression(sort.source(), context);
+                    yield SqlFunctionCall.of("list_sort", source);
+                }
+                // Otherwise it's a relation sort that should be handled elsewhere
                 throw new PureCompileException(
                         "SortExpression should be compiled via compileExpression. Got: " + sort);
             }
@@ -3317,6 +3325,14 @@ public final class PureCompiler {
                 }
                 Expression source = compileToSqlExpression(args.getFirst(), context);
                 yield SqlFunctionCall.of("list_reverse", source);
+            }
+            // Collection: sort() -> list_sort(list)
+            case "sort" -> {
+                if (args.isEmpty()) {
+                    throw new PureCompileException("sort() requires an argument");
+                }
+                Expression source = compileToSqlExpression(args.getFirst(), context);
+                yield SqlFunctionCall.of("list_sort", source);
             }
             case "in" -> compilePureFunctionIn(args, context);
             default -> {

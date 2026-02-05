@@ -4593,4 +4593,48 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(reversed1.contains("3") && reversed1.contains("2") && reversed1.contains("1"),
                 "Row 1 reversed should contain 3,2,1");
     }
+
+    /**
+     * Test for variant array column with sort operation.
+     * This is the exact PCT test: testVariantArrayColumn_sort
+     * 
+     * Pure expression pattern:
+     * TDS->extend(~sorted:x|$x.payload->toMany(@Integer)->sort()->toVariant())
+     */
+    @Test
+    @DisplayName("PCT: Variant array column with sort - toMany(@Integer)->sort()->toVariant()")
+    void testVariantArrayColumn_sort() throws SQLException {
+        // GIVEN: The exact Pure expression from PCT
+        String pureQuery = """
+                |#TDS
+                    id, payload:meta::pure::metamodel::variant::Variant
+                    1, "[2,1,3]"
+                    2, "[5,6,4]"
+                    3, "[9,8,7]"
+                    4, "[10,11,12]"
+                    5, "[15,13,14]"
+                #->meta::pure::functions::relation::extend(~sorted:x: (id:Integer, payload:meta::pure::metamodel::variant::Variant)[1]|$x.payload->meta::pure::functions::variant::convert::toMany(@Integer)->meta::pure::functions::collection::sort()->meta::pure::functions::variant::convert::toVariant())
+                """;
+
+        // WHEN: We compile and execute
+        var result = executeRelation(pureQuery);
+        System.out.println("Variant sort result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: Should have 5 rows with sorted arrays
+        assertEquals(5, result.rows().size(), "Should have 5 rows");
+
+        // Row 1: [2,1,3] -> [1,2,3]
+        // Row 2: [5,6,4] -> [4,5,6]
+        // Row 3: [9,8,7] -> [7,8,9]
+        // etc.
+        var row1 = result.rows().get(0);
+        assertEquals(1, ((Number) row1.get(0)).intValue(), "ID should be 1");
+        String sorted1 = row1.get(2).toString(); // sorted column (DuckDB returns JsonNode)
+        // [1,2,3] is the expected sorted result
+        assertTrue(sorted1.contains("1") && sorted1.contains("2") && sorted1.contains("3"),
+                "Row 1 sorted should contain 1,2,3");
+    }
 }
