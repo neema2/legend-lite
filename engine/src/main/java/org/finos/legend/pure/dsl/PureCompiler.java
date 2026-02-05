@@ -119,6 +119,7 @@ public final class PureCompiler {
             case RenameExpression rename -> compileRename(rename, context);
             case ConcatenateExpression concatenate -> compileConcatenate(concatenate, context);
             case PivotExpression pivot -> compilePivot(pivot, context);
+            case RelationWriteExpression write -> compileRelationWrite(write, context);
             // CastExpression to Relation - compile the source expression (cast is type
             // annotation only)
             case CastExpression cast -> compileExpression(cast.source(), context);
@@ -249,6 +250,7 @@ public final class PureCompiler {
                 || expr instanceof DistinctExpression
                 || expr instanceof ConcatenateExpression
                 || expr instanceof PivotExpression
+                || expr instanceof RelationWriteExpression
                 || expr instanceof TdsLiteral
                 || expr instanceof ExtendExpression
                 || expr instanceof RenameExpression
@@ -1394,6 +1396,15 @@ public final class PureCompiler {
         } else {
             return PivotNode.dynamic(source, pivotColumns, aggregates);
         }
+    }
+
+    /**
+     * Compiles write() on a Relation.
+     * For PCT testing, this generates SELECT COUNT(*) FROM (source).
+     */
+    private RelationNode compileRelationWrite(RelationWriteExpression write, CompilationContext context) {
+        RelationNode sourceNode = compileExpression(write.source(), context);
+        return new WriteNode(sourceNode);
     }
 
     /**

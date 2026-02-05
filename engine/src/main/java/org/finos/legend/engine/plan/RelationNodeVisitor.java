@@ -96,4 +96,9 @@ public interface RelationNodeVisitor<T> {
      * Visit a struct literal node (inline instance data as DuckDB STRUCTs).
      */
     T visit(StructLiteralNode structLiteral);
+
+    /**
+     * Visit a write node (write operation returning row count).
+     */
+    T visit(WriteNode write);
 }

@@ -250,8 +250,10 @@ public class QueryService {
         System.out.println("Pure Query: " + query);
         System.out.println("Generated SQL: " + sql);
 
-        // 5. For constant queries, use SCALAR mode to unwrap the result
-        ResultMode effectiveMode = (ir instanceof ConstantNode) ? ResultMode.SCALAR : mode;
+        // 5. For constant queries and write(), use SCALAR mode to unwrap the result
+        // write() returns Integer (row count), not a Relation
+        boolean isScalarResult = (ir instanceof ConstantNode) || (ir instanceof WriteNode);
+        ResultMode effectiveMode = isScalarResult ? ResultMode.SCALAR : mode;
 
         // 6. Execute using the appropriate mode
         return executeWithMode(connection, sql, effectiveMode);

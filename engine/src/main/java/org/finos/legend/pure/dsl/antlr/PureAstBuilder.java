@@ -309,6 +309,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 }
             }
             case "select" -> parseSelectCall(source, args);
+            case "write" -> parseWriteCall(source, args);
             case "extend" -> parseExtendCall(source, args);
             case "from" -> parseFromCall(source, args);
             case "graphFetch" -> parseGraphFetchCall(source, args);
@@ -1718,6 +1719,14 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // Extract column names from args (ColumnSpec or ColumnSpecArray)
         List<String> columns = extractColumnsFromArgs(args);
         return new RelationSelectExpression(source, columns);
+    }
+
+    private PureExpression parseWriteCall(PureExpression source, List<PureExpression> args) {
+        // write(accessor) - writes source relation to accessor, returns row count
+        if (args.size() != 1) {
+            throw new PureParseException("write() requires exactly 1 argument (accessor)");
+        }
+        return new RelationWriteExpression(source, args.get(0));
     }
 
     private PureExpression parseExtendCall(PureExpression source, List<PureExpression> args) {

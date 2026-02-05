@@ -760,6 +760,14 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return sb.toString();
     }
 
+    @Override
+    public String visit(WriteNode write) {
+        // For PCT testing: write() returns the count of rows written
+        // Generate: SELECT COUNT(*) AS "value" FROM (source)
+        String sourceSql = write.source().accept(this);
+        return "SELECT COUNT(*) AS \"value\" FROM (" + sourceSql + ") AS src";
+    }
+
     /**
      * Renders a StructInstance as a DuckDB STRUCT literal.
      * DuckDB accepts JSON-style syntax: {'key': 'value', 'key2': 123}
@@ -1093,6 +1101,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case ConstantNode constant -> null; // No filter in constant expression
             case AggregateNode agg -> extractFilterCondition(agg.source());
             case StructLiteralNode struct -> null; // No filter in struct literal
+            case WriteNode write -> extractFilterCondition(write.source());
         };
     }
 
@@ -1127,6 +1136,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case TdsLiteralNode tds -> throw new IllegalArgumentException("TDS literal has no source table");
             case ConstantNode constant -> throw new IllegalArgumentException("Constant expression has no source table");
             case StructLiteralNode struct -> throw new IllegalArgumentException("Struct literal has no source table");
+            case WriteNode write -> extractTableNode(write.source());
         };
     }
 

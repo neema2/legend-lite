@@ -4822,4 +4822,39 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(2, ((Number) row1.get(0)).intValue(), "First matching row should be ID 2");
         assertEquals(4, ((Number) row2.get(0)).intValue(), "Second matching row should be ID 4");
     }
+
+    /**
+     * PCT: testWrite
+     * 
+     * Tests the write() function which writes a relation to an accessor
+     * and returns the count of rows written.
+     */
+    @Test
+    @DisplayName("PCT: Relation write() returns count of rows written")
+    void testRelationWrite() throws SQLException {
+        // GIVEN: A TDS with 5 rows, write to an accessor
+        String pureQuery = """
+                |#TDS
+                    val,str,other
+                    1,a,a
+                    3,ewe,b
+                    4,qw,c
+                    5,wwe,d
+                    6,weq,e
+                #->meta::pure::functions::relation::select()
+                 ->meta::pure::functions::relation::write(
+                    #TDS
+                        val,str,other
+                        1,aaa,a
+                    #->meta::pure::metamodel::relation::newTDSRelationAccessor())
+                """;
+
+        // WHEN: We execute the write()
+        var result = executeRelation(pureQuery);
+
+        // THEN: Should return 5 (the count of rows in the source)
+        assertEquals(1, result.rows().size(), "write() should return a single row with count");
+        var count = ((Number) result.rows().get(0).get(0)).intValue();
+        assertEquals(5, count, "write() should return count of rows written");
+    }
 }
