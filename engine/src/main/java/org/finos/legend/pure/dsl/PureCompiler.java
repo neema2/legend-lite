@@ -3318,6 +3318,21 @@ public final class PureCompiler {
                 Expression source = compileToSqlExpression(args.getFirst(), context);
                 yield SqlFunctionCall.of("to_json", source);
             }
+            // Variant conversion: to(@Type) -> CAST(json_value AS Type) for scalar
+            // extraction
+            case "to" -> {
+                if (args.size() < 2) {
+                    throw new PureCompileException("to() requires source and type arguments");
+                }
+                Expression source = compileToSqlExpression(args.get(0), context);
+                // Second arg is TypeReference - get the SQL type
+                String sqlType = "VARCHAR"; // default
+                if (args.get(1) instanceof TypeReference typeRef) {
+                    sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                }
+                // In DuckDB: CAST(json_value AS BIGINT)
+                yield new org.finos.legend.engine.plan.CastExpression(source, sqlType);
+            }
             // Collection: reverse() -> list_reverse(list)
             case "reverse" -> {
                 if (args.isEmpty()) {
@@ -3771,6 +3786,16 @@ public final class PureCompiler {
             }
             case "toVariant" -> // value->toVariant() -> to_json(value)
                 SqlFunctionCall.of("to_json", compileToSqlExpression(methodCall.source(), context));
+            case "to" -> { // $x.payload->get(0)->to(@Integer) -> CAST(... AS BIGINT)
+                var args = methodCall.arguments();
+                String sqlType = "VARCHAR"; // default
+                if (!args.isEmpty() && args.get(0) instanceof TypeReference typeRef) {
+                    sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                }
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context),
+                        sqlType);
+            }
 
             default -> compileSimpleMethodCall(methodCall, context);
         };

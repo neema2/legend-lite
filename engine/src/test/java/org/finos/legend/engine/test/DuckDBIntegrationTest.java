@@ -4637,4 +4637,51 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(sorted1.contains("1") && sorted1.contains("2") && sorted1.contains("3"),
                 "Row 1 sorted should contain 1,2,3");
     }
+
+    /**
+     * Test for variant column with index extraction and filter.
+     * This is the exact PCT test: testVariantColumn_extend_indexExtraction_filter
+     * 
+     * Pure expression pattern:
+     * TDS->extend(~atCol0:x|$x.payload->get(0)->to(@Integer))->filter(x|$x.atCol0 <
+     * 7)
+     */
+    @Test
+    @DisplayName("PCT: Variant index extraction with filter - get(0)->to(@Integer)")
+    void testVariantColumn_indexExtraction_filter() throws SQLException {
+        // GIVEN: The exact Pure expression from PCT
+        String pureQuery = """
+                |#TDS
+                    id, payload:meta::pure::metamodel::variant::Variant
+                    1, "[1,2,3]"
+                    2, "[4,5,6]"
+                    3, "[7,8,9]"
+                    4, "[10,11,12]"
+                    5, "[13,14,15]"
+                #->meta::pure::functions::relation::extend(~atCol0:x: (id:Integer, payload:meta::pure::metamodel::variant::Variant)[1]|$x.payload->meta::pure::functions::variant::navigation::get(0)->meta::pure::functions::variant::convert::to(@Integer))->meta::pure::functions::relation::filter(x: (id:Integer, payload:meta::pure::metamodel::variant::Variant, atCol0:Integer)[1]|$x.atCol0 < 7)
+                """;
+
+        // WHEN: We compile and execute
+        var result = executeRelation(pureQuery);
+        System.out.println("Variant index extraction result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: Should have rows where first element of array < 7
+        // Row 1: [1,2,3] -> atCol0 = 1 (< 7) ✓
+        // Row 2: [4,5,6] -> atCol0 = 4 (< 7) ✓
+        // Row 3: [7,8,9] -> atCol0 = 7 (NOT < 7) ✗
+        // Row 4: [10,11,12] -> atCol0 = 10 (NOT < 7) ✗
+        // Row 5: [13,14,15] -> atCol0 = 13 (NOT < 7) ✗
+        assertEquals(2, result.rows().size(), "Should have 2 rows where atCol0 < 7");
+
+        var row1 = result.rows().get(0);
+        assertEquals(1, ((Number) row1.get(0)).intValue(), "First row ID should be 1");
+        assertEquals(1, ((Number) row1.get(2)).intValue(), "First row atCol0 should be 1");
+
+        var row2 = result.rows().get(1);
+        assertEquals(2, ((Number) row2.get(0)).intValue(), "Second row ID should be 2");
+        assertEquals(4, ((Number) row2.get(2)).intValue(), "Second row atCol0 should be 4");
+    }
 }
