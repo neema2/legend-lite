@@ -4220,6 +4220,83 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
+     * Tests pivot with null values when a group has no data for a particular pivot
+     * column.
+     * This is the exact scenario from PCT
+     * test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort:
+     * - UK has data for 2011 but NOT 2012
+     * - After pivot, UK should have null (not 0) in the 2012 column
+     * 
+     * This validates that our SQL correctly preserves null semantics for missing
+     * pivot values.
+     */
+    @Test
+    void testPivotNullForMissingValues() throws SQLException {
+        // Exact data from PCT test - UK only has 2011 data (LDN), no 2012 data
+        String pureQuery = """
+                #TDS
+                    city, country, year, treePlanted
+                    NYC, USA, 2011, 5000
+                    NYC, USA, 2000, 5000
+                    SAN, USA, 2000, 2000
+                    SAN, USA, 2011, 100
+                    LDN, UK, 2011, 3000
+                    SAN, USA, 2011, 2500
+                    NYC, USA, 2000, 10000
+                    NYC, USA, 2012, 7600
+                    NYC, USA, 2012, 7600
+                #->extend(~yr:x|$x.year->toOne() - 2000)
+                ->filter(x|$x.yr > 10)
+                ->select(~[city,country,year,treePlanted])
+                ->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
+                ->groupBy(~[country], ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->plus(),'2012__|__newCol':x|$x.'2012__|__newCol':y|$y->plus()])
+                ->extend(~newCol:x|$x.country->toOne() + '_0')
+                """;
+
+        String sql = generateSql(pureQuery);
+        System.out.println("Pivot null values SQL: " + sql);
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Pivot null values result: " + result.rows());
+
+        // Should have 2 rows: UK and USA
+        assertEquals(2, result.rows().size(), "Should have 2 rows (UK and USA)");
+
+        // Find the columns
+        var colNames = result.columns().stream().map(c -> c.name()).toList();
+        int countryIdx = colNames.indexOf("country");
+        int col2011Idx = colNames.indexOf("2011__|__newCol");
+        int col2012Idx = colNames.indexOf("2012__|__newCol");
+        int newColIdx = colNames.indexOf("newCol");
+
+        assertTrue(countryIdx >= 0, "Should have country column");
+        assertTrue(col2011Idx >= 0, "Should have 2011__|__newCol column");
+        assertTrue(col2012Idx >= 0, "Should have 2012__|__newCol column");
+
+        // Find UK row
+        var ukRow = result.rows().stream()
+                .filter(r -> "UK".equals(r.get(countryIdx)))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Should have UK row"));
+
+        // Find USA row
+        var usaRow = result.rows().stream()
+                .filter(r -> "USA".equals(r.get(countryIdx)))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Should have USA row"));
+
+        // UK 2011: 3000 (LDN), UK 2012: null (no data)
+        assertEquals(3000, ((Number) ukRow.get(col2011Idx)).intValue(), "UK 2011 should be 3000");
+        assertNull(ukRow.get(col2012Idx), "UK 2012 should be NULL (not 0) - no data exists");
+        assertEquals("UK_0", ukRow.get(newColIdx), "UK newCol should be UK_0");
+
+        // USA 2011: 5000 + 100 + 2500 = 7600, USA 2012: 7600 + 7600 = 15200
+        assertEquals(7600, ((Number) usaRow.get(col2011Idx)).intValue(), "USA 2011 should be 7600");
+        assertEquals(15200, ((Number) usaRow.get(col2012Idx)).intValue(), "USA 2012 should be 15200");
+        assertEquals("USA_0", usaRow.get(newColIdx), "USA newCol should be USA_0");
+    }
+
+    /**
      * Test let bindings with multiple filter expressions.
      * Tests that $a->filter() and $b->filter() work correctly with variable
      * resolution.
