@@ -3541,6 +3541,15 @@ public final class PureCompiler {
             case "get" -> compileGetCall(methodCall, context);
             // Pure multiplicity functions - identity in SQL context
             case "toOne" -> compileToSqlExpression(methodCall.source(), context);
+            // Relation eval() - evaluates a column spec against a row
+            // ~columnName->eval($row) compiles to just the column reference
+            case "eval" -> {
+                if (methodCall.source() instanceof ColumnSpec cs) {
+                    // Column spec evaluated on row becomes simple column reference
+                    yield ColumnReference.of(cs.name());
+                }
+                throw new PureCompileException("eval() requires a column spec source, got: " + methodCall.source());
+            }
             // IN expression: $x->in([a, b, c]) -> list_contains([a, b, c], x)
             case "in" -> compileListContains(methodCall, context);
             case "contains" -> compileListContainsMethod(methodCall, context);
