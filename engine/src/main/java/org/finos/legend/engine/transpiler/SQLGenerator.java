@@ -68,63 +68,64 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case ProjectNode project -> {
                 // Push filter down into the project
-    yield visitProjectWithFilter(project, filter);
-            }case
+                yield visitProjectWithFilter(project, filter);
+            }
+            case
 
-    FilterNode nestedFilter->
-    {
-        // Combine filters with AND
-        String innerSql = nestedFilter.accept(this);
-        yield innerSql + " AND " + whereClause;
-    }case
-    JoinNode join->
-    {
-        // Filter on top of join
-        String innerSql = join.accept(this);
-        yield innerSql + " WHERE " + whereClause;
-    }case
-    GroupByNode groupBy->
-    {
-        // Filter on top of group by
-        String innerSql = groupBy.accept(this);
-        yield "SELECT * FROM (" + innerSql + ") AS grp WHERE " + whereClause;
-    }case
-    SortNode sort->
-    {
-        // Filter on top of sort
-        String innerSql = sort.accept(this);
-        yield "SELECT * FROM (" + innerSql + ") AS srt WHERE " + whereClause;
-    }case
-    LimitNode limit->
-    {
-        // Filter on top of limit
-        String innerSql = limit.accept(this);
-        yield "SELECT * FROM (" + innerSql + ") AS lim WHERE " + whereClause;
-    }case
-    FromNode from->
-    {
-        // Filter on top of from (unwrap and process)
-        String innerSql = from.accept(this);
-        yield "SELECT * FROM (" + innerSql + ") AS frm WHERE " + whereClause;
-    }case
-    ExtendNode extend->
-    {
-        // Filter on top of extend (window functions)
-        String innerSql = extend.accept(this);
-        yield "SELECT * FROM (" + innerSql + ") AS ext WHERE " + whereClause;
-    }case
-    LateralJoinNode lateral->
-    {
-        // Filter on top of lateral join (unnest)
-        String innerSql = lateral.accept(this);
-        yield "SELECT * FROM (" + innerSql + ") AS lat WHERE " + whereClause;
-    }default->
-    {
-        // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
-        String innerSql = source.accept(this);
-        yield "SELECT * FROM (" + innerSql + ") AS src WHERE " + whereClause;
+                    FilterNode nestedFilter -> {
+                // Combine filters with AND
+                String innerSql = nestedFilter.accept(this);
+                yield innerSql + " AND " + whereClause;
+            }
+            case
+                    JoinNode join -> {
+                // Filter on top of join
+                String innerSql = join.accept(this);
+                yield innerSql + " WHERE " + whereClause;
+            }
+            case
+                    GroupByNode groupBy -> {
+                // Filter on top of group by
+                String innerSql = groupBy.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS grp WHERE " + whereClause;
+            }
+            case
+                    SortNode sort -> {
+                // Filter on top of sort
+                String innerSql = sort.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS srt WHERE " + whereClause;
+            }
+            case
+                    LimitNode limit -> {
+                // Filter on top of limit
+                String innerSql = limit.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS lim WHERE " + whereClause;
+            }
+            case
+                    FromNode from -> {
+                // Filter on top of from (unwrap and process)
+                String innerSql = from.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS frm WHERE " + whereClause;
+            }
+            case
+                    ExtendNode extend -> {
+                // Filter on top of extend (window functions)
+                String innerSql = extend.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS ext WHERE " + whereClause;
+            }
+            case
+                    LateralJoinNode lateral -> {
+                // Filter on top of lateral join (unnest)
+                String innerSql = lateral.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS lat WHERE " + whereClause;
+            }
+            default -> {
+                // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
+                String innerSql = source.accept(this);
+                yield "SELECT * FROM (" + innerSql + ") AS src WHERE " + whereClause;
+            }
+        };
     }
-    };}
 
     @Override
     public String visit(ProjectNode project) {
@@ -171,13 +172,40 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 yield "SELECT " + projections + " FROM (" + innerSql + ") AS lateral_result";
             }
             case StructLiteralNode structLit -> {
-                // When projecting from STRUCT literals, access fields via dot notation
-                // Example: SELECT alias.field1 AS field1 FROM VALUES({'field1': 'val'}) AS
-                // t(alias)
+                // When projecting from STRUCT literals with arrays, use CROSS JOIN UNNEST
+                // to produce cross-product (Cartesian product) of all arrays.
+                // Example: SELECT s.name, a.val, v.val FROM VALUES(...) AS t(s),
+                // UNNEST(s.addresses) AS a, UNNEST(s.values) AS v
                 String innerSql = structLit.accept(this);
                 String structAlias = structLit.alias();
-                String projections = formatProjectionsWithStructPrefix(project, structAlias);
-                yield "SELECT " + projections + " FROM (" + innerSql + ") AS struct_src";
+
+                // Collect array fields that need UNNEST
+                java.util.LinkedHashMap<String, String> arrayFields = collectArrayFields(project, structAlias);
+
+                if (arrayFields.isEmpty()) {
+                    // No arrays, simple struct field access
+                    String projections = formatProjectionsWithStructPrefix(project, structAlias);
+                    yield "SELECT " + projections + " FROM (" + innerSql + ") AS struct_src";
+                } else {
+                    // Build LATERAL CROSS JOIN UNNEST for each array to get true cross-product
+                    // DuckDB requires LATERAL (SELECT UNNEST(...)) for cross-product
+                    StringBuilder from = new StringBuilder();
+                    from.append("(").append(innerSql).append(") AS struct_src");
+
+                    for (java.util.Map.Entry<String, String> entry : arrayFields.entrySet()) {
+                        String arrayField = entry.getKey();
+                        String unnestAlias = entry.getValue();
+                        // Use LEFT JOIN LATERAL for cross-product that preserves rows when array is
+                        // empty
+                        // Empty arrays produce NULL values instead of filtering out all rows
+                        from.append(" LEFT JOIN LATERAL (SELECT UNNEST(struct_src.").append(structAlias)
+                                .append(".").append(arrayField).append(")) AS ").append(unnestAlias)
+                                .append("(").append(unnestAlias).append("_elem) ON TRUE");
+                    }
+
+                    String projections = formatProjectionsWithArrayAliases(project, structAlias, arrayFields);
+                    yield "SELECT " + projections + " FROM " + from;
+                }
             }
             default -> {
                 // Handle new node types (DistinctNode, RenameNode, ConcatenateNode)
@@ -1170,6 +1198,65 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return structAlias + "." + propertyName + " AS " + dialect.quoteIdentifier(outputAlias);
     }
 
+    /**
+     * Collects unique array fields from projections that need UNNEST.
+     * Returns a map of arrayField -> unnestAlias (e.g., "addresses" ->
+     * "u_addresses")
+     */
+    private java.util.LinkedHashMap<String, String> collectArrayFields(ProjectNode project, String structAlias) {
+        var arrayFields = new java.util.LinkedHashMap<String, String>();
+        int aliasCounter = 0;
+
+        for (Projection p : project.projections()) {
+            String propertyName = getPropertyName(p);
+            if (propertyName.contains(".")) {
+                String arrayField = propertyName.split("\\.", 2)[0];
+                if (!arrayFields.containsKey(arrayField)) {
+                    arrayFields.put(arrayField, "u" + (aliasCounter++));
+                }
+            }
+        }
+        return arrayFields;
+    }
+
+    /**
+     * Formats projections using array aliases for fields that were UNNEST'd.
+     */
+    private String formatProjectionsWithArrayAliases(ProjectNode project, String structAlias,
+            java.util.Map<String, String> arrayFields) {
+        return project.projections().stream()
+                .map(p -> formatProjectionWithArrayAlias(p, structAlias, arrayFields))
+                .collect(Collectors.joining(", "));
+    }
+
+    private String formatProjectionWithArrayAlias(Projection projection, String structAlias,
+            java.util.Map<String, String> arrayFields) {
+        String outputAlias = projection.alias();
+        String propertyName = getPropertyName(projection);
+
+        if (propertyName.contains(".")) {
+            // Array field - use the unnested element column
+            // LATERAL (SELECT UNNEST(...)) AS u0(u0_elem) produces column u0_elem
+            String[] parts = propertyName.split("\\.", 2);
+            String arrayField = parts[0];
+            String nestedField = parts[1];
+            String unnestAlias = arrayFields.get(arrayField);
+            // Reference the element column: u0_elem.val
+            return unnestAlias + "_elem." + nestedField + " AS " + dialect.quoteIdentifier(outputAlias);
+        }
+
+        // Scalar field - use struct alias
+        return "struct_src." + structAlias + "." + propertyName + " AS " + dialect.quoteIdentifier(outputAlias);
+    }
+
+    private String getPropertyName(Projection projection) {
+        Expression expr = projection.expression();
+        if (expr instanceof ColumnReference colRef) {
+            return colRef.columnName();
+        }
+        return projection.alias();
+    }
+
     private String formatProjection(Projection projection) {
         String expr = projection.expression().accept(this);
         return expr + " AS " + dialect.quoteIdentifier(projection.alias());
@@ -1654,77 +1741,80 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case ProjectNode project -> {
                 // For EXISTS, we don't need the projections, just the source with filter
-    yield generateExistsSubquery(project.source());
-            }case
+                yield generateExistsSubquery(project.source());
+            }
+            case
 
-    GroupByNode groupBy->
-    {
+                    GroupByNode groupBy -> {
                 // For EXISTS, we don't need aggregations, just the source
-    yield generateExistsSubquery(groupBy.source());
-            }case
+                yield generateExistsSubquery(groupBy.source());
+            }
+            case
 
-    SortNode sort->
-    {
+                    SortNode sort -> {
                 // For EXISTS, sorting doesn't matter, just use the source
-    yield generateExistsSubquery(sort.source());
-            }case
+                yield generateExistsSubquery(sort.source());
+            }
+            case
 
-    LimitNode limit->
-    {
+                    LimitNode limit -> {
                 // For EXISTS with limit, we need to preserve the limit
                 yield "SELECT 1 FROM (" + limit.accept(this) + ") AS exists_src";
-            }case
-    FromNode from->
-    {
+            }
+            case
+                    FromNode from -> {
                 // For EXISTS, unwrap the from and process the source
-    yield generateExistsSubquery(from.source());
-            }case
+                yield generateExistsSubquery(from.source());
+            }
+            case
 
-    ExtendNode extend->
-    {
+                    ExtendNode extend -> {
                 // For EXISTS with window functions, just use the source
-    yield generateExistsSubquery(extend.source());
-            }case
+                yield generateExistsSubquery(extend.source());
+            }
+            case
 
-    LateralJoinNode lateral->
-    {
+                    LateralJoinNode lateral -> {
                 // For EXISTS with lateral join, just use the source
-    yield generateExistsSubquery(lateral.source());
-            }case
+                yield generateExistsSubquery(lateral.source());
+            }
+            case
 
-    DistinctNode distinct->
-    {
+                    DistinctNode distinct -> {
                 // For EXISTS, distinct doesn't matter, just use the source
-    yield generateExistsSubquery(distinct.source());
-            }case
+                yield generateExistsSubquery(distinct.source());
+            }
+            case
 
-    RenameNode rename->
-    {
+                    RenameNode rename -> {
                 // For EXISTS, rename doesn't matter, just use the source
-    yield generateExistsSubquery(rename.source());
-            }case
+                yield generateExistsSubquery(rename.source());
+            }
+            case
 
-    ConcatenateNode concat->
-    {
+                    ConcatenateNode concat -> {
                 // For EXISTS with concatenate, wrap the whole thing
                 yield "SELECT 1 FROM (" + concat.accept(this) + ") AS exists_src";
-            }case
-    PivotNode pivot->
-    {
+            }
+            case
+                    PivotNode pivot -> {
                 // For EXISTS with pivot, wrap the whole thing
                 yield "SELECT 1 FROM (" + pivot.accept(this) + ") AS exists_src";
-            }case
-    TdsLiteralNode tds->
-    {
+            }
+            case
+                    TdsLiteralNode tds -> {
                 // For EXISTS with TDS literal, wrap the whole thing
                 yield "SELECT 1 FROM (" + tds.accept(this) + ") AS exists_src";
-            }case
-    ConstantNode constant->
-    {
+            }
+            case
+                    ConstantNode constant -> {
                 // For EXISTS with constant, wrap the expression
                 yield "SELECT 1 FROM (" + constant.accept(this) + ") AS exists_src";
-            }default->throw new IllegalStateException("Unknown node type in generateExistsSubquery: "+node.getClass().getSimpleName());
-    };}
+            }
+            default -> throw new IllegalStateException(
+                    "Unknown node type in generateExistsSubquery: " + node.getClass().getSimpleName());
+        };
+    }
 
     // ==================== Collection Function Support ====================
 

@@ -111,6 +111,104 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             assertEquals(3, names.size());
             assertTrue(names.containsAll(Set.of("John", "Jane", "Bob")));
         }
+
+        @Test
+        @DisplayName("project() on struct with multiple arrays produces cross-product")
+        void testProjectStructArrayCrossProduct() throws SQLException {
+            // This test mirrors PCT test: testSimpleProject
+            // When projecting multiple arrays from a struct, the result should be a
+            // cross-product (Cartesian product) of the arrays, not parallel unnest.
+            //
+            // Input: one object with name='ok', addresses=[no, other], values=[1, 2, 3]
+            // Expected: 6 rows (2 addresses × 3 values), not 3 rows
+
+            String pureQuery = """
+                    |^test::TypeForProjectTest(
+                        name='ok',
+                        addresses=[^test::Address(val='no'), ^test::Address(val='other')],
+                        values=[^test::PrimitiveContainer(val=1), ^test::PrimitiveContainer(val=2), ^test::PrimitiveContainer(val=3)]
+                    )->project(~[
+                        one:x|$x.name,
+                        two:x|$x.addresses.val,
+                        three:x|$x.values.val
+                    ])
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Cross-Product SQL: " + sql);
+
+            // Verify SQL structure uses UNNEST with cross-join
+            assertTrue(sql.contains("UNNEST"), "Should use UNNEST for array access");
+
+            // Execute and verify cross-product row count
+            var result = executeRelation(pureQuery);
+
+            System.out.println("Cross-product result:");
+            for (var row : result.rows()) {
+                System.out.println("  " + row.get(0) + ", " + row.get(1) + ", " + row.get(2));
+            }
+
+            // 2 addresses × 3 values = 6 rows
+            assertEquals(6, result.rows().size(),
+                    "Should have 6 rows (cross-product of 2 addresses × 3 values)");
+
+            // Verify all combinations exist
+            Set<String> combos = new HashSet<>();
+            for (var row : result.rows()) {
+                String combo = row.get(1) + "," + row.get(2);
+                combos.add(combo);
+            }
+            // Expected combinations: no×1, no×2, no×3, other×1, other×2, other×3
+            assertEquals(6, combos.size(), "Should have 6 unique combinations");
+        }
+
+        @Test
+        @DisplayName("project() on struct with empty array produces NULL values")
+        void testProjectStructArrayWithEmptyArray() throws SQLException {
+            // This test mirrors PCT test: testSimpleProjectWithEmpty
+            // When one array is empty, the rows from non-empty arrays should be preserved
+            // with NULL values for the empty array column.
+            //
+            // Input: one object with name='ok', addresses=[no, other], values=[]
+            // Expected: 2 rows (from addresses), with 'three' column being NULL
+
+            String pureQuery = """
+                    |^test::TypeForProjectTest(
+                        name='ok',
+                        addresses=[^test::Address(val='no'), ^test::Address(val='other')],
+                        values=[]
+                    )->project(~[
+                        one:x|$x.name,
+                        two:x|$x.addresses.val,
+                        three:x|$x.values.val
+                    ])
+                    """;
+
+            String sql = generateSql(pureQuery);
+            System.out.println("Empty Array SQL: " + sql);
+
+            // Verify SQL uses LEFT JOIN LATERAL for empty array support
+            assertTrue(sql.contains("LEFT JOIN LATERAL"), "Should use LEFT JOIN LATERAL for empty array support");
+
+            // Execute and verify result
+            var result = executeRelation(pureQuery);
+
+            System.out.println("Empty array result:");
+            for (var row : result.rows()) {
+                System.out.println("  " + row.get(0) + ", " + row.get(1) + ", " + row.get(2));
+            }
+
+            // 2 addresses with empty values array = 2 rows with NULL for 'three'
+            assertEquals(2, result.rows().size(),
+                    "Should have 2 rows (addresses preserved despite empty values array)");
+
+            // Verify values column is NULL
+            for (var row : result.rows()) {
+                assertEquals("ok", row.get(0));
+                assertNotNull(row.get(1)); // addresses.val should not be null
+                assertNull(row.get(2), "Empty array column should be NULL");
+            }
+        }
     }
 
     // ==================== filter() Tests ====================
