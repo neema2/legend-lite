@@ -4769,4 +4769,57 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertNotNull(row1.get(3), "integerKey should not be null");
         assertNotNull(row1.get(4), "stringKey should not be null");
     }
+
+    /**
+     * PCT: testVariantColumn_functionComposition
+     * 
+     * Tests that user-defined Pure functions can be inlined within filter lambdas.
+     * The testVariantColumn_functionComposition_filterValues function filters to
+     * even
+     * numbers and checks if exactly 2 remain.
+     * 
+     * This validates the Tier 2 function inlining: Pure functions registered in
+     * PureFunctionRegistry are substituted textually and re-parsed.
+     */
+    @Test
+    @DisplayName("PCT: Variant function composition with filter - user-defined Pure function inlining")
+    void testVariantColumn_functionComposition() throws SQLException {
+        // GIVEN: TDS with integer arrays, filter using a user-defined Pure function
+        // The function testVariantColumn_functionComposition_filterValues filters to
+        // evens and checks size == 2
+        String pureQuery = """
+                |#TDS
+                    id, payload:meta::pure::metamodel::variant::Variant
+                    1, "[1,2,3]"
+                    2, "[4,5,6]"
+                    3, "[7,8,9]"
+                    4, "[10,11,12]"
+                    5, "[13,14,15]"
+                #->meta::pure::functions::relation::filter(x: (id:Integer, payload:meta::pure::metamodel::variant::Variant)[1]|$x.payload->meta::pure::functions::variant::convert::toMany(@Integer)->meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues())
+                """;
+
+        // WHEN: We compile and execute
+        // The function should be inlined as: $val->filter(y | $y->mod(2) == 0)->size()
+        // == 2
+        // Which filters each array to even numbers and checks if exactly 2 remain
+        var result = executeRelation(pureQuery);
+        System.out.println("Function composition filter result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // THEN: Only rows where the payload has exactly 2 even numbers should pass
+        // [1,2,3] -> evens [2] -> size 1 != 2 -> FAIL
+        // [4,5,6] -> evens [4,6] -> size 2 == 2 -> PASS
+        // [7,8,9] -> evens [8] -> size 1 != 2 -> FAIL
+        // [10,11,12] -> evens [10,12] -> size 2 == 2 -> PASS
+        // [13,14,15] -> evens [14] -> size 1 != 2 -> FAIL
+        assertEquals(2, result.rows().size(), "Should have 2 rows (those with exactly 2 even numbers)");
+
+        // Verify the IDs of matching rows
+        var row1 = result.rows().get(0);
+        var row2 = result.rows().get(1);
+        assertEquals(2, ((Number) row1.get(0)).intValue(), "First matching row should be ID 2");
+        assertEquals(4, ((Number) row2.get(0)).intValue(), "Second matching row should be ID 4");
+    }
 }

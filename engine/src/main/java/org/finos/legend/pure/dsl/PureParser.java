@@ -50,6 +50,7 @@ public final class PureParser {
         // Use programLine to support both expressions and let statements
         org.finos.legend.pure.dsl.antlr.PureParser.ProgramLineContext tree = parser.programLine();
         PureAstBuilder visitor = new PureAstBuilder();
+        visitor.setInputSource(query); // Enable source text extraction for user function inlining
         return visitor.visit(tree);
     }
 

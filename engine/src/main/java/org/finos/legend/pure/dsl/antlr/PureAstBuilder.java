@@ -1,5 +1,6 @@
 package org.finos.legend.pure.dsl.antlr;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.finos.legend.pure.dsl.*;
 import org.finos.legend.pure.dsl.GraphFetchTree;
 
@@ -27,6 +28,35 @@ import java.util.stream.Collectors;
  * (->filter() ->project())
  */
 public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
+
+    // Registry of user-defined Pure functions for inlining
+    private static final PureFunctionRegistry functionRegistry = PureFunctionRegistry.withBuiltins();
+
+    // Current input source for extracting source text
+    private String inputSource;
+
+    /**
+     * Set the input source for source text extraction.
+     * Called before parsing to enable source text preservation.
+     */
+    public void setInputSource(String source) {
+        this.inputSource = source;
+    }
+
+    /**
+     * Extract the original source text from a parser rule context.
+     */
+    private String extractSourceText(ParserRuleContext ctx) {
+        if (inputSource == null || ctx == null || ctx.getStart() == null || ctx.getStop() == null) {
+            return null;
+        }
+        int start = ctx.getStart().getStartIndex();
+        int stop = ctx.getStop().getStopIndex();
+        if (start >= 0 && stop >= start && stop < inputSource.length()) {
+            return inputSource.substring(start, stop + 1);
+        }
+        return null;
+    }
 
     // ========================================
     // ENTRY POINT - Combined Expression
@@ -178,18 +208,86 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         for (int i = 0; i < names.size(); i++) {
             String funcName = getQualifiedNameText(names.get(i));
             List<PureExpression> args = parseFunctionArgs(params.get(i));
-            result = createFunctionCall(result, funcName, args);
+
+            // For registered user functions, we need the source text
+            // Extract it from the full context up to this point
+            String sourceText = null;
+            List<String> argTexts = new ArrayList<>();
+
+            String simpleName = funcName.contains("::")
+                    ? funcName.substring(funcName.lastIndexOf("::") + 2)
+                    : funcName;
+
+            if (functionRegistry.hasFunction(funcName) || functionRegistry.hasFunction(simpleName)) {
+                // Extract source text for the receiver (everything up to this arrow)
+                // The source is defined as: ctx.start up to just before the arrow
+                sourceText = extractSourceTextUpTo(ctx, i);
+
+                // Extract source text for each argument
+                if (params.get(i).combinedExpression() != null) {
+                    for (var argCtx : params.get(i).combinedExpression()) {
+                        String argText = extractSourceText(argCtx);
+                        argTexts.add(argText != null ? argText : "");
+                    }
+                }
+            }
+
+            result = createFunctionCall(result, funcName, args, sourceText, argTexts);
         }
 
         return result;
     }
 
-    private PureExpression createFunctionCall(PureExpression source, String funcName, List<PureExpression> args) {
+    /**
+     * Extract source text for the receiver expression up to (but not including) the
+     * i-th arrow function.
+     * This is needed for user function inlining.
+     */
+    private String extractSourceTextUpTo(PureParser.FunctionExpressionContext ctx, int arrowIndex) {
+        if (inputSource == null)
+            return null;
+
+        // Trace up to find the ExpressionContext (not just the immediate parent)
+        // This ensures we get the full expression chain including "$x.payload->..."
+        ParserRuleContext current = ctx.getParent();
+        while (current != null && !(current instanceof PureParser.ExpressionContext)) {
+            current = current.getParent();
+        }
+
+        if (current == null || current.getStart() == null)
+            return null;
+
+        int start = current.getStart().getStartIndex();
+
+        // Get the position just before the arrow for this function call
+        // The qualifiedName starts after the arrow
+        var nameCtx = ctx.qualifiedName().get(arrowIndex);
+        if (nameCtx == null || nameCtx.getStart() == null)
+            return null;
+
+        // Go back 2 for the "->" token
+        int stop = nameCtx.getStart().getStartIndex() - 2;
+
+        if (start >= 0 && stop > start && stop < inputSource.length()) {
+            return inputSource.substring(start, stop).trim();
+        }
+        return null;
+    }
+
+    private PureExpression createFunctionCall(PureExpression source, String funcName, List<PureExpression> args,
+            String sourceText, List<String> argTexts) {
         // Extract simple function name from fully qualified names
         // e.g., meta::pure::functions::relation::distinct -> distinct
         String simpleName = funcName.contains("::")
                 ? funcName.substring(funcName.lastIndexOf("::") + 2)
                 : funcName;
+
+        // Check if this is a registered user function - create
+        // UserFunctionCallExpression
+        if (sourceText != null
+                && (functionRegistry.hasFunction(funcName) || functionRegistry.hasFunction(simpleName))) {
+            return new UserFunctionCallExpression(source, sourceText, simpleName, args, argTexts);
+        }
 
         return switch (simpleName) {
             case "filter" -> parseFilterCall(source, args);
@@ -488,7 +586,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     args.add(visit(argCtx));
                 }
             }
-            current = createFunctionCall(current, funcName, args);
+            current = createFunctionCall(current, funcName, args, null, List.of());
         }
 
         return current;
@@ -2139,7 +2237,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     private boolean isScalarPostProcessor(String methodName) {
         return switch (methodName.toLowerCase()) {
             case "round", "abs", "floor", "ceiling", "ceil", "sqrt", "exp", "log", "log10",
-                 "sin", "cos", "tan", "asin", "acos", "atan", "toone" -> true;
+                    "sin", "cos", "tan", "asin", "acos", "atan", "toone" ->
+                true;
             default -> false;
         };
     }

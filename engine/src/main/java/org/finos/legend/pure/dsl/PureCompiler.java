@@ -3192,6 +3192,37 @@ public final class PureCompiler {
             case PropertyAccessExpression propAccess -> compilePropertyAccess(propAccess, context);
             case LiteralExpr literal -> compileLiteral(literal);
             case BinaryExpression binary -> compileBinaryExpression(binary, context);
+
+            // ===== TIER 2: USER-DEFINED FUNCTION INLINING =====
+            case UserFunctionCallExpression userFn -> {
+                // Look up the function definition
+                var fn = PureFunctionRegistry.withBuiltins().getFunction(userFn.functionName());
+                if (fn.isEmpty()) {
+                    throw new PureCompileException("Unknown user function: " + userFn.functionName());
+                }
+                PureFunctionRegistry.FunctionEntry entry = fn.get();
+
+                // Start with the function body
+                String expandedBody = entry.bodySource();
+
+                // Substitute first parameter with receiver source text
+                if (!entry.paramNames().isEmpty() && userFn.sourceText() != null) {
+                    expandedBody = expandedBody.replace("$" + entry.paramNames().get(0), userFn.sourceText());
+                }
+
+                // Substitute additional parameters with argument source texts
+                for (int i = 1; i < entry.paramNames().size() && i <= userFn.argumentTexts().size(); i++) {
+                    String argText = userFn.argumentTexts().get(i - 1);
+                    if (argText != null && !argText.isEmpty()) {
+                        expandedBody = expandedBody.replace("$" + entry.paramNames().get(i), argText);
+                    }
+                }
+
+                // Re-parse the expanded expression and compile it
+                PureExpression inlined = PureParser.parse(expandedBody);
+                yield compileToSqlExpression(inlined, context);
+            }
+
             case MethodCall methodCall -> compileMethodCall(methodCall, context);
             case VariableExpr var -> {
                 // Check if this is a lambda parameter (e.g., `i` in map(i | $i->get('price')))
