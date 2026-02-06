@@ -44,7 +44,9 @@ public record AggregateExpression(
         PERCENTILE_CONT("PERCENTILE_CONT", false),
         PERCENTILE_DISC("PERCENTILE_DISC", false),
         // String aggregation
-        STRING_AGG("STRING_AGG", false);
+        STRING_AGG("STRING_AGG", false),
+        // Mode (most frequent value)
+        MODE("MODE", false);
 
         private final String sql;
         private final boolean bivariate;

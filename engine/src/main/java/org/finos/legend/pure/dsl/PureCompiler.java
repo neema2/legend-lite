@@ -960,6 +960,8 @@ public final class PureCompiler {
                 org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_DISC;
             // String aggregation
             case "joinstrings" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.STRING_AGG;
+            // Mode (most frequent value)
+            case "mode" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.MODE;
             default -> throw new PureCompileException("Unknown aggregate function: " + functionName);
         };
     }
