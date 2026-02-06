@@ -187,6 +187,32 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 12L);
     }
 
+    // ==================== dateDiff must use correct argument order ====================
+
+    @Test
+    void testDateDiffDays() throws SQLException {
+        // Pure: |%2015-01-01->dateDiff(%2015-01-10, DurationUnit.DAYS) -> 9
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-01-01->dateDiff(%2015-01-10, meta::pure::functions::date::DurationUnit.DAYS)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 9L);
+    }
+
+    @Test
+    void testDateDiffYears() throws SQLException {
+        // Pure: |%2015->dateDiff(%2016, DurationUnit.YEARS) -> 1
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015->dateDiff(%2016, meta::pure::functions::date::DurationUnit.YEARS)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 1L);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

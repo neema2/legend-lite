@@ -3688,6 +3688,16 @@ public final class PureCompiler {
                         compileToSqlExpression(args.get(0), context),
                         compileToSqlExpression(args.get(1), context));
             }
+            case "dateDiff" -> { // date1->dateDiff(date2, DurationUnit.DAYS) -> DateDiffExpression
+                var args = methodCall.arguments();
+                if (args.size() < 2) {
+                    throw new PureCompileException("dateDiff requires 2 arguments: dateDiff(date2, unit)");
+                }
+                Expression d1 = compileToSqlExpression(methodCall.source(), context);
+                Expression d2 = compileToSqlExpression(args.get(0), context);
+                DurationUnit unit = parseDurationUnit(args.get(1));
+                yield new DateDiffExpression(d1, d2, unit);
+            }
             case "adjust" -> { // date->adjust(amount, DurationUnit.DAYS) -> date + INTERVAL 'amount' DAY
                 var args = methodCall.arguments();
                 if (args.size() < 2) {
