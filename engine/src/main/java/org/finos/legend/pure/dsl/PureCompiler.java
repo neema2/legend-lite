@@ -233,6 +233,14 @@ public final class PureCompiler {
      * via compileExpression rather than compileToSqlExpression.
      */
     private boolean isRelationExpression(PureExpression expr) {
+        // Collection operations on ArrayLiterals are scalar (list functions), not relational
+        if (expr instanceof DropExpression drop && drop.source() instanceof ArrayLiteral) return false;
+        if (expr instanceof SliceExpression slice && slice.source() instanceof ArrayLiteral) return false;
+        if (expr instanceof FirstExpression first && first.source() instanceof ArrayLiteral) return false;
+        if (expr instanceof LimitExpression limit && limit.source() instanceof ArrayLiteral) return false;
+        if (expr instanceof ConcatenateExpression concat && concat.left() instanceof ArrayLiteral) return false;
+        if (expr instanceof SortExpression sort && sort.source() instanceof ArrayLiteral) return false;
+
         return expr instanceof RelationExpression
                 || expr instanceof ClassAllExpression
                 || expr instanceof ClassFilterExpression
@@ -3228,6 +3236,41 @@ public final class PureCompiler {
                         .toList();
                 yield ListLiteral.of(sqlElements);
             }
+            // Collection operations on ArrayLiterals -> DuckDB list functions
+            case DropExpression drop -> {
+                Expression list = compileToSqlExpression(drop.source(), context);
+                // list_slice(list, n+1) — DuckDB 1-based, drop first n elements
+                yield SqlFunctionCall.of("list_slice", list,
+                        Literal.integer(drop.count() + 1),
+                        SqlFunctionCall.of("len", list));
+            }
+            case LimitExpression limit -> {
+                Expression list = compileToSqlExpression(limit.source(), context);
+                // list_slice(list, 1, n) — take first n elements
+                int n = Math.max(0, limit.count());
+                yield SqlFunctionCall.of("list_slice", list, Literal.integer(1), Literal.integer(n));
+            }
+            case SliceExpression slice -> {
+                Expression list = compileToSqlExpression(slice.source(), context);
+                // list_slice(list, start+1, end) — Pure slice is 0-based, DuckDB is 1-based
+                int start = Math.max(0, slice.start());
+                yield SqlFunctionCall.of("list_slice", list,
+                        Literal.integer(start + 1), Literal.integer(slice.end()));
+            }
+            case FirstExpression first -> {
+                Expression list = compileToSqlExpression(first.source(), context);
+                // list[1] — first element (1-based in DuckDB)
+                yield SqlFunctionCall.of("list_extract", list, Literal.integer(1));
+            }
+            case ConcatenateExpression concat -> {
+                Expression left = compileToSqlExpression(concat.left(), context);
+                Expression right = compileToSqlExpression(concat.right(), context);
+                yield SqlFunctionCall.of("list_concat", left, right);
+            }
+            case SortExpression sort when sort.source() instanceof ArrayLiteral -> {
+                Expression list = compileToSqlExpression(sort.source(), context);
+                yield SqlFunctionCall.of("list_sort", list);
+            }
             // Relation expressions that reach here need special handling
             case TdsLiteral tds -> {
                 // TdsLiteral should be handled by compileExpression, not compileToSqlExpression
@@ -3422,6 +3465,23 @@ public final class PureCompiler {
             case "char" -> {
                 if (args.isEmpty()) throw new PureCompileException("char() requires an argument");
                 yield SqlFunctionCall.of("chr", compileToSqlExpression(args.getFirst(), context));
+            }
+            // List aggregate functions (function-call style)
+            case "sum", "plus" -> {
+                if (args.isEmpty()) throw new PureCompileException("sum() requires an argument");
+                yield SqlFunctionCall.of("list_sum", compileToSqlExpression(args.getFirst(), context));
+            }
+            case "average", "mean" -> {
+                if (args.isEmpty()) throw new PureCompileException("average() requires an argument");
+                yield SqlFunctionCall.of("list_avg", compileToSqlExpression(args.getFirst(), context));
+            }
+            case "min" -> {
+                if (args.isEmpty()) throw new PureCompileException("min() requires an argument");
+                yield SqlFunctionCall.of("list_min", compileToSqlExpression(args.getFirst(), context));
+            }
+            case "max" -> {
+                if (args.isEmpty()) throw new PureCompileException("max() requires an argument");
+                yield SqlFunctionCall.of("list_max", compileToSqlExpression(args.getFirst(), context));
             }
             default -> {
                 // Standard function call: first arg is target, rest are additional
@@ -3721,6 +3781,12 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         adjustedIndex);
             }
+            // Aggregate functions on arrays -> DuckDB list aggregate functions
+            case "sum" -> SqlFunctionCall.of("list_sum",
+                    compileToSqlExpression(methodCall.source(), context));
+            case "mean" -> SqlFunctionCall.of("list_avg",
+                    compileToSqlExpression(methodCall.source(), context));
+
             case "size" -> {
                 // Check if source is a relation expression (TdsLiteral, FilterExpression, etc.)
                 // If so, compile as COUNT(*) scalar subquery

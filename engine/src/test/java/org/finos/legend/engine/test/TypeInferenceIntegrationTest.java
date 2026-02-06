@@ -365,6 +365,98 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(true, ((ScalarResult) result).value());
     }
 
+    // ==================== ArrayLiteral collection operations ====================
+
+    @Test
+    void testArrayDrop() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->drop(1)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[2, 3]", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testArrayTake() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->take(2)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[1, 2]", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testArraySlice() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4]->slice(1, 3)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[2, 3]", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testArrayFirst() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[10, 20, 30]->first()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(10, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    @Test
+    void testArrayConcatenate() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->concatenate([4, 5])",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[1, 2, 3, 4, 5]", ((ScalarResult) result).value().toString());
+    }
+
+    // ==================== List aggregate functions ====================
+
+    @Test
+    void testListSum() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[12.5, 13.5, 4.0, 1.5, 0.5]->sum()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(32.0, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testListSumIntegers() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->sum()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(6, ((Number) val).longValue());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
