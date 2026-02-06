@@ -3393,6 +3393,36 @@ public final class PureCompiler {
                 yield SqlFunctionCall.of("list_sort", source);
             }
             case "in" -> compilePureFunctionIn(args, context);
+            case "toString" -> {
+                if (args.isEmpty()) throw new PureCompileException("toString() requires an argument");
+                yield new SqlFunctionCall("cast",
+                        compileToSqlExpression(args.getFirst(), context),
+                        java.util.List.of(), SqlType.VARCHAR);
+            }
+            case "parseInteger" -> {
+                if (args.isEmpty()) throw new PureCompileException("parseInteger() requires an argument");
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(args.getFirst(), context), "BIGINT");
+            }
+            case "parseFloat" -> {
+                if (args.isEmpty()) throw new PureCompileException("parseFloat() requires an argument");
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(args.getFirst(), context), "DOUBLE");
+            }
+            case "parseDecimal" -> {
+                if (args.isEmpty()) throw new PureCompileException("parseDecimal() requires an argument");
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(args.getFirst(), context), "DECIMAL");
+            }
+            case "parseBoolean" -> {
+                if (args.isEmpty()) throw new PureCompileException("parseBoolean() requires an argument");
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(args.getFirst(), context), "BOOLEAN");
+            }
+            case "char" -> {
+                if (args.isEmpty()) throw new PureCompileException("char() requires an argument");
+                yield SqlFunctionCall.of("chr", compileToSqlExpression(args.getFirst(), context));
+            }
             default -> {
                 // Standard function call: first arg is target, rest are additional
                 List<Expression> sqlArgs = args.stream()
@@ -3551,6 +3581,20 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
+            case "char" -> // char(n) -> chr(n) (DuckDB uses chr, not char)
+                SqlFunctionCall.of("chr", compileToSqlExpression(methodCall.source(), context));
+            case "parseInteger" -> // parseInteger(s) -> CAST(s AS BIGINT)
+                new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context), "BIGINT");
+            case "parseFloat" -> // parseFloat(s) -> CAST(s AS DOUBLE)
+                new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context), "DOUBLE");
+            case "parseDecimal" -> // parseDecimal(s) -> CAST(s AS DECIMAL)
+                new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context), "DECIMAL");
+            case "parseBoolean" -> // parseBoolean(s) -> CAST(s AS BOOLEAN)
+                new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context), "BOOLEAN");
             case "repeatString" -> { // repeatString(s, n) -> repeat(s, n)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("repeatString requires a count argument");
@@ -3868,6 +3912,18 @@ public final class PureCompiler {
                 yield new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(methodCall.source(), context),
                         sqlType);
+            }
+
+            case "between" -> { // x->between(low, high) -> x >= low AND x <= high
+                var args = methodCall.arguments();
+                if (args.size() < 2)
+                    throw new PureCompileException("between requires 2 arguments: between(low, high)");
+                Expression value = compileToSqlExpression(methodCall.source(), context);
+                Expression low = compileToSqlExpression(args.get(0), context);
+                Expression high = compileToSqlExpression(args.get(1), context);
+                yield LogicalExpression.and(
+                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, low),
+                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, high));
             }
 
             default -> compileSimpleMethodCall(methodCall, context);

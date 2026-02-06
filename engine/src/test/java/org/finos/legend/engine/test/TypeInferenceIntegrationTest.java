@@ -298,6 +298,73 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("on 2014-03-10", ((ScalarResult) result).value());
     }
 
+    // ==================== between() ====================
+
+    @Test
+    void testBetweenInteger() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->between(0, 3)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    // ==================== char() -> chr() ====================
+
+    @Test
+    void testCharSpace() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|32->char()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(" ", ((ScalarResult) result).value());
+    }
+
+    // ==================== parseInteger / parseFloat / parseBoolean ====================
+
+    @Test
+    void testParseInteger() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'17'->parseInteger()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 17L);
+    }
+
+    @Test
+    void testParseFloat() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'3.14'->parseFloat()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(3.14, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testParseBoolean() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'true'->parseBoolean()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
