@@ -6,16 +6,53 @@ import meta::legend::lite::pct::*;
 import meta::pure::metamodel::serialization::grammar::*;
 import meta::pure::metamodel::relation::*;
 
-// Custom grammar extension for proper TDS serialization
+// Marker class for captured class instances that need ^Class(...) serialization
+// This allows us to target only captured variables, not all objects
+Class meta::legend::lite::pct::CapturedInstance
+{
+  value: Any[1];
+}
+
+// Custom grammar extension for TDS and captured class instance serialization
 function meta::legend::lite::pct::legendLiteGrammarExtension():GrammarExtension[1]
 {
     ^GrammarExtension(
         extraInstanceValueHandlers = 
           [
-            // Serialize TDS to #TDS\n...\n# format (original format without braces)
-            t:TDS<Any>[1]|'#TDS\n'+$t.csv+'\n#'                                          
+            // Serialize TDS to #TDS\n...\n# format
+            t:TDS<Any>[1]|'#TDS\n'+$t.csv+'\n#',
+            // Serialize captured class instances to ^Class(prop=val) format
+            c:CapturedInstance[1]|$c.value->objectToGrammar()
           ]
     );
+}
+
+// Convert any value to Pure grammar string representation
+// For class instances, produces ^ClassName(prop1=val1, prop2=val2) syntax
+function meta::legend::lite::pct::objectToGrammar(a:Any[1]):String[1]
+{
+  $a->match(
+    [
+       i:Integer[1] | $i->toRepresentation(),
+       x:String[1] | $x->toRepresentation(),
+       b:Boolean[1] | $b->toRepresentation(),
+       f:Float[1] | $f->toRepresentation(),
+       d:Date[1] | $d->toRepresentation(),
+       e:Enum[1] | $e->type()->elementToPath()+'.'+$e.name,
+       d:Decimal[1] | $d->toRepresentation(),
+       a:Any[1] |
+         let _type = $a->type()->cast(@Class<Any>);
+         let properties = $_type->meta::pure::functions::meta::hierarchicalProperties();
+         '^'+$a->type()->elementToPath()+'('+
+          $properties->map(p| let value = $p->eval($a);
+                              if ($value->isEmpty(),
+                                |'',
+                                |$p.name->toOne() + '=' + $value->map(w|$w->objectToGrammar())->joinStrings(',')
+                              );
+                       )->filter(v|$v != '')->joinStrings(',')+
+        ')';
+    ]
+  );
 }
 
 // Legend-Lite configuration with TDS grammar extension
@@ -105,10 +142,22 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
         | $v,  // Not a captured variable, keep as-is
         | // Create InstanceValue with the captured value
           let capturedVal = $value->toOne()->cast(@List<Any>).values;
+          let valType = $capturedVal->genericType()->toOne().rawType->toOne();
+          // For class instances (non-primitive, non-enum), wrap in CapturedInstance marker
+          // This allows targeted serialization to ^Class(...) format
+          let wrappedVal = if ($valType->instanceOf(Class) && 
+                              !$valType->instanceOf(PrimitiveType) &&
+                              !$valType->subTypeOf(Function) &&
+                              !$valType->elementToPath()->startsWith('meta::pure::metamodel'),
+                            | $capturedVal->map(v | ^CapturedInstance(value = $v)),
+                            | $capturedVal
+                           );
           ^InstanceValue(
-            genericType = $capturedVal->genericType()->toOne(),
+            genericType = if($wrappedVal->at(0)->instanceOf(CapturedInstance),
+                           | ^GenericType(rawType = CapturedInstance),
+                           | $capturedVal->genericType()->toOne()),
             multiplicity = if($capturedVal->size() == 1, |PureOne, |ZeroMany),
-            values = $capturedVal
+            values = $wrappedVal
           );
       );,
       
