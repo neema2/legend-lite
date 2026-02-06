@@ -69,9 +69,28 @@ public interface SQLDialect {
 
         // If it contains 'T', it's a DateTime - render as TIMESTAMP
         if (dateValue.contains("T")) {
-            // Replace T with space for SQL TIMESTAMP format
-            String timestampValue = dateValue.replace("T", " ");
-            return "TIMESTAMP '" + timestampValue + "'";
+            int tIdx = dateValue.indexOf('T');
+            String datePart = dateValue.substring(0, tIdx);
+            String timePart = dateValue.substring(tIdx + 1);
+
+            // Extract timezone suffix if present (e.g., +0000, -0500)
+            String tz = "";
+            int tzIdx = timePart.lastIndexOf('+');
+            if (tzIdx < 0) tzIdx = timePart.lastIndexOf('-');
+            // Only treat as timezone if it's after the time portion (not a negative sign in time)
+            if (tzIdx > 0 && tzIdx >= timePart.indexOf(':')) {
+                tz = timePart.substring(tzIdx);
+                timePart = timePart.substring(0, tzIdx);
+            }
+
+            // Pad partial times: "17" -> "17:00:00", "17:09" -> "17:09:00"
+            String[] timeParts = timePart.split(":");
+            String hours = timeParts.length > 0 ? timeParts[0] : "00";
+            String minutes = timeParts.length > 1 ? timeParts[1] : "00";
+            String seconds = timeParts.length > 2 ? timeParts[2] : "00";
+            String fullTime = hours + ":" + minutes + ":" + seconds;
+
+            return "TIMESTAMP '" + datePart + " " + fullTime + tz + "'";
         }
 
         // Handle partial dates - Pure supports YYYY and YYYY-MM formats

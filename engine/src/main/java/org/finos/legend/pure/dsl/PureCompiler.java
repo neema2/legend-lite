@@ -3697,16 +3697,26 @@ public final class PureCompiler {
                 SqlFunctionCall.of("list_sort", compileToSqlExpression(methodCall.source(), context));
 
             // ===== DATE FUNCTIONS =====
-            case "date" -> { // date(y, m, d) -> make_date(y, m, d)
+            case "date" -> { // date(y, m, d [, h, min, sec]) -> make_date or make_timestamp
                 var args = methodCall.arguments();
                 if (args.size() < 2) {
-                    // date(y, m, d) style call where source is year
                     throw new PureCompileException("date() as method requires month and day arguments");
                 }
-                yield SqlFunctionCall.of("make_date",
-                        compileToSqlExpression(methodCall.source(), context),
-                        compileToSqlExpression(args.get(0), context),
-                        compileToSqlExpression(args.get(1), context));
+                Expression year = compileToSqlExpression(methodCall.source(), context);
+                Expression month = compileToSqlExpression(args.get(0), context);
+                Expression day = compileToSqlExpression(args.get(1), context);
+                if (args.size() >= 3) {
+                    // date(y, m, d, h, ...) -> make_timestamp(y, m, d, h, min, sec)
+                    // source=y, args=[m, d, h, min?, sec?]
+                    Expression hour = compileToSqlExpression(args.get(2), context);
+                    Expression minute = args.size() >= 4
+                            ? compileToSqlExpression(args.get(3), context) : Literal.integer(0);
+                    Expression second = args.size() >= 5
+                            ? compileToSqlExpression(args.get(4), context) : Literal.integer(0);
+                    yield SqlFunctionCall.of("make_timestamp", year, month, day, hour, minute, second);
+                }
+                // date(y, m, d) -> make_date(y, m, d)
+                yield SqlFunctionCall.of("make_date", year, month, day);
             }
             case "dateDiff" -> { // date1->dateDiff(date2, DurationUnit.DAYS) -> DateDiffExpression
                 var args = methodCall.arguments();
@@ -3787,6 +3797,52 @@ public final class PureCompiler {
             }
             case "bitNot" -> // bitNot(a) -> ~a
                 SqlFunctionCall.of("bitnot", compileToSqlExpression(methodCall.source(), context));
+
+            // ===== DATE INTROSPECTION FUNCTIONS =====
+            // Pure dates have precision (year-only, year-month, full date, datetime, etc.)
+            // DuckDB always has full timestamps, so we check based on the original literal precision.
+            // For full timestamps/dates, all components are present -> true.
+            // For partial dates (%2015, %2015-04), only some components exist.
+            case "hasDay", "hasMonth" -> {
+                // Check if source is a date literal with enough precision
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                    String dateStr = (String) lit.value();
+                    boolean hasComponent = shortMethodName.equals("hasMonth")
+                            ? dateStr.length() >= 7  // yyyy-MM
+                            : dateStr.length() >= 10; // yyyy-MM-dd
+                    yield Literal.bool(hasComponent);
+                }
+                // For non-literal dates (computed), assume full precision
+                yield Literal.bool(true);
+            }
+            case "hasHour", "hasMinute", "hasSecond" -> {
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                    String dateStr = (String) lit.value();
+                    boolean hasTime = dateStr.contains("T") || dateStr.length() > 10;
+                    boolean hasComponent = switch (shortMethodName) {
+                        case "hasHour" -> hasTime;
+                        case "hasMinute" -> hasTime && dateStr.indexOf(':', dateStr.indexOf('T') + 1) > 0;
+                        case "hasSecond" -> {
+                            int firstColon = dateStr.indexOf(':');
+                            yield hasTime && firstColon > 0
+                                    && dateStr.indexOf(':', firstColon + 1) > 0;
+                        }
+                        default -> hasTime;
+                    };
+                    yield Literal.bool(hasComponent);
+                }
+                yield Literal.bool(true);
+            }
+            case "hasSubsecond", "hasSubsecondWithAtLeastPrecision" -> {
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                    String dateStr = (String) lit.value();
+                    yield Literal.bool(dateStr.contains("."));
+                }
+                yield Literal.bool(false);
+            }
 
             // ===== VARIANT FUNCTIONS =====
             case "toMany" -> { // $x.payload->toMany(@Integer) -> CAST(payload AS BIGINT[])

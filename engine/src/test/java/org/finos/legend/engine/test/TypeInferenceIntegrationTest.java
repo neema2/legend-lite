@@ -213,6 +213,37 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 1L);
     }
 
+    // ==================== date() with time components ====================
+
+    @Test
+    void testDateWithTimeComponentsReturnsTimestamp() throws SQLException {
+        // Pure: |1973->date(11, 13, 23, 9) -> DateTime (not StrictDate)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1973->date(11, 13, 23, 9)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        // Should be a timestamp, not a date
+        assertTrue(value.toString().contains("23:09") || value.toString().contains("23:09:00"),
+                "Expected timestamp with time but got: " + value);
+    }
+
+    @Test
+    void testPartialTimestampPadding() throws SQLException {
+        // Pure: |%2015-04-15T17 should generate TIMESTAMP '2015-04-15 17:00:00'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-04-15T17->hour()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 17L);
+    }
+
     // ==================== format() / printf ====================
 
     @Test
