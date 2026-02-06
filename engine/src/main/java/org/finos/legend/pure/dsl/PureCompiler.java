@@ -3737,26 +3737,26 @@ public final class PureCompiler {
             case "bitAnd" -> { // bitAnd(a, b) -> a & b
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("bitAnd requires an argument");
-                yield SqlFunctionCall.of("bit_and",
+                yield SqlFunctionCall.of("bitand",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
             case "bitOr" -> { // bitOr(a, b) -> a | b
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("bitOr requires an argument");
-                yield SqlFunctionCall.of("bit_or",
+                yield SqlFunctionCall.of("bitor",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
-            case "bitXor" -> { // bitXor(a, b) -> xor(a, b)
+            case "bitXor" -> { // bitXor(a, b) -> a ^ b
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("bitXor requires an argument");
-                yield SqlFunctionCall.of("xor",
+                yield SqlFunctionCall.of("bitxor",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
-            case "bitNot" -> // bitNot(a) -> ~a via bit_not function
-                SqlFunctionCall.of("bit_not", compileToSqlExpression(methodCall.source(), context));
+            case "bitNot" -> // bitNot(a) -> ~a
+                SqlFunctionCall.of("bitnot", compileToSqlExpression(methodCall.source(), context));
 
             // ===== VARIANT FUNCTIONS =====
             case "toMany" -> { // $x.payload->toMany(@Integer) -> CAST(payload AS BIGINT[])

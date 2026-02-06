@@ -1353,8 +1353,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         String funcName = functionCall.sqlFunctionName();
         String target = functionCall.target().accept(this);
 
+        // Get the lowercased function name for matching
+        String lowerFuncName = functionCall.functionName().toLowerCase();
+
         // Handle variant/JSON functions specially via dialect
-        return switch (functionCall.functionName()) {
+        return switch (lowerFuncName) {
             case "fromjson" -> dialect.getJsonDialect().variantFromJson(target);
             case "tojson" -> dialect.getJsonDialect().variantToJson(target);
             case "get" -> {
@@ -1413,6 +1416,71 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 // FLOOR/CEIL return DOUBLE in DuckDB but Pure expects Integer
                 yield "CAST(" + funcName + "(" + target + ") AS INTEGER)";
             }
+
+            // Bit operations - DuckDB uses operators, not functions
+            case "bitand" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("bitAnd() requires two arguments");
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield "(" + target + " & " + arg + ")";
+            }
+            case "bitor" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("bitOr() requires two arguments");
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield "(" + target + " | " + arg + ")";
+            }
+            case "bitxor" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("bitXor() requires two arguments");
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield "xor(" + target + ", " + arg + ")"; // DuckDB xor() function for bitwise XOR
+            }
+            case "bitnot", "bit_not" -> {
+                yield "(~" + target + ")";
+            }
+            case "bitshiftleft" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("bitShiftLeft() requires shift amount");
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield "(" + target + " << " + arg + ")";
+            }
+            case "bitshiftright" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("bitShiftRight() requires shift amount");
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield "(" + target + " >> " + arg + ")";
+            }
+
+            // String functions with special handling
+            case "contains" -> {
+                // STRPOS returns position (>0) or 0 if not found
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("contains() requires search string");
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield "(STRPOS(" + target + ", " + arg + ") > 0)";
+            }
+            case "startswith" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("startsWith() requires prefix");
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield "STARTS_WITH(" + target + ", " + arg + ")";
+            }
+            case "endswith" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    throw new IllegalArgumentException("endsWith() requires suffix");
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield "ENDS_WITH(" + target + ", " + arg + ")";
+            }
+
             default -> {
                 // Standard function call
                 if (functionCall.arguments().isEmpty()) {
