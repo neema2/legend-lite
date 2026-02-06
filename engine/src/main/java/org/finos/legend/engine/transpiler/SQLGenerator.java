@@ -1481,6 +1481,84 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 yield "ENDS_WITH(" + target + ", " + arg + ")";
             }
 
+            case "format" -> {
+                // Pure format() -> DuckDB printf() with specifier transformation
+                // Single pass: build transformed format string and SQL args together
+                if (functionCall.target() instanceof Literal lit
+                        && lit.literalType() == Literal.LiteralType.STRING) {
+                    String fmt = (String) lit.value();
+                    List<Expression> origArgs = functionCall.arguments();
+                    StringBuilder newFmt = new StringBuilder();
+                    List<String> sqlArgs = new java.util.ArrayList<>();
+                    int argIdx = 0;
+                    int i = 0;
+                    while (i < fmt.length()) {
+                        if (fmt.charAt(i) == '%' && i + 1 < fmt.length()) {
+                            char next = fmt.charAt(i + 1);
+                            if (next == 't' && i + 2 < fmt.length() && fmt.charAt(i + 2) == '{') {
+                                int closeBrace = fmt.indexOf('}', i + 3);
+                                if (closeBrace > 0) {
+                                    String duckdbPattern = convertDateFormat(fmt.substring(i + 3, closeBrace));
+                                    newFmt.append("%s");
+                                    if (argIdx < origArgs.size()) {
+                                        sqlArgs.add("STRFTIME('" + duckdbPattern + "', "
+                                                + origArgs.get(argIdx).accept(this) + ")");
+                                    }
+                                    argIdx++;
+                                    i = closeBrace + 1;
+                                    continue;
+                                }
+                            } else if (next == 'r') {
+                                newFmt.append("%s");
+                                if (argIdx < origArgs.size()) {
+                                    sqlArgs.add(origArgs.get(argIdx).accept(this));
+                                }
+                                argIdx++;
+                                i += 2;
+                                continue;
+                            } else if (next == '%') {
+                                newFmt.append("%%");
+                                i += 2;
+                                continue;
+                            } else {
+                                newFmt.append('%');
+                                i++;
+                                while (i < fmt.length() && "0123456789.-+# ".indexOf(fmt.charAt(i)) >= 0) {
+                                    newFmt.append(fmt.charAt(i));
+                                    i++;
+                                }
+                                if (i < fmt.length()) {
+                                    newFmt.append(fmt.charAt(i));
+                                    i++;
+                                }
+                                if (argIdx < origArgs.size()) {
+                                    sqlArgs.add(origArgs.get(argIdx).accept(this));
+                                }
+                                argIdx++;
+                                continue;
+                            }
+                        }
+                        newFmt.append(fmt.charAt(i));
+                        i++;
+                    }
+                    String result = "PRINTF('" + newFmt.toString().replace("'", "''") + "'";
+                    for (String sa : sqlArgs) {
+                        result += ", " + sa;
+                    }
+                    yield result + ")";
+                }
+
+                // Non-literal format string: fall back to printf(fmt, args...)
+                if (functionCall.arguments().isEmpty()) {
+                    yield "PRINTF(" + target + ")";
+                } else {
+                    String args = functionCall.arguments().stream()
+                            .map(e -> e.accept(this))
+                            .collect(Collectors.joining(", "));
+                    yield "PRINTF(" + target + ", " + args + ")";
+                }
+            }
+
             default -> {
                 // Standard function call
                 if (functionCall.arguments().isEmpty()) {
@@ -1947,5 +2025,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case FLATTEN -> "flatten(" + listSource + ")";
         };
+    }
+
+    /**
+     * Converts Java date format patterns to DuckDB strftime patterns.
+     * E.g., yyyy-MM-dd -> %Y-%m-%d
+     */
+    private static String convertDateFormat(String javaPattern) {
+        return javaPattern
+                .replace("yyyy", "%Y")
+                .replace("yy", "%y")
+                .replace("MM", "%m")
+                .replace("dd", "%d")
+                .replace("HH", "%H")
+                .replace("mm", "%M")
+                .replace("ss", "%S")
+                .replace("SSS", "%g");
     }
 }

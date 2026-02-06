@@ -213,6 +213,60 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 1L);
     }
 
+    // ==================== format() / printf ====================
+
+    @Test
+    void testFormatStringSubstitution() throws SQLException {
+        // Pure: |'hello %s'->format('world') -> 'hello world'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown %s jumps over the lazy %s'->format(['fox', 'dog'])",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("the quick brown fox jumps over the lazy dog", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testFormatIntegerSubstitution() throws SQLException {
+        // Pure: |'value is %d'->format(42) -> 'value is 42'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown %s jumps over the lazy %d'->format(['fox', 3])",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("the quick brown fox jumps over the lazy 3", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testFormatFloatSubstitution() throws SQLException {
+        // Pure: |'pi is %.2f'->format(3.14159) -> 'pi is 3.14'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown %s jumps over the lazy %.2f'->format(['fox', 1.338])",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("the quick brown fox jumps over the lazy 1.34", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testFormatDateSubstitution() throws SQLException {
+        // Pure: |'on %t{yyyy-MM-dd}'->format(%2014-03-10) -> 'on 2014-03-10'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'on %t{yyyy-MM-dd}'->format(%2014-03-10)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("on 2014-03-10", ((ScalarResult) result).value());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

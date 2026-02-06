@@ -3495,6 +3495,26 @@ public final class PureCompiler {
                     java.util.List.of(), SqlType.VARCHAR);
 
             // ===== STRING FUNCTIONS =====
+            case "format" -> { // 'template %s %d'->format([arg1, arg2]) -> format IR node
+                Expression formatStr = compileToSqlExpression(methodCall.source(), context);
+                var args = methodCall.arguments();
+
+                // Unpack array argument into individual expressions
+                List<Expression> argExprs = new java.util.ArrayList<>();
+                if (!args.isEmpty()) {
+                    PureExpression argExpr = args.get(0);
+                    if (argExpr instanceof ArrayLiteral array) {
+                        for (PureExpression elem : array.elements()) {
+                            argExprs.add(compileToSqlExpression(elem, context));
+                        }
+                    } else {
+                        argExprs.add(compileToSqlExpression(argExpr, context));
+                    }
+                }
+
+                // Create format function call — SQLGenerator handles dialect-specific translation
+                yield new SqlFunctionCall("format", formatStr, argExprs, SqlType.VARCHAR);
+            }
             case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx)
                 var args = methodCall.arguments();
                 if (args.size() < 2)
