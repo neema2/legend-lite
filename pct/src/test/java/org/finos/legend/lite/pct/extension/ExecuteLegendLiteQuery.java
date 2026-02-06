@@ -195,7 +195,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         if (sqlType == null)
             return "String";
         return switch (sqlType.toLowerCase()) {
-            case "integer", "int", "bigint", "smallint", "tinyint", "hugeint" -> "Integer";
+            case "integer", "int", "bigint", "smallint", "tinyint", "hugeint", "ubigint", "uinteger", "usmallint", "utinyint" -> "Integer";
             case "double", "float", "real", "decimal", "numeric" -> "Float";
             case "boolean", "bool" -> "Boolean";
             case "date" -> "StrictDate";
@@ -247,6 +247,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         if (value instanceof Float f) {
             return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(f.doubleValue()),
                     processorSupport);
+        }
+        if (value instanceof java.math.BigInteger bi) {
+            // DuckDB UBIGINT (e.g., HASH()) returns BigInteger via JDBC
+            return ValueSpecificationBootstrap.newIntegerLiteral(modelRepository, bi.longValue(), processorSupport);
         }
         if (value instanceof Number n) {
             return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(n.doubleValue()),

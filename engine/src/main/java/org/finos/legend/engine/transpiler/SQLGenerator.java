@@ -1412,9 +1412,9 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 };
                 yield "CAST(" + target + " AS " + sqlType + ")";
             }
-            case "floor", "ceiling" -> {
-                // FLOOR/CEIL return DOUBLE in DuckDB but Pure expects Integer
-                yield "CAST(" + funcName + "(" + target + ") AS INTEGER)";
+            case "floor", "ceiling", "round", "sign" -> {
+                // These functions return DOUBLE in DuckDB but Pure expects Integer
+                yield "CAST(" + funcName + "(" + target + ") AS BIGINT)";
             }
 
             // Bit operations - DuckDB uses operators, not functions

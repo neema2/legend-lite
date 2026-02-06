@@ -1,0 +1,202 @@
+package org.finos.legend.engine.test;
+
+import org.finos.legend.engine.execution.ScalarResult;
+import org.finos.legend.engine.execution.Result;
+import org.finos.legend.engine.server.QueryService;
+import org.finos.legend.engine.transpiler.DuckDBDialect;
+import org.finos.legend.engine.transpiler.SQLDialect;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.sql.DriverManager;
+import java.sql.SQLException;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Integration tests verifying that the engine returns correct Java types
+ * based on Pure's type inference, not DuckDB's raw JDBC types.
+ *
+ * These tests mimic PCT scalar function tests that fail when DuckDB returns
+ * Double for expressions that Pure declares as Integer.
+ */
+public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
+
+    @Override
+    protected String getDatabaseType() {
+        return "DuckDB";
+    }
+
+    @Override
+    protected SQLDialect getDialect() {
+        return DuckDBDialect.INSTANCE;
+    }
+
+    @Override
+    protected String getJdbcUrl() {
+        return "jdbc:duckdb:";
+    }
+
+    @BeforeEach
+    void setUp() throws SQLException {
+        connection = DriverManager.getConnection(getJdbcUrl());
+        setupPureModel();
+        setupDatabase();
+    }
+
+    @AfterEach
+    void tearDown() throws SQLException {
+        if (connection != null) {
+            connection.close();
+        }
+    }
+
+    // ==================== round() must return Integer ====================
+
+    @Test
+    void testRoundFloatReturnsInteger() throws SQLException {
+        // Pure: |round(17.6) -> 18 (Integer, not 18.0 Double)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|17.6->round()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 18L);
+    }
+
+    @Test
+    void testRoundNegativeFloatReturnsInteger() throws SQLException {
+        // Pure: |round(-17.6) -> -18 (Integer)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|round(-17.6)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, -18L);
+    }
+
+    @Test
+    void testRoundIntegerReturnsInteger() throws SQLException {
+        // Pure: |round(17) -> 17 (Integer, not 17.0 Double)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|17->round()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 17L);
+    }
+
+    // ==================== sign() must return Integer ====================
+
+    @Test
+    void testSignNegativeReturnsInteger() throws SQLException {
+        // Pure: |sign(-10) -> -1 (Integer)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|-10->sign()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, -1L);
+    }
+
+    @Test
+    void testSignPositiveReturnsInteger() throws SQLException {
+        // Pure: |sign(5) -> 1 (Integer)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|5->sign()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 1L);
+    }
+
+    // ==================== floor()/ceiling() must return Integer ====================
+
+    @Test
+    void testFloorReturnsInteger() throws SQLException {
+        // Pure: |floor(3.7) -> 3 (Integer)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|3.7->floor()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 3L);
+    }
+
+    @Test
+    void testCeilingReturnsInteger() throws SQLException {
+        // Pure: |ceiling(3.2) -> 4 (Integer)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|3.2->ceiling()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 4L);
+    }
+
+    // ==================== hashCode() must return Integer ====================
+
+    @Test
+    void testHashCodeReturnsInteger() throws SQLException {
+        // Pure: |'a'->hash() -> Integer (DuckDB HASH returns UBIGINT/BigInteger)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'a'->hash()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        // HASH returns UBIGINT (BigInteger via JDBC) — must be Integer or Long, not Double
+        assertTrue(value instanceof Integer || value instanceof Long || value instanceof java.math.BigInteger,
+                "Expected integer type but got " + value.getClass().getSimpleName() + " = " + value);
+    }
+
+    // ==================== Integer arithmetic stays Integer ====================
+
+    @Test
+    void testIntegerAdditionReturnsInteger() throws SQLException {
+        // Pure: |1 + 2 -> 3 (Integer)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1 + 2",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 3L);
+    }
+
+    @Test
+    void testIntegerMultiplicationReturnsInteger() throws SQLException {
+        // Pure: |3 * 4 -> 12 (Integer)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|3 * 4",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 12L);
+    }
+
+    // ==================== Helper ====================
+
+    private void assertScalarInteger(Result result, long expected) {
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult but got " + result.getClass().getSimpleName());
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value, "Scalar value should not be null");
+        assertInstanceOf(Number.class, value, "Scalar value should be a Number");
+        // Must be an integer type (Integer or Long), not Double/Float
+        assertTrue(value instanceof Integer || value instanceof Long,
+                "Expected Integer/Long but got " + value.getClass().getSimpleName() + " = " + value);
+        assertEquals(expected, ((Number) value).longValue());
+    }
+}

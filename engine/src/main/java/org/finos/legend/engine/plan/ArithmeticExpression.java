@@ -54,6 +54,11 @@ public record ArithmeticExpression(
 
     @Override
     public SqlType type() {
+        // Integer arithmetic stays Integer (except division which may produce Double)
+        if (left.type() == SqlType.INTEGER && right.type() == SqlType.INTEGER
+                && operator != BinaryArithmeticExpr.Operator.DIVIDE) {
+            return SqlType.INTEGER;
+        }
         return SqlType.DOUBLE;
     }
 
