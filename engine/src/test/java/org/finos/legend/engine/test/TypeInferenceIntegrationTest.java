@@ -726,6 +726,39 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(false, ((ScalarResult) result).value());
     }
 
+    // ==================== Cast on arrays ====================
+
+    @Test
+    void testGreatestScalar() throws SQLException {
+        // -1->greatest() should return -1 (scalar passthrough, not LIST_MAX)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|-1->greatest()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, -1);
+    }
+
+    @Test
+    void testLeastScalar() throws SQLException {
+        // 42->least() should return 42 (scalar passthrough)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|42->least()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 42);
+    }
+
+    @Test
+    void testCastEmptyArrayToInteger() throws SQLException {
+        // []->cast(@Integer)->greatest() should generate CAST([] AS INTEGER[])
+        // DuckDB returns empty list for list_max of empty typed array
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->cast(@Integer)->greatest()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+    }
+
     // ==================== XOR ====================
 
     @Test

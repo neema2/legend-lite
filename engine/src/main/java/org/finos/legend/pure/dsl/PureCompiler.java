@@ -3368,21 +3368,25 @@ public final class PureCompiler {
 
         // Special handling for functions that take arrays
         return switch (simpleName) {
-            // greatest([a,b,c]) -> list_max([a, b, c])
+            // greatest([a,b,c]) -> list_max([a, b, c]); scalar -> scalar
             case "greatest" -> {
                 if (args.isEmpty()) {
                     throw new PureCompileException("greatest() requires at least one argument");
                 }
-                Expression list = compileToSqlExpression(args.getFirst(), context);
-                yield SqlFunctionCall.of("list_max", list);
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_max", compileToSqlExpression(args.getFirst(), context));
+                }
+                yield compileToSqlExpression(args.getFirst(), context);
             }
-            // least([a,b,c]) -> list_min([a, b, c])
+            // least([a,b,c]) -> list_min([a, b, c]); scalar -> scalar
             case "least" -> {
                 if (args.isEmpty()) {
                     throw new PureCompileException("least() requires at least one argument");
                 }
-                Expression list = compileToSqlExpression(args.getFirst(), context);
-                yield SqlFunctionCall.of("list_min", list);
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_min", compileToSqlExpression(args.getFirst(), context));
+                }
+                yield compileToSqlExpression(args.getFirst(), context);
             }
             // Variant conversion: toMany(@Type) -> CAST(json_value AS Type[])
             case "toMany" -> {
@@ -3704,8 +3708,18 @@ public final class PureCompiler {
             case "in" -> compileListContains(methodCall, context);
             case "contains" -> compileListContainsMethod(methodCall, context);
             // greatest/least on arrays: [1,2,3]->greatest() -> list_max([1, 2, 3])
-            case "greatest" -> SqlFunctionCall.of("list_max", compileToSqlExpression(methodCall.source(), context));
-            case "least" -> SqlFunctionCall.of("list_min", compileToSqlExpression(methodCall.source(), context));
+            case "greatest" -> {
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_max", compileToSqlExpression(methodCall.source(), context));
+                }
+                yield compileToSqlExpression(methodCall.source(), context);
+            }
+            case "least" -> {
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_min", compileToSqlExpression(methodCall.source(), context));
+                }
+                yield compileToSqlExpression(methodCall.source(), context);
+            }
             // Type conversion functions
             case "toString" -> new SqlFunctionCall("cast",
                     compileToSqlExpression(methodCall.source(), context),

@@ -1420,6 +1420,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     case BOOLEAN -> "BOOLEAN";
                     default -> "VARCHAR"; // fallback
                 };
+                // When casting a list/array, use array type (e.g., INTEGER[] not INTEGER)
+                if (functionCall.target() instanceof ListLiteral) {
+                    sqlType = sqlType + "[]";
+                }
                 yield "CAST(" + target + " AS " + sqlType + ")";
             }
             case "floor", "ceiling", "round", "sign" -> {
