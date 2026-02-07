@@ -1,5 +1,6 @@
 package org.finos.legend.engine.test;
 
+import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.ScalarResult;
 import org.finos.legend.engine.execution.Result;
 import org.finos.legend.engine.server.QueryService;
@@ -568,6 +569,31 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         Object val = ((ScalarResult) result).value();
         assertInstanceOf(Number.class, val);
         assertEquals(Math.acos(0.5), ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testHashCodeAggregate() throws SQLException {
+        // hashCode as aggregate in groupBy -> HASH(LIST(col))
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|#TDS\n" +
+                "  id, grp, val\n" +
+                "  1, 1, 10.0\n" +
+                "  2, 1, 20.0\n" +
+                "  3, 2, 30.0\n" +
+                "  4, 2, 40.0\n" +
+                "#->groupBy(~grp, ~h : x | $x.val : y | $y->hashCode())",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        // Should have 2 groups, each with a non-null hash value
+        assertEquals(2, br.rows().size());
+        assertNotNull(br.rows().get(0).get(1));
+        assertNotNull(br.rows().get(1).get(1));
+        // Hash values should be different for different groups
+        assertNotEquals(br.rows().get(0).get(1), br.rows().get(1).get(1));
     }
 
     // ==================== Helper ====================

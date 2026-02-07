@@ -317,6 +317,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 sb.append(") WITHIN GROUP (ORDER BY ");
                 sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
                 sb.append(")");
+            } else if (agg.function() == AggregateExpression.AggregateFunction.HASH_CODE) {
+                // HASH(LIST(column)) - hash of all grouped values
+                sb.append("HASH(LIST(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append("))");
             } else if (agg.isStringAgg()) {
                 // STRING_AGG(column, separator)
                 sb.append(agg.function().sql());
@@ -385,6 +390,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 sb.append(") WITHIN GROUP (ORDER BY ");
                 sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
                 sb.append(")");
+            } else if (agg.function() == AggregateExpression.AggregateFunction.HASH_CODE) {
+                // HASH(LIST(column)) - hash of all grouped values
+                sb.append("HASH(LIST(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append("))");
             } else if (agg.isStringAgg()) {
                 // STRING_AGG(column, separator)
                 sb.append(agg.function().sql());

@@ -970,6 +970,8 @@ public final class PureCompiler {
             case "joinstrings" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.STRING_AGG;
             // Mode (most frequent value)
             case "mode" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.MODE;
+            // Hash code
+            case "hashcode" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.HASH_CODE;
             default -> throw new PureCompileException("Unknown aggregate function: " + functionName);
         };
     }

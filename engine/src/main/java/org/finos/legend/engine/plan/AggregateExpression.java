@@ -46,7 +46,9 @@ public record AggregateExpression(
         // String aggregation
         STRING_AGG("STRING_AGG", false),
         // Mode (most frequent value)
-        MODE("MODE", false);
+        MODE("MODE", false),
+        // Hash code (HASH(LIST(col)))
+        HASH_CODE("HASH_CODE", false);
 
         private final String sql;
         private final boolean bivariate;
