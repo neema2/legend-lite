@@ -3627,6 +3627,18 @@ public final class PureCompiler {
                     // Column spec evaluated on row becomes simple column reference
                     yield ColumnReference.of(cs.name());
                 }
+                if (methodCall.source() instanceof ClassReference cr) {
+                    // funcRef->eval(args): extract function name and compile as function call
+                    String fullName = cr.className();
+                    String afterLastColon = fullName.contains("::")
+                            ? fullName.substring(fullName.lastIndexOf("::") + 2)
+                            : fullName;
+                    // Strip type signature: "acos_Number_1__Float_1_" -> "acos"
+                    String funcName = afterLastColon.replaceFirst("_[A-Z].*", "");
+                    // Build as FunctionCall and compile through existing path
+                    var evalArgs = methodCall.arguments();
+                    yield compileFunctionCallToSql(new FunctionCall(funcName, evalArgs), context);
+                }
                 throw new PureCompileException("eval() requires a column spec source, got: " + methodCall.source());
             }
             // IN expression: $x->in([a, b, c]) -> list_contains([a, b, c], x)

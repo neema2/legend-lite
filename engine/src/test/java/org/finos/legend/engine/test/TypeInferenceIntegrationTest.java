@@ -555,6 +555,21 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(2.5, ((Number) val).doubleValue(), 0.001);
     }
 
+    @Test
+    void testEvalFunctionReference() throws SQLException {
+        // acos_Number_1__Float_1_->eval(0.5) should compile to ACOS(0.5)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::math::acos_Number_1__Float_1_->eval(0.5)",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(Math.acos(0.5), ((Number) val).doubleValue(), 0.001);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
