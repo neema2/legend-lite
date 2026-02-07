@@ -1107,6 +1107,108 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(353791.47, ((Number) sr.value()).doubleValue(), 0.01);
     }
 
+    // --- PCT: min/max scalar and aggregate ---
+    @Test
+    void testMinScalar() throws SQLException {
+        // PCT sub-expression: |2.8->min(1.23) => 1.23
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2.8->min(1.23)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(1.23, ((Number) ((ScalarResult) result).value()).doubleValue(), 1e-10);
+    }
+
+    @Test
+    void testMaxScalar() throws SQLException {
+        // PCT sub-expression: |1.23->max(2.8) => 2.8
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1.23->max(2.8)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2.8, ((Number) ((ScalarResult) result).value()).doubleValue(), 1e-10);
+    }
+
+    @Test
+    void testMinNoArgs() throws SQLException {
+        // PCT sub-expression: |[3, 1, 2]->min() => 1
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[3, 1, 2]->min()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(1, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    @Test
+    void testMaxNoArgs() throws SQLException {
+        // PCT sub-expression: |[3, 1, 2]->max() => 3
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[3, 1, 2]->max()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(3, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    // --- PCT: variance population vs sample ---
+    @Test
+    void testVariancePopulation() throws SQLException {
+        // PCT: |[1, 2]->variance(false) => 0.25 (population)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2]->variance(false)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(0.25, ((Number) ((ScalarResult) result).value()).doubleValue(), 1e-10);
+    }
+
+    // --- PCT: exp, log, log10, pow ---
+    @Test
+    void testPowMethodCall() throws SQLException {
+        // PCT sub-expression: |3.33->pow(4.33)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|3.33->pow(4.33)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertTrue(((Number) ((ScalarResult) result).value()).doubleValue() > 100);
+    }
+
+    @Test
+    void testExpMethodCall() throws SQLException {
+        // PCT sub-expression: |1->exp()
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->exp()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(Math.E, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testLogMethodCall() throws SQLException {
+        // PCT sub-expression: |2.718281828459045->log()
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2.718281828459045->log()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(1.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testLog10MethodCall() throws SQLException {
+        // PCT sub-expression: |100->log10()
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|100->log10()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
     // --- PCT: decodeBase64 returns string, not BLOB ---
     @Test
     void testDecodeBase64() throws SQLException {

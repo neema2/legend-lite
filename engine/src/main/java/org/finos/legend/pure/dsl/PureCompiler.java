@@ -3915,16 +3915,20 @@ public final class PureCompiler {
                 SqlFunctionCall.of("upper", compileToSqlExpression(methodCall.source(), context));
 
             // ===== MATH FUNCTIONS =====
-            case "min" -> { // x->min(y) -> LEAST(x, y) for scalar comparison
-                if (methodCall.arguments().isEmpty())
-                    throw new PureCompileException("min requires an argument");
+            case "min" -> { // x->min(y) -> LEAST(x, y), or list->min() -> list_min(list)
+                if (methodCall.arguments().isEmpty()) {
+                    // No args: aggregate min on list source
+                    yield SqlFunctionCall.of("list_min", compileToSqlExpression(methodCall.source(), context));
+                }
                 yield SqlFunctionCall.of("least",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
-            case "max" -> { // x->max(y) -> GREATEST(x, y) for scalar comparison
-                if (methodCall.arguments().isEmpty())
-                    throw new PureCompileException("max requires an argument");
+            case "max" -> { // x->max(y) -> GREATEST(x, y), or list->max() -> list_max(list)
+                if (methodCall.arguments().isEmpty()) {
+                    // No args: aggregate max on list source
+                    yield SqlFunctionCall.of("list_max", compileToSqlExpression(methodCall.source(), context));
+                }
                 yield SqlFunctionCall.of("greatest",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
@@ -4040,6 +4044,9 @@ public final class PureCompiler {
                 if (!methodCall.arguments().isEmpty()) {
                     PureExpression arg = methodCall.arguments().getFirst();
                     if (arg instanceof BooleanLiteral bl && Boolean.FALSE.equals(bl.value())) {
+                        varFunc = "var_pop";
+                    } else if (arg instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.BOOLEAN
+                            && Boolean.FALSE.equals(lit.value())) {
                         varFunc = "var_pop";
                     }
                 }
