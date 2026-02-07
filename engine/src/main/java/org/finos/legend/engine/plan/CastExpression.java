@@ -19,6 +19,7 @@ public record CastExpression(Expression source, String targetType) implements Ex
             case "VARCHAR", "TEXT" -> SqlType.VARCHAR;
             case "BIGINT", "INTEGER", "INT" -> SqlType.BIGINT;
             case "DOUBLE", "FLOAT", "REAL" -> SqlType.DOUBLE;
+            case "DECIMAL", "NUMERIC" -> SqlType.DECIMAL;
             case "BOOLEAN", "BOOL" -> SqlType.BOOLEAN;
             default -> SqlType.UNKNOWN;
         };

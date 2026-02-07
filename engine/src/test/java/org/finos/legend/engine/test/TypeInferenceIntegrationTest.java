@@ -920,7 +920,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(3.0, val, 1e-10);
     }
 
-    // --- toDecimal: should cast to DECIMAL, not DOUBLE ---
+    // --- toDecimal: should cast to DECIMAL, tracked through IR ---
     @Test
     void testIntToDecimal() throws SQLException {
         // PCT: |8->meta::pure::functions::math::toDecimal()
@@ -930,8 +930,33 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
         assertTrue(result instanceof ScalarResult);
         ScalarResult sr = (ScalarResult) result;
-        assertTrue(sr.value() instanceof java.math.BigDecimal,
-                "Expected BigDecimal, got: " + sr.value().getClass().getSimpleName());
+        assertEquals("DECIMAL", sr.sqlType(), "IR type should propagate DECIMAL");
+    }
+
+    @Test
+    void testDecimalLiteralTracking() throws SQLException {
+        // Pure Decimal literal 3.0D should be tracked as DECIMAL through IR
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1.0D + 2.0D + 3.0D",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        ScalarResult sr = (ScalarResult) result;
+        assertEquals("DECIMAL", sr.sqlType(), "Decimal literal arithmetic should track as DECIMAL");
+        assertEquals(6.0, ((Number) sr.value()).doubleValue(), 1e-10);
+    }
+
+    @Test
+    void testDecimalAbs() throws SQLException {
+        // PCT: |meta::pure::functions::math::abs(-3.0D)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::math::abs(-3.0D)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        ScalarResult sr = (ScalarResult) result;
+        assertEquals("DECIMAL", sr.sqlType(), "abs of Decimal should be DECIMAL");
+        assertEquals(3.0, ((Number) sr.value()).doubleValue(), 1e-10);
     }
 
     // --- mod: Pure mod always returns non-negative ---

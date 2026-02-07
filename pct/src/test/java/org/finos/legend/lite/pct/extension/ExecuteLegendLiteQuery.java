@@ -195,9 +195,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     private String mapToLegendType(String sqlType) {
         if (sqlType == null)
             return "String";
-        return switch (sqlType.toLowerCase()) {
+        String lower = sqlType.toLowerCase();
+        // Handle parameterized types like DECIMAL(18,2) -> Float for TDS columns
+        if (lower.startsWith("decimal") || lower.startsWith("numeric"))
+            return "Float";
+        return switch (lower) {
             case "integer", "int", "bigint", "smallint", "tinyint", "hugeint", "ubigint", "uinteger", "usmallint", "utinyint" -> "Integer";
-            case "double", "float", "real", "decimal", "numeric" -> "Float";
+            case "double", "float", "real" -> "Float";
             case "boolean", "bool" -> "Boolean";
             case "date" -> "StrictDate";
             case "timestamp", "datetime" -> "DateTime";
@@ -241,7 +245,20 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         if (value instanceof Long l) {
             return ValueSpecificationBootstrap.newIntegerLiteral(modelRepository, l, processorSupport);
         }
+        if (value instanceof BigDecimal bd) {
+            // Only map to Pure Decimal when sqlType is exactly "DECIMAL" (from toDecimal CAST)
+            // DuckDB returns DECIMAL(p,s) for float arithmetic too, which Pure expects as Float
+            if (sqlType != null && "DECIMAL".equalsIgnoreCase(sqlType.trim())) {
+                return ValueSpecificationBootstrap.wrapValueSpecification(
+                        modelRepository.newDecimalCoreInstance(bd), true, processorSupport);
+            }
+            return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, bd, processorSupport);
+        }
         if (value instanceof Double d) {
+            if (sqlType != null && "DECIMAL".equalsIgnoreCase(sqlType.trim())) {
+                return ValueSpecificationBootstrap.wrapValueSpecification(
+                        modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d)), true, processorSupport);
+            }
             return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(d),
                     processorSupport);
         }

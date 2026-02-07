@@ -4948,6 +4948,7 @@ public final class PureCompiler {
             case STRING -> Literal.string((String) literal.value());
             case INTEGER -> Literal.integer(((Number) literal.value()).longValue());
             case FLOAT -> new Literal(literal.value(), Literal.LiteralType.DOUBLE);
+            case DECIMAL -> Literal.decimal(((Number) literal.value()).doubleValue());
             case BOOLEAN -> Literal.bool((Boolean) literal.value());
             case DATE -> {
                 // Distinguish StrictDate (date-only) from DateTime (has time component 'T')

@@ -256,7 +256,17 @@ public class QueryService {
         ResultMode effectiveMode = isScalarResult ? ResultMode.SCALAR : mode;
 
         // 6. Execute using the appropriate mode
-        return executeWithMode(connection, sql, effectiveMode);
+        Result result = executeWithMode(connection, sql, effectiveMode);
+
+        // 7. For scalar results from ConstantNode, propagate IR type info
+        //    This preserves Decimal vs Float distinction lost by JDBC type mapping
+        if (result instanceof ScalarResult sr && ir instanceof ConstantNode cn) {
+            SqlType irType = cn.expression().type();
+            if (irType == SqlType.DECIMAL) {
+                return new ScalarResult(sr.value(), "DECIMAL");
+            }
+        }
+        return result;
     }
 
     /**

@@ -171,6 +171,13 @@ public record SqlFunctionCall(
 
     @Override
     public SqlType type() {
+        if (returnType != SqlType.UNKNOWN) {
+            return returnType;
+        }
+        // For math functions, propagate DECIMAL type from target
+        if (target != null && target.type() == SqlType.DECIMAL) {
+            return SqlType.DECIMAL;
+        }
         return returnType;
     }
 

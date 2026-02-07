@@ -1304,6 +1304,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case INTEGER -> String.valueOf(literal.value());
             case BOOLEAN -> dialect.formatBoolean((Boolean) literal.value());
             case DOUBLE -> String.valueOf(literal.value());
+            case DECIMAL -> String.valueOf(literal.value());
             case NULL -> dialect.formatNull();
             case DATE -> dialect.formatDate((String) literal.value());
             case TIMESTAMP -> dialect.formatTimestamp((String) literal.value());

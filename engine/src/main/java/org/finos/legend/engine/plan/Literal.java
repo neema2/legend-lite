@@ -18,6 +18,7 @@ public record Literal(
         INTEGER,
         BOOLEAN,
         DOUBLE,
+        DECIMAL,
         NULL,
         DATE,
         TIMESTAMP,
@@ -45,9 +46,9 @@ public record Literal(
                         throw new IllegalArgumentException("BOOLEAN literal must have Boolean value");
                     }
                 }
-                case DOUBLE -> {
+                case DOUBLE, DECIMAL -> {
                     if (!(value instanceof Number)) {
-                        throw new IllegalArgumentException("DOUBLE literal must have Number value");
+                        throw new IllegalArgumentException("DOUBLE/DECIMAL literal must have Number value");
                     }
                 }
                 case NULL -> {
@@ -74,6 +75,10 @@ public record Literal(
 
     public static Literal integer(long value) {
         return new Literal(value, LiteralType.INTEGER);
+    }
+
+    public static Literal decimal(double value) {
+        return new Literal(value, LiteralType.DECIMAL);
     }
 
     public static Literal bool(boolean value) {
@@ -138,6 +143,7 @@ public record Literal(
             case INTEGER -> SqlType.INTEGER;
             case BOOLEAN -> SqlType.BOOLEAN;
             case DOUBLE -> SqlType.DOUBLE;
+            case DECIMAL -> SqlType.DECIMAL;
             case NULL -> SqlType.UNKNOWN;
             case DATE -> SqlType.DATE;
             case TIMESTAMP -> SqlType.TIMESTAMP;

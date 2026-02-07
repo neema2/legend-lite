@@ -18,6 +18,7 @@ public record LiteralExpr(
         STRING,
         INTEGER,
         FLOAT,
+        DECIMAL,
         BOOLEAN,
         DATE,
         STRICTTIME
@@ -37,6 +38,10 @@ public record LiteralExpr(
 
     public static LiteralExpr floatValue(double value) {
         return new LiteralExpr(value, LiteralType.FLOAT);
+    }
+
+    public static LiteralExpr decimalValue(double value) {
+        return new LiteralExpr(value, LiteralType.DECIMAL);
     }
 
     public static LiteralExpr bool(boolean value) {

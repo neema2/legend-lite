@@ -59,6 +59,10 @@ public record ArithmeticExpression(
                 && operator != BinaryArithmeticExpr.Operator.DIVIDE) {
             return SqlType.INTEGER;
         }
+        // If either operand is Decimal, result is Decimal
+        if (left.type() == SqlType.DECIMAL || right.type() == SqlType.DECIMAL) {
+            return SqlType.DECIMAL;
+        }
         return SqlType.DOUBLE;
     }
 
