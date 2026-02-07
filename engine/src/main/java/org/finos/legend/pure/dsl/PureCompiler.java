@@ -3562,6 +3562,21 @@ public final class PureCompiler {
                         compileToSqlExpression(args.get(0), context),
                         compileToSqlExpression(args.get(1), context));
             }
+            // and(vals) -> list_bool_and(vals); or(vals) -> list_bool_or(vals)
+            case "and" -> {
+                if (args.isEmpty()) throw new PureCompileException("and() requires an argument");
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_bool_and", compileToSqlExpression(args.getFirst(), context));
+                }
+                yield compileToSqlExpression(args.getFirst(), context);
+            }
+            case "or" -> {
+                if (args.isEmpty()) throw new PureCompileException("or() requires an argument");
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_bool_or", compileToSqlExpression(args.getFirst(), context));
+                }
+                yield compileToSqlExpression(args.getFirst(), context);
+            }
             // xor(a, b) -> (a AND NOT b) OR (NOT a AND b) — DuckDB xor() is bitwise, not logical
             case "xor" -> {
                 if (args.size() < 2) throw new PureCompileException("xor() requires 2 arguments");
@@ -3975,6 +3990,21 @@ public final class PureCompiler {
                 yield SqlFunctionCall.of("list_extract",
                         compileToSqlExpression(methodCall.source(), context),
                         adjustedIndex);
+            }
+            // Boolean collection functions: [list]->and() / [list]->or()
+            case "and" -> {
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_bool_and", compileToSqlExpression(methodCall.source(), context));
+                }
+                // scalar->and() is just the scalar itself
+                yield compileToSqlExpression(methodCall.source(), context);
+            }
+            case "or" -> {
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_bool_or", compileToSqlExpression(methodCall.source(), context));
+                }
+                // scalar->or() is just the scalar itself
+                yield compileToSqlExpression(methodCall.source(), context);
             }
             // Aggregate functions on arrays -> DuckDB list aggregate functions
             case "sum" -> {

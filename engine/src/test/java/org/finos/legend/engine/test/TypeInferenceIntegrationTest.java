@@ -658,6 +658,74 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(5.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
     }
 
+    // ==================== AND/OR collection functions ====================
+
+    @Test
+    void testAndSingleTrue() throws SQLException {
+        // and(true) via function-call syntax -> true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|and(true)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testAndFunctionCallWithList() throws SQLException {
+        // and([true, false]) via function-call syntax -> false
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|and([true, false])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testAndListTrue() throws SQLException {
+        // and([true, true]) -> true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[true, true]->and()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testAndListFalse() throws SQLException {
+        // and([true, false]) -> false
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[true, false]->and()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testOrListTrue() throws SQLException {
+        // or([false, true]) -> true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[false, true]->or()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testOrListFalse() throws SQLException {
+        // or([false, false]) -> false
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[false, false]->or()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
     // ==================== XOR ====================
 
     @Test
