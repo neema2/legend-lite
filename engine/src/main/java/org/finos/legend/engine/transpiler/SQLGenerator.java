@@ -1362,6 +1362,12 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     @Override
     public String visitFunctionCall(SqlFunctionCall functionCall) {
         String funcName = functionCall.sqlFunctionName();
+
+        // Handle zero-arg functions (e.g., uuid())
+        if (functionCall.target() == null) {
+            return funcName + "()";
+        }
+
         String target = functionCall.target().accept(this);
 
         // Get the lowercased function name for matching

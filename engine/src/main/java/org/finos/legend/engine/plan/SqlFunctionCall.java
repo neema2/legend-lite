@@ -21,7 +21,6 @@ public record SqlFunctionCall(
 
     public SqlFunctionCall {
         Objects.requireNonNull(functionName, "Function name cannot be null");
-        Objects.requireNonNull(target, "Target cannot be null");
         Objects.requireNonNull(arguments, "Arguments cannot be null");
         arguments = List.copyOf(arguments);
         if (returnType == null) {
@@ -33,6 +32,10 @@ public record SqlFunctionCall(
      * Creates a function call with no additional arguments and unknown return type.
      * E.g., UPPER(column)
      */
+    public static SqlFunctionCall of(String functionName) {
+        return new SqlFunctionCall(functionName, null, List.of(), SqlType.UNKNOWN);
+    }
+
     public static SqlFunctionCall of(String functionName, Expression target) {
         return new SqlFunctionCall(functionName, target, List.of(), SqlType.UNKNOWN);
     }

@@ -3590,6 +3590,10 @@ public final class PureCompiler {
                         LogicalExpression.and(a, LogicalExpression.not(b)),
                         LogicalExpression.and(LogicalExpression.not(a), b));
             }
+            // generateGuid() -> uuid()
+            case "generateGuid" -> {
+                yield SqlFunctionCall.of("uuid");
+            }
             // between(x, low, high) -> x >= low AND x <= high
             case "between" -> {
                 if (args.size() < 3) throw new PureCompileException("between() requires 3 arguments: value, low, high");

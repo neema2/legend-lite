@@ -817,6 +817,41 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(java.sql.Timestamp.valueOf("2024-01-29 00:00:00"), ((ScalarResult) result).value());
     }
 
+    // ==================== GenerateGuid ====================
+
+    @Test
+    void testGenerateGuidScalar() throws SQLException {
+        // generateGuid() should return a UUID string
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::string::generation::generateGuid()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        // UUID format: 8-4-4-4-12 hex chars
+        assertTrue(value.toString().matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
+                "Expected UUID format, got: " + value);
+    }
+
+    @Test
+    void testGenerateGuidInRelationExtend() throws SQLException {
+        // generateGuid() used in extend should produce a column of UUIDs
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|#TDS\nval, str\n1, a\n3, ewe\n#->extend(~uid:x|meta::pure::functions::string::generation::generateGuid())",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        BufferedResult buffered = result.toBuffered();
+        assertEquals(2, buffered.rowCount());
+        // Check uid column exists and has UUID values
+        for (int i = 0; i < buffered.rowCount(); i++) {
+            Object uid = buffered.getValue(i, "uid");
+            assertNotNull(uid);
+            assertTrue(uid.toString().matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
+                    "Expected UUID format, got: " + uid);
+        }
+    }
+
     // ==================== XOR ====================
 
     @Test
