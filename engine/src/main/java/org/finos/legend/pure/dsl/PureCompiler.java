@@ -3562,6 +3562,15 @@ public final class PureCompiler {
                         compileToSqlExpression(args.get(0), context),
                         compileToSqlExpression(args.get(1), context));
             }
+            // xor(a, b) -> (a AND NOT b) OR (NOT a AND b) — DuckDB xor() is bitwise, not logical
+            case "xor" -> {
+                if (args.size() < 2) throw new PureCompileException("xor() requires 2 arguments");
+                Expression a = compileToSqlExpression(args.get(0), context);
+                Expression b = compileToSqlExpression(args.get(1), context);
+                yield LogicalExpression.or(
+                        LogicalExpression.and(a, LogicalExpression.not(b)),
+                        LogicalExpression.and(LogicalExpression.not(a), b));
+            }
             // between(x, low, high) -> x >= low AND x <= high
             case "between" -> {
                 if (args.size() < 3) throw new PureCompileException("between() requires 3 arguments: value, low, high");
@@ -4186,6 +4195,15 @@ public final class PureCompiler {
                 yield LogicalExpression.and(
                         new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, low),
                         new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, high));
+            }
+            case "xor" -> { // a->xor(b) -> (a AND NOT b) OR (NOT a AND b)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("xor requires an argument");
+                Expression a = compileToSqlExpression(methodCall.source(), context);
+                Expression b = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                yield LogicalExpression.or(
+                        LogicalExpression.and(a, LogicalExpression.not(b)),
+                        LogicalExpression.and(LogicalExpression.not(a), b));
             }
 
             default -> compileSimpleMethodCall(methodCall, context);

@@ -658,6 +658,30 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(5.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
     }
 
+    // ==================== XOR ====================
+
+    @Test
+    void testXorMethodCall() throws SQLException {
+        // true->xor(true) should be false
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|true->xor(true)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testXorFunctionCall() throws SQLException {
+        // xor(1 == 1, not(2 == 3)) -> xor(true, true) -> false
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::boolean::xor(1 == 1, meta::pure::functions::boolean::not(2 == 3))",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
