@@ -930,7 +930,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
         assertTrue(result instanceof ScalarResult);
         ScalarResult sr = (ScalarResult) result;
-        assertEquals("DECIMAL", sr.sqlType(), "IR type should propagate DECIMAL");
+        assertEquals("DECIMAL_CAST", sr.sqlType(), "toDecimal should propagate DECIMAL_CAST");
     }
 
     @Test
@@ -1005,6 +1005,106 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
         assertTrue(result instanceof ScalarResult);
         assertEquals(-16, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    // --- PCT Decimal test: parseDecimal strips d/D suffix ---
+    // Note: DuckDB CAST AS DECIMAL uses DECIMAL(18,3) which limits precision.
+    // Legend-engine has the same limitation (needsInvestigation). Our fix strips
+    // the d/D suffix so at least the CAST doesn't error.
+    @Test
+    void testParseDecimalWithSuffix() throws SQLException {
+        // PCT: |'3.14159d'->parseDecimal() - d suffix stripped, value parsed
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'3.14159d'->parseDecimal()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        ScalarResult sr = (ScalarResult) result;
+        assertEquals("DECIMAL_CAST", sr.sqlType());
+        // DuckDB DECIMAL(18,3) truncates to 3.142 - known limitation
+        assertTrue(sr.value() instanceof java.math.BigDecimal);
+    }
+
+    @Test
+    void testParseDecimalSimple() throws SQLException {
+        // PCT: |'3.14'->parseDecimal() - no suffix
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'3.14'->parseDecimal()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        ScalarResult sr = (ScalarResult) result;
+        assertEquals("DECIMAL_CAST", sr.sqlType());
+        assertEquals(3.14, ((Number) sr.value()).doubleValue(), 0.01);
+    }
+
+    // --- PCT: min/max method-call for scalar comparison ---
+    @Test
+    void testMinFloats() throws SQLException {
+        // PCT: |2.8->meta::pure::functions::math::min(1.23)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2.8->min(1.23)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(1.23, ((Number) ((ScalarResult) result).value()).doubleValue(), 1e-10);
+    }
+
+    @Test
+    void testMaxFloats() throws SQLException {
+        // PCT: |2.8->meta::pure::functions::math::max(1.23)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2.8->max(1.23)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2.8, ((Number) ((ScalarResult) result).value()).doubleValue(), 1e-10);
+    }
+
+    @Test
+    void testMinIntegers() throws SQLException {
+        // PCT: |2->meta::pure::functions::math::min(1)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2->min(1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(1, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    @Test
+    void testMaxIntegers() throws SQLException {
+        // PCT: |2->meta::pure::functions::math::max(1)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2->max(1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    @Test
+    void testMinNumbers() throws SQLException {
+        // PCT: |2->meta::pure::functions::math::min(1.23D)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2->min(1.23D)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(1.23, ((Number) ((ScalarResult) result).value()).doubleValue(), 1e-10);
+    }
+
+    @Test
+    void testDecimalTimes() throws SQLException {
+        // PCT: |19.905D * 17774D => 353791.470D
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|19.905D * 17774D",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        ScalarResult sr = (ScalarResult) result;
+        assertEquals("DECIMAL", sr.sqlType());
+        assertEquals(353791.47, ((Number) sr.value()).doubleValue(), 0.01);
     }
 
     // ==================== XOR ====================

@@ -246,18 +246,24 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return ValueSpecificationBootstrap.newIntegerLiteral(modelRepository, l, processorSupport);
         }
         if (value instanceof BigDecimal bd) {
-            // Only map to Pure Decimal when sqlType is exactly "DECIMAL" (from toDecimal CAST)
-            // DuckDB returns DECIMAL(p,s) for float arithmetic too, which Pure expects as Float
-            if (sqlType != null && "DECIMAL".equalsIgnoreCase(sqlType.trim())) {
+            // "DECIMAL" = from Decimal literal arithmetic (preserve DuckDB scale as-is)
+            // "DECIMAL_CAST" = from toDecimal() CAST (strip trailing zeros from CAST padding)
+            if ("DECIMAL".equals(sqlType)) {
                 return ValueSpecificationBootstrap.wrapValueSpecification(
                         modelRepository.newDecimalCoreInstance(bd), true, processorSupport);
+            }
+            if ("DECIMAL_CAST".equals(sqlType)) {
+                return ValueSpecificationBootstrap.wrapValueSpecification(
+                        modelRepository.newDecimalCoreInstance(bd.stripTrailingZeros()), true, processorSupport);
             }
             return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, bd, processorSupport);
         }
         if (value instanceof Double d) {
-            if (sqlType != null && "DECIMAL".equalsIgnoreCase(sqlType.trim())) {
+            if ("DECIMAL".equals(sqlType) || "DECIMAL_CAST".equals(sqlType)) {
+                BigDecimal bd = BigDecimal.valueOf(d);
+                if ("DECIMAL_CAST".equals(sqlType)) bd = bd.stripTrailingZeros();
                 return ValueSpecificationBootstrap.wrapValueSpecification(
-                        modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d)), true, processorSupport);
+                        modelRepository.newDecimalCoreInstance(bd), true, processorSupport);
             }
             return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(d),
                     processorSupport);

@@ -14,12 +14,13 @@ public record CastExpression(Expression source, String targetType) implements Ex
 
     @Override
     public SqlType type() {
-        // Return the target type as the expression type
-        return switch (targetType.toUpperCase()) {
+        // Handle parameterized types like DECIMAL(38,18)
+        String upper = targetType.toUpperCase();
+        if (upper.startsWith("DECIMAL") || upper.startsWith("NUMERIC")) return SqlType.DECIMAL;
+        return switch (upper) {
             case "VARCHAR", "TEXT" -> SqlType.VARCHAR;
             case "BIGINT", "INTEGER", "INT" -> SqlType.BIGINT;
             case "DOUBLE", "FLOAT", "REAL" -> SqlType.DOUBLE;
-            case "DECIMAL", "NUMERIC" -> SqlType.DECIMAL;
             case "BOOLEAN", "BOOL" -> SqlType.BOOLEAN;
             default -> SqlType.UNKNOWN;
         };

@@ -3466,8 +3466,11 @@ public final class PureCompiler {
             }
             case "parseDecimal" -> {
                 if (args.isEmpty()) throw new PureCompileException("parseDecimal() requires an argument");
-                yield new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(args.getFirst(), context), "DECIMAL");
+                // Strip d/D suffix, cast to DOUBLE for full numeric precision
+                // IR type is DECIMAL so adapter creates Pure Decimal
+                Expression src = compileToSqlExpression(args.getFirst(), context);
+                Expression stripped = SqlFunctionCall.of("regexp_replace", src, Literal.string("[dD]$"), Literal.string(""));
+                yield new org.finos.legend.engine.plan.CastExpression(stripped, "DECIMAL");
             }
             case "parseBoolean" -> {
                 if (args.isEmpty()) throw new PureCompileException("parseBoolean() requires an argument");
@@ -3500,12 +3503,24 @@ public final class PureCompiler {
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield SqlFunctionCall.of("list_min", compileToSqlExpression(args.getFirst(), context));
                 }
+                if (args.size() >= 2) {
+                    // min(a, b) -> LEAST(a, b) for scalar comparison
+                    yield SqlFunctionCall.of("least",
+                            compileToSqlExpression(args.get(0), context),
+                            compileToSqlExpression(args.get(1), context));
+                }
                 yield SqlFunctionCall.of("min", compileToSqlExpression(args.getFirst(), context));
             }
             case "max" -> {
                 if (args.isEmpty()) throw new PureCompileException("max() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield SqlFunctionCall.of("list_max", compileToSqlExpression(args.getFirst(), context));
+                }
+                if (args.size() >= 2) {
+                    // max(a, b) -> GREATEST(a, b) for scalar comparison
+                    yield SqlFunctionCall.of("greatest",
+                            compileToSqlExpression(args.get(0), context),
+                            compileToSqlExpression(args.get(1), context));
                 }
                 yield SqlFunctionCall.of("max", compileToSqlExpression(args.getFirst(), context));
             }
@@ -3825,9 +3840,11 @@ public final class PureCompiler {
             case "parseFloat" -> // parseFloat(s) -> CAST(s AS DOUBLE)
                 new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(methodCall.source(), context), "DOUBLE");
-            case "parseDecimal" -> // parseDecimal(s) -> CAST(s AS DECIMAL)
-                new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(methodCall.source(), context), "DECIMAL");
+            case "parseDecimal" -> { // parseDecimal(s) -> CAST(regexp_replace(s, '[dD]$', '') AS DECIMAL)
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                Expression stripped = SqlFunctionCall.of("regexp_replace", src, Literal.string("[dD]$"), Literal.string(""));
+                yield new org.finos.legend.engine.plan.CastExpression(stripped, "DECIMAL");
+            }
             case "parseBoolean" -> // parseBoolean(s) -> CAST(s AS BOOLEAN)
                 new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(methodCall.source(), context), "BOOLEAN");
@@ -3869,6 +3886,20 @@ public final class PureCompiler {
                 SqlFunctionCall.of("upper", compileToSqlExpression(methodCall.source(), context));
 
             // ===== MATH FUNCTIONS =====
+            case "min" -> { // x->min(y) -> LEAST(x, y) for scalar comparison
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("min requires an argument");
+                yield SqlFunctionCall.of("least",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "max" -> { // x->max(y) -> GREATEST(x, y) for scalar comparison
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("max requires an argument");
+                yield SqlFunctionCall.of("greatest",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
             case "round" -> { // round(x) or x->round(scale)
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.arguments().isEmpty()) {

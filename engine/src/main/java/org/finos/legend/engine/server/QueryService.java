@@ -263,7 +263,11 @@ public class QueryService {
         if (result instanceof ScalarResult sr && ir instanceof ConstantNode cn) {
             SqlType irType = cn.expression().type();
             if (irType == SqlType.DECIMAL) {
-                return new ScalarResult(sr.value(), "DECIMAL");
+                // Distinguish toDecimal() CAST (needs trailing zero strip) from
+                // Decimal literal arithmetic (preserves DuckDB scale as-is)
+                boolean fromToDecimalCast = cn.expression() instanceof CastExpression ce
+                        && "DECIMAL".equalsIgnoreCase(ce.targetType());
+                return new ScalarResult(sr.value(), fromToDecimalCast ? "DECIMAL_CAST" : "DECIMAL");
             }
         }
         return result;

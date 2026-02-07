@@ -174,9 +174,14 @@ public record SqlFunctionCall(
         if (returnType != SqlType.UNKNOWN) {
             return returnType;
         }
-        // For math functions, propagate DECIMAL type from target
+        // Propagate DECIMAL type from target or any argument
         if (target != null && target.type() == SqlType.DECIMAL) {
             return SqlType.DECIMAL;
+        }
+        for (Expression arg : arguments) {
+            if (arg.type() == SqlType.DECIMAL) {
+                return SqlType.DECIMAL;
+            }
         }
         return returnType;
     }
