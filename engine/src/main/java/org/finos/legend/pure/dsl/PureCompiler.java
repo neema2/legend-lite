@@ -3798,14 +3798,25 @@ public final class PureCompiler {
                 // Create format function call — SQLGenerator handles dialect-specific translation
                 yield new SqlFunctionCall("format", formatStr, argExprs, SqlType.VARCHAR);
             }
-            case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx)
+            case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx+1)
+                // Pure splitPart is 0-based, DuckDB split_part is 1-based
+                // Empty delimiter: Pure returns whole string, DuckDB splits into chars
+                // Empty list [] source: Pure treats as empty string ''
                 var args = methodCall.arguments();
                 if (args.size() < 2)
                     throw new PureCompileException("splitPart requires 2 arguments");
-                yield SqlFunctionCall.of("split_part",
-                        compileToSqlExpression(methodCall.source(), context),
-                        compileToSqlExpression(args.get(0), context),
-                        compileToSqlExpression(args.get(1), context));
+                Expression src = (methodCall.source() instanceof ArrayLiteral arr && arr.elements().isEmpty())
+                        ? Literal.string("")
+                        : compileToSqlExpression(methodCall.source(), context);
+                Expression delim = compileToSqlExpression(args.get(0), context);
+                Expression idx = compileToSqlExpression(args.get(1), context);
+                Expression oneBasedIdx = ArithmeticExpression.add(idx, Literal.integer(1));
+                Expression splitResult = SqlFunctionCall.of("split_part", src, delim, oneBasedIdx);
+                // CASE WHEN delim = '' THEN src ELSE split_part(...) END
+                yield CaseExpression.of(
+                        ComparisonExpression.equals(delim, Literal.string("")),
+                        src,
+                        splitResult);
             }
             case "toUpperFirstCharacter" -> { // upper(s[1]) || s[2:]
                 Expression src = compileToSqlExpression(methodCall.source(), context);

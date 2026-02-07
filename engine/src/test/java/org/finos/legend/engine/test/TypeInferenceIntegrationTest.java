@@ -1130,6 +1130,75 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("Any Random String", ((ScalarResult) result).value());
     }
 
+    // --- PCT: splitPart(string, delimiter, index) - 0-based index ---
+    @Test
+    void testSplitPart() throws SQLException {
+        // PCT: |'Hello World'->splitPart(' ', 0) => 'Hello'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'Hello World'->splitPart(' ', 0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("Hello", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testSplitPartSecondToken() throws SQLException {
+        // PCT: |'Hello World'->splitPart(' ', 1) => 'World'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'Hello World'->splitPart(' ', 1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("World", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testSplitPartNoSplit() throws SQLException {
+        // PCT: |'Hello World'->splitPart(';', 0) => 'Hello World'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'Hello World'->splitPart(';', 0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("Hello World", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testSplitPartTypicalToken() throws SQLException {
+        // PCT: |'Sunglasses, Keys, Phone, SL-card'->splitPart(', ', 2) => 'Phone'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'Sunglasses, Keys, Phone, SL-card'->splitPart(', ', 2)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("Phone", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testSplitPartEmptyString() throws SQLException {
+        // PCT: |[]->splitPart(' ', 0) => ''
+        // Empty list [] as String source means empty string
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->splitPart(' ', 0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testSplitPartEmptyDelimiter() throws SQLException {
+        // PCT sub-expression: |'Hello World'->splitPart('', 0) => 'Hello World'
+        // Splitting by empty string should return the whole string at index 0
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'Hello World'->splitPart('', 0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("Hello World", ((ScalarResult) result).value());
+    }
+
     // ==================== XOR ====================
 
     @Test
