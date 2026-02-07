@@ -1900,7 +1900,18 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     case "min" -> AggregateFunctionSpec.AggregateFunction.MIN;
                     case "max" -> AggregateFunctionSpec.AggregateFunction.MAX;
                     case "stddev" -> AggregateFunctionSpec.AggregateFunction.STDDEV;
+                    case "stddevsample" -> AggregateFunctionSpec.AggregateFunction.STDDEV_SAMP;
+                    case "stddevpopulation" -> AggregateFunctionSpec.AggregateFunction.STDDEV_POP;
                     case "variance" -> AggregateFunctionSpec.AggregateFunction.VARIANCE;
+                    case "variancesample" -> AggregateFunctionSpec.AggregateFunction.VAR_SAMP;
+                    case "variancepopulation" -> AggregateFunctionSpec.AggregateFunction.VAR_POP;
+                    case "median" -> AggregateFunctionSpec.AggregateFunction.MEDIAN;
+                    case "mode" -> AggregateFunctionSpec.AggregateFunction.MODE;
+                    case "corr" -> AggregateFunctionSpec.AggregateFunction.CORR;
+                    case "covarsample" -> AggregateFunctionSpec.AggregateFunction.COVAR_SAMP;
+                    case "covarpopulation" -> AggregateFunctionSpec.AggregateFunction.COVAR_POP;
+                    case "percentile", "percentilecont" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_CONT;
+                    case "percentiledisc" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC;
                     default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
                 };
             }
@@ -2047,7 +2058,18 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     case "min" -> AggregateFunctionSpec.AggregateFunction.MIN;
                     case "max" -> AggregateFunctionSpec.AggregateFunction.MAX;
                     case "stddev" -> AggregateFunctionSpec.AggregateFunction.STDDEV;
+                    case "stddevsample" -> AggregateFunctionSpec.AggregateFunction.STDDEV_SAMP;
+                    case "stddevpopulation" -> AggregateFunctionSpec.AggregateFunction.STDDEV_POP;
                     case "variance" -> AggregateFunctionSpec.AggregateFunction.VARIANCE;
+                    case "variancesample" -> AggregateFunctionSpec.AggregateFunction.VAR_SAMP;
+                    case "variancepopulation" -> AggregateFunctionSpec.AggregateFunction.VAR_POP;
+                    case "median" -> AggregateFunctionSpec.AggregateFunction.MEDIAN;
+                    case "mode" -> AggregateFunctionSpec.AggregateFunction.MODE;
+                    case "corr" -> AggregateFunctionSpec.AggregateFunction.CORR;
+                    case "covarsample" -> AggregateFunctionSpec.AggregateFunction.COVAR_SAMP;
+                    case "covarpopulation" -> AggregateFunctionSpec.AggregateFunction.COVAR_POP;
+                    case "percentile", "percentilecont" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_CONT;
+                    case "percentiledisc" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC;
                     case "joinstrings" -> AggregateFunctionSpec.AggregateFunction.STRING_AGG;
                     default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
                 };

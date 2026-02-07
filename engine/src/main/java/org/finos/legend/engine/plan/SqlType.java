@@ -7,6 +7,7 @@ package org.finos.legend.engine.plan;
 public enum SqlType {
     INTEGER,
     BIGINT,
+    DECIMAL,
     DOUBLE,
     VARCHAR,
     BOOLEAN,

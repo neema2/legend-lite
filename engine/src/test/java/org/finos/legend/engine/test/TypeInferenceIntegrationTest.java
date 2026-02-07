@@ -852,6 +852,136 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         }
     }
 
+    // ==================== Math Functions ====================
+
+    @Test
+    void testPi() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::math::pi()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        double pi = ((Number) ((ScalarResult) result).value()).doubleValue();
+        assertEquals(Math.PI, pi, 1e-10);
+    }
+
+    @Test
+    void testLog() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2.718281828->log()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        double val = ((Number) ((ScalarResult) result).value()).doubleValue();
+        assertEquals(1.0, val, 1e-5);
+    }
+
+    @Test
+    void testLog10() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|100.0->log10()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        double val = ((Number) ((ScalarResult) result).value()).doubleValue();
+        assertEquals(2.0, val, 1e-10);
+    }
+
+    @Test
+    void testExp() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1.0->exp()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        double val = ((Number) ((ScalarResult) result).value()).doubleValue();
+        assertEquals(Math.E, val, 1e-10);
+    }
+
+    @Test
+    void testPow() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2.0->pow(10.0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        double val = ((Number) ((ScalarResult) result).value()).doubleValue();
+        assertEquals(1024.0, val, 1e-10);
+    }
+
+    @Test
+    void testSqrt() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|9.0->sqrt()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        double val = ((Number) ((ScalarResult) result).value()).doubleValue();
+        assertEquals(3.0, val, 1e-10);
+    }
+
+    // --- toDecimal: should cast to DECIMAL, not DOUBLE ---
+    @Test
+    void testIntToDecimal() throws SQLException {
+        // PCT: |8->meta::pure::functions::math::toDecimal()
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|8->toDecimal()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        ScalarResult sr = (ScalarResult) result;
+        assertTrue(sr.value() instanceof java.math.BigDecimal,
+                "Expected BigDecimal, got: " + sr.value().getClass().getSimpleName());
+    }
+
+    // --- mod: Pure mod always returns non-negative ---
+    @Test
+    void testModWithNegativeNumbers() throws SQLException {
+        // PCT: |meta::pure::functions::math::mod(-12, 5) => expected 3
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::math::mod(-12, 5)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(3, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    // --- round with scale: round(3.14159D, 2) => 3.14 ---
+    @Test
+    void testRoundWithScale() throws SQLException {
+        // PCT: |3.14159D->meta::pure::functions::math::round(2)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|3.14159->round(2)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        double val = ((Number) ((ScalarResult) result).value()).doubleValue();
+        assertEquals(3.14, val, 1e-10);
+    }
+
+    // --- round half-even (banker's rounding): 16.5->round() => 16 ---
+    @Test
+    void testRoundHalfEvenDown() throws SQLException {
+        // PCT: |16.5->meta::pure::functions::math::round() => expected 16
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|16.5->round()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(16, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    @Test
+    void testRoundHalfEvenUp() throws SQLException {
+        // PCT: |meta::pure::functions::math::round(-16.5) => expected -16
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::math::round(-16.5)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(-16, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
     // ==================== XOR ====================
 
     @Test

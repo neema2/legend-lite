@@ -35,6 +35,12 @@ public record AggregateFunctionSpec(
         VAR_SAMP,
         VAR_POP,
         MEDIAN,
+        MODE,
+        CORR,
+        COVAR_SAMP,
+        COVAR_POP,
+        PERCENTILE_CONT,
+        PERCENTILE_DISC,
         STRING_AGG;
 
         /**
@@ -54,6 +60,12 @@ public record AggregateFunctionSpec(
                 case "variancesample", "var_samp" -> VAR_SAMP;
                 case "variancepopulation", "var_pop" -> VAR_POP;
                 case "median" -> MEDIAN;
+                case "mode" -> MODE;
+                case "corr" -> CORR;
+                case "covarsample", "covar_samp" -> COVAR_SAMP;
+                case "covarpopulation", "covar_pop" -> COVAR_POP;
+                case "percentile", "percentilecont", "percentile_cont" -> PERCENTILE_CONT;
+                case "percentiledisc", "percentile_disc" -> PERCENTILE_DISC;
                 case "joinstrings", "string_agg" -> STRING_AGG;
                 default -> null;
             };

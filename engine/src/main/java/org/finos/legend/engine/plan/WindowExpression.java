@@ -79,6 +79,9 @@ public record WindowExpression(
         PERCENTILE_CONT,
         PERCENTILE_DISC,
 
+        // Mode
+        MODE,
+
         // String aggregation
         STRING_AGG
     }

@@ -2654,6 +2654,12 @@ public final class PureCompiler {
             case VAR_SAMP -> WindowExpression.WindowFunction.VAR_SAMP;
             case VAR_POP -> WindowExpression.WindowFunction.VAR_POP;
             case MEDIAN -> WindowExpression.WindowFunction.MEDIAN;
+            case MODE -> WindowExpression.WindowFunction.MODE;
+            case CORR -> WindowExpression.WindowFunction.CORR;
+            case COVAR_SAMP -> WindowExpression.WindowFunction.COVAR_SAMP;
+            case COVAR_POP -> WindowExpression.WindowFunction.COVAR_POP;
+            case PERCENTILE_CONT -> WindowExpression.WindowFunction.PERCENTILE_CONT;
+            case PERCENTILE_DISC -> WindowExpression.WindowFunction.PERCENTILE_DISC;
             case STRING_AGG -> WindowExpression.WindowFunction.STRING_AGG;
         };
 
@@ -3594,6 +3600,33 @@ public final class PureCompiler {
             case "generateGuid" -> {
                 yield SqlFunctionCall.of("uuid");
             }
+            // pi() -> pi()
+            case "pi" -> {
+                yield SqlFunctionCall.of("pi");
+            }
+            // round(x) or round(x, scale) -> round_even for no-scale, round(x, scale) with scale
+            case "round" -> {
+                if (args.isEmpty()) throw new PureCompileException("round() requires at least 1 argument");
+                Expression src = compileToSqlExpression(args.get(0), context);
+                if (args.size() == 1) {
+                    // round(x) -> CAST(ROUND_EVEN(x, 0) AS BIGINT)
+                    yield new org.finos.legend.engine.plan.CastExpression(
+                            SqlFunctionCall.of("round_even", src, Literal.integer(0)), "BIGINT");
+                } else {
+                    // round(x, scale) -> ROUND_EVEN(x, scale)
+                    Expression scale = compileToSqlExpression(args.get(1), context);
+                    yield SqlFunctionCall.of("round_even", src, scale);
+                }
+            }
+            // mod(a, b) -> mod(mod(a, b) + b, b) (Pure mod is always non-negative)
+            case "mod" -> {
+                if (args.size() < 2) throw new PureCompileException("mod() requires 2 arguments");
+                Expression a = compileToSqlExpression(args.get(0), context);
+                Expression b = compileToSqlExpression(args.get(1), context);
+                Expression innerMod = SqlFunctionCall.of("mod", a, b);
+                Expression addB = ArithmeticExpression.add(innerMod, b);
+                yield SqlFunctionCall.of("mod", addB, b);
+            }
             // between(x, low, high) -> x >= low AND x <= high
             case "between" -> {
                 if (args.size() < 3) throw new PureCompileException("between() requires 3 arguments: value, low, high");
@@ -3836,13 +3869,33 @@ public final class PureCompiler {
                 SqlFunctionCall.of("upper", compileToSqlExpression(methodCall.source(), context));
 
             // ===== MATH FUNCTIONS =====
-            case "rem", "mod" -> { // rem(a, b) -> a % b via mod function
+            case "round" -> { // round(x) or x->round(scale)
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.arguments().isEmpty()) {
+                    // round() with no scale -> round half-even: CAST(ROUND_EVEN(x, 0) AS BIGINT)
+                    yield new org.finos.legend.engine.plan.CastExpression(
+                            SqlFunctionCall.of("round_even", src, Literal.integer(0)), "BIGINT");
+                } else {
+                    // round(scale) -> ROUND_EVEN(x, scale)
+                    Expression scale = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                    yield SqlFunctionCall.of("round_even", src, scale);
+                }
+            }
+            case "rem" -> { // rem(a, b) -> mod(a, b) (can return negative)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("rem requires an argument");
-                // Use DuckDB mod() function: mod(a, b) = a % b
                 yield SqlFunctionCall.of("mod",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "mod" -> { // mod(a, b) -> mod(mod(a, b) + b, b) (always non-negative)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("mod requires an argument");
+                Expression a = compileToSqlExpression(methodCall.source(), context);
+                Expression b = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                Expression innerMod = SqlFunctionCall.of("mod", a, b);
+                Expression addB = ArithmeticExpression.add(innerMod, b);
+                yield SqlFunctionCall.of("mod", addB, b);
             }
             case "compare" -> { // compare(a, b) -> CASE WHEN a < b THEN -1 WHEN a > b THEN 1 ELSE 0 END
                 if (methodCall.arguments().isEmpty())
@@ -3964,9 +4017,9 @@ public final class PureCompiler {
             case "toFloat" -> // toFloat(x) -> CAST(x AS DOUBLE)
                 new SqlFunctionCall("cast", compileToSqlExpression(methodCall.source(), context),
                         java.util.List.of(), SqlType.DOUBLE);
-            case "toDecimal" -> // toDecimal(x) -> CAST(x AS DECIMAL) - using DOUBLE as closest
-                new SqlFunctionCall("cast", compileToSqlExpression(methodCall.source(), context),
-                        java.util.List.of(), SqlType.DOUBLE);
+            case "toDecimal" -> // toDecimal(x) -> CAST(x AS DECIMAL)
+                new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context), "DECIMAL");
 
             // ===== LIST FUNCTIONS =====
             case "zip" -> { // zip(l1, l2) -> list_zip(l1, l2)
@@ -4158,6 +4211,25 @@ public final class PureCompiler {
                 }
                 yield new org.finos.legend.engine.plan.CastExpression(timeBucketExpr, "TIMESTAMP_NS");
             }
+
+            // ===== MATH FUNCTIONS =====
+            case "log" -> // x->log() -> ln(x)
+                SqlFunctionCall.of("ln", compileToSqlExpression(methodCall.source(), context));
+            case "log10" -> // x->log10() -> log10(x)
+                SqlFunctionCall.of("log10", compileToSqlExpression(methodCall.source(), context));
+            case "exp" -> // x->exp() -> exp(x)
+                SqlFunctionCall.of("exp", compileToSqlExpression(methodCall.source(), context));
+            case "pow" -> { // x->pow(y) -> pow(x, y)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("pow requires an exponent argument");
+                yield SqlFunctionCall.of("pow",
+                        compileToSqlExpression(methodCall.source(), context),
+                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+            }
+            case "cbrt" -> // x->cbrt() -> cbrt(x)
+                SqlFunctionCall.of("cbrt", compileToSqlExpression(methodCall.source(), context));
+            case "sqrt" -> // x->sqrt() -> sqrt(x)
+                SqlFunctionCall.of("sqrt", compileToSqlExpression(methodCall.source(), context));
 
             // ===== BITWISE FUNCTIONS =====
             case "bitAnd" -> { // bitAnd(a, b) -> a & b
