@@ -1107,6 +1107,29 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(353791.47, ((Number) sr.value()).doubleValue(), 0.01);
     }
 
+    // --- PCT: decodeBase64 returns string, not BLOB ---
+    @Test
+    void testDecodeBase64() throws SQLException {
+        // PCT: |'SGVsbG8sIFdvcmxkIQ=='->meta::pure::functions::string::decodeBase64()
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'SGVsbG8sIFdvcmxkIQ=='->decodeBase64()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("Hello, World!", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testDecodeBase64RoundTrip() throws SQLException {
+        // PCT: |'Any Random String'->encodeBase64()->decodeBase64()
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'Any Random String'->encodeBase64()->decodeBase64()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("Any Random String", ((ScalarResult) result).value());
+    }
+
     // ==================== XOR ====================
 
     @Test

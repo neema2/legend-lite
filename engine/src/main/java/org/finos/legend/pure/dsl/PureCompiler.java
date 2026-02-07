@@ -3876,10 +3876,14 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
-            case "decodeBase64" -> // decodeBase64(s) -> from_base64(s)
-                SqlFunctionCall.of("from_base64", compileToSqlExpression(methodCall.source(), context));
-            case "encodeBase64" -> // encodeBase64(s) -> to_base64(s)
-                SqlFunctionCall.of("to_base64", compileToSqlExpression(methodCall.source(), context));
+            case "decodeBase64" -> // decodeBase64(s) -> CAST(from_base64(s) AS VARCHAR)
+                new org.finos.legend.engine.plan.CastExpression(
+                        SqlFunctionCall.of("from_base64", compileToSqlExpression(methodCall.source(), context)),
+                        "VARCHAR");
+            case "encodeBase64" -> // encodeBase64(s) -> to_base64(CAST(s AS BLOB))
+                SqlFunctionCall.of("to_base64",
+                        new org.finos.legend.engine.plan.CastExpression(
+                                compileToSqlExpression(methodCall.source(), context), "BLOB"));
             case "toLower" -> // toLower(s) -> LOWER(s)
                 SqlFunctionCall.of("lower", compileToSqlExpression(methodCall.source(), context));
             case "toUpper" -> // toUpper(s) -> UPPER(s)
