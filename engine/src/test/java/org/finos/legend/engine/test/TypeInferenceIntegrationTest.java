@@ -759,6 +759,64 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertTrue(result instanceof ScalarResult);
     }
 
+    // ==================== TimeBucket ====================
+
+    @Test
+    void testTimeBucketStrictDate1Day() throws SQLException {
+        // timeBucket(1, DAYS) on StrictDate should return same date (as DATE, not TIMESTAMP)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2024-01-31->timeBucket(1, meta::pure::functions::date::DurationUnit.DAYS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(java.time.LocalDate.of(2024, 1, 31), ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testTimeBucketStrictDate2Days() throws SQLException {
+        // timeBucket(2, DAYS) on 2024-01-31 should return 2024-01-30
+        // (2-day buckets from Unix epoch 1970-01-01)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2024-01-31->timeBucket(2, meta::pure::functions::date::DurationUnit.DAYS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(java.time.LocalDate.of(2024, 1, 30), ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testTimeBucketDateTime() throws SQLException {
+        // timeBucket(1, DAYS) on DateTime should return midnight of that day as TIMESTAMP_NS
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2024-01-31T00:32:34+0000->timeBucket(1, meta::pure::functions::date::DurationUnit.DAYS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(java.sql.Timestamp.valueOf("2024-01-31 00:00:00"), ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testTimeBucketStrictDate2Weeks() throws SQLException {
+        // timeBucket(2, WEEKS) on 2024-01-31 (Wednesday) should return 2024-01-29 (Monday)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2024-01-31->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(java.time.LocalDate.of(2024, 1, 29), ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testTimeBucketDateTime2Weeks() throws SQLException {
+        // timeBucket(2, WEEKS) on DateTime should return Monday of that week
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2024-01-31T00:32:34+0000->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(java.sql.Timestamp.valueOf("2024-01-29 00:00:00"), ((ScalarResult) result).value());
+    }
+
     // ==================== XOR ====================
 
     @Test

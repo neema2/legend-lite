@@ -140,7 +140,8 @@ public class PlanExecutor {
     private Result executeScalar(Connection conn, String sql) throws SQLException {
         BufferedResult buffered = executeBuffered(conn, sql);
         if (buffered.rowCount() == 1 && buffered.columnCount() == 1) {
-            return new ScalarResult(buffered.getValue(0, 0));
+            String sqlType = buffered.columns().getFirst().sqlType();
+            return new ScalarResult(buffered.getValue(0, 0), sqlType);
         }
         return buffered;
     }

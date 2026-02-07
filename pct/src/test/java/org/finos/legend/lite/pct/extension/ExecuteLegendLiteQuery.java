@@ -122,8 +122,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 // For scalar results (constant queries), return the primitive value directly
                 if (result instanceof ScalarResult scalarResult) {
                     Object value = scalarResult.value();
-                    System.out.println("[LegendLite PCT] Scalar result: " + value);
-                    return wrapPrimitiveValue(value, processorSupport);
+                    System.out.println("[LegendLite PCT] Scalar result: " + value
+                            + " sqlType: " + scalarResult.sqlType());
+                    return wrapPrimitiveValue(value, scalarResult.sqlType(), processorSupport);
                 }
 
                 // For TDS results, wrap in TDSResult class so Pure can distinguish from scalar
@@ -225,7 +226,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * Wraps a Java primitive value into a Pure CoreInstance.
      * Used for scalar results from constant queries.
      */
-    private CoreInstance wrapPrimitiveValue(Object value, ProcessorSupport processorSupport) {
+    private CoreInstance wrapPrimitiveValue(Object value, String sqlType, ProcessorSupport processorSupport) {
         if (value == null) {
             // Return Pure's nil/empty
             return ValueSpecificationBootstrap.wrapValueSpecification(
@@ -275,6 +276,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 PureDate pureDate = DateFunctions.newPureDate(
                         ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
                         ldt.getHour(), ldt.getMinute(), ldt.getSecond(), subsecond);
+                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            } else if ("TIMESTAMP_NS".equalsIgnoreCase(sqlType)) {
+                // TIMESTAMP_NS with zero nanos: preserve nanosecond precision (9 zeros)
+                PureDate pureDate = DateFunctions.newPureDate(
+                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                        ldt.getHour(), ldt.getMinute(), ldt.getSecond(), "000000000");
                 return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
             } else {
                 PureDate pureDate = DateFunctions.newPureDate(

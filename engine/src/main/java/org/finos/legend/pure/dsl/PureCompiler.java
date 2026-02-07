@@ -4108,7 +4108,7 @@ public final class PureCompiler {
                                 compileToSqlExpression(methodCall.arguments().getFirst(), context)),
                         java.util.List.of(), SqlType.DATE);
             }
-            case "timeBucket" -> { // timeBucket(count, unit) -> time_bucket(interval, timestamp)
+            case "timeBucket" -> { // timeBucket(count, unit) -> time_bucket(interval, timestamp, origin)
                 // DuckDB time_bucket expects INTERVAL like 'to_days(1)' etc.
                 var args = methodCall.arguments();
                 if (args.size() < 2)
@@ -4118,6 +4118,15 @@ public final class PureCompiler {
                 Expression unitExpr = compileToSqlExpression(args.get(1), context); // e.g., 'DAYS'
                 // Get the unit name from the literal
                 String unitName = unitExpr instanceof Literal lit && lit.value() instanceof String s ? s : "DAYS";
+                // Validate unit for StrictDate - only YEARS, MONTHS, WEEKS, DAYS allowed
+                boolean isStrictDate = timestamp.type() == SqlType.DATE;
+                if (isStrictDate) {
+                    switch (unitName.toUpperCase()) {
+                        case "YEARS", "MONTHS", "WEEKS", "DAYS" -> { }
+                        default -> throw new PureCompileException(
+                                "Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]");
+                    }
+                }
                 // Map DurationUnit to DuckDB interval function
                 String intervalFunc = switch (unitName.toUpperCase()) {
                     case "DAYS" -> "to_days";
@@ -4129,9 +4138,21 @@ public final class PureCompiler {
                     case "YEARS" -> "to_years";
                     default -> "to_days";
                 };
-                yield SqlFunctionCall.of("time_bucket",
+                // Use Unix epoch as origin to match Pure's expected bucket boundaries
+                // For WEEKS, use ISO Monday epoch 1969-12-29 (Monday before Unix epoch)
+                // ref: legend-engine DuckDB constructTimeBucketOffset
+                String originDate = "WEEKS".equals(unitName.toUpperCase()) ? "1969-12-29" : "1970-01-01";
+                Expression timeBucketExpr = SqlFunctionCall.of("time_bucket",
                         SqlFunctionCall.of(intervalFunc, count),
-                        timestamp);
+                        timestamp,
+                        new org.finos.legend.engine.plan.CastExpression(
+                                Literal.of(originDate), "TIMESTAMP"));
+                // For DateTime inputs, cast to TIMESTAMP_NS to preserve nanosecond precision
+                // For StrictDate inputs, cast back to DATE to preserve date-only type
+                if (isStrictDate) {
+                    yield new org.finos.legend.engine.plan.CastExpression(timeBucketExpr, "DATE");
+                }
+                yield new org.finos.legend.engine.plan.CastExpression(timeBucketExpr, "TIMESTAMP_NS");
             }
 
             // ===== BITWISE FUNCTIONS =====
@@ -4852,7 +4873,15 @@ public final class PureCompiler {
             case INTEGER -> Literal.integer(((Number) literal.value()).longValue());
             case FLOAT -> new Literal(literal.value(), Literal.LiteralType.DOUBLE);
             case BOOLEAN -> Literal.bool((Boolean) literal.value());
-            case DATE -> Literal.date((String) literal.value());
+            case DATE -> {
+                // Distinguish StrictDate (date-only) from DateTime (has time component 'T')
+                String dateStr = (String) literal.value();
+                String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
+                if (stripped.contains("T")) {
+                    yield Literal.timestamp(dateStr);
+                }
+                yield Literal.date(dateStr);
+            }
             case STRICTTIME -> Literal.time((String) literal.value());
         };
     }

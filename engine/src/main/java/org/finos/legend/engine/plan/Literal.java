@@ -20,6 +20,7 @@ public record Literal(
         DOUBLE,
         NULL,
         DATE,
+        TIMESTAMP,
         TIME
     }
 
@@ -54,9 +55,9 @@ public record Literal(
                         throw new IllegalArgumentException("NULL literal cannot have a value");
                     }
                 }
-                case DATE, TIME -> {
+                case DATE, TIMESTAMP, TIME -> {
                     if (!(value instanceof String)) {
-                        throw new IllegalArgumentException("DATE/TIME literal must have String value");
+                        throw new IllegalArgumentException("DATE/TIMESTAMP/TIME literal must have String value");
                     }
                 }
             }
@@ -88,6 +89,13 @@ public record Literal(
      */
     public static Literal date(String value) {
         return new Literal(value, LiteralType.DATE);
+    }
+
+    /**
+     * Factory for TIMESTAMP literals. Value should be in 'YYYY-MM-DD HH:MM:SS+ZZZZ' format.
+     */
+    public static Literal timestamp(String value) {
+        return new Literal(value, LiteralType.TIMESTAMP);
     }
 
     /**
@@ -132,6 +140,7 @@ public record Literal(
             case DOUBLE -> SqlType.DOUBLE;
             case NULL -> SqlType.UNKNOWN;
             case DATE -> SqlType.DATE;
+            case TIMESTAMP -> SqlType.TIMESTAMP;
             case TIME -> SqlType.TIME;
         };
     }
@@ -146,6 +155,9 @@ public record Literal(
         }
         if (literalType == LiteralType.DATE) {
             return "DATE '" + value + "'";
+        }
+        if (literalType == LiteralType.TIMESTAMP) {
+            return "TIMESTAMP '" + value + "'";
         }
         if (literalType == LiteralType.TIME) {
             return "TIME '" + value + "'";

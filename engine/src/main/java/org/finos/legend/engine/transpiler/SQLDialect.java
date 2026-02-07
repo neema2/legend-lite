@@ -108,6 +108,14 @@ public interface SQLDialect {
     }
 
     /**
+     * Format a TIMESTAMP literal from Pure's DateTime format.
+     * Delegates to formatDate which already handles DateTime values.
+     */
+    default String formatTimestamp(String pureDate) {
+        return formatDate(pureDate);
+    }
+
+    /**
      * Format a TIME literal from Pure's %HH:MM:SS format.
      * 
      * @param pureTime The Pure time string (e.g., "%12:30:00")

@@ -16,7 +16,11 @@ import java.util.stream.Stream;
  * 
  * This is detected at IR level when the query compiles to a ConstantNode.
  */
-public record ScalarResult(Object value) implements Result {
+public record ScalarResult(Object value, String sqlType) implements Result {
+
+    public ScalarResult(Object value) {
+        this(value, null);
+    }
 
     @Override
     public List<Column> columns() {
