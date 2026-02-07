@@ -1643,6 +1643,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             return funcName + "(" + percentileValue + ") WITHIN GROUP (ORDER BY " + arg + ")";
         }
 
+        // Handle bi-variate functions (CORR, COVAR_SAMP, COVAR_POP) with list arguments
+        if (aggregate.function().isBivariate() && aggregate.secondArgument() != null) {
+            String arg2 = aggregate.secondArgument().accept(this);
+            // When arguments are lists, unnest them into a subquery
+            if (aggregate.argument() instanceof ListLiteral || aggregate.secondArgument() instanceof ListLiteral) {
+                return "(SELECT " + funcName + "(a, b) FROM (SELECT UNNEST(" + arg + ") AS a, UNNEST(" + arg2 + ") AS b))";
+            }
+            return funcName + "(" + arg + ", " + arg2 + ")";
+        }
+
+        // When argument is a list, unnest into a subquery for single-arg aggregates
+        if (aggregate.argument() instanceof ListLiteral) {
+            return "(SELECT " + funcName + "(v) FROM (SELECT UNNEST(" + arg + ") AS v))";
+        }
+
         return funcName + "(" + arg + ")";
     }
 

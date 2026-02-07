@@ -3483,6 +3483,60 @@ public final class PureCompiler {
                 if (args.isEmpty()) throw new PureCompileException("max() requires an argument");
                 yield SqlFunctionCall.of("list_max", compileToSqlExpression(args.getFirst(), context));
             }
+            case "mode" -> {
+                if (args.isEmpty()) throw new PureCompileException("mode() requires an argument");
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(args.getFirst(), context), Literal.of("mode"));
+                }
+                yield SqlFunctionCall.of("mode", compileToSqlExpression(args.getFirst(), context));
+            }
+            case "stdDevSample" -> {
+                if (args.isEmpty()) throw new PureCompileException("stdDevSample() requires an argument");
+                yield SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_samp"));
+            }
+            case "stdDevPopulation" -> {
+                if (args.isEmpty()) throw new PureCompileException("stdDevPopulation() requires an argument");
+                yield SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_pop"));
+            }
+            case "median" -> {
+                if (args.isEmpty()) throw new PureCompileException("median() requires an argument");
+                yield SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(args.getFirst(), context), Literal.of("median"));
+            }
+            case "varianceSample" -> {
+                if (args.isEmpty()) throw new PureCompileException("varianceSample() requires an argument");
+                yield SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(args.getFirst(), context), Literal.of("var_samp"));
+            }
+            case "variancePopulation" -> {
+                if (args.isEmpty()) throw new PureCompileException("variancePopulation() requires an argument");
+                yield SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(args.getFirst(), context), Literal.of("var_pop"));
+            }
+            case "covarSample" -> {
+                if (args.size() < 2) throw new PureCompileException("covarSample() requires two arguments");
+                yield new org.finos.legend.engine.plan.AggregateExpression(
+                        org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_SAMP,
+                        compileToSqlExpression(args.get(0), context),
+                        compileToSqlExpression(args.get(1), context));
+            }
+            case "covarPopulation" -> {
+                if (args.size() < 2) throw new PureCompileException("covarPopulation() requires two arguments");
+                yield new org.finos.legend.engine.plan.AggregateExpression(
+                        org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_POP,
+                        compileToSqlExpression(args.get(0), context),
+                        compileToSqlExpression(args.get(1), context));
+            }
+            case "corr" -> {
+                if (args.size() < 2) throw new PureCompileException("corr() requires two arguments");
+                yield new org.finos.legend.engine.plan.AggregateExpression(
+                        org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.CORR,
+                        compileToSqlExpression(args.get(0), context),
+                        compileToSqlExpression(args.get(1), context));
+            }
             default -> {
                 // Standard function call: first arg is target, rest are additional
                 List<Expression> sqlArgs = args.stream()
@@ -3725,6 +3779,14 @@ public final class PureCompiler {
             }
             case "average" -> // [list]->average() -> list_avg(list)
                 SqlFunctionCall.of("list_avg", compileToSqlExpression(methodCall.source(), context));
+            case "mode" -> { // [list]->mode() -> list_aggr(list, 'mode'); scalar->mode() -> MODE(x)
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(methodCall.source(), context),
+                            Literal.of("mode"));
+                }
+                yield SqlFunctionCall.of("mode", compileToSqlExpression(methodCall.source(), context));
+            }
             case "stdDevSample" -> // [list]->stdDevSample() -> list_aggr(list, 'stddev_samp')
                 SqlFunctionCall.of("list_aggr",
                         compileToSqlExpression(methodCall.source(), context),
@@ -3733,6 +3795,54 @@ public final class PureCompiler {
                 SqlFunctionCall.of("list_aggr",
                         compileToSqlExpression(methodCall.source(), context),
                         Literal.of("stddev_pop"));
+            case "median" -> // [list]->median() -> list_aggr(list, 'median')
+                SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of("median"));
+            case "varianceSample" -> // [list]->varianceSample() -> list_aggr(list, 'var_samp')
+                SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of("var_samp"));
+            case "variancePopulation" -> // [list]->variancePopulation() -> list_aggr(list, 'var_pop')
+                SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of("var_pop"));
+            case "variance" -> { // [list]->variance(bool) -> var_samp (true) or var_pop (false)
+                String varFunc = "var_samp"; // default to sample
+                if (!methodCall.arguments().isEmpty()) {
+                    PureExpression arg = methodCall.arguments().getFirst();
+                    if (arg instanceof BooleanLiteral bl && Boolean.FALSE.equals(bl.value())) {
+                        varFunc = "var_pop";
+                    }
+                }
+                yield SqlFunctionCall.of("list_aggr",
+                        compileToSqlExpression(methodCall.source(), context),
+                        Literal.of(varFunc));
+            }
+            case "covarSample" -> { // [list1]->covarSample([list2])
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("covarSample requires a second list argument");
+                Expression list1 = compileToSqlExpression(methodCall.source(), context);
+                Expression list2 = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                yield new org.finos.legend.engine.plan.AggregateExpression(
+                        org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_SAMP, list1, list2);
+            }
+            case "covarPopulation" -> { // [list1]->covarPopulation([list2])
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("covarPopulation requires a second list argument");
+                Expression list1 = compileToSqlExpression(methodCall.source(), context);
+                Expression list2 = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                yield new org.finos.legend.engine.plan.AggregateExpression(
+                        org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_POP, list1, list2);
+            }
+            case "corr" -> { // [list1]->corr([list2])
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("corr requires a second list argument");
+                Expression list1 = compileToSqlExpression(methodCall.source(), context);
+                Expression list2 = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                yield new org.finos.legend.engine.plan.AggregateExpression(
+                        org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.CORR, list1, list2);
+            }
             case "toFloat" -> // toFloat(x) -> CAST(x AS DOUBLE)
                 new SqlFunctionCall("cast", compileToSqlExpression(methodCall.source(), context),
                         java.util.List.of(), SqlType.DOUBLE);

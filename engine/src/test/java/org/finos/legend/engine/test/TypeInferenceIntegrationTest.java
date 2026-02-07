@@ -457,6 +457,104 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(6, ((Number) val).longValue());
     }
 
+    @Test
+    void testListMode() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[5.0, 5.0, 5.0, 2.0, 2.0]->mode()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(5.0, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testListModeSingleValue() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1.0->mode()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(1.0, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testListMedian() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4, 5]->median()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(3.0, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testListVarianceSample() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1.0, 2.0, 3.0]->varianceSample()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(1.0, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testListVariancePopulation() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2]->variancePopulation()",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(0.25, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testListCorr() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2]->corr([10, 20])",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(1.0, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testListCovarPopulation() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2]->covarPopulation([10, 20])",
+                "test::TestRuntime",
+                connection,
+                QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertInstanceOf(Number.class, val);
+        assertEquals(2.5, ((Number) val).doubleValue(), 0.001);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
