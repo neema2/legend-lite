@@ -76,8 +76,8 @@ public record WindowExpression(
         COVAR_POP,
 
         // Percentile functions (ordered-set aggregates)
-        PERCENTILE_CONT,
-        PERCENTILE_DISC,
+        QUANTILE_CONT,
+        QUANTILE_DISC,
 
         // Mode
         MODE,

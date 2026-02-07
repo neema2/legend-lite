@@ -151,7 +151,7 @@ public record SqlFunctionCall(
             case "stddevpopulation" -> "STDDEV_POP";
             case "median" -> "MEDIAN";
             case "mode" -> "MODE";
-            case "percentile" -> "PERCENTILE_CONT";
+            case "percentile" -> "QUANTILE_CONT";
             case "minby" -> "ARG_MIN";
             case "maxby" -> "ARG_MAX";
 

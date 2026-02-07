@@ -2658,8 +2658,8 @@ public final class PureCompiler {
             case CORR -> WindowExpression.WindowFunction.CORR;
             case COVAR_SAMP -> WindowExpression.WindowFunction.COVAR_SAMP;
             case COVAR_POP -> WindowExpression.WindowFunction.COVAR_POP;
-            case PERCENTILE_CONT -> WindowExpression.WindowFunction.PERCENTILE_CONT;
-            case PERCENTILE_DISC -> WindowExpression.WindowFunction.PERCENTILE_DISC;
+            case PERCENTILE_CONT -> WindowExpression.WindowFunction.QUANTILE_CONT;
+            case PERCENTILE_DISC -> WindowExpression.WindowFunction.QUANTILE_DISC;
             case STRING_AGG -> WindowExpression.WindowFunction.STRING_AGG;
         };
 
@@ -2756,8 +2756,8 @@ public final class PureCompiler {
             case "percentrank", "percent_rank" -> WindowExpression.WindowFunction.PERCENT_RANK;
             case "cumulativedistribution", "cume_dist" -> WindowExpression.WindowFunction.CUME_DIST;
             // Percentile functions
-            case "percentilecont", "percentile_cont" -> WindowExpression.WindowFunction.PERCENTILE_CONT;
-            case "percentiledisc", "percentile_disc" -> WindowExpression.WindowFunction.PERCENTILE_DISC;
+            case "percentilecont", "percentile_cont" -> WindowExpression.WindowFunction.QUANTILE_CONT;
+            case "percentiledisc", "percentile_disc" -> WindowExpression.WindowFunction.QUANTILE_DISC;
             default -> throw new PureCompileException("Unknown window function: " + functionName);
         };
     }

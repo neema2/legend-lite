@@ -308,14 +308,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         for (GroupByNode.AggregateProjection agg : groupBy.aggregations()) {
             sb.append(", ");
 
-            // Handle percentile functions with WITHIN GROUP syntax
+            // Handle percentile functions: quantile_cont(column, percentile_value)
             if (agg.isPercentile()) {
-                // PERCENTILE_CONT(value) WITHIN GROUP (ORDER BY column)
                 sb.append(agg.function().sql());
                 sb.append("(");
-                sb.append(agg.optionalPercentileValue().orElse(0.5)); // default to median
-                sb.append(") WITHIN GROUP (ORDER BY ");
                 sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(", ");
+                sb.append(agg.optionalPercentileValue().orElse(0.5));
                 sb.append(")");
             } else if (agg.function() == AggregateExpression.AggregateFunction.HASH_CODE) {
                 // HASH(LIST(column)) - hash of all grouped values
@@ -381,14 +380,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             first = false;
 
-            // Handle percentile functions with WITHIN GROUP syntax
+            // Handle percentile functions: quantile_cont(column, percentile_value)
             if (agg.isPercentile()) {
-                // PERCENTILE_CONT(value) WITHIN GROUP (ORDER BY column)
                 sb.append(agg.function().sql());
                 sb.append("(");
-                sb.append(agg.optionalPercentileValue().orElse(0.5)); // default to median
-                sb.append(") WITHIN GROUP (ORDER BY ");
                 sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(", ");
+                sb.append(agg.optionalPercentileValue().orElse(0.5));
                 sb.append(")");
             } else if (agg.function() == AggregateExpression.AggregateFunction.HASH_CODE) {
                 // HASH(LIST(column)) - hash of all grouped values
@@ -1653,16 +1651,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             return funcName + " " + arg + ")"; // COUNT(DISTINCT col)
         }
 
-        // Handle ordered-set aggregate functions (PERCENTILE_CONT, PERCENTILE_DISC)
+        // Handle percentile functions: quantile_cont(column, percentile_value)
         if (aggregate.function() == AggregateExpression.AggregateFunction.PERCENTILE_CONT
                 || aggregate.function() == AggregateExpression.AggregateFunction.PERCENTILE_DISC) {
-            // Syntax: PERCENTILE_CONT(percentile_value) WITHIN GROUP (ORDER BY column)
-            // argument = the column to order by
-            // secondArgument = the percentile value (0.0 - 1.0)
             String percentileValue = aggregate.optionalSecondArgument()
                     .map(e -> e.accept(this))
-                    .orElse("0.5"); // default to median
-            return funcName + "(" + percentileValue + ") WITHIN GROUP (ORDER BY " + arg + ")";
+                    .orElse("0.5");
+            return funcName + "(" + arg + ", " + percentileValue + ")";
         }
 
         // Handle bi-variate functions (CORR, COVAR_SAMP, COVAR_POP) with list arguments
