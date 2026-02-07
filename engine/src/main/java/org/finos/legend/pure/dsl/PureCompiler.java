@@ -3562,6 +3562,16 @@ public final class PureCompiler {
                         compileToSqlExpression(args.get(0), context),
                         compileToSqlExpression(args.get(1), context));
             }
+            // between(x, low, high) -> x >= low AND x <= high
+            case "between" -> {
+                if (args.size() < 3) throw new PureCompileException("between() requires 3 arguments: value, low, high");
+                Expression value = compileToSqlExpression(args.get(0), context);
+                Expression low = compileToSqlExpression(args.get(1), context);
+                Expression high = compileToSqlExpression(args.get(2), context);
+                yield LogicalExpression.and(
+                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, low),
+                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, high));
+            }
             default -> {
                 // Standard function call: first arg is target, rest are additional
                 List<Expression> sqlArgs = args.stream()
