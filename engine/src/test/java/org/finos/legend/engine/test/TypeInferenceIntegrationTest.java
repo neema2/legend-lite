@@ -1175,6 +1175,41 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("Phone", ((ScalarResult) result).value());
     }
 
+    // --- PCT: indexOf on lists - 0-based ---
+    @Test
+    void testIndexOfList() throws SQLException {
+        // PCT: |['a', 'b', 'c', 'd']->indexOf('c') => 2
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a', 'b', 'c', 'd']->indexOf('c')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    @Test
+    void testIndexOfOneElement() throws SQLException {
+        // PCT: |['a']->indexOf('a') => 0
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a']->indexOf('a')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(0, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    // --- PCT: DateTime toString format ---
+    @Test
+    void testDateTimeToString() throws SQLException {
+        // PCT: |%2014-01-01T00:00:00.000+0000->toString() => '2014-01-01T00:00:00.000+0000'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2014-01-01T00:00:00.000+0000->toString()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("2014-01-01T00:00:00.000+0000", ((ScalarResult) result).value());
+    }
+
     @Test
     void testSplitPartEmptyString() throws SQLException {
         // PCT: |[]->splitPart(' ', 0) => ''

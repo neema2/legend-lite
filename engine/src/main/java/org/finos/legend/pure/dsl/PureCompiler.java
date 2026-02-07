@@ -3773,9 +3773,17 @@ public final class PureCompiler {
                 yield compileToSqlExpression(methodCall.source(), context);
             }
             // Type conversion functions
-            case "toString" -> new SqlFunctionCall("cast",
-                    compileToSqlExpression(methodCall.source(), context),
-                    java.util.List.of(), SqlType.VARCHAR);
+            case "toString" -> {
+                // For date/datetime literals, return the original Pure date string directly
+                if (methodCall.source() instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.DATE) {
+                    String dateStr = (String) lit.value();
+                    String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
+                    yield Literal.string(stripped);
+                }
+                yield new SqlFunctionCall("cast",
+                        compileToSqlExpression(methodCall.source(), context),
+                        java.util.List.of(), SqlType.VARCHAR);
+            }
 
             // ===== STRING FUNCTIONS =====
             case "format" -> { // 'template %s %d'->format([arg1, arg2]) -> format IR node
@@ -3835,13 +3843,19 @@ public final class PureCompiler {
                                         SqlType.VARCHAR)),
                         new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), SqlType.VARCHAR)));
             }
-            case "indexOf" -> { // indexOf(s, sub) -> position(sub IN s) - returns 0 if not found
+            case "indexOf" -> { // indexOf on list or string
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("indexOf requires an argument");
-                // DuckDB uses instr(string, search) which returns position (1-based) or 0
-                yield SqlFunctionCall.of("instr",
-                        compileToSqlExpression(methodCall.source(), context),
-                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                Expression arg = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    // List indexOf: list_position(list, elem) returns 1-based, subtract 1 for 0-based
+                    yield ArithmeticExpression.subtract(
+                            SqlFunctionCall.of("list_position", src, arg),
+                            Literal.integer(1));
+                }
+                // String indexOf: instr(string, search) returns 1-based or 0
+                yield SqlFunctionCall.of("instr", src, arg);
             }
             case "char" -> // char(n) -> chr(n) (DuckDB uses chr, not char)
                 SqlFunctionCall.of("chr", compileToSqlExpression(methodCall.source(), context));
