@@ -596,6 +596,68 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertNotEquals(br.rows().get(0).get(1), br.rows().get(1).get(1));
     }
 
+    // ==================== Scalar aggregate functions (should pass through, not use list_*) ====================
+
+    @Test
+    void testScalarAverageFloat() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1.0->average()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(1.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testScalarSumFloat() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2.5->sum()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2.5, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testScalarSumInteger() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|7->sum()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 7);
+    }
+
+    @Test
+    void testScalarModeFloat() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|3.14->mode()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(3.14, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testScalarAverageInteger() throws SQLException {
+        // average() always returns Float, even for integer input
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|11->average()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(11.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testScalarMeanFloat() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|5.0->mean()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(5.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

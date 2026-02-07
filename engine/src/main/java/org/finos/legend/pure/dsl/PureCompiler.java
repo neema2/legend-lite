@@ -3471,19 +3471,33 @@ public final class PureCompiler {
             // List aggregate functions (function-call style)
             case "sum", "plus" -> {
                 if (args.isEmpty()) throw new PureCompileException("sum() requires an argument");
-                yield SqlFunctionCall.of("list_sum", compileToSqlExpression(args.getFirst(), context));
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_sum", compileToSqlExpression(args.getFirst(), context));
+                }
+                yield compileToSqlExpression(args.getFirst(), context);
             }
             case "average", "mean" -> {
                 if (args.isEmpty()) throw new PureCompileException("average() requires an argument");
-                yield SqlFunctionCall.of("list_avg", compileToSqlExpression(args.getFirst(), context));
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_avg", compileToSqlExpression(args.getFirst(), context));
+                }
+                // average/mean always returns Float, so cast scalar to DOUBLE
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(args.getFirst(), context), "DOUBLE");
             }
             case "min" -> {
                 if (args.isEmpty()) throw new PureCompileException("min() requires an argument");
-                yield SqlFunctionCall.of("list_min", compileToSqlExpression(args.getFirst(), context));
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_min", compileToSqlExpression(args.getFirst(), context));
+                }
+                yield SqlFunctionCall.of("min", compileToSqlExpression(args.getFirst(), context));
             }
             case "max" -> {
                 if (args.isEmpty()) throw new PureCompileException("max() requires an argument");
-                yield SqlFunctionCall.of("list_max", compileToSqlExpression(args.getFirst(), context));
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_max", compileToSqlExpression(args.getFirst(), context));
+                }
+                yield SqlFunctionCall.of("max", compileToSqlExpression(args.getFirst(), context));
             }
             case "mode" -> {
                 if (args.isEmpty()) throw new PureCompileException("mode() requires an argument");
@@ -3495,18 +3509,27 @@ public final class PureCompiler {
             }
             case "stdDevSample" -> {
                 if (args.isEmpty()) throw new PureCompileException("stdDevSample() requires an argument");
-                yield SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_samp"));
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_samp"));
+                }
+                yield SqlFunctionCall.of("stddev_samp", compileToSqlExpression(args.getFirst(), context));
             }
             case "stdDevPopulation" -> {
                 if (args.isEmpty()) throw new PureCompileException("stdDevPopulation() requires an argument");
-                yield SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_pop"));
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_pop"));
+                }
+                yield SqlFunctionCall.of("stddev_pop", compileToSqlExpression(args.getFirst(), context));
             }
             case "median" -> {
                 if (args.isEmpty()) throw new PureCompileException("median() requires an argument");
-                yield SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(args.getFirst(), context), Literal.of("median"));
+                if (args.getFirst() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(args.getFirst(), context), Literal.of("median"));
+                }
+                yield SqlFunctionCall.of("median", compileToSqlExpression(args.getFirst(), context));
             }
             case "varianceSample" -> {
                 if (args.isEmpty()) throw new PureCompileException("varianceSample() requires an argument");
@@ -3791,8 +3814,14 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
-            case "average" -> // [list]->average() -> list_avg(list)
-                SqlFunctionCall.of("list_avg", compileToSqlExpression(methodCall.source(), context));
+            case "average" -> { // [list]->average() -> list_avg(list); scalar->average() -> CAST(x AS DOUBLE)
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_avg", compileToSqlExpression(methodCall.source(), context));
+                }
+                // average() always returns Float, so cast scalar to DOUBLE
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context), "DOUBLE");
+            }
             case "mode" -> { // [list]->mode() -> list_aggr(list, 'mode'); scalar->mode() -> MODE(x)
                 if (methodCall.source() instanceof ArrayLiteral) {
                     yield SqlFunctionCall.of("list_aggr",
@@ -3801,26 +3830,46 @@ public final class PureCompiler {
                 }
                 yield SqlFunctionCall.of("mode", compileToSqlExpression(methodCall.source(), context));
             }
-            case "stdDevSample" -> // [list]->stdDevSample() -> list_aggr(list, 'stddev_samp')
-                SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(methodCall.source(), context),
-                        Literal.of("stddev_samp"));
-            case "stdDevPopulation" -> // [list]->stdDevPopulation()
-                SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(methodCall.source(), context),
-                        Literal.of("stddev_pop"));
-            case "median" -> // [list]->median() -> list_aggr(list, 'median')
-                SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(methodCall.source(), context),
-                        Literal.of("median"));
-            case "varianceSample" -> // [list]->varianceSample() -> list_aggr(list, 'var_samp')
-                SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(methodCall.source(), context),
-                        Literal.of("var_samp"));
-            case "variancePopulation" -> // [list]->variancePopulation() -> list_aggr(list, 'var_pop')
-                SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(methodCall.source(), context),
-                        Literal.of("var_pop"));
+            case "stdDevSample" -> { // [list]->stdDevSample() -> list_aggr(list, 'stddev_samp')
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(methodCall.source(), context),
+                            Literal.of("stddev_samp"));
+                }
+                yield SqlFunctionCall.of("stddev_samp", compileToSqlExpression(methodCall.source(), context));
+            }
+            case "stdDevPopulation" -> { // [list]->stdDevPopulation()
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(methodCall.source(), context),
+                            Literal.of("stddev_pop"));
+                }
+                yield SqlFunctionCall.of("stddev_pop", compileToSqlExpression(methodCall.source(), context));
+            }
+            case "median" -> { // [list]->median() -> list_aggr(list, 'median')
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(methodCall.source(), context),
+                            Literal.of("median"));
+                }
+                yield SqlFunctionCall.of("median", compileToSqlExpression(methodCall.source(), context));
+            }
+            case "varianceSample" -> { // [list]->varianceSample() -> list_aggr(list, 'var_samp')
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(methodCall.source(), context),
+                            Literal.of("var_samp"));
+                }
+                yield SqlFunctionCall.of("var_samp", compileToSqlExpression(methodCall.source(), context));
+            }
+            case "variancePopulation" -> { // [list]->variancePopulation() -> list_aggr(list, 'var_pop')
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(methodCall.source(), context),
+                            Literal.of("var_pop"));
+                }
+                yield SqlFunctionCall.of("var_pop", compileToSqlExpression(methodCall.source(), context));
+            }
             case "variance" -> { // [list]->variance(bool) -> var_samp (true) or var_pop (false)
                 String varFunc = "var_samp"; // default to sample
                 if (!methodCall.arguments().isEmpty()) {
@@ -3829,9 +3878,12 @@ public final class PureCompiler {
                         varFunc = "var_pop";
                     }
                 }
-                yield SqlFunctionCall.of("list_aggr",
-                        compileToSqlExpression(methodCall.source(), context),
-                        Literal.of(varFunc));
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_aggr",
+                            compileToSqlExpression(methodCall.source(), context),
+                            Literal.of(varFunc));
+                }
+                yield SqlFunctionCall.of(varFunc, compileToSqlExpression(methodCall.source(), context));
             }
             case "covarSample" -> { // [list1]->covarSample([list2])
                 if (methodCall.arguments().isEmpty())
@@ -3906,10 +3958,20 @@ public final class PureCompiler {
                         adjustedIndex);
             }
             // Aggregate functions on arrays -> DuckDB list aggregate functions
-            case "sum" -> SqlFunctionCall.of("list_sum",
-                    compileToSqlExpression(methodCall.source(), context));
-            case "mean" -> SqlFunctionCall.of("list_avg",
-                    compileToSqlExpression(methodCall.source(), context));
+            case "sum" -> {
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_sum", compileToSqlExpression(methodCall.source(), context));
+                }
+                yield compileToSqlExpression(methodCall.source(), context);
+            }
+            case "mean" -> {
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield SqlFunctionCall.of("list_avg", compileToSqlExpression(methodCall.source(), context));
+                }
+                // mean() always returns Float, so cast scalar to DOUBLE
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        compileToSqlExpression(methodCall.source(), context), "DOUBLE");
+            }
 
             case "size" -> {
                 // Check if source is a relation expression (TdsLiteral, FilterExpression, etc.)

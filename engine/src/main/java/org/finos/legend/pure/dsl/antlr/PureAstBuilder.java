@@ -489,6 +489,14 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (value.isEmpty() || "null".equalsIgnoreCase(value)) {
             return null;
         }
+        // Try Decimal/Number suffix (e.g., 21d, 41.0d, 101.0D)
+        if ((value.endsWith("d") || value.endsWith("D")) && value.length() > 1) {
+            try {
+                return Double.parseDouble(value.substring(0, value.length() - 1));
+            } catch (NumberFormatException e) {
+                // Not a decimal number, fall through
+            }
+        }
         // Try integer
         try {
             return Long.parseLong(value);
