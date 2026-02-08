@@ -3390,6 +3390,7 @@ public final class PureCompiler {
             case "Date", "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
             case "Decimal", "Number" -> "DECIMAL";
+            case "Variant" -> "JSON";
             default -> simpleName.toUpperCase();
         };
     }

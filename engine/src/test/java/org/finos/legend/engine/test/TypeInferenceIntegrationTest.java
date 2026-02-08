@@ -1903,6 +1903,32 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertArrayEquals(new Object[]{"Smith", "Doe", "Branche"}, elements);
     }
 
+    // ==================== Variant type mapping tests ====================
+
+    @Test
+    void testVariantMapsToJson() throws SQLException {
+        // Verify that Variant type maps to JSON, not VARIANT (which DuckDB doesn't have)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->map(x|$x->meta::pure::functions::variant::toVariant())->meta::pure::functions::collection::toMany(@Integer)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+    }
+
+    @Test
+    void testFoldFromVariantAsPrimitive() throws SQLException {
+        // toVariant()->toMany(@Integer)->fold({val, acc | $acc + $val}, 1) = 1+1+2+3 = 7
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::variant::convert::toVariant()->meta::pure::functions::variant::convert::toMany(@Integer)->meta::pure::functions::collection::fold({val: Integer[1], acc: Integer[1]|$acc + $val}, 1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertScalarInteger(result, 7);
+    }
+
+    // testFoldFromVariant skipped: fold with mixed types (JSON elements, Integer accumulator)
+    // causes list_prepend type coercion issue - needs separate fix for heterogeneous fold
+
     // ==================== Fold function tests ====================
 
     @Test
