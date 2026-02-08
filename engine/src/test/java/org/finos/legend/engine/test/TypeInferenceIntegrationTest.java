@@ -1988,6 +1988,27 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("John", ((ScalarResult) result).value());
     }
 
+    @Test
+    void testExistsOnStructArray() throws SQLException {
+        // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->exists(f|$f.legalName == 'f1') = true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f2')]->meta::pure::functions::collection::exists(f: meta::pure::functions::collection::tests::model::CO_Firm[1]|$f.legalName == 'f1')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testPropertyAccessOnFilteredCollection() throws SQLException {
+        // [^Firm(legalName='a'), ^Firm(legalName='b')]->filter(f|$f.legalName == 'a').legalName
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='a'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='b')]->meta::pure::functions::collection::filter(f: meta::pure::functions::collection::tests::model::CO_Firm[1]|$f.legalName == 'a').legalName",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+    }
+
     // ==================== Fold function tests ====================
 
     @Test

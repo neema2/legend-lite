@@ -4096,6 +4096,7 @@ public final class PureCompiler {
         return switch (shortMethodName) {
             case "map" -> compileMapCall(methodCall, context);
             case "filter" -> compileFilterCollectionCall(methodCall, context);
+            case "exists" -> compileExistsCall(methodCall, context);
             case "fold" -> compileFoldCall(methodCall, context);
             case "flatten" -> compileFlattenCall(methodCall, context);
             case "get" -> compileGetCall(methodCall, context);
@@ -5258,6 +5259,30 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles exists(x | condition) on collections to len(list_filter(arr, x -> condition)) > 0
+     * Pure: [1,2,3]->exists(x|$x > 2) = true
+     * SQL:  len(list_filter([1,2,3], x -> x > 2)) > 0
+     */
+    private Expression compileExistsCall(MethodCall methodCall, CompilationContext context) {
+        Expression source = compileToSqlExpression(methodCall.source(), context);
+
+        if (methodCall.arguments().isEmpty() || !(methodCall.arguments().get(0) instanceof LambdaExpression lambda)) {
+            throw new PureCompileException("exists() on collection requires a lambda argument");
+        }
+
+        String lambdaParam = lambda.parameter();
+        Expression lambdaBody = compileToSqlExpression(lambda.body(),
+                context.withLambdaParameter(lambdaParam, ""));
+
+        // exists = len(list_filter(source, param -> body)) > 0
+        Expression filtered = SqlCollectionCall.filter(source, lambdaParam, lambdaBody);
+        return new ComparisonExpression(
+                SqlFunctionCall.of("len", filtered),
+                ComparisonExpression.ComparisonOperator.GREATER_THAN,
+                Literal.integer(0));
+    }
+
+    /**
      * Compiles fold({acc, x | expr}, init) to list_reduce(arr, lambda acc, x: expr,
      * init)
      */
@@ -5564,7 +5589,18 @@ public final class PureCompiler {
         String fullPath = buildPropertyPath(propAccess);
 
         // Extract the variable name from the source (e.g., "x" from $x.col)
-        String varName = extractVariableName(propAccess.source());
+        // If the source is a complex expression (filter, method call, etc.),
+        // fall back to collection property access: list_transform(source, _x -> _x.prop)
+        String varName;
+        try {
+            varName = extractVariableName(propAccess.source());
+        } catch (PureCompileException e) {
+            // Source is a complex expression — compile it and wrap in list_transform
+            Expression compiledSource = compileToSqlExpression(propAccess.source(), context);
+            String syntheticParam = "_prop_x";
+            Expression body = ColumnReference.of(syntheticParam, fullPath);
+            return SqlCollectionCall.map(compiledSource, syntheticParam, body);
+        }
 
         // First check symbol table for ROW binding (new approach)
         if (context != null && context.hasSymbol(varName)) {
