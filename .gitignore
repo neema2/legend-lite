@@ -16,3 +16,4 @@ dependency-reduced-pom.xml
 # Logs
 *.log
 *.wal
+engine/null.wal

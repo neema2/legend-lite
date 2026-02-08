@@ -196,6 +196,55 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
   ]);
 }
 
+// Convert a scalar result to the expected Pure type.
+// Modeled after legend-engine's resultToType in pct_relational.pure.
+// Handles: String→Integer, String→Float, String→Boolean, String→Nil,
+// array strings like "[1, 2, 3]" → Integer[*], Integer→String, and Decimal→Float.
+function meta::legend::lite::pct::resultToType(result: Any[1], type: GenericType[1], mult: Multiplicity[1]):Any[*]
+{
+  let resultType = $type.rawType->toOne();
+
+  if ([
+    // Expected Nil → empty collection
+    pair(|$resultType == Nil, |[]),
+    // String result that looks like array "[]" or "[1, 2, 3]" with toMany multiplicity → parse
+    pair(|$result->instanceOf(String) && $result->cast(@String) == '[]', |[]),
+    pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $result->cast(@String)->endsWith(']') && $mult->isToMany(),
+         |let str = $result->cast(@String);
+          let inner = $str->substring(1, $str->length()-1);
+          if ($inner == '',
+            | [],
+            | let parts = $inner->split(',');
+              if ($resultType->subTypeOf(Integer),
+                | $parts->map(s|$s->trim()->parseInteger()),
+                | if ($resultType->subTypeOf(Float) || $resultType->subTypeOf(Number),
+                    | $parts->map(s|$s->trim()->parseFloat()),
+                    | if ($resultType->subTypeOf(Boolean),
+                        | $parts->map(s|$s->trim() == 'true'),
+                        | $parts->map(s|$s->trim())
+                      )
+                  )
+              );
+          );),
+    // String result, expected Integer → parse
+    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Integer), |$result->cast(@String)->parseInteger()),
+    // String result, expected Float → parse
+    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Float), |$result->cast(@String)->parseFloat()),
+    // String result, expected Boolean → parse
+    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Boolean), |$result->cast(@String) == 'true'),
+    // String result, expected Number → parse as float
+    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Number), |$result->cast(@String)->parseFloat()),
+    // Non-string result, expected String → convert to string
+    pair(|$resultType->subTypeOf(String) && !$result->instanceOf(String), |$result->toString()),
+    // Decimal/Number result but Float expected → convert
+    pair(|$result->instanceOf(Number) && $resultType->subTypeOf(Float) && !$result->instanceOf(Float), |$result->cast(@Number)->toFloat()),
+    // Number result but Integer expected → round
+    pair(|$result->instanceOf(Number) && $resultType->subTypeOf(Integer) && !$result->instanceOf(Integer), |$result->cast(@Number)->round())
+  ],
+  | $result  // fallback: keep as-is
+  );
+}
+
 // PCT Adapter for Legend-Lite
 // This adapter serializes Pure functions to grammar text, executes through
 // legend-lite's QueryService, and converts results back to Pure values.
@@ -248,7 +297,8 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
           
           print('[LegendLite PCT] TDS String for parsing: <<<' + $tdsString + '>>>\n');
           $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
-        | $result->cast(@X)->toMultiplicity(@[o])
+        | let converted = resultToType($result, $f->functionReturnType(), $f->functionReturnMultiplicity());
+          $converted->cast(@X)->toMultiplicity(@[o]);
     );
 }
 
