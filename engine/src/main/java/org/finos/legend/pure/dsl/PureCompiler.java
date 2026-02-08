@@ -962,7 +962,7 @@ public final class PureCompiler {
             case "covarpopulation", "covar_pop" ->
                 org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_POP;
             // Percentile functions
-            case "percentilecont", "percentile_cont" ->
+            case "percentilecont", "percentile_cont", "percentile" ->
                 org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_CONT;
             case "percentiledisc", "percentile_disc" ->
                 org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_DISC;
@@ -2541,7 +2541,8 @@ public final class PureCompiler {
                             inner.offset(),
                             new WindowExpression.PostProcessor(
                                     postProcessed.postProcessorFunction(),
-                                    postProcessed.postProcessorArgs()));
+                                    postProcessed.postProcessorArgs()),
+                            inner.percentileValue());
                 }
             };
 
@@ -2662,6 +2663,14 @@ public final class PureCompiler {
             case PERCENTILE_DISC -> WindowExpression.WindowFunction.QUANTILE_DISC;
             case STRING_AGG -> WindowExpression.WindowFunction.STRING_AGG;
         };
+
+        // For percentile functions, pass the percentile value
+        if ((windowFunc == WindowExpression.WindowFunction.QUANTILE_CONT
+                || windowFunc == WindowExpression.WindowFunction.QUANTILE_DISC)
+                && aggregate.percentileValue() != null) {
+            return WindowExpression.percentile(windowFunc, aggregate.column(),
+                    aggregate.percentileValue(), partitionColumns, orderBy);
+        }
 
         return WindowExpression.aggregate(windowFunc, aggregate.column(), partitionColumns, orderBy, frameSpec);
     }
@@ -3652,6 +3661,62 @@ public final class PureCompiler {
                         new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, low),
                         new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, high));
             }
+            // Date functions (function-call syntax)
+            case "datePart" -> {
+                if (args.isEmpty()) throw new PureCompileException("datePart() requires a date argument");
+                Expression src = compileToSqlExpression(args.getFirst(), context);
+                yield new DateTruncExpression(DateTruncExpression.TruncPart.DAY, src);
+            }
+            case "adjust" -> {
+                // adjust(date, amount, DurationUnit) -> DateAdjustExpression
+                if (args.size() < 3) throw new PureCompileException("adjust() requires 3 arguments: date, amount, unit");
+                Expression dateExpr = compileToSqlExpression(args.get(0), context);
+                Expression amountExpr = compileToSqlExpression(args.get(1), context);
+                DurationUnit unit = parseDurationUnit(args.get(2));
+                yield new DateAdjustExpression(dateExpr, amountExpr, unit);
+            }
+            case "parseDate" -> {
+                if (args.isEmpty()) throw new PureCompileException("parseDate() requires a string argument");
+                Expression src = compileToSqlExpression(args.getFirst(), context);
+                if (args.size() == 1) {
+                    // No format: auto-parse via CAST
+                    yield new org.finos.legend.engine.plan.CastExpression(src, "TIMESTAMP");
+                }
+                yield new SqlFunctionCall("cast",
+                        SqlFunctionCall.of("strptime", src,
+                                compileToSqlExpression(args.get(1), context)),
+                        java.util.List.of(), SqlType.DATE);
+            }
+            case "hasMonth", "hasDay" -> {
+                if (args.isEmpty()) throw new PureCompileException(simpleName + "() requires a date argument");
+                Expression src = compileToSqlExpression(args.getFirst(), context);
+                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                    String dateStr = (String) lit.value();
+                    boolean has = simpleName.equals("hasMonth")
+                            ? dateStr.length() >= 7 : dateStr.length() >= 10;
+                    yield Literal.bool(has);
+                }
+                yield Literal.bool(true);
+            }
+            case "hasHour", "hasMinute", "hasSecond" -> {
+                if (args.isEmpty()) throw new PureCompileException(simpleName + "() requires a date argument");
+                Expression src = compileToSqlExpression(args.getFirst(), context);
+                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                    String dateStr = (String) lit.value();
+                    boolean hasTime = dateStr.contains("T") || dateStr.length() > 10;
+                    boolean has = switch (simpleName) {
+                        case "hasHour" -> hasTime;
+                        case "hasMinute" -> hasTime && dateStr.indexOf(':', dateStr.indexOf('T') + 1) > 0;
+                        case "hasSecond" -> {
+                            int fc2 = dateStr.indexOf(':');
+                            yield hasTime && fc2 > 0 && dateStr.indexOf(':', fc2 + 1) > 0;
+                        }
+                        default -> hasTime;
+                    };
+                    yield Literal.bool(has);
+                }
+                yield Literal.bool(true);
+            }
             default -> {
                 // Standard function call: first arg is target, rest are additional
                 List<Expression> sqlArgs = args.stream()
@@ -3758,7 +3823,25 @@ public final class PureCompiler {
             }
             // IN expression: $x->in([a, b, c]) -> list_contains([a, b, c], x)
             case "in" -> compileListContains(methodCall, context);
-            case "contains" -> compileListContainsMethod(methodCall, context);
+            case "contains" -> {
+                // String contains: STRPOS(s, search) > 0; List contains: list_contains(list, value)
+                if (methodCall.source() instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.STRING) {
+                    // String source -> string contains
+                    if (methodCall.arguments().isEmpty())
+                        throw new PureCompileException("contains() requires an argument");
+                    yield new ComparisonExpression(
+                            SqlFunctionCall.of("strpos",
+                                    compileToSqlExpression(methodCall.source(), context),
+                                    compileToSqlExpression(methodCall.arguments().getFirst(), context)),
+                            ComparisonExpression.ComparisonOperator.GREATER_THAN, Literal.integer(0));
+                }
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    // List source -> list_contains
+                    yield compileListContainsMethod(methodCall, context);
+                }
+                // Default: try list_contains (may be a variable reference to a list)
+                yield compileListContainsMethod(methodCall, context);
+            }
             // greatest/least on arrays: [1,2,3]->greatest() -> list_max([1, 2, 3])
             case "greatest" -> {
                 if (methodCall.source() instanceof ArrayLiteral) {
@@ -3857,6 +3940,52 @@ public final class PureCompiler {
                 // String indexOf: instr(string, search) returns 1-based or 0
                 yield SqlFunctionCall.of("instr", src, arg);
             }
+            case "lpad" -> { // lpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE lpad(s,n,fill) END
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("lpad requires a length argument");
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                Expression len = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                Expression fill = methodCall.arguments().size() >= 2
+                        ? compileToSqlExpression(methodCall.arguments().get(1), context)
+                        : Literal.string(" ");
+                // CASE WHEN length(s) >= n THEN left(s, n)
+                //      WHEN length(fill) = 0 THEN s
+                //      ELSE lpad(s, n, fill) END
+                yield CaseExpression.of(
+                        new ComparisonExpression(
+                                SqlFunctionCall.of("length", src),
+                                ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, len),
+                        SqlFunctionCall.of("left", src, len),
+                        CaseExpression.of(
+                                new ComparisonExpression(
+                                        SqlFunctionCall.of("length", fill),
+                                        ComparisonExpression.ComparisonOperator.EQUALS, Literal.integer(0)),
+                                src,
+                                SqlFunctionCall.of("lpad", src, len, fill)));
+            }
+            case "rpad" -> { // rpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE rpad(s,n,fill) END
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("rpad requires a length argument");
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                Expression len = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                Expression fill = methodCall.arguments().size() >= 2
+                        ? compileToSqlExpression(methodCall.arguments().get(1), context)
+                        : Literal.string(" ");
+                // CASE WHEN length(s) >= n THEN left(s, n)
+                //      WHEN length(fill) = 0 THEN s
+                //      ELSE rpad(s, n, fill) END
+                yield CaseExpression.of(
+                        new ComparisonExpression(
+                                SqlFunctionCall.of("length", src),
+                                ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, len),
+                        SqlFunctionCall.of("left", src, len),
+                        CaseExpression.of(
+                                new ComparisonExpression(
+                                        SqlFunctionCall.of("length", fill),
+                                        ComparisonExpression.ComparisonOperator.EQUALS, Literal.integer(0)),
+                                src,
+                                SqlFunctionCall.of("rpad", src, len, fill)));
+            }
             case "char" -> // char(n) -> chr(n) (DuckDB uses chr, not char)
                 SqlFunctionCall.of("chr", compileToSqlExpression(methodCall.source(), context));
             case "parseInteger" -> // parseInteger(s) -> CAST(s AS BIGINT)
@@ -3901,10 +4030,23 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
-            case "decodeBase64" -> // decodeBase64(s) -> CAST(from_base64(s) AS VARCHAR)
-                new org.finos.legend.engine.plan.CastExpression(
-                        SqlFunctionCall.of("from_base64", compileToSqlExpression(methodCall.source(), context)),
-                        "VARCHAR");
+            case "decodeBase64" -> { // decodeBase64(s) -> CAST(from_base64(padded_s) AS VARCHAR)
+                // Pad base64 string to multiple of 4 with '=' for DuckDB compatibility
+                // Strip existing '=' padding first, then re-pad correctly
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                // rtrim(s, '=') removes existing padding
+                Expression stripped = SqlFunctionCall.of("rtrim", src, Literal.string("="));
+                // CAST((length(stripped) + 3) / 4 AS INTEGER) * 4
+                Expression divResult = new org.finos.legend.engine.plan.CastExpression(
+                        ArithmeticExpression.divide(
+                                ArithmeticExpression.add(SqlFunctionCall.of("length", stripped), Literal.integer(3)),
+                                Literal.integer(4)),
+                        "INTEGER");
+                Expression paddedLen = ArithmeticExpression.multiply(divResult, Literal.integer(4));
+                Expression padded = SqlFunctionCall.of("rpad", stripped, paddedLen, Literal.string("="));
+                yield new org.finos.legend.engine.plan.CastExpression(
+                        SqlFunctionCall.of("from_base64", padded), "VARCHAR");
+            }
             case "encodeBase64" -> // encodeBase64(s) -> to_base64(CAST(s AS BLOB))
                 SqlFunctionCall.of("to_base64",
                         new org.finos.legend.engine.plan.CastExpression(
@@ -4057,6 +4199,21 @@ public final class PureCompiler {
                 }
                 yield SqlFunctionCall.of(varFunc, compileToSqlExpression(methodCall.source(), context));
             }
+            case "percentileCont", "percentile" -> { // list->percentileCont(0.5) -> list_aggr(list, 'quantile_cont', p)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("percentileCont requires a percentile value argument");
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                Expression pValue = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                // quantile_cont is an aggregate function — must use list_aggr for standalone calls
+                yield SqlFunctionCall.of("list_aggr", src, Literal.of("quantile_cont"), pValue);
+            }
+            case "percentileDisc" -> { // list->percentileDisc(0.5) -> list_aggr(list, 'quantile_disc', p)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("percentileDisc requires a percentile value argument");
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                Expression pValue = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                yield SqlFunctionCall.of("list_aggr", src, Literal.of("quantile_disc"), pValue);
+            }
             case "covarSample" -> { // [list1]->covarSample([list2])
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("covarSample requires a second list argument");
@@ -4182,14 +4339,17 @@ public final class PureCompiler {
                 SqlFunctionCall.of("list_sort", compileToSqlExpression(methodCall.source(), context));
 
             // ===== DATE FUNCTIONS =====
+            case "datePart" -> { // date->datePart() -> DATE_TRUNC('day', date)
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                yield new DateTruncExpression(DateTruncExpression.TruncPart.DAY, src);
+            }
             case "date" -> { // date(y, m, d [, h, min, sec]) -> make_date or make_timestamp
                 var args = methodCall.arguments();
-                if (args.size() < 2) {
-                    throw new PureCompileException("date() as method requires month and day arguments");
-                }
                 Expression year = compileToSqlExpression(methodCall.source(), context);
-                Expression month = compileToSqlExpression(args.get(0), context);
-                Expression day = compileToSqlExpression(args.get(1), context);
+                Expression month = args.size() >= 1
+                        ? compileToSqlExpression(args.get(0), context) : Literal.integer(1);
+                Expression day = args.size() >= 2
+                        ? compileToSqlExpression(args.get(1), context) : Literal.integer(1);
                 if (args.size() >= 3) {
                     // date(y, m, d, h, ...) -> make_timestamp(y, m, d, h, min, sec)
                     // source=y, args=[m, d, h, min?, sec?]
@@ -4223,12 +4383,14 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(args.get(1));
                 yield new DateAdjustExpression(dateExpr, amountExpr, unit);
             }
-            case "parseDate" -> { // parseDate(s, fmt) -> strptime(s, fmt)::DATE
-                if (methodCall.arguments().isEmpty())
-                    throw new PureCompileException("parseDate requires a format argument");
+            case "parseDate" -> { // parseDate(s, fmt) -> strptime(s, fmt)::DATE or CAST(s AS TIMESTAMP)
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.arguments().isEmpty()) {
+                    // No format arg: use CAST(s AS TIMESTAMP) which auto-parses common formats
+                    yield new org.finos.legend.engine.plan.CastExpression(src, "TIMESTAMP");
+                }
                 yield new SqlFunctionCall("cast",
-                        SqlFunctionCall.of("strptime",
-                                compileToSqlExpression(methodCall.source(), context),
+                        SqlFunctionCall.of("strptime", src,
                                 compileToSqlExpression(methodCall.arguments().getFirst(), context)),
                         java.util.List.of(), SqlType.DATE);
             }

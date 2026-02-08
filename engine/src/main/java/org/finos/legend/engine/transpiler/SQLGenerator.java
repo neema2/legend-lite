@@ -886,6 +886,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             } else {
                 sb.append(dialect.quoteIdentifier(w.aggregateColumn()));
             }
+            // Add percentile value for QUANTILE_CONT/QUANTILE_DISC
+            if (w.percentileValue() != null
+                    && (w.function() == WindowExpression.WindowFunction.QUANTILE_CONT
+                            || w.function() == WindowExpression.WindowFunction.QUANTILE_DISC)) {
+                sb.append(", ");
+                sb.append(w.percentileValue());
+            }
             // Add separator for STRING_AGG (default to empty string for joinStrings(''))
             if (w.function() == WindowExpression.WindowFunction.STRING_AGG) {
                 sb.append(", ''");

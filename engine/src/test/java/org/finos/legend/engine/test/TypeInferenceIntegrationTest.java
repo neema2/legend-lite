@@ -1360,6 +1360,208 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(false, ((ScalarResult) result).value());
     }
 
+    // ==================== RC-12: Date Function Gaps ====================
+
+    // --- 12c: date() with 0 or 1 args ---
+    @Test
+    void testDateYearOnly() throws SQLException {
+        // PCT: |2015->date() => year-only date
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2015->date()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        // year-only date(2015) creates 2015-01-01
+        assertNotNull(((ScalarResult) result).value());
+    }
+
+    @Test
+    void testDateYearMonth() throws SQLException {
+        // PCT: |2015->date(4) => year-month date
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2015->date(4)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertNotNull(((ScalarResult) result).value());
+    }
+
+    // --- 12b: parseDate without format ---
+    @Test
+    void testParseDateNoFormat() throws SQLException {
+        // PCT: |'2014-02-27T10:01:35.231+0000'->parseDate()
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'2014-02-27T10:01:35.231+0000'->parseDate()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertNotNull(((ScalarResult) result).value());
+    }
+
+    @Test
+    void testParseDateNoFormatSimple() throws SQLException {
+        // PCT: |'2014-02-27'->parseDate()
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'2014-02-27'->parseDate()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertNotNull(((ScalarResult) result).value());
+    }
+
+    // --- 12a: datepart ---
+    @Test
+    void testDatePartOnDate() throws SQLException {
+        // PCT: |%1973-11-05->datePart() => date truncated to day
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%1973-11-05->datePart()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertNotNull(((ScalarResult) result).value());
+    }
+
+    @Test
+    void testDatePartOnTimestamp() throws SQLException {
+        // PCT: |%1973-11-05T13:01:25+0000->datePart() => date part only
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%1973-11-05T13:01:25+0000->datePart()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertNotNull(((ScalarResult) result).value());
+    }
+
+    // --- 12d: adjust as function call ---
+    @Test
+    void testAdjustFunctionCall() throws SQLException {
+        // PCT: |adjust(%2015-02-28, 1, meta::pure::functions::date::DurationUnit.YEARS)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-02-28->adjust(1, meta::pure::functions::date::DurationUnit.YEARS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertNotNull(((ScalarResult) result).value());
+    }
+
+    // --- 12e: hasMonth as function call ---
+    @Test
+    void testHasMonthOnFullDate() throws SQLException {
+        // PCT: |hasMonth(%2015-04-01) => true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-04-01->hasMonth()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    // ==================== RC-13: DuckDB Function Mapping Gaps ====================
+
+    // --- 13a: lpad/rpad ---
+    @Test
+    void testLpadDefaultFill() throws SQLException {
+        // PCT: |'abcd'->lpad(10) => '      abcd' (6 spaces + abcd)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'abcd'->lpad(10)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("      abcd", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testLpadShorterThanString() throws SQLException {
+        // PCT: |'abcdefghij'->lpad(5) => 'abcde' (truncate)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'abcdefghij'->lpad(5)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("abcde", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testRpadDefaultFill() throws SQLException {
+        // PCT: |'abcd'->rpad(10) => 'abcd      ' (abcd + 6 spaces)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'abcd'->rpad(10)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("abcd      ", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testRpadShorterThanString() throws SQLException {
+        // PCT: |'abcdefghij'->rpad(5) => 'abcde' (truncate)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'abcdefghij'->rpad(5)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("abcde", ((ScalarResult) result).value());
+    }
+
+    // --- 13b: contains on strings ---
+    @Test
+    void testContainsOnString() throws SQLException {
+        // PCT: |'the quick brown fox jumps over the lazy dog'->contains('fox') => true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown fox jumps over the lazy dog'->contains('fox')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testContainsOnStringNotFound() throws SQLException {
+        // PCT: |'the quick brown fox'->contains('cat') => false
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown fox'->contains('cat')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    // --- 13c: percentileCont on lists ---
+    @Test
+    void testPercentileContOnList() throws SQLException {
+        // PCT: |[1, 2, 3, 4, 5]->percentileCont(0.5) => 3.0 (median)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4, 5]->percentileCont(0.5)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(3.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.01);
+    }
+
+    @Test
+    void testPercentileContOnListQuartile() throws SQLException {
+        // PCT: |[1, 2, 3, 4, 5]->percentileCont(0.25) => 2.0
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4, 5]->percentileCont(0.25)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2.0, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.01);
+    }
+
+    // --- 13d: base64 decode without padding ---
+    @Test
+    void testDecodeBase64NoPadding() throws SQLException {
+        // PCT: |'SGVsbG8sIFdvcmxkIQ'->decodeBase64() => 'Hello, World!'
+        // The base64 string is missing the trailing '=' padding
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'SGVsbG8sIFdvcmxkIQ'->decodeBase64()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("Hello, World!", ((ScalarResult) result).value());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

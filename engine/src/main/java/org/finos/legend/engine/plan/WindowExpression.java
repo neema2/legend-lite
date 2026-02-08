@@ -27,7 +27,8 @@ public record WindowExpression(
         List<SortSpec> orderBy,
         FrameSpec frame,
         Integer offset,
-        PostProcessor postProcessor) { // Optional post-processor for chained scalar functions
+        PostProcessor postProcessor,
+        Double percentileValue) { // Optional percentile value for QUANTILE_CONT/QUANTILE_DISC
 
     /**
      * Post-processor function applied to the window result.
@@ -292,6 +293,7 @@ public record WindowExpression(
         Objects.requireNonNull(orderBy, "Order columns cannot be null");
         // aggregateColumn can be null for ranking functions
         // frame can be null (uses SQL default)
+        // percentileValue can be null for non-percentile functions
     }
 
     /**
@@ -301,7 +303,7 @@ public record WindowExpression(
             WindowFunction function,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, null, partitionBy, orderBy, null, null, null);
+        return new WindowExpression(function, null, partitionBy, orderBy, null, null, null, null);
     }
 
     /**
@@ -312,7 +314,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, null, partitionBy, orderBy, frame, null, null);
+        return new WindowExpression(function, null, partitionBy, orderBy, frame, null, null, null);
     }
 
     /**
@@ -323,7 +325,7 @@ public record WindowExpression(
             String aggregateColumn,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null, null, null);
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null, null, null, null);
     }
 
     /**
@@ -335,7 +337,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, frame, null, null);
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, frame, null, null, null);
     }
 
     /**
@@ -347,7 +349,7 @@ public record WindowExpression(
             int offset,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, column, partitionBy, orderBy, null, offset, null);
+        return new WindowExpression(function, column, partitionBy, orderBy, null, offset, null, null);
     }
 
     /**
@@ -361,7 +363,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, column, partitionBy, orderBy, frame, offset, null);
+        return new WindowExpression(function, column, partitionBy, orderBy, frame, offset, null, null);
     }
 
     /**
@@ -371,7 +373,19 @@ public record WindowExpression(
             int bucketCount,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(WindowFunction.NTILE, null, partitionBy, orderBy, null, bucketCount, null);
+        return new WindowExpression(WindowFunction.NTILE, null, partitionBy, orderBy, null, bucketCount, null, null);
+    }
+
+    /**
+     * Creates a percentile window function.
+     */
+    public static WindowExpression percentile(
+            WindowFunction function,
+            String aggregateColumn,
+            double percentileValue,
+            List<String> partitionBy,
+            List<SortSpec> orderBy) {
+        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null, null, null, percentileValue);
     }
 
     /**

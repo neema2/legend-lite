@@ -17,7 +17,8 @@ public record AggregateFunctionSpec(
         String column, // Column to aggregate
         List<String> partitionBy,
         List<WindowFunctionSpec.WindowSortSpec> orderBy,
-        WindowFunctionSpec.WindowFrameSpec frame) implements WindowFunctionSpec {
+        WindowFunctionSpec.WindowFrameSpec frame,
+        Double percentileValue) implements WindowFunctionSpec {
 
     /**
      * Aggregate function types that can be used as window functions.
@@ -85,7 +86,7 @@ public record AggregateFunctionSpec(
     public static AggregateFunctionSpec of(AggregateFunction function, String column,
             List<String> partitionBy, List<WindowFunctionSpec.WindowSortSpec> orderBy,
             WindowFunctionSpec.WindowFrameSpec frame) {
-        return new AggregateFunctionSpec(function, column, partitionBy, orderBy, frame);
+        return new AggregateFunctionSpec(function, column, partitionBy, orderBy, frame, null);
     }
 
     /**
@@ -93,6 +94,15 @@ public record AggregateFunctionSpec(
      */
     public static AggregateFunctionSpec of(AggregateFunction function, String column,
             List<String> partitionBy, List<WindowFunctionSpec.WindowSortSpec> orderBy) {
-        return new AggregateFunctionSpec(function, column, partitionBy, orderBy, null);
+        return new AggregateFunctionSpec(function, column, partitionBy, orderBy, null, null);
+    }
+
+    /**
+     * Creates a percentile aggregate window function spec.
+     */
+    public static AggregateFunctionSpec percentile(AggregateFunction function, String column,
+            double percentileValue,
+            List<String> partitionBy, List<WindowFunctionSpec.WindowSortSpec> orderBy) {
+        return new AggregateFunctionSpec(function, column, partitionBy, orderBy, null, percentileValue);
     }
 }

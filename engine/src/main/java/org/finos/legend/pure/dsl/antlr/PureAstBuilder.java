@@ -1914,6 +1914,16 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     case "percentiledisc" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC;
                     default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
                 };
+                // Extract percentile value for percentile functions
+                if ((aggFunc == AggregateFunctionSpec.AggregateFunction.PERCENTILE_CONT
+                        || aggFunc == AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC)
+                        && !mc.arguments().isEmpty()) {
+                    double pVal = ((Number) extractLiteralValue(mc.arguments().get(0))).doubleValue();
+                    AggregateFunctionSpec pSpec = AggregateFunctionSpec.percentile(aggFunc, columnName, pVal, List.of(), List.of());
+                    RelationExtendExpression.TypedWindowSpec pTypedSpec = RelationExtendExpression.TypedWindowSpec.of(
+                            pSpec, List.of(), List.of(), null);
+                    return RelationExtendExpression.window(source, cs.name(), pTypedSpec);
+                }
             }
         }
 
@@ -2073,6 +2083,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     case "joinstrings" -> AggregateFunctionSpec.AggregateFunction.STRING_AGG;
                     default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
                 };
+                // Extract percentile value for percentile functions
+                if ((aggFunc == AggregateFunctionSpec.AggregateFunction.PERCENTILE_CONT
+                        || aggFunc == AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC)
+                        && !mc.arguments().isEmpty()) {
+                    double pVal = ((Number) extractLiteralValue(mc.arguments().get(0))).doubleValue();
+                    return AggregateFunctionSpec.percentile(aggFunc, columnName, pVal, List.of(), List.of());
+                }
                 return AggregateFunctionSpec.of(aggFunc, columnName, List.of(), List.of());
             }
             // If no method call, default to SUM on extracted column
