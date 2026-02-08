@@ -5112,6 +5112,16 @@ public final class PureCompiler {
         }
 
         Expression valueToCheck = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+
+        // Type mismatch short-circuit: struct list vs primitive (or vice versa) -> always false
+        if (list instanceof ListLiteral ll && !ll.isEmpty()) {
+            boolean listIsStruct = ll.elements().getFirst() instanceof StructLiteralExpression;
+            boolean valueIsStruct = valueToCheck instanceof StructLiteralExpression;
+            if (listIsStruct != valueIsStruct) {
+                return Literal.bool(false);
+            }
+        }
+
         // If the list is JSON[] (mixed-type), wrap the search element in to_json() too
         if (isJsonList(list)) {
             valueToCheck = SqlFunctionCall.of("to_json", valueToCheck);

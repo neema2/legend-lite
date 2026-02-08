@@ -1967,6 +1967,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testContainsStructVsPrimitiveReturnsFalse() throws SQLException {
+        // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->contains(3) = false (type mismatch)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f2')]->meta::pure::functions::collection::contains(3)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
     void testLetInstancePropertyAccess() throws SQLException {
         // let person = ^Person(firstName='John', lastName='Doe'); $person.firstName
         Result result = queryService.execute(
