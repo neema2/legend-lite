@@ -47,7 +47,8 @@ function meta::legend::lite::pct::objectToGrammar(a:Any[1]):String[1]
           $properties->map(p| let value = $p->eval($a);
                               if ($value->isEmpty(),
                                 |'',
-                                |$p.name->toOne() + '=' + $value->map(w|$w->objectToGrammar())->joinStrings(',')
+                                |let vals = $value->map(w|$w->objectToGrammar())->joinStrings(',');
+                                 if($value->size() > 1, |$p.name->toOne() + '=[' + $vals + ']', |$p.name->toOne() + '=' + $vals);
                               );
                        )->filter(v|$v != '')->joinStrings(',')+
         ')';
