@@ -236,6 +236,25 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return ValueSpecificationBootstrap.wrapValueSpecification(
                     org.eclipse.collections.api.factory.Lists.immutable.empty(), true, processorSupport);
         }
+        // Handle lists (from DuckDB arrays unwrapped by Row.java)
+        // Format as a string that the Pure adapter's resultToType can parse.
+        // Uses type-preserving format: [1, 2, 'a', true, %2014-02-01]
+        if (value instanceof java.util.List<?> list) {
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < list.size(); i++) {
+                if (i > 0) sb.append(", ");
+                Object elem = list.get(i);
+                if (elem instanceof String s) {
+                    sb.append("'").append(s).append("'");
+                } else if (elem == null) {
+                    sb.append("[]");
+                } else {
+                    sb.append(elem);
+                }
+            }
+            sb.append("]");
+            return ValueSpecificationBootstrap.newStringLiteral(modelRepository, sb.toString(), processorSupport);
+        }
         if (value instanceof Boolean b) {
             return ValueSpecificationBootstrap.newBooleanLiteral(modelRepository, b, processorSupport);
         }

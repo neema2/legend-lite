@@ -1586,6 +1586,115 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("[a, c, b]", String.valueOf(((ScalarResult) result).value()));
     }
 
+    // ==================== Mixed-type list tests (JSON[]) ====================
+
+    @Test
+    void testConcatenateMixedType() throws SQLException {
+        // PCT: |[1, 2, 3]->concatenate(['a', 'b']) -> [1, 2, 3, 'a', 'b']
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::collection::concatenate(['a', 'b'])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        // Engine unwraps JSON[] to native Java List: [Long(1), Long(2), Long(3), String("a"), String("b")]
+        Object val = ((ScalarResult) result).value();
+        assertTrue(val instanceof java.util.List, "Expected List result, got: " + val.getClass());
+        java.util.List<?> elements = (java.util.List<?>) val;
+        assertEquals(5, elements.size());
+        assertEquals(1L, elements.get(0));
+        assertEquals(2L, elements.get(1));
+        assertEquals(3L, elements.get(2));
+        assertEquals("a", elements.get(3));
+        assertEquals("b", elements.get(4));
+    }
+
+    @Test
+    void testConcatenateHomogeneous() throws SQLException {
+        // PCT: |[1, 2, 3]->concatenate([4, 5]) -> [1, 2, 3, 4, 5]
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::collection::concatenate([4, 5])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        // Homogeneous arrays stay as sql.Array (not unwrapped to List)
+        assertTrue(val instanceof java.sql.Array, "Expected sql.Array result, got: " + val.getClass());
+        Object[] elements = (Object[]) ((java.sql.Array) val).getArray();
+        assertEquals(5, elements.length);
+        assertEquals(1, elements[0]);
+        assertEquals(5, elements[4]);
+    }
+
+    @Test
+    void testContainsPrimitive() throws SQLException {
+        // PCT: |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->contains(1) -> true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testContainsPrimitiveString() throws SQLException {
+        // PCT: |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->contains('a') -> true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains('a')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testInPrimitive() throws SQLException {
+        // PCT: |1->in([1, 2, 5, 2, 'a', true, %2014-02-01, 'c']) -> true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->meta::pure::functions::collection::in([1, 2, 5, 2, 'a', true, %2014-02-01, 'c'])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testInPrimitiveNotFound() throws SQLException {
+        // PCT: |'z'->in([1, 2, 5, 2, 'a', true, %2014-02-01, 'c']) -> false
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'z'->meta::pure::functions::collection::in([1, 2, 5, 2, 'a', true, %2014-02-01, 'c'])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    // ==================== Mixed numeric type tests (should NOT use JSON[]) ====================
+
+    @Test
+    void testSumMixedNumbers() throws SQLException {
+        // PCT: |[15, 13, 2.0, 1, 1.0]->sum() -> 32.0
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[15, 13, 2.0, 1, 1.0]->meta::pure::functions::math::sum()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertEquals(32.0, ((Number) val).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testAverageMixedNumbers() throws SQLException {
+        // PCT: |[5D, 1.0, 2, 8, 3]->average() -> 3.8
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[5.0, 1.0, 2, 8, 3]->meta::pure::functions::math::average()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertEquals(3.8, ((Number) val).doubleValue(), 0.001);
+    }
+
     // ==================== Lambda compilation tests ====================
 
     @Test

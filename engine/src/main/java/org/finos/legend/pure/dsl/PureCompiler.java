@@ -3251,6 +3251,14 @@ public final class PureCompiler {
                 List<Expression> sqlElements = array.elements().stream()
                         .map(e -> compileToSqlExpression(e, context))
                         .toList();
+                // Detect mixed types: if elements have different SqlTypes, wrap each in to_json()
+                // This creates a JSON[] (list of JSON scalars) which preserves per-element type info
+                if (sqlElements.size() > 1 && hasMixedTypes(sqlElements)) {
+                    List<Expression> jsonElements = sqlElements.stream()
+                            .map(e -> (Expression) SqlFunctionCall.of("to_json", e))
+                            .toList();
+                    yield ListLiteral.of(jsonElements);
+                }
                 yield ListLiteral.of(sqlElements);
             }
             // Collection operations on ArrayLiterals -> DuckDB list functions
@@ -3282,6 +3290,21 @@ public final class PureCompiler {
             case ConcatenateExpression concat -> {
                 Expression left = compileToSqlExpression(concat.left(), context);
                 Expression right = compileToSqlExpression(concat.right(), context);
+                // If both sides are already JSON[] (mixed-type), concat directly
+                // If one or both are homogeneous but different types, promote both to JSON[]
+                boolean leftIsJson = isJsonList(left);
+                boolean rightIsJson = isJsonList(right);
+                if (leftIsJson || rightIsJson) {
+                    // At least one side is already JSON[]; wrap the other if needed
+                    if (!leftIsJson) left = wrapListToJson(left);
+                    if (!rightIsJson) right = wrapListToJson(right);
+                    yield SqlFunctionCall.of("list_concat", left, right);
+                }
+                // Check if the two sides have different element types (e.g., INTEGER[] vs VARCHAR[])
+                if (needsCrossTypeConcatPromotion(left, right)) {
+                    left = wrapListToJson(left);
+                    right = wrapListToJson(right);
+                }
                 yield SqlFunctionCall.of("list_concat", left, right);
             }
             case SortExpression sort when sort.source() instanceof ArrayLiteral -> {
@@ -3910,7 +3933,8 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles in(value, [array]) Pure function to SQL: value IN (array elements)
+     * Compiles in(value, [array]) Pure function to SQL: list_contains([array], value)
+     * Uses list_contains with JSON[] wrapping for mixed-type lists.
      */
     private Expression compilePureFunctionIn(List<PureExpression> args, CompilationContext context) {
         if (args.size() < 2) {
@@ -3920,11 +3944,14 @@ public final class PureCompiler {
         // First arg is the value to check
         Expression operand = compileToSqlExpression(args.getFirst(), context);
 
-        // Second arg should be the array of values
-        PureExpression arrayArg = args.get(1);
-        List<Expression> values = extractArrayValues(arrayArg, context);
+        // Second arg is the array — compile it as a list expression
+        Expression list = compileToSqlExpression(args.get(1), context);
 
-        return new InExpression(operand, values, false);
+        // If the list is JSON[] (mixed-type), wrap the search element in to_json() too
+        if (isJsonList(list)) {
+            operand = SqlFunctionCall.of("to_json", operand);
+        }
+        return SqlFunctionCall.of("list_contains", list, operand);
     }
 
     /**
@@ -4861,21 +4888,6 @@ public final class PureCompiler {
     }
 
     /**
-     * Extracts SQL expressions from an ArrayLiteral or other array-like expression.
-     */
-    private List<Expression> extractArrayValues(PureExpression expr, CompilationContext context) {
-        if (expr instanceof ArrayLiteral array) {
-            return array.elements().stream()
-                    .map(e -> compileToSqlExpression(e, context))
-                    .toList();
-        }
-
-        // For non-literal arrays, fall back to attempting SQL compilation
-        // This handles cases like variable references to arrays
-        throw new PureCompileException("in() expects an array literal, got: " + expr);
-    }
-
-    /**
      * Compiles $x->in([a, b, c]) to list_contains([a, b, c], x)
      * Uses DuckDB's native list_contains function.
      */
@@ -4889,6 +4901,10 @@ public final class PureCompiler {
         }
 
         Expression list = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+        // If the list is JSON[] (mixed-type), wrap the search element in to_json() too
+        if (isJsonList(list)) {
+            valueToCheck = SqlFunctionCall.of("to_json", valueToCheck);
+        }
         // list_contains(list, value)
         return SqlFunctionCall.of("list_contains", list, valueToCheck);
     }
@@ -4907,8 +4923,82 @@ public final class PureCompiler {
         }
 
         Expression valueToCheck = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+        // If the list is JSON[] (mixed-type), wrap the search element in to_json() too
+        if (isJsonList(list)) {
+            valueToCheck = SqlFunctionCall.of("to_json", valueToCheck);
+        }
         // list_contains(list, value)
         return SqlFunctionCall.of("list_contains", list, valueToCheck);
+    }
+
+    /**
+     * Checks if a list of compiled SQL expressions contains elements of truly incompatible types.
+     * Used to detect heterogeneous Pure lists that need JSON[] wrapping.
+     * Numeric types (INTEGER, BIGINT, DOUBLE, DECIMAL) are considered compatible since
+     * DuckDB natively promotes them.
+     */
+    private boolean hasMixedTypes(List<Expression> elements) {
+        if (elements.size() <= 1) return false;
+        SqlType firstType = elements.getFirst().type();
+        for (int i = 1; i < elements.size(); i++) {
+            SqlType t = elements.get(i).type();
+            // Treat UNKNOWN as compatible with anything (it may resolve at runtime)
+            if (t == SqlType.UNKNOWN || firstType == SqlType.UNKNOWN) continue;
+            if (t != firstType && !areNumericCompatible(firstType, t)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isNumericType(SqlType t) {
+        return t == SqlType.INTEGER || t == SqlType.BIGINT || t == SqlType.DOUBLE || t == SqlType.DECIMAL;
+    }
+
+    private static boolean areNumericCompatible(SqlType a, SqlType b) {
+        return isNumericType(a) && isNumericType(b);
+    }
+
+    /**
+     * Checks if a compiled expression represents a JSON[] list (mixed-type list).
+     * A ListLiteral is JSON[] if any element is a to_json() call.
+     */
+    private boolean isJsonList(Expression expr) {
+        if (expr instanceof ListLiteral list && !list.isEmpty()) {
+            Expression first = list.elements().getFirst();
+            return first instanceof SqlFunctionCall fc && "to_json".equals(fc.functionName());
+        }
+        return false;
+    }
+
+    /**
+     * Wraps a list expression so its elements become JSON scalars.
+     * For ListLiteral: wraps each element in to_json().
+     * For other list expressions: uses list_transform(list, _x -> to_json(_x)).
+     */
+    private Expression wrapListToJson(Expression listExpr) {
+        if (listExpr instanceof ListLiteral lit) {
+            List<Expression> jsonElems = lit.elements().stream()
+                    .map(e -> (Expression) SqlFunctionCall.of("to_json", e))
+                    .toList();
+            return ListLiteral.of(jsonElems);
+        }
+        // For non-literal list expressions, use list_transform
+        return SqlCollectionCall.map(listExpr, "_json_x",
+                SqlFunctionCall.of("to_json", ColumnReference.of("_json_x")));
+    }
+
+    /**
+     * Checks if two list expressions need JSON promotion for cross-type concatenation.
+     * Returns true if both are ListLiterals with different element types.
+     */
+    private boolean needsCrossTypeConcatPromotion(Expression left, Expression right) {
+        if (left instanceof ListLiteral ll && right instanceof ListLiteral rl) {
+            if (ll.isEmpty() || rl.isEmpty()) return false;
+            SqlType leftType = ll.elements().getFirst().type();
+            SqlType rightType = rl.elements().getFirst().type();
+            if (leftType == SqlType.UNKNOWN || rightType == SqlType.UNKNOWN) return false;
+            return leftType != rightType && !areNumericCompatible(leftType, rightType);
+        }
+        return false;
     }
 
     /**

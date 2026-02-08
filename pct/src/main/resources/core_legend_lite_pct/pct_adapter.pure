@@ -196,6 +196,30 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
   ]);
 }
 
+// Parse a single element from a mixed-type array string.
+// Determines type from format: 'text'→String, true/false→Boolean, digits→Integer, otherwise→String
+function meta::legend::lite::pct::parseTypedElement(s:String[1]):Any[1]
+{
+  let t = $s->trim();
+  if ($t->startsWith('\''),
+    | $t->substring(1, $t->length()-1),
+    | if ($t == 'true', | true,
+        | if ($t == 'false', | false,
+            | // Check if it looks numeric: starts with digit or minus sign
+              let first = $t->substring(0, 1);
+              let isNumeric = '0123456789-'->contains($first);
+              if ($isNumeric,
+                | if ($t->contains('.'),
+                    | $t->parseFloat(),
+                    | $t->parseInteger()
+                  ),
+                | $t
+              );
+          )
+      )
+  );
+}
+
 // Convert a scalar result to the expected Pure type.
 // Modeled after legend-engine's resultToType in pct_relational.pure.
 // Handles: String→Integer, String→Float, String→Boolean, String→Nil,
@@ -209,6 +233,12 @@ function meta::legend::lite::pct::resultToType(result: Any[1], type: GenericType
     pair(|$resultType == Nil, |[]),
     // String result that looks like array "[]" or "[1, 2, 3]" with toMany multiplicity → parse
     pair(|$result->instanceOf(String) && $result->cast(@String) == '[]', |[]),
+    // Mixed-type array: when expected type is Any, parse each element by its format
+    pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $result->cast(@String)->endsWith(']') && $mult->isToMany() && $resultType == Any,
+         |let str = $result->cast(@String);
+          let inner = $str->substring(1, $str->length()-1);
+          if ($inner == '', | [], | $inner->split(',')->map(s|parseTypedElement($s)));),
+    // Typed array: when expected type is specific, parse all elements as that type
     pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $result->cast(@String)->endsWith(']') && $mult->isToMany(),
          |let str = $result->cast(@String);
           let inner = $str->substring(1, $str->length()-1);
