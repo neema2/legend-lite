@@ -1903,6 +1903,28 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertArrayEquals(new Object[]{"Smith", "Doe", "Branche"}, elements);
     }
 
+    // ==================== Fold function tests ====================
+
+    @Test
+    void testFoldIntegerSumWithInitialValue() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[1]|$x + $y}, 7)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertScalarInteger(result, 17); // 7+1+2+3+4 = 17
+    }
+
+    @Test
+    void testFoldIntegerSumZeroInit() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[1]|$x + $y}, 0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertScalarInteger(result, 10); // 0+1+2+3+4 = 10
+    }
+
     // ==================== Hash function tests ====================
 
     @Test

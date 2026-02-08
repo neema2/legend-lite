@@ -4933,10 +4933,12 @@ public final class PureCompiler {
                         LogicalExpression.and(a, LogicalExpression.not(b)),
                         LogicalExpression.and(LogicalExpression.not(a), b));
             }
-            case "hash" -> { // str->hash(HashType.MD5) -> md5(str)
-                if (methodCall.arguments().isEmpty())
-                    throw new PureCompileException("hash requires a hash type argument");
+            case "hash" -> { // str->hash(HashType.MD5) -> md5(str), or str->hash() -> HASH(str)
                 Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.arguments().isEmpty()) {
+                    // No-arg hash() = hashCode, use DuckDB HASH()
+                    yield SqlFunctionCall.of("hash", src);
+                }
                 PureExpression hashTypeArg = methodCall.arguments().getFirst();
                 String hashType = "";
                 if (hashTypeArg instanceof EnumValueReference enumRef) {
@@ -5188,20 +5190,23 @@ public final class PureCompiler {
             throw new PureCompileException("fold() first argument must be a lambda");
         }
 
-        // Fold lambda has two parameters: accumulator and current element
+        // Pure fold lambda: {element, accumulator | body}
+        // params[0] = current element, params[1] = accumulator
         List<String> params = lambda.parameters();
         if (params.size() < 2) {
-            throw new PureCompileException("fold() lambda requires two parameters (accumulator, element)");
+            throw new PureCompileException("fold() lambda requires two parameters (element, accumulator)");
         }
-        String accParam = params.get(0);
-        String elemParam = params.get(1);
+        String pureElemParam = params.get(0);
+        String pureAccParam = params.get(1);
 
         Expression lambdaBody = compileToSqlExpression(lambda.body(),
-                context.withFoldParameters(accParam, elemParam));
+                context.withFoldParameters(pureElemParam, pureAccParam));
 
         Expression initialValue = compileToSqlExpression(methodCall.arguments().get(1), context);
 
-        return SqlCollectionCall.fold(source, accParam, elemParam, lambdaBody, initialValue);
+        // DuckDB list_reduce: (accumulator, element) -> body
+        // Map Pure's accumulator to DuckDB's first position (accumulator)
+        return SqlCollectionCall.fold(source, pureAccParam, pureElemParam, lambdaBody, initialValue);
     }
 
     /**

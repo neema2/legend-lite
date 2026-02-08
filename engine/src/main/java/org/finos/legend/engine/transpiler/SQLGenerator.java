@@ -2057,10 +2057,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 lambdaParams.remove(accParam);
                 lambdaParams.remove(elemParam);
                 String initVal = call.initialValue().accept(this);
-                // DuckDB list_reduce only takes 2 args: list_reduce(list, lambda)
-                // Use COALESCE to handle empty list with initial value fallback
-                yield "COALESCE(list_reduce(" + listSource + ", (" + accParam + ", " + elemParam + ") -> "
-                        + lambdaBody + "), " + initVal + ")";
+                // DuckDB list_reduce has no initial value arg, so prepend init to list
+                // list_reduce([init, ...list], (acc, elem) -> body)
+                yield "list_reduce(list_prepend(" + initVal + ", " + listSource + "), (" + accParam + ", " + elemParam + ") -> "
+                        + lambdaBody + ")";
             }
             case FLATTEN -> "flatten(" + listSource + ")";
         };
