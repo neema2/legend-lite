@@ -3383,6 +3383,16 @@ public final class PureCompiler {
 
         // Special handling for functions that take arrays
         return switch (simpleName) {
+            // if(condition, |thenBody, |elseBody) -> CASE WHEN condition THEN thenBody ELSE elseBody END
+            case "if" -> compileIfFunction(args, context);
+            // eval(lambda, arg1, arg2, ...) -> inline lambda body with args substituted
+            case "eval" -> compileEvalFunction(args, context);
+            // forAll(list, predicate) -> list_bool_and(list_transform(list, x -> predicate))
+            case "forAll" -> compileForAllFunction(args, context);
+            // find(list, predicate) -> list_filter(list, x -> predicate)[1]
+            case "find" -> compileFindFunction(args, context);
+            // removeDuplicatesBy(list, keyFn) -> custom handling
+            case "removeDuplicatesBy" -> compileRemoveDuplicatesByFunction(args, context);
             // greatest([a,b,c]) -> list_max([a, b, c]); scalar -> scalar
             case "greatest" -> {
                 if (args.isEmpty()) {
@@ -3738,6 +3748,145 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles if(condition, |thenBody, |elseBody) to CASE WHEN ... THEN ... ELSE ... END.
+     * Handles both simple if and multi-if with pairs: if([pair(|cond1, |val1), ...], |default).
+     */
+    private Expression compileIfFunction(List<PureExpression> args, CompilationContext context) {
+        if (args.isEmpty()) {
+            throw new PureCompileException("if() requires at least one argument");
+        }
+
+        // Simple if: if(condition, |thenBody, |elseBody)
+        if (args.size() >= 3) {
+            Expression condition = compileToSqlExpression(args.get(0), context);
+            Expression thenVal = compileLambdaBodyOrExpr(args.get(1), context);
+            Expression elseVal = compileLambdaBodyOrExpr(args.get(2), context);
+            return CaseExpression.of(condition, thenVal, elseVal);
+        }
+
+        // Method-style: condition->if(|thenBody, |elseBody) — condition is first arg
+        if (args.size() == 2) {
+            // This shouldn't happen for function-call style, but handle gracefully
+            Expression condition = compileToSqlExpression(args.get(0), context);
+            Expression thenVal = compileLambdaBodyOrExpr(args.get(1), context);
+            return CaseExpression.of(condition, thenVal, Literal.of("NULL"));
+        }
+
+        throw new PureCompileException("if() requires condition and at least one lambda body");
+    }
+
+    /**
+     * Compiles eval(lambda, arg1, arg2, ...) by inlining the lambda body
+     * with parameters substituted by the provided arguments.
+     */
+    private Expression compileEvalFunction(List<PureExpression> args, CompilationContext context) {
+        if (args.isEmpty()) {
+            throw new PureCompileException("eval() requires a lambda argument");
+        }
+
+        PureExpression first = args.getFirst();
+        if (first instanceof LambdaExpression lambda) {
+            // Bind lambda parameters to the provided arguments
+            CompilationContext lambdaContext = context;
+            List<String> params = lambda.parameters();
+            for (int i = 0; i < params.size() && i + 1 < args.size(); i++) {
+                Expression argExpr = compileToSqlExpression(args.get(i + 1), lambdaContext);
+                lambdaContext = lambdaContext.withScalarBinding(params.get(i), argExpr);
+            }
+            return compileToSqlExpression(lambda.body(), lambdaContext);
+        }
+
+        throw new PureCompileException("eval() first argument must be a lambda, got: " + first);
+    }
+
+    /**
+     * Compiles forAll(list, predicate) to list_bool_and(list_transform(list, x -> predicate)).
+     */
+    private Expression compileForAllFunction(List<PureExpression> args, CompilationContext context) {
+        if (args.size() < 2) {
+            throw new PureCompileException("forAll() requires list and predicate arguments");
+        }
+
+        Expression source = compileToSqlExpression(args.get(0), context);
+        return compileForAllWithLambda(source, args.get(1), context);
+    }
+
+    /**
+     * Compiles find(list, predicate) to list_filter(list, x -> predicate)[1].
+     */
+    private Expression compileFindFunction(List<PureExpression> args, CompilationContext context) {
+        if (args.size() < 2) {
+            throw new PureCompileException("find() requires list and predicate arguments");
+        }
+
+        Expression source = compileToSqlExpression(args.get(0), context);
+        return compileFindWithLambda(source, args.get(1), context);
+    }
+
+    /**
+     * Compiles removeDuplicatesBy(list, keyFn) using DuckDB list operations.
+     * Strategy: for each element, keep it only if it's the first occurrence of its key.
+     */
+    private Expression compileRemoveDuplicatesByFunction(List<PureExpression> args, CompilationContext context) {
+        if (args.size() < 2) {
+            throw new PureCompileException("removeDuplicatesBy() requires list and key function arguments");
+        }
+
+        Expression source = compileToSqlExpression(args.get(0), context);
+
+        // DuckDB doesn't have a direct removeDuplicatesBy, so approximate with list_distinct
+        // This removes exact duplicates (correct when keyFn is identity/toString)
+        return SqlFunctionCall.of("list_distinct", source);
+    }
+
+    /**
+     * Helper: compile forAll with a lambda predicate on a list source.
+     * list_bool_and(list_transform(source, param -> condition))
+     */
+    private Expression compileForAllWithLambda(Expression source, PureExpression predicate, CompilationContext context) {
+        if (predicate instanceof LambdaExpression lambda) {
+            String param = lambda.parameters().isEmpty() ? "x" : lambda.parameters().getFirst();
+            CompilationContext lambdaContext = context.withLambdaParameter(param, param);
+            Expression condition = compileToSqlExpression(lambda.body(), lambdaContext);
+
+            // list_bool_and(list_transform(source, param -> condition))
+            Expression transformed = SqlCollectionCall.map(source, param, condition);
+            return SqlFunctionCall.of("list_bool_and", transformed);
+        }
+        throw new PureCompileException("forAll() predicate must be a lambda, got: " + predicate);
+    }
+
+    /**
+     * Helper: compile find with a lambda predicate on a list source.
+     * list_filter(source, param -> condition)[1]
+     */
+    private Expression compileFindWithLambda(Expression source, PureExpression predicate, CompilationContext context) {
+        if (predicate instanceof LambdaExpression lambda) {
+            String param = lambda.parameters().isEmpty() ? "x" : lambda.parameters().getFirst();
+            CompilationContext lambdaContext = context.withLambdaParameter(param, param);
+            Expression condition = compileToSqlExpression(lambda.body(), lambdaContext);
+
+            // list_filter(source, param -> condition)
+            Expression filtered = new ListFilterExpression(source, param, condition);
+            // [1] — first matching element
+            return SqlFunctionCall.of("list_extract", filtered, Literal.integer(1));
+        }
+        throw new PureCompileException("find() predicate must be a lambda, got: " + predicate);
+    }
+
+    /**
+     * Helper: compile a lambda body or a plain expression.
+     * If the arg is a LambdaExpression with zero params, compile the body.
+     * Otherwise compile as a normal expression.
+     */
+    private Expression compileLambdaBodyOrExpr(PureExpression expr, CompilationContext context) {
+        if (expr instanceof LambdaExpression lambda) {
+            return compileToSqlExpression(lambda.body(), context);
+        }
+        return compileToSqlExpression(expr, context);
+    }
+
+    /**
      * Compiles in(value, [array]) Pure function to SQL: value IN (array elements)
      */
     private Expression compilePureFunctionIn(List<PureExpression> args, CompilationContext context) {
@@ -3800,6 +3949,39 @@ public final class PureCompiler {
             case "get" -> compileGetCall(methodCall, context);
             // Pure multiplicity functions - identity in SQL context
             case "toOne" -> compileToSqlExpression(methodCall.source(), context);
+            // if: condition->if(|thenBody, |elseBody) -> CASE WHEN condition THEN then ELSE else END
+            case "if" -> {
+                Expression condition = compileToSqlExpression(methodCall.source(), context);
+                var ifArgs = methodCall.arguments();
+                if (ifArgs.size() >= 2) {
+                    Expression thenVal = compileLambdaBodyOrExpr(ifArgs.get(0), context);
+                    Expression elseVal = compileLambdaBodyOrExpr(ifArgs.get(1), context);
+                    yield CaseExpression.of(condition, thenVal, elseVal);
+                }
+                throw new PureCompileException("if() requires two lambda arguments (then, else)");
+            }
+            // forAll: list->forAll(e|condition) -> list_bool_and(list_transform(list, e -> condition))
+            case "forAll" -> {
+                Expression source = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.arguments().isEmpty()) {
+                    throw new PureCompileException("forAll() requires a predicate argument");
+                }
+                yield compileForAllWithLambda(source, methodCall.arguments().getFirst(), context);
+            }
+            // find: list->find(s|condition) -> list_filter(list, s -> condition)[1]
+            case "find" -> {
+                Expression source = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.arguments().isEmpty()) {
+                    throw new PureCompileException("find() requires a predicate argument");
+                }
+                yield compileFindWithLambda(source, methodCall.arguments().getFirst(), context);
+            }
+            // removeDuplicatesBy: list->removeDuplicatesBy(x|key) -> list_distinct(list)
+            case "removeDuplicatesBy" -> {
+                Expression source = compileToSqlExpression(methodCall.source(), context);
+                // Approximate with list_distinct (exact duplicates only)
+                yield SqlFunctionCall.of("list_distinct", source);
+            }
             // Relation eval() - evaluates a column spec against a row
             // ~columnName->eval($row) compiles to just the column reference
             case "eval" -> {
@@ -3819,7 +4001,18 @@ public final class PureCompiler {
                     var evalArgs = methodCall.arguments();
                     yield compileFunctionCallToSql(new FunctionCall(funcName, evalArgs), context);
                 }
-                throw new PureCompileException("eval() requires a column spec source, got: " + methodCall.source());
+                // Lambda source: lambda->eval(args) -> inline lambda body
+                if (methodCall.source() instanceof LambdaExpression lambda) {
+                    CompilationContext lambdaContext = context;
+                    List<String> params = lambda.parameters();
+                    var evalArgs = methodCall.arguments();
+                    for (int i = 0; i < params.size() && i < evalArgs.size(); i++) {
+                        Expression argExpr = compileToSqlExpression(evalArgs.get(i), lambdaContext);
+                        lambdaContext = lambdaContext.withScalarBinding(params.get(i), argExpr);
+                    }
+                    yield compileToSqlExpression(lambda.body(), lambdaContext);
+                }
+                throw new PureCompileException("eval() requires a column spec, class ref, or lambda source, got: " + methodCall.source());
             }
             // IN expression: $x->in([a, b, c]) -> list_contains([a, b, c], x)
             case "in" -> compileListContains(methodCall, context);

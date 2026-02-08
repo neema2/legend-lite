@@ -1562,6 +1562,74 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("Hello, World!", ((ScalarResult) result).value());
     }
 
+    // ==================== Lambda compilation tests ====================
+
+    @Test
+    void testSimpleIf() throws SQLException {
+        // PCT: |if(1 == 1, |'truesentence', |'falsesentence')
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::lang::if(1 == 1, |'truesentence', |'falsesentence')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("truesentence", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testIfMethodStyle() throws SQLException {
+        // PCT: |true->if(|'truesentence', |'falsesentence')
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|true->meta::pure::functions::lang::if(|'truesentence', |'falsesentence')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("truesentence", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testEvalLambdaExp() throws SQLException {
+        // PCT: |eval(a: Number[1]|$a->exp(), 1.0)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::lang::eval(a: Number[1]|$a->meta::pure::functions::math::exp(), 1.0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(Math.E, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.0001);
+    }
+
+    @Test
+    void testForAllTrue() throws SQLException {
+        // PCT: |[1, 2, 3]->forAll(e|$e > 0)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::collection::forAll(e|$e > 0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testForAllFalse() throws SQLException {
+        // PCT: |[1, 2, 3]->forAll(e|$e > 1)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::collection::forAll(e|$e > 1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testFindLiteral() throws SQLException {
+        // PCT: |['Smith', 'Branche', 'Doe']->find(s: String[1]|$s->length() < 4)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['Smith', 'Branche', 'Doe']->meta::pure::functions::collection::find(s: String[1]|$s->meta::pure::functions::string::length() < 4)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("Doe", ((ScalarResult) result).value());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
