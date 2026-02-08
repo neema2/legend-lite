@@ -2539,6 +2539,10 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (expr instanceof IntegerLiteral intLit) {
             return intLit.value().intValue();
         }
+        // Handle negative literals: UnaryExpression[operator=-, operand=LiteralExpr[value=1]]
+        if (expr instanceof UnaryExpression unary && unary.operator().equals("-")) {
+            return -extractInt(unary.operand());
+        }
         throw new PureParseException("Expected integer, got: " + expr);
     }
 

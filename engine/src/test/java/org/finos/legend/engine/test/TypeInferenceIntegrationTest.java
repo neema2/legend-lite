@@ -1630,6 +1630,55 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("Doe", ((ScalarResult) result).value());
     }
 
+    // ==================== Parser fix tests ====================
+
+    @Test
+    void testDropNegative() throws SQLException {
+        // PCT: |[1, 2, 3]->drop(-1) — negative drop should return full list
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::collection::drop(-1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+    }
+
+    @Test
+    void testTakeNegative() throws SQLException {
+        // PCT: |[1, 2, 3]->take(-1) — negative take should return empty list
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::collection::take(-1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+    }
+
+    @Test
+    void testSliceNegativeStart() throws SQLException {
+        // PCT: |[2, 3, 4, 5]->slice(-1, 10)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[2, 3, 4, 5]->meta::pure::functions::collection::slice(-1, 10)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+    }
+
+    @Test
+    void testRelationAggregateWithCast() throws SQLException {
+        // PCT: Relation aggregate with ->cast(@Number) in extend window expression
+        // Tests that extractPropertyName handles CastExpression wrapping PropertyAccessExpression
+        String pureExpr = "|#TDS\n" +
+                "              id, grp, name\n" +
+                "              1.0, 2, A\n" +
+                "              2.0, 1, B\n" +
+                "              3.0, 3, C\n" +
+                "#->groupBy(~grp, ~id : x | $x.id : y | $y->average())";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                pureExpr,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

@@ -5389,6 +5389,14 @@ public final class PureCompiler {
         if (expr instanceof PropertyAccessExpression propAccess) {
             return propAccess.propertyName();
         }
+        // Handle method calls on property access: $x.prop->toOne(), etc.
+        if (expr instanceof MethodCall mc) {
+            return extractPropertyName(mc.source());
+        }
+        // Handle cast on property access: $x.prop->cast(@Type)
+        if (expr instanceof CastExpression cast) {
+            return extractPropertyName(cast.source());
+        }
         throw new PureCompileException("Expected property access in projection, got: " + expr);
     }
 
