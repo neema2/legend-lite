@@ -3309,7 +3309,7 @@ public final class PureCompiler {
             }
             case SortExpression sort when sort.source() instanceof ArrayLiteral -> {
                 Expression list = compileToSqlExpression(sort.source(), context);
-                yield SqlFunctionCall.of("list_sort", list);
+                yield SqlFunctionCall.of("list_sort", list, detectSortDirection(sort.sortColumns()));
             }
             // Relation expressions that reach here need special handling
             case TdsLiteral tds -> {
@@ -3345,9 +3345,13 @@ public final class PureCompiler {
                 // Check if this is a collection sort (no sort columns) vs relation sort
                 // Collection sort: $list->sort() has empty sortColumns and non-relation source
                 if (sort.sortColumns().isEmpty()) {
-                    // This is a collection sort - compile source and wrap with list_sort
                     Expression source = compileToSqlExpression(sort.source(), context);
                     yield SqlFunctionCall.of("list_sort", source);
+                }
+                // Collection sort with comparator: $list->sort({x,y|$y->compare($x)})
+                if (!isRelationExpression(sort.source())) {
+                    Expression source = compileToSqlExpression(sort.source(), context);
+                    yield SqlFunctionCall.of("list_sort", source, detectSortDirection(sort.sortColumns()));
                 }
                 // Otherwise it's a relation sort that should be handled elsewhere
                 throw new PureCompileException(
@@ -4201,8 +4205,42 @@ public final class PureCompiler {
                             SqlFunctionCall.of("list_position", src, arg),
                             Literal.integer(1));
                 }
-                // String indexOf: instr(string, search) returns 1-based or 0
-                yield SqlFunctionCall.of("instr", src, arg);
+                // String indexOf: instr(string, search) returns 1-based, subtract 1 for Pure's 0-based
+                // indexOf(str, fromIndex) 2-arg form: use instr with offset
+                if (methodCall.arguments().size() >= 2) {
+                    Expression fromIndex = compileToSqlExpression(methodCall.arguments().get(1), context);
+                    // DuckDB doesn't have instr with offset, so use:
+                    // fromIndex + instr(substring(src, fromIndex+1), search) - 1
+                    Expression subStr = new SqlFunctionCall("substr", src,
+                            java.util.List.of(ArithmeticExpression.add(fromIndex, Literal.integer(1))),
+                            SqlType.VARCHAR);
+                    yield ArithmeticExpression.subtract(
+                            ArithmeticExpression.add(
+                                    fromIndex,
+                                    SqlFunctionCall.of("instr", subStr, arg)),
+                            Literal.integer(1));
+                }
+                yield ArithmeticExpression.subtract(
+                        SqlFunctionCall.of("instr", src, arg),
+                        Literal.integer(1));
+            }
+            case "substring" -> { // substring(start) or substring(start, end) — Pure is 0-based
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("substring requires a start argument");
+                Expression start = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                // Convert 0-based Pure start to 1-based DuckDB start
+                Expression oneBasedStart = ArithmeticExpression.add(start, Literal.integer(1));
+                if (methodCall.arguments().size() >= 2) {
+                    // substring(start, end) -> SUBSTRING(str, start+1, end-start)
+                    Expression end = compileToSqlExpression(methodCall.arguments().get(1), context);
+                    Expression length = ArithmeticExpression.subtract(end, start);
+                    yield new SqlFunctionCall("substr", src,
+                            java.util.List.of(oneBasedStart, length), SqlType.VARCHAR);
+                }
+                // substring(start) -> SUBSTRING(str, start+1)
+                yield new SqlFunctionCall("substr", src,
+                        java.util.List.of(oneBasedStart), SqlType.VARCHAR);
             }
             case "lpad" -> { // lpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE lpad(s,n,fill) END
                 if (methodCall.arguments().isEmpty())
@@ -4287,11 +4325,20 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
-            case "joinStrings" -> { // [a,b,c]->joinStrings(sep) -> list_aggr(list, 'string_agg', sep)
+            case "joinStrings" -> { // [a,b,c]->joinStrings(sep) or joinStrings(prefix, sep, suffix)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("joinStrings requires a separator argument");
-                yield SqlFunctionCall.of("array_to_string",
-                        compileToSqlExpression(methodCall.source(), context),
+                Expression listExpr = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.arguments().size() >= 3) {
+                    // 3-arg form: joinStrings(prefix, separator, suffix)
+                    Expression prefix = compileToSqlExpression(methodCall.arguments().get(0), context);
+                    Expression separator = compileToSqlExpression(methodCall.arguments().get(1), context);
+                    Expression suffix = compileToSqlExpression(methodCall.arguments().get(2), context);
+                    Expression joined = SqlFunctionCall.of("array_to_string", listExpr, separator);
+                    yield new ConcatExpression(java.util.List.of(prefix, joined, suffix));
+                }
+                // 1-arg form: joinStrings(separator)
+                yield SqlFunctionCall.of("array_to_string", listExpr,
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
             case "decodeBase64" -> { // decodeBase64(s) -> CAST(from_base64(padded_s) AS VARCHAR)
@@ -4599,8 +4646,28 @@ public final class PureCompiler {
                 SqlFunctionCall.of("list_distinct", compileToSqlExpression(methodCall.source(), context));
             case "reverse" -> // reverse(list) -> list_reverse(list)
                 SqlFunctionCall.of("list_reverse", compileToSqlExpression(methodCall.source(), context));
-            case "sort" -> // sort(list) -> list_sort(list)
-                SqlFunctionCall.of("list_sort", compileToSqlExpression(methodCall.source(), context));
+            case "sort" -> { // sort(list) or sort(list, comparator) -> list_sort(list [, 'DESC'])
+                Expression listExpr = compileToSqlExpression(methodCall.source(), context);
+                // Check for comparator lambda to detect sort direction
+                // sort({x, y | $y->compare($x)}) means descending (params reversed)
+                // sort({x, y | $x->compare($y)}) means ascending (default)
+                if (!methodCall.arguments().isEmpty()) {
+                    PureExpression lastArg = methodCall.arguments().getLast();
+                    if (lastArg instanceof LambdaExpression lambda && lambda.isMultiParam()
+                            && lambda.body() instanceof MethodCall cmp
+                            && (cmp.methodName().equals("compare") || cmp.methodName().endsWith("::compare"))) {
+                        // Check if compare source is the second param (reversed = DESC)
+                        String firstParam = lambda.parameters().get(0);
+                        String secondParam = lambda.parameters().get(1);
+                        if (cmp.source() instanceof VariableExpr v && v.name().equals(secondParam)
+                                && !cmp.arguments().isEmpty()
+                                && cmp.arguments().getFirst() instanceof VariableExpr v2 && v2.name().equals(firstParam)) {
+                            yield SqlFunctionCall.of("list_sort", listExpr, Literal.string("DESC"));
+                        }
+                    }
+                }
+                yield SqlFunctionCall.of("list_sort", listExpr);
+            }
 
             // ===== DATE FUNCTIONS =====
             case "datePart" -> { // date->datePart() -> DATE_TRUNC('day', date)
@@ -4929,6 +4996,28 @@ public final class PureCompiler {
         }
         // list_contains(list, value)
         return SqlFunctionCall.of("list_contains", list, valueToCheck);
+    }
+
+    /**
+     * Detects sort direction from comparator lambda in sort() arguments.
+     * {x, y | $y->compare($x)} = descending (params reversed)
+     * Returns Literal.string("DESC") or Literal.string("ASC").
+     */
+    private Expression detectSortDirection(List<PureExpression> sortColumns) {
+        for (PureExpression arg : sortColumns) {
+            if (arg instanceof LambdaExpression lambda && lambda.isMultiParam()
+                    && lambda.body() instanceof MethodCall cmp
+                    && (cmp.methodName().equals("compare") || cmp.methodName().endsWith("::compare"))) {
+                String firstParam = lambda.parameters().get(0);
+                String secondParam = lambda.parameters().get(1);
+                if (cmp.source() instanceof VariableExpr v && v.name().equals(secondParam)
+                        && !cmp.arguments().isEmpty()
+                        && cmp.arguments().getFirst() instanceof VariableExpr v2 && v2.name().equals(firstParam)) {
+                    return Literal.string("DESC");
+                }
+            }
+        }
+        return Literal.string("ASC");
     }
 
     /**

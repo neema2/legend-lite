@@ -1812,6 +1812,97 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertTrue(result instanceof BufferedResult);
     }
 
+    // ==================== String indexOf / substring / joinStrings / sort tests ====================
+
+    @Test
+    void testStringIndexOf() throws SQLException {
+        // PCT: |'c'->indexOf('c') should return 0 (0-based)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'c'->meta::pure::functions::string::indexOf('c')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 0);
+    }
+
+    @Test
+    void testStringIndexOfSimple() throws SQLException {
+        // PCT: |'the quick brown fox'->indexOf('quick') should return 4 (0-based)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown fox jumps over the lazy dog'->meta::pure::functions::string::indexOf('quick')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 4);
+    }
+
+    @Test
+    void testStringIndexOfFromIndex() throws SQLException {
+        // PCT: |'the the'->indexOf('h', 0) should return 1 (0-based)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the the'->meta::pure::functions::string::indexOf('h', 0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 1);
+    }
+
+    @Test
+    void testSubstringStartEnd() throws SQLException {
+        // PCT: |'the quick brown fox jumps over the lazy dog'->substring(0, 43)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown fox jumps over the lazy dog'->meta::pure::functions::string::substring(0, 43)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("the quick brown fox jumps over the lazy dog", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testSubstringStart() throws SQLException {
+        // PCT: |'the quick brown fox'->substring(1) should return 'he quick brown fox'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown fox jumps over the lazy dog'->meta::pure::functions::string::substring(1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("he quick brown fox jumps over the lazy dog", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testJoinStringsWithPrefixSuffix() throws SQLException {
+        // PCT: |['a', 'b', 'c']->joinStrings('[', ',', ']') should return '[a,b,c]'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a', 'b', 'c']->meta::pure::functions::string::joinStrings('[', ',', ']')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[a,b,c]", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testJoinStringsSeparatorOnly() throws SQLException {
+        // PCT: |['a', 'b', 'c']->joinStrings(',') should return 'a,b,c'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a', 'b', 'c']->meta::pure::functions::string::joinStrings(',')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("a,b,c", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testSortDescending() throws SQLException {
+        // PCT: |['Smith', 'Branche', 'Doe']->sort({x, y | $y->compare($x)})
+        // Expected: descending order ['Smith', 'Doe', 'Branche']
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['Smith', 'Branche', 'Doe']->meta::pure::functions::collection::sort({x: String[1], y: String[1]|$y->meta::pure::functions::lang::compare($x)})",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertTrue(val instanceof java.sql.Array, "Expected sql.Array but got " + val.getClass());
+        Object[] elements = (Object[]) ((java.sql.Array) val).getArray();
+        assertArrayEquals(new Object[]{"Smith", "Doe", "Branche"}, elements);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
