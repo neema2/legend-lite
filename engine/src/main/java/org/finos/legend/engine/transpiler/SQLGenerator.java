@@ -1295,6 +1295,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         if (lambdaParams.contains(columnRef.columnName())) {
             return columnRef.columnName();
         }
+        // Struct field access on lambda parameters: p.lastName (unquoted)
+        if (lambdaParams.contains(columnRef.tableAlias())) {
+            return columnRef.tableAlias() + "." + columnRef.columnName();
+        }
         if (columnRef.tableAlias().isEmpty()) {
             return dialect.quoteIdentifier(columnRef.columnName());
         }
@@ -2064,6 +2068,20 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case FLATTEN -> "flatten(" + listSource + ")";
         };
+    }
+
+    @Override
+    public String visit(StructLiteralExpression structLiteral) {
+        var sb = new StringBuilder("{");
+        boolean first = true;
+        for (var entry : structLiteral.fields().entrySet()) {
+            if (!first) sb.append(", ");
+            first = false;
+            sb.append("'").append(entry.getKey()).append("': ");
+            sb.append(entry.getValue().accept(this));
+        }
+        sb.append("}");
+        return sb.toString();
     }
 
     /**

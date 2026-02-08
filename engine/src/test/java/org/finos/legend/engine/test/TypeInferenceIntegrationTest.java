@@ -1929,6 +1929,54 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     // testFoldFromVariant skipped: fold with mixed types (JSON elements, Integer accumulator)
     // causes list_prepend type coercion issue - needs separate fix for heterogeneous fold
 
+    // ==================== InstanceExpression / Struct literal tests ====================
+
+    @Test
+    void testSingleInstanceStruct() throws SQLException {
+        // ^Pair(first='a', second='b') -> struct literal
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|^meta::pure::functions::collection::Pair<String, String>(first='hello', second='world')->meta::pure::functions::string::toString()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+    }
+
+    @Test
+    void testInstanceArrayWithMap() throws SQLException {
+        // [^Person(firstName='A', lastName='B'), ...].map(p|$p.lastName) -> list of lastNames
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::map::model::M_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::map::model::M_Person(firstName='Pierre',lastName='Doe')]->meta::pure::functions::collection::map(p: meta::pure::functions::collection::tests::map::model::M_Person[1]|$p.lastName)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        assertTrue(val instanceof java.sql.Array, "Expected sql.Array but got " + val.getClass());
+        Object[] elements = (Object[]) ((java.sql.Array) val).getArray();
+        assertArrayEquals(new Object[]{"Smith", "Doe"}, elements);
+    }
+
+    @Test
+    void testInstanceEquality() throws SQLException {
+        // ^SideClass(stringId='a', intId=1)->eq(^SideClass(stringId='a', intId=1)) = true
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)->meta::pure::functions::boolean::eq(^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1))",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testLetInstancePropertyAccess() throws SQLException {
+        // let person = ^Person(firstName='John', lastName='Doe'); $person.firstName
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let person = ^meta::pure::functions::lang::tests::model::LA_Person(firstName='John', lastName='Doe'); $person.firstName;",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("John", ((ScalarResult) result).value());
+    }
+
     // ==================== Fold function tests ====================
 
     @Test

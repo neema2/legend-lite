@@ -141,4 +141,9 @@ public interface ExpressionVisitor<T> {
      * Visit a list_filter expression (list_filter(array, x -> condition)).
      */
     T visit(ListFilterExpression listFilter);
+
+    /**
+     * Visit a struct literal expression ({'key': value, ...}).
+     */
+    T visit(StructLiteralExpression structLiteral);
 }

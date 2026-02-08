@@ -17,7 +17,8 @@ public sealed interface Expression
                 JsonObjectExpression, SubqueryExpression, JsonArrayExpression, SqlCollectionCall,
                 DateFunctionExpression, CurrentDateExpression, DateDiffExpression, DateAdjustExpression,
                 DateTruncExpression, EpochExpression, DateComparisonExpression, TimeBucketExpression,
-                MinMaxExpression, InExpression, ListLiteral, CastExpression, ListFilterExpression {
+                MinMaxExpression, InExpression, ListLiteral, CastExpression, ListFilterExpression,
+                StructLiteralExpression {
 
         /**
          * Accept method for the expression visitor pattern.

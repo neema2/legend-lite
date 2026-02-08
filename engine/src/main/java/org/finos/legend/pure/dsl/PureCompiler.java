@@ -2383,6 +2383,76 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles an InstanceExpression to a StructLiteralExpression IR node.
+     * Recursively compiles property values to Expression nodes.
+     *
+     * Pure: ^Person(firstName='John', age=30)
+     * IR:   StructLiteralExpression("Person", {firstName: Literal("John"), age: Literal(30)})
+     */
+    private Expression compileInstanceExpression(InstanceExpression inst, CompilationContext context) {
+        Map<String, Expression> compiledFields = new LinkedHashMap<>();
+
+        for (var entry : inst.properties().entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            compiledFields.put(key, compileInstancePropertyValue(value, context));
+        }
+
+        return new StructLiteralExpression(inst.className(), compiledFields);
+    }
+
+    /**
+     * Compiles a property value from an InstanceExpression to an IR Expression.
+     * Handles literals, nested instances, arrays, enums, and variable references.
+     */
+    private Expression compileInstancePropertyValue(Object value, CompilationContext context) {
+        if (value == null) {
+            return Literal.nullValue();
+        }
+        if (value instanceof LiteralExpr lit) {
+            return compileLiteral(lit);
+        }
+        if (value instanceof InstanceExpression nested) {
+            return compileInstanceExpression(nested, context);
+        }
+        if (value instanceof ArrayLiteral arr) {
+            List<Expression> elements = arr.elements().stream()
+                    .map(e -> compileInstancePropertyValue(e, context))
+                    .toList();
+            return ListLiteral.of(elements);
+        }
+        if (value instanceof EnumValueReference enumRef) {
+            return Literal.string(enumRef.valueName());
+        }
+        if (value instanceof VariableExpr var) {
+            return compileToSqlExpression(var, context);
+        }
+        if (value instanceof PureExpression pureExpr) {
+            return compileToSqlExpression(pureExpr, context);
+        }
+        // Raw Java values (from parser)
+        if (value instanceof String s) {
+            return Literal.string(s);
+        }
+        if (value instanceof Long l) {
+            return Literal.integer(l);
+        }
+        if (value instanceof Integer i) {
+            return Literal.integer(i);
+        }
+        if (value instanceof Double d) {
+            return new Literal(d, Literal.LiteralType.DOUBLE);
+        }
+        if (value instanceof Number n) {
+            return Literal.integer(n.longValue());
+        }
+        if (value instanceof Boolean b) {
+            return Literal.bool(b);
+        }
+        return Literal.string(value.toString());
+    }
+
+    /**
      * Compiles a variable reference in relation context.
      * 
      * This handles cases like {@code $t->select(~col)} where $t is a lambda
@@ -3368,6 +3438,8 @@ public final class PureCompiler {
                 String sqlType = mapPureTypeToSqlType(typeRef.typeName());
                 yield Literal.string(sqlType);
             }
+            // InstanceExpression: ^Class(prop=value) -> StructLiteralExpression IR
+            case InstanceExpression inst -> compileInstanceExpression(inst, context);
             default -> throw new PureCompileException("Cannot compile to SQL expression: " + expr);
         };
     }
@@ -5508,9 +5580,22 @@ public final class PureCompiler {
                 // employees.firstName)
                 return ColumnReference.of(rowAlias, fullPath);
             }
-            // SCALAR and RELATION bindings with property access not yet supported
+            // SCALAR binding: if value is a StructLiteralExpression, extract the field
+            if (binding.kind() == SymbolBinding.BindingKind.SCALAR && binding.value() instanceof StructLiteralExpression struct) {
+                Expression fieldValue = struct.fields().get(propertyName);
+                if (fieldValue != null) {
+                    return fieldValue;
+                }
+                throw new PureCompileException("No property '" + propertyName + "' on struct: " + struct.className());
+            }
             throw new PureCompileException(
                     "Cannot access property '" + propertyName + "' on " + binding.kind() + " variable: $" + varName);
+        }
+
+        // Check if variable is a lambda parameter (from collection operations like map/filter/fold)
+        // For struct elements, property access becomes struct field access: p.lastName
+        if (context != null && context.lambdaParameters() != null && context.isLambdaParameter(varName)) {
+            return ColumnReference.of(varName, fullPath);
         }
 
         // Legacy fallback: check lambdaParameter directly
