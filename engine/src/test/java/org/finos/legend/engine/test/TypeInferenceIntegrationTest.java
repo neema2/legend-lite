@@ -1562,6 +1562,30 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("Hello, World!", ((ScalarResult) result).value());
     }
 
+    // ==================== Collection function tests ====================
+
+    @Test
+    void testAddToList() throws SQLException {
+        // PCT: |['a', 'b']->add('c') → list_append(['a', 'b'], 'c')
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a', 'b']->meta::pure::functions::collection::add('c')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[a, b, c]", String.valueOf(((ScalarResult) result).value()));
+    }
+
+    @Test
+    void testAddToListWithOffset() throws SQLException {
+        // PCT: |['a', 'b']->add(1, 'c') → insert 'c' at index 1 → ['a', 'c', 'b']
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a', 'b']->meta::pure::functions::collection::add(1, 'c')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[a, c, b]", String.valueOf(((ScalarResult) result).value()));
+    }
+
     // ==================== Lambda compilation tests ====================
 
     @Test

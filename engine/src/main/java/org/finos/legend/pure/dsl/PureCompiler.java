@@ -3450,6 +3450,29 @@ public final class PureCompiler {
                 // In DuckDB: CAST(json_value AS BIGINT)
                 yield new org.finos.legend.engine.plan.CastExpression(source, sqlType);
             }
+            // Collection: add(list, element) or add(list, offset, element)
+            case "add" -> {
+                if (args.size() < 2) {
+                    throw new PureCompileException("add() requires list and element arguments");
+                }
+                Expression source = compileToSqlExpression(args.get(0), context);
+                if (args.size() == 2) {
+                    // add(list, element) -> list_append(list, element)
+                    Expression element = compileToSqlExpression(args.get(1), context);
+                    yield SqlFunctionCall.of("list_append", source, element);
+                }
+                // add(list, offset, element) -> splice via list_concat + list_slice
+                // Pure offset is 0-based, DuckDB list_slice is 1-based inclusive
+                Expression offset = compileToSqlExpression(args.get(1), context);
+                Expression element = compileToSqlExpression(args.get(2), context);
+                Expression before = SqlFunctionCall.of("list_slice", source, Literal.integer(1), offset);
+                Expression elemList = SqlFunctionCall.of("list_value", element);
+                Expression afterStart = ArithmeticExpression.add(offset, Literal.integer(1));
+                Expression listLen = SqlFunctionCall.of("length", source);
+                Expression after = SqlFunctionCall.of("list_slice", source, afterStart, listLen);
+                yield SqlFunctionCall.of("list_concat",
+                        SqlFunctionCall.of("list_concat", before, elemList), after);
+            }
             // Collection: reverse() -> list_reverse(list)
             case "reverse" -> {
                 if (args.isEmpty()) {
@@ -3947,6 +3970,27 @@ public final class PureCompiler {
             case "fold" -> compileFoldCall(methodCall, context);
             case "flatten" -> compileFlattenCall(methodCall, context);
             case "get" -> compileGetCall(methodCall, context);
+            // add: list->add(element) or list->add(offset, element)
+            case "add" -> {
+                Expression source = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.arguments().isEmpty()) {
+                    throw new PureCompileException("add() requires an element argument");
+                }
+                if (methodCall.arguments().size() == 1) {
+                    Expression element = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                    yield SqlFunctionCall.of("list_append", source, element);
+                }
+                // add(offset, element) -> splice via list_concat + list_slice
+                Expression offset = compileToSqlExpression(methodCall.arguments().get(0), context);
+                Expression element = compileToSqlExpression(methodCall.arguments().get(1), context);
+                Expression before = SqlFunctionCall.of("list_slice", source, Literal.integer(1), offset);
+                Expression elemList = SqlFunctionCall.of("list_value", element);
+                Expression afterStart = ArithmeticExpression.add(offset, Literal.integer(1));
+                Expression listLen = SqlFunctionCall.of("length", source);
+                Expression after = SqlFunctionCall.of("list_slice", source, afterStart, listLen);
+                yield SqlFunctionCall.of("list_concat",
+                        SqlFunctionCall.of("list_concat", before, elemList), after);
+            }
             // Pure multiplicity functions - identity in SQL context
             case "toOne" -> compileToSqlExpression(methodCall.source(), context);
             // if: condition->if(|thenBody, |elseBody) -> CASE WHEN condition THEN then ELSE else END
