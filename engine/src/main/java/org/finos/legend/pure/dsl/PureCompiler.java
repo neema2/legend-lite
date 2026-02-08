@@ -4987,6 +4987,21 @@ public final class PureCompiler {
                         sqlType);
             }
 
+            // isEmpty: value->isEmpty() -> value IS NULL
+            case "isEmpty" -> {
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                yield new ComparisonExpression(src, ComparisonExpression.ComparisonOperator.IS_NULL, null);
+            }
+            // isNotEmpty: value->isNotEmpty() -> value IS NOT NULL
+            case "isNotEmpty" -> {
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                yield new ComparisonExpression(src, ComparisonExpression.ComparisonOperator.IS_NOT_NULL, null);
+            }
+            // not: bool->not() -> NOT bool
+            case "not" -> {
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                yield LogicalExpression.not(src);
+            }
             case "between" -> { // x->between(low, high) -> x >= low AND x <= high
                 var args = methodCall.arguments();
                 if (args.size() < 2)
@@ -5261,7 +5276,7 @@ public final class PureCompiler {
     /**
      * Compiles exists(x | condition) on collections to len(list_filter(arr, x -> condition)) > 0
      * Pure: [1,2,3]->exists(x|$x > 2) = true
-     * SQL:  len(list_filter([1,2,3], x -> x > 2)) > 0
+     * SQL:  len(list_filter([1,2,3], x -> x > 2)) > 0  
      */
     private Expression compileExistsCall(MethodCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);

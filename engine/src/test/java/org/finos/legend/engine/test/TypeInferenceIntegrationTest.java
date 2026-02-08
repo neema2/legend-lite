@@ -1989,6 +1989,27 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testIsEmptyOnStructField() throws SQLException {
+        // $p.lastName->isEmpty()->not() inside find lambda
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::model::CO_Person(firstName='Pierre',lastName='Doe')]->meta::pure::functions::collection::find(p: meta::pure::functions::collection::tests::model::CO_Person[1]|$p.lastName->meta::pure::functions::collection::isEmpty()->meta::pure::functions::boolean::not() && ($p.lastName->meta::pure::functions::multiplicity::toOne()->meta::pure::functions::string::length() < 6))",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+    }
+
+    @Test
+    void testIsEmptyNotOnValue() throws SQLException {
+        // 'hello'->isEmpty() = false
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'hello'->meta::pure::functions::collection::isEmpty()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
     void testExistsOnStructArray() throws SQLException {
         // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->exists(f|$f.legalName == 'f1') = true
         Result result = queryService.execute(
