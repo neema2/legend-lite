@@ -3773,10 +3773,11 @@ public final class PureCompiler {
             case "hasMonth", "hasDay" -> {
                 if (args.isEmpty()) throw new PureCompileException(simpleName + "() requires a date argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
-                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
+                    String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
                     boolean has = simpleName.equals("hasMonth")
-                            ? dateStr.length() >= 7 : dateStr.length() >= 10;
+                            ? stripped.length() >= 7 : stripped.length() >= 10;
                     yield Literal.bool(has);
                 }
                 yield Literal.bool(true);
@@ -3784,15 +3785,16 @@ public final class PureCompiler {
             case "hasHour", "hasMinute", "hasSecond" -> {
                 if (args.isEmpty()) throw new PureCompileException(simpleName + "() requires a date argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
-                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
-                    boolean hasTime = dateStr.contains("T") || dateStr.length() > 10;
+                    String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
+                    boolean hasTime = stripped.contains("T");
                     boolean has = switch (simpleName) {
                         case "hasHour" -> hasTime;
-                        case "hasMinute" -> hasTime && dateStr.indexOf(':', dateStr.indexOf('T') + 1) > 0;
+                        case "hasMinute" -> hasTime && stripped.indexOf(':', stripped.indexOf('T') + 1) > 0;
                         case "hasSecond" -> {
-                            int fc2 = dateStr.indexOf(':');
-                            yield hasTime && fc2 > 0 && dateStr.indexOf(':', fc2 + 1) > 0;
+                            int fc2 = stripped.indexOf(':');
+                            yield hasTime && fc2 > 0 && stripped.indexOf(':', fc2 + 1) > 0;
                         }
                         default -> hasTime;
                     };
@@ -4847,11 +4849,12 @@ public final class PureCompiler {
             case "hasDay", "hasMonth" -> {
                 // Check if source is a date literal with enough precision
                 Expression src = compileToSqlExpression(methodCall.source(), context);
-                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
+                    String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
                     boolean hasComponent = shortMethodName.equals("hasMonth")
-                            ? dateStr.length() >= 7  // yyyy-MM
-                            : dateStr.length() >= 10; // yyyy-MM-dd
+                            ? stripped.length() >= 7  // yyyy-MM
+                            : stripped.length() >= 10; // yyyy-MM-dd
                     yield Literal.bool(hasComponent);
                 }
                 // For non-literal dates (computed), assume full precision
@@ -4859,16 +4862,17 @@ public final class PureCompiler {
             }
             case "hasHour", "hasMinute", "hasSecond" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
-                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
-                    boolean hasTime = dateStr.contains("T") || dateStr.length() > 10;
+                    String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
+                    boolean hasTime = stripped.contains("T");
                     boolean hasComponent = switch (shortMethodName) {
                         case "hasHour" -> hasTime;
-                        case "hasMinute" -> hasTime && dateStr.indexOf(':', dateStr.indexOf('T') + 1) > 0;
+                        case "hasMinute" -> hasTime && stripped.indexOf(':', stripped.indexOf('T') + 1) > 0;
                         case "hasSecond" -> {
-                            int firstColon = dateStr.indexOf(':');
+                            int firstColon = stripped.indexOf(':');
                             yield hasTime && firstColon > 0
-                                    && dateStr.indexOf(':', firstColon + 1) > 0;
+                                    && stripped.indexOf(':', firstColon + 1) > 0;
                         }
                         default -> hasTime;
                     };
@@ -4878,7 +4882,7 @@ public final class PureCompiler {
             }
             case "hasSubsecond", "hasSubsecondWithAtLeastPrecision" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
-                if (src instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
                     yield Literal.bool(dateStr.contains("."));
                 }

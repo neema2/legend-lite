@@ -1925,6 +1925,48 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f", ((ScalarResult) result).value());
     }
 
+    // ==================== Date precision tests ====================
+
+    @Test
+    void testHasHourWithHour() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-04-15T17->meta::pure::functions::date::hasHour()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testHasHourWithoutHour() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-04-15->meta::pure::functions::date::hasHour()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testHasMinuteWithMinute() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-04-15T17:09+0000->meta::pure::functions::date::hasMinute()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testHasMinuteWithoutMinute() throws SQLException {
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-04-15T17->meta::pure::functions::date::hasMinute()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
