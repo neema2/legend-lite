@@ -3680,6 +3680,29 @@ public final class PureCompiler {
                         LogicalExpression.and(a, LogicalExpression.not(b)),
                         LogicalExpression.and(LogicalExpression.not(a), b));
             }
+            // hash(str, hashType) -> md5(str), sha256(str), etc.
+            case "hash" -> {
+                if (args.size() < 2) throw new PureCompileException("hash() requires string and hash type arguments");
+                Expression src = compileToSqlExpression(args.get(0), context);
+                // Second arg is the hash type enum (e.g., HashType.MD5)
+                String hashType = "";
+                PureExpression hashTypeArg = args.get(1);
+                if (hashTypeArg instanceof EnumValueReference enumRef) {
+                    hashType = enumRef.valueName().toUpperCase();
+                } else if (hashTypeArg instanceof VariableExpr v) {
+                    hashType = v.name().toUpperCase();
+                } else {
+                    hashType = hashTypeArg.toString().toUpperCase();
+                }
+                // Map Pure hash types to DuckDB functions
+                if (hashType.contains("SHA256")) {
+                    yield SqlFunctionCall.of("sha256", src);
+                } else if (hashType.contains("SHA1")) {
+                    yield SqlFunctionCall.of("sha1", src);
+                }
+                // Default (MD5 or unknown): use md5
+                yield SqlFunctionCall.of("md5", src);
+            }
             // generateGuid() -> uuid()
             case "generateGuid" -> {
                 yield SqlFunctionCall.of("uuid");
@@ -4905,6 +4928,26 @@ public final class PureCompiler {
                 yield LogicalExpression.or(
                         LogicalExpression.and(a, LogicalExpression.not(b)),
                         LogicalExpression.and(LogicalExpression.not(a), b));
+            }
+            case "hash" -> { // str->hash(HashType.MD5) -> md5(str)
+                if (methodCall.arguments().isEmpty())
+                    throw new PureCompileException("hash requires a hash type argument");
+                Expression src = compileToSqlExpression(methodCall.source(), context);
+                PureExpression hashTypeArg = methodCall.arguments().getFirst();
+                String hashType = "";
+                if (hashTypeArg instanceof EnumValueReference enumRef) {
+                    hashType = enumRef.valueName().toUpperCase();
+                } else if (hashTypeArg instanceof VariableExpr v) {
+                    hashType = v.name().toUpperCase();
+                } else {
+                    hashType = hashTypeArg.toString().toUpperCase();
+                }
+                if (hashType.contains("SHA256")) {
+                    yield SqlFunctionCall.of("sha256", src);
+                } else if (hashType.contains("SHA1")) {
+                    yield SqlFunctionCall.of("sha1", src);
+                }
+                yield SqlFunctionCall.of("md5", src);
             }
 
             default -> compileSimpleMethodCall(methodCall, context);
