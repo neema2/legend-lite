@@ -4783,6 +4783,14 @@ public final class PureCompiler {
                 // Pure at() is 0-indexed, DuckDB list_extract is 1-indexed
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("at requires an index argument");
+
+                // Optimization: at(0) on a scalar struct property (multiplicity [1]) is a no-op.
+                // In fold/map over struct lists, $p.lastName->at(0) should just be p.lastName,
+                // not LIST_EXTRACT(p.lastName, 1) which would extract a character from the string.
+                if (isScalarStructPropertyAccess(methodCall.source(), context)) {
+                    yield compileToSqlExpression(methodCall.source(), context);
+                }
+
                 Expression index = compileToSqlExpression(methodCall.arguments().getFirst(), context);
                 // Add 1 to convert 0-based Pure index to 1-based DuckDB index
                 Expression adjustedIndex = ArithmeticExpression.add(index, Literal.integer(1));
@@ -5379,6 +5387,10 @@ public final class PureCompiler {
     /**
      * Compiles fold({acc, x | expr}, init) to list_reduce(arr, lambda acc, x: expr,
      * init)
+     *
+     * When the source is a struct list and the initial value is a different type
+     * (e.g., string), DuckDB's list_reduce fails with a type mismatch error.
+     * In this case, we decompose into: list_reduce(list_transform(source, elem -> f(elem)), (acc, x) -> acc + x, init)
      */
     private Expression compileFoldCall(MethodCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
@@ -5401,14 +5413,123 @@ public final class PureCompiler {
         String pureElemParam = params.get(0);
         String pureAccParam = params.get(1);
 
+        Expression initialValue = compileToSqlExpression(methodCall.arguments().get(1), context);
+
+        // Check if source is a struct list that needs decomposition for DuckDB compatibility.
+        // DuckDB's list_reduce requires initial value type = list element type.
+        // When folding structs into a string, we decompose into list_transform + list_reduce.
+        String elemClassName = extractStructListClassName(methodCall.source());
+        if (elemClassName != null && !(initialValue instanceof StructLiteralExpression)) {
+            Expression lambdaBody = compileToSqlExpression(lambda.body(),
+                    context.withFoldParameters(pureAccParam, pureElemParam, elemClassName));
+
+            // Try to decompose the body: strip accumulator from left spine of ADD chain
+            Expression elemTransform = stripAccumulatorFromBody(lambdaBody, pureAccParam);
+            if (elemTransform != null) {
+                // Generate: list_reduce(list_transform(source, elem -> elemTransform), (acc, x) -> acc || x, init)
+                Expression transformedList = SqlCollectionCall.map(source, pureElemParam, elemTransform);
+                String freshX = "__x";
+                Expression reduceBody = ConcatExpression.of(
+                        ColumnReference.of(pureAccParam), ColumnReference.of(freshX));
+                return SqlCollectionCall.fold(transformedList, pureAccParam, freshX, reduceBody, initialValue);
+            }
+        }
+
+        // Fallback: standard list_reduce approach
         Expression lambdaBody = compileToSqlExpression(lambda.body(),
                 context.withFoldParameters(pureElemParam, pureAccParam));
-
-        Expression initialValue = compileToSqlExpression(methodCall.arguments().get(1), context);
 
         // DuckDB list_reduce: (accumulator, element) -> body
         // Map Pure's accumulator to DuckDB's first position (accumulator)
         return SqlCollectionCall.fold(source, pureAccParam, pureElemParam, lambdaBody, initialValue);
+    }
+
+    /**
+     * Checks if a PureExpression is a property access on a lambda parameter
+     * whose class has the property at multiplicity [1] (scalar).
+     * Used to optimize at(0) as a no-op for struct field access.
+     */
+    private boolean isScalarStructPropertyAccess(PureExpression source, CompilationContext context) {
+        if (!(source instanceof PropertyAccessExpression propAccess)) return false;
+        if (!(propAccess.source() instanceof VariableExpr var)) return false;
+        if (context == null || !context.isLambdaParameter(var.name())) return false;
+
+        String className = context.getLambdaParamClass(var.name());
+        if (className == null) return false;
+
+        var pureClass = typeEnvironment.findClass(className);
+        if (pureClass.isEmpty()) return false;
+
+        var property = pureClass.get().findProperty(propAccess.propertyName());
+        return property.isPresent() && property.get().multiplicity().isSingular();
+    }
+
+    /**
+     * Extracts the class name from a struct list source (ArrayLiteral of InstanceExpressions).
+     * Returns null if the source is not a struct list.
+     */
+    private String extractStructListClassName(PureExpression source) {
+        if (!(source instanceof ArrayLiteral array)) return null;
+        if (array.elements().isEmpty()) return null;
+        if (!(array.elements().getFirst() instanceof InstanceExpression inst)) return null;
+        return inst.className();
+    }
+
+    /**
+     * Strips the accumulator reference from the left spine of an ADD/CONCAT chain.
+     * For a body like: CONCAT([CONCAT([CONCAT([CONCAT([acc, '; ']), p.lastName]), ', ']), p.firstName])
+     * Returns:         CONCAT([CONCAT([CONCAT(['; ', p.lastName]), ', ']), p.firstName])
+     * (i.e., the element-only transform expression)
+     *
+     * Handles both ArithmeticExpression (numeric fold) and ConcatExpression (string fold).
+     * Returns null if the accumulator cannot be found in the left spine.
+     */
+    private Expression stripAccumulatorFromBody(Expression body, String accParam) {
+        // Handle ConcatExpression (string concatenation: a || b)
+        if (body instanceof ConcatExpression concat && concat.parts().size() == 2) {
+            Expression first = concat.parts().get(0);
+            Expression second = concat.parts().get(1);
+
+            // Base case: first part is the accumulator column reference
+            if (first instanceof ColumnReference ref
+                    && ref.columnName().equals(accParam)
+                    && ref.tableAlias().isEmpty()) {
+                return second;
+            }
+
+            // Recursive case: first part is another ConcatExpression
+            if (first instanceof ConcatExpression) {
+                Expression stripped = stripAccumulatorFromBody(first, accParam);
+                if (stripped != null) {
+                    return ConcatExpression.of(stripped, second);
+                }
+            }
+        }
+
+        // Handle ArithmeticExpression (numeric fold: a + b)
+        if (body instanceof ArithmeticExpression arith
+                && arith.operator() == org.finos.legend.pure.dsl.m2m.BinaryArithmeticExpr.Operator.ADD) {
+            Expression left = arith.left();
+            Expression right = arith.right();
+
+            // Base case: left is the accumulator column reference
+            if (left instanceof ColumnReference ref
+                    && ref.columnName().equals(accParam)
+                    && ref.tableAlias().isEmpty()) {
+                return right;
+            }
+
+            // Recursive case: left is another ADD
+            if (left instanceof ArithmeticExpression leftArith
+                    && leftArith.operator() == org.finos.legend.pure.dsl.m2m.BinaryArithmeticExpr.Operator.ADD) {
+                Expression stripped = stripAccumulatorFromBody(left, accParam);
+                if (stripped != null) {
+                    return ArithmeticExpression.add(stripped, right);
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -5692,9 +5813,12 @@ public final class PureCompiler {
             // Source is a complex expression — compile it
             Expression compiledSource = compileToSqlExpression(propAccess.source(), context);
 
-            // If source returns a scalar struct (at/head/first/last), use struct_extract
-            // instead of list_transform which expects a list input
+            // If source returns a scalar struct (at/head/first/last or InstanceExpression),
+            // use struct_extract instead of list_transform which expects a list input
             if (propAccess.source() instanceof MethodCall mc && isScalarMethod(mc.methodName())) {
+                return SqlFunctionCall.of("struct_extract", compiledSource, Literal.string(fullPath));
+            }
+            if (compiledSource instanceof StructLiteralExpression) {
                 return SqlFunctionCall.of("struct_extract", compiledSource, Literal.string(fullPath));
             }
 
@@ -6022,11 +6146,28 @@ public final class PureCompiler {
          * Creates a new context with fold parameters (accumulator and element).
          */
         public CompilationContext withFoldParameters(String accParam, String elemParam) {
+            return withFoldParameters(accParam, elemParam, null);
+        }
+
+        /**
+         * Creates a new context with fold parameters and optional element class name.
+         * The class name enables at(0) optimization for scalar struct properties.
+         */
+        public CompilationContext withFoldParameters(String accParam, String elemParam, String elemClassName) {
             var newParams = new java.util.HashMap<>(lambdaParameters);
             newParams.put(accParam, "");
-            newParams.put(elemParam, "");
+            newParams.put(elemParam, elemClassName != null ? elemClassName : "");
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
                     inFilterContext, newParams, extendedColumns, relationSources, symbols);
+        }
+
+        /**
+         * Gets the class name associated with a lambda parameter (e.g., the element class in fold).
+         * Returns null if the parameter has no associated class.
+         */
+        public String getLambdaParamClass(String paramName) {
+            String val = lambdaParameters.get(paramName);
+            return (val != null && !val.isEmpty()) ? val : null;
         }
 
         /**

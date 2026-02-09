@@ -2576,6 +2576,32 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("d", firstSecond.get("second"));
     }
 
+    // ==================== fold() on struct list with string accumulator (PCT: testPlusInIterate) ====================
+
+    @Test
+    void testFoldOnStructListWithStringAccumulator() throws SQLException {
+        // PCT test: testPlusInIterate - fold over list of P_Person structs with string accumulator
+        // This fails with: "Binder Error: The initial value type must be the same as the list child type"
+        // because DuckDB's list_reduce requires initial value type = list element type.
+        // The list is STRUCT[] but initial value is VARCHAR.
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.of(java.util.Map.of(
+                "meta::pure::functions::string::tests::plus::model::P_Person",
+                new org.finos.legend.pure.m3.PureClass(
+                        "meta::pure::functions::string::tests::plus::model", "P_Person",
+                        java.util.List.of(
+                                org.finos.legend.pure.m3.Property.required("firstName", org.finos.legend.pure.m3.PrimitiveType.STRING),
+                                org.finos.legend.pure.m3.Property.required("lastName", org.finos.legend.pure.m3.PrimitiveType.STRING)))));
+
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Pierre',lastName='Doe'), ^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Kevin',lastName='RoeDoe'), ^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Andrew',lastName='Some_LName')]->meta::pure::functions::collection::fold({p: meta::pure::functions::string::tests::plus::model::P_Person[1], s: String[1]|$s + '; ' + $p.lastName->meta::pure::functions::collection::at(0) + ', ' + $p.firstName->meta::pure::functions::collection::at(0)}, 'names')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertEquals("names; Doe, Pierre; RoeDoe, Kevin; Some_LName, Andrew", value);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
