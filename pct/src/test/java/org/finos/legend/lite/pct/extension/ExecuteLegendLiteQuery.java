@@ -102,8 +102,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         System.out.println("[LegendLite PCT] Executing Pure expression: " + pureExpression);
 
         try {
-            // Create in-memory DuckDB connection
+            // Create in-memory DuckDB connection with UTC timezone
             try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+                try (var tzStmt = connection.createStatement()) {
+                    tzStmt.execute("SET TimeZone='UTC'");
+                }
                 Result result;
 
                 // Check for InstanceExpression-based queries (e.g.,
@@ -354,6 +357,23 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 PureDate pureDate = DateFunctions.newPureDate(
                         ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
                         ldt.getHour(), ldt.getMinute(), ldt.getSecond());
+                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            }
+        }
+        if (value instanceof java.time.OffsetDateTime odt) {
+            // TIMESTAMPTZ: convert to UTC then create PureDate
+            java.time.OffsetDateTime utc = odt.withOffsetSameInstant(java.time.ZoneOffset.UTC);
+            int nanos = utc.getNano();
+            if (nanos > 0) {
+                String subsecond = stripTrailingZeros(String.format("%09d", nanos));
+                PureDate pureDate = DateFunctions.newPureDate(
+                        utc.getYear(), utc.getMonthValue(), utc.getDayOfMonth(),
+                        utc.getHour(), utc.getMinute(), utc.getSecond(), subsecond);
+                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            } else {
+                PureDate pureDate = DateFunctions.newPureDate(
+                        utc.getYear(), utc.getMonthValue(), utc.getDayOfMonth(),
+                        utc.getHour(), utc.getMinute(), utc.getSecond());
                 return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
             }
         }

@@ -42,6 +42,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     @BeforeEach
     void setUp() throws SQLException {
         connection = DriverManager.getConnection(getJdbcUrl());
+        // Set UTC timezone so TIMESTAMPTZ values are returned in UTC
+        try (var stmt = connection.createStatement()) {
+            stmt.execute("SET TimeZone='UTC'");
+        }
         setupPureModel();
         setupDatabase();
     }
@@ -2067,6 +2071,57 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
         assertTrue(result instanceof ScalarResult);
         assertScalarInteger(result, 10); // 0+1+2+3+4 = 10
+    }
+
+    @Test
+    void testFoldStringConcat() throws SQLException {
+        // ['a','b','c','d']->fold({x,y|$y+$x}, '') = 'abcd'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a', 'b', 'c', 'd']->meta::pure::functions::collection::fold({x: String[1], y: String[1]|$y + $x}, '')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("abcd", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testFoldStringConcatWithPrefix() throws SQLException {
+        // ['a','b','c','d']->fold({x,y|$y+$x}, 'z') = 'zabcd'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a', 'b', 'c', 'd']->meta::pure::functions::collection::fold({x: String[1], y: String[1]|$y + $x}, 'z')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("zabcd", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testFoldIntegerWithExtraArithmetic() throws SQLException {
+        // [1,2,3,4]->fold({x,y|$x+$y+2}, 7) = 25
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[1]|$x + $y + 2}, 7)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertScalarInteger(result, 25); // 7 -> 7+1+2=10 -> 10+2+2=14 -> 14+3+2=19 -> 19+4+2=25
+    }
+
+    @Test
+    void testParseDateWithTimezone() throws SQLException {
+        // '2014-02-27T10:01:35.231-0500'->parseDate() returns OffsetDateTime preserving TZ
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'2014-02-27T10:01:35.231-0500'->meta::pure::functions::string::parseDate()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertTrue(value instanceof java.time.OffsetDateTime, "Expected OffsetDateTime but got: " + value.getClass().getName());
+        java.time.OffsetDateTime odt = (java.time.OffsetDateTime) value;
+        // Convert to UTC and verify the instant is correct
+        java.time.OffsetDateTime utc = odt.withOffsetSameInstant(java.time.ZoneOffset.UTC);
+        assertEquals(15, utc.getHour(), "Expected UTC hour 15 but got: " + utc);
+        assertEquals(1, utc.getMinute());
+        assertEquals(35, utc.getSecond());
     }
 
     // ==================== Hash function tests ====================

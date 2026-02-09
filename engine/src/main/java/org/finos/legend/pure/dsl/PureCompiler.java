@@ -3835,8 +3835,8 @@ public final class PureCompiler {
                 if (args.isEmpty()) throw new PureCompileException("parseDate() requires a string argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
                 if (args.size() == 1) {
-                    // No format: auto-parse via CAST
-                    yield new org.finos.legend.engine.plan.CastExpression(src, "TIMESTAMP");
+                    // No format: auto-parse via CAST (TIMESTAMPTZ preserves timezone)
+                    yield new org.finos.legend.engine.plan.CastExpression(src, "TIMESTAMPTZ");
                 }
                 yield new SqlFunctionCall("cast",
                         SqlFunctionCall.of("strptime", src,
@@ -4813,11 +4813,11 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(args.get(1));
                 yield new DateAdjustExpression(dateExpr, amountExpr, unit);
             }
-            case "parseDate" -> { // parseDate(s, fmt) -> strptime(s, fmt)::DATE or CAST(s AS TIMESTAMP)
+            case "parseDate" -> { // parseDate(s, fmt) -> strptime(s, fmt)::DATE or CAST(s AS TIMESTAMPTZ)
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.arguments().isEmpty()) {
-                    // No format arg: use CAST(s AS TIMESTAMP) which auto-parses common formats
-                    yield new org.finos.legend.engine.plan.CastExpression(src, "TIMESTAMP");
+                    // No format arg: use CAST(s AS TIMESTAMPTZ) which preserves timezone
+                    yield new org.finos.legend.engine.plan.CastExpression(src, "TIMESTAMPTZ");
                 }
                 yield new SqlFunctionCall("cast",
                         SqlFunctionCall.of("strptime", src,

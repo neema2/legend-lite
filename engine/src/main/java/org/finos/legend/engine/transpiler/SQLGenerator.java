@@ -19,6 +19,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     // Track lambda parameters to avoid quoting them in SQL generation
     private final java.util.Set<String> lambdaParams = new java.util.HashSet<>();
+    private boolean stringArithmeticContext = false;
 
     public SQLGenerator(SQLDialect dialect) {
         this.dialect = Objects.requireNonNull(dialect, "Dialect cannot be null");
@@ -1636,9 +1637,24 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visitArithmetic(ArithmeticExpression arithmetic) {
+        // For string + string, use DuckDB's || concatenation operator
+        if (arithmetic.operator() == org.finos.legend.pure.dsl.m2m.BinaryArithmeticExpr.Operator.ADD
+                && (stringArithmeticContext || isStringExpression(arithmetic.left()) || isStringExpression(arithmetic.right()))) {
+            String left = arithmetic.left().accept(this);
+            String right = arithmetic.right().accept(this);
+            return "(" + left + " || " + right + ")";
+        }
         String left = wrapNumericCast(arithmetic.left());
         String right = wrapNumericCast(arithmetic.right());
         return "(" + left + " " + arithmetic.sqlOperator() + " " + right + ")";
+    }
+
+    private boolean isStringExpression(Expression expr) {
+        if (expr instanceof Literal lit && lit.value() instanceof String) return true;
+        if (expr instanceof ColumnReference) return false; // Could be any type
+        if (expr instanceof ArithmeticExpression arith) return isStringExpression(arith.left());
+        if (expr.type() == SqlType.VARCHAR) return true;
+        return false;
     }
 
     /**
@@ -2057,14 +2073,20 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 String elemParam = call.lambdaParam(); // element
                 lambdaParams.add(accParam);
                 lambdaParams.add(elemParam);
+                // Enable string concatenation context if initial value is a string
+                boolean prevStringCtx = stringArithmeticContext;
+                if (call.initialValue() instanceof Literal lit && lit.literalType() == Literal.LiteralType.STRING) {
+                    stringArithmeticContext = true;
+                }
                 String lambdaBody = call.lambdaBody().accept(this);
+                stringArithmeticContext = prevStringCtx;
                 lambdaParams.remove(accParam);
                 lambdaParams.remove(elemParam);
                 String initVal = call.initialValue().accept(this);
-                // DuckDB list_reduce has no initial value arg, so prepend init to list
-                // list_reduce([init, ...list], (acc, elem) -> body)
-                yield "list_reduce(list_prepend(" + initVal + ", " + listSource + "), (" + accParam + ", " + elemParam + ") -> "
-                        + lambdaBody + ")";
+                // DuckDB list_reduce with initial value — wrap lambda in parens to avoid
+                // ambiguity between lambda body commas and argument separator
+                yield "list_reduce(" + listSource + ", ((" + accParam + ", " + elemParam + ") -> "
+                        + lambdaBody + "), " + initVal + ")";
             }
             case FLATTEN -> "flatten(" + listSource + ")";
         };
