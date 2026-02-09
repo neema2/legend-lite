@@ -4592,8 +4592,10 @@ public final class PureCompiler {
             // ===== MATH FUNCTIONS =====
             case "min" -> { // x->min(y) -> LEAST(x, y), or list->min() -> list_min(list)
                 if (methodCall.arguments().isEmpty()) {
-                    // No args: aggregate min on list source
-                    yield SqlFunctionCall.of("list_min", compileToSqlExpression(methodCall.source(), context));
+                    Expression src = compileToSqlExpression(methodCall.source(), context);
+                    // Scalar->min() is identity; only use list_min for arrays
+                    if (!(methodCall.source() instanceof ArrayLiteral)) { yield src; }
+                    yield SqlFunctionCall.of("list_min", src);
                 }
                 yield SqlFunctionCall.of("least",
                         compileToSqlExpression(methodCall.source(), context),
@@ -4601,8 +4603,10 @@ public final class PureCompiler {
             }
             case "max" -> { // x->max(y) -> GREATEST(x, y), or list->max() -> list_max(list)
                 if (methodCall.arguments().isEmpty()) {
-                    // No args: aggregate max on list source
-                    yield SqlFunctionCall.of("list_max", compileToSqlExpression(methodCall.source(), context));
+                    Expression src = compileToSqlExpression(methodCall.source(), context);
+                    // Scalar->max() is identity; only use list_max for arrays
+                    if (!(methodCall.source() instanceof ArrayLiteral)) { yield src; }
+                    yield SqlFunctionCall.of("list_max", src);
                 }
                 yield SqlFunctionCall.of("greatest",
                         compileToSqlExpression(methodCall.source(), context),

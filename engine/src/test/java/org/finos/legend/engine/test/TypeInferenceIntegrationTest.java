@@ -2736,6 +2736,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testMaxOnScalar() throws SQLException {
+        // PCT: testMax_Integers - 1->max() on scalar should return the value itself
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->meta::pure::functions::math::max()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals(1L, ((Number) ((ScalarResult) result).value()).longValue());
+    }
+
+    @Test
     void testFirstOnScalarLiteral() throws SQLException {
         // PCT: testFirstOnOneElement - 'a'->first() should return 'a'
         Result result = queryService.execute(
