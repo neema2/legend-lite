@@ -723,6 +723,18 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 // Extract just the simple function name (last segment) from qualified names
                 // e.g., meta::pure::functions::math::exp -> exp
                 String simpleName = name.contains("::") ? name.substring(name.lastIndexOf("::") + 2) : name;
+                // Check if this is a registered user function (standalone call, no receiver)
+                if (functionRegistry.hasFunction(name) || functionRegistry.hasFunction(simpleName)) {
+                    // Extract argument source texts
+                    List<String> argTexts = new ArrayList<>();
+                    if (aof.functionExpressionParameters().combinedExpression() != null) {
+                        for (var argCtx : aof.functionExpressionParameters().combinedExpression()) {
+                            String argText = extractSourceText(argCtx);
+                            argTexts.add(argText != null ? argText : "");
+                        }
+                    }
+                    return new UserFunctionCallExpression(null, null, simpleName, args, argTexts);
+                }
                 return new FunctionCall(simpleName, args);
             }
         }

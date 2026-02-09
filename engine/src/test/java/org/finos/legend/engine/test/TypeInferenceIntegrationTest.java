@@ -2714,6 +2714,28 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testLetAsLastStatement() throws SQLException {
+        // PCT: testLetAsLastStatement - user-defined function with let as last statement
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::lang::tests::letFn::letAsLastStatement()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals("last statement string", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testLetWithParam() throws SQLException {
+        // PCT: testLetWithParam - user-defined function with parameter and let
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'echo'->meta::pure::functions::lang::tests::letFn::letWithParam()->meta::pure::functions::multiplicity::toOne()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals("echo", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
     void testDecimalLiteralWithExplicitScale() throws SQLException {
         // Regression guard: 1.0D must preserve scale 1 and return DECIMAL, not INTEGER
         // (stripTrailingZeros approach would strip to "1" → DuckDB returns INTEGER)

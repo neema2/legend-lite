@@ -3296,22 +3296,46 @@ public final class PureCompiler {
                 // Start with the function body
                 String expandedBody = entry.bodySource();
 
-                // Substitute first parameter with receiver source text
-                if (!entry.paramNames().isEmpty() && userFn.sourceText() != null) {
-                    expandedBody = expandedBody.replace("$" + entry.paramNames().get(0), userFn.sourceText());
-                }
-
-                // Substitute additional parameters with argument source texts
-                for (int i = 1; i < entry.paramNames().size() && i <= userFn.argumentTexts().size(); i++) {
-                    String argText = userFn.argumentTexts().get(i - 1);
-                    if (argText != null && !argText.isEmpty()) {
-                        expandedBody = expandedBody.replace("$" + entry.paramNames().get(i), argText);
+                if (userFn.sourceText() != null) {
+                    // Arrow call: first param = receiver, rest = argumentTexts
+                    if (!entry.paramNames().isEmpty()) {
+                        expandedBody = expandedBody.replace("$" + entry.paramNames().get(0), userFn.sourceText());
+                    }
+                    for (int i = 1; i < entry.paramNames().size() && i <= userFn.argumentTexts().size(); i++) {
+                        String argText = userFn.argumentTexts().get(i - 1);
+                        if (argText != null && !argText.isEmpty()) {
+                            expandedBody = expandedBody.replace("$" + entry.paramNames().get(i), argText);
+                        }
+                    }
+                } else {
+                    // Standalone call: all params come from argumentTexts
+                    for (int i = 0; i < entry.paramNames().size() && i < userFn.argumentTexts().size(); i++) {
+                        String argText = userFn.argumentTexts().get(i);
+                        if (argText != null && !argText.isEmpty()) {
+                            expandedBody = expandedBody.replace("$" + entry.paramNames().get(i), argText);
+                        }
                     }
                 }
 
                 // Re-parse the expanded expression and compile it
                 PureExpression inlined = PureParser.parse(expandedBody);
                 yield compileToSqlExpression(inlined, context);
+            }
+
+            // ===== LET EXPRESSIONS (from inlined function bodies) =====
+            case LetExpression let -> {
+                // In SQL context, let x = val just evaluates to val
+                yield compileToSqlExpression(let.value(), context);
+            }
+            case BlockExpression block -> {
+                // Process let bindings, then compile the result expression
+                CompilationContext workingCtx = context != null ? context
+                        : new CompilationContext(null, null, null, null, false);
+                for (LetExpression let : block.letStatements()) {
+                    Expression scalarExpr = compileToSqlExpression(let.value(), workingCtx);
+                    workingCtx = workingCtx.withScalarBinding(let.variableName(), scalarExpr);
+                }
+                yield compileToSqlExpression(block.result(), workingCtx);
             }
 
             case MethodCall methodCall -> compileMethodCall(methodCall, context);

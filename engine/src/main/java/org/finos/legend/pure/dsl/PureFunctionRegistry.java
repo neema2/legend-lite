@@ -94,5 +94,25 @@ public class PureFunctionRegistry {
                 $val->filter(y | $y->mod(2) == 0)->size() == 2
             }
             """);
+
+        // PCT let function tests
+        registry.registerPure("""
+            function meta::pure::functions::lang::tests::letFn::letAsLastStatement():String[1]
+            {
+                let last = 'last statement string'
+            }
+            """);
+        registry.registerPure("""
+            function meta::pure::functions::lang::tests::letFn::letWithParam(val: String[1]):Any[*]
+            {
+                let a = $val
+            }
+            """);
+        registry.registerPure("""
+            function meta::pure::functions::lang::tests::letFn::letChainedWithAnotherFunction(elements: ModelElement[*]):ModelElement[*]
+            {
+                let classes = $elements->removeDuplicates()
+            }
+            """);
     }
 }
