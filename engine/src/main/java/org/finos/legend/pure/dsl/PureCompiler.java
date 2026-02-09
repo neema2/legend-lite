@@ -5112,14 +5112,20 @@ public final class PureCompiler {
                         sqlType);
             }
 
-            // isEmpty: value->isEmpty() -> value IS NULL
+            // isEmpty: value->isEmpty() -> value IS NULL (scalars) or len(value) = 0 (lists)
             case "isEmpty" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield ComparisonExpression.equals(SqlFunctionCall.of("len", src), Literal.of(0));
+                }
                 yield new ComparisonExpression(src, ComparisonExpression.ComparisonOperator.IS_NULL, null);
             }
-            // isNotEmpty: value->isNotEmpty() -> value IS NOT NULL
+            // isNotEmpty: value->isNotEmpty() -> value IS NOT NULL (scalars) or len(value) > 0 (lists)
             case "isNotEmpty" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.source() instanceof ArrayLiteral) {
+                    yield ComparisonExpression.greaterThan(SqlFunctionCall.of("len", src), Literal.of(0));
+                }
                 yield new ComparisonExpression(src, ComparisonExpression.ComparisonOperator.IS_NOT_NULL, null);
             }
             // not: bool->not() -> NOT bool

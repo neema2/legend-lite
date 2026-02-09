@@ -2736,6 +2736,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testIsEmptyOnEmptyList() throws SQLException {
+        // PCT: testIsEmpty - []->isEmpty() should be true (empty array is not null)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->meta::pure::functions::collection::isEmpty()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
     void testDecimalLiteralWithExplicitScale() throws SQLException {
         // Regression guard: 1.0D must preserve scale 1 and return DECIMAL, not INTEGER
         // (stripTrailingZeros approach would strip to "1" → DuckDB returns INTEGER)
