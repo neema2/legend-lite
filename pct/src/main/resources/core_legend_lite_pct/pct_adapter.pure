@@ -233,7 +233,29 @@ function meta::legend::lite::pct::resultToType(result: Any[1], type: GenericType
     // Expected Nil → empty collection
     pair(|$resultType == Nil, |[]),
     // String result that looks like array "[]" or "[1, 2, 3]" with toMany multiplicity → parse
-    pair(|$result->instanceOf(String) && $result->cast(@String) == '[]', |[]),
+    pair(|$result->instanceOf(String) && $result->cast(@String) == '[]' && $resultType != List, |[]),
+    // List<T> wrapper: array string + expected type is List → parse elements and wrap in ^List(values=...)
+    pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $resultType == List,
+         |let elemType = $type.typeArguments->at(0).rawType->toOne();
+          let str = $result->cast(@String);
+          let inner = $str->substring(1, $str->length()-1);
+          let elements = if ($inner == '',
+            | [],
+            | let parts = $inner->split(',');
+              if ($elemType->subTypeOf(Integer),
+                | $parts->map(s|$s->trim()->parseInteger()),
+                | if ($elemType->subTypeOf(Float) || $elemType->subTypeOf(Number),
+                    | $parts->map(s|$s->trim()->parseFloat()),
+                    | if ($elemType->subTypeOf(Boolean),
+                        | $parts->map(s|$s->trim() == 'true'),
+                        | $parts->map(s|$s->trim()))));
+          );
+          if ($elemType == Integer, | ^List<Integer>(values = $elements->cast(@Integer)),
+            | if ($elemType == Float, | ^List<Float>(values = $elements->cast(@Float)),
+              | if ($elemType == Boolean, | ^List<Boolean>(values = $elements->cast(@Boolean)),
+                | if ($elemType == String, | ^List<String>(values = $elements->cast(@String)),
+                  | if ($elemType == Number, | ^List<Number>(values = $elements->cast(@Number)),
+                    | ^List<Any>(values = $elements))))));),
     // Mixed-type array: when expected type is Any, parse each element by its format
     pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $result->cast(@String)->endsWith(']') && $mult->isToMany() && $resultType == Any,
          |let str = $result->cast(@String);
