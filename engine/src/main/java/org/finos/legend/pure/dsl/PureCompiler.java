@@ -3902,6 +3902,11 @@ public final class PureCompiler {
                 }
                 yield Literal.bool(true);
             }
+            // list(collection) -> no-op; Pure's List<T> wrapper has no SQL equivalent
+            case "list" -> {
+                if (args.isEmpty()) throw new PureCompileException("list() requires an argument");
+                yield compileToSqlExpression(args.getFirst(), context);
+            }
             default -> {
                 // Standard function call: first arg is target, rest are additional
                 List<Expression> sqlArgs = args.stream()
@@ -5079,6 +5084,9 @@ public final class PureCompiler {
                 }
                 yield SqlFunctionCall.of("md5", src);
             }
+
+            // list(collection) -> no-op; Pure's List<T> wrapper has no SQL equivalent
+            case "list" -> compileToSqlExpression(methodCall.source(), context);
 
             default -> compileSimpleMethodCall(methodCall, context);
         };

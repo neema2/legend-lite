@@ -2339,6 +2339,26 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 "'a'->tail() should be empty but got: " + tailValue);
     }
 
+    @Test
+    void testSliceInList() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+
+        // PCT: assertEquals(list([2, 3]), |list([1, 2, 3, 4]->slice(1, 3)))
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::collection::list([1, 2, 3, 4]->meta::pure::functions::collection::slice(1, 3))",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value, "list(slice([1,2,3,4], 1, 3)) should not be null");
+        // list() is a no-op — DuckDB returns a flat array [2, 3], not nested [[2, 3]]
+        assertTrue(value instanceof java.sql.Array, "Expected SQL Array but got: " + value.getClass().getSimpleName());
+        Object[] elements = (Object[]) ((java.sql.Array) value).getArray();
+        assertEquals(2, elements.length, "Should have 2 elements");
+        assertEquals(2, ((Number) elements[0]).intValue());
+        assertEquals(3, ((Number) elements[1]).intValue());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
