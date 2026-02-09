@@ -2107,6 +2107,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testForAllOnEmptySet() throws SQLException {
+        // []->forAll(e|$e == 0) should return true (vacuous truth)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->meta::pure::functions::collection::forAll(e|$e == 0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
     void testParseDateWithTimezone() throws SQLException {
         // '2014-02-27T10:01:35.231-0500'->parseDate() returns OffsetDateTime preserving TZ
         Result result = queryService.execute(

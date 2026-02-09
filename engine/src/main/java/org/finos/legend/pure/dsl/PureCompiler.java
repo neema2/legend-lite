@@ -3997,9 +3997,11 @@ public final class PureCompiler {
             CompilationContext lambdaContext = context.withLambdaParameter(param, param);
             Expression condition = compileToSqlExpression(lambda.body(), lambdaContext);
 
-            // list_bool_and(list_transform(source, param -> condition))
+            // COALESCE(list_bool_and(list_transform(source, param -> condition)), true)
+            // COALESCE handles empty list case (vacuous truth: forAll on [] = true)
             Expression transformed = SqlCollectionCall.map(source, param, condition);
-            return SqlFunctionCall.of("list_bool_and", transformed);
+            Expression boolAnd = SqlFunctionCall.of("list_bool_and", transformed);
+            return SqlFunctionCall.of("COALESCE", boolAnd, new Literal(true, Literal.LiteralType.BOOLEAN));
         }
         throw new PureCompileException("forAll() predicate must be a lambda, got: " + predicate);
     }
