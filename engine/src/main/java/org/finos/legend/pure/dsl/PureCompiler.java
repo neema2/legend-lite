@@ -3943,6 +3943,23 @@ public final class PureCompiler {
                 }
                 yield Literal.bool(true);
             }
+            // divide(a, b, scale) -> ROUND(a / b, scale)
+            // DuckDB's DIVIDE only takes 2 args; Pure's 3-arg divide rounds to scale
+            case "divide" -> {
+                if (args.size() == 3) {
+                    Expression a = compileToSqlExpression(args.get(0), context);
+                    Expression b = compileToSqlExpression(args.get(1), context);
+                    Expression scale = compileToSqlExpression(args.get(2), context);
+                    yield SqlFunctionCall.of("round", ArithmeticExpression.divide(a, b), scale);
+                }
+                // 2-arg divide: normal division
+                if (args.size() == 2) {
+                    yield ArithmeticExpression.divide(
+                            compileToSqlExpression(args.get(0), context),
+                            compileToSqlExpression(args.get(1), context));
+                }
+                throw new PureCompileException("divide() requires 2 or 3 arguments");
+            }
             // list(collection) -> no-op; Pure's List<T> wrapper has no SQL equivalent
             case "list" -> {
                 if (args.isEmpty()) throw new PureCompileException("list() requires an argument");

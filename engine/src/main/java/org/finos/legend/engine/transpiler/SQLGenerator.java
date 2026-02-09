@@ -1463,9 +1463,18 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 }
                 yield "CAST(" + target + " AS " + sqlType + ")";
             }
-            case "floor", "ceiling", "round", "sign" -> {
+            case "floor", "ceiling", "sign" -> {
                 // These functions return DOUBLE in DuckDB but Pure expects Integer
                 yield "CAST(" + funcName + "(" + target + ") AS BIGINT)";
+            }
+            case "round" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    // round(x) with no scale -> Pure expects Integer
+                    yield "CAST(round(" + target + ") AS BIGINT)";
+                }
+                // round(x, scale) -> ROUND(x, scale) returns DECIMAL
+                String scale = functionCall.arguments().getFirst().accept(this);
+                yield "round(" + target + ", " + scale + ")";
             }
 
             // Bit operations - DuckDB uses operators, not functions

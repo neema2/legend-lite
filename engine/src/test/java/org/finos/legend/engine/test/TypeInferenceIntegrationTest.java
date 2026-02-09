@@ -2683,6 +2683,20 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testDivideWithScale() throws SQLException {
+        // PCT test: testDecimalDivide - divide(3.1415D, 0.1D, 2) should give 31.42
+        // Pure's divide(a, b, scale) divides and rounds to scale decimal places
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::math::divide(3.1415D, 0.1D, 2)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertEquals(0, new java.math.BigDecimal("31.42").compareTo(new java.math.BigDecimal(value.toString())));
+    }
+
+    @Test
     void testDecimalLiteralWithExplicitScale() throws SQLException {
         // Regression guard: 1.0D must preserve scale 1 and return DECIMAL, not INTEGER
         // (stripTrailingZeros approach would strip to "1" → DuckDB returns INTEGER)
