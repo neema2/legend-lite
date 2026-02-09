@@ -3406,6 +3406,23 @@ public final class PureCompiler {
             }
             case SortExpression sort when sort.source() instanceof ArrayLiteral -> {
                 Expression list = compileToSqlExpression(sort.source(), context);
+                // Check if first sortColumn is a single-param lambda (key function)
+                if (!sort.sortColumns().isEmpty()
+                        && sort.sortColumns().getFirst() instanceof LambdaExpression keyLambda
+                        && !keyLambda.isMultiParam()) {
+                    String param = keyLambda.parameters().getFirst();
+                    CompilationContext keyCtx = context.withLambdaParameter(param, param);
+                    Expression keyBody = compileToSqlExpression(keyLambda.body(), keyCtx);
+                    java.util.LinkedHashMap<String, Expression> fields = new java.util.LinkedHashMap<>();
+                    fields.put("k", keyBody);
+                    fields.put("v", ColumnReference.of(param));
+                    Expression structExpr = new StructLiteralExpression("_sort", fields);
+                    Expression tagged = SqlCollectionCall.map(list, param, structExpr);
+                    Expression sorted = SqlFunctionCall.of("list_sort", tagged, detectSortDirection(sort.sortColumns()));
+                    String param2 = "_sv";
+                    Expression extractVal = SqlFunctionCall.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
+                    yield SqlCollectionCall.map(sorted, param2, extractVal);
+                }
                 yield SqlFunctionCall.of("list_sort", list, detectSortDirection(sort.sortColumns()));
             }
             // Relation expressions that reach here need special handling
@@ -3446,8 +3463,32 @@ public final class PureCompiler {
                     yield SqlFunctionCall.of("list_sort", source);
                 }
                 // Collection sort with comparator: $list->sort({x,y|$y->compare($x)})
+                // or sort with key function: $list->sort(keyFn, comparatorFn)
                 if (!isRelationExpression(sort.source())) {
                     Expression source = compileToSqlExpression(sort.source(), context);
+                    // Check if first sortColumn is a single-param lambda (key function)
+                    LambdaExpression keyLambda = null;
+                    if (!sort.sortColumns().isEmpty()
+                            && sort.sortColumns().getFirst() instanceof LambdaExpression lambda
+                            && !lambda.isMultiParam()) {
+                        keyLambda = lambda;
+                    }
+                    if (keyLambda != null) {
+                        // sort(keyFn, comparatorFn): sort by key using struct trick
+                        // list_transform(list_sort(list_transform(source, x -> {'k': keyFn(x), 'v': x}), dir), x -> struct_extract(x, 'v'))
+                        String param = keyLambda.parameters().getFirst();
+                        CompilationContext keyCtx = context.withLambdaParameter(param, param);
+                        Expression keyBody = compileToSqlExpression(keyLambda.body(), keyCtx);
+                        java.util.LinkedHashMap<String, Expression> fields = new java.util.LinkedHashMap<>();
+                        fields.put("k", keyBody);
+                        fields.put("v", ColumnReference.of(param));
+                        Expression structExpr = new StructLiteralExpression("_sort", fields);
+                        Expression tagged = SqlCollectionCall.map(source, param, structExpr);
+                        Expression sorted = SqlFunctionCall.of("list_sort", tagged, detectSortDirection(sort.sortColumns()));
+                        String param2 = "_sv";
+                        Expression extractVal = SqlFunctionCall.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
+                        yield SqlCollectionCall.map(sorted, param2, extractVal);
+                    }
                     yield SqlFunctionCall.of("list_sort", source, detectSortDirection(sort.sortColumns()));
                 }
                 // Otherwise it's a relation sort that should be handled elsewhere
@@ -4785,26 +4826,8 @@ public final class PureCompiler {
                 SqlFunctionCall.of("list_distinct", compileToSqlExpression(methodCall.source(), context));
             case "reverse" -> // reverse(list) -> list_reverse(list)
                 SqlFunctionCall.of("list_reverse", compileToSqlExpression(methodCall.source(), context));
-            case "sort" -> { // sort(list) or sort(list, comparator) -> list_sort(list [, 'DESC'])
+            case "sort" -> { // sort() is parsed as SortExpression; this handles edge cases
                 Expression listExpr = compileToSqlExpression(methodCall.source(), context);
-                // Check for comparator lambda to detect sort direction
-                // sort({x, y | $y->compare($x)}) means descending (params reversed)
-                // sort({x, y | $x->compare($y)}) means ascending (default)
-                if (!methodCall.arguments().isEmpty()) {
-                    PureExpression lastArg = methodCall.arguments().getLast();
-                    if (lastArg instanceof LambdaExpression lambda && lambda.isMultiParam()
-                            && lambda.body() instanceof MethodCall cmp
-                            && (cmp.methodName().equals("compare") || cmp.methodName().endsWith("::compare"))) {
-                        // Check if compare source is the second param (reversed = DESC)
-                        String firstParam = lambda.parameters().get(0);
-                        String secondParam = lambda.parameters().get(1);
-                        if (cmp.source() instanceof VariableExpr v && v.name().equals(secondParam)
-                                && !cmp.arguments().isEmpty()
-                                && cmp.arguments().getFirst() instanceof VariableExpr v2 && v2.name().equals(firstParam)) {
-                            yield SqlFunctionCall.of("list_sort", listExpr, Literal.string("DESC"));
-                        }
-                    }
-                }
                 yield SqlFunctionCall.of("list_sort", listExpr);
             }
 

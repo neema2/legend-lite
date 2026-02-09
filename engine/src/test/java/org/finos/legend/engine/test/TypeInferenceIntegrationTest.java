@@ -2359,6 +2359,27 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(3, ((Number) elements[1]).intValue());
     }
 
+    @Test
+    void testSortWithKeyFunction() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+
+        // PCT: ['Doe','Smith','Branche']->sort(s|$s->substring(1,2), {x,y|$x->compare($y)})
+        // Keys: Doe->'o', Smith->'m', Branche->'r' → sorted by key: m<o<r → [Smith, Doe, Branche]
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['Doe', 'Smith', 'Branche']->meta::pure::functions::collection::sort({s: String[1]|$s->meta::pure::functions::string::substring(1, 2)}, {x: String[1], y: String[1]|$x->meta::pure::functions::lang::compare($y)})",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertTrue(value instanceof java.sql.Array, "Expected SQL Array but got: " + value.getClass().getSimpleName());
+        Object[] elements = (Object[]) ((java.sql.Array) value).getArray();
+        assertEquals(3, elements.length);
+        assertEquals("Smith", elements[0]);
+        assertEquals("Doe", elements[1]);
+        assertEquals("Branche", elements[2]);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
