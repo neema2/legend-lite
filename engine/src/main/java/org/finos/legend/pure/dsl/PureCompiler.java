@@ -4750,14 +4750,15 @@ public final class PureCompiler {
                 SqlFunctionCall.of("list_extract",
                         compileToSqlExpression(methodCall.source(), context),
                         Literal.of(-1));
-            case "tail" -> { // tail(list) -> list_slice(list, 2, NULL)
+            case "tail" -> { // tail(list) -> list_slice(list, 2, len(list))
                 // Pure treats scalars as single-element collections;
                 // LIST_SLICE on a string does character slicing, so wrap scalars in [x]
                 Expression tailSource = compileToSqlExpression(methodCall.source(), context);
                 if (!(tailSource instanceof ListLiteral)) {
                     tailSource = ListLiteral.of(List.of(tailSource));
                 }
-                yield SqlFunctionCall.of("list_slice", tailSource, Literal.of(2), Literal.ofNull());
+                yield SqlFunctionCall.of("list_slice", tailSource, Literal.of(2),
+                        SqlFunctionCall.of("len", tailSource));
             }
             case "init" -> { // init(list) -> list_slice(list, 1, -2) - all but last
                 Expression initSource = compileToSqlExpression(methodCall.source(), context);

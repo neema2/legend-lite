@@ -2380,6 +2380,25 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("Branche", elements[2]);
     }
 
+    @Test
+    void testTailOnList() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+
+        // PCT: assertEquals(['b', 'c'], |['a', 'b', 'c']->tail())
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['a', 'b', 'c']->meta::pure::functions::collection::tail()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value, "tail() on ['a','b','c'] should not be null");
+        assertTrue(value instanceof java.sql.Array, "Expected SQL Array but got: " + value.getClass().getSimpleName());
+        Object[] elements = (Object[]) ((java.sql.Array) value).getArray();
+        assertEquals(2, elements.length);
+        assertEquals("b", elements[0]);
+        assertEquals("c", elements[1]);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {
