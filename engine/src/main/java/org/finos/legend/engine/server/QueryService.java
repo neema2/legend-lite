@@ -269,6 +269,11 @@ public class QueryService {
                         && "DECIMAL".equalsIgnoreCase(ce.targetType());
                 return new ScalarResult(sr.value(), fromToDecimalCast ? "DECIMAL_CAST" : "DECIMAL");
             }
+            // Propagate Pure class type from StructLiteralExpression in the IR tree
+            String pureType = extractPureType(cn.expression());
+            if (pureType != null) {
+                return new ScalarResult(sr.value(), sr.sqlType(), pureType);
+            }
         }
         return result;
     }
@@ -474,6 +479,43 @@ public class QueryService {
             case LEGACY -> new PureCompiler(mappingRegistry, model).compile(query);
             case LEGEND -> new PureLegendCompiler(mappingRegistry, model).compile(query);
         };
+    }
+
+    /**
+     * Extracts the Pure class type name from an IR expression tree.
+     * Walks into function calls and list operations to find StructLiteralExpression nodes.
+     * Returns null if no struct type is found.
+     */
+    private String extractPureType(Expression expr) {
+        if (expr instanceof StructLiteralExpression struct) {
+            return struct.className();
+        }
+        if (expr instanceof SqlFunctionCall func) {
+            // Walk target and arguments (e.g., list_extract(list_filter(...), 1))
+            if (func.target() != null) {
+                String type = extractPureType(func.target());
+                if (type != null) return type;
+            }
+            for (Expression arg : func.arguments()) {
+                String type = extractPureType(arg);
+                if (type != null) return type;
+            }
+        }
+        if (expr instanceof ListLiteral list && !list.isEmpty()) {
+            return extractPureType(list.elements().getFirst());
+        }
+        if (expr instanceof ListFilterExpression filter) {
+            return extractPureType(filter.source());
+        }
+        if (expr instanceof SqlCollectionCall coll) {
+            return extractPureType(coll.source());
+        }
+        if (expr instanceof ComparisonExpression comp) {
+            String type = extractPureType(comp.left());
+            if (type != null) return type;
+            if (comp.right() != null) return extractPureType(comp.right());
+        }
+        return null;
     }
 
     private SQLDialect getDialect(ConnectionDefinition.DatabaseType dbType) {

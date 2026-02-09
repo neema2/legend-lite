@@ -2010,6 +2010,23 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testFindOnStructArrayReturnsMap() throws SQLException {
+        // find on struct list should return a Map (unwrapped DuckDB struct)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::model::CO_Person(firstName='Pierre',lastName='Doe')]->meta::pure::functions::collection::find(p: meta::pure::functions::collection::tests::model::CO_Person[1]|$p.lastName->meta::pure::functions::multiplicity::toOne()->meta::pure::functions::string::length() < 6)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        // After struct unwrapping, should be a Map with firstName/lastName keys
+        assertTrue(value instanceof java.util.Map, "Expected Map but got: " + (value == null ? "null" : value.getClass().getName()));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> map = (java.util.Map<String, Object>) value;
+        assertEquals("Fabrice", map.get("firstName"));
+        assertEquals("Smith", map.get("lastName"));
+    }
+
+    @Test
     void testExistsOnStructArray() throws SQLException {
         // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->exists(f|$f.legalName == 'f1') = true
         Result result = queryService.execute(

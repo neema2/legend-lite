@@ -6,7 +6,15 @@ import java.util.regex.Pattern;
 
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.Result;
+import org.finos.legend.engine.execution.ScalarResult;
+import org.finos.legend.engine.plan.ConstantNode;
+import org.finos.legend.engine.plan.Expression;
+import org.finos.legend.engine.plan.ListFilterExpression;
+import org.finos.legend.engine.plan.ListLiteral;
 import org.finos.legend.engine.plan.RelationNode;
+import org.finos.legend.engine.plan.SqlCollectionCall;
+import org.finos.legend.engine.plan.SqlFunctionCall;
+import org.finos.legend.engine.plan.StructLiteralExpression;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
 import org.finos.legend.pure.dsl.ArrayLiteral;
@@ -66,8 +74,35 @@ public class InstanceExpressionHandler {
         // 4. Execute SQL using BufferedResult helper
         try (var stmt = connection.createStatement();
                 var rs = stmt.executeQuery(sql)) {
-            return BufferedResult.fromResultSet(rs);
+            BufferedResult buffered = BufferedResult.fromResultSet(rs);
+
+            // For scalar results (e.g., find() returning a single struct),
+            // wrap as ScalarResult with pureType for class instance reconstruction
+            if (buffered.rowCount() == 1 && buffered.columnCount() == 1) {
+                String sqlType = buffered.columns().getFirst().sqlType();
+                String pureType = (ir instanceof ConstantNode cn) ? extractPureType(cn.expression()) : null;
+                return new ScalarResult(buffered.getValue(0, 0), sqlType, pureType);
+            }
+            return buffered;
         }
+    }
+
+    /**
+     * Extracts the Pure class type name from an IR expression tree.
+     * Walks into function calls and list operations to find StructLiteralExpression nodes.
+     */
+    private String extractPureType(Expression expr) {
+        if (expr instanceof StructLiteralExpression struct) return struct.className();
+        if (expr instanceof SqlFunctionCall func) {
+            for (Expression arg : func.arguments()) {
+                String type = extractPureType(arg);
+                if (type != null) return type;
+            }
+        }
+        if (expr instanceof ListLiteral list && !list.isEmpty()) return extractPureType(list.elements().getFirst());
+        if (expr instanceof ListFilterExpression filter) return extractPureType(filter.source());
+        if (expr instanceof SqlCollectionCall coll) return extractPureType(coll.source());
+        return null;
     }
 
     /**

@@ -123,7 +123,17 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 if (result instanceof ScalarResult scalarResult) {
                     Object value = scalarResult.value();
                     System.out.println("[LegendLite PCT] Scalar result: " + value
-                            + " sqlType: " + scalarResult.sqlType());
+                            + " sqlType: " + scalarResult.sqlType()
+                            + " pureType: " + scalarResult.pureType());
+
+                    // If the result is a Map (unwrapped DuckDB struct) with a Pure type,
+                    // reconstruct the Pure class instance
+                    if (value instanceof java.util.Map && scalarResult.pureType() != null) {
+                        @SuppressWarnings("unchecked")
+                        java.util.Map<String, Object> structMap = (java.util.Map<String, Object>) value;
+                        return wrapStructAsClassInstance(structMap, scalarResult.pureType(), processorSupport);
+                    }
+
                     return wrapPrimitiveValue(value, scalarResult.sqlType(), processorSupport);
                 }
 
@@ -382,6 +392,64 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         Instance.addValueToProperty(instance, "tdsString", tdsStringValue, processorSupport);
 
         // Wrap in value specification for return
+        return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, processorSupport);
+    }
+
+    /**
+     * Wraps a DuckDB struct (Map) as a Pure class instance.
+     * Uses the pureType to look up the class, creates an instance,
+     * and sets each property from the map values.
+     *
+     * @param structMap     The struct fields as key-value pairs
+     * @param pureTypeName  The fully qualified Pure class name (e.g., "meta::...::CO_Person")
+     * @param processorSupport The processor support for class lookup
+     * @return A wrapped Pure class instance
+     */
+    private CoreInstance wrapStructAsClassInstance(
+            java.util.Map<String, Object> structMap,
+            String pureTypeName,
+            ProcessorSupport processorSupport) {
+
+        // Look up the Pure class by path
+        CoreInstance classInstance = processorSupport.package_getByUserPath(pureTypeName);
+        if (classInstance == null) {
+            throw new RuntimeException("Pure class not found: " + pureTypeName);
+        }
+
+        // Create an instance of the class
+        CoreInstance instance = modelRepository.newCoreInstance(
+                pureTypeName.substring(pureTypeName.lastIndexOf(':') + 1),
+                classInstance, null);
+
+        // Set each property from the map
+        for (java.util.Map.Entry<String, Object> entry : structMap.entrySet()) {
+            String propName = entry.getKey();
+            Object propValue = entry.getValue();
+            if (propValue == null) continue;
+
+            CoreInstance valueInstance;
+            if (propValue instanceof String s) {
+                valueInstance = modelRepository.newStringCoreInstance(s);
+            } else if (propValue instanceof Integer i) {
+                valueInstance = modelRepository.newIntegerCoreInstance(i);
+            } else if (propValue instanceof Long l) {
+                valueInstance = modelRepository.newIntegerCoreInstance(l);
+            } else if (propValue instanceof Boolean b) {
+                valueInstance = modelRepository.newBooleanCoreInstance(b);
+            } else if (propValue instanceof Double d) {
+                valueInstance = modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
+            } else if (propValue instanceof BigDecimal bd) {
+                valueInstance = modelRepository.newFloatCoreInstance(bd);
+            } else if (propValue instanceof java.util.Map) {
+                // Nested struct — recursively wrap (would need nested pureType, skip for now)
+                valueInstance = modelRepository.newStringCoreInstance(propValue.toString());
+            } else {
+                valueInstance = modelRepository.newStringCoreInstance(propValue.toString());
+            }
+
+            Instance.addValueToProperty(instance, propName, valueInstance, processorSupport);
+        }
+
         return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, processorSupport);
     }
 

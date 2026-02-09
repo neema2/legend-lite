@@ -33,10 +33,14 @@ public record Row(List<Object> values) {
 
     /**
      * Unwraps DuckDB-specific types to standard Java types.
-     * Only converts JSON[] arrays (mixed-type lists with JsonNode elements)
-     * to a List of native Java values. Leaves homogeneous arrays as-is.
+     * Converts JSON[] arrays (mixed-type lists with JsonNode elements)
+     * to a List of native Java values. Converts DuckDB Structs to
+     * LinkedHashMap preserving field order. Leaves other types as-is.
      */
     private static Object unwrapValue(Object value) throws SQLException {
+        if (value instanceof java.sql.Struct struct) {
+            return unwrapStruct(struct);
+        }
         if (value instanceof java.sql.Array sqlArray) {
             Object[] elements = (Object[]) sqlArray.getArray();
             // Only unwrap if the array contains JsonNode elements (JSON[] from mixed-type lists)
@@ -50,6 +54,60 @@ public record Row(List<Object> values) {
             }
         }
         return value;
+    }
+
+    /**
+     * Unwraps a DuckDB Struct to a LinkedHashMap with field names as keys.
+     * Uses JDBC Struct metadata to extract field names and values.
+     */
+    private static java.util.Map<String, Object> unwrapStruct(java.sql.Struct struct) throws SQLException {
+        Object[] attributes = struct.getAttributes();
+        String typeName = struct.getSQLTypeName();
+        // DuckDB struct type name is like: STRUCT(firstName VARCHAR, lastName VARCHAR)
+        List<String> fieldNames = parseStructFieldNames(typeName);
+        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < attributes.length && i < fieldNames.size(); i++) {
+            Object val = attributes[i];
+            // Recursively unwrap nested structs
+            if (val instanceof java.sql.Struct nestedStruct) {
+                val = unwrapStruct(nestedStruct);
+            }
+            map.put(fieldNames.get(i), val);
+        }
+        return map;
+    }
+
+    /**
+     * Parses field names from a DuckDB STRUCT type name.
+     * Input: "STRUCT(firstName VARCHAR, lastName VARCHAR)"
+     * Output: ["firstName", "lastName"]
+     */
+    private static List<String> parseStructFieldNames(String typeName) {
+        List<String> names = new ArrayList<>();
+        if (typeName == null || !typeName.startsWith("STRUCT(")) {
+            return names;
+        }
+        // Remove "STRUCT(" prefix and ")" suffix
+        String inner = typeName.substring(7, typeName.length() - 1);
+        // Parse field declarations, handling nested STRUCT types
+        int depth = 0;
+        int fieldStart = 0;
+        for (int i = 0; i <= inner.length(); i++) {
+            if (i == inner.length() || (inner.charAt(i) == ',' && depth == 0)) {
+                String field = inner.substring(fieldStart, i).trim();
+                // Field is like "firstName VARCHAR" - take the first word
+                int space = field.indexOf(' ');
+                if (space > 0) {
+                    names.add(field.substring(0, space));
+                }
+                fieldStart = i + 1;
+            } else if (inner.charAt(i) == '(') {
+                depth++;
+            } else if (inner.charAt(i) == ')') {
+                depth--;
+            }
+        }
+        return names;
     }
 
     /**
