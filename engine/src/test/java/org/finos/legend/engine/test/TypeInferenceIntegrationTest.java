@@ -2264,6 +2264,81 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertTrue(valueStr2.contains("Pierre"), "Should return Pierre Doe: " + valueStr2);
     }
 
+    @Test
+    void testEmptySetCollectionOps() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+
+        // []->head() should return null (empty)
+        Result headResult = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->meta::pure::functions::collection::head()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(headResult instanceof ScalarResult);
+        assertNull(((ScalarResult) headResult).value(), "head() on empty set should be null");
+
+        // []->first() should return null (empty)
+        Result firstResult = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->meta::pure::functions::collection::first()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(firstResult instanceof ScalarResult);
+        assertNull(((ScalarResult) firstResult).value(), "first() on empty set should be null");
+
+        // []->last() should return null (empty)
+        Result lastResult = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->meta::pure::functions::collection::last()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(lastResult instanceof ScalarResult);
+        assertNull(((ScalarResult) lastResult).value(), "last() on empty set should be null");
+
+        // []->tail() should return empty list
+        Result tailResult = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->meta::pure::functions::collection::tail()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(tailResult instanceof ScalarResult);
+        Object tailValue = ((ScalarResult) tailResult).value();
+        assertTrue(tailValue == null || tailValue.toString().equals("[]"),
+                "tail() on empty set should be null or []: " + tailValue);
+
+        // []->init() should return empty list
+        Result initResult = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->meta::pure::functions::collection::init()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(initResult instanceof ScalarResult);
+        Object initValue = ((ScalarResult) initResult).value();
+        assertTrue(initValue == null || initValue.toString().equals("[]"),
+                "init() on empty set should be null or []: " + initValue);
+    }
+
+    @Test
+    void testScalarInitAndTail() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+
+        // 'a'->init() should return empty list (all but last of single element)
+        Result initResult = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'a'->meta::pure::functions::collection::init()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(initResult instanceof ScalarResult);
+        Object initValue = ((ScalarResult) initResult).value();
+        // LIST_SLICE(['a'], 1, -2) returns empty list []
+        assertTrue(initValue == null || initValue.toString().equals("[]"),
+                "'a'->init() should be empty but got: " + initValue);
+
+        // 'a'->tail() should return empty list (all but first of single element)
+        Result tailResult = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'a'->meta::pure::functions::collection::tail()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(tailResult instanceof ScalarResult);
+        Object tailValue = ((ScalarResult) tailResult).value();
+        assertTrue(tailValue == null || tailValue.toString().equals("[]"),
+                "'a'->tail() should be empty but got: " + tailValue);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

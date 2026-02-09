@@ -4704,16 +4704,22 @@ public final class PureCompiler {
                 SqlFunctionCall.of("list_extract",
                         compileToSqlExpression(methodCall.source(), context),
                         Literal.of(-1));
-            case "tail" -> // tail(list) -> list_slice(list, 2, NULL)
-                SqlFunctionCall.of("list_slice",
-                        compileToSqlExpression(methodCall.source(), context),
-                        Literal.of(2),
-                        Literal.ofNull());
-            case "init" -> // init(list) -> list_slice(list, 1, -2) - all but last
-                SqlFunctionCall.of("list_slice",
-                        compileToSqlExpression(methodCall.source(), context),
-                        Literal.of(1),
-                        Literal.of(-2));
+            case "tail" -> { // tail(list) -> list_slice(list, 2, NULL)
+                // Pure treats scalars as single-element collections;
+                // LIST_SLICE on a string does character slicing, so wrap scalars in [x]
+                Expression tailSource = compileToSqlExpression(methodCall.source(), context);
+                if (!(tailSource instanceof ListLiteral)) {
+                    tailSource = ListLiteral.of(List.of(tailSource));
+                }
+                yield SqlFunctionCall.of("list_slice", tailSource, Literal.of(2), Literal.ofNull());
+            }
+            case "init" -> { // init(list) -> list_slice(list, 1, -2) - all but last
+                Expression initSource = compileToSqlExpression(methodCall.source(), context);
+                if (!(initSource instanceof ListLiteral)) {
+                    initSource = ListLiteral.of(List.of(initSource));
+                }
+                yield SqlFunctionCall.of("list_slice", initSource, Literal.of(1), Literal.of(-2));
+            }
             case "at" -> { // at(list, idx) -> list_extract(list, idx+1)
                 // Pure at() is 0-indexed, DuckDB list_extract is 1-indexed
                 if (methodCall.arguments().isEmpty())
