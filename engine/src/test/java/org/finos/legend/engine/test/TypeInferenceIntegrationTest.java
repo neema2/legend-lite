@@ -2199,6 +2199,71 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(false, ((ScalarResult) result).value());
     }
 
+    // ==================== TypeEnvironment / multiplicity tests ====================
+
+    @Test
+    void testHeadComplex() throws SQLException {
+        // Exact same data as PCT testHeadComplex:
+        //   CO_Firm { legalName: String[1]; employees: CO_Person[*]; }
+        //   CO_Person { firstName: String[1]; lastName: String[1]; }
+        //   firm1 has 1 employee (smith), firm2 has 2 employees (doe, roe)
+        //   [$firm1, $firm2]->head().legalName == 'Firm1'
+        //
+        // Without TypeEnvironment, this fails with DuckDB "Cannot deduce template type 'T'"
+        // because firm1.employees is STRUCT but firm2.employees is STRUCT[].
+        var personClass = new org.finos.legend.pure.m3.PureClass(
+                "meta::pure::functions::collection::tests::model", "CO_Person", java.util.List.of(
+                new org.finos.legend.pure.m3.Property("firstName", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(1, 1)),
+                new org.finos.legend.pure.m3.Property("lastName", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(1, 1))
+        ));
+        var firmClass = new org.finos.legend.pure.m3.PureClass(
+                "meta::pure::functions::collection::tests::model", "CO_Firm", java.util.List.of(
+                new org.finos.legend.pure.m3.Property("legalName", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(1, 1)),
+                new org.finos.legend.pure.m3.Property("employees", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(0, null)) // [*]
+        ));
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.of(java.util.Map.of(
+                "meta::pure::functions::collection::tests::model::CO_Firm", firmClass,
+                "meta::pure::functions::collection::tests::model::CO_Person", personClass
+        ));
+
+        // PCT line 51: assertEquals($firm1, $f->eval(|$set->head()));
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='Firm1',"
+                + " employees=^meta::pure::functions::collection::tests::model::CO_Person(firstName='Fabrice', lastName='Smith')),"
+                + " ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='Firm2',"
+                + " employees=[^meta::pure::functions::collection::tests::model::CO_Person(firstName='Pierre', lastName='Doe'),"
+                + " ^meta::pure::functions::collection::tests::model::CO_Person(firstName='David', lastName='Roe')])]"
+                + "->meta::pure::functions::collection::head()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult but got: " + result.getClass().getSimpleName());
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value, "head() should return the first firm");
+        // head() returns first firm as a struct — verify it contains Firm1
+        String valueStr = value.toString();
+        assertTrue(valueStr.contains("Firm1"), "head() should return Firm1: " + valueStr);
+
+        // PCT line 52: assertEquals($doe, $f->eval(|$set->at(1).employees->head()));
+        Result result2 = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='Firm1',"
+                + " employees=^meta::pure::functions::collection::tests::model::CO_Person(firstName='Fabrice', lastName='Smith')),"
+                + " ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='Firm2',"
+                + " employees=[^meta::pure::functions::collection::tests::model::CO_Person(firstName='Pierre', lastName='Doe'),"
+                + " ^meta::pure::functions::collection::tests::model::CO_Person(firstName='David', lastName='Roe')])]"
+                + "->meta::pure::functions::collection::at(1).employees->meta::pure::functions::collection::head()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result2 instanceof ScalarResult, "Expected ScalarResult but got: " + result2.getClass().getSimpleName());
+        Object value2 = ((ScalarResult) result2).value();
+        assertNotNull(value2, "at(1).employees->head() should return Pierre Doe");
+        String valueStr2 = value2.toString();
+        assertTrue(valueStr2.contains("Pierre"), "Should return Pierre Doe: " + valueStr2);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

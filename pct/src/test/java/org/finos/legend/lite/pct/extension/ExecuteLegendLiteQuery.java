@@ -45,7 +45,21 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
+import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.finos.legend.pure.dsl.TypeEnvironment;
+import org.finos.legend.pure.m3.Multiplicity;
+import org.finos.legend.pure.m3.PrimitiveType;
+import org.finos.legend.pure.m3.Property;
+import org.finos.legend.pure.m3.PureClass;
 
 import org.finos.legend.pure.m4.coreinstance.primitive.date.DateFunctions;
 import org.finos.legend.pure.m4.coreinstance.primitive.date.PureDate;
@@ -114,12 +128,16 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 InstanceExpressionHandler instanceHandler = new InstanceExpressionHandler();
                 if (instanceHandler.requiresInstanceHandling(pureExpression)) {
                     System.out.println("[LegendLite PCT] Detected InstanceExpression pattern, using handler");
-                    result = instanceHandler.execute(pureExpression, connection);
+                    TypeEnvironment typeEnv = extractClassMetadata(pureExpression, processorSupport);
+                    System.out.println("[LegendLite PCT] TypeEnvironment: " + typeEnv);
+                    result = instanceHandler.execute(pureExpression, connection, typeEnv);
                 } else {
                     // Execute through Legend-Lite's QueryService for TDS-based queries
+                    // Extract class metadata for type-aware compilation (multiplicity, etc.)
+                    TypeEnvironment typeEnv = extractClassMetadata(pureExpression, processorSupport);
                     QueryService queryService = new QueryService();
                     result = queryService.execute(PURE_MODEL, pureExpression, "test::TestRuntime",
-                            connection, QueryService.ResultMode.BUFFERED);
+                            connection, QueryService.ResultMode.BUFFERED, typeEnv);
                 }
 
                 // For scalar results (constant queries), return the primitive value directly
@@ -478,6 +496,151 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * Pure normalizes subseconds without trailing zeros (e.g., "338001" not
      * "338001000").
      */
+    // Pattern to find ^className( in Pure expressions
+    private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
+
+    /**
+     * Extracts class metadata from the Pure interpreter for all classes
+     * referenced in the expression. Builds a TypeEnvironment with PureClass
+     * definitions including property types and multiplicities.
+     */
+    private TypeEnvironment extractClassMetadata(String pureExpression, ProcessorSupport processorSupport) {
+        try {
+            Map<String, PureClass> classes = new HashMap<>();
+            Set<String> visited = new HashSet<>();
+
+            // Find all ^className( patterns
+            Matcher matcher = INSTANCE_CLASS_PATTERN.matcher(pureExpression);
+            while (matcher.find()) {
+                String className = matcher.group(1);
+                extractClassRecursive(className, classes, visited, processorSupport);
+            }
+
+            return TypeEnvironment.of(classes);
+        } catch (Exception e) {
+            System.out.println("[LegendLite PCT] TypeEnvironment extraction failed, falling back to empty: " + e.getMessage());
+            return TypeEnvironment.empty();
+        }
+    }
+
+    /**
+     * Recursively extracts a class and any classes referenced by its properties.
+     */
+    private void extractClassRecursive(String className, Map<String, PureClass> classes,
+            Set<String> visited, ProcessorSupport processorSupport) {
+        if (visited.contains(className)) return;
+        visited.add(className);
+
+        CoreInstance cls = processorSupport.package_getByUserPath(className);
+        if (cls == null) return;
+
+        List<Property> properties = new ArrayList<>();
+        for (CoreInstance prop : processorSupport.class_getSimpleProperties(cls)) {
+            CoreInstance nameInstance = prop.getValueForMetaPropertyToOne(M3Properties.name);
+            if (nameInstance == null) continue;
+            String propName = PrimitiveUtilities.getStringValue(nameInstance);
+            if (propName == null) continue;
+
+            // Extract multiplicity
+            CoreInstance mult = prop.getValueForMetaPropertyToOne(M3Properties.multiplicity);
+            if (mult == null) continue;
+            int upper = org.finos.legend.pure.m3.navigation.multiplicity.Multiplicity
+                    .multiplicityUpperBoundToInt(mult);
+            int lower = org.finos.legend.pure.m3.navigation.multiplicity.Multiplicity
+                    .multiplicityLowerBoundToInt(mult);
+            Multiplicity multiplicity = new Multiplicity(lower, upper < 0 ? null : upper);
+
+            // Extract type name (with null safety)
+            CoreInstance genericType = prop.getValueForMetaPropertyToOne(M3Properties.genericType);
+            CoreInstance rawType = (genericType != null)
+                    ? genericType.getValueForMetaPropertyToOne(M3Properties.rawType)
+                    : null;
+            String typeName = "Any";
+            if (rawType != null) {
+                CoreInstance rawTypeName = rawType.getValueForMetaPropertyToOne(M3Properties.name);
+                if (rawTypeName != null) {
+                    typeName = PrimitiveUtilities.getStringValue(rawTypeName);
+                }
+            }
+
+            // Build type reference — Phase 1 only uses multiplicity
+            org.finos.legend.pure.m3.Type propType;
+            try {
+                propType = PrimitiveType.fromName(typeName);
+            } catch (IllegalArgumentException e) {
+                propType = PrimitiveType.STRING;
+            }
+
+            properties.add(new Property(propName, propType, multiplicity));
+
+            // Recursively resolve non-primitive types
+            if (rawType != null && !isPrimitiveTypeName(typeName)) {
+                String qualifiedTypeName = getQualifiedName(rawType);
+                if (qualifiedTypeName != null) {
+                    extractClassRecursive(qualifiedTypeName, classes, visited, processorSupport);
+                }
+            }
+        }
+
+        // Extract package path
+        String qualifiedName = getQualifiedName(cls);
+        String packagePath = "";
+        String simpleName = className;
+        if (qualifiedName != null) {
+            int lastSep = qualifiedName.lastIndexOf("::");
+            if (lastSep >= 0) {
+                packagePath = qualifiedName.substring(0, lastSep);
+                simpleName = qualifiedName.substring(lastSep + 2);
+            }
+        }
+
+        PureClass pureClass = new PureClass(packagePath, simpleName, properties);
+        classes.put(qualifiedName != null ? qualifiedName : className, pureClass);
+    }
+
+    private String getQualifiedName(CoreInstance element) {
+        try {
+            return org.finos.legend.pure.m3.navigation.PackageableElement.PackageableElement
+                    .getUserPathForPackageableElement(element);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Finds the qualified Pure type name for a property on a class using ProcessorSupport.
+     * Returns null if the property or its type cannot be resolved.
+     */
+    private String findPropertyTypeName(CoreInstance classInstance, String propertyName,
+            ProcessorSupport processorSupport) {
+        try {
+            for (CoreInstance prop : processorSupport.class_getSimpleProperties(classInstance)) {
+                CoreInstance nameInst = prop.getValueForMetaPropertyToOne(M3Properties.name);
+                if (nameInst == null) continue;
+                String name = PrimitiveUtilities.getStringValue(nameInst);
+                if (!propertyName.equals(name)) continue;
+
+                CoreInstance genericType = prop.getValueForMetaPropertyToOne(M3Properties.genericType);
+                if (genericType == null) return null;
+                CoreInstance rawType = genericType.getValueForMetaPropertyToOne(M3Properties.rawType);
+                if (rawType == null) return null;
+
+                return getQualifiedName(rawType);
+            }
+        } catch (Exception e) {
+            // Fail gracefully
+        }
+        return null;
+    }
+
+    private boolean isPrimitiveTypeName(String typeName) {
+        return switch (typeName) {
+            case "String", "Integer", "Float", "Boolean", "Date", "DateTime",
+                 "StrictDate", "Decimal", "Number", "Any", "Nil" -> true;
+            default -> false;
+        };
+    }
+
     private String stripTrailingZeros(String subsecond) {
         int end = subsecond.length();
         while (end > 1 && subsecond.charAt(end - 1) == '0') {

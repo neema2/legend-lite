@@ -22,6 +22,7 @@ import org.finos.legend.pure.dsl.InstanceExpression;
 import org.finos.legend.pure.dsl.PureCompiler;
 import org.finos.legend.pure.dsl.PureExpression;
 import org.finos.legend.pure.dsl.PureParser;
+import org.finos.legend.pure.dsl.TypeEnvironment;
 
 /**
  * Handles PCT queries that use InstanceExpression arrays as relation sources.
@@ -56,13 +57,21 @@ public class InstanceExpressionHandler {
      * 3. Generate SQL with DuckDB STRUCT literals
      * 4. Execute SQL directly
      */
+    public Result execute(String pureExpression, Connection connection, TypeEnvironment typeEnv) throws SQLException {
+        return executeWithTypes(pureExpression, connection, typeEnv);
+    }
+
     public Result execute(String pureExpression, Connection connection) throws SQLException {
+        return executeWithTypes(pureExpression, connection, TypeEnvironment.empty());
+    }
+
+    private Result executeWithTypes(String pureExpression, Connection connection, TypeEnvironment typeEnv) throws SQLException {
         // 1. Parse to AST
         PureExpression ast = PureParser.parse(pureExpression);
         System.out.println("[InstanceHandler] Parsed AST: " + ast.getClass().getSimpleName());
 
         // 2. Compile to IR (null mapping registry is OK for STRUCT literal compilation)
-        PureCompiler compiler = new PureCompiler(null, null);
+        PureCompiler compiler = new PureCompiler(null, null, typeEnv);
         RelationNode ir = compiler.compileExpression(ast, null);
         System.out.println("[InstanceHandler] Compiled IR: " + ir.getClass().getSimpleName());
 

@@ -29,13 +29,14 @@ public final class PureCompiler {
 
     private final MappingRegistry mappingRegistry;
     private final ModelContext modelContext;
+    private final TypeEnvironment typeEnvironment;
     private int aliasCounter = 0;
 
     /**
      * Creates a compiler with just a mapping registry (legacy compatibility).
      */
     public PureCompiler(MappingRegistry mappingRegistry) {
-        this(mappingRegistry, null);
+        this(mappingRegistry, null, TypeEnvironment.empty());
     }
 
     /**
@@ -46,8 +47,20 @@ public final class PureCompiler {
      * @param modelContext    The model context (optional)
      */
     public PureCompiler(MappingRegistry mappingRegistry, ModelContext modelContext) {
+        this(mappingRegistry, modelContext, TypeEnvironment.empty());
+    }
+
+    /**
+     * Creates a compiler with full model context and type environment.
+     * 
+     * @param mappingRegistry  The mapping registry (can be null for STRUCT literal compilation)
+     * @param modelContext     The model context (optional)
+     * @param typeEnvironment  Type metadata for classes, multiplicities, etc.
+     */
+    public PureCompiler(MappingRegistry mappingRegistry, ModelContext modelContext, TypeEnvironment typeEnvironment) {
         this.mappingRegistry = mappingRegistry; // Allow null for STRUCT literal compilation
         this.modelContext = modelContext;
+        this.typeEnvironment = typeEnvironment != null ? typeEnvironment : TypeEnvironment.empty();
     }
 
     /**
@@ -2392,10 +2405,24 @@ public final class PureCompiler {
     private Expression compileInstanceExpression(InstanceExpression inst, CompilationContext context) {
         Map<String, Expression> compiledFields = new LinkedHashMap<>();
 
+        // Look up class in TypeEnvironment for multiplicity-aware compilation
+        var pureClass = typeEnvironment.findClass(inst.className());
+
         for (var entry : inst.properties().entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
-            compiledFields.put(key, compileInstancePropertyValue(value, context));
+            Expression compiled = compileInstancePropertyValue(value, context);
+
+            // If property is collection ([*]) but value is a single struct, wrap in array
+            // This ensures DuckDB type consistency: all instances have the same struct shape
+            if (pureClass.isPresent()) {
+                var prop = pureClass.get().findProperty(key);
+                if (prop.isPresent() && prop.get().isCollection() && !(compiled instanceof ListLiteral)) {
+                    compiled = ListLiteral.of(List.of(compiled));
+                }
+            }
+
+            compiledFields.put(key, compiled);
         }
 
         return new StructLiteralExpression(inst.className(), compiledFields);
@@ -5612,8 +5639,16 @@ public final class PureCompiler {
         try {
             varName = extractVariableName(propAccess.source());
         } catch (PureCompileException e) {
-            // Source is a complex expression — compile it and wrap in list_transform
+            // Source is a complex expression — compile it
             Expression compiledSource = compileToSqlExpression(propAccess.source(), context);
+
+            // If source returns a scalar struct (at/head/first/last), use struct_extract
+            // instead of list_transform which expects a list input
+            if (propAccess.source() instanceof MethodCall mc && isScalarMethod(mc.methodName())) {
+                return SqlFunctionCall.of("struct_extract", compiledSource, Literal.string(fullPath));
+            }
+
+            // Source is a collection — wrap in list_transform
             String syntheticParam = "_prop_x";
             Expression body = ColumnReference.of(syntheticParam, fullPath);
             return SqlCollectionCall.map(compiledSource, syntheticParam, body);
@@ -6049,6 +6084,15 @@ public final class PureCompiler {
     /**
      * Represents a single segment in a navigation path.
      */
+    private static final Set<String> SCALAR_METHODS = Set.of("at", "head", "first", "last");
+
+    private static boolean isScalarMethod(String methodName) {
+        // Strip qualified package prefix if present (e.g., meta::pure::...::head -> head)
+        int lastColon = methodName.lastIndexOf(':');
+        String simpleName = lastColon >= 0 ? methodName.substring(lastColon + 1) : methodName;
+        return SCALAR_METHODS.contains(simpleName);
+    }
+
     private record NavigationSegment(
             String propertyName,
             AssociationNavigation navigation,

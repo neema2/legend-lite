@@ -17,6 +17,7 @@ import org.finos.legend.engine.transpiler.json.DuckDbJsonDialect;
 import org.finos.legend.engine.transpiler.json.JsonSqlDialect;
 import org.finos.legend.engine.transpiler.json.JsonSqlGenerator;
 import org.finos.legend.pure.dsl.PureCompiler;
+import org.finos.legend.pure.dsl.TypeEnvironment;
 import org.finos.legend.pure.dsl.legend.PureLegendCompiler;
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
@@ -221,6 +222,15 @@ public class QueryService {
      */
     public Result execute(String pureSource, String query, String runtimeName,
             Connection connection, ResultMode mode) throws SQLException {
+        return execute(pureSource, query, runtimeName, connection, mode, TypeEnvironment.empty());
+    }
+
+    /**
+     * Executes with explicit result mode, connection, and type environment.
+     * The TypeEnvironment provides class metadata for type-aware compilation.
+     */
+    public Result execute(String pureSource, String query, String runtimeName,
+            Connection connection, ResultMode mode, TypeEnvironment typeEnv) throws SQLException {
 
         // 1. Compile the Pure source
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
@@ -233,7 +243,7 @@ public class QueryService {
 
         // 3. Compile query to IR
         MappingRegistry mappingRegistry = model.getMappingRegistry();
-        RelationNode ir = compileQuery(query, mappingRegistry, model);
+        RelationNode ir = compileQuery(query, mappingRegistry, model, typeEnv);
 
         // 4. Get dialect from runtime's connection
         String storeRef = runtime.connectionBindings().keySet().iterator().next();
@@ -475,8 +485,12 @@ public class QueryService {
      * @return The compiled RelationNode IR
      */
     private RelationNode compileQuery(String query, MappingRegistry mappingRegistry, PureModelBuilder model) {
+        return compileQuery(query, mappingRegistry, model, TypeEnvironment.empty());
+    }
+
+    private RelationNode compileQuery(String query, MappingRegistry mappingRegistry, PureModelBuilder model, TypeEnvironment typeEnv) {
         return switch (compilerMode) {
-            case LEGACY -> new PureCompiler(mappingRegistry, model).compile(query);
+            case LEGACY -> new PureCompiler(mappingRegistry, model, typeEnv).compile(query);
             case LEGEND -> new PureLegendCompiler(mappingRegistry, model).compile(query);
         };
     }
@@ -491,6 +505,10 @@ public class QueryService {
             return struct.className();
         }
         if (expr instanceof SqlFunctionCall func) {
+            // struct_extract changes the type — don't propagate the outer struct type
+            if ("struct_extract".equalsIgnoreCase(func.functionName())) {
+                return null;
+            }
             // Walk target and arguments (e.g., list_extract(list_filter(...), 1))
             if (func.target() != null) {
                 String type = extractPureType(func.target());
