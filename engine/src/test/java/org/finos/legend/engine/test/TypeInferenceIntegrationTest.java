@@ -2634,6 +2634,23 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("RoeDoe, Kevin", arr[1].toString());
     }
 
+    // ==================== Large integer arithmetic (PCT: testLargeTimes) ====================
+
+    @Test
+    void testLargeIntegerMultiplication() throws SQLException {
+        // PCT test: testLargeTimes - 2 * Long.MAX_VALUE overflows INT64 in DuckDB
+        // Needs HUGEINT promotion for large literals
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2 * 9223372036854775807",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value, "Result should not be null");
+        // 2 * 9223372036854775807 = 18446744073709551614 (exceeds Long.MAX_VALUE)
+        assertEquals(new java.math.BigInteger("18446744073709551614"), new java.math.BigInteger(value.toString()));
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

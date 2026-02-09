@@ -1311,7 +1311,13 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     public String visitLiteral(Literal literal) {
         return switch (literal.literalType()) {
             case STRING -> dialect.quoteStringLiteral((String) literal.value());
-            case INTEGER -> String.valueOf(literal.value());
+            case INTEGER -> {
+                long v = ((Number) literal.value()).longValue();
+                // Cast large integers to HUGEINT to prevent INT64 overflow in DuckDB arithmetic
+                yield (v > Integer.MAX_VALUE || v < Integer.MIN_VALUE)
+                        ? v + "::HUGEINT"
+                        : String.valueOf(v);
+            }
             case BOOLEAN -> dialect.formatBoolean((Boolean) literal.value());
             case DOUBLE -> String.valueOf(literal.value());
             case DECIMAL -> String.valueOf(literal.value());
