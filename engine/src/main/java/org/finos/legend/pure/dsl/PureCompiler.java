@@ -4731,12 +4731,24 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context), "DECIMAL");
 
             // ===== LIST FUNCTIONS =====
-            case "zip" -> { // zip(l1, l2) -> list_zip(l1, l2)
+            case "zip" -> { // zip(l1, l2) -> list_transform(generate_series(1, LEAST(LEN(l1), LEN(l2))), i -> {'first': l1[i], 'second': l2[i]})
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("zip requires an argument");
-                yield SqlFunctionCall.of("list_zip",
-                        compileToSqlExpression(methodCall.source(), context),
-                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+                Expression l1 = compileToSqlExpression(methodCall.source(), context);
+                Expression l2 = compileToSqlExpression(methodCall.arguments().getFirst(), context);
+                // generate_series(1, LEAST(LEN(l1), LEN(l2)))
+                Expression range = SqlFunctionCall.of("generate_series",
+                        Literal.of(1),
+                        SqlFunctionCall.of("LEAST",
+                                SqlFunctionCall.of("LEN", l1),
+                                SqlFunctionCall.of("LEN", l2)));
+                // {'first': list_extract(l1, i), 'second': list_extract(l2, i)}
+                String param = "_zip_i";
+                var fields = new java.util.LinkedHashMap<String, Expression>();
+                fields.put("first", SqlFunctionCall.of("list_extract", l1, ColumnReference.of(param)));
+                fields.put("second", SqlFunctionCall.of("list_extract", l2, ColumnReference.of(param)));
+                Expression structExpr = new StructLiteralExpression("Pair", fields);
+                yield SqlCollectionCall.map(range, param, structExpr);
             }
             case "head" -> // head(list) -> list[1]
                 SqlFunctionCall.of("list_extract",

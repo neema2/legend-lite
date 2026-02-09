@@ -2399,6 +2399,183 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("c", elements[1]);
     }
 
+    // ==================== Zip Tests ====================
+
+    @Test
+    void testZipBothListsEmpty() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = []; let b = []; $a->meta::pure::functions::collection::zip($b);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        // Empty zip should return empty list or null
+        assertTrue(value == null || (value instanceof java.util.List && ((java.util.List<?>) value).isEmpty())
+                || (value instanceof java.sql.Array && ((Object[]) ((java.sql.Array) value).getArray()).length == 0),
+                "zip of two empty lists should be empty, got: " + value);
+    }
+
+    @Test
+    void testZipFirstListEmpty() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = []; let b = ['a', 'b', 'c', 'd']; $a->meta::pure::functions::collection::zip($b);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertTrue(value == null || (value instanceof java.util.List && ((java.util.List<?>) value).isEmpty())
+                || (value instanceof java.sql.Array && ((Object[]) ((java.sql.Array) value).getArray()).length == 0),
+                "zip with first empty should be empty, got: " + value);
+    }
+
+    @Test
+    void testZipSecondListEmpty() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = [1, 2, 3, 4]; let b = []; $a->meta::pure::functions::collection::zip($b);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertTrue(value == null || (value instanceof java.util.List && ((java.util.List<?>) value).isEmpty())
+                || (value instanceof java.sql.Array && ((Object[]) ((java.sql.Array) value).getArray()).length == 0),
+                "zip with second empty should be empty, got: " + value);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testZipBothListsSameLength() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = [1, 2, 3, 4]; let b = ['a', 'b', 'c', 'd']; $a->meta::pure::functions::collection::zip($b);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertTrue(value instanceof java.util.List, "Expected List but got: " + value.getClass().getSimpleName());
+        java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+        assertEquals(4, pairs.size());
+        assertEquals(1, ((Number) pairs.get(0).get("first")).intValue());
+        assertEquals("a", pairs.get(0).get("second"));
+        assertEquals(4, ((Number) pairs.get(3).get("first")).intValue());
+        assertEquals("d", pairs.get(3).get("second"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testZipFirstListLonger() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = [1, 2, 3, 4]; let b = ['a', 'b']; $a->meta::pure::functions::collection::zip($b);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertTrue(value instanceof java.util.List, "Expected List but got: " + value.getClass().getSimpleName());
+        java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+        assertEquals(2, pairs.size(), "Should truncate to shorter list");
+        assertEquals(1, ((Number) pairs.get(0).get("first")).intValue());
+        assertEquals("a", pairs.get(0).get("second"));
+        assertEquals(2, ((Number) pairs.get(1).get("first")).intValue());
+        assertEquals("b", pairs.get(1).get("second"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testZipSecondListLonger() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = [1, 2]; let b = ['a', 'b', 'c', 'd']; $a->meta::pure::functions::collection::zip($b);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertTrue(value instanceof java.util.List, "Expected List but got: " + value.getClass().getSimpleName());
+        java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+        assertEquals(2, pairs.size(), "Should truncate to shorter list");
+        assertEquals(1, ((Number) pairs.get(0).get("first")).intValue());
+        assertEquals("a", pairs.get(0).get("second"));
+        assertEquals(2, ((Number) pairs.get(1).get("first")).intValue());
+        assertEquals("b", pairs.get(1).get("second"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testZipBothListsAreOfPairs() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = [1, 2, 3]; let b = ['a', 'b', 'c']; let c = [4, 5, 6]; let d = ['d', 'e', 'f']; let x = $a->meta::pure::functions::collection::zip($b); let y = $c->meta::pure::functions::collection::zip($d); $x->meta::pure::functions::collection::zip($y);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertTrue(value instanceof java.util.List, "Expected List but got: " + value.getClass().getSimpleName());
+        java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+        assertEquals(3, pairs.size());
+        // first element: pair(pair(1,'a'), pair(4,'d'))
+        var first = pairs.get(0);
+        assertTrue(first.get("first") instanceof java.util.Map, "first should be a nested Pair (Map)");
+        assertTrue(first.get("second") instanceof java.util.Map, "second should be a nested Pair (Map)");
+        var firstFirst = (java.util.Map<String, Object>) first.get("first");
+        assertEquals(1, ((Number) firstFirst.get("first")).intValue());
+        assertEquals("a", firstFirst.get("second"));
+        var firstSecond = (java.util.Map<String, Object>) first.get("second");
+        assertEquals(4, ((Number) firstSecond.get("first")).intValue());
+        assertEquals("d", firstSecond.get("second"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testZipFirstListsIsOfPairs() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = [1, 2, 3]; let b = ['a', 'b', 'c']; let c = [4, 5, 6]; let x = $a->meta::pure::functions::collection::zip($b); $x->meta::pure::functions::collection::zip($c);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertTrue(value instanceof java.util.List, "Expected List but got: " + value.getClass().getSimpleName());
+        java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+        assertEquals(3, pairs.size());
+        // first element: pair(pair(1,'a'), 4)
+        var first = pairs.get(0);
+        assertTrue(first.get("first") instanceof java.util.Map, "first should be a nested Pair (Map)");
+        var firstFirst = (java.util.Map<String, Object>) first.get("first");
+        assertEquals(1, ((Number) firstFirst.get("first")).intValue());
+        assertEquals("a", firstFirst.get("second"));
+        assertEquals(4, ((Number) first.get("second")).intValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testZipSecondListsIsOfPairs() throws SQLException {
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.empty();
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let a = [1, 2, 3]; let c = [4, 5, 6]; let d = ['d', 'e', 'f']; let x = $c->meta::pure::functions::collection::zip($d); $a->meta::pure::functions::collection::zip($x);",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertTrue(value instanceof java.util.List, "Expected List but got: " + value.getClass().getSimpleName());
+        java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+        assertEquals(3, pairs.size());
+        // first element: pair(1, pair(4,'d'))
+        var first = pairs.get(0);
+        assertEquals(1, ((Number) first.get("first")).intValue());
+        assertTrue(first.get("second") instanceof java.util.Map, "second should be a nested Pair (Map)");
+        var firstSecond = (java.util.Map<String, Object>) first.get("second");
+        assertEquals(4, ((Number) firstSecond.get("first")).intValue());
+        assertEquals("d", firstSecond.get("second"));
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

@@ -43,7 +43,16 @@ public record Row(List<Object> values) {
         }
         if (value instanceof java.sql.Array sqlArray) {
             Object[] elements = (Object[]) sqlArray.getArray();
-            // Only unwrap if the array contains JsonNode elements (JSON[] from mixed-type lists)
+            // Unwrap struct arrays (e.g., from zip → Pair structs)
+            if (elements.length > 0 && elements[0] instanceof java.sql.Struct) {
+                List<Object> result = new ArrayList<>(elements.length);
+                for (Object elem : elements) {
+                    if (elem instanceof java.sql.Struct s) result.add(unwrapStruct(s));
+                    else result.add(elem);
+                }
+                return result;
+            }
+            // Unwrap JsonNode arrays (JSON[] from mixed-type lists)
             if (elements.length > 0 && elements[0] != null
                     && "org.duckdb.JsonNode".equals(elements[0].getClass().getName())) {
                 List<Object> result = new ArrayList<>(elements.length);
@@ -95,10 +104,14 @@ public record Row(List<Object> values) {
         for (int i = 0; i <= inner.length(); i++) {
             if (i == inner.length() || (inner.charAt(i) == ',' && depth == 0)) {
                 String field = inner.substring(fieldStart, i).trim();
-                // Field is like "firstName VARCHAR" - take the first word
+                // Field is like "firstName VARCHAR" or "\"first\" INTEGER" - take the first word, strip quotes
                 int space = field.indexOf(' ');
                 if (space > 0) {
-                    names.add(field.substring(0, space));
+                    String name = field.substring(0, space);
+                    if (name.startsWith("\"") && name.endsWith("\"")) {
+                        name = name.substring(1, name.length() - 1);
+                    }
+                    names.add(name);
                 }
                 fieldStart = i + 1;
             } else if (inner.charAt(i) == '(') {
