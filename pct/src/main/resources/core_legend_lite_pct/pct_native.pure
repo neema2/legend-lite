@@ -7,4 +7,4 @@
 //
 // Input: Pure expression as grammar text (e.g., "|1+1" or "|Person.all()->project(~name)")
 // Output: Either a scalar value (Integer, Float, Boolean, String) or TDSResult wrapper
-native function meta::legend::lite::pct::executeLegendLiteQuery(pureGrammar: String[1]): Any[1];
+native function meta::legend::lite::pct::executeLegendLiteQuery(pureGrammar: String[1]): Any[*];

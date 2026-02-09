@@ -2602,6 +2602,38 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("names; Doe, Pierre; RoeDoe, Kevin; Some_LName, Andrew", value);
     }
 
+    // ==================== map() on struct list with at(0) on scalar properties (PCT: testPlusInCollect) ====================
+
+    @Test
+    void testMapOnStructListWithAtOnScalarProperties() throws SQLException {
+        // PCT test: testPlusInCollect - map over list of P_Person structs, accessing scalar properties via at(0)
+        // at(0) on a scalar struct property (multiplicity [1]) should be a no-op, not LIST_EXTRACT
+        // which would extract a single character from the string.
+        var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.of(java.util.Map.of(
+                "meta::pure::functions::string::tests::plus::model::P_Person",
+                new org.finos.legend.pure.m3.PureClass(
+                        "meta::pure::functions::string::tests::plus::model", "P_Person",
+                        java.util.List.of(
+                                org.finos.legend.pure.m3.Property.required("firstName", org.finos.legend.pure.m3.PrimitiveType.STRING),
+                                org.finos.legend.pure.m3.Property.required("lastName", org.finos.legend.pure.m3.PrimitiveType.STRING)))));
+
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Pierre',lastName='Doe'), ^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Kevin',lastName='RoeDoe')]->meta::pure::functions::collection::map(p: meta::pure::functions::string::tests::plus::model::P_Person[1]|$p.lastName->meta::pure::functions::collection::at(0) + ', ' + $p.firstName->meta::pure::functions::collection::at(0))",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
+
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        // map() over 2 structs should return a list of 2 "lastName, firstName" strings
+        Object value = ((ScalarResult) result).value();
+        // DuckDB returns VARCHAR[] as DuckDBArray (implements java.sql.Array)
+        assertTrue(value instanceof java.sql.Array,
+                "Expected java.sql.Array result but got: " + value.getClass().getName() + " = " + value);
+        Object[] arr = (Object[]) ((java.sql.Array) value).getArray();
+        assertEquals(2, arr.length, "Expected 2 elements from map over 2 P_Person structs");
+        assertEquals("Doe, Pierre", arr[0].toString());
+        assertEquals("RoeDoe, Kevin", arr[1].toString());
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

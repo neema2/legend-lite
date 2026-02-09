@@ -5336,8 +5336,12 @@ public final class PureCompiler {
         }
 
         // Compile lambda body with the lambda parameter in context
+        // For struct list sources, pass the element class name so at(0) on scalar
+        // properties can be optimized to a no-op instead of LIST_EXTRACT
         String lambdaParam = lambda.parameter();
-        CompilationContext newContext = context.withLambdaParameter(lambdaParam, "");
+        String elemClassName = extractStructListClassName(methodCall.source());
+        CompilationContext newContext = context.withLambdaParameter(lambdaParam,
+                elemClassName != null ? elemClassName : "");
         Expression lambdaBody = compileToSqlExpression(lambda.body(), newContext);
 
         return SqlCollectionCall.map(source, lambdaParam, lambdaBody);

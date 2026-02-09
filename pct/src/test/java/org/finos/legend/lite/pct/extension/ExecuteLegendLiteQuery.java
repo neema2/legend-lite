@@ -162,6 +162,31 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                         return wrapStructAsClassInstance(structMap, scalarResult.pureType(), processorSupport);
                     }
 
+                    // Handle array results (e.g., VARCHAR[] from list_transform/map)
+                    // Unwrap into a proper Pure collection of raw CoreInstance values
+                    if (value instanceof java.sql.Array sqlArray) {
+                        Object[] elements = (Object[]) sqlArray.getArray();
+                        var rawValues = new ArrayList<CoreInstance>();
+                        for (Object elem : elements) {
+                            if (elem instanceof String s) {
+                                rawValues.add(modelRepository.newStringCoreInstance_cached(s));
+                            } else if (elem instanceof Integer i) {
+                                rawValues.add(modelRepository.newIntegerCoreInstance(i));
+                            } else if (elem instanceof Long l) {
+                                rawValues.add(modelRepository.newIntegerCoreInstance(l));
+                            } else if (elem instanceof Boolean b) {
+                                rawValues.add(modelRepository.newBooleanCoreInstance(b));
+                            } else if (elem instanceof Double d) {
+                                rawValues.add(modelRepository.newFloatCoreInstance(java.math.BigDecimal.valueOf(d)));
+                            } else if (elem != null) {
+                                rawValues.add(modelRepository.newStringCoreInstance_cached(elem.toString()));
+                            }
+                        }
+                        return ValueSpecificationBootstrap.wrapValueSpecification(
+                                org.eclipse.collections.impl.factory.Lists.immutable.withAll(rawValues),
+                                true, processorSupport);
+                    }
+
                     return wrapPrimitiveValue(value, scalarResult.sqlType(), processorSupport);
                 }
 
@@ -273,6 +298,16 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             // Return Pure's nil/empty
             return ValueSpecificationBootstrap.wrapValueSpecification(
                     org.eclipse.collections.api.factory.Lists.immutable.empty(), true, processorSupport);
+        }
+        // Handle java.sql.Array (e.g., DuckDBArray from list_transform/VARCHAR[])
+        // Unwrap to Object[] and convert to List for unified handling below
+        if (value instanceof java.sql.Array sqlArray) {
+            try {
+                Object[] elements = (Object[]) sqlArray.getArray();
+                value = java.util.Arrays.asList(elements);
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to unwrap SQL array", e);
+            }
         }
         // Handle lists (from DuckDB arrays unwrapped by Row.java)
         // Format as a string that the Pure adapter's resultToType can parse.

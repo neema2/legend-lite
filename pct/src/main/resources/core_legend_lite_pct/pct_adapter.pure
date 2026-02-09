@@ -322,38 +322,58 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     //   - Scalar value directly (Integer, Float, Boolean, String)
     let result = executeLegendLiteQuery($pureText);
     
-    // Check if this is a TDS result (wrapped in TDSResult class)
-    if($result->instanceOf(TDSResult),
-        | // For TDS results, build a properly typed TDS by constructing header from expected return type
-          let tdsData = $result->cast(@TDSResult).tdsString;
-          
-          // Debug: print original TDS data from Java
-          print('[LegendLite PCT] Original TDS data from Java: <<<' + $tdsData + '>>>\n');
-          
-          let typedHeader = buildTypedHeader($f->functionReturnType());
-          
-          // If we have type info, prepend the typed header to the data rows
-          // Otherwise fall back to raw parsing (Java already provides col:Type format)
-          let tdsString = if($typedHeader->isEmpty(),
-            | $tdsData,
-            | // Replace the first line (SQL-inferred types) with Pure-inferred types from return type
-              let lines = $tdsData->split('\n');
-              print('[LegendLite PCT] Lines after split: ' + $lines->size()->toString() + ' lines\n');
-              if($lines->size() > 1,
-                | let tail = $lines->tail();
-                  print('[LegendLite PCT] Tail has: ' + $tail->size()->toString() + ' lines\n');
-                  $typedHeader->toOne() + '\n' + $tail->joinStrings('\n');,
-                | // No data rows, just return header
-                  $typedHeader->toOne()
+    // Handle result based on size and type
+    if($result->isEmpty(),
+        | []->cast(@X)->toMultiplicity(@[o]),
+        | if($result->size() > 1,
+            | // Multi-value result (e.g., from map/collect returning a collection)
+              // If expected type is List<T>, wrap in List; otherwise return directly
+              let retType = $f->functionReturnType().rawType->toOne();
+              if($retType == List,
+                | // Wrap in List<T> using resultToType on the string representation
+                  let elemType = $f->functionReturnType().typeArguments->at(0).rawType->toOne();
+                  let wrapped = if($elemType == Integer, | ^List<Integer>(values = $result->cast(@Integer)),
+                    | if($elemType == Float, | ^List<Float>(values = $result->cast(@Float)),
+                      | if($elemType == Boolean, | ^List<Boolean>(values = $result->cast(@Boolean)),
+                        | if($elemType == String, | ^List<String>(values = $result->cast(@String)),
+                          | if($elemType == Number, | ^List<Number>(values = $result->cast(@Number)),
+                            | ^List<Any>(values = $result))))));
+                  $wrapped->cast(@X)->toMultiplicity(@[o]);,
+                | // Not a List type — return values directly as collection
+                  $result->cast(@X)->toMultiplicity(@[o])
+              );,
+            | // Single-value result: could be TDS, scalar, or class instance
+              let single = $result->toOne();
+              if($single->instanceOf(TDSResult),
+                | // For TDS results, build a properly typed TDS by constructing header from expected return type
+                  let tdsData = $single->cast(@TDSResult).tdsString;
+                  
+                  // Debug: print original TDS data from Java
+                  print('[LegendLite PCT] Original TDS data from Java: <<<' + $tdsData + '>>>\n');
+                  
+                  let typedHeader = buildTypedHeader($f->functionReturnType());
+                  
+                  // If we have type info, prepend the typed header to the data rows
+                  // Otherwise fall back to raw parsing (Java already provides col:Type format)
+                  let tdsString = if($typedHeader->isEmpty(),
+                    | $tdsData,
+                    | // Replace the first line (SQL-inferred types) with Pure-inferred types from return type
+                      let lines = $tdsData->split('\n');
+                      print('[LegendLite PCT] Lines after split: ' + $lines->size()->toString() + ' lines\n');
+                      if($lines->size() > 1,
+                        | let tail = $lines->tail();
+                          print('[LegendLite PCT] Tail has: ' + $tail->size()->toString() + ' lines\n');
+                          $typedHeader->toOne() + '\n' + $tail->joinStrings('\n');,
+                        | // No data rows, just return header
+                          $typedHeader->toOne()
+                      );
+                  );
+                  
+                  print('[LegendLite PCT] TDS String for parsing: <<<' + $tdsString + '>>>\n');
+                  $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
+                | let converted = resultToType($single, $f->functionReturnType(), $f->functionReturnMultiplicity());
+                  $converted->cast(@X)->toMultiplicity(@[o]);
               );
-          );
-          
-          print('[LegendLite PCT] TDS String for parsing: <<<' + $tdsString + '>>>\n');
-          $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
-        | if($result->isEmpty(),
-            | []->cast(@X)->toMultiplicity(@[o]),
-            | let converted = resultToType($result, $f->functionReturnType(), $f->functionReturnMultiplicity());
-              $converted->cast(@X)->toMultiplicity(@[o]);
           );
     );
 }
