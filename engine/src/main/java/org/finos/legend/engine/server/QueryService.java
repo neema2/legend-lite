@@ -25,6 +25,9 @@ import org.finos.legend.pure.dsl.definition.RuntimeDefinition;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -271,6 +274,14 @@ public class QueryService {
         // 7. For scalar results from ConstantNode, propagate IR type info
         //    This preserves Decimal vs Float distinction lost by JDBC type mapping
         if (result instanceof ScalarResult sr && ir instanceof ConstantNode cn) {
+            // DuckDB always falls back to DOUBLE for division (~16 digits).
+            // Pure expects DECIMAL128 precision (~34 digits). Re-evaluate in Java.
+            if (sr.value() instanceof Double && containsDivision(cn.expression())) {
+                BigDecimal precise = evaluateWithBigDecimal(cn.expression());
+                if (precise != null) {
+                    return new ScalarResult(precise, "DECIMAL");
+                }
+            }
             SqlType irType = cn.expression().type();
             if (irType == SqlType.DECIMAL) {
                 // Distinguish toDecimal() CAST (needs trailing zero strip) from
@@ -534,6 +545,78 @@ public class QueryService {
             if (comp.right() != null) return extractPureType(comp.right());
         }
         return null;
+    }
+
+    /**
+     * Checks if an expression tree contains a division operation.
+     */
+    private boolean containsDivision(Expression expr) {
+        if (expr instanceof ArithmeticExpression arith) {
+            if (arith.operator() == org.finos.legend.pure.dsl.m2m.BinaryArithmeticExpr.Operator.DIVIDE) {
+                return true;
+            }
+            return containsDivision(arith.left()) || containsDivision(arith.right());
+        }
+        if (expr instanceof SqlFunctionCall func) {
+            if (func.target() != null && containsDivision(func.target())) return true;
+            for (Expression arg : func.arguments()) {
+                if (containsDivision(arg)) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Evaluates a constant expression tree using BigDecimal arithmetic
+     * with DECIMAL128 precision (34 significant digits), matching Pure semantics.
+     * Returns null if the expression contains unsupported node types.
+     */
+    private BigDecimal evaluateWithBigDecimal(Expression expr) {
+        if (expr instanceof Literal lit) {
+            Object v = lit.value();
+            if (v instanceof Long l) return BigDecimal.valueOf(l);
+            if (v instanceof Integer i) return BigDecimal.valueOf(i);
+            if (v instanceof Double d) return BigDecimal.valueOf(d);
+            if (v instanceof BigDecimal bd) return bd;
+            if (v instanceof java.math.BigInteger bi) return new BigDecimal(bi);
+            if (v instanceof Number n) return new BigDecimal(n.toString());
+            return null;
+        }
+        if (expr instanceof ArithmeticExpression arith) {
+            BigDecimal left = evaluateWithBigDecimal(arith.left());
+            BigDecimal right = evaluateWithBigDecimal(arith.right());
+            if (left == null || right == null) return null;
+            return switch (arith.operator()) {
+                case ADD -> left.add(right, MathContext.DECIMAL128);
+                case SUBTRACT -> left.subtract(right, MathContext.DECIMAL128);
+                case MULTIPLY -> left.multiply(right, MathContext.DECIMAL128);
+                case DIVIDE -> right.signum() == 0 ? null
+                        : left.divide(right, MathContext.DECIMAL128);
+            };
+        }
+        if (expr instanceof SqlFunctionCall func) {
+            return switch (func.functionName().toLowerCase()) {
+                case "round" -> {
+                    BigDecimal target = evaluateWithBigDecimal(func.target());
+                    if (target == null) yield null;
+                    if (func.arguments().isEmpty()) {
+                        yield target.setScale(0, RoundingMode.HALF_EVEN);
+                    }
+                    BigDecimal scale = evaluateWithBigDecimal(func.arguments().getFirst());
+                    if (scale == null) yield null;
+                    yield target.setScale(scale.intValue(), RoundingMode.HALF_UP);
+                }
+                case "abs" -> {
+                    BigDecimal target = evaluateWithBigDecimal(func.target());
+                    yield target != null ? target.abs() : null;
+                }
+                default -> null; // Unsupported function — fall back to SQL result
+            };
+        }
+        if (expr instanceof CastExpression cast) {
+            return evaluateWithBigDecimal(cast.source());
+        }
+        return null; // Unsupported expression type
     }
 
     private SQLDialect getDialect(ConnectionDefinition.DatabaseType dbType) {

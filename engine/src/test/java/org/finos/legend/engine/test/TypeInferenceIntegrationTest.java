@@ -2697,6 +2697,23 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testDivideNonTerminatingPrecision() throws SQLException {
+        // PCT test: testDivideWithNonTerminatingExpansion - 1/96 needs ~34 digit precision
+        // Pure uses Decimal128-level precision for division results
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1 / 96",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        // Pure expects: 0.01041666666666666666666666666666667 (33 decimal places)
+        String actual = value.toString();
+        assertTrue(actual.length() > 20, "Expected high-precision result, got: " + actual);
+        assertTrue(actual.startsWith("0.010416666"), "Expected 1/96 ≈ 0.010416..., got: " + actual);
+    }
+
+    @Test
     void testDecimalLiteralWithExplicitScale() throws SQLException {
         // Regression guard: 1.0D must preserve scale 1 and return DECIMAL, not INTEGER
         // (stripTrailingZeros approach would strip to "1" → DuckDB returns INTEGER)
