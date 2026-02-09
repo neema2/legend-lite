@@ -1312,6 +1312,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return switch (literal.literalType()) {
             case STRING -> dialect.quoteStringLiteral((String) literal.value());
             case INTEGER -> {
+                // BigInteger values always need HUGEINT cast (exceed Long range)
+                if (literal.value() instanceof java.math.BigInteger bi) {
+                    yield bi + "::HUGEINT";
+                }
                 long v = ((Number) literal.value()).longValue();
                 // Cast large integers to HUGEINT to prevent INT64 overflow in DuckDB arithmetic
                 yield (v > Integer.MAX_VALUE || v < Integer.MIN_VALUE)

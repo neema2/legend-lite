@@ -6005,7 +6005,13 @@ public final class PureCompiler {
     private Expression compileLiteral(LiteralExpr literal) {
         return switch (literal.type()) {
             case STRING -> Literal.string((String) literal.value());
-            case INTEGER -> Literal.integer(((Number) literal.value()).longValue());
+            case INTEGER -> {
+                // Preserve BigInteger for values exceeding Long range (e.g., 9223372036854775898)
+                if (literal.value() instanceof java.math.BigInteger bi) {
+                    yield new Literal(bi, Literal.LiteralType.INTEGER);
+                }
+                yield Literal.integer(((Number) literal.value()).longValue());
+            }
             case FLOAT -> new Literal(literal.value(), Literal.LiteralType.DOUBLE);
             case DECIMAL -> {
                 // Preserve BigDecimal scale from parser for correct DuckDB DECIMAL precision

@@ -2669,6 +2669,20 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testHugeIntegerLiteralSubtraction() throws SQLException {
+        // PCT test: testLargeMinus - literal 9223372036854775898 exceeds Long.MAX_VALUE
+        // Parser must handle BigInteger, SQL must emit ::HUGEINT
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|9223372036854775898 - 132",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertEquals(new java.math.BigInteger("9223372036854775766"), new java.math.BigInteger(value.toString()));
+    }
+
+    @Test
     void testDecimalLiteralWithExplicitScale() throws SQLException {
         // Regression guard: 1.0D must preserve scale 1 and return DECIMAL, not INTEGER
         // (stripTrailingZeros approach would strip to "1" → DuckDB returns INTEGER)

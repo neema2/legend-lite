@@ -751,7 +751,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return LiteralExpr.string(unquote(ctx.STRING().getText()));
         }
         if (ctx.INTEGER() != null) {
-            return LiteralExpr.integer(Long.parseLong(ctx.INTEGER().getText()));
+            String text = ctx.INTEGER().getText();
+            try {
+                return LiteralExpr.integer(Long.parseLong(text));
+            } catch (NumberFormatException e) {
+                // Exceeds Long range (e.g., 9223372036854775898) — use BigInteger
+                return LiteralExpr.integer(new java.math.BigInteger(text));
+            }
         }
         if (ctx.FLOAT() != null) {
             return LiteralExpr.floatValue(Double.parseDouble(ctx.FLOAT().getText()));

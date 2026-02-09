@@ -37,6 +37,10 @@ public record LiteralExpr(
         return new LiteralExpr(value, LiteralType.INTEGER);
     }
 
+    public static LiteralExpr integer(java.math.BigInteger value) {
+        return new LiteralExpr(value, LiteralType.INTEGER);
+    }
+
     public static LiteralExpr floatValue(double value) {
         return new LiteralExpr(value, LiteralType.FLOAT);
     }
