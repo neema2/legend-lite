@@ -147,6 +147,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                             + " sqlType: " + scalarResult.sqlType()
                             + " pureType: " + scalarResult.pureType());
 
+                    // Null scalar (e.g., head() on empty set) → return "[]" string
+                    // The Pure adapter's resultToType handles "[]" as empty collection
+                    if (value == null) {
+                        return ValueSpecificationBootstrap.newStringLiteral(
+                                modelRepository, "[]", processorSupport);
+                    }
+
                     // If the result is a Map (unwrapped DuckDB struct) with a Pure type,
                     // reconstruct the Pure class instance
                     if (value instanceof java.util.Map && scalarResult.pureType() != null) {

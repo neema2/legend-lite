@@ -328,8 +328,11 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
           
           print('[LegendLite PCT] TDS String for parsing: <<<' + $tdsString + '>>>\n');
           $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
-        | let converted = resultToType($result, $f->functionReturnType(), $f->functionReturnMultiplicity());
-          $converted->cast(@X)->toMultiplicity(@[o]);
+        | if($result->isEmpty(),
+            | []->cast(@X)->toMultiplicity(@[o]),
+            | let converted = resultToType($result, $f->functionReturnType(), $f->functionReturnMultiplicity());
+              $converted->cast(@X)->toMultiplicity(@[o]);
+          );
     );
 }
 
