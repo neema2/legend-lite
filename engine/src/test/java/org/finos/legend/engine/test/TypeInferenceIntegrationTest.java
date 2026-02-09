@@ -2736,6 +2736,28 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testFormatFloatMinimalRepr() throws SQLException {
+        // PCT: testFormatFloat - %f should produce minimal float representation
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals("the quick brown fox jumps over the lazy 1.5", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testFormatDate12HourAmPm() throws SQLException {
+        // PCT: testFormatDate - format with 12-hour clock and AM/PM
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'on %t{yyyy-MM-dd h:mm:ssa}'->meta::pure::functions::string::format(%2014-03-10T13:07:44.001+0000)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals("on 2014-03-10 1:07:44PM", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
     void testMaxOnScalar() throws SQLException {
         // PCT: testMax_Integers - 1->max() on scalar should return the value itself
         Result result = queryService.execute(

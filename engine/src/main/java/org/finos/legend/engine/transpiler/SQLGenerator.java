@@ -1583,12 +1583,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                             } else {
                                 newFmt.append('%');
                                 i++;
+                                boolean hasModifiers = false;
                                 while (i < fmt.length() && "0123456789.-+# ".indexOf(fmt.charAt(i)) >= 0) {
                                     newFmt.append(fmt.charAt(i));
+                                    hasModifiers = true;
                                     i++;
                                 }
                                 if (i < fmt.length()) {
-                                    newFmt.append(fmt.charAt(i));
+                                    // Pure %f (no modifiers) uses minimal repr; map to %g
+                                    char spec = fmt.charAt(i);
+                                    newFmt.append(!hasModifiers && spec == 'f' ? 'g' : spec);
                                     i++;
                                 }
                                 if (argIdx < origArgs.size()) {
@@ -2145,8 +2149,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 .replace("MM", "%m")
                 .replace("dd", "%d")
                 .replace("HH", "%H")
+                .replace("hh", "%I")
+                .replace("h", "%-I")
                 .replace("mm", "%M")
                 .replace("ss", "%S")
-                .replace("SSS", "%g");
+                .replace("SSS", "%g")
+                .replace("a", "%p");
     }
 }
