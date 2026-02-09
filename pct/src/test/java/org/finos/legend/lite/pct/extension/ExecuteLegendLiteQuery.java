@@ -365,8 +365,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     processorSupport);
         }
         if (value instanceof java.math.BigInteger bi) {
-            // DuckDB UBIGINT (e.g., HASH()) returns BigInteger via JDBC
-            return ValueSpecificationBootstrap.newIntegerLiteral(modelRepository, bi.longValue(), processorSupport);
+            // DuckDB HUGEINT/UBIGINT returns BigInteger via JDBC
+            // Use newIntegerCoreInstance(String) to handle values exceeding Long.MAX_VALUE
+            return ValueSpecificationBootstrap.wrapValueSpecification(
+                    modelRepository.newIntegerCoreInstance(bi.toString()), true, processorSupport);
         }
         if (value instanceof Number n) {
             return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(n.doubleValue()),
