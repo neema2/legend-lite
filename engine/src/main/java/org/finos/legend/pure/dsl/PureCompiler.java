@@ -6007,7 +6007,13 @@ public final class PureCompiler {
             case STRING -> Literal.string((String) literal.value());
             case INTEGER -> Literal.integer(((Number) literal.value()).longValue());
             case FLOAT -> new Literal(literal.value(), Literal.LiteralType.DOUBLE);
-            case DECIMAL -> Literal.decimal(((Number) literal.value()).doubleValue());
+            case DECIMAL -> {
+                // Preserve BigDecimal scale from parser for correct DuckDB DECIMAL precision
+                if (literal.value() instanceof java.math.BigDecimal bd) {
+                    yield new Literal(bd, Literal.LiteralType.DECIMAL);
+                }
+                yield Literal.decimal(((Number) literal.value()).doubleValue());
+            }
             case BOOLEAN -> Literal.bool((Boolean) literal.value());
             case DATE -> {
                 // Distinguish StrictDate (date-only) from DateTime (has time component 'T')

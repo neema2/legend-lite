@@ -1,5 +1,6 @@
 package org.finos.legend.pure.dsl;
 
+import java.math.BigDecimal;
 import java.util.Objects;
 
 /**
@@ -41,6 +42,10 @@ public record LiteralExpr(
     }
 
     public static LiteralExpr decimalValue(double value) {
+        return new LiteralExpr(value, LiteralType.DECIMAL);
+    }
+
+    public static LiteralExpr decimalValue(BigDecimal value) {
         return new LiteralExpr(value, LiteralType.DECIMAL);
     }
 

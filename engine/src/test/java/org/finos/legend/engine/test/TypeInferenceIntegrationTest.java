@@ -2651,6 +2651,65 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(new java.math.BigInteger("18446744073709551614"), new java.math.BigInteger(value.toString()));
     }
 
+    // ==================== Decimal precision (PCT: testDecimalTimes) ====================
+
+    @Test
+    void testDecimalMultiplicationPreservesScale() throws SQLException {
+        // PCT test: testDecimalTimes - 19.905D * 17774D should produce 353791.470D (scale 3)
+        // not 353791.4700D (scale 4) from spurious .0 on integer-valued decimals
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|19.905D * 17774D",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        // Should be 353791.470 with scale 3, not 353791.4700 with scale 4
+        assertEquals(new java.math.BigDecimal("353791.470"), value);
+    }
+
+    @Test
+    void testDecimalLiteralWithExplicitScale() throws SQLException {
+        // Regression guard: 1.0D must preserve scale 1 and return DECIMAL, not INTEGER
+        // (stripTrailingZeros approach would strip to "1" → DuckDB returns INTEGER)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1.0D + 0.0D",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertInstanceOf(java.math.BigDecimal.class, value, "1.0D should return BigDecimal, not Integer");
+    }
+
+    @Test
+    void testIntegerValuedDecimalPreservesType() throws SQLException {
+        // Regression guard: 17774D (no decimal point in source) must stay DECIMAL type
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|17774D + 0.0D",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertInstanceOf(java.math.BigDecimal.class, value, "17774D should return BigDecimal, not Integer");
+        assertEquals(0, new java.math.BigDecimal("17774.0").compareTo((java.math.BigDecimal) value));
+    }
+
+    @Test
+    void testMixedDecimalIntegerArithmetic() throws SQLException {
+        // Regression guard: mixing decimals with integers should produce correct scale
+        // |19.905D * 17774 should give scale 3 (from 19.905)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|19.905D * 17774",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertEquals(new java.math.BigDecimal("353791.470"), value);
+    }
+
     // ==================== Helper ====================
 
     private void assertScalarInteger(Result result, long expected) {

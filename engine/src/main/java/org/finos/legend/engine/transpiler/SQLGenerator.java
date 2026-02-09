@@ -1320,7 +1320,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case BOOLEAN -> dialect.formatBoolean((Boolean) literal.value());
             case DOUBLE -> String.valueOf(literal.value());
-            case DECIMAL -> String.valueOf(literal.value());
+            case DECIMAL -> {
+                // Use BigDecimal scale to preserve correct DuckDB DECIMAL precision.
+                // Integer-valued decimals (e.g., 17774D) need DECIMAL(18,0) cast
+                // to keep DECIMAL type with scale 0 instead of becoming INTEGER.
+                if (literal.value() instanceof java.math.BigDecimal bd) {
+                    String plain = bd.toPlainString();
+                    yield plain.contains(".") ? plain : plain + "::DECIMAL(18,0)";
+                }
+                yield String.valueOf(literal.value());
+            }
             case NULL -> dialect.formatNull();
             case DATE -> dialect.formatDate((String) literal.value());
             case TIMESTAMP -> dialect.formatTimestamp((String) literal.value());

@@ -759,7 +759,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (ctx.DECIMAL() != null) {
             String text = ctx.DECIMAL().getText();
             text = text.substring(0, text.length() - 1);
-            return LiteralExpr.decimalValue(Double.parseDouble(text));
+            return LiteralExpr.decimalValue(new java.math.BigDecimal(text));
         }
         if (ctx.BOOLEAN() != null) {
             return LiteralExpr.bool(Boolean.parseBoolean(ctx.BOOLEAN().getText()));
