@@ -246,13 +246,13 @@ public final class PureCompiler {
      * via compileExpression rather than compileToSqlExpression.
      */
     private boolean isRelationExpression(PureExpression expr) {
-        // Collection operations on ArrayLiterals are scalar (list functions), not relational
-        if (expr instanceof DropExpression drop && drop.source() instanceof ArrayLiteral) return false;
-        if (expr instanceof SliceExpression slice && slice.source() instanceof ArrayLiteral) return false;
-        if (expr instanceof FirstExpression first && first.source() instanceof ArrayLiteral) return false;
-        if (expr instanceof LimitExpression limit && limit.source() instanceof ArrayLiteral) return false;
-        if (expr instanceof ConcatenateExpression concat && concat.left() instanceof ArrayLiteral) return false;
-        if (expr instanceof SortExpression sort && sort.source() instanceof ArrayLiteral) return false;
+        // Collection operations on scalar sources (ArrayLiteral, LiteralExpr) are scalar, not relational
+        if (expr instanceof DropExpression drop && isScalarSource(drop.source())) return false;
+        if (expr instanceof SliceExpression slice && isScalarSource(slice.source())) return false;
+        if (expr instanceof FirstExpression first && isScalarSource(first.source())) return false;
+        if (expr instanceof LimitExpression limit && isScalarSource(limit.source())) return false;
+        if (expr instanceof ConcatenateExpression concat && isScalarSource(concat.left())) return false;
+        if (expr instanceof SortExpression sort && isScalarSource(sort.source())) return false;
 
         return expr instanceof RelationExpression
                 || expr instanceof ClassAllExpression
@@ -278,6 +278,13 @@ public final class PureCompiler {
                 || expr instanceof SerializeExpression
                 || expr instanceof BlockExpression
                 || expr instanceof VariableExpr; // Variable could be a let-bound relation
+    }
+
+    /**
+     * Checks if a source expression is a known scalar type (not a relation).
+     */
+    private boolean isScalarSource(PureExpression source) {
+        return source instanceof ArrayLiteral || source instanceof LiteralExpr;
     }
 
     // ========================================================================

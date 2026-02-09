@@ -2736,6 +2736,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testFirstOnScalarLiteral() throws SQLException {
+        // PCT: testFirstOnOneElement - 'a'->first() should return 'a'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'a'->meta::pure::functions::collection::first()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals("a", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
     void testIsEmptyOnEmptyList() throws SQLException {
         // PCT: testIsEmpty - []->isEmpty() should be true (empty array is not null)
         Result result = queryService.execute(
