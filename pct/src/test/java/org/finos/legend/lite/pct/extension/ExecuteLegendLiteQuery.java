@@ -614,32 +614,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
     }
 
-    /**
-     * Finds the qualified Pure type name for a property on a class using ProcessorSupport.
-     * Returns null if the property or its type cannot be resolved.
-     */
-    private String findPropertyTypeName(CoreInstance classInstance, String propertyName,
-            ProcessorSupport processorSupport) {
-        try {
-            for (CoreInstance prop : processorSupport.class_getSimpleProperties(classInstance)) {
-                CoreInstance nameInst = prop.getValueForMetaPropertyToOne(M3Properties.name);
-                if (nameInst == null) continue;
-                String name = PrimitiveUtilities.getStringValue(nameInst);
-                if (!propertyName.equals(name)) continue;
-
-                CoreInstance genericType = prop.getValueForMetaPropertyToOne(M3Properties.genericType);
-                if (genericType == null) return null;
-                CoreInstance rawType = genericType.getValueForMetaPropertyToOne(M3Properties.rawType);
-                if (rawType == null) return null;
-
-                return getQualifiedName(rawType);
-            }
-        } catch (Exception e) {
-            // Fail gracefully
-        }
-        return null;
-    }
-
     private boolean isPrimitiveTypeName(String typeName) {
         return switch (typeName) {
             case "String", "Integer", "Float", "Boolean", "Date", "DateTime",
