@@ -2139,21 +2139,41 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     }
 
     /**
-     * Converts Java date format patterns to DuckDB strftime patterns.
-     * E.g., yyyy-MM-dd -> %Y-%m-%d
+     * Converts Java/Pure date format patterns to DuckDB strftime patterns.
+     * Handles quoted literals ("T" -> T), multi-char tokens (yyyy -> %Y),
+     * and single-char tokens (h -> %-I, a -> %p, Z -> %z with colon removed).
      */
     private static String convertDateFormat(String javaPattern) {
-        return javaPattern
-                .replace("yyyy", "%Y")
-                .replace("yy", "%y")
-                .replace("MM", "%m")
-                .replace("dd", "%d")
-                .replace("HH", "%H")
-                .replace("hh", "%I")
-                .replace("h", "%-I")
-                .replace("mm", "%M")
-                .replace("ss", "%S")
-                .replace("SSS", "%g")
-                .replace("a", "%p");
+        StringBuilder sb = new StringBuilder();
+        int i = 0;
+        while (i < javaPattern.length()) {
+            // Quoted literal: "T" -> T (strip quotes, keep content)
+            if (javaPattern.charAt(i) == '"') {
+                i++;
+                while (i < javaPattern.length() && javaPattern.charAt(i) != '"') {
+                    sb.append(javaPattern.charAt(i));
+                    i++;
+                }
+                if (i < javaPattern.length()) i++; // skip closing quote
+                continue;
+            }
+            // Multi-char tokens (longest match first)
+            String rest = javaPattern.substring(i);
+            if (rest.startsWith("yyyy")) { sb.append("%Y"); i += 4; }
+            else if (rest.startsWith("yy")) { sb.append("%y"); i += 2; }
+            else if (rest.startsWith("MM")) { sb.append("%m"); i += 2; }
+            else if (rest.startsWith("dd")) { sb.append("%d"); i += 2; }
+            else if (rest.startsWith("HH")) { sb.append("%H"); i += 2; }
+            else if (rest.startsWith("hh")) { sb.append("%I"); i += 2; }
+            else if (rest.startsWith("h")) { sb.append("%-I"); i += 1; }
+            else if (rest.startsWith("mm")) { sb.append("%M"); i += 2; }
+            else if (rest.startsWith("SSS")) { sb.append("%g"); i += 3; }
+            else if (rest.startsWith("ss")) { sb.append("%S"); i += 2; }
+            else if (rest.startsWith("a")) { sb.append("%p"); i += 1; }
+            else if (rest.startsWith("Z")) { sb.append("%z00"); i += 1; }
+            else if (rest.startsWith("X")) { sb.append("Z"); i += 1; }
+            else { sb.append(javaPattern.charAt(i)); i++; }
+        }
+        return sb.toString();
     }
 }

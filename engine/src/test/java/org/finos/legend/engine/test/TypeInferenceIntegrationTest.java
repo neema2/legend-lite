@@ -2758,6 +2758,28 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testFormatDateIsoWithTimezone() throws SQLException {
+        // PCT: testFormatDate - ISO format with quoted "T" literal and Z timezone
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'on %t{yyyy-MM-dd\"T\"HH:mm:ss.SSSZ}'->meta::pure::functions::string::format(%2014-03-10T13:07:44.001+0000)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals("on 2014-03-10T13:07:44.001+0000", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testFormatDateIsoWithXTimezone() throws SQLException {
+        // PCT: testFormatDate - ISO format with X timezone (Z for UTC)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'on %t{yyyy-MM-dd HH:mm:ss.SSSX}'->meta::pure::functions::string::format(%2014-03-10T13:07:44.001+0000)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals("on 2014-03-10 13:07:44.001Z", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
     void testMaxOnScalar() throws SQLException {
         // PCT: testMax_Integers - 1->max() on scalar should return the value itself
         Result result = queryService.execute(
