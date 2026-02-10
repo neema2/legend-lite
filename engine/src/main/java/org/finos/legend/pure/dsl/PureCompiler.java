@@ -2700,6 +2700,7 @@ public final class PureCompiler {
                     new java.util.HashMap<>(),
                     extendedColumns,
                     new java.util.HashMap<>(),
+                    new java.util.HashMap<>(),
                     new java.util.HashMap<>())
                     .withRowBinding(extend.expression().parameter(), tableAlias);
 
@@ -3377,6 +3378,11 @@ public final class PureCompiler {
             case VariableExpr var -> {
                 // Check if this is a lambda parameter (e.g., `i` in map(i | $i->get('price')))
                 if (context != null && context.lambdaParameters() != null && context.isLambdaParameter(var.name())) {
+                    // Check for parameter expression override (e.g., fold element unwrapping)
+                    Expression override = context.paramOverrides().get(var.name());
+                    if (override != null) {
+                        yield override;
+                    }
                     // Lambda parameters become unqualified column references
                     yield ColumnReference.of(var.name());
                 }
@@ -4866,7 +4872,7 @@ public final class PureCompiler {
                 // Pure treats scalars as single-element collections;
                 // LIST_SLICE on a string does character slicing, so wrap scalars in [x]
                 Expression tailSource = compileToSqlExpression(methodCall.source(), context);
-                if (!(tailSource instanceof ListLiteral)) {
+                if (!(tailSource instanceof ListLiteral) && !isListReturningExpression(tailSource)) {
                     tailSource = ListLiteral.of(List.of(tailSource));
                 }
                 yield SqlFunctionCall.of("list_slice", tailSource, Literal.of(2),
@@ -4874,7 +4880,7 @@ public final class PureCompiler {
             }
             case "init" -> { // init(list) -> list_slice(list, 1, -2) - all but last
                 Expression initSource = compileToSqlExpression(methodCall.source(), context);
-                if (!(initSource instanceof ListLiteral)) {
+                if (!(initSource instanceof ListLiteral) && !isListReturningExpression(initSource)) {
                     initSource = ListLiteral.of(List.of(initSource));
                 }
                 yield SqlFunctionCall.of("list_slice", initSource, Literal.of(1), Literal.of(-2));
@@ -4931,8 +4937,11 @@ public final class PureCompiler {
 
             case "size" -> {
                 // Check if source is a relation expression (TdsLiteral, FilterExpression, etc.)
-                // If so, compile as COUNT(*) scalar subquery
-                if (isRelationExpression(methodCall.source())) {
+                // If so, compile as COUNT(*) scalar subquery.
+                // But lambda/fold parameters are lists, not relations.
+                boolean isLambdaParam = methodCall.source() instanceof VariableExpr v
+                        && context != null && context.isLambdaParameter(v.name());
+                if (!isLambdaParam && isRelationExpression(methodCall.source())) {
                     RelationNode relationNode = compileExpression(methodCall.source(), context);
                     yield new SubqueryExpression(relationNode, SqlFunctionCall.of("count", Literal.of("*")));
                 }
@@ -5578,6 +5587,27 @@ public final class PureCompiler {
             }
         }
 
+        // Fix 4: List-accumulator fold — wrap source elements to match accumulator type.
+        // When the initial value is a list (e.g., [-1, 0]) but source elements are scalar (e.g., INTEGER),
+        // DuckDB's list_reduce fails because INTEGER != INTEGER[].
+        // Solution: wrap each source element in a single-element list so both are INTEGER[],
+        // then use a param override to unwrap element references during compilation.
+        if (initialValue instanceof ListLiteral initList && !initList.isEmpty()) {
+            // Wrap source: list_transform(source, __e -> list_value(__e))
+            String wrapParam = "__e";
+            Expression wrappedSource = SqlCollectionCall.map(source, wrapParam,
+                    SqlFunctionCall.of("list_value", ColumnReference.of(wrapParam)));
+
+            // Compile body with element param overridden to list_extract(param, 1) for unwrapping
+            Expression elemUnwrap = SqlFunctionCall.of("list_extract",
+                    ColumnReference.of(pureElemParam), Literal.integer(1));
+            Expression lambdaBody = compileToSqlExpression(lambda.body(),
+                    context.withFoldParameters(pureElemParam, pureAccParam)
+                           .withParamOverride(pureElemParam, elemUnwrap));
+
+            return SqlCollectionCall.fold(wrappedSource, pureAccParam, pureElemParam, lambdaBody, initialValue);
+        }
+
         // Fallback: standard list_reduce approach
         Expression lambdaBody = compileToSqlExpression(lambda.body(),
                 context.withFoldParameters(pureElemParam, pureAccParam));
@@ -5585,6 +5615,25 @@ public final class PureCompiler {
         // DuckDB list_reduce: (accumulator, element) -> body
         // Map Pure's accumulator to DuckDB's first position (accumulator)
         return SqlCollectionCall.fold(source, pureAccParam, pureElemParam, lambdaBody, initialValue);
+    }
+
+    /**
+     * Checks if an expression is known to return a list (not a scalar).
+     * Used to avoid double-wrapping in tail/init where scalars need [x] but list results don't.
+     */
+    private boolean isListReturningExpression(Expression expr) {
+        if (expr instanceof SqlFunctionCall func) {
+            return switch (func.functionName().toLowerCase()) {
+                case "list_append", "list_prepend", "list_concat", "list_slice",
+                     "list_sort", "list_reverse", "list_distinct", "list_filter",
+                     "list_transform", "list_value", "list_resize", "flatten",
+                     "list_reduce" -> true;
+                default -> false;
+            };
+        }
+        if (expr instanceof SqlCollectionCall) return true;
+        if (expr instanceof CaseExpression) return true; // CASE branches may return lists
+        return false;
     }
 
     /**
@@ -6316,13 +6365,14 @@ public final class PureCompiler {
             java.util.Map<String, String> lambdaParameters,
             java.util.Set<String> extendedColumns,
             java.util.Map<String, RelationNode> relationSources,
-            java.util.Map<String, SymbolBinding> symbols) {
+            java.util.Map<String, SymbolBinding> symbols,
+            java.util.Map<String, Expression> paramOverrides) {
 
         public CompilationContext(String lambdaParameter, String tableAlias,
                 RelationalMapping mapping, String className, boolean inFilterContext) {
             this(lambdaParameter, tableAlias, mapping, className, inFilterContext,
                     new java.util.HashMap<>(), new java.util.HashSet<>(), new java.util.HashMap<>(),
-                    new java.util.HashMap<>());
+                    new java.util.HashMap<>(), new java.util.HashMap<>());
         }
 
         /**
@@ -6331,7 +6381,7 @@ public final class PureCompiler {
         public CompilationContext(String lambdaParameter, String tableAlias, RelationalMapping mapping) {
             this(lambdaParameter, tableAlias, mapping, mapping.pureClass().name(), false,
                     new java.util.HashMap<>(), new java.util.HashSet<>(), new java.util.HashMap<>(),
-                    new java.util.HashMap<>());
+                    new java.util.HashMap<>(), new java.util.HashMap<>());
         }
 
         /**
@@ -6341,7 +6391,7 @@ public final class PureCompiler {
             var newParams = new java.util.HashMap<>(lambdaParameters);
             newParams.put(paramName, alias);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, newParams, extendedColumns, relationSources, symbols);
+                    inFilterContext, newParams, extendedColumns, relationSources, symbols, paramOverrides);
         }
 
         /**
@@ -6354,7 +6404,7 @@ public final class PureCompiler {
             var newSources = new java.util.HashMap<>(relationSources);
             newSources.put(paramName, source);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, newParams, extendedColumns, newSources, symbols);
+                    inFilterContext, newParams, extendedColumns, newSources, symbols, paramOverrides);
         }
 
         /**
@@ -6373,7 +6423,7 @@ public final class PureCompiler {
             newParams.put(accParam, "");
             newParams.put(elemParam, elemClassName != null ? elemClassName : "");
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, newParams, extendedColumns, relationSources, symbols);
+                    inFilterContext, newParams, extendedColumns, relationSources, symbols, paramOverrides);
         }
 
         /**
@@ -6393,7 +6443,19 @@ public final class PureCompiler {
             var newExtended = new java.util.HashSet<>(extendedColumns);
             newExtended.add(columnName);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, newExtended, relationSources, symbols);
+                    inFilterContext, lambdaParameters, newExtended, relationSources, symbols, paramOverrides);
+        }
+
+        /**
+         * Creates a new context with a parameter expression override.
+         * When a lambda parameter has an override, the override expression is emitted
+         * instead of a plain ColumnReference. Used for fold element unwrapping.
+         */
+        public CompilationContext withParamOverride(String paramName, Expression expr) {
+            var newOverrides = new java.util.HashMap<>(paramOverrides);
+            newOverrides.put(paramName, expr);
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, symbols, newOverrides);
         }
 
         // ========== Symbol Table Methods (Phase 1 of Variable Binding) ==========
@@ -6407,7 +6469,7 @@ public final class PureCompiler {
             newSymbols.put(paramName, SymbolBinding.row(paramName, alias));
             // Also update lambdaParameter for backward compatibility
             return new CompilationContext(paramName, alias, mapping, className,
-                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols);
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides);
         }
 
         /**
@@ -6419,7 +6481,7 @@ public final class PureCompiler {
             var newSymbols = new java.util.HashMap<>(symbols);
             newSymbols.put(paramName, SymbolBinding.relation(paramName, relation));
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols);
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides);
         }
 
         /**
@@ -6430,7 +6492,7 @@ public final class PureCompiler {
             var newSymbols = new java.util.HashMap<>(symbols);
             newSymbols.put(paramName, SymbolBinding.scalar(paramName, expr));
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols);
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides);
         }
 
         /**

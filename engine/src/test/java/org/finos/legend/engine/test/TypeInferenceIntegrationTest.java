@@ -2859,6 +2859,22 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testFoldCollectionAccumulator_WithIfSizeTail() throws SQLException {
+        // |[1, 2, 3, 4]->fold({x, y | if(y->size() < 3, |y->add(x), |y->add(x)->tail())}, [-1, 0]) == [2, 3, 4]
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[1..3]|meta::pure::functions::lang::if($y->meta::pure::functions::collection::size() < 3, |$y->meta::pure::functions::collection::add($x), |$y->meta::pure::functions::collection::add($x)->meta::pure::functions::collection::tail())}, [-1, 0])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray() : (Object[]) value;
+        assertEquals(3, arr.length);
+        assertEquals(2, ((Number) arr[0]).intValue());
+        assertEquals(3, ((Number) arr[1]).intValue());
+        assertEquals(4, ((Number) arr[2]).intValue());
+    }
+
+    @Test
     void testFoldWithEmptyAccumulator() throws SQLException {
         // |[1, 2, 3]->fold({val, acc | acc->add(val)}, []) == [1, 2, 3]
         Result result = queryService.execute(
