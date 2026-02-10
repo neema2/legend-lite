@@ -1507,14 +1507,14 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     throw new IllegalArgumentException("bitShiftLeft() requires shift amount");
                 }
                 String arg = functionCall.arguments().getFirst().accept(this);
-                yield "(" + target + " << " + arg + ")";
+                yield "(CAST(" + target + " AS BIGINT) << " + arg + ")";
             }
             case "bitshiftright" -> {
                 if (functionCall.arguments().isEmpty()) {
                     throw new IllegalArgumentException("bitShiftRight() requires shift amount");
                 }
                 String arg = functionCall.arguments().getFirst().accept(this);
-                yield "(" + target + " >> " + arg + ")";
+                yield "(CAST(" + target + " AS BIGINT) >> " + arg + ")";
             }
 
             // String functions with special handling

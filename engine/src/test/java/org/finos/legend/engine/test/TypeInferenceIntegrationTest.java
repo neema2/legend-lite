@@ -2780,6 +2780,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testBitShiftLeft46Bits() throws SQLException {
+        // PCT: testBitShiftLeft_UpTo62Bits - shift by 46 requires BIGINT
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->meta::pure::functions::math::bitShiftLeft(46)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertEquals(70368744177664L, ((Number) ((ScalarResult) result).value()).longValue());
+    }
+
+    @Test
     void testMaxOnScalar() throws SQLException {
         // PCT: testMax_Integers - 1->max() on scalar should return the value itself
         Result result = queryService.execute(

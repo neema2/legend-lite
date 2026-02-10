@@ -664,9 +664,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      */
     private static String remapErrorMessage(String message) {
         if (message == null) return null;
-        // DuckDB bit shift: "Out of Range Error: Left-shift value 63 is out of range"
+        // DuckDB bit shift errors:
+        //   "Out of Range Error: Left-shift value 63 is out of range" (INTEGER)
+        //   "Out of Range Error: Overflow in left shift (1 << 63)" (BIGINT)
         // Pure expects: "Unsupported number of bits to shift - max bits allowed is 62"
-        if (message.contains("shift value") && message.contains("is out of range")) {
+        if ((message.contains("shift value") && message.contains("is out of range"))
+                || message.contains("Overflow in left shift")
+                || message.contains("Overflow in right shift")) {
             return "Unsupported number of bits to shift - max bits allowed is 62";
         }
         return message;
