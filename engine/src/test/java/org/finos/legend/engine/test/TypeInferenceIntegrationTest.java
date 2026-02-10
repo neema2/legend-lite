@@ -2791,6 +2791,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testCorrScalarWithEmptyList() throws SQLException {
+        // PCT: testCorr - scalar->corr([]) should return null (not UNNEST error)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->meta::pure::functions::math::corr([])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        assertNull(((ScalarResult) result).value());
+    }
+
+    @Test
     void testBitShiftRightOverflowThrows() throws SQLException {
         // PCT: testBitShiftRight_MoreThan62Bits - shift by 63 should throw error
         assertThrows(Exception.class, () -> queryService.execute(

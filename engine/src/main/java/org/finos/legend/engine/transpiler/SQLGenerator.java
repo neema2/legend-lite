@@ -1726,8 +1726,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         if (aggregate.function().isBivariate() && aggregate.secondArgument() != null) {
             String arg2 = aggregate.secondArgument().accept(this);
             // When arguments are lists, unnest them into a subquery
+            // Wrap scalar (non-list) arguments in [...] so UNNEST can handle them
             if (aggregate.argument() instanceof ListLiteral || aggregate.secondArgument() instanceof ListLiteral) {
-                return "(SELECT " + funcName + "(a, b) FROM (SELECT UNNEST(" + arg + ") AS a, UNNEST(" + arg2 + ") AS b))";
+                String unnestArg1 = aggregate.argument() instanceof ListLiteral ? arg : "[" + arg + "]";
+                String unnestArg2 = aggregate.secondArgument() instanceof ListLiteral ? arg2 : "[" + arg2 + "]";
+                return "(SELECT " + funcName + "(a, b) FROM (SELECT UNNEST(" + unnestArg1 + ") AS a, UNNEST(" + unnestArg2 + ") AS b))";
             }
             return funcName + "(" + arg + ", " + arg2 + ")";
         }
