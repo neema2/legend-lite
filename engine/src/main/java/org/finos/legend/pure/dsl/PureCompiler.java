@@ -6118,7 +6118,13 @@ public final class PureCompiler {
                 }
                 yield Literal.integer(((Number) literal.value()).longValue());
             }
-            case FLOAT -> new Literal(literal.value(), Literal.LiteralType.DOUBLE);
+            case FLOAT -> {
+                // Preserve BigDecimal precision for large float literals
+                if (literal.value() instanceof java.math.BigDecimal bd) {
+                    yield new Literal(bd, Literal.LiteralType.DECIMAL);
+                }
+                yield new Literal(literal.value(), Literal.LiteralType.DOUBLE);
+            }
             case DECIMAL -> {
                 // Preserve BigDecimal scale from parser for correct DuckDB DECIMAL precision
                 if (literal.value() instanceof java.math.BigDecimal bd) {

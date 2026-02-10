@@ -45,6 +45,10 @@ public record LiteralExpr(
         return new LiteralExpr(value, LiteralType.FLOAT);
     }
 
+    public static LiteralExpr floatValue(BigDecimal value) {
+        return new LiteralExpr(value, LiteralType.FLOAT);
+    }
+
     public static LiteralExpr decimalValue(double value) {
         return new LiteralExpr(value, LiteralType.DECIMAL);
     }

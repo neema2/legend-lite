@@ -772,7 +772,14 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             }
         }
         if (ctx.FLOAT() != null) {
-            return LiteralExpr.floatValue(Double.parseDouble(ctx.FLOAT().getText()));
+            String text = ctx.FLOAT().getText();
+            java.math.BigDecimal bd = new java.math.BigDecimal(text);
+            double d = bd.doubleValue();
+            // Use BigDecimal only when double representation loses precision
+            if (bd.compareTo(java.math.BigDecimal.valueOf(d)) != 0) {
+                return LiteralExpr.floatValue(bd);
+            }
+            return LiteralExpr.floatValue(d);
         }
         if (ctx.DECIMAL() != null) {
             String text = ctx.DECIMAL().getText();

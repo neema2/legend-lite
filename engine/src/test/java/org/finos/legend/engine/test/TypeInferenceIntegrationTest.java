@@ -2837,6 +2837,20 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(1001, ((Number) arr[2]).intValue());
     }
 
+    // === PCT: testBigFloatAbs assertion ===
+
+    @Test
+    void testBigFloatAbs() throws SQLException {
+        // |abs(-123456789123456789.99) == 123456789123456789.99
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::math::abs(-123456789123456789.99)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(new java.math.BigDecimal("123456789123456789.99"),
+                new java.math.BigDecimal(((Number) ((ScalarResult) result).value()).toString()));
+    }
+
     // === PCT: testPercentile assertions ===
 
     @Test
