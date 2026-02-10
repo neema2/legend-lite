@@ -1514,7 +1514,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     throw new IllegalArgumentException("bitShiftRight() requires shift amount");
                 }
                 String arg = functionCall.arguments().getFirst().accept(this);
-                yield "(CAST(" + target + " AS BIGINT) >> " + arg + ")";
+                // DuckDB right-shift silently returns 0 for shifts >= 63, but Pure expects an error.
+                // Guard: trigger left-shift overflow (remapped to Pure error) when shift > 62.
+                yield "(CASE WHEN " + arg + " > 62 THEN CAST(1 AS BIGINT) << " + arg
+                        + " ELSE CAST(" + target + " AS BIGINT) >> " + arg + " END)";
             }
 
             // String functions with special handling

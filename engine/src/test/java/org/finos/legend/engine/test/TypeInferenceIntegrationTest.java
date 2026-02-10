@@ -2791,6 +2791,15 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testBitShiftRightOverflowThrows() throws SQLException {
+        // PCT: testBitShiftRight_MoreThan62Bits - shift by 63 should throw error
+        assertThrows(Exception.class, () -> queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->meta::pure::functions::math::bitShiftRight(63)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED));
+    }
+
+    @Test
     void testMaxOnScalar() throws SQLException {
         // PCT: testMax_Integers - 1->max() on scalar should return the value itself
         Result result = queryService.execute(
