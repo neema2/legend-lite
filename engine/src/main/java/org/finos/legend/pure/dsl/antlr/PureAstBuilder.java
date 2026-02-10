@@ -1937,6 +1937,20 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                         || aggFunc == AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC)
                         && !mc.arguments().isEmpty()) {
                     double pVal = ((Number) extractLiteralValue(mc.arguments().get(0))).doubleValue();
+                    // percentile(p, ascending, continuous): 3rd arg false -> DISC
+                    if (mc.arguments().size() >= 3) {
+                        Object contVal = extractLiteralValue(mc.arguments().get(2));
+                        if (Boolean.FALSE.equals(contVal)) {
+                            aggFunc = AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC;
+                        }
+                    }
+                    // 2nd arg false -> ascending=false -> use (1-p)
+                    if (mc.arguments().size() >= 2) {
+                        Object ascVal = extractLiteralValue(mc.arguments().get(1));
+                        if (Boolean.FALSE.equals(ascVal)) {
+                            pVal = 1.0 - pVal;
+                        }
+                    }
                     AggregateFunctionSpec pSpec = AggregateFunctionSpec.percentile(aggFunc, columnName, pVal, List.of(), List.of());
                     RelationExtendExpression.TypedWindowSpec pTypedSpec = RelationExtendExpression.TypedWindowSpec.of(
                             pSpec, List.of(), List.of(), null);
@@ -2106,6 +2120,20 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                         || aggFunc == AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC)
                         && !mc.arguments().isEmpty()) {
                     double pVal = ((Number) extractLiteralValue(mc.arguments().get(0))).doubleValue();
+                    // percentile(p, ascending, continuous): 3rd arg false -> DISC
+                    if (mc.arguments().size() >= 3) {
+                        Object contVal = extractLiteralValue(mc.arguments().get(2));
+                        if (Boolean.FALSE.equals(contVal)) {
+                            aggFunc = AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC;
+                        }
+                    }
+                    // 2nd arg false -> ascending=false -> use (1-p)
+                    if (mc.arguments().size() >= 2) {
+                        Object ascVal = extractLiteralValue(mc.arguments().get(1));
+                        if (Boolean.FALSE.equals(ascVal)) {
+                            pVal = 1.0 - pVal;
+                        }
+                    }
                     return AggregateFunctionSpec.percentile(aggFunc, columnName, pVal, List.of(), List.of());
                 }
                 return AggregateFunctionSpec.of(aggFunc, columnName, List.of(), List.of());

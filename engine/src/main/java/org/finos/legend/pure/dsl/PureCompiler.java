@@ -827,6 +827,20 @@ public final class PureCompiler {
                         throw new PureCompileException(
                                 "Percentile function requires a numeric literal argument, got: " + arg);
                     }
+                    // percentile(p, ascending, continuous): 3rd arg false -> DISC
+                    if (methodCall.arguments().size() >= 3) {
+                        PureExpression contArg = methodCall.arguments().get(2);
+                        if (contArg instanceof LiteralExpr le2 && Boolean.FALSE.equals(le2.value())) {
+                            aggFunc = org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_DISC;
+                        }
+                    }
+                    // percentile(p, ascending=false, ...): 2nd arg false -> use (1-p)
+                    if (methodCall.arguments().size() >= 2) {
+                        PureExpression ascArg = methodCall.arguments().get(1);
+                        if (ascArg instanceof LiteralExpr le2 && Boolean.FALSE.equals(le2.value())) {
+                            percentileValue = 1.0 - percentileValue;
+                        }
+                    }
                 }
 
                 // Check for joinStrings/STRING_AGG with separator argument
@@ -921,6 +935,20 @@ public final class PureCompiler {
                         } else {
                             throw new PureCompileException(
                                     "Percentile function requires a numeric literal argument");
+                        }
+                    }
+                    // percentile(p, ascending, continuous): 3rd arg false -> DISC
+                    if (methodCall.arguments().size() >= 3) {
+                        PureExpression contArg = methodCall.arguments().get(2);
+                        if (contArg instanceof LiteralExpr le2 && Boolean.FALSE.equals(le2.value())) {
+                            aggFunc = org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.PERCENTILE_DISC;
+                        }
+                    }
+                    // percentile(p, ascending=false, ...): 2nd arg false -> use (1-p)
+                    if (methodCall.arguments().size() >= 2) {
+                        PureExpression ascArg = methodCall.arguments().get(1);
+                        if (ascArg instanceof LiteralExpr le2 && Boolean.FALSE.equals(le2.value())) {
+                            percentileValue = 1.0 - percentileValue;
                         }
                     }
                 }
@@ -4736,13 +4764,33 @@ public final class PureCompiler {
                 }
                 yield SqlFunctionCall.of(varFunc, compileToSqlExpression(methodCall.source(), context));
             }
-            case "percentileCont", "percentile" -> { // list->percentileCont(0.5) -> list_aggr(list, 'quantile_cont', p)
+            case "percentileCont", "percentile" -> { // list->percentileCont(0.5) or list->percentile(0.75, true, false)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("percentileCont requires a percentile value argument");
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 Expression pValue = compileToSqlExpression(methodCall.arguments().getFirst(), context);
-                // quantile_cont is an aggregate function — must use list_aggr for standalone calls
-                yield SqlFunctionCall.of("list_aggr", src, Literal.of("quantile_cont"), pValue);
+                // percentile(p, ascending, continuous):
+                //   2nd arg false = descending -> use (1-p)
+                //   3rd arg false = discrete -> use quantile_disc
+                boolean ascending = true;
+                String quantileFunc = "quantile_cont";
+                if (methodCall.arguments().size() >= 2) {
+                    PureExpression ascArg = methodCall.arguments().get(1);
+                    if (ascArg instanceof LiteralExpr le && Boolean.FALSE.equals(le.value())) {
+                        ascending = false;
+                    }
+                }
+                if (methodCall.arguments().size() >= 3) {
+                    PureExpression continuousArg = methodCall.arguments().get(2);
+                    if (continuousArg instanceof LiteralExpr le && Boolean.FALSE.equals(le.value())) {
+                        quantileFunc = "quantile_disc";
+                    }
+                }
+                if (!ascending) {
+                    // descending percentile(p) = ascending percentile(1-p)
+                    pValue = ArithmeticExpression.subtract(Literal.of(1), pValue);
+                }
+                yield SqlFunctionCall.of("list_aggr", src, Literal.of(quantileFunc), pValue);
             }
             case "percentileDisc" -> { // list->percentileDisc(0.5) -> list_aggr(list, 'quantile_disc', p)
                 if (methodCall.arguments().isEmpty())

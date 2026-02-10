@@ -2837,6 +2837,163 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(1001, ((Number) arr[2]).intValue());
     }
 
+    // === PCT: testPercentile assertions ===
+
+    @Test
+    void testPercentile_Continuous() throws SQLException {
+        // |10->range()->map(x|$x+1)->percentile(0.75) == 7.75 (continuous)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|10->meta::pure::functions::collection::range()->meta::pure::functions::collection::map(x: Integer[1]|$x + 1)->meta::pure::functions::math::percentile(0.75)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(7.75, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testPercentile_Discrete() throws SQLException {
+        // |10->range()->map(x|$x+1)->percentile(0.75, true, false) == 8 (discrete)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|10->meta::pure::functions::collection::range()->meta::pure::functions::collection::map(x: Integer[1]|$x + 1)->meta::pure::functions::math::percentile(0.75, true, false)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(8L, ((Number) ((ScalarResult) result).value()).longValue());
+    }
+
+    @Test
+    void testPercentile_Descending() throws SQLException {
+        // |10->range()->map(x|$x+1)->percentile(0.75, false, true) == 3.25 (continuous, descending)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|10->meta::pure::functions::collection::range()->meta::pure::functions::collection::map(x: Integer[1]|$x + 1)->meta::pure::functions::math::percentile(0.75, false, true)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(3.25, ((Number) ((ScalarResult) result).value()).doubleValue(), 0.001);
+    }
+
+    // === PCT: testPercentile groupBy assertions ===
+
+    private static final String PERCENTILE_TDS = "#TDS\nid, val\n                1, 1.0\n                1, 2.0\n                1, 3\n                2, 1.5\n                2, 2.5\n                2, 3.5\n                3, 1\n                3, 1.5\n                3, 2.0\n#";
+
+    private java.util.Map<Integer, Double> executePercentileGroupBy(String percentileArgs) throws SQLException {
+        String pure = "|" + PERCENTILE_TDS + "->meta::pure::functions::relation::groupBy(~[id], ~[newCol:x: (id:Integer, val:Float)[1]|$x.val:y: Float[*]|$y->meta::pure::functions::math::percentile(" + percentileArgs + ")])";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        int idIdx = -1, valIdx = -1;
+        for (int i = 0; i < br.columns().size(); i++) {
+            if ("id".equals(br.columns().get(i).name())) idIdx = i;
+            if ("newCol".equals(br.columns().get(i).name())) valIdx = i;
+        }
+        java.util.Map<Integer, Double> map = new java.util.HashMap<>();
+        for (var row : br.rows()) {
+            map.put(((Number) row.get(idIdx)).intValue(), ((Number) row.get(valIdx)).doubleValue());
+        }
+        return map;
+    }
+
+    @Test
+    void testPercentile_GroupBy_Continuous_Ascending() throws SQLException {
+        // percentile(0.6) == percentile(0.6, true, true) -> quantile_cont(0.6)
+        var map = executePercentileGroupBy("0.6");
+        assertEquals(2.1, map.get(1), 0.001);
+        assertEquals(2.6, map.get(2), 0.001);
+        assertEquals(1.5, map.get(3), 0.001);
+    }
+
+    @Test
+    void testPercentile_GroupBy_Discrete_Ascending() throws SQLException {
+        // PCT: percentile(0.6, true, false) -> quantile_disc(0.6)
+        var map = executePercentileGroupBy("0.6, true, false");
+        assertEquals(2.0, map.get(1), 0.001);
+        assertEquals(2.5, map.get(2), 0.001);
+        assertEquals(1.5, map.get(3), 0.001);
+    }
+
+    @Test
+    void testPercentile_GroupBy_Continuous_Descending() throws SQLException {
+        // percentile(0.6, false, true) -> quantile_cont(1-0.6=0.4)
+        var map = executePercentileGroupBy("0.6, false, true");
+        assertEquals(1.8, map.get(1), 0.001);
+        assertEquals(2.3, map.get(2), 0.001);
+        assertEquals(1.4, map.get(3), 0.001);
+    }
+
+    @Test
+    void testPercentile_GroupBy_Discrete_Descending() throws SQLException {
+        // percentile(0.6, false, false) -> quantile_disc(1-0.6=0.4)
+        var map = executePercentileGroupBy("0.6, false, false");
+        assertEquals(2.0, map.get(1), 0.001);
+        assertEquals(2.5, map.get(2), 0.001);
+        assertEquals(1.5, map.get(3), 0.001);
+    }
+
+    // === PCT: testPercentile window assertions ===
+
+    private java.util.Map<String, Double> executePercentileWindow(String percentileArgs) throws SQLException {
+        String pure = "|" + PERCENTILE_TDS + "->meta::pure::functions::relation::extend(~id->meta::pure::functions::relation::over(), ~newCol:{p: meta::pure::metamodel::relation::Relation<(id:Integer, val:Float)>[1], w: meta::pure::functions::relation::_Window<(id:Integer, val:Float)>[1], r: (id:Integer, val:Float)[1]|$r.val}:y: Float[*]|$y->meta::pure::functions::math::percentile(" + percentileArgs + "))";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        int idIdx = -1, valIdx = -1, newColIdx = -1;
+        for (int i = 0; i < br.columns().size(); i++) {
+            if ("id".equals(br.columns().get(i).name())) idIdx = i;
+            if ("val".equals(br.columns().get(i).name())) valIdx = i;
+            if ("newCol".equals(br.columns().get(i).name())) newColIdx = i;
+        }
+        // Return map of "id-val" -> newCol (just check first row per group)
+        java.util.Map<String, Double> map = new java.util.HashMap<>();
+        java.util.Set<Integer> seenIds = new java.util.HashSet<>();
+        for (var row : br.rows()) {
+            int id = ((Number) row.get(idIdx)).intValue();
+            if (seenIds.add(id)) {
+                map.put(String.valueOf(id), ((Number) row.get(newColIdx)).doubleValue());
+            }
+        }
+        return map;
+    }
+
+    @Test
+    void testPercentile_Window_Continuous_Ascending() throws SQLException {
+        // percentile(0.6, true, true) -> quantile_cont(0.6) OVER (PARTITION BY id)
+        var map = executePercentileWindow("0.6, true, true");
+        assertEquals(2.1, map.get("1"), 0.001);
+        assertEquals(2.6, map.get("2"), 0.001);
+        assertEquals(1.5, map.get("3"), 0.001);
+    }
+
+    @Test
+    void testPercentile_Window_Discrete_Ascending() throws SQLException {
+        // percentile(0.6, true, false) -> quantile_disc(0.6) OVER (PARTITION BY id)
+        var map = executePercentileWindow("0.6, true, false");
+        assertEquals(2.0, map.get("1"), 0.001);
+        assertEquals(2.5, map.get("2"), 0.001);
+        assertEquals(1.5, map.get("3"), 0.001);
+    }
+
+    @Test
+    void testPercentile_Window_Continuous_Descending() throws SQLException {
+        // PCT: percentile(0.6, false, true) -> quantile_cont(1-0.6=0.4) OVER (PARTITION BY id)
+        var map = executePercentileWindow("0.6, false, true");
+        assertEquals(1.8, map.get("1"), 0.001);
+        assertEquals(2.3, map.get("2"), 0.001);
+        assertEquals(1.4, map.get("3"), 0.001);
+    }
+
+    @Test
+    void testPercentile_Window_Discrete_Descending() throws SQLException {
+        // percentile(0.6, false, false) -> quantile_disc(1-0.6=0.4) OVER (PARTITION BY id)
+        var map = executePercentileWindow("0.6, false, false");
+        assertEquals(2.0, map.get("1"), 0.001);
+        assertEquals(2.5, map.get("2"), 0.001);
+        assertEquals(1.5, map.get("3"), 0.001);
+    }
+
     // === PCT: testMinBy assertions ===
 
     @Test
