@@ -2837,6 +2837,92 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(1001, ((Number) arr[2]).intValue());
     }
 
+    // === PCT: testFold* assertions ===
+
+    @Test
+    void testFoldCollectionAccumulator() throws SQLException {
+        // |[1, 2, 3, 4]->fold({x, y | y->add(x)}, [-1, 0]) == [-1, 0, 1, 2, 3, 4]
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[2]|$y->meta::pure::functions::collection::add($x)}, [-1, 0])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray() : (Object[]) value;
+        assertEquals(6, arr.length);
+        assertEquals(-1, ((Number) arr[0]).intValue());
+        assertEquals(0, ((Number) arr[1]).intValue());
+        assertEquals(1, ((Number) arr[2]).intValue());
+        assertEquals(2, ((Number) arr[3]).intValue());
+        assertEquals(3, ((Number) arr[4]).intValue());
+        assertEquals(4, ((Number) arr[5]).intValue());
+    }
+
+    @Test
+    void testFoldWithEmptyAccumulator() throws SQLException {
+        // |[1, 2, 3]->fold({val, acc | acc->add(val)}, []) == [1, 2, 3]
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Nil[0]|$acc->meta::pure::functions::collection::add($val)}, [])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray() : (Object[]) value;
+        assertEquals(3, arr.length);
+        assertEquals(1, ((Number) arr[0]).intValue());
+        assertEquals(2, ((Number) arr[1]).intValue());
+        assertEquals(3, ((Number) arr[2]).intValue());
+    }
+
+    @Test
+    void testFoldEmptyListAndEmptyIdentity() throws SQLException {
+        // |[]->cast(@Integer)->fold({val, acc | acc->add(val)}, []->cast(@Any)) == []
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->meta::pure::functions::lang::cast(@Integer)->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Any[0]|$acc->meta::pure::functions::collection::add($val)}, []->meta::pure::functions::lang::cast(@meta::pure::metamodel::type::Any))",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray() : (Object[]) value;
+        assertEquals(0, arr.length);
+    }
+
+    @Test
+    void testFoldWithSingleValue() throws SQLException {
+        // |1->fold({val, acc | acc->add(val)}, []) == [1]
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Nil[0]|$acc->meta::pure::functions::collection::add($val)}, [])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray() : (Object[]) value;
+        assertEquals(1, arr.length);
+        assertEquals(1, ((Number) arr[0]).intValue());
+    }
+
+    @Test
+    void testFoldMixedAccumulatorTypes() throws SQLException {
+        // |['one', 'two']->fold({val, acc | acc + length(val)}, 1) == 7
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['one', 'two']->meta::pure::functions::collection::fold({val: String[1], acc: Integer[1]|$acc + $val->meta::pure::functions::string::length()}, 1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(7, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
+    @Test
+    void testFold_FromVariant() throws SQLException {
+        // |[1, 2, 3]->toVariant()->toMany(@Variant)->fold({val, acc | acc + val->to(@Integer)->toOne()}, 1) == 7
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::variant::convert::toVariant()->meta::pure::functions::variant::convert::toMany(@meta::pure::metamodel::variant::Variant)->meta::pure::functions::collection::fold({val: meta::pure::metamodel::variant::Variant[1], acc: Integer[1]|$acc + $val->meta::pure::functions::variant::convert::to(@Integer)->meta::pure::functions::multiplicity::toOne()}, 1)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(7, ((Number) ((ScalarResult) result).value()).intValue());
+    }
+
     // === PCT: testContainsWithFunction assertion ===
 
     @Test

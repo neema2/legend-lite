@@ -5525,6 +5525,23 @@ public final class PureCompiler {
 
         Expression initialValue = compileToSqlExpression(methodCall.arguments().get(1), context);
 
+        // Fix 2: Wrap scalar source in list_value() for fold
+        // Pure allows 1->fold(...) where source is a single value, not a list.
+        // DuckDB's list_reduce requires a list, so wrap scalar sources.
+        if (isScalarFoldSource(methodCall.source(), source)) {
+            source = SqlFunctionCall.of("list_value", source);
+        }
+
+        // Fix 1: Detect "list accumulation" pattern: fold({val, acc | acc->add(val)}, init)
+        // When the fold lambda is just appending elements to a list accumulator,
+        // compile as list_concat(initial, source) instead of list_reduce.
+        if (isFoldListAccumulation(lambda, pureElemParam, pureAccParam)) {
+            // Strip cast from empty list initial to avoid type mismatch
+            // e.g., CAST([] AS VARCHAR[]) -> [] so DuckDB infers type from source
+            Expression init = stripEmptyListCast(initialValue);
+            return SqlFunctionCall.of("list_concat", init, source);
+        }
+
         // Check if source is a struct list that needs decomposition for DuckDB compatibility.
         // DuckDB's list_reduce requires initial value type = list element type.
         // When folding structs into a string, we decompose into list_transform + list_reduce.
@@ -5545,6 +5562,22 @@ public final class PureCompiler {
             }
         }
 
+        // Fix 3: Generalize mixed-type fold decomposition for any list type.
+        // When accumulator type differs from list element type, decompose into
+        // list_reduce(list_transform(source, elem -> f(elem)), (acc, x) -> acc OP x, init).
+        if (elemClassName == null) {
+            Expression lambdaBody = compileToSqlExpression(lambda.body(),
+                    context.withFoldParameters(pureElemParam, pureAccParam));
+            Expression elemTransform = stripAccumulatorFromBody(lambdaBody, pureAccParam);
+            if (elemTransform != null) {
+                Expression transformedList = SqlCollectionCall.map(source, pureElemParam, elemTransform);
+                String freshX = "__x";
+                Expression reduceBody = ArithmeticExpression.add(
+                        ColumnReference.of(pureAccParam), ColumnReference.of(freshX));
+                return SqlCollectionCall.fold(transformedList, pureAccParam, freshX, reduceBody, initialValue);
+            }
+        }
+
         // Fallback: standard list_reduce approach
         Expression lambdaBody = compileToSqlExpression(lambda.body(),
                 context.withFoldParameters(pureElemParam, pureAccParam));
@@ -5552,6 +5585,60 @@ public final class PureCompiler {
         // DuckDB list_reduce: (accumulator, element) -> body
         // Map Pure's accumulator to DuckDB's first position (accumulator)
         return SqlCollectionCall.fold(source, pureAccParam, pureElemParam, lambdaBody, initialValue);
+    }
+
+    /**
+     * Detects if the fold lambda body is a "list accumulation" pattern: acc->add(val).
+     * In the AST, this is a MethodCall with source=$acc, method="add", args=[$val].
+     */
+    private boolean isFoldListAccumulation(LambdaExpression lambda, String elemParam, String accParam) {
+        PureExpression body = lambda.body();
+        if (!(body instanceof MethodCall addCall)) return false;
+        String shortName = addCall.methodName().contains("::")
+                ? addCall.methodName().substring(addCall.methodName().lastIndexOf("::") + 2)
+                : addCall.methodName();
+        if (!"add".equals(shortName)) return false;
+        // Source must be the accumulator variable
+        if (!(addCall.source() instanceof VariableExpr accVar) || !accVar.name().equals(accParam)) return false;
+        // Single argument must be the element variable
+        if (addCall.arguments().size() != 1) return false;
+        if (!(addCall.arguments().getFirst() instanceof VariableExpr elemVar) || !elemVar.name().equals(elemParam)) return false;
+        return true;
+    }
+
+    /**
+     * Strips CAST from an empty list expression to avoid type mismatch in list_concat.
+     * CAST([] AS VARCHAR[]) -> [] (untyped, DuckDB infers from other operand)
+     */
+    private Expression stripEmptyListCast(Expression expr) {
+        // CastExpression IR node: CAST([] AS TYPE[])
+        if (expr instanceof org.finos.legend.engine.plan.CastExpression cast
+                && cast.source() instanceof ListLiteral ll && ll.isEmpty()) {
+            return ll;
+        }
+        // SqlFunctionCall("cast", [], ...) from compileCastExpression
+        if (expr instanceof SqlFunctionCall func
+                && "cast".equals(func.functionName())
+                && func.target() instanceof ListLiteral ll && ll.isEmpty()) {
+            return ll;
+        }
+        return expr;
+    }
+
+    /**
+     * Checks if a fold source is a scalar value (not a list) that needs wrapping.
+     * Returns true for literals and other non-array expressions that aren't already lists.
+     */
+    private boolean isScalarFoldSource(PureExpression pureSource, Expression compiledSource) {
+        // Array literals are already lists
+        if (pureSource instanceof ArrayLiteral) return false;
+        // Method calls that return lists (cast, range, etc.) are not scalar
+        if (pureSource instanceof MethodCall) return false;
+        if (pureSource instanceof FunctionCall) return false;
+        // Literal values (integers, strings) are scalar
+        if (pureSource instanceof LiteralExpr) return true;
+        // Variable references could be either — assume list for safety
+        return false;
     }
 
     /**
