@@ -2790,6 +2790,100 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(70368744177664L, ((Number) ((ScalarResult) result).value()).longValue());
     }
 
+    // === PCT: testMaxBy assertions ===
+
+    @Test
+    void testMaxBy_Simple() throws SQLException {
+        // |[1, 2]->maxBy([10, 20]) == 2
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2]->meta::pure::functions::math::maxBy([10, 20])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2L, ((Number) ((ScalarResult) result).value()).longValue());
+    }
+
+    @Test
+    void testMaxBy_LargerList() throws SQLException {
+        // |[1001, 1020, 1030, 900, 2010, 2020]->maxBy([10000, 9000, 8000, 15000, 15000, 8000]) == 900
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1001, 1020, 1030, 900, 2010, 2020]->meta::pure::functions::math::maxBy([10000, 9000, 8000, 15000, 15000, 8000])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(900L, ((Number) ((ScalarResult) result).value()).longValue());
+    }
+
+    @Test
+    void testMaxBy_TopK() throws SQLException {
+        // |[1001, 1020, 1030, 900, 2010, 2020]->maxBy([10000, 9000, 8000, 15000, 15000, 8000], 3) == [900, 2010, 1001]
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1001, 1020, 1030, 900, 2010, 2020]->meta::pure::functions::math::maxBy([10000, 9000, 8000, 15000, 15000, 8000], 3)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        // Expected: [900, 2010, 1001] - top 3 by descending keys, preserving original order for ties
+        Object[] arr;
+        if (value instanceof java.sql.Array sqlArray) {
+            arr = (Object[]) sqlArray.getArray();
+        } else {
+            fail("Expected array result, got: " + value);
+            return;
+        }
+        assertEquals(3, arr.length);
+        assertEquals(900, ((Number) arr[0]).intValue());
+        assertEquals(2010, ((Number) arr[1]).intValue());
+        assertEquals(1001, ((Number) arr[2]).intValue());
+    }
+
+    // === PCT: testMinBy assertions ===
+
+    @Test
+    void testMinBy_Simple() throws SQLException {
+        // |[1, 2]->minBy([10, 20]) == 1
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2]->meta::pure::functions::math::minBy([10, 20])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(1L, ((Number) ((ScalarResult) result).value()).longValue());
+    }
+
+    @Test
+    void testMinBy_LargerList() throws SQLException {
+        // |[1001, 1020, 1030, 900, 2010, 2020]->minBy([10000, 9000, 8000, 15000, 14000, 7000]) == 2020
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1001, 1020, 1030, 900, 2010, 2020]->meta::pure::functions::math::minBy([10000, 9000, 8000, 15000, 14000, 7000])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(2020L, ((Number) ((ScalarResult) result).value()).longValue());
+    }
+
+    @Test
+    void testMinBy_TopK() throws SQLException {
+        // |[1001, 1020, 1030, 900, 2010, 2020]->minBy([10000, 9000, 8000, 15000, 14000, 7000], 3) == [2020, 1030, 1020]
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1001, 1020, 1030, 900, 2010, 2020]->meta::pure::functions::math::minBy([10000, 9000, 8000, 15000, 14000, 7000], 3)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object value = ((ScalarResult) result).value();
+        // Expected: [2020, 1030, 1020] - top 3 by ascending keys, preserving original order for ties
+        Object[] arr;
+        if (value instanceof java.sql.Array sqlArray) {
+            arr = (Object[]) sqlArray.getArray();
+        } else {
+            fail("Expected array result, got: " + value);
+            return;
+        }
+        assertEquals(3, arr.length);
+        assertEquals(2020, ((Number) arr[0]).intValue());
+        assertEquals(1030, ((Number) arr[1]).intValue());
+        assertEquals(1020, ((Number) arr[2]).intValue());
+    }
+
     @Test
     void testCorrScalarWithEmptyList() throws SQLException {
         // PCT: testCorr - scalar->corr([]) should return null (not UNNEST error)

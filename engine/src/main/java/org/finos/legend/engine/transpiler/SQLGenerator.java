@@ -1626,6 +1626,32 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 }
             }
 
+            case "maxby", "minby" -> {
+                String order = lowerFuncName.equals("maxby") ? "DESC" : "ASC";
+                // ARG_MAX/ARG_MIN on list arguments need UNNEST subquery
+                if (!functionCall.arguments().isEmpty()
+                        && (functionCall.target() instanceof ListLiteral
+                                || functionCall.arguments().getFirst() instanceof ListLiteral)) {
+                    String arg = functionCall.arguments().getFirst().accept(this);
+                    String unnestTarget = functionCall.target() instanceof ListLiteral ? target : "[" + target + "]";
+                    String unnestArg = functionCall.arguments().getFirst() instanceof ListLiteral ? arg : "[" + arg + "]";
+                    // Top-k variant: maxBy([vals], [keys], k) -> return list of top-k elements
+                    // generate_series provides explicit positional index for stable tie-breaking
+                    if (functionCall.arguments().size() >= 2) {
+                        String k = functionCall.arguments().get(1).accept(this);
+                        yield "(SELECT LIST(sub.a) FROM (SELECT a FROM (SELECT UNNEST(" + unnestTarget
+                                + ") AS a, UNNEST(" + unnestArg + ") AS b, UNNEST(generate_series(0, len("
+                                + unnestTarget + ")-1)) AS rn) ORDER BY b " + order
+                                + ", rn ASC LIMIT " + k + ") sub)";
+                    }
+                    yield "(SELECT " + funcName + "(a, b) FROM (SELECT UNNEST(" + unnestTarget + ") AS a, UNNEST(" + unnestArg + ") AS b))";
+                }
+                if (functionCall.arguments().isEmpty()) {
+                    yield funcName + "(" + target + ")";
+                }
+                String arg = functionCall.arguments().getFirst().accept(this);
+                yield funcName + "(" + target + ", " + arg + ")";
+            }
             default -> {
                 // Standard function call
                 if (functionCall.arguments().isEmpty()) {
