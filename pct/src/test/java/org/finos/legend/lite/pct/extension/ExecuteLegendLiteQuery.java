@@ -203,12 +203,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         } catch (SQLException e) {
             throw new PureExecutionException(
                     functionExpressionCallStack.peek().getSourceInformation(),
-                    e.getMessage(),
+                    remapErrorMessage(e.getMessage()),
                     e);
         } catch (Exception e) {
             throw new PureExecutionException(
                     functionExpressionCallStack.peek().getSourceInformation(),
-                    e.getMessage(),
+                    remapErrorMessage(e.getMessage()),
                     e);
         }
     }
@@ -657,6 +657,19 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                  "StrictDate", "Decimal", "Number", "Any", "Nil" -> true;
             default -> false;
         };
+    }
+
+    /**
+     * Remaps DuckDB-specific error messages to Pure-expected error messages.
+     */
+    private static String remapErrorMessage(String message) {
+        if (message == null) return null;
+        // DuckDB bit shift: "Out of Range Error: Left-shift value 63 is out of range"
+        // Pure expects: "Unsupported number of bits to shift - max bits allowed is 62"
+        if (message.contains("shift value") && message.contains("is out of range")) {
+            return "Unsupported number of bits to shift - max bits allowed is 62";
+        }
+        return message;
     }
 
     private String stripTrailingZeros(String subsecond) {
