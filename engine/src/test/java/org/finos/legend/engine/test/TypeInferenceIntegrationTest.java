@@ -2837,6 +2837,19 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(1001, ((Number) arr[2]).intValue());
     }
 
+    // === PCT: testContainsWithFunction assertion ===
+
+    @Test
+    void testContainsWithFunction() throws SQLException {
+        // PCT: [^Class(name='f1'), ^Class(name='f2')]->contains(^Class(name='f1'), comparator(...){$a.name == $b.name})
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f1'), ^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f2')]->meta::pure::functions::collection::contains(^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f1'), comparator(a: meta::pure::functions::collection::tests::contains::ClassWithoutEquality[1], b: meta::pure::functions::collection::tests::contains::ClassWithoutEquality[1]): Boolean[1]\n       {\n         $a.name == $b.name\n       })",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
     // === PCT: testBigFloatAbs assertion ===
 
     @Test

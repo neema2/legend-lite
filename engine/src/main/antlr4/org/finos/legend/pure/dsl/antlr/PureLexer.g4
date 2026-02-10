@@ -142,6 +142,7 @@ GREATER_OR_EQUAL:                       '>=';
 
 ALL:                                    'all';
 LET:                                    'let';
+COMPARATOR:                             'comparator';
 ALL_VERSIONS:                           'allVersions';
 ALL_VERSIONS_IN_RANGE:                  'allVersionsInRange';
 TO_BYTES_FUNCTION:                      'toBytes';

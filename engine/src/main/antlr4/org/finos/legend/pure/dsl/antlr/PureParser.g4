@@ -28,7 +28,7 @@ options
 
 identifier:                                     VALID_STRING | STRING
                                                 // M3 keywords
-                                                | ALL | LET | ALL_VERSIONS | ALL_VERSIONS_IN_RANGE
+                                                | ALL | LET | ALL_VERSIONS | ALL_VERSIONS_IN_RANGE | COMPARATOR
                                                 | TO_BYTES_FUNCTION
                                                 // Domain keywords
                                                 | IMPORT
@@ -182,8 +182,12 @@ atomicExpression:                               dsl
                                                 | variable
                                                 | columnBuilders
                                                 | (AT type)
+                                                | comparatorExpression
                                                 | anyLambda
                                                 | instanceReference
+;
+
+comparatorExpression:                           COMPARATOR PAREN_OPEN functionVariableExpression (COMMA functionVariableExpression)* PAREN_CLOSE COLON type multiplicity BRACE_OPEN codeBlock BRACE_CLOSE
 ;
 
 tdsLiteral:                                     TDS_LITERAL

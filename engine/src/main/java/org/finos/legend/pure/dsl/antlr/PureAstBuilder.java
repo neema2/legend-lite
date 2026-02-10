@@ -392,6 +392,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (ctx.tdsLiteral() != null) {
             return visitTdsLiteral(ctx.tdsLiteral());
         }
+        if (ctx.comparatorExpression() != null) {
+            return visitComparatorExpression(ctx.comparatorExpression());
+        }
         throw new PureParseException("Unknown atomic expression: " + ctx.getText());
     }
 
@@ -833,6 +836,16 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new LambdaExpression("_", body);
         }
         throw new PureParseException("Unknown lambda: " + ctx.getText());
+    }
+
+    @Override
+    public PureExpression visitComparatorExpression(PureParser.ComparatorExpressionContext ctx) {
+        // comparator(a: Type[1], b: Type[1]): Boolean[1] { body } -> LambdaExpression({a, b | body})
+        List<String> paramList = ctx.functionVariableExpression().stream()
+                .map(fve -> getIdentifierText(fve.identifier()))
+                .toList();
+        PureExpression body = visit(ctx.codeBlock());
+        return new LambdaExpression(paramList, body);
     }
 
     @Override
