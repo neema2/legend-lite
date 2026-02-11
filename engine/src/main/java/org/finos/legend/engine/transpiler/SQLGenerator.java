@@ -1343,6 +1343,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     @Override
     public String visitComparison(ComparisonExpression comparison) {
+        // Pure dates have precision (Year, Month, Date, DateTime).
+        // %2014 (StrictYear) != %2014-01-01 (StrictDate) even though both map to DATE '2014-01-01'.
+        // For equality/inequality on date literals, compare raw strings to preserve precision.
+        if ((comparison.operator() == ComparisonExpression.ComparisonOperator.EQUALS ||
+                comparison.operator() == ComparisonExpression.ComparisonOperator.NOT_EQUALS) &&
+                comparison.left() instanceof Literal leftLit &&
+                comparison.right() instanceof Literal rightLit &&
+                leftLit.literalType() == Literal.LiteralType.DATE &&
+                rightLit.literalType() == Literal.LiteralType.DATE) {
+            String leftRaw = stripDatePrefix((String) leftLit.value());
+            String rightRaw = stripDatePrefix((String) rightLit.value());
+            String op = comparison.operator().toSql();
+            return dialect.quoteStringLiteral(leftRaw) + " " + op + " " + dialect.quoteStringLiteral(rightRaw);
+        }
+
         String left = comparison.left().accept(this);
         String op = comparison.operator().toSql();
 
@@ -1354,6 +1369,10 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
         String right = comparison.right().accept(this);
         return left + " " + op + " " + right;
+    }
+
+    private static String stripDatePrefix(String pureDate) {
+        return pureDate.startsWith("%") ? pureDate.substring(1) : pureDate;
     }
 
     @Override
