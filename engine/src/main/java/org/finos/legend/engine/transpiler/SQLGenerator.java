@@ -1323,7 +1323,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                         : String.valueOf(v);
             }
             case BOOLEAN -> dialect.formatBoolean((Boolean) literal.value());
-            case DOUBLE -> String.valueOf(literal.value());
+            case DOUBLE -> {
+                // Use String.valueOf for normal doubles (preserves .0 suffix).
+                // Only convert via BigDecimal for scientific notation (E/e) to get plain form.
+                String dblStr = String.valueOf(literal.value());
+                if (dblStr.contains("E") || dblStr.contains("e")) {
+                    dblStr = java.math.BigDecimal.valueOf(((Number) literal.value()).doubleValue()).toPlainString();
+                    if (!dblStr.contains(".")) dblStr += ".0";
+                }
+                yield dblStr;
+            }
             case DECIMAL -> {
                 // Use BigDecimal scale to preserve correct DuckDB DECIMAL precision.
                 // Integer-valued decimals (e.g., 17774D) need DECIMAL(18,0) cast

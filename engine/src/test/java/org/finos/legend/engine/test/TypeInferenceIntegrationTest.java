@@ -195,6 +195,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     // ==================== toString ====================
 
     @Test
+    void testFloatToStringWithNegativeExponent() throws SQLException {
+        // PCT: 0.000000013421->toString() → '0.000000013421' (fixed-point, not scientific notation)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|0.000000013421->toString()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("0.000000013421", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
     void testClassToString() throws SQLException {
         // PCT: STR_Person->toString() → class name as string
         Result result = queryService.execute(
