@@ -192,6 +192,41 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 12L);
     }
 
+    // ==================== joinStrings on empty list ====================
+
+    @Test
+    void testJoinStringsNoStrings() throws SQLException {
+        // PCT: 'a'->tail()->joinStrings(',') → '' (tail of single-element is empty, joinStrings returns '')
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'a'->tail()->joinStrings(',')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testJoinStringsSingleString() throws SQLException {
+        // PCT: 'a'->joinStrings(',') → 'a' (scalar string treated as single-element list)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'a'->joinStrings(',')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("a", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testJoinStringsNoStringsPrefixSuffix() throws SQLException {
+        // PCT: 'a'->tail()->joinStrings('[', ',', ']') → '[]' (empty list with prefix/suffix)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'a'->tail()->joinStrings('[', ',', ']')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[]", ((ScalarResult) result).value().toString());
+    }
+
     // ==================== match() ====================
 
     @Test

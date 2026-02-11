@@ -4749,17 +4749,26 @@ public final class PureCompiler {
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("joinStrings requires a separator argument");
                 Expression listExpr = compileToSqlExpression(methodCall.source(), context);
+                // Pure treats scalars as single-element collections; wrap for ARRAY_TO_STRING
+                if (!(listExpr instanceof ListLiteral) && !isListReturningExpression(listExpr)) {
+                    listExpr = ListLiteral.of(List.of(listExpr));
+                }
                 if (methodCall.arguments().size() >= 3) {
                     // 3-arg form: joinStrings(prefix, separator, suffix)
                     Expression prefix = compileToSqlExpression(methodCall.arguments().get(0), context);
                     Expression separator = compileToSqlExpression(methodCall.arguments().get(1), context);
                     Expression suffix = compileToSqlExpression(methodCall.arguments().get(2), context);
-                    Expression joined = SqlFunctionCall.of("array_to_string", listExpr, separator);
+                    // COALESCE handles empty lists where ARRAY_TO_STRING returns NULL
+                    Expression joined = SqlFunctionCall.of("coalesce",
+                            SqlFunctionCall.of("array_to_string", listExpr, separator), Literal.of(""));
                     yield new ConcatExpression(java.util.List.of(prefix, joined, suffix));
                 }
                 // 1-arg form: joinStrings(separator)
-                yield SqlFunctionCall.of("array_to_string", listExpr,
-                        compileToSqlExpression(methodCall.arguments().getFirst(), context));
+                // COALESCE handles empty lists where ARRAY_TO_STRING returns NULL
+                yield SqlFunctionCall.of("coalesce",
+                        SqlFunctionCall.of("array_to_string", listExpr,
+                                compileToSqlExpression(methodCall.arguments().getFirst(), context)),
+                        Literal.of(""));
             }
             case "decodeBase64" -> { // decodeBase64(s) -> CAST(from_base64(padded_s) AS VARCHAR)
                 // Pad base64 string to multiple of 4 with '=' for DuckDB compatibility

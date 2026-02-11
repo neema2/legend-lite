@@ -241,7 +241,7 @@ function meta::legend::lite::pct::resultToType(result: Any[1], type: GenericType
     // Expected Nil → empty collection
     pair(|$resultType == Nil, |[]),
     // String result that looks like array "[]" or "[1, 2, 3]" with toMany multiplicity → parse
-    pair(|$result->instanceOf(String) && $result->cast(@String) == '[]' && $resultType != List, |[]),
+    pair(|$result->instanceOf(String) && $result->cast(@String) == '[]' && $resultType != List && !$resultType->subTypeOf(String), |[]),
     // List<T> wrapper: array string + expected type is List → parse elements and wrap in ^List(values=...)
     pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $resultType == List,
          |let elemType = $type.typeArguments->at(0).rawType->toOne();
