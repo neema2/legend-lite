@@ -880,6 +880,10 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (paramCtx.lambdaParamType() == null) return null;
         String typeName = paramCtx.lambdaParamType().type().getText();
         String multiplicity = paramCtx.lambdaParamType().multiplicity().getText();
+        // Strip surrounding brackets: [1] -> 1, [0..1] -> 0..1, [*] -> *
+        if (multiplicity.startsWith("[") && multiplicity.endsWith("]")) {
+            multiplicity = multiplicity.substring(1, multiplicity.length() - 1);
+        }
         return new LambdaExpression.TypeAnnotation(typeName, multiplicity);
     }
 

@@ -216,22 +216,25 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
     @Test
     void testMatchWithFunctionsManyMatch() throws SQLException {
-        // PCT testMatchWithFunctionsManyMatch: same pattern, picks Integer branch → 1
+        // PCT testMatchWithFunctionsManyMatch: ['1','2']->match([a: Integer[1]|1, a: String[1]|[6,7,1,2], a: String[*]|$a, a: Date[1]|[4,5,6]])
+        // Array of 2 strings: size=2 doesn't match String[1], matches String[*], returns $a = ['1','2']
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
-                "|1->match([a: Integer[1]|1, a: String[1]|2, a: Date[1]|3])",
+                "|['1', '2']->match([a: Integer[1]|1, a: String[1]|[6, 7, 1, 2], a: String[*]|$a, a: Date[1]|[4, 5, 6]])",
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
-        assertScalarInteger(result, 1L);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[1, 2]", ((ScalarResult) result).value().toString());
     }
 
     @Test
     void testMatchWithFunctionsAsParamManyMatch() throws SQLException {
-        // PCT testMatchWithFunctionsAsParamManyMatch: same pattern, picks Integer → 1
+        // PCT testMatchWithFunctionsAsParamManyMatch: ['1','2']->match([...]) with String[*]|$a
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
-                "|1->match([a: Integer[1]|1, a: String[1]|2, a: Date[1]|3])",
+                "|['1', '2']->match([a: Integer[1]|1, a: String[1]|[6, 7, 1, 2], a: String[*]|$a, a: Date[1]|[4, 5, 6]])",
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
-        assertScalarInteger(result, 1L);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("[1, 2]", ((ScalarResult) result).value().toString());
     }
 
     @Test

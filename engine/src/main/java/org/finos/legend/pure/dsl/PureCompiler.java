@@ -4099,8 +4099,9 @@ public final class PureCompiler {
             throw new PureCompileException("match() first argument must be an array of typed lambdas");
         }
 
-        // Detect the source type for compile-time resolution
+        // Detect the source type and size for compile-time resolution
         String sourceType = detectPureType(source);
+        int sourceSize = detectSourceSize(source);
 
         // Find the first matching branch
         for (PureExpression branchExpr : branches.elements()) {
@@ -4111,7 +4112,8 @@ public final class PureCompiler {
             LambdaExpression.TypeAnnotation typeAnn = (lambda.parameterTypes() != null && !lambda.parameterTypes().isEmpty())
                     ? lambda.parameterTypes().getFirst() : null;
 
-            if (typeAnn == null || typeMatches(sourceType, typeAnn.simpleTypeName())) {
+            if (typeAnn == null || (typeMatches(sourceType, typeAnn.simpleTypeName())
+                    && multiplicityMatches(sourceSize, typeAnn.multiplicity()))) {
                 // This branch matches — compile its body with param bound to source
                 Expression sourceExpr = compileToSqlExpression(source, context);
                 CompilationContext branchContext = context.withScalarBinding(lambda.parameter(), sourceExpr);
@@ -4156,6 +4158,12 @@ public final class PureCompiler {
             int lastSep = typeName.lastIndexOf("::");
             return lastSep >= 0 ? typeName.substring(lastSep + 2) : typeName;
         }
+        // For instance expressions: ^ClassName(...) → extract class name
+        if (expr instanceof InstanceExpression inst) {
+            String className = inst.className();
+            int lastSep = className.lastIndexOf("::");
+            return lastSep >= 0 ? className.substring(lastSep + 2) : className;
+        }
         // For method calls that chain through cast
         if (expr instanceof MethodCall mc && "cast".equals(mc.methodName())) {
             if (!mc.arguments().isEmpty() && mc.arguments().getFirst() instanceof ClassReference cr) {
@@ -4168,6 +4176,18 @@ public final class PureCompiler {
     }
 
     /**
+     * Detects the source size (number of elements) for multiplicity matching.
+     * Returns 1 for scalars, actual count for arrays, -1 for unknown.
+     */
+    private int detectSourceSize(PureExpression expr) {
+        if (expr instanceof ArrayLiteral array) return array.elements().size();
+        if (expr instanceof LiteralExpr) return 1;
+        if (expr instanceof InstanceExpression) return 1;
+        if (expr instanceof CastExpression cast) return detectSourceSize(cast.source());
+        return -1; // unknown
+    }
+
+    /**
      * Checks if a detected source type matches a branch's type annotation.
      */
     private boolean typeMatches(String sourceType, String branchType) {
@@ -4176,6 +4196,24 @@ public final class PureCompiler {
         // Number is a supertype of Integer, Float, Decimal
         if ("Number".equals(branchType) && ("Integer".equals(sourceType) || "Float".equals(sourceType) || "Decimal".equals(sourceType))) return true;
         return sourceType.equals(branchType);
+    }
+
+    /**
+     * Checks if a source size is compatible with a branch's multiplicity annotation.
+     * Multiplicity formats: "1", "0..1", "1..4", "*", "0"
+     */
+    private boolean multiplicityMatches(int sourceSize, String multiplicity) {
+        if (sourceSize < 0) return true; // unknown size, assume match
+        if ("*".equals(multiplicity)) return true;
+        if (multiplicity.contains("..")) {
+            String[] parts = multiplicity.split("\\.\\.");
+            int lower = Integer.parseInt(parts[0]);
+            int upper = "*".equals(parts[1]) ? Integer.MAX_VALUE : Integer.parseInt(parts[1]);
+            return sourceSize >= lower && sourceSize <= upper;
+        }
+        // Exact multiplicity like "1" or "0"
+        int exact = Integer.parseInt(multiplicity);
+        return sourceSize == exact;
     }
 
     /**
@@ -4378,8 +4416,8 @@ public final class PureCompiler {
                 yield SqlFunctionCall.of("list_concat",
                         SqlFunctionCall.of("list_concat", before, elemList), after);
             }
-            // Pure multiplicity functions - identity in SQL context
-            case "toOne" -> compileToSqlExpression(methodCall.source(), context);
+            // Pure multiplicity/meta functions - identity in SQL context
+            case "toOne", "deactivate" -> compileToSqlExpression(methodCall.source(), context);
             // if: condition->if(|thenBody, |elseBody) -> CASE WHEN condition THEN then ELSE else END
             // multi-if: [pair(|cond1, |val1), pair(|cond2, |val2)]->if(|default)
             //        -> CASE WHEN cond1 THEN val1 WHEN cond2 THEN val2 ELSE default END
