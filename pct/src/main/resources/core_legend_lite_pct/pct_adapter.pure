@@ -143,22 +143,30 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
         | $v,  // Not a captured variable, keep as-is
         | // Create InstanceValue with the captured value
           let capturedVal = $value->toOne()->cast(@List<Any>).values;
-          let valType = $capturedVal->genericType()->toOne().rawType->toOne();
-          // For class instances (non-primitive, non-enum), wrap in CapturedInstance marker
-          // This allows targeted serialization to ^Class(...) format
-          let wrappedVal = if ($valType->instanceOf(Class) && 
-                              !$valType->instanceOf(PrimitiveType) &&
-                              !$valType->subTypeOf(Function) &&
-                              !$valType->elementToPath()->startsWith('meta::pure::metamodel'),
-                            | $capturedVal->map(v | ^CapturedInstance(value = $v)),
-                            | $capturedVal
-                           );
-          ^InstanceValue(
-            genericType = if($wrappedVal->at(0)->instanceOf(CapturedInstance),
-                           | ^GenericType(rawType = CapturedInstance),
-                           | $capturedVal->genericType()->toOne()),
-            multiplicity = if($capturedVal->size() == 1, |PureOne, |ZeroMany),
-            values = $wrappedVal
+          if ($capturedVal->isEmpty(),
+            | // Empty captured list — use the variable's declared type
+              ^InstanceValue(
+                genericType = $v.genericType,
+                multiplicity = ZeroMany,
+                values = []
+              );,
+            | let valType = $capturedVal->genericType()->toOne().rawType->toOne();
+              // For class instances (non-primitive, non-enum), wrap in CapturedInstance marker
+              // This allows targeted serialization to ^Class(...) format
+              let wrappedVal = if ($valType->instanceOf(Class) && 
+                                  !$valType->instanceOf(PrimitiveType) &&
+                                  !$valType->subTypeOf(Function) &&
+                                  !$valType->elementToPath()->startsWith('meta::pure::metamodel'),
+                                | $capturedVal->map(v | ^CapturedInstance(value = $v)),
+                                | $capturedVal
+                               );
+              ^InstanceValue(
+                genericType = if($wrappedVal->at(0)->instanceOf(CapturedInstance),
+                               | ^GenericType(rawType = CapturedInstance),
+                               | $capturedVal->genericType()->toOne()),
+                multiplicity = if($capturedVal->size() == 1, |PureOne, |ZeroMany),
+                values = $wrappedVal
+              );
           );
       );,
       
