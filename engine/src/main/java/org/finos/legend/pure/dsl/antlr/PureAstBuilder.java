@@ -825,9 +825,13 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // When matching "x | expr", BOTH lambdaParam() and lambdaPipe() are non-null
         // We must check lambdaParam first to correctly capture the parameter name
         if (ctx.lambdaParam() != null) {
-            // x|expr - lambda with single param
+            // x|expr or x: Type[mult]|expr - lambda with single param
             String param = getIdentifierText(ctx.lambdaParam().identifier());
             PureExpression body = visitLambdaBody(ctx.lambdaPipe());
+            LambdaExpression.TypeAnnotation typeAnn = extractTypeAnnotation(ctx.lambdaParam());
+            if (typeAnn != null) {
+                return new LambdaExpression(List.of(param), List.of(typeAnn), body);
+            }
             return new LambdaExpression(param, body);
         }
         if (ctx.lambdaPipe() != null) {
@@ -850,18 +854,33 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
     @Override
     public PureExpression visitLambdaFunction(PureParser.LambdaFunctionContext ctx) {
-        // {x, y | body} - capture ALL params as List<String> for multi-param lambdas
+        // {x, y | body} or {x: Type[1], y: Type[1] | body}
         List<PureParser.LambdaParamContext> params = ctx.lambdaParam();
         List<String> paramList;
+        List<LambdaExpression.TypeAnnotation> typeList = null;
         if (params.isEmpty()) {
             paramList = List.of("_");
         } else {
             paramList = params.stream()
                     .map(p -> getIdentifierText(p.identifier()))
                     .toList();
+            // Check if any param has type annotations
+            boolean hasTypes = params.stream().anyMatch(p -> p.lambdaParamType() != null);
+            if (hasTypes) {
+                typeList = params.stream()
+                        .map(this::extractTypeAnnotation)
+                        .toList();
+            }
         }
         PureExpression body = visitLambdaBody(ctx.lambdaPipe());
-        return new LambdaExpression(paramList, body);
+        return new LambdaExpression(paramList, typeList, body);
+    }
+
+    private LambdaExpression.TypeAnnotation extractTypeAnnotation(PureParser.LambdaParamContext paramCtx) {
+        if (paramCtx.lambdaParamType() == null) return null;
+        String typeName = paramCtx.lambdaParamType().type().getText();
+        String multiplicity = paramCtx.lambdaParamType().multiplicity().getText();
+        return new LambdaExpression.TypeAnnotation(typeName, multiplicity);
     }
 
     private PureExpression visitLambdaBody(PureParser.LambdaPipeContext ctx) {

@@ -4079,6 +4079,106 @@ public final class PureCompiler {
     }
 
     /**
+     * Compiles value->match([a: Type1[1]|result1, b: Type2[1]|result2, ...], extraParams...)
+     * Resolves type at compile time for scalar literals, picks the first matching branch.
+     * Binds the matched lambda's first param to the source value, extra params to extra args.
+     */
+    private Expression compileMatchExpression(MethodCall methodCall, CompilationContext context) {
+        if (methodCall.arguments().isEmpty()) {
+            throw new PureCompileException("match() requires at least one argument (array of typed lambdas)");
+        }
+
+        PureExpression source = methodCall.source();
+        PureExpression firstArg = methodCall.arguments().getFirst();
+        List<PureExpression> extraArgs = methodCall.arguments().size() > 1
+                ? methodCall.arguments().subList(1, methodCall.arguments().size())
+                : List.of();
+
+        // First arg must be an ArrayLiteral of typed lambdas
+        if (!(firstArg instanceof ArrayLiteral branches)) {
+            throw new PureCompileException("match() first argument must be an array of typed lambdas");
+        }
+
+        // Detect the source type for compile-time resolution
+        String sourceType = detectPureType(source);
+
+        // Find the first matching branch
+        for (PureExpression branchExpr : branches.elements()) {
+            if (!(branchExpr instanceof LambdaExpression lambda)) {
+                throw new PureCompileException("match() branches must be lambda expressions, got: " + branchExpr);
+            }
+
+            LambdaExpression.TypeAnnotation typeAnn = (lambda.parameterTypes() != null && !lambda.parameterTypes().isEmpty())
+                    ? lambda.parameterTypes().getFirst() : null;
+
+            if (typeAnn == null || typeMatches(sourceType, typeAnn.simpleTypeName())) {
+                // This branch matches — compile its body with param bound to source
+                Expression sourceExpr = compileToSqlExpression(source, context);
+                CompilationContext branchContext = context.withScalarBinding(lambda.parameter(), sourceExpr);
+
+                // Bind extra params: lambda params after the first are bound to extraArgs
+                int extraParamCount = lambda.parameters().size() - 1;
+                for (int i = 0; i < extraParamCount && i < extraArgs.size(); i++) {
+                    Expression extraExpr = compileToSqlExpression(extraArgs.get(i), branchContext);
+                    branchContext = branchContext.withScalarBinding(lambda.parameters().get(i + 1), extraExpr);
+                }
+
+                return compileToSqlExpression(lambda.body(), branchContext);
+            }
+        }
+
+        throw new PureCompileException("match() no branch matches source type: " + sourceType);
+    }
+
+    /**
+     * Detects the Pure type of a source expression for match() compile-time resolution.
+     */
+    private String detectPureType(PureExpression expr) {
+        if (expr instanceof LiteralExpr lit) {
+            return switch (lit.type()) {
+                case INTEGER -> "Integer";
+                case STRING -> "String";
+                case FLOAT -> "Float";
+                case DECIMAL -> "Decimal";
+                case BOOLEAN -> "Boolean";
+                case DATE -> "Date";
+                case STRICTTIME -> "StrictTime";
+            };
+        }
+        if (expr instanceof ArrayLiteral array) {
+            // Detect element type from first element
+            if (array.elements().isEmpty()) return "Any";
+            return detectPureType(array.elements().getFirst());
+        }
+        // For cast expressions: []->cast(@String) → CastExpression with targetType
+        if (expr instanceof CastExpression cast) {
+            String typeName = cast.targetType();
+            int lastSep = typeName.lastIndexOf("::");
+            return lastSep >= 0 ? typeName.substring(lastSep + 2) : typeName;
+        }
+        // For method calls that chain through cast
+        if (expr instanceof MethodCall mc && "cast".equals(mc.methodName())) {
+            if (!mc.arguments().isEmpty() && mc.arguments().getFirst() instanceof ClassReference cr) {
+                String className = cr.className();
+                int lastSep = className.lastIndexOf("::");
+                return lastSep >= 0 ? className.substring(lastSep + 2) : className;
+            }
+        }
+        return "Any"; // Unknown type — matches Any branches
+    }
+
+    /**
+     * Checks if a detected source type matches a branch's type annotation.
+     */
+    private boolean typeMatches(String sourceType, String branchType) {
+        if ("Any".equals(branchType)) return true;
+        if ("Any".equals(sourceType)) return true;
+        // Number is a supertype of Integer, Float, Decimal
+        if ("Number".equals(branchType) && ("Integer".equals(sourceType) || "Float".equals(sourceType) || "Decimal".equals(sourceType))) return true;
+        return sourceType.equals(branchType);
+    }
+
+    /**
      * Compiles eval(lambda, arg1, arg2, ...) by inlining the lambda body
      * with parameters substituted by the provided arguments.
      */
@@ -4311,6 +4411,11 @@ public final class PureCompiler {
                     yield CaseExpression.of(condition, thenVal, elseVal);
                 }
                 throw new PureCompileException("if() requires two lambda arguments (then, else)");
+            }
+            // match: value->match([a: Type1[1]|result1, b: Type2[1]|result2, ...], extraParams...)
+            // Resolves type at compile time for scalar literals, picks matching branch
+            case "match" -> {
+                yield compileMatchExpression(methodCall, context);
             }
             // forAll: list->forAll(e|condition) -> list_bool_and(list_transform(list, e -> condition))
             case "forAll" -> {
@@ -4959,10 +5064,10 @@ public final class PureCompiler {
             case "size" -> {
                 // Check if source is a relation expression (TdsLiteral, FilterExpression, etc.)
                 // If so, compile as COUNT(*) scalar subquery.
-                // But lambda/fold parameters are lists, not relations.
-                boolean isLambdaParam = methodCall.source() instanceof VariableExpr v
-                        && context != null && context.isLambdaParameter(v.name());
-                if (!isLambdaParam && isRelationExpression(methodCall.source())) {
+                // But lambda/fold parameters and scalar bindings are lists, not relations.
+                boolean isScalarVar = methodCall.source() instanceof VariableExpr v
+                        && context != null && (context.isLambdaParameter(v.name()) || context.hasScalarBinding(v.name()));
+                if (!isScalarVar && isRelationExpression(methodCall.source())) {
                     RelationNode relationNode = compileExpression(methodCall.source(), context);
                     yield new SubqueryExpression(relationNode, SqlFunctionCall.of("count", Literal.of("*")));
                 }
@@ -6558,6 +6663,14 @@ public final class PureCompiler {
          */
         public boolean hasSymbol(String name) {
             return symbols.containsKey(name);
+        }
+
+        /**
+         * Checks if a variable has a scalar binding (not a relation binding).
+         */
+        public boolean hasScalarBinding(String name) {
+            SymbolBinding binding = symbols.get(name);
+            return binding != null && binding.kind() == SymbolBinding.BindingKind.SCALAR;
         }
 
         /**

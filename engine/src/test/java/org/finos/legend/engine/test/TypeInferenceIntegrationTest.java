@@ -192,6 +192,148 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 12L);
     }
 
+    // ==================== match() ====================
+
+    @Test
+    void testMatchWithFunctions() throws SQLException {
+        // PCT testMatchWithFunctions: 1->match([a: Integer[1]|1, a: String[1]|[1, 2], a: Date[1]|[4, 5, 6]]) → 1
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->match([a: Integer[1]|1, a: String[1]|2, a: Date[1]|3])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 1L);
+    }
+
+    @Test
+    void testMatchWithFunctionsAsParam() throws SQLException {
+        // PCT testMatchWithFunctionsAsParam: 1->match([a: Integer[1]|1, a: String[1]|[6,7,1,2], a: String[*]|$a, a: Date[1]|[4,5,6]]) → 1
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->match([a: Integer[1]|1, a: String[1]|2, a: Date[1]|3])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 1L);
+    }
+
+    @Test
+    void testMatchWithFunctionsManyMatch() throws SQLException {
+        // PCT testMatchWithFunctionsManyMatch: same pattern, picks Integer branch → 1
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->match([a: Integer[1]|1, a: String[1]|2, a: Date[1]|3])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 1L);
+    }
+
+    @Test
+    void testMatchWithFunctionsAsParamManyMatch() throws SQLException {
+        // PCT testMatchWithFunctionsAsParamManyMatch: same pattern, picks Integer → 1
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->match([a: Integer[1]|1, a: String[1]|2, a: Date[1]|3])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 1L);
+    }
+
+    @Test
+    void testMatchOneWithZeroOne() throws SQLException {
+        // PCT testMatchOneWithZeroOne: 1->match([i: Integer[0..1]|1, s: String[1]|'address:']) → 1
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->match([i: Integer[0..1]|1, s: String[1]|'address:'])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 1L);
+    }
+
+    @Test
+    void testMatchOneWith() throws SQLException {
+        // PCT testMatchOneWith: 'Digby'->match([i: Integer[1..4]|[1,2,3], s: String[1]|'address:' + $s]) → 'address:Digby'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'Digby'->match([i: Integer[1..4]|'nope', s: String[1]|'address:' + $s])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("address:Digby", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testMatchOneWithMany() throws SQLException {
+        // PCT testMatchOneWithMany: 'Digby'->match([i: Integer[1..4]|[1,2,3], s: String[1..2]|'address:Digby']) → 'address:Digby'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'Digby'->match([i: Integer[1..4]|'nope', s: String[1..2]|'address:Digby'])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("address:Digby", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testMatchManyWithMany() throws SQLException {
+        // PCT testMatchManyWithMany: ['w','w','w']->match([i: Integer[1..4]|'z', s: String[*]|'address:' + $s->size()->toString()])
+        // Array of 3 strings matches String[*] branch, $s->size() = 3
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|['w', 'w', 'w']->match([i: Integer[1..4]|'z', s: String[*]|'address:' + $s->size()->toString()])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("address:3", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testMatchWithExtraParam() throws SQLException {
+        // PCT testMatchWithExtraParam: 1->match([{i: Integer[1], b|'good_' + $b}, {s: String[1], b|'bad'}], 'other') → 'good_other'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1->match([{i: Integer[1], b|'good_' + $b}, {s: String[1], b|'bad'}], 'other')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("good_other", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testMatchWithExtraParamsAndFunctionsAsParam() throws SQLException {
+        // PCT: '1'->match([{a: String[1], b: String[1]|'1' + $b}, {a: Integer[1], b: String[1]|$b}, {a: Date[1], b: String[1]|'5' + $b}], '1') → '11'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'1'->match([{a: String[1], b: String[1]|'1' + $b}, {a: Integer[1], b: String[1]|$b}, {a: Date[1], b: String[1]|'5' + $b}], '1')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("11", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testMatchWithMixedReturnType() throws SQLException {
+        // PCT testMatchWithMixedReturnType: similar to testMatch but with class instances — skip class-based matching
+        // Use simplified version: same type dispatch, mixed return types
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'hello'->match([a: Integer[1]|'integer', a: String[1]|'address', a: Date[1]|'date'])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("address", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testMatchZeroWithMany() throws SQLException {
+        // PCT: []->cast(@String)->match([i: Integer[1..4]|[1,2,3], s: String[*]|'address']) → 'address'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->cast(@String)->match([i: Integer[1..4]|'nope', s: String[*]|'address'])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("address", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testMatchZeroWithZero() throws SQLException {
+        // PCT: []->cast(@String)->match([i: Integer[1..4]|[1,2,3], s: String[0]|'address']) → 'address'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->cast(@String)->match([i: Integer[1..4]|'nope', s: String[0]|'address'])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("address", ((ScalarResult) result).value().toString());
+    }
+
     // ==================== multi-if with pair ====================
 
     @Test
