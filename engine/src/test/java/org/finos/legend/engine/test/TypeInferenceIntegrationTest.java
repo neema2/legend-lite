@@ -3667,6 +3667,244 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
     // ==================== Helper ====================
 
+    // ==================== rowMapper: window corr/covarSample/covarPopulation ====================
+
+    @Test
+    void testWindowCorr() throws SQLException {
+        // PCT: testSimpleWindowCorr - CORR(valA, valB) OVER (PARTITION BY id)
+        String pure = "|#TDS\n" +
+                "id, valA, valB\n" +
+                "1, 1, 10\n" +
+                "1, 2, 20\n" +
+                "2, 2, 40\n" +
+                "2, 4, 15\n" +
+                "#->extend(over(~id), ~newCol:{p,w,r|meta::pure::functions::math::mathUtility::rowMapper($r.valA, $r.valB)}:y|$y->corr())";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        assertEquals(4, br.rowCount());
+        // Collect newCol values by id (order-independent)
+        var byId = collectWindowResultsById(br);
+        // id=1: corr(1,10; 2,20) = 1.0; id=2: corr(2,40; 4,15) = -1.0
+        assertEquals(1.0, byId.get(1), 0.0001);
+        assertEquals(-1.0, byId.get(2), 0.0001);
+    }
+
+    @Test
+    void testWindowCovarSample() throws SQLException {
+        // PCT: testSimpleWindowCovarSample - COVAR_SAMP(valA, valB) OVER (PARTITION BY id)
+        String pure = "|#TDS\n" +
+                "id, valA, valB\n" +
+                "1, 1, 10\n" +
+                "1, 2, 20\n" +
+                "2, 2, 40\n" +
+                "2, 4, 15\n" +
+                "#->extend(over(~id), ~newCol:{p,w,r|meta::pure::functions::math::mathUtility::rowMapper($r.valA, $r.valB)}:y|$y->covarSample())";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        assertEquals(4, br.rowCount());
+        var byId = collectWindowResultsById(br);
+        // id=1: covar_samp(1,10; 2,20) = 5.0; id=2: covar_samp(2,40; 4,15) = -25.0
+        assertEquals(5.0, byId.get(1), 0.0001);
+        assertEquals(-25.0, byId.get(2), 0.0001);
+    }
+
+    @Test
+    void testWindowCovarPopulation() throws SQLException {
+        // PCT: testSimpleWindowCovarPopulation - COVAR_POP(valA, valB) OVER (PARTITION BY id)
+        String pure = "|#TDS\n" +
+                "id, valA, valB\n" +
+                "1, 1, 10\n" +
+                "1, 2, 20\n" +
+                "2, 2, 40\n" +
+                "2, 4, 15\n" +
+                "#->extend(over(~id), ~newCol:{p,w,r|meta::pure::functions::math::mathUtility::rowMapper($r.valA, $r.valB)}:y|$y->covarPopulation())";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        assertEquals(4, br.rowCount());
+        var byId = collectWindowResultsById(br);
+        // id=1: covar_pop(1,10; 2,20) = 2.5; id=2: covar_pop(2,40; 4,15) = -12.5
+        assertEquals(2.5, byId.get(1), 0.0001);
+        assertEquals(-12.5, byId.get(2), 0.0001);
+    }
+
+    private java.util.Map<Integer, Double> collectWindowResultsById(BufferedResult br) {
+        int idIdx = -1, newColIdx = -1;
+        for (int i = 0; i < br.columns().size(); i++) {
+            if ("id".equals(br.columns().get(i).name())) idIdx = i;
+            if ("newCol".equals(br.columns().get(i).name())) newColIdx = i;
+        }
+        java.util.Map<Integer, Double> map = new java.util.HashMap<>();
+        for (var row : br.rows()) {
+            int id = ((Number) row.get(idIdx)).intValue();
+            double val = ((Number) row.get(newColIdx)).doubleValue();
+            map.putIfAbsent(id, val);
+        }
+        return map;
+    }
+
+    // ==================== rowMapper: groupBy wavg/maxBy/minBy ====================
+
+    @Test
+    void testGroupByWavg() throws SQLException {
+        // PCT: testSimpleGroupByWavg
+        // Expected (sorted by grp asc):
+        //   grp,wavgCol
+        //   1,180.0
+        //   2,150.0
+        //   3,362.5
+        //   4,700.0
+        //   5,350.0
+        String pure = "|#TDS\n" +
+                "id, grp, name, quantity, weight\n" +
+                "1, 2, A, 200, 0.5\n" +
+                "2, 1, B, 100, 0.45\n" +
+                "3, 3, C, 250, 0.25\n" +
+                "4, 4, D, 700, 1\n" +
+                "5, 2, E, 100, 0.5\n" +
+                "6, 1, F, 500, 0.15\n" +
+                "7, 3, G, 400, 0.75\n" +
+                "8, 1, H, 150, 0.4\n" +
+                "9, 5, I, 350, 1\n" +
+                "#->groupBy(~grp, ~wavgCol : x | meta::pure::functions::math::mathUtility::rowMapper($x.quantity, $x.weight) : y | $y->wavg())";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        assertEquals(5, br.rowCount());
+        var byGrp = collectGroupByResults(br, "grp", "wavgCol");
+        assertEquals(180.0, ((Number) byGrp.get(1)).doubleValue(), 0.0001);
+        assertEquals(150.0, ((Number) byGrp.get(2)).doubleValue(), 0.0001);
+        assertEquals(362.5, ((Number) byGrp.get(3)).doubleValue(), 0.0001);
+        assertEquals(700.0, ((Number) byGrp.get(4)).doubleValue(), 0.0001);
+        assertEquals(350.0, ((Number) byGrp.get(5)).doubleValue(), 0.0001);
+    }
+
+    @Test
+    void testGroupByMultipleWavg() throws SQLException {
+        // PCT: testSimpleGroupByMultipleWavg
+        // Expected (sorted by grp asc):
+        //   grp,wavgCol1,wavgCol2
+        //   1,180.0,220.0
+        //   2,150.0,175.0
+        //   3,362.5,325.0
+        //   4,700.0,700.0
+        //   5,350.0,350.0
+        String pure = "|#TDS\n" +
+                "id, grp, name, quantity, weight, weight1\n" +
+                "1, 2, A, 200, 0.5, 0.75\n" +
+                "2, 1, B, 100, 0.45, 0.35\n" +
+                "3, 3, C, 250, 0.25, 0.50\n" +
+                "4, 4, D, 700, 1, 1\n" +
+                "5, 2, E, 100, 0.5, 0.25\n" +
+                "6, 1, F, 500, 0.15, 0.25\n" +
+                "7, 3, G, 400, 0.75, 0.50\n" +
+                "8, 1, H, 150, 0.4, 0.4\n" +
+                "9, 5, I, 350, 1, 1\n" +
+                "#->groupBy(~grp, ~[wavgCol1 : x | meta::pure::functions::math::mathUtility::rowMapper($x.quantity, $x.weight) : y | $y->wavg(), wavgCol2 : x | meta::pure::functions::math::mathUtility::rowMapper($x.quantity, $x.weight1) : y | $y->wavg()])";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        assertEquals(5, br.rowCount());
+        var byGrp1 = collectGroupByResults(br, "grp", "wavgCol1");
+        var byGrp2 = collectGroupByResults(br, "grp", "wavgCol2");
+        assertEquals(180.0, ((Number) byGrp1.get(1)).doubleValue(), 0.0001);
+        assertEquals(150.0, ((Number) byGrp1.get(2)).doubleValue(), 0.0001);
+        assertEquals(362.5, ((Number) byGrp1.get(3)).doubleValue(), 0.0001);
+        assertEquals(700.0, ((Number) byGrp1.get(4)).doubleValue(), 0.0001);
+        assertEquals(350.0, ((Number) byGrp1.get(5)).doubleValue(), 0.0001);
+        assertEquals(220.0, ((Number) byGrp2.get(1)).doubleValue(), 0.0001);
+        assertEquals(175.0, ((Number) byGrp2.get(2)).doubleValue(), 0.0001);
+        assertEquals(325.0, ((Number) byGrp2.get(3)).doubleValue(), 0.0001);
+        assertEquals(700.0, ((Number) byGrp2.get(4)).doubleValue(), 0.0001);
+        assertEquals(350.0, ((Number) byGrp2.get(5)).doubleValue(), 0.0001);
+    }
+
+    @Test
+    void testGroupByMaxBy() throws SQLException {
+        // PCT: testSimpleGroupByMaxBy
+        // Expected (sorted by grp asc):
+        //   grp,newCol
+        //   1,E
+        //   2,H
+        String pure = "|#TDS\n" +
+                "id, grp, name, employeeNumber\n" +
+                "1, 1, A, 10000\n" +
+                "2, 1, B, 9000\n" +
+                "3, 1, C, 8000\n" +
+                "4, 1, D, 15000\n" +
+                "5, 1, E, 17000\n" +
+                "6, 1, F, 8000\n" +
+                "6, 2, G, 12000\n" +
+                "6, 2, H, 13000\n" +
+                "6, 2, I, 8000\n" +
+                "#->groupBy(~[grp], ~[newCol : x | meta::pure::functions::math::mathUtility::rowMapper($x.name, $x.employeeNumber) : y | $y->maxBy()])";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        assertEquals(2, br.rowCount());
+        var byGrp = collectGroupByResults(br, "grp", "newCol");
+        assertEquals("E", byGrp.get(1).toString());
+        assertEquals("H", byGrp.get(2).toString());
+    }
+
+    @Test
+    void testGroupByMinBy() throws SQLException {
+        // PCT: testSimpleGroupByMinBy
+        // Expected (sorted by grp asc):
+        //   grp,newCol
+        //   1,C
+        //   2,I
+        String pure = "|#TDS\n" +
+                "id, grp, name, employeeNumber\n" +
+                "1, 1, A, 10000\n" +
+                "2, 1, B, 9000\n" +
+                "3, 1, C, 8000\n" +
+                "4, 1, D, 15000\n" +
+                "5, 1, E, 17000\n" +
+                "6, 1, F, 8500\n" +
+                "6, 2, G, 12000\n" +
+                "6, 2, H, 13000\n" +
+                "6, 2, I, 8000\n" +
+                "#->groupBy(~[grp], ~[newCol : x | meta::pure::functions::math::mathUtility::rowMapper($x.name, $x.employeeNumber) : y | $y->minBy()])";
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(), pure,
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof BufferedResult);
+        BufferedResult br = (BufferedResult) result;
+        assertEquals(2, br.rowCount());
+        var byGrp = collectGroupByResults(br, "grp", "newCol");
+        assertEquals("C", byGrp.get(1).toString());
+        assertEquals("I", byGrp.get(2).toString());
+    }
+
+    private java.util.Map<Integer, Object> collectGroupByResults(BufferedResult br, String keyCol, String valCol) {
+        int keyIdx = -1, valIdx = -1;
+        for (int i = 0; i < br.columns().size(); i++) {
+            if (keyCol.equals(br.columns().get(i).name())) keyIdx = i;
+            if (valCol.equals(br.columns().get(i).name())) valIdx = i;
+        }
+        java.util.Map<Integer, Object> map = new java.util.HashMap<>();
+        for (var row : br.rows()) {
+            int key = ((Number) row.get(keyIdx)).intValue();
+            map.put(key, row.get(valIdx));
+        }
+        return map;
+    }
+
     private void assertScalarInteger(Result result, long expected) {
         assertTrue(result instanceof ScalarResult, "Expected ScalarResult but got " + result.getClass().getSimpleName());
         Object value = ((ScalarResult) result).value();

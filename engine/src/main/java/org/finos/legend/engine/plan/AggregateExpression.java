@@ -48,7 +48,12 @@ public record AggregateExpression(
         // Mode (most frequent value)
         MODE("MODE", false),
         // Hash code (HASH(LIST(col)))
-        HASH_CODE("HASH_CODE", false);
+        HASH_CODE("HASH_CODE", false),
+        // Weighted average: SUM(col1 * col2) / SUM(col2)
+        WAVG("WAVG", true),
+        // Arg max/min: ARG_MAX(value, ordering) / ARG_MIN(value, ordering)
+        ARG_MAX("ARG_MAX", true),
+        ARG_MIN("ARG_MIN", true);
 
         private final String sql;
         private final boolean bivariate;

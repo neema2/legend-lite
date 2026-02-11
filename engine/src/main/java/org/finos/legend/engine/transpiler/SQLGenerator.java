@@ -332,6 +332,23 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 sb.append(agg.optionalSeparator().orElse(","));
                 sb.append("'");
                 sb.append(")");
+            } else if (agg.function() == AggregateExpression.AggregateFunction.WAVG) {
+                // WAVG: SUM(col1 * col2) / SUM(col2)
+                String col1 = dialect.quoteIdentifier(agg.sourceColumn());
+                String col2 = dialect.quoteIdentifier(agg.secondColumn());
+                sb.append("SUM(").append(col1).append(" * ").append(col2).append(") / SUM(").append(col2).append(")");
+            } else if (agg.function() == AggregateExpression.AggregateFunction.ARG_MAX) {
+                sb.append("ARG_MAX(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(", ");
+                sb.append(dialect.quoteIdentifier(agg.secondColumn()));
+                sb.append(")");
+            } else if (agg.function() == AggregateExpression.AggregateFunction.ARG_MIN) {
+                sb.append("ARG_MIN(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(", ");
+                sb.append(dialect.quoteIdentifier(agg.secondColumn()));
+                sb.append(")");
             } else {
                 // Standard aggregate functions
                 sb.append(agg.function().sql());
@@ -403,6 +420,23 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 sb.append("'");
                 sb.append(agg.optionalSeparator().orElse(","));
                 sb.append("'");
+                sb.append(")");
+            } else if (agg.function() == AggregateExpression.AggregateFunction.WAVG) {
+                // WAVG: SUM(col1 * col2) / SUM(col2)
+                String col1 = dialect.quoteIdentifier(agg.sourceColumn());
+                String col2 = dialect.quoteIdentifier(agg.secondColumn());
+                sb.append("SUM(").append(col1).append(" * ").append(col2).append(") / SUM(").append(col2).append(")");
+            } else if (agg.function() == AggregateExpression.AggregateFunction.ARG_MAX) {
+                sb.append("ARG_MAX(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(", ");
+                sb.append(dialect.quoteIdentifier(agg.secondColumn()));
+                sb.append(")");
+            } else if (agg.function() == AggregateExpression.AggregateFunction.ARG_MIN) {
+                sb.append("ARG_MIN(");
+                sb.append(dialect.quoteIdentifier(agg.sourceColumn()));
+                sb.append(", ");
+                sb.append(dialect.quoteIdentifier(agg.secondColumn()));
                 sb.append(")");
             } else {
                 // Standard aggregate functions
@@ -886,6 +920,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 sb.append("*");
             } else {
                 sb.append(dialect.quoteIdentifier(w.aggregateColumn()));
+            }
+            // Add second column for bi-variate functions (CORR, COVAR_SAMP, COVAR_POP)
+            if (w.secondColumn() != null) {
+                sb.append(", ");
+                sb.append(dialect.quoteIdentifier(w.secondColumn()));
             }
             // Add percentile value for QUANTILE_CONT/QUANTILE_DISC
             if (w.percentileValue() != null

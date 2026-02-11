@@ -799,11 +799,32 @@ public final class PureCompiler {
             if (body instanceof MethodCall methodCall) {
                 // Pattern: $r.col->stdDev() or $r.col1->corr($r.col2) or
                 // $r.col->percentileCont(0.5) or $r.col->joinStrings(',')
-                columnName = extractPropertyName(methodCall.source());
+                // Also: rowMapper($x.col1, $x.col2)->wavg() (merged from two-lambda pattern)
                 aggFunc = mapAggregateFunction(methodCall.methodName());
 
-                // Check for bi-variate function with second argument
-                if (aggFunc.isBivariate() && !methodCall.arguments().isEmpty()) {
+                // Detect rowMapper pattern: source is rowMapper($x.col1, $x.col2)
+                if (methodCall.source() instanceof MethodCall rowMapperCall
+                        && "rowMapper".equals(rowMapperCall.methodName())) {
+                    // rowMapper source is $x.col1, first arg is $x.col2
+                    columnName = extractPropertyName(rowMapperCall.source());
+                    if (!rowMapperCall.arguments().isEmpty()) {
+                        secondColumnName = extractPropertyName(rowMapperCall.arguments().get(0));
+                    }
+                } else if (methodCall.source() instanceof FunctionCall rowMapperFc
+                        && rowMapperFc.functionName().endsWith("rowMapper")) {
+                    // Qualified: meta::pure::functions::math::mathUtility::rowMapper($x.col1, $x.col2)
+                    if (rowMapperFc.arguments().size() >= 2) {
+                        columnName = extractPropertyName(rowMapperFc.arguments().get(0));
+                        secondColumnName = extractPropertyName(rowMapperFc.arguments().get(1));
+                    } else {
+                        columnName = extractPropertyName(methodCall.source());
+                    }
+                } else {
+                    columnName = extractPropertyName(methodCall.source());
+                }
+
+                // Check for bi-variate function with second argument (non-rowMapper pattern)
+                if (aggFunc.isBivariate() && secondColumnName == null && !methodCall.arguments().isEmpty()) {
                     secondColumnName = extractPropertyName(methodCall.arguments().get(0));
                 }
 
@@ -904,8 +925,25 @@ public final class PureCompiler {
             LambdaExpression aggLambda = aggregate.aggFunctions().get(i);
 
             // Extract column name from map function body (e.g., x | $x.id -> id)
-            String columnName = extractPropertyName(mapLambda.body());
+            // Also detect rowMapper pattern: x | rowMapper($x.col1, $x.col2)
+            String columnName;
             String secondColumnName = null;
+            PureExpression mapBody = mapLambda.body();
+            if (mapBody instanceof MethodCall rowMapperMc && "rowMapper".equals(rowMapperMc.methodName())) {
+                columnName = extractPropertyName(rowMapperMc.source());
+                if (!rowMapperMc.arguments().isEmpty()) {
+                    secondColumnName = extractPropertyName(rowMapperMc.arguments().get(0));
+                }
+            } else if (mapBody instanceof FunctionCall rowMapperFc && rowMapperFc.functionName().endsWith("rowMapper")) {
+                if (rowMapperFc.arguments().size() >= 2) {
+                    columnName = extractPropertyName(rowMapperFc.arguments().get(0));
+                    secondColumnName = extractPropertyName(rowMapperFc.arguments().get(1));
+                } else {
+                    columnName = extractPropertyName(mapBody);
+                }
+            } else {
+                columnName = extractPropertyName(mapBody);
+            }
             Double percentileValue = null;
             String separator = null;
             org.finos.legend.engine.plan.AggregateExpression.AggregateFunction aggFunc;
@@ -1020,6 +1058,10 @@ public final class PureCompiler {
             case "mode" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.MODE;
             // Hash code
             case "hashcode" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.HASH_CODE;
+            // Weighted average and arg max/min (rowMapper bi-variate functions)
+            case "wavg" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.WAVG;
+            case "maxby" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.ARG_MAX;
+            case "minby" -> org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.ARG_MIN;
             default -> throw new PureCompileException("Unknown aggregate function: " + functionName);
         };
     }
@@ -2671,6 +2713,7 @@ public final class PureCompiler {
                     yield new WindowExpression(
                             inner.function(),
                             inner.aggregateColumn(),
+                            inner.secondColumn(),
                             inner.partitionBy(),
                             inner.orderBy(),
                             inner.frame(),
@@ -2799,6 +2842,9 @@ public final class PureCompiler {
             case PERCENTILE_CONT -> WindowExpression.WindowFunction.QUANTILE_CONT;
             case PERCENTILE_DISC -> WindowExpression.WindowFunction.QUANTILE_DISC;
             case STRING_AGG -> WindowExpression.WindowFunction.STRING_AGG;
+            case WAVG -> WindowExpression.WindowFunction.SUM; // WAVG handled specially below
+            case ARG_MAX -> WindowExpression.WindowFunction.MAX; // ARG_MAX handled specially below
+            case ARG_MIN -> WindowExpression.WindowFunction.MIN; // ARG_MIN handled specially below
         };
 
         // For percentile functions, pass the percentile value
@@ -2807,6 +2853,12 @@ public final class PureCompiler {
                 && aggregate.percentileValue() != null) {
             return WindowExpression.percentile(windowFunc, aggregate.column(),
                     aggregate.percentileValue(), partitionColumns, orderBy);
+        }
+
+        // For bi-variate functions, pass the second column
+        if (aggregate.secondColumn() != null) {
+            return WindowExpression.bivariate(windowFunc, aggregate.column(), aggregate.secondColumn(),
+                    partitionColumns, orderBy);
         }
 
         return WindowExpression.aggregate(windowFunc, aggregate.column(), partitionColumns, orderBy, frameSpec);

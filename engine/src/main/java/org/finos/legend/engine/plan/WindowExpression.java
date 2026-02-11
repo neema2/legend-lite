@@ -23,6 +23,7 @@ import java.util.Objects;
 public record WindowExpression(
         WindowFunction function,
         String aggregateColumn,
+        String secondColumn, // Second column for bi-variate window functions (corr, covar, wavg, etc.)
         List<String> partitionBy,
         List<SortSpec> orderBy,
         FrameSpec frame,
@@ -303,7 +304,7 @@ public record WindowExpression(
             WindowFunction function,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, null, partitionBy, orderBy, null, null, null, null);
+        return new WindowExpression(function, null, null, partitionBy, orderBy, null, null, null, null);
     }
 
     /**
@@ -314,7 +315,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, null, partitionBy, orderBy, frame, null, null, null);
+        return new WindowExpression(function, null, null, partitionBy, orderBy, frame, null, null, null);
     }
 
     /**
@@ -325,7 +326,7 @@ public record WindowExpression(
             String aggregateColumn,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null, null, null, null);
+        return new WindowExpression(function, aggregateColumn, null, partitionBy, orderBy, null, null, null, null);
     }
 
     /**
@@ -337,7 +338,19 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, frame, null, null, null);
+        return new WindowExpression(function, aggregateColumn, null, partitionBy, orderBy, frame, null, null, null);
+    }
+
+    /**
+     * Creates a bi-variate aggregate window function (for rowMapper pattern).
+     */
+    public static WindowExpression bivariate(
+            WindowFunction function,
+            String aggregateColumn,
+            String secondColumn,
+            List<String> partitionBy,
+            List<SortSpec> orderBy) {
+        return new WindowExpression(function, aggregateColumn, secondColumn, partitionBy, orderBy, null, null, null, null);
     }
 
     /**
@@ -349,7 +362,7 @@ public record WindowExpression(
             int offset,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, column, partitionBy, orderBy, null, offset, null, null);
+        return new WindowExpression(function, column, null, partitionBy, orderBy, null, offset, null, null);
     }
 
     /**
@@ -363,7 +376,7 @@ public record WindowExpression(
             List<String> partitionBy,
             List<SortSpec> orderBy,
             FrameSpec frame) {
-        return new WindowExpression(function, column, partitionBy, orderBy, frame, offset, null, null);
+        return new WindowExpression(function, column, null, partitionBy, orderBy, frame, offset, null, null);
     }
 
     /**
@@ -373,7 +386,7 @@ public record WindowExpression(
             int bucketCount,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(WindowFunction.NTILE, null, partitionBy, orderBy, null, bucketCount, null, null);
+        return new WindowExpression(WindowFunction.NTILE, null, null, partitionBy, orderBy, null, bucketCount, null, null);
     }
 
     /**
@@ -385,7 +398,7 @@ public record WindowExpression(
             double percentileValue,
             List<String> partitionBy,
             List<SortSpec> orderBy) {
-        return new WindowExpression(function, aggregateColumn, partitionBy, orderBy, null, null, null, percentileValue);
+        return new WindowExpression(function, aggregateColumn, null, partitionBy, orderBy, null, null, null, percentileValue);
     }
 
     /**

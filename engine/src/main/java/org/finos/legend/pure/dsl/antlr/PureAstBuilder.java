@@ -2131,6 +2131,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // - cs.extraFunction() is the agg function (e.g., plus for SUM)
         if (cs.extraFunction() instanceof LambdaExpression aggLambda) {
             String columnName = extractColumnFromMapLambda(cs.lambda());
+            // Detect rowMapper pattern: {p,w,r | $r.col1->rowMapper($r.col2)}
+            String secondColumnName = extractSecondColumnFromRowMapper(cs.lambda());
 
             // Get the aggregate function from the agg lambda body
             PureExpression aggBody = aggLambda.body();
@@ -2156,6 +2158,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     case "percentile", "percentilecont" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_CONT;
                     case "percentiledisc" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC;
                     case "joinstrings" -> AggregateFunctionSpec.AggregateFunction.STRING_AGG;
+                    case "wavg" -> AggregateFunctionSpec.AggregateFunction.WAVG;
+                    case "maxby" -> AggregateFunctionSpec.AggregateFunction.ARG_MAX;
+                    case "minby" -> AggregateFunctionSpec.AggregateFunction.ARG_MIN;
                     default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
                 };
                 // Extract percentile value for percentile functions
@@ -2178,6 +2183,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                         }
                     }
                     return AggregateFunctionSpec.percentile(aggFunc, columnName, pVal, List.of(), List.of());
+                }
+                if (secondColumnName != null) {
+                    return AggregateFunctionSpec.bivariate(aggFunc, columnName, secondColumnName, List.of(), List.of());
                 }
                 return AggregateFunctionSpec.of(aggFunc, columnName, List.of(), List.of());
             }
@@ -2249,6 +2257,30 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
         throw new PureParseException(
                 "Unrecognized window function pattern in lambda body: " + body.getClass().getSimpleName());
+    }
+
+    /**
+     * Extracts the second column from a rowMapper pattern like
+     * {p,w,r|$r.col1->rowMapper($r.col2)}.
+     * Returns null if no rowMapper pattern is found.
+     */
+    private String extractSecondColumnFromRowMapper(PureExpression expr) {
+        if (expr instanceof LambdaExpression lambda) {
+            return extractSecondColumnFromRowMapper(lambda.body());
+        }
+        // Unqualified: $r.col1->rowMapper($r.col2)
+        if (expr instanceof MethodCall mc && "rowMapper".equals(mc.methodName())) {
+            if (!mc.arguments().isEmpty()) {
+                return extractColumnFromExpression(mc.arguments().get(0));
+            }
+        }
+        // Qualified: meta::pure::functions::math::mathUtility::rowMapper($r.col1, $r.col2)
+        if (expr instanceof FunctionCall fc && fc.functionName().endsWith("rowMapper")) {
+            if (fc.arguments().size() >= 2) {
+                return extractColumnFromExpression(fc.arguments().get(1));
+            }
+        }
+        return null;
     }
 
     /**
