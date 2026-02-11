@@ -192,6 +192,19 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 12L);
     }
 
+    // ==================== toString ====================
+
+    @Test
+    void testClassToString() throws SQLException {
+        // PCT: STR_Person->toString() → class name as string
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|meta::pure::functions::string::tests::toString::STR_Person->toString()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("STR_Person", ((ScalarResult) result).value().toString());
+    }
+
     // ==================== joinStrings on empty list ====================
 
     @Test

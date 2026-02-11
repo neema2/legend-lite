@@ -4551,6 +4551,12 @@ public final class PureCompiler {
                     String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
                     yield Literal.string(stripped);
                 }
+                // ClassReference->toString() returns the short class name
+                if (methodCall.source() instanceof ClassReference cr) {
+                    String className = cr.className();
+                    int lastSep = className.lastIndexOf("::");
+                    yield Literal.string(lastSep >= 0 ? className.substring(lastSep + 2) : className);
+                }
                 yield new SqlFunctionCall("cast",
                         compileToSqlExpression(methodCall.source(), context),
                         java.util.List.of(), SqlType.VARCHAR);
