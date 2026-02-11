@@ -16,14 +16,19 @@ import java.util.stream.Stream;
  * 
  * This is detected at IR level when the query compiles to a ConstantNode.
  */
-public record ScalarResult(Object value, String sqlType, String pureType) implements Result {
+public record ScalarResult(Object value, String sqlType, String pureType,
+        java.util.Map<String, String> fieldTypes) implements Result {
 
     public ScalarResult(Object value) {
-        this(value, null, null);
+        this(value, null, null, null);
     }
 
     public ScalarResult(Object value, String sqlType) {
-        this(value, sqlType, null);
+        this(value, sqlType, null, null);
+    }
+
+    public ScalarResult(Object value, String sqlType, String pureType) {
+        this(value, sqlType, pureType, null);
     }
 
     @Override

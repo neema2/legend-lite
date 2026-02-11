@@ -293,7 +293,8 @@ public class QueryService {
             // Propagate Pure class type from StructLiteralExpression in the IR tree
             String pureType = extractPureType(cn.expression());
             if (pureType != null) {
-                return new ScalarResult(sr.value(), sr.sqlType(), pureType);
+                java.util.Map<String, String> fieldTypes = extractFieldTypes(cn.expression());
+                return new ScalarResult(sr.value(), sr.sqlType(), pureType, fieldTypes);
             }
         }
         return result;
@@ -537,12 +538,67 @@ public class QueryService {
             return extractPureType(filter.source());
         }
         if (expr instanceof SqlCollectionCall coll) {
-            return extractPureType(coll.source());
+            String type = extractPureType(coll.source());
+            if (type != null) return type;
+            if (coll.lambdaBody() != null) return extractPureType(coll.lambdaBody());
         }
         if (expr instanceof ComparisonExpression comp) {
             String type = extractPureType(comp.left());
             if (type != null) return type;
             if (comp.right() != null) return extractPureType(comp.right());
+        }
+        return null;
+    }
+
+    /**
+     * Extracts a mapping of field names to Pure class names for nested struct fields.
+     * Walks the IR to find StructLiteralExpression nodes, then checks each field's
+     * expression to see if it also resolves to a struct type.
+     *
+     * For zip([1,2], ['a','b']): returns {} (no nested structs)
+     * For zip(zip([1,2], ['a','b']), [3,4]): returns {first: "Pair"} (first field is a nested Pair)
+     */
+    private java.util.Map<String, String> extractFieldTypes(Expression expr) {
+        StructLiteralExpression struct = findStructLiteral(expr);
+        if (struct == null) return java.util.Map.of();
+
+        java.util.Map<String, String> result = new java.util.HashMap<>();
+        for (var entry : struct.fields().entrySet()) {
+            String fieldType = extractPureType(entry.getValue());
+            if (fieldType != null) {
+                result.put(entry.getKey(), fieldType);
+            }
+        }
+        return result.isEmpty() ? java.util.Map.of() : result;
+    }
+
+    /**
+     * Finds the first StructLiteralExpression in the IR tree.
+     * Walks through collection calls, function calls, etc.
+     */
+    private StructLiteralExpression findStructLiteral(Expression expr) {
+        if (expr instanceof StructLiteralExpression struct) {
+            return struct;
+        }
+        if (expr instanceof SqlCollectionCall coll) {
+            if (coll.lambdaBody() != null) {
+                StructLiteralExpression found = findStructLiteral(coll.lambdaBody());
+                if (found != null) return found;
+            }
+            return findStructLiteral(coll.source());
+        }
+        if (expr instanceof SqlFunctionCall func) {
+            if (func.target() != null) {
+                StructLiteralExpression found = findStructLiteral(func.target());
+                if (found != null) return found;
+            }
+            for (Expression arg : func.arguments()) {
+                StructLiteralExpression found = findStructLiteral(arg);
+                if (found != null) return found;
+            }
+        }
+        if (expr instanceof ListLiteral list && !list.isEmpty()) {
+            return findStructLiteral(list.elements().getFirst());
         }
         return null;
     }

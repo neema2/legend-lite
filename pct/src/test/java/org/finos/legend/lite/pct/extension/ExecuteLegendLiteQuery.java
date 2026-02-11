@@ -61,6 +61,7 @@ import org.finos.legend.pure.m3.PrimitiveType;
 import org.finos.legend.pure.m3.Property;
 import org.finos.legend.pure.m3.PureClass;
 
+import org.finos.legend.pure.m3.navigation.type.Type;
 import org.finos.legend.pure.m4.coreinstance.primitive.date.DateFunctions;
 import org.finos.legend.pure.m4.coreinstance.primitive.date.PureDate;
 
@@ -180,6 +181,26 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                                 rawValues.add(modelRepository.newFloatCoreInstance(java.math.BigDecimal.valueOf(d)));
                             } else if (elem != null) {
                                 rawValues.add(modelRepository.newStringCoreInstance_cached(elem.toString()));
+                            }
+                        }
+                        return ValueSpecificationBootstrap.wrapValueSpecification(
+                                org.eclipse.collections.impl.factory.Lists.immutable.withAll(rawValues),
+                                true, processorSupport);
+                    }
+
+                    // Handle List of Maps (struct arrays unwrapped by Row.java, e.g., zip results)
+                    // Each Map represents a class instance (e.g., Pair with first/second)
+                    if (value instanceof java.util.List<?> listValue && scalarResult.pureType() != null
+                            && !listValue.isEmpty() && listValue.getFirst() instanceof java.util.Map) {
+                        var rawValues = new ArrayList<CoreInstance>();
+                        java.util.Map<String, String> fieldTypes = scalarResult.fieldTypes();
+                        for (Object elem : listValue) {
+                            if (elem instanceof java.util.Map) {
+                                @SuppressWarnings("unchecked")
+                                java.util.Map<String, Object> structMap = (java.util.Map<String, Object>) elem;
+                                CoreInstance instance = createClassInstance(
+                                        structMap, scalarResult.pureType(), fieldTypes, processorSupport);
+                                rawValues.add(instance);
                             }
                         }
                         return ValueSpecificationBootstrap.wrapValueSpecification(
@@ -478,6 +499,138 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     }
 
     /**
+     * Creates a Pure class instance from a DuckDB struct Map.
+     * Uses fieldTypes from the IR to resolve nested struct class names.
+     *
+     * @param structMap     The struct fields as key-value pairs
+     * @param pureTypeName  The Pure class name (e.g., "Pair")
+     * @param fieldTypes    Map of field name → Pure class name for nested struct fields (from IR)
+     * @param processorSupport The processor support for class lookup
+     * @return A raw Pure CoreInstance (not wrapped in ValueSpecification)
+     */
+    private CoreInstance createClassInstance(
+            java.util.Map<String, Object> structMap,
+            String pureTypeName,
+            java.util.Map<String, String> fieldTypes,
+            ProcessorSupport processorSupport) {
+
+        // Resolve full path for well-known types
+        String fullTypeName = resolveFullTypeName(pureTypeName, processorSupport);
+
+        CoreInstance classInstance = processorSupport.package_getByUserPath(fullTypeName);
+        if (classInstance == null) {
+            throw new RuntimeException("Pure class not found: " + fullTypeName);
+        }
+
+        CoreInstance instance = modelRepository.newCoreInstance(
+                fullTypeName.substring(fullTypeName.lastIndexOf(':') + 1),
+                classInstance, null);
+
+        // Build classifierGenericType with concrete type arguments
+        // e.g., Pair<Integer, String> needs GenericType(rawType=Pair, typeArguments=[GT(Integer), GT(String)])
+        CoreInstance classifierGT = Type.wrapGenericType(classInstance, null, processorSupport);
+
+        // Collect type arguments from the Pair's type parameters (first, second for Pair)
+        // We infer them from the actual field values
+        java.util.List<CoreInstance> typeArgs = new ArrayList<>();
+
+        for (java.util.Map.Entry<String, Object> entry : structMap.entrySet()) {
+            String propName = entry.getKey();
+            Object propValue = entry.getValue();
+            if (propValue == null) continue;
+
+            CoreInstance valueInstance;
+            if (propValue instanceof java.util.Map) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> nestedMap = (java.util.Map<String, Object>) propValue;
+                String nestedType = (fieldTypes != null) ? fieldTypes.get(propName) : null;
+                if (nestedType != null) {
+                    valueInstance = createClassInstance(nestedMap, nestedType, null, processorSupport);
+                    // Type arg is the nested class's classifierGenericType
+                    CoreInstance nestedClassGT = Instance.extractGenericTypeFromInstance(valueInstance, processorSupport);
+                    typeArgs.add(nestedClassGT);
+                } else {
+                    valueInstance = modelRepository.newStringCoreInstance(propValue.toString());
+                    typeArgs.add(inferGenericType(propValue, processorSupport));
+                }
+            } else if (propValue instanceof String s) {
+                valueInstance = modelRepository.newStringCoreInstance(s);
+                typeArgs.add(inferGenericType(propValue, processorSupport));
+            } else if (propValue instanceof Integer i) {
+                valueInstance = modelRepository.newIntegerCoreInstance(i);
+                typeArgs.add(inferGenericType(propValue, processorSupport));
+            } else if (propValue instanceof Long l) {
+                valueInstance = modelRepository.newIntegerCoreInstance(l);
+                typeArgs.add(inferGenericType(propValue, processorSupport));
+            } else if (propValue instanceof Boolean b) {
+                valueInstance = modelRepository.newBooleanCoreInstance(b);
+                typeArgs.add(inferGenericType(propValue, processorSupport));
+            } else if (propValue instanceof Double d) {
+                valueInstance = modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
+                typeArgs.add(inferGenericType(propValue, processorSupport));
+            } else if (propValue instanceof BigDecimal bd) {
+                valueInstance = modelRepository.newFloatCoreInstance(bd);
+                typeArgs.add(inferGenericType(propValue, processorSupport));
+            } else {
+                valueInstance = modelRepository.newStringCoreInstance(propValue.toString());
+                typeArgs.add(inferGenericType(propValue, processorSupport));
+            }
+
+            Instance.addValueToProperty(instance, propName, valueInstance, processorSupport);
+        }
+
+        // Set type arguments on the classifierGenericType
+        for (CoreInstance typeArg : typeArgs) {
+            Instance.addValueToProperty(classifierGT, M3Properties.typeArguments, typeArg, processorSupport);
+        }
+        Instance.addValueToProperty(instance, M3Properties.classifierGenericType, classifierGT, processorSupport);
+
+        return instance;
+    }
+
+    /**
+     * Infers a Pure GenericType from a Java value.
+     * Maps Java types to Pure primitive types.
+     */
+    private CoreInstance inferGenericType(Object value, ProcessorSupport processorSupport) {
+        String purePrimitive;
+        if (value instanceof Integer || value instanceof Long) {
+            purePrimitive = "Integer";
+        } else if (value instanceof String) {
+            purePrimitive = "String";
+        } else if (value instanceof Boolean) {
+            purePrimitive = "Boolean";
+        } else if (value instanceof Double || value instanceof Float || value instanceof BigDecimal) {
+            purePrimitive = "Float";
+        } else {
+            purePrimitive = "Any";
+        }
+        CoreInstance typeClass = processorSupport.package_getByUserPath(purePrimitive);
+        return Type.wrapGenericType(typeClass, null, processorSupport);
+    }
+
+    /**
+     * Resolves a short Pure type name to its fully qualified path.
+     * Handles well-known types like "Pair" → "meta::pure::functions::collection::Pair".
+     */
+    private String resolveFullTypeName(String typeName, ProcessorSupport processorSupport) {
+        // Already fully qualified
+        if (typeName.contains("::")) return typeName;
+
+        // Try well-known mappings
+        String fullPath = switch (typeName) {
+            case "Pair" -> "meta::pure::functions::collection::Pair";
+            default -> typeName;
+        };
+
+        // Verify it exists
+        if (processorSupport.package_getByUserPath(fullPath) != null) {
+            return fullPath;
+        }
+        return typeName;
+    }
+
+    /**
      * Wraps a DuckDB struct (Map) as a Pure class instance.
      * Uses the pureType to look up the class, creates an instance,
      * and sets each property from the map values.
@@ -492,46 +645,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             String pureTypeName,
             ProcessorSupport processorSupport) {
 
-        // Look up the Pure class by path
-        CoreInstance classInstance = processorSupport.package_getByUserPath(pureTypeName);
-        if (classInstance == null) {
-            throw new RuntimeException("Pure class not found: " + pureTypeName);
-        }
-
-        // Create an instance of the class
-        CoreInstance instance = modelRepository.newCoreInstance(
-                pureTypeName.substring(pureTypeName.lastIndexOf(':') + 1),
-                classInstance, null);
-
-        // Set each property from the map
-        for (java.util.Map.Entry<String, Object> entry : structMap.entrySet()) {
-            String propName = entry.getKey();
-            Object propValue = entry.getValue();
-            if (propValue == null) continue;
-
-            CoreInstance valueInstance;
-            if (propValue instanceof String s) {
-                valueInstance = modelRepository.newStringCoreInstance(s);
-            } else if (propValue instanceof Integer i) {
-                valueInstance = modelRepository.newIntegerCoreInstance(i);
-            } else if (propValue instanceof Long l) {
-                valueInstance = modelRepository.newIntegerCoreInstance(l);
-            } else if (propValue instanceof Boolean b) {
-                valueInstance = modelRepository.newBooleanCoreInstance(b);
-            } else if (propValue instanceof Double d) {
-                valueInstance = modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
-            } else if (propValue instanceof BigDecimal bd) {
-                valueInstance = modelRepository.newFloatCoreInstance(bd);
-            } else if (propValue instanceof java.util.Map) {
-                // Nested struct — recursively wrap (would need nested pureType, skip for now)
-                valueInstance = modelRepository.newStringCoreInstance(propValue.toString());
-            } else {
-                valueInstance = modelRepository.newStringCoreInstance(propValue.toString());
-            }
-
-            Instance.addValueToProperty(instance, propName, valueInstance, processorSupport);
-        }
-
+        CoreInstance instance = createClassInstance(structMap, pureTypeName, null, processorSupport);
         return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, processorSupport);
     }
 
