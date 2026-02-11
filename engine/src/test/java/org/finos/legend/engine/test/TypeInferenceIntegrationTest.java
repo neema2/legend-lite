@@ -1628,14 +1628,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
     @Test
     void testSplitPartEmptyString() throws SQLException {
-        // PCT: |[]->splitPart(' ', 0) => ''
-        // Empty list [] as String source means empty string
+        // PCT: |[]->splitPart(' ', 0) => [] (empty collection)
+        // Empty list [] source returns NULL (represents empty collection)
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[]->splitPart(' ', 0)",
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
         assertTrue(result instanceof ScalarResult);
-        assertEquals("", ((ScalarResult) result).value());
+        assertNull(((ScalarResult) result).value());
     }
 
     @Test

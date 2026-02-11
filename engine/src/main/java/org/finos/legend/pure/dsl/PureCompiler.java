@@ -4646,13 +4646,14 @@ public final class PureCompiler {
             case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx+1)
                 // Pure splitPart is 0-based, DuckDB split_part is 1-based
                 // Empty delimiter: Pure returns whole string, DuckDB splits into chars
-                // Empty list [] source: Pure treats as empty string ''
+                // Empty list [] source: Pure expects [] (empty collection), return NULL
                 var args = methodCall.arguments();
                 if (args.size() < 2)
                     throw new PureCompileException("splitPart requires 2 arguments");
-                Expression src = (methodCall.source() instanceof ArrayLiteral arr && arr.elements().isEmpty())
-                        ? Literal.string("")
-                        : compileToSqlExpression(methodCall.source(), context);
+                if (methodCall.source() instanceof ArrayLiteral arr && arr.elements().isEmpty()) {
+                    yield Literal.nullValue();
+                }
+                Expression src = compileToSqlExpression(methodCall.source(), context);
                 Expression delim = compileToSqlExpression(args.get(0), context);
                 Expression idx = compileToSqlExpression(args.get(1), context);
                 Expression oneBasedIdx = ArithmeticExpression.add(idx, Literal.integer(1));
