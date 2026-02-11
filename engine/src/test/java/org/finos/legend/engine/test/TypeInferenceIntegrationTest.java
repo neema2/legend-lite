@@ -1390,6 +1390,51 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertNotNull(((ScalarResult) result).value());
     }
 
+    // --- Date precision equality ---
+    @Test
+    void testDatePrecisionYearEqualsYear() throws SQLException {
+        // %2014 == %2014 → true (same precision, same value)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2014 == %2014",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testDatePrecisionYearNotEqualsDate() throws SQLException {
+        // %2014 == %2014-01-01 → false (different precision: Year vs Date)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2014 == %2014-01-01",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testDatePrecisionYearMonthNotEqualsDate() throws SQLException {
+        // %2014-01 == %2014-01-01 → false (different precision: Month vs Date)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2014-01 == %2014-01-01",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testDatePrecisionDateEqualsDate() throws SQLException {
+        // %2014-01-01 == %2014-01-01 → true (same precision, same value)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2014-01-01 == %2014-01-01",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals(true, ((ScalarResult) result).value());
+    }
+
     // --- 12b: parseDate without format ---
     @Test
     void testParseDateNoFormat() throws SQLException {
