@@ -2289,6 +2289,10 @@ public final class PureCompiler {
                 array.elements().get(0) instanceof InstanceExpression;
     }
 
+    private boolean isEmptyArrayLiteral(PureExpression expr) {
+        return expr instanceof ArrayLiteral arr && arr.elements().isEmpty();
+    }
+
     /**
      * Compiles an array of instance expressions into a StructLiteralNode.
      * 
@@ -5453,6 +5457,23 @@ public final class PureCompiler {
 
             // list(collection) -> no-op; Pure's List<T> wrapper has no SQL equivalent
             case "list" -> compileToSqlExpression(methodCall.source(), context);
+
+            case "coalesce" -> {
+                // Pure's [] means "no value" (like SQL NULL), but our compiler emits DuckDB [] (empty array, NOT NULL).
+                // COALESCE only skips NULL, so we must convert empty ArrayLiterals to NULL.
+                java.util.List<Expression> coalArgs = new java.util.ArrayList<>();
+                coalArgs.add(isEmptyArrayLiteral(methodCall.source())
+                        ? Literal.ofNull()
+                        : compileToSqlExpression(methodCall.source(), context));
+                for (PureExpression arg : methodCall.arguments()) {
+                    coalArgs.add(isEmptyArrayLiteral(arg)
+                            ? Literal.ofNull()
+                            : compileToSqlExpression(arg, context));
+                }
+                Expression first = coalArgs.getFirst();
+                Expression[] rest = coalArgs.subList(1, coalArgs.size()).toArray(new Expression[0]);
+                yield SqlFunctionCall.of("COALESCE", first, rest);
+            }
 
             default -> compileSimpleMethodCall(methodCall, context);
         };

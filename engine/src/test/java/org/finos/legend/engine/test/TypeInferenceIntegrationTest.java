@@ -192,6 +192,41 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 12L);
     }
 
+    // ==================== coalesce ====================
+
+    @Test
+    void testCoalesceFirstEmpty() throws SQLException {
+        // PCT: coalesce([], 'world') → 'world' ([] is empty/absent, return second arg)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->coalesce('world')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("world", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testCoalesceNotEmptyDefaultEmpty() throws SQLException {
+        // PCT: coalesce('hello', []) → 'hello' (first is non-empty, return it)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'hello'->coalesce([])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("hello", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testCoalesce2SecondNotEmptyAllOthersEmpty() throws SQLException {
+        // PCT: coalesce([], 'world', []) → 'world'
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[]->coalesce('world', [])",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("world", ((ScalarResult) result).value().toString());
+    }
+
     // ==================== toString ====================
 
     @Test
