@@ -295,6 +295,8 @@ function meta::legend::lite::pct::resultToType(result: Any[1], type: GenericType
     pair(|$result->instanceOf(String) && $resultType->subTypeOf(Boolean), |$result->cast(@String) == 'true'),
     // String result, expected Number → parse as float
     pair(|$result->instanceOf(String) && $resultType->subTypeOf(Number), |$result->cast(@String)->parseFloat()),
+    // String result, expected Date → parse (handles partial dates like '2015-03' → %2015-03)
+    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Date), |$result->cast(@String)->parseDate()),
     // Non-string result, expected String → convert to string
     pair(|$resultType->subTypeOf(String) && !$result->instanceOf(String), |$result->toString()),
     // Decimal/Number result but Float expected → convert

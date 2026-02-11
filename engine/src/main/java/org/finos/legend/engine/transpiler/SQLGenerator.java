@@ -1829,12 +1829,35 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         // Use: date + (INTERVAL '1' UNIT * amount) to handle expressions and negatives
         String expr = "(" + date + " + (INTERVAL '1' " + unitSql + " * " + amount + "))";
 
-        // For day-level units (DAYS, WEEKS, MONTHS, YEARS), cast result to DATE
-        // to preserve StrictDate type. For time-level units, return TIMESTAMP.
-        return switch (dateAdjust.unit()) {
-            case DAYS, WEEKS, MONTHS, YEARS -> "CAST(" + expr + " AS DATE)";
+        // For day-level units on DATE inputs, cast result to DATE to preserve StrictDate type.
+        // For TIMESTAMP inputs or time-level units, keep as TIMESTAMP to preserve time component.
+        boolean isTimestampInput = dateAdjust.date() instanceof Literal lit
+                && lit.literalType() == Literal.LiteralType.TIMESTAMP;
+        String result = switch (dateAdjust.unit()) {
+            case DAYS, WEEKS, MONTHS, YEARS -> isTimestampInput ? expr : "CAST(" + expr + " AS DATE)";
             default -> expr;
         };
+
+        // Preserve input date precision: Pure partial dates (%2014, %2014-03)
+        // should produce partial results after adjust (e.g., %2015-03, not %2015-03-01)
+        DatePrecision precision = detectDatePrecision(dateAdjust.date());
+        return switch (precision) {
+            case YEAR -> "STRFTIME(" + result + ", '%Y')";
+            case YEAR_MONTH -> "STRFTIME(" + result + ", '%Y-%m')";
+            case FULL -> result;
+        };
+    }
+
+    private enum DatePrecision { YEAR, YEAR_MONTH, FULL }
+
+    private DatePrecision detectDatePrecision(Expression expr) {
+        if (expr instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+            String raw = stripDatePrefix((String) lit.value());
+            long dashes = raw.chars().filter(c -> c == '-').count();
+            if (dashes == 0) return DatePrecision.YEAR;
+            if (dashes == 1) return DatePrecision.YEAR_MONTH;
+        }
+        return DatePrecision.FULL;
     }
 
     @Override

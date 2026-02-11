@@ -1435,6 +1435,29 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(true, ((ScalarResult) result).value());
     }
 
+    // --- Date precision preservation in adjust() ---
+    @Test
+    void testAdjustByMonthsPreservesYearMonthPrecision() throws SQLException {
+        // %2012-03 + 36 MONTHS → %2015-03 (not %2015-03-01)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2012-03->adjust(36, meta::pure::functions::date::DurationUnit.MONTHS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("2015-03", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testAdjustByYearsPreservesYearPrecision() throws SQLException {
+        // %2014 + 3 YEARS → %2017 (not %2017-01-01)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2014->adjust(3, meta::pure::functions::date::DurationUnit.YEARS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("2017", ((ScalarResult) result).value().toString());
+    }
+
     // --- 12b: parseDate without format ---
     @Test
     void testParseDateNoFormat() throws SQLException {
