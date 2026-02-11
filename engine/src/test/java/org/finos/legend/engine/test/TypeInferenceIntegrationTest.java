@@ -3665,6 +3665,58 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(new java.math.BigDecimal("353791.470"), value);
     }
 
+    // ==================== ascii ====================
+
+    @Test
+    void testAsciiUpper() throws SQLException {
+        // PCT: testAsciiUpper - 'A'->ascii() = 65
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'A'->ascii()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 65);
+    }
+
+    @Test
+    void testAsciiNewline() throws SQLException {
+        // PCT: testAsciiNewline - '\n'->ascii() = 10
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'\\n'->ascii()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 10);
+    }
+
+    @Test
+    void testAsciiWhitespace() throws SQLException {
+        // PCT: testAsciiWhitespace - ' '->ascii() = 32
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|' '->ascii()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 32);
+    }
+
+    @Test
+    void testAsciiMultiCharString() throws SQLException {
+        // PCT: testAsciiMultiCharString - 'abc'->ascii() = 97
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'abc'->ascii()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 97);
+    }
+
+    @Test
+    void testAsciiEmptyChar() throws SQLException {
+        // PCT: testAsciiEmptyChar - ''->ascii() = 0
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|''->ascii()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 0);
+    }
+
     // ==================== Helper ====================
 
     // ==================== rowMapper: window corr/covarSample/covarPopulation ====================

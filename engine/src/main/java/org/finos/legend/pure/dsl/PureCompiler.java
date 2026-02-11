@@ -3812,6 +3812,10 @@ public final class PureCompiler {
                 if (args.isEmpty()) throw new PureCompileException("char() requires an argument");
                 yield SqlFunctionCall.of("chr", compileToSqlExpression(args.getFirst(), context));
             }
+            case "ascii" -> {
+                if (args.isEmpty()) throw new PureCompileException("ascii() requires an argument");
+                yield SqlFunctionCall.of("ASCII", compileToSqlExpression(args.getFirst(), context));
+            }
             // List aggregate functions (function-call style)
             case "sum", "plus" -> {
                 if (args.isEmpty()) throw new PureCompileException("sum() requires an argument");
@@ -4772,6 +4776,8 @@ public final class PureCompiler {
             }
             case "char" -> // char(n) -> chr(n) (DuckDB uses chr, not char)
                 SqlFunctionCall.of("chr", compileToSqlExpression(methodCall.source(), context));
+            case "ascii" -> // ascii(s) -> ASCII(s)
+                SqlFunctionCall.of("ASCII", compileToSqlExpression(methodCall.source(), context));
             case "parseInteger" -> // parseInteger(s) -> CAST(s AS BIGINT)
                 new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(methodCall.source(), context), "BIGINT");

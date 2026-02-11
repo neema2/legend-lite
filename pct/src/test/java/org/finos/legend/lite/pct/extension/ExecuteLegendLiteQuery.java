@@ -114,6 +114,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         String pureExpression = PrimitiveUtilities.getStringValue(
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
 
+        // Re-escape literal special characters inside single-quoted strings.
+        // The Pure interpreter resolves escape sequences (e.g., '\n' → actual newline)
+        // before passing the expression to us, but our parser expects escape sequences.
+        pureExpression = reEscapeStringLiterals(pureExpression);
+
         System.out.println("[LegendLite PCT] Executing Pure expression: " + pureExpression);
 
         try {
@@ -788,6 +793,38 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return "Unsupported number of bits to shift - max bits allowed is 62";
         }
         return message;
+    }
+
+    /**
+     * Re-escapes literal special characters inside single-quoted strings.
+     * The Pure interpreter resolves escape sequences (e.g., '\n' becomes a real newline)
+     * before passing the expression string to us, but our ANTLR parser expects the
+     * escape sequences to still be present.
+     */
+    private static String reEscapeStringLiterals(String expr) {
+        StringBuilder sb = new StringBuilder(expr.length());
+        boolean inString = false;
+        for (int i = 0; i < expr.length(); i++) {
+            char c = expr.charAt(i);
+            if (c == '\'' && !inString) {
+                inString = true;
+                sb.append(c);
+            } else if (c == '\'' && inString) {
+                inString = false;
+                sb.append(c);
+            } else if (inString) {
+                switch (c) {
+                    case '\n' -> sb.append("\\n");
+                    case '\r' -> sb.append("\\r");
+                    case '\t' -> sb.append("\\t");
+                    case '\\' -> sb.append("\\\\");
+                    default -> sb.append(c);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     private String stripTrailingZeros(String subsecond) {

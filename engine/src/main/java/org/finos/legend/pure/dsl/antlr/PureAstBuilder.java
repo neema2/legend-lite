@@ -2718,8 +2718,31 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         char first = s.charAt(0);
         char last = s.charAt(s.length() - 1);
         if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
-            return s.substring(1, s.length() - 1);
+            return unescapeString(s.substring(1, s.length() - 1));
         }
         return s;
+    }
+
+    private String unescapeString(String s) {
+        if (s == null || !s.contains("\\")) return s;
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                switch (next) {
+                    case 'n' -> { sb.append('\n'); i++; }
+                    case 'r' -> { sb.append('\r'); i++; }
+                    case 't' -> { sb.append('\t'); i++; }
+                    case '\\' -> { sb.append('\\'); i++; }
+                    case '\'' -> { sb.append('\''); i++; }
+                    case '"' -> { sb.append('"'); i++; }
+                    default -> sb.append(c);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 }
