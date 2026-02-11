@@ -4981,9 +4981,37 @@ public final class PureCompiler {
                             ? compileToSqlExpression(args.get(3), context) : Literal.integer(0);
                     Expression second = args.size() >= 5
                             ? compileToSqlExpression(args.get(4), context) : Literal.integer(0);
-                    yield SqlFunctionCall.of("make_timestamp", year, month, day, hour, minute, second);
+                    Expression ts = SqlFunctionCall.of("make_timestamp", year, month, day, hour, minute, second);
+                    // Preserve precision: hour-only → %Y-%m-%dT%H, minute → %Y-%m-%dT%H:%M
+                    if (args.size() == 3) {
+                        yield SqlFunctionCall.of("strftime", ts, Literal.string("%Y-%m-%dT%H"));
+                    } else if (args.size() == 4) {
+                        yield SqlFunctionCall.of("strftime", ts, Literal.string("%Y-%m-%dT%H:%M"));
+                    }
+                    // Subsecond precision: if seconds arg is float/decimal (e.g., 11.0),
+                    // use strftime with %S.%f and trim trailing zeros (keep at least 1 decimal)
+                    if (args.size() >= 5) {
+                        PureExpression secExpr = args.get(4);
+                        boolean hasSubSecond = secExpr instanceof LiteralExpr lit &&
+                                (lit.type() == LiteralExpr.LiteralType.FLOAT || lit.type() == LiteralExpr.LiteralType.DECIMAL);
+                        if (hasSubSecond) {
+                            // REGEXP_REPLACE(STRFTIME(ts, '%Y-%m-%dT%H:%M:%S.%f'), '0{1,5}$', '')
+                            // Trims 1-5 trailing zeros from 6-digit microseconds, keeping at least 1 decimal
+                            yield SqlFunctionCall.of("regexp_replace",
+                                    SqlFunctionCall.of("strftime", ts, Literal.string("%Y-%m-%dT%H:%M:%S.%f")),
+                                    Literal.string("0{1,5}$"), Literal.string(""));
+                        }
+                    }
+                    yield ts;
                 }
-                // date(y, m, d) -> make_date(y, m, d)
+                // date(y, m, d) or fewer -> make_date(y, m, d)
+                if (args.isEmpty()) {
+                    // date(y) -> year-only precision
+                    yield SqlFunctionCall.of("strftime", SqlFunctionCall.of("make_date", year, Literal.integer(1), Literal.integer(1)), Literal.string("%Y"));
+                } else if (args.size() == 1) {
+                    // date(y, m) -> year-month precision
+                    yield SqlFunctionCall.of("strftime", SqlFunctionCall.of("make_date", year, month, Literal.integer(1)), Literal.string("%Y-%m"));
+                }
                 yield SqlFunctionCall.of("make_date", year, month, day);
             }
             case "dateDiff" -> { // date1->dateDiff(date2, DurationUnit.DAYS) -> DateDiffExpression

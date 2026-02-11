@@ -246,6 +246,39 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     // ==================== date() with time components ====================
 
     @Test
+    void testDateFromHourPrecision() throws SQLException {
+        // PCT: date(1973, 11, 13, 23) → %1973-11-13T23 (hour precision, not full timestamp)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1973->date(11, 13, 23)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("1973-11-13T23", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testDateFromMinutePrecision() throws SQLException {
+        // PCT: date(1973, 11, 13, 23, 9) → %1973-11-13T23:09 (minute precision)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1973->date(11, 13, 23, 9)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("1973-11-13T23:09", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testDateFromSubSecondPrecision() throws SQLException {
+        // PCT: date(1973, 11, 13, 23, 9, 11.0) → %1973-11-13T23:09:11.0 (subsecond precision)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1973->date(11, 13, 23, 9, 11.0)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("1973-11-13T23:09:11.0", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
     void testDateWithTimeComponentsReturnsTimestamp() throws SQLException {
         // Pure: |1973->date(11, 13, 23, 9) -> DateTime (not StrictDate)
         Result result = queryService.execute(
