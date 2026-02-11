@@ -4281,7 +4281,28 @@ public final class PureCompiler {
             // Pure multiplicity functions - identity in SQL context
             case "toOne" -> compileToSqlExpression(methodCall.source(), context);
             // if: condition->if(|thenBody, |elseBody) -> CASE WHEN condition THEN then ELSE else END
+            // multi-if: [pair(|cond1, |val1), pair(|cond2, |val2)]->if(|default)
+            //        -> CASE WHEN cond1 THEN val1 WHEN cond2 THEN val2 ELSE default END
             case "if" -> {
+                // Multi-if: source is an array of pair(|condition, |value) calls
+                if (methodCall.source() instanceof ArrayLiteral arrayLit
+                        && !methodCall.arguments().isEmpty()) {
+                    boolean allPairs = arrayLit.elements().stream().allMatch(
+                            e -> e instanceof FunctionCall fc && "pair".equals(fc.functionName())
+                                    && fc.arguments().size() == 2);
+                    if (allPairs) {
+                        Expression defaultVal = compileLambdaBodyOrExpr(methodCall.arguments().getFirst(), context);
+                        // Build nested CaseExpressions from last to first
+                        Expression result = defaultVal;
+                        for (int i = arrayLit.elements().size() - 1; i >= 0; i--) {
+                            FunctionCall pair = (FunctionCall) arrayLit.elements().get(i);
+                            Expression cond = compileLambdaBodyOrExpr(pair.arguments().get(0), context);
+                            Expression val = compileLambdaBodyOrExpr(pair.arguments().get(1), context);
+                            result = CaseExpression.of(cond, val, result);
+                        }
+                        yield result;
+                    }
+                }
                 Expression condition = compileToSqlExpression(methodCall.source(), context);
                 var ifArgs = methodCall.arguments();
                 if (ifArgs.size() >= 2) {

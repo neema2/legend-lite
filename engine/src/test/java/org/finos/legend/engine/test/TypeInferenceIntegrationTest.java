@@ -192,6 +192,19 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 12L);
     }
 
+    // ==================== multi-if with pair ====================
+
+    @Test
+    void testMultiIf() throws SQLException {
+        // PCT: [pair(|5 == 1, |2), pair(|5 == 2, |22)]->if(|4) + 3
+        // Should be: CASE WHEN 5=1 THEN 2 WHEN 5=2 THEN 22 ELSE 4 END + 3 = 7
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[meta::pure::functions::collection::pair(|5 == 1, |2), meta::pure::functions::collection::pair(|5 == 2, |22)]->meta::pure::functions::lang::if(|4) + 3",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, 7L);
+    }
+
     // ==================== dateDiff must use correct argument order ====================
 
     @Test
