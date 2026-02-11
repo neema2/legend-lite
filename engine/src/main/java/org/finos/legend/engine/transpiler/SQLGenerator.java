@@ -1815,6 +1815,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         // dateDiff(d1, d2, DAYS) -> DATE_DIFF('day', d1, d2)
         String d1 = dateDiff.date1().accept(this);
         String d2 = dateDiff.date2().accept(this);
+        // Pure counts Sunday-based week boundaries. DuckDB DATE_DIFF('week') doesn't match.
+        // Formula: (daysBetween + dayOfWeek(d1)) / 7 counts Sunday boundaries crossed.
+        if (dateDiff.unit() == DurationUnit.WEEKS) {
+            return "(DATE_DIFF('day', " + d1 + ", " + d2 + ") + CAST(EXTRACT(DOW FROM " + d1 + ") AS INTEGER)) // 7";
+        }
         return "DATE_DIFF('" + dateDiff.unit().sql() + "', " + d1 + ", " + d2 + ")";
     }
 

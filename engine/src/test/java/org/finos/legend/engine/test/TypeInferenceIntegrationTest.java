@@ -218,6 +218,31 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertScalarInteger(result, 1L);
     }
 
+    @Test
+    void testDateDiffWeeks() throws SQLException {
+        // Exact PCT test: testDateDiffWeeks
+        // Same day → 0
+        Result result1 = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-07-05->dateDiff(%2015-07-05, meta::pure::functions::date::DurationUnit.WEEKS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result1, 0L);
+
+        // Friday to Saturday → 0 (no Sunday boundary crossed)
+        Result result2 = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-07-03->dateDiff(%2015-07-04, meta::pure::functions::date::DurationUnit.WEEKS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result2, 0L);
+
+        // Saturday to Sunday → 1 (Sunday boundary crossed)
+        Result result3 = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2015-07-04->dateDiff(%2015-07-05, meta::pure::functions::date::DurationUnit.WEEKS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result3, 1L);
+    }
+
     // ==================== date() with time components ====================
 
     @Test
