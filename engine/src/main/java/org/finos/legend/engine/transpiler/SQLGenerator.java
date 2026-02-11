@@ -1868,6 +1868,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     @Override
     public String visit(DateTruncExpression dateTrunc) {
         // firstDayOfMonth(date) -> DATE_TRUNC('month', date)
+        // For datePart (DAY trunc) on partial dates, preserve precision:
+        // %1973-11->datePart() should stay %1973-11, not become %1973-11-01
+        if (dateTrunc.part() == DateTruncExpression.TruncPart.DAY) {
+            DatePrecision precision = detectDatePrecision(dateTrunc.argument());
+            if (precision == DatePrecision.YEAR) {
+                return "STRFTIME(" + dateTrunc.argument().accept(this) + ", '%Y')";
+            } else if (precision == DatePrecision.YEAR_MONTH) {
+                return "STRFTIME(" + dateTrunc.argument().accept(this) + ", '%Y-%m')";
+            }
+        }
         String arg = dateTrunc.argument().accept(this);
         return "DATE_TRUNC('" + dateTrunc.part().sql() + "', " + arg + ")";
     }

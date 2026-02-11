@@ -1541,6 +1541,28 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
     // --- 12a: datepart ---
     @Test
+    void testDatePartOnYearMonth() throws SQLException {
+        // PCT: |%1973-11->datePart() => should preserve year-month precision
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%1973-11->datePart()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("1973-11", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
+    void testDatePartOnYear() throws SQLException {
+        // PCT: |%1973->datePart() => should preserve year precision
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%1973->datePart()",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("1973", ((ScalarResult) result).value().toString());
+    }
+
+    @Test
     void testDatePartOnDate() throws SQLException {
         // PCT: |%1973-11-05->datePart() => date truncated to day
         Result result = queryService.execute(
