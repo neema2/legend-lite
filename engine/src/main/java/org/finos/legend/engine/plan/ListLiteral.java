@@ -66,7 +66,7 @@ public record ListLiteral(List<Expression> elements) implements Expression {
 
     @Override
     public GenericType type() {
-        if (elements.isEmpty()) return GenericType.LIST_ANY();
+        if (elements.isEmpty()) return GenericType.listOf(GenericType.Primitive.NIL);
         return GenericType.listOf(elements.getFirst().type());
     }
 

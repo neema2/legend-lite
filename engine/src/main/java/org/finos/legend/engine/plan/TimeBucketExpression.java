@@ -31,7 +31,7 @@ public record TimeBucketExpression(
 
     @Override
     public GenericType type() {
-        return dateExpression.type() != GenericType.Primitive.DEFERRED ? dateExpression.type() : GenericType.Primitive.DATE_TIME;
+        return dateExpression.type();
     }
 
     @Override

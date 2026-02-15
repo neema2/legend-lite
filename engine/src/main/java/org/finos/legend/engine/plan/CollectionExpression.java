@@ -64,9 +64,15 @@ public record CollectionExpression(
     @Override
     public GenericType type() {
         return switch (function) {
-            case MAP -> lambdaBody != null ? GenericType.listOf(lambdaBody.type()) : GenericType.LIST_ANY();
+            case MAP -> {
+                if (lambdaBody == null) throw new IllegalStateException("MAP requires a lambda body");
+                yield GenericType.listOf(lambdaBody.type());
+            }
             case FILTER -> source.type();
-            case FOLD -> initialValue != null ? initialValue.type() : GenericType.Primitive.DEFERRED;
+            case FOLD -> {
+                if (initialValue == null) throw new IllegalStateException("FOLD requires an initial value");
+                yield initialValue.type();
+            }
             case FLATTEN -> {
                 // flatten(List<List<T>>) → List<T>
                 GenericType inner = source.type().elementType();

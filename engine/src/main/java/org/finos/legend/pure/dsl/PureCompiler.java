@@ -2956,19 +2956,20 @@ public final class PureCompiler {
             case DistinctExpression distinct -> collectExtendedColumnsRecursive(distinct.source(), columns);
             case ProjectExpression project -> {
                 // Class-based project: Person.all()->project({p|$p.firstName}, ['firstName'])
-                // Output columns are aliases, or derived from lambda body property names
-                if (!project.aliases().isEmpty()) {
-                    for (String alias : project.aliases()) {
-                        columns.put(alias, Primitive.DEFERRED);
-                    }
-                } else {
-                    // Extract property names from lambda bodies
-                    for (LambdaExpression lambda : project.projections()) {
-                        String propName = extractFinalPropertyName(lambda.body());
-                        if (propName != null) {
-                            columns.put(propName, Primitive.DEFERRED);
-                        }
-                    }
+                // Resolve property types from the class model
+                String className = extractClassName(project.source());
+                GenericType.ClassType classType = className != null ? new GenericType.ClassType(className) : null;
+                for (int i = 0; i < project.projections().size(); i++) {
+                    LambdaExpression lambda = project.projections().get(i);
+                    String alias = i < project.aliases().size() ? project.aliases().get(i)
+                            : extractFinalPropertyName(lambda.body());
+                    if (alias == null) continue;
+                    // Try to resolve property type from class model
+                    String propName = extractFinalPropertyName(lambda.body());
+                    GenericType resolved = (modelContext != null && propName != null)
+                            ? resolvePropertyFromClassType(propName, classType)
+                            : null;
+                    columns.put(alias, resolved != null ? resolved : Primitive.DEFERRED);
                 }
             }
             case JoinExpression join -> {
@@ -2982,9 +2983,13 @@ public final class PureCompiler {
             case GroupByExpression groupBy -> {
                 // GroupBy keeps grouping columns from source and adds aggregate columns
                 collectExtendedColumnsRecursive(groupBy.source(), columns);
-                // Add aggregate output column names
+                // Infer aggregate return types from the aggregation lambda function
                 for (int i = 0; i < groupBy.aliases().size(); i++) {
-                    columns.put(groupBy.aliases().get(i), Primitive.FLOAT); // Most aggregates produce numeric
+                    GenericType aggType = Primitive.FLOAT; // Default for most aggregates
+                    if (i < groupBy.aggregations().size()) {
+                        aggType = inferAggregateType(groupBy.aggregations().get(i), columns);
+                    }
+                    columns.put(groupBy.aliases().get(i), aggType);
                 }
             }
             case PivotExpression pivot -> {
@@ -2995,11 +3000,20 @@ public final class PureCompiler {
             case RelationProjectExpression project -> {
                 // Project keeps source columns and adds projected aliases
                 collectExtendedColumnsRecursive(project.source(), columns);
-                // Add projected aliases — these are the output column names
-                for (int i = 0; i < project.aliases().size(); i++) {
-                    String alias = project.aliases().get(i);
-                    // Try to resolve the projection lambda body type from source columns
-                    columns.put(alias, Primitive.DEFERRED);
+                // Resolve projection types by compiling lambda bodies in an inference context
+                for (int i = 0; i < project.projections().size(); i++) {
+                    LambdaExpression lambda = project.projections().get(i);
+                    String alias = i < project.aliases().size() ? project.aliases().get(i)
+                            : extractFinalPropertyName(lambda.body());
+                    String tableAlias = "";
+                    CompilationContext inferCtx = new CompilationContext(
+                            lambda.parameter(), tableAlias, null, null, false,
+                            new java.util.HashMap<>(), new java.util.HashMap<>(columns),
+                            new java.util.HashMap<>(), new java.util.HashMap<>(),
+                            new java.util.HashMap<>(), new java.util.HashMap<>())
+                            .withRowBinding(lambda.parameter(), tableAlias);
+                    Expression body = compileToSqlExpression(lambda.body(), inferCtx);
+                    columns.put(alias, body.type());
                 }
             }
             case TdsLiteral tds -> {
@@ -3030,9 +3044,9 @@ public final class PureCompiler {
             }
             case InstanceExpression inst -> {
                 // Struct literal: ^TypeForProjectTest(name='ok', addresses=[...])
-                // Extract field names — types are DEFERRED since the class may not be in local model
+                // Infer types from literal values
                 for (var entry : inst.properties().entrySet()) {
-                    columns.put(entry.getKey(), Primitive.DEFERRED);
+                    columns.put(entry.getKey(), inferInstancePropertyType(entry.getValue()));
                 }
             }
             case FunctionCall fc -> {
@@ -3053,7 +3067,7 @@ public final class PureCompiler {
      */
     private GenericType inferWindowFunctionType(RelationExtendExpression.TypedWindowSpec windowSpec,
                                                 java.util.Map<String, GenericType> columns) {
-        if (windowSpec == null) return Primitive.DEFERRED;
+        if (windowSpec == null) throw new PureCompileException("Window function extend requires a window spec");
         return inferWindowSpecType(windowSpec.spec(), columns);
     }
 
@@ -3072,8 +3086,12 @@ public final class PureCompiler {
                 case MIN, MAX, MODE, ARG_MIN, ARG_MAX ->
                     columns.getOrDefault(agg.column(), Primitive.FLOAT);
             };
-            case ValueFunctionSpec value ->
-                columns.getOrDefault(value.column(), Primitive.DEFERRED);
+            case ValueFunctionSpec value -> {
+                GenericType colType = columns.get(value.column());
+                if (colType == null) throw new PureCompileException(
+                        "Value function references unknown column '" + value.column() + "'");
+                yield colType;
+            }
             case PostProcessedWindowFunctionSpec pp ->
                 inferWindowSpecType(pp.inner(), columns);
         };
@@ -3548,6 +3566,80 @@ public final class PureCompiler {
      * Extracts the final property name from a potentially chained property access.
      * For $p.addresses.street, returns "street".
      */
+    /**
+     * Extracts the class name from a ClassExpression (ClassAllExpression, ClassFilterExpression, etc.).
+     */
+    private String extractClassName(ClassExpression classExpr) {
+        return switch (classExpr) {
+            case ClassAllExpression all -> all.className();
+            case ClassFilterExpression filter -> extractClassName(filter.source());
+            case ClassSortByExpression sortBy -> extractClassName(sortBy.source());
+            case ClassLimitExpression limit -> extractClassName(limit.source());
+            case GraphFetchExpression graphFetch -> extractClassName(graphFetch.source());
+        };
+    }
+
+    /**
+     * Infers a GenericType from an InstanceExpression property value.
+     */
+    /**
+     * Infers the return type of a groupBy aggregation lambda.
+     * Lambda body patterns: $r.col (defaults to SUM), $r.col->sum(), $r.col->count(), etc.
+     */
+    private GenericType inferAggregateType(LambdaExpression aggLambda, java.util.Map<String, GenericType> columns) {
+        PureExpression body = aggLambda.body();
+        if (body instanceof FunctionCall fc) {
+            String funcName = fc.functionName().toLowerCase();
+            return switch (funcName) {
+                case "count" -> Primitive.INTEGER;
+                case "sum" -> {
+                    // SUM preserves source column type
+                    String col = extractPropertyNameSafe(fc.source());
+                    yield col != null ? columns.getOrDefault(col, Primitive.FLOAT) : Primitive.FLOAT;
+                }
+                case "avg", "average", "stddev", "stddevsample", "stddevpopulation",
+                     "variancesample", "variancepopulation", "variance",
+                     "median", "corr", "covarsample", "covarpopulation",
+                     "percentilecont", "percentiledisc", "wavg",
+                     "cumulativedistribution" -> Primitive.FLOAT;
+                case "min", "max", "mode", "first", "last" -> {
+                    String col = extractPropertyNameSafe(fc.source());
+                    yield col != null ? columns.getOrDefault(col, Primitive.FLOAT) : Primitive.FLOAT;
+                }
+                case "joinstrings" -> Primitive.STRING;
+                default -> Primitive.FLOAT;
+            };
+        }
+        // Bare property access: $r.col (defaults to SUM — passthrough type)
+        String col = extractPropertyNameSafe(body);
+        return col != null ? columns.getOrDefault(col, Primitive.FLOAT) : Primitive.FLOAT;
+    }
+
+    private String extractPropertyNameSafe(PureExpression expr) {
+        if (expr instanceof PropertyAccessExpression propAccess) {
+            return propAccess.propertyName();
+        }
+        return null;
+    }
+
+    private GenericType inferInstancePropertyType(Object value) {
+        if (value instanceof String) return Primitive.STRING;
+        if (value instanceof Long || value instanceof Integer) return Primitive.INTEGER;
+        if (value instanceof Double || value instanceof Float) return Primitive.FLOAT;
+        if (value instanceof Boolean) return Primitive.BOOLEAN;
+        if (value instanceof InstanceExpression inst) return new GenericType.ClassType(inst.className());
+        if (value instanceof java.util.List<?> list) {
+            // Infer element type from first element
+            if (!list.isEmpty()) {
+                return GenericType.listOf(inferInstancePropertyType(list.getFirst()));
+            }
+            return GenericType.listOf(Primitive.NIL); // Empty list
+        }
+        // PureExpression (variable refs, function calls) — can't resolve in static pre-pass
+        if (value instanceof PureExpression) return Primitive.DEFERRED;
+        throw new PureCompileException("Unexpected instance property value type: " + value.getClass().getSimpleName());
+    }
+
     private String extractFinalPropertyName(PureExpression expr) {
         if (expr instanceof PropertyAccessExpression propAccess) {
             return propAccess.propertyName();

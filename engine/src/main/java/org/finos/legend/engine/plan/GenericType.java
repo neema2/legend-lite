@@ -131,7 +131,8 @@ public sealed interface GenericType
          * @return The element type for single-parameter collections (e.g., List&lt;Integer&gt; → Integer).
          */
         public GenericType elementType() {
-            if (typeArgs.isEmpty()) return Primitive.ANY;
+            if (typeArgs.isEmpty()) throw new IllegalStateException(
+                    "Parameterized type '" + rawType + "' has no type arguments — cannot extract element type");
             return typeArgs.getFirst();
         }
     }
@@ -164,13 +165,6 @@ public sealed interface GenericType
             int lastColon = qualifiedName.lastIndexOf("::");
             return lastColon >= 0 ? qualifiedName.substring(lastColon + 2) : qualifiedName;
         }
-    }
-
-    // ========== Constants ==========
-
-    /** List with unknown element type — temporary until full type propagation. */
-    static GenericType LIST_ANY() {
-        return new Parameterized("List", List.of(Primitive.ANY));
     }
 
     // ========== Factory methods ==========

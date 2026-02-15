@@ -190,6 +190,8 @@ public final class PureFunctionRegistry {
         register("list_slice", FunctionSig.passthrough());
         register("list_extract", FunctionSig.passthrough());
         register("list_aggr", FunctionSig.passthrough());
+        register("listIndexOf", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("range", FunctionSig.passthrough());
 
         // ===== String/utility =====
         register("startsWith", FunctionSig.constant(GenericType.Primitive.BOOLEAN));
@@ -233,7 +235,8 @@ public final class PureFunctionRegistry {
     public static GenericType resolveReturnType(String functionName, GenericType targetType, List<GenericType> argTypes) {
         FunctionSig sig = REGISTRY.get(functionName.toLowerCase());
         if (sig == null) {
-            return GenericType.Primitive.DEFERRED;
+            throw new IllegalArgumentException(
+                    "Unregistered function: '" + functionName + "'. Add it to PureFunctionRegistry.");
         }
         return switch (sig.rule()) {
             case CONSTANT -> sig.returnType();

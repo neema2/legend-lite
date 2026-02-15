@@ -24,6 +24,6 @@ public record CastExpression(Expression source, GenericType targetType, boolean 
 
     @Override
     public GenericType type() {
-        return isArray ? GenericType.LIST_ANY() : targetType;
+        return isArray ? GenericType.listOf(targetType) : targetType;
     }
 }

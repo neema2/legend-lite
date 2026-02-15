@@ -44,7 +44,7 @@ public record DateTruncExpression(
 
     @Override
     public GenericType type() {
-        return argument.type() != GenericType.Primitive.DEFERRED ? argument.type() : GenericType.Primitive.STRICT_DATE;
+        return argument.type();
     }
 
     @Override
