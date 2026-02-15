@@ -32,10 +32,9 @@ public sealed interface Expression
         /**
          * Returns the Pure type of this expression.
          * Used for type-aware compilation and SQL generation.
+         * Every Expression subtype must implement this — no default ANY fallback.
          * 
          * @return The Pure type of this expression
          */
-        default GenericType type() {
-                return GenericType.Primitive.ANY;
-        }
+        GenericType type();
 }

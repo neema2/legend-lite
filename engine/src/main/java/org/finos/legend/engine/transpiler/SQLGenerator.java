@@ -1475,6 +1475,18 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case "fromjson" -> dialect.getJsonDialect().variantFromJson(target);
             case "tojson" -> dialect.getJsonDialect().variantToJson(target);
             case "encodebase64" -> "TO_BASE64(CAST(" + target + " AS BLOB))";
+            case "date" -> {
+                // date(y, m, d) -> MAKE_DATE(y, m, d)
+                // date(y, m, d, h, min, s) -> MAKE_TIMESTAMP(y, m, d, h, min, s)
+                String dateArgs = functionCall.arguments().stream()
+                        .map(e -> e.accept(this))
+                        .collect(Collectors.joining(", "));
+                String allArgs = target + ", " + dateArgs;
+                if (functionCall.arguments().size() >= 3) {
+                    yield "MAKE_TIMESTAMP(" + allArgs + ")";
+                }
+                yield "MAKE_DATE(" + allArgs + ")";
+            }
             case "parsedate" -> {
                 if (functionCall.arguments().isEmpty()) {
                     // parseDate(s) -> CAST(s AS TIMESTAMPTZ)
@@ -1794,7 +1806,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case "tolower" -> "LOWER";
             case "trim" -> "TRIM";
             case "length" -> "LENGTH";
-            case "reversestring", "reverse" -> "REVERSE";
+            case "reversestring" -> "REVERSE";
+            case "reverse" -> "LIST_REVERSE";
             case "sort" -> "LIST_SORT";
             case "splitpart" -> "SPLIT_PART";
             case "char" -> "CHR";
@@ -1845,6 +1858,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case "size" -> "LENGTH";
             case "first" -> "FIRST";
             case "last" -> "LAST";
+
+            // Pure collection → DuckDB list functions
+            case "sum" -> "LIST_SUM";
+            case "average" -> "LIST_AVG";
+            case "min" -> "LIST_MIN";
+            case "max" -> "LIST_MAX";
+            case "removeduplicates" -> "LIST_DISTINCT";
+            case "and" -> "LIST_BOOL_AND";
+            case "or" -> "LIST_BOOL_OR";
+            case "add" -> "LIST_APPEND";
+            case "concatenate" -> "LIST_CONCAT";
+            case "list" -> "LIST_VALUE";
+            case "joinstrings" -> "ARRAY_TO_STRING";
+            case "replace" -> "REGEXP_REPLACE";
+            case "date" -> "MAKE_DATE";
 
             // Bit operations
             case "bitxor" -> "XOR";

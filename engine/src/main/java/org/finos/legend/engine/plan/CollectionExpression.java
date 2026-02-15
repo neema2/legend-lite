@@ -63,7 +63,16 @@ public record CollectionExpression(
 
     @Override
     public GenericType type() {
-        return GenericType.LIST_ANY();
+        return switch (function) {
+            case MAP -> lambdaBody != null ? GenericType.listOf(lambdaBody.type()) : GenericType.LIST_ANY();
+            case FILTER -> source.type();
+            case FOLD -> initialValue != null ? initialValue.type() : GenericType.Primitive.ANY;
+            case FLATTEN -> {
+                // flatten(List<List<T>>) → List<T>
+                GenericType inner = source.type().elementType();
+                yield inner.isList() ? inner : source.type();
+            }
+        };
     }
 
     @Override

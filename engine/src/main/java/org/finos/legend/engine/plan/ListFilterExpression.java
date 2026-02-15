@@ -15,7 +15,7 @@ public record ListFilterExpression(
 
     @Override
     public GenericType type() {
-        return GenericType.LIST_ANY();
+        return source.type();
     }
 
     @Override
