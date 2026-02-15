@@ -66,7 +66,7 @@ public record CollectionExpression(
         return switch (function) {
             case MAP -> lambdaBody != null ? GenericType.listOf(lambdaBody.type()) : GenericType.LIST_ANY();
             case FILTER -> source.type();
-            case FOLD -> initialValue != null ? initialValue.type() : GenericType.Primitive.ANY;
+            case FOLD -> initialValue != null ? initialValue.type() : GenericType.Primitive.DEFERRED;
             case FLATTEN -> {
                 // flatten(List<List<T>>) → List<T>
                 GenericType inner = source.type().elementType();

@@ -51,16 +51,6 @@ public record ComparisonExpression(
     }
     
     /**
-     * Factory for column equals literal.
-     */
-    public static ComparisonExpression columnEquals(String tableAlias, String columnName, String value) {
-        return equals(
-                ColumnReference.of(tableAlias, columnName, GenericType.Primitive.ANY),
-                Literal.string(value)
-        );
-    }
-    
-    /**
      * Factory for less than comparison.
      */
     public static ComparisonExpression lessThan(Expression left, Expression right) {

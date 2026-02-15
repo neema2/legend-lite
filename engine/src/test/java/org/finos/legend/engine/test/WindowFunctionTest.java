@@ -179,8 +179,8 @@ class WindowFunctionTest {
             TableNode table = new TableNode(
                     new Table("T_EMPLOYEE", List.of()), "t0");
             ProjectNode project = new ProjectNode(table, List.of(
-                    Projection.column("t0", "NAME", "name"),
-                    Projection.column("t0", "DEPARTMENT", "department")));
+                    Projection.column("t0", "NAME", "name", GenericType.Primitive.STRING),
+                    Projection.column("t0", "DEPARTMENT", "department", GenericType.Primitive.STRING)));
 
             WindowExpression window = WindowExpression.ranking(
                     WindowExpression.WindowFunction.ROW_NUMBER,
@@ -205,9 +205,9 @@ class WindowFunctionTest {
             TableNode table = new TableNode(
                     new Table("T_EMPLOYEE", List.of()), "t0");
             ProjectNode project = new ProjectNode(table, List.of(
-                    Projection.column("t0", "NAME", "name"),
-                    Projection.column("t0", "DEPARTMENT", "department"),
-                    Projection.column("t0", "SALARY", "salary")));
+                    Projection.column("t0", "NAME", "name", GenericType.Primitive.STRING),
+                    Projection.column("t0", "DEPARTMENT", "department", GenericType.Primitive.STRING),
+                    Projection.column("t0", "SALARY", "salary", GenericType.Primitive.INTEGER)));
 
             WindowExpression window = WindowExpression.ranking(
                     WindowExpression.WindowFunction.RANK,
@@ -232,9 +232,9 @@ class WindowFunctionTest {
             TableNode table = new TableNode(
                     new Table("T_EMPLOYEE", List.of()), "t0");
             ProjectNode project = new ProjectNode(table, List.of(
-                    Projection.column("t0", "NAME", "name"),
-                    Projection.column("t0", "DEPARTMENT", "department"),
-                    Projection.column("t0", "SALARY", "salary")));
+                    Projection.column("t0", "NAME", "name", GenericType.Primitive.STRING),
+                    Projection.column("t0", "DEPARTMENT", "department", GenericType.Primitive.STRING),
+                    Projection.column("t0", "SALARY", "salary", GenericType.Primitive.INTEGER)));
 
             WindowExpression window = WindowExpression.aggregate(
                     WindowExpression.WindowFunction.SUM,
@@ -282,8 +282,8 @@ class WindowFunctionTest {
             TableNode table = new TableNode(
                     new Table("T_EMPLOYEE", List.of()), "t0");
             ProjectNode project = new ProjectNode(table, List.of(
-                    Projection.column("t0", "DEPARTMENT", "department"),
-                    Projection.column("t0", "SALARY", "salary")));
+                    Projection.column("t0", "DEPARTMENT", "department", GenericType.Primitive.STRING),
+                    Projection.column("t0", "SALARY", "salary", GenericType.Primitive.INTEGER)));
 
             WindowExpression.FrameSpec frame = WindowExpression.FrameSpec.rows(
                     WindowExpression.FrameBound.unbounded(),

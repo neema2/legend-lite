@@ -67,11 +67,13 @@ public record Table(
     }
 
     /**
-     * Returns the Pure GenericType for a column, or ANY if the column is not found.
+     * Returns the Pure GenericType for a column.
+     * @throws IllegalArgumentException if column not found
      */
     public org.finos.legend.engine.plan.GenericType getColumnType(String columnName) {
         return findColumn(columnName)
                 .map(c -> c.dataType().toGenericType())
-                .orElse(org.finos.legend.engine.plan.GenericType.Primitive.ANY);
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Column '" + columnName + "' not found in table " + qualifiedName()));
     }
 }

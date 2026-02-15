@@ -48,8 +48,8 @@ class SQLGeneratorTest {
 
                 // Project: firstName, lastName
                 ProjectNode projectNode = new ProjectNode(filterNode, List.of(
-                                Projection.column("t0", "FIRST_NAME", "firstName"),
-                                Projection.column("t0", "LAST_NAME", "lastName")));
+                                Projection.column("t0", "FIRST_NAME", "firstName", GenericType.Primitive.STRING),
+                                Projection.column("t0", "LAST_NAME", "lastName", GenericType.Primitive.STRING)));
 
                 // WHEN: We generate SQL with both dialects
                 SQLGenerator duckdbGen = new SQLGenerator(DuckDBDialect.INSTANCE);
@@ -224,8 +224,8 @@ class SQLGeneratorTest {
                 JoinNode joinNode = JoinNode.inner(personNode, addressNode, joinCondition);
 
                 ProjectNode projectNode = new ProjectNode(joinNode, List.of(
-                                Projection.column("p", "FIRST_NAME", "firstName"),
-                                Projection.column("a", "STREET", "street")));
+                                Projection.column("p", "FIRST_NAME", "firstName", GenericType.Primitive.STRING),
+                                Projection.column("a", "STREET", "street", GenericType.Primitive.STRING)));
 
                 String sql = sqlGenerator.generate(projectNode);
 
@@ -254,8 +254,8 @@ class SQLGeneratorTest {
                 JoinNode joinNode = JoinNode.leftOuter(personNode, addressNode, joinCondition);
 
                 ProjectNode projectNode = new ProjectNode(joinNode, List.of(
-                                Projection.column("p", "FIRST_NAME", "firstName"),
-                                Projection.column("a", "STREET", "street")));
+                                Projection.column("p", "FIRST_NAME", "firstName", GenericType.Primitive.STRING),
+                                Projection.column("a", "STREET", "street", GenericType.Primitive.STRING)));
 
                 String sql = sqlGenerator.generate(projectNode);
 

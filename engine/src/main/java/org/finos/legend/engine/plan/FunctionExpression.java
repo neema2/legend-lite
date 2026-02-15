@@ -25,7 +25,7 @@ public record FunctionExpression(
         Objects.requireNonNull(arguments, "Arguments cannot be null");
         arguments = List.copyOf(arguments);
         if (returnType == null) {
-            returnType = GenericType.Primitive.ANY;
+            returnType = GenericType.Primitive.DEFERRED;
         }
     }
 
@@ -33,11 +33,11 @@ public record FunctionExpression(
      * Creates a function call with no additional arguments and unknown return type.
      */
     public static FunctionExpression of(String functionName) {
-        return new FunctionExpression(functionName, null, List.of(), GenericType.Primitive.ANY);
+        return new FunctionExpression(functionName, null, List.of(), GenericType.Primitive.DEFERRED);
     }
 
     public static FunctionExpression of(String functionName, Expression target) {
-        return new FunctionExpression(functionName, target, List.of(), GenericType.Primitive.ANY);
+        return new FunctionExpression(functionName, target, List.of(), GenericType.Primitive.DEFERRED);
     }
 
     /**
@@ -51,7 +51,7 @@ public record FunctionExpression(
      * Creates a function call with additional arguments.
      */
     public static FunctionExpression of(String functionName, Expression target, Expression... args) {
-        return new FunctionExpression(functionName, target, List.of(args), GenericType.Primitive.ANY);
+        return new FunctionExpression(functionName, target, List.of(args), GenericType.Primitive.DEFERRED);
     }
 
     /**
@@ -69,10 +69,10 @@ public record FunctionExpression(
     @Override
     public GenericType type() {
         // 1. Registry is the PRIMARY source of return types
-        GenericType targetType = target != null ? target.type() : GenericType.Primitive.ANY;
+        GenericType targetType = target != null ? target.type() : GenericType.Primitive.DEFERRED;
         List<GenericType> argTypes = arguments.stream().map(Expression::type).toList();
         GenericType registryType = PureFunctionRegistry.resolveReturnType(functionName, targetType, argTypes);
-        if (registryType != GenericType.Primitive.ANY) {
+        if (registryType != GenericType.Primitive.DEFERRED) {
             return registryType;
         }
         // 2. Explicit returnType override for special cases not in registry

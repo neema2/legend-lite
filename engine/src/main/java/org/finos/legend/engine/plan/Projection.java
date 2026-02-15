@@ -23,21 +23,6 @@ public record Projection(
     }
     
     /**
-     * Creates a projection from a column reference with a property alias.
-     * 
-     * @param tableAlias The table alias
-     * @param columnName The column name
-     * @param propertyName The property name to use as alias
-     * @return A new Projection
-     */
-    public static Projection column(String tableAlias, String columnName, String propertyName) {
-        return new Projection(
-                ColumnReference.of(tableAlias, columnName, GenericType.Primitive.ANY),
-                propertyName
-        );
-    }
-
-    /**
      * Creates a typed projection from a column reference with a property alias.
      */
     public static Projection column(String tableAlias, String columnName, String propertyName, GenericType type) {
@@ -45,13 +30,6 @@ public record Projection(
                 ColumnReference.of(tableAlias, columnName, type),
                 propertyName
         );
-    }
-    
-    /**
-     * Creates a projection from a column reference using the column name as alias.
-     */
-    public static Projection column(String tableAlias, String columnName) {
-        return column(tableAlias, columnName, columnName);
     }
     
     @Override

@@ -88,16 +88,18 @@ public record RelationalMapping(
     }
 
     /**
-     * Gets the PureType for a given property name by looking up the property's
+     * Gets the GenericType for a given property name by looking up the property's
      * generic type in the Pure class definition.
      * 
      * @param propertyName The Pure property name
-     * @return The PureType for this property, or UNKNOWN if not found
+     * @return The GenericType for this property
+     * @throws IllegalArgumentException if property not found in Pure class
      */
     public org.finos.legend.engine.plan.GenericType pureTypeForProperty(String propertyName) {
         return pureClass.findProperty(propertyName)
                 .map(p -> org.finos.legend.engine.plan.GenericType.fromTypeName(p.genericType().typeName()))
-                .orElse(org.finos.legend.engine.plan.GenericType.Primitive.ANY);
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Property '" + propertyName + "' not found in class " + pureClass.name()));
     }
 
     @Override

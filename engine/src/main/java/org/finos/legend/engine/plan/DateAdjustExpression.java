@@ -16,7 +16,7 @@ public record DateAdjustExpression(
 
     @Override
     public GenericType type() {
-        return date.type() != GenericType.Primitive.ANY ? date.type() : GenericType.Primitive.DATE_TIME;
+        return date.type() != GenericType.Primitive.DEFERRED ? date.type() : GenericType.Primitive.DATE_TIME;
     }
 
     @Override

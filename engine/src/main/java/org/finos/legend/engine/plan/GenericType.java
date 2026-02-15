@@ -37,6 +37,7 @@ public sealed interface GenericType
     enum Primitive implements GenericType {
         ANY,
         NIL,
+        DEFERRED,
         NUMBER, INTEGER, FLOAT, DECIMAL,
         STRING,
         BOOLEAN,
@@ -48,6 +49,7 @@ public sealed interface GenericType
             return switch (this) {
                 case ANY -> "Any";
                 case NIL -> "Nil";
+                case DEFERRED -> "Deferred";
                 case NUMBER -> "Number";
                 case INTEGER -> "Integer";
                 case FLOAT -> "Float";
@@ -69,6 +71,7 @@ public sealed interface GenericType
             if (this == other) return true;
             if (this == NIL) return true;         // NIL is subtype of everything
             if (other == ANY) return true;         // everything is subtype of ANY
+            if (this == DEFERRED || other == DEFERRED) return false; // DEFERRED is not in the type hierarchy
             return switch (this) {
                 case INTEGER, FLOAT, DECIMAL -> other == NUMBER;
                 case STRICT_DATE, DATE_TIME -> other == DATE;

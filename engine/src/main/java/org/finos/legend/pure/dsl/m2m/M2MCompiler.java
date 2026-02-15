@@ -167,7 +167,7 @@ public final class M2MCompiler {
                         .map(M2MCompiler.this::compileExpression)
                         .toList();
 
-                return new FunctionExpression(funcName, target, args, GenericType.Primitive.ANY);
+                return new FunctionExpression(funcName, target, args, target.type());
             }
 
             @Override

@@ -144,7 +144,7 @@ public record Literal(
             case BOOLEAN -> GenericType.Primitive.BOOLEAN;
             case DOUBLE -> GenericType.Primitive.FLOAT;
             case DECIMAL -> GenericType.Primitive.DECIMAL;
-            case NULL -> GenericType.Primitive.ANY;
+            case NULL -> GenericType.Primitive.NIL;
             case DATE -> GenericType.Primitive.STRICT_DATE;
             case TIMESTAMP -> GenericType.Primitive.DATE_TIME;
             case TIME -> GenericType.Primitive.STRICT_TIME;

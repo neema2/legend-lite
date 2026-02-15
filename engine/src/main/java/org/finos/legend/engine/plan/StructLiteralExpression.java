@@ -29,7 +29,7 @@ public record StructLiteralExpression(
 
     @Override
     public GenericType type() {
-        return GenericType.Primitive.ANY;
+        return new GenericType.ClassType(className);
     }
 
     @Override

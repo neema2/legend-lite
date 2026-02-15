@@ -2619,8 +2619,10 @@ public final class PureCompiler {
         // Build projection for each selected column - use empty alias for Relation API
         // Column references should be unqualified to work correctly in chained
         // operations
+        java.util.Map<String, GenericType> columnTypes = collectExtendedColumns(select.source());
         List<Projection> projections = select.columns().stream()
-                .map(colName -> Projection.column("", colName, colName))
+                .map(colName -> Projection.column("", colName, colName,
+                        columnTypes.getOrDefault(colName, Primitive.STRING)))
                 .toList();
 
         // Wrap the source in a ProjectNode
@@ -4610,7 +4612,7 @@ public final class PureCompiler {
             case "eval" -> {
                 if (methodCall.source() instanceof ColumnSpec cs) {
                     // Column spec evaluated on row becomes simple column reference
-                    GenericType colType = context != null ? context.getExtendedColumnType(cs.name()) : Primitive.STRING;
+                    GenericType colType = resolvePropertyType(cs.name(), context);
                     yield ColumnReference.of(cs.name(), colType);
                 }
                 if (methodCall.source() instanceof ClassReference cr) {
@@ -5740,9 +5742,9 @@ public final class PureCompiler {
         GenericType firstType = elements.getFirst().type();
         for (int i = 1; i < elements.size(); i++) {
             GenericType t = elements.get(i).type();
-            // Treat UNKNOWN as compatible with anything (it may resolve at runtime)
-            if (t == Primitive.ANY || firstType == Primitive.ANY) continue;
-            if (t != firstType && !areNumericCompatible(firstType, t)) return true;
+            // Skip deferred/nil/any types — they can't participate in type comparison
+            if (isTypeComparisonNeutral(t) || isTypeComparisonNeutral(firstType)) continue;
+            if (!t.equals(firstType) && !areNumericCompatible(firstType, t)) return true;
         }
         return false;
     }
@@ -5753,6 +5755,14 @@ public final class PureCompiler {
 
     private static boolean areNumericCompatible(GenericType a, GenericType b) {
         return isNumericType(a) && isNumericType(b);
+    }
+
+    /**
+     * Types that should not trigger mixed-type detection:
+     * ANY (top type, flexible), DEFERRED (not yet resolved), NIL (null, compatible with everything).
+     */
+    private static boolean isTypeComparisonNeutral(GenericType t) {
+        return t == Primitive.ANY || t == Primitive.DEFERRED || t == Primitive.NIL;
     }
 
     /**
@@ -5794,8 +5804,8 @@ public final class PureCompiler {
             if (ll.isEmpty() || rl.isEmpty()) return false;
             GenericType leftType = ll.elements().getFirst().type();
             GenericType rightType = rl.elements().getFirst().type();
-            if (leftType == Primitive.ANY || rightType == Primitive.ANY) return false;
-            return leftType != rightType && !areNumericCompatible(leftType, rightType);
+            if (isTypeComparisonNeutral(leftType) || isTypeComparisonNeutral(rightType)) return false;
+            return !leftType.equals(rightType) && !areNumericCompatible(leftType, rightType);
         }
         return false;
     }
@@ -5920,7 +5930,8 @@ public final class PureCompiler {
         String elemClassName = extractStructListClassName(methodCall.source());
         if (elemClassName != null && !(initialValue instanceof StructLiteralExpression)) {
             Expression lambdaBody = compileToSqlExpression(lambda.body(),
-                    context.withFoldParameters(pureAccParam, pureElemParam, elemClassName));
+                    context.withFoldParameters(pureAccParam, pureElemParam, elemClassName,
+                            initialValue.type(), source.type().elementType()));
 
             // Try to decompose the body: strip accumulator from left spine of ADD chain
             Expression elemTransform = stripAccumulatorFromBody(lambdaBody, pureAccParam);
@@ -5941,7 +5952,8 @@ public final class PureCompiler {
         // list_reduce(list_transform(source, elem -> f(elem)), (acc, x) -> acc OP x, init).
         if (elemClassName == null) {
             Expression lambdaBody = compileToSqlExpression(lambda.body(),
-                    context.withFoldParameters(pureElemParam, pureAccParam));
+                    context.withFoldParameters(pureElemParam, pureAccParam,
+                            source.type().elementType(), initialValue.type()));
             Expression elemTransform = stripAccumulatorFromBody(lambdaBody, pureAccParam);
             if (elemTransform != null) {
                 Expression transformedList = CollectionExpression.map(source, pureElemParam, elemTransform);
@@ -5971,7 +5983,8 @@ public final class PureCompiler {
             Expression elemUnwrap = FunctionExpression.of("list_extract",
                     new ColumnReference("", pureElemParam, elemListType), Literal.integer(1));
             Expression lambdaBody = compileToSqlExpression(lambda.body(),
-                    context.withFoldParameters(pureElemParam, pureAccParam)
+                    context.withFoldParameters(pureElemParam, pureAccParam,
+                            source.type().elementType(), initialValue.type())
                            .withParamOverride(pureElemParam, elemUnwrap));
 
             return CollectionExpression.fold(wrappedSource, pureAccParam, pureElemParam, lambdaBody, initialValue);
@@ -5979,7 +5992,8 @@ public final class PureCompiler {
 
         // Fallback: standard list_reduce approach
         Expression lambdaBody = compileToSqlExpression(lambda.body(),
-                context.withFoldParameters(pureElemParam, pureAccParam));
+                context.withFoldParameters(pureElemParam, pureAccParam,
+                        source.type().elementType(), initialValue.type()));
 
         // DuckDB list_reduce: (accumulator, element) -> body
         // Map Pure's accumulator to DuckDB's first position (accumulator)
@@ -6439,7 +6453,7 @@ public final class PureCompiler {
 
             // Source is a collection — wrap in list_transform
             String syntheticParam = "_prop_x";
-            GenericType propType = context != null ? context.getExtendedColumnType(propertyName) : Primitive.STRING;
+            GenericType propType = resolvePropertyType(propertyName, context);
             Expression body = ColumnReference.of(syntheticParam, fullPath, propType);
             return CollectionExpression.map(compiledSource, syntheticParam, body);
         }
@@ -6466,7 +6480,7 @@ public final class PureCompiler {
 
                 // No mapping - use full path (for nested STRUCT access like
                 // employees.firstName)
-                return ColumnReference.of(rowAlias, fullPath, context.getExtendedColumnType(propertyName));
+                return ColumnReference.of(rowAlias, fullPath, resolvePropertyType(propertyName, context));
             }
             // SCALAR binding: if value is a StructLiteralExpression, extract the field
             if (binding.kind() == SymbolBinding.BindingKind.SCALAR && binding.value() instanceof StructLiteralExpression struct) {
@@ -6483,7 +6497,7 @@ public final class PureCompiler {
         // Check if variable is a lambda parameter (from collection operations like map/filter/fold)
         // For struct elements, property access becomes struct field access: p.lastName
         if (context != null && context.lambdaParameters() != null && context.isLambdaParameter(varName)) {
-            return ColumnReference.of(varName, fullPath, context.getExtendedColumnType(propertyName));
+            return ColumnReference.of(varName, fullPath, resolvePropertyType(propertyName, context));
         }
 
         // Legacy fallback: check lambdaParameter directly
@@ -6501,13 +6515,76 @@ public final class PureCompiler {
         // If no mapping exists (direct Relation API access), use full path for STRUCT
         // access
         if (context.mapping() == null) {
-            return ColumnReference.of(context.tableAlias(), fullPath, context.getExtendedColumnType(propertyName));
+            return ColumnReference.of(context.tableAlias(), fullPath, resolvePropertyType(propertyName, context));
         }
 
         String columnName = context.mapping().getColumnForProperty(propertyName)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
 
         return ColumnReference.of(context.tableAlias(), columnName, context.mapping().pureTypeForProperty(propertyName));
+    }
+
+    /**
+     * Resolves the GenericType for a property access.
+     * Checks (in order): extendedColumns map, class definition from context, DEFERRED fallback.
+     */
+    private GenericType resolvePropertyType(String propertyName, CompilationContext context) {
+        if (context == null) return Primitive.DEFERRED;
+        // 1. Extended columns (from TDS/extend/flatten chain)
+        if (context.isExtendedColumn(propertyName)) {
+            return context.getExtendedColumnType(propertyName);
+        }
+        // 2. Class definition (from mapping or className context)
+        if (context.mapping() != null) {
+            try {
+                return context.mapping().pureTypeForProperty(propertyName);
+            } catch (IllegalArgumentException e) {
+                // Property not in mapping class — fall through
+            }
+        }
+        // 3. Look up class from className in context
+        if (context.className() != null && modelContext != null) {
+            var pureClass = modelContext.findClass(context.className());
+            if (pureClass.isPresent()) {
+                var prop = pureClass.get().findProperty(propertyName);
+                if (prop.isPresent()) {
+                    return GenericType.fromTypeName(prop.get().genericType().typeName());
+                }
+            }
+        }
+        // 4. Lambda param type (for struct iteration like p.lastName)
+        if (modelContext != null) {
+            GenericType resolved = resolveFromLambdaParamClass(propertyName, context);
+            if (resolved != null) return resolved;
+        }
+        return Primitive.DEFERRED;
+    }
+
+    /**
+     * Resolves property type from lambda parameter ClassType by looking up the Pure class.
+     */
+    private GenericType resolveFromLambdaParamClass(String propertyName, CompilationContext context) {
+        // Check all lambda parameter types for ClassType
+        if (context.lambdaParamTypes() != null) {
+            for (var entry : context.lambdaParamTypes().entrySet()) {
+                GenericType resolved = resolvePropertyFromClassType(propertyName, entry.getValue());
+                if (resolved != null) return resolved;
+            }
+        }
+        return null;
+    }
+
+    private GenericType resolvePropertyFromClassType(String propertyName, GenericType type) {
+        if (type instanceof GenericType.ClassType ct) {
+            var pureClass = modelContext.findClass(ct.qualifiedName());
+            if (pureClass.isPresent()) {
+                var prop = pureClass.get().findProperty(propertyName);
+                if (prop.isPresent()) {
+                    return GenericType.fromTypeName(prop.get().genericType().typeName());
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -6769,9 +6846,15 @@ public final class PureCompiler {
 
         /**
          * Gets the type of a lambda parameter.
+         * @throws IllegalStateException if param not found — indicates missing type propagation
          */
         public org.finos.legend.engine.plan.GenericType getLambdaParamType(String paramName) {
-            return lambdaParamTypes.getOrDefault(paramName, org.finos.legend.engine.plan.GenericType.Primitive.ANY);
+            org.finos.legend.engine.plan.GenericType type = lambdaParamTypes.get(paramName);
+            if (type == null) {
+                throw new IllegalStateException("No type info for lambda param '" + paramName + "'. " +
+                        "Available params: " + lambdaParamTypes.keySet());
+            }
+            return type;
         }
 
         /**
@@ -6790,20 +6873,27 @@ public final class PureCompiler {
         /**
          * Creates a new context with fold parameters (accumulator and element).
          */
-        public CompilationContext withFoldParameters(String accParam, String elemParam) {
-            return withFoldParameters(accParam, elemParam, null);
+        public CompilationContext withFoldParameters(String accParam, String elemParam,
+                                                       org.finos.legend.engine.plan.GenericType accType,
+                                                       org.finos.legend.engine.plan.GenericType elemType) {
+            return withFoldParameters(accParam, elemParam, null, accType, elemType);
         }
 
         /**
          * Creates a new context with fold parameters and optional element class name.
          * The class name enables at(0) optimization for scalar struct properties.
          */
-        public CompilationContext withFoldParameters(String accParam, String elemParam, String elemClassName) {
+        public CompilationContext withFoldParameters(String accParam, String elemParam, String elemClassName,
+                                                       org.finos.legend.engine.plan.GenericType accType,
+                                                       org.finos.legend.engine.plan.GenericType elemType) {
             var newParams = new java.util.HashMap<>(lambdaParameters);
             newParams.put(accParam, "");
             newParams.put(elemParam, elemClassName != null ? elemClassName : "");
+            var newTypes = new java.util.HashMap<>(lambdaParamTypes);
+            newTypes.put(accParam, accType);
+            newTypes.put(elemParam, elemType);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, newParams, extendedColumns, relationSources, symbols, paramOverrides, lambdaParamTypes);
+                    inFilterContext, newParams, extendedColumns, relationSources, symbols, paramOverrides, newTypes);
         }
 
         /**
@@ -6914,10 +7004,16 @@ public final class PureCompiler {
         }
 
         /**
-         * Gets the type of an extended column, or ANY if not found.
+         * Gets the type of an extended column.
+         * @throws IllegalStateException if column not found — indicates missing type propagation upstream
          */
         public org.finos.legend.engine.plan.GenericType getExtendedColumnType(String name) {
-            return extendedColumns.getOrDefault(name, org.finos.legend.engine.plan.GenericType.Primitive.ANY);
+            org.finos.legend.engine.plan.GenericType type = extendedColumns.get(name);
+            if (type == null) {
+                throw new IllegalStateException("No type info for column '" + name + "'. " +
+                        "Available columns: " + extendedColumns.keySet());
+            }
+            return type;
         }
 
         /**

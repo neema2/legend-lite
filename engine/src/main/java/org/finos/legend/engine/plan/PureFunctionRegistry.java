@@ -31,7 +31,7 @@ public final class PureFunctionRegistry {
         }
 
         static FunctionSig passthrough() {
-            return new FunctionSig(TypeRule.PASSTHROUGH, GenericType.Primitive.ANY);
+            return new FunctionSig(TypeRule.PASSTHROUGH, GenericType.Primitive.DEFERRED);
         }
 
         static FunctionSig numericPassthrough() {
@@ -227,17 +227,17 @@ public final class PureFunctionRegistry {
      * Resolves the return type for a function call.
      * Primary source of truth for FunctionExpression.type().
      *
-     * @return The resolved return type, or ANY only if the function is unregistered
-     *         or PASSTHROUGH with unknown input type (both to be eliminated in Step D)
+     * @return The resolved return type, or DEFERRED if the function is unregistered
+     *         or PASSTHROUGH with deferred input type
      */
     public static GenericType resolveReturnType(String functionName, GenericType targetType, List<GenericType> argTypes) {
         FunctionSig sig = REGISTRY.get(functionName.toLowerCase());
         if (sig == null) {
-            return GenericType.Primitive.ANY;
+            return GenericType.Primitive.DEFERRED;
         }
         return switch (sig.rule()) {
             case CONSTANT -> sig.returnType();
-            case PASSTHROUGH -> targetType != GenericType.Primitive.ANY ? targetType : GenericType.Primitive.ANY;
+            case PASSTHROUGH -> targetType != GenericType.Primitive.DEFERRED ? targetType : GenericType.Primitive.DEFERRED;
             case NUMERIC_PASSTHROUGH -> resolveNumericType(targetType, argTypes);
         };
     }
