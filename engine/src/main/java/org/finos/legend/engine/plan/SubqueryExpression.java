@@ -39,7 +39,7 @@ public record SubqueryExpression(
     }
 
     @Override
-    public PureType type() {
+    public GenericType type() {
         return selectExpression.type();
     }
 

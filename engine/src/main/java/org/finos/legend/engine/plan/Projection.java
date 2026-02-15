@@ -40,7 +40,7 @@ public record Projection(
     /**
      * Creates a typed projection from a column reference with a property alias.
      */
-    public static Projection column(String tableAlias, String columnName, String propertyName, PureType type) {
+    public static Projection column(String tableAlias, String columnName, String propertyName, GenericType type) {
         return new Projection(
                 ColumnReference.of(tableAlias, columnName, type),
                 propertyName

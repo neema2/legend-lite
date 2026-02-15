@@ -28,8 +28,8 @@ public record StructLiteralExpression(
     }
 
     @Override
-    public PureType type() {
-        return PureType.UNKNOWN;
+    public GenericType type() {
+        return GenericType.Primitive.ANY;
     }
 
     @Override

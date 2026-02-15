@@ -137,17 +137,17 @@ public record Literal(
     }
 
     @Override
-    public PureType type() {
+    public GenericType type() {
         return switch (literalType) {
-            case STRING -> PureType.STRING;
-            case INTEGER -> PureType.INTEGER;
-            case BOOLEAN -> PureType.BOOLEAN;
-            case DOUBLE -> PureType.FLOAT;
-            case DECIMAL -> PureType.DECIMAL;
-            case NULL -> PureType.UNKNOWN;
-            case DATE -> PureType.STRICT_DATE;
-            case TIMESTAMP -> PureType.DATE_TIME;
-            case TIME -> PureType.STRICT_TIME;
+            case STRING -> GenericType.Primitive.STRING;
+            case INTEGER -> GenericType.Primitive.INTEGER;
+            case BOOLEAN -> GenericType.Primitive.BOOLEAN;
+            case DOUBLE -> GenericType.Primitive.FLOAT;
+            case DECIMAL -> GenericType.Primitive.DECIMAL;
+            case NULL -> GenericType.Primitive.ANY;
+            case DATE -> GenericType.Primitive.STRICT_DATE;
+            case TIMESTAMP -> GenericType.Primitive.DATE_TIME;
+            case TIME -> GenericType.Primitive.STRICT_TIME;
         };
     }
 

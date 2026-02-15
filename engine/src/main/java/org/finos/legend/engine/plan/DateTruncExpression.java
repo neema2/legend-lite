@@ -43,8 +43,8 @@ public record DateTruncExpression(
     }
 
     @Override
-    public PureType type() {
-        return argument.type() != PureType.UNKNOWN ? argument.type() : PureType.STRICT_DATE;
+    public GenericType type() {
+        return argument.type() != GenericType.Primitive.ANY ? argument.type() : GenericType.Primitive.STRICT_DATE;
     }
 
     @Override

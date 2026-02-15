@@ -45,8 +45,8 @@ public record DateFunctionExpression(
     }
 
     @Override
-    public PureType type() {
-        return PureType.INTEGER;
+    public GenericType type() {
+        return GenericType.Primitive.INTEGER;
     }
 
     @Override

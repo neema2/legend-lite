@@ -26,8 +26,8 @@ public record CurrentDateExpression(
     }
 
     @Override
-    public PureType type() {
-        return function == CurrentDateFunction.NOW ? PureType.DATE_TIME : PureType.STRICT_DATE;
+    public GenericType type() {
+        return function == CurrentDateFunction.NOW ? GenericType.Primitive.DATE_TIME : GenericType.Primitive.STRICT_DATE;
     }
 
     @Override

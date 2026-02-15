@@ -1457,8 +1457,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     }
 
     @Override
-    public String visitFunctionCall(SqlFunctionCall functionCall) {
-        String funcName = functionCall.sqlFunctionName();
+    public String visitFunctionCall(FunctionExpression functionCall) {
+        String funcName = toSqlFunctionName(functionCall.functionName());
 
         // Handle zero-arg functions (e.g., uuid())
         if (functionCall.target() == null) {
@@ -1474,6 +1474,16 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return switch (lowerFuncName) {
             case "fromjson" -> dialect.getJsonDialect().variantFromJson(target);
             case "tojson" -> dialect.getJsonDialect().variantToJson(target);
+            case "encodebase64" -> "TO_BASE64(CAST(" + target + " AS BLOB))";
+            case "parsedate" -> "CAST(" + target + " AS TIMESTAMPTZ)";
+            case "rpad", "lpad" -> {
+                // DuckDB rpad/lpad require INTEGER (32-bit) length, not BIGINT
+                String[] argsSql = functionCall.arguments().stream()
+                        .map(e -> e.accept(this)).toArray(String[]::new);
+                String lenArg = argsSql.length > 0 ? "CAST(" + argsSql[0] + " AS INTEGER)" : "0";
+                String fillArg = argsSql.length > 1 ? argsSql[1] : "' '";
+                yield funcName + "(" + target + ", " + lenArg + ", " + fillArg + ")";
+            }
             case "get" -> {
                 if (functionCall.arguments().isEmpty()) {
                     throw new IllegalArgumentException("get() requires a key or index argument");
@@ -1485,8 +1495,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 // get('key', @Type) -> returns typed value using ->> + CAST (returnType is
                 // scalar)
                 // JSON is the default, so we only cast for explicit scalar types
-                PureType type = functionCall.returnType();
-                boolean hasTypeArg = type != PureType.UNKNOWN && type != PureType.JSON;
+                GenericType type = functionCall.returnType();
+                boolean hasTypeArg = type != GenericType.Primitive.ANY && type != GenericType.Primitive.JSON;
 
                 if (arg instanceof Literal lit && lit.literalType() == Literal.LiteralType.INTEGER) {
                     // Array index access - always returns JSON
@@ -1510,7 +1520,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case "cast" -> {
                 // Generate SQL CAST based on return type
-                PureType type = functionCall.returnType();
+                GenericType type = functionCall.returnType();
                 String sqlType = pureTypeToSql(type);
                 // When casting a list/array, use array type (e.g., INTEGER[] not INTEGER)
                 if (functionCall.target() instanceof ListLiteral) {
@@ -1766,30 +1776,133 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     }
 
     /**
-     * Maps a PureType to its SQL type string for this dialect.
+     * Maps a Pure function name to its SQL equivalent.
+     * This is the single point where Pure function names are converted to SQL.
+     */
+    private static String toSqlFunctionName(String functionName) {
+        return switch (functionName.toLowerCase()) {
+            // String functions
+            case "toupper" -> "UPPER";
+            case "tolower" -> "LOWER";
+            case "trim" -> "TRIM";
+            case "length" -> "LENGTH";
+            case "reversestring", "reverse" -> "REVERSE";
+            case "substring" -> "SUBSTRING";
+            case "concat" -> "CONCAT";
+            case "startswith" -> "STARTS_WITH";
+            case "endswith" -> "ENDS_WITH";
+            case "contains" -> "STRPOS";
+            case "indexof" -> "INSTR";
+            case "matches" -> "REGEXP_MATCHES";
+            case "levenshteindistance" -> "LEVENSHTEIN";
+            case "jarowinklersimilarity" -> "JARO_WINKLER_SIMILARITY";
+
+            // Math functions
+            case "abs" -> "ABS";
+            case "round" -> "ROUND";
+            case "ceiling", "ceil" -> "CEIL";
+            case "floor" -> "FLOOR";
+            case "sqrt" -> "SQRT";
+            case "exp" -> "EXP";
+            case "log" -> "LN";
+            case "log10" -> "LOG10";
+            case "sin" -> "SIN";
+            case "cos" -> "COS";
+            case "tan" -> "TAN";
+            case "asin" -> "ASIN";
+            case "acos" -> "ACOS";
+            case "atan" -> "ATAN";
+            case "atan2" -> "ATAN2";
+            case "toradians" -> "RADIANS";
+            case "todegrees" -> "DEGREES";
+            case "rem" -> "MOD";
+            case "pow", "power" -> "POW";
+            case "sign" -> "SIGN";
+
+            // Type/Cast functions
+            case "type" -> "TYPEOF";
+            case "tostring" -> "CAST";
+            case "tointeger", "parseinteger" -> "CAST";
+            case "parsefloat" -> "CAST";
+            case "parsedecimal" -> "CAST";
+            case "parseboolean" -> "CAST";
+
+            // Collection/null functions
+            case "isempty" -> "COALESCE";
+            case "size" -> "LENGTH";
+            case "first" -> "FIRST";
+            case "last" -> "LAST";
+
+            // Bit operations
+            case "bitxor" -> "XOR";
+            case "bitor" -> "|";
+            case "bitand" -> "&";
+            case "bitnot", "bit_not" -> "~";
+            case "bitshiftleft" -> "<<";
+            case "bitshiftright" -> ">>";
+
+            // Hash functions
+            case "hashcode", "hash" -> "HASH";
+
+            // Date functions
+            case "monthnumber", "month" -> "MONTH";
+            case "daynumber", "day" -> "DAY";
+            case "yearnumber", "year" -> "YEAR";
+            case "hournumber", "hour" -> "HOUR";
+            case "minutenumber", "minute" -> "MINUTE";
+            case "secondnumber", "second" -> "SECOND";
+
+            // Aggregate functions
+            case "variancesample", "variance" -> "VAR_SAMP";
+            case "variancepopulation" -> "VAR_POP";
+            case "covarsample", "covariance" -> "COVAR_SAMP";
+            case "covarpopulation" -> "COVAR_POP";
+            case "stddevsample", "stddev" -> "STDDEV_SAMP";
+            case "stddevpopulation" -> "STDDEV_POP";
+            case "median" -> "MEDIAN";
+            case "mode" -> "MODE";
+            case "percentile" -> "QUANTILE_CONT";
+            case "minby" -> "ARG_MIN";
+            case "maxby" -> "ARG_MAX";
+
+            // Variant/JSON functions
+            case "fromjson" -> "FROMJSON";
+            case "tojson" -> "TOJSON";
+            case "get" -> "GET";
+
+            default -> functionName.toUpperCase();
+        };
+    }
+
+    /**
+     * Maps a GenericType to its SQL type string for this dialect.
      * This is the single point where Pure types are converted to SQL types.
      */
-    private static String pureTypeToSql(PureType type) {
-        return switch (type) {
-            case INTEGER -> "BIGINT";
-            case FLOAT, NUMBER -> "DOUBLE";
-            case DECIMAL -> "DECIMAL";
-            case STRING, ENUM -> "VARCHAR";
-            case BOOLEAN -> "BOOLEAN";
-            case STRICT_DATE -> "DATE";
-            case DATE_TIME, DATE -> "TIMESTAMP";
-            case STRICT_TIME -> "TIME";
-            case JSON -> "JSON";
-            case LIST -> "JSON";
-            case UNKNOWN -> "VARCHAR";
-        };
+    private static String pureTypeToSql(GenericType type) {
+        if (type instanceof GenericType.Primitive p) {
+            return switch (p) {
+                case INTEGER -> "BIGINT";
+                case FLOAT, NUMBER -> "DOUBLE";
+                case DECIMAL -> "DECIMAL";
+                case STRING -> "VARCHAR";
+                case BOOLEAN -> "BOOLEAN";
+                case STRICT_DATE -> "DATE";
+                case DATE_TIME, DATE -> "TIMESTAMP";
+                case STRICT_TIME -> "TIME";
+                case JSON -> "JSON";
+                case ANY, NIL -> "VARCHAR";
+            };
+        }
+        if (type instanceof GenericType.EnumType) return "VARCHAR";
+        if (type.isList()) return "JSON";
+        return "VARCHAR";
     }
 
     private boolean isStringExpression(Expression expr) {
         if (expr instanceof Literal lit && lit.value() instanceof String) return true;
         if (expr instanceof ColumnReference) return false; // Could be any type
         if (expr instanceof ArithmeticExpression arith) return isStringExpression(arith.left());
-        if (expr.type() == PureType.STRING) return true;
+        if (expr.type() == GenericType.Primitive.STRING) return true;
         return false;
     }
 
@@ -2021,7 +2134,20 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     public String visit(CastExpression castExpr) {
         // CAST(expr AS type)
         String source = castExpr.source().accept(this);
-        return "CAST(" + source + " AS " + castExpr.targetType() + ")";
+        String sqlType = pureTypeToSql(castExpr.targetType());
+        // DuckDB time_bucket returns TIMESTAMP; use TIMESTAMP_NS for nanosecond precision
+        if (castExpr.targetType() == GenericType.Primitive.DATE_TIME && isTimeBucketSource(castExpr.source())) {
+            sqlType = "TIMESTAMP_NS";
+        }
+        if (castExpr.isArray()) {
+            sqlType = sqlType + "[]";
+        }
+        return "CAST(" + source + " AS " + sqlType + ")";
+    }
+
+    private boolean isTimeBucketSource(Expression expr) {
+        if (expr instanceof TimeBucketExpression) return true;
+        return expr instanceof FunctionExpression fe && "time_bucket".equalsIgnoreCase(fe.functionName());
     }
 
     @Override
@@ -2211,7 +2337,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
     // ==================== Collection Function Support ====================
 
     @Override
-    public String visitCollectionCall(SqlCollectionCall call) {
+    public String visitCollectionCall(CollectionExpression call) {
         String source = call.source().accept(this);
 
         // Only cast to JSON[] if source is a raw JSON extraction (function call like
@@ -2220,9 +2346,9 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         // etc.),
         // a list literal, or other already-typed arrays
         String listSource;
-        if (call.source() instanceof SqlCollectionCall || call.source() instanceof ListLiteral) {
+        if (call.source() instanceof CollectionExpression || call.source() instanceof ListLiteral) {
             listSource = source; // Already a properly typed list - don't cast
-        } else if (call.source() instanceof SqlFunctionCall func
+        } else if (call.source() instanceof FunctionExpression func
                 && (func.functionName().equals("get") || func.functionName().equals("fromjson"))) {
             listSource = "CAST(" + source + " AS JSON[])"; // JSON extraction needs cast
         } else {

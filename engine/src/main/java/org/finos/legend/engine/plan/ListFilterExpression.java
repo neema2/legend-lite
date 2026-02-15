@@ -14,8 +14,8 @@ public record ListFilterExpression(
         Expression condition) implements Expression {
 
     @Override
-    public PureType type() {
-        return PureType.LIST;
+    public GenericType type() {
+        return GenericType.LIST_ANY();
     }
 
     @Override

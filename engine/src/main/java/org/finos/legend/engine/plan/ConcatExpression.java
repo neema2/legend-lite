@@ -27,8 +27,8 @@ public record ConcatExpression(List<Expression> parts) implements Expression {
     }
     
     @Override
-    public PureType type() {
-        return PureType.STRING;
+    public GenericType type() {
+        return GenericType.Primitive.STRING;
     }
 
     @Override

@@ -15,8 +15,8 @@ public record DateAdjustExpression(
         DurationUnit unit) implements Expression {
 
     @Override
-    public PureType type() {
-        return date.type() != PureType.UNKNOWN ? date.type() : PureType.DATE_TIME;
+    public GenericType type() {
+        return date.type() != GenericType.Primitive.ANY ? date.type() : GenericType.Primitive.DATE_TIME;
     }
 
     @Override

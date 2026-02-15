@@ -1,6 +1,7 @@
 package org.finos.legend.pure.dsl;
 
 import org.finos.legend.engine.plan.*;
+import org.finos.legend.engine.plan.GenericType.Primitive;
 import org.finos.legend.engine.store.*;
 import org.finos.legend.pure.dsl.ModelContext.AssociationNavigation;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
@@ -3454,7 +3455,7 @@ public final class PureCompiler {
                 yield switch (unary.operator()) {
                     case "-" -> ArithmeticExpression.multiply(Literal.integer(-1), operand);
                     case "+" -> operand;
-                    case "!" -> SqlFunctionCall.of("NOT", operand);
+                    case "!" -> FunctionExpression.of("NOT", operand);
                     default -> throw new PureCompileException("Unknown unary operator: " + unary.operator());
                 };
             }
@@ -3468,7 +3469,7 @@ public final class PureCompiler {
                 // This creates a JSON[] (list of JSON scalars) which preserves per-element type info
                 if (sqlElements.size() > 1 && hasMixedTypes(sqlElements)) {
                     List<Expression> jsonElements = sqlElements.stream()
-                            .map(e -> (Expression) SqlFunctionCall.of("to_json", e))
+                            .map(e -> (Expression) FunctionExpression.of("to_json", e))
                             .toList();
                     yield ListLiteral.of(jsonElements);
                 }
@@ -3478,27 +3479,27 @@ public final class PureCompiler {
             case DropExpression drop -> {
                 Expression list = compileToSqlExpression(drop.source(), context);
                 // list_slice(list, n+1) — DuckDB 1-based, drop first n elements
-                yield SqlFunctionCall.of("list_slice", list,
+                yield FunctionExpression.of("list_slice", list,
                         Literal.integer(drop.count() + 1),
-                        SqlFunctionCall.of("len", list));
+                        FunctionExpression.of("len", list));
             }
             case LimitExpression limit -> {
                 Expression list = compileToSqlExpression(limit.source(), context);
                 // list_slice(list, 1, n) — take first n elements
                 int n = Math.max(0, limit.count());
-                yield SqlFunctionCall.of("list_slice", list, Literal.integer(1), Literal.integer(n));
+                yield FunctionExpression.of("list_slice", list, Literal.integer(1), Literal.integer(n));
             }
             case SliceExpression slice -> {
                 Expression list = compileToSqlExpression(slice.source(), context);
                 // list_slice(list, start+1, end) — Pure slice is 0-based, DuckDB is 1-based
                 int start = Math.max(0, slice.start());
-                yield SqlFunctionCall.of("list_slice", list,
+                yield FunctionExpression.of("list_slice", list,
                         Literal.integer(start + 1), Literal.integer(slice.end()));
             }
             case FirstExpression first -> {
                 Expression list = compileToSqlExpression(first.source(), context);
                 // list[1] — first element (1-based in DuckDB)
-                yield SqlFunctionCall.of("list_extract", list, Literal.integer(1));
+                yield FunctionExpression.of("list_extract", list, Literal.integer(1));
             }
             case ConcatenateExpression concat -> {
                 Expression left = compileToSqlExpression(concat.left(), context);
@@ -3511,14 +3512,14 @@ public final class PureCompiler {
                     // At least one side is already JSON[]; wrap the other if needed
                     if (!leftIsJson) left = wrapListToJson(left);
                     if (!rightIsJson) right = wrapListToJson(right);
-                    yield SqlFunctionCall.of("list_concat", left, right);
+                    yield FunctionExpression.of("list_concat", left, right);
                 }
                 // Check if the two sides have different element types (e.g., INTEGER[] vs VARCHAR[])
                 if (needsCrossTypeConcatPromotion(left, right)) {
                     left = wrapListToJson(left);
                     right = wrapListToJson(right);
                 }
-                yield SqlFunctionCall.of("list_concat", left, right);
+                yield FunctionExpression.of("list_concat", left, right);
             }
             case SortExpression sort when sort.source() instanceof ArrayLiteral -> {
                 Expression list = compileToSqlExpression(sort.source(), context);
@@ -3533,13 +3534,13 @@ public final class PureCompiler {
                     fields.put("k", keyBody);
                     fields.put("v", ColumnReference.of(param));
                     Expression structExpr = new StructLiteralExpression("_sort", fields);
-                    Expression tagged = SqlCollectionCall.map(list, param, structExpr);
-                    Expression sorted = SqlFunctionCall.of("list_sort", tagged, detectSortDirection(sort.sortColumns()));
+                    Expression tagged = CollectionExpression.map(list, param, structExpr);
+                    Expression sorted = FunctionExpression.of("list_sort", tagged, detectSortDirection(sort.sortColumns()));
                     String param2 = "_sv";
-                    Expression extractVal = SqlFunctionCall.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
-                    yield SqlCollectionCall.map(sorted, param2, extractVal);
+                    Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
+                    yield CollectionExpression.map(sorted, param2, extractVal);
                 }
-                yield SqlFunctionCall.of("list_sort", list, detectSortDirection(sort.sortColumns()));
+                yield FunctionExpression.of("list_sort", list, detectSortDirection(sort.sortColumns()));
             }
             // Relation expressions that reach here need special handling
             case TdsLiteral tds -> {
@@ -3576,7 +3577,7 @@ public final class PureCompiler {
                 // Collection sort: $list->sort() has empty sortColumns and non-relation source
                 if (sort.sortColumns().isEmpty()) {
                     Expression source = compileToSqlExpression(sort.source(), context);
-                    yield SqlFunctionCall.of("list_sort", source);
+                    yield FunctionExpression.of("list_sort", source);
                 }
                 // Collection sort with comparator: $list->sort({x,y|$y->compare($x)})
                 // or sort with key function: $list->sort(keyFn, comparatorFn)
@@ -3599,13 +3600,13 @@ public final class PureCompiler {
                         fields.put("k", keyBody);
                         fields.put("v", ColumnReference.of(param));
                         Expression structExpr = new StructLiteralExpression("_sort", fields);
-                        Expression tagged = SqlCollectionCall.map(source, param, structExpr);
-                        Expression sorted = SqlFunctionCall.of("list_sort", tagged, detectSortDirection(sort.sortColumns()));
+                        Expression tagged = CollectionExpression.map(source, param, structExpr);
+                        Expression sorted = FunctionExpression.of("list_sort", tagged, detectSortDirection(sort.sortColumns()));
                         String param2 = "_sv";
-                        Expression extractVal = SqlFunctionCall.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
-                        yield SqlCollectionCall.map(sorted, param2, extractVal);
+                        Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
+                        yield CollectionExpression.map(sorted, param2, extractVal);
                     }
-                    yield SqlFunctionCall.of("list_sort", source, detectSortDirection(sort.sortColumns()));
+                    yield FunctionExpression.of("list_sort", source, detectSortDirection(sort.sortColumns()));
                 }
                 // Otherwise it's a relation sort that should be handled elsewhere
                 throw new PureCompileException(
@@ -3683,7 +3684,7 @@ public final class PureCompiler {
                     throw new PureCompileException("greatest() requires at least one argument");
                 }
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_max", compileToSqlExpression(args.getFirst(), context));
+                    yield FunctionExpression.of("list_max", compileToSqlExpression(args.getFirst(), context));
                 }
                 yield compileToSqlExpression(args.getFirst(), context);
             }
@@ -3693,7 +3694,7 @@ public final class PureCompiler {
                     throw new PureCompileException("least() requires at least one argument");
                 }
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_min", compileToSqlExpression(args.getFirst(), context));
+                    yield FunctionExpression.of("list_min", compileToSqlExpression(args.getFirst(), context));
                 }
                 yield compileToSqlExpression(args.getFirst(), context);
             }
@@ -3703,13 +3704,11 @@ public final class PureCompiler {
                     throw new PureCompileException("toMany() requires source and type arguments");
                 }
                 Expression source = compileToSqlExpression(args.get(0), context);
-                // Second arg is TypeReference - get the SQL type
-                String sqlType = "VARCHAR"; // default
+                GenericType pureType = Primitive.STRING; // default
                 if (args.get(1) instanceof TypeReference typeRef) {
-                    sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                    pureType = GenericType.fromTypeName(typeRef.typeName());
                 }
-                // In DuckDB: CAST(json_column AS BIGINT[])
-                yield new org.finos.legend.engine.plan.CastExpression(source, sqlType + "[]");
+                yield new org.finos.legend.engine.plan.CastExpression(source, pureType, true);
             }
             // Variant conversion: toVariant() -> to_json(value)
             case "toVariant" -> {
@@ -3717,7 +3716,7 @@ public final class PureCompiler {
                     throw new PureCompileException("toVariant() requires an argument");
                 }
                 Expression source = compileToSqlExpression(args.getFirst(), context);
-                yield SqlFunctionCall.of("to_json", source);
+                yield FunctionExpression.of("to_json", source);
             }
             // Variant conversion: to(@Type) -> CAST(json_value AS Type) for scalar
             // extraction
@@ -3726,13 +3725,11 @@ public final class PureCompiler {
                     throw new PureCompileException("to() requires source and type arguments");
                 }
                 Expression source = compileToSqlExpression(args.get(0), context);
-                // Second arg is TypeReference - get the SQL type
-                String sqlType = "VARCHAR"; // default
+                GenericType pureType = Primitive.STRING; // default
                 if (args.get(1) instanceof TypeReference typeRef) {
-                    sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                    pureType = GenericType.fromTypeName(typeRef.typeName());
                 }
-                // In DuckDB: CAST(json_value AS BIGINT)
-                yield new org.finos.legend.engine.plan.CastExpression(source, sqlType);
+                yield new org.finos.legend.engine.plan.CastExpression(source, pureType);
             }
             // Collection: add(list, element) or add(list, offset, element)
             case "add" -> {
@@ -3743,19 +3740,19 @@ public final class PureCompiler {
                 if (args.size() == 2) {
                     // add(list, element) -> list_append(list, element)
                     Expression element = compileToSqlExpression(args.get(1), context);
-                    yield SqlFunctionCall.of("list_append", source, element);
+                    yield FunctionExpression.of("list_append", source, element);
                 }
                 // add(list, offset, element) -> splice via list_concat + list_slice
                 // Pure offset is 0-based, DuckDB list_slice is 1-based inclusive
                 Expression offset = compileToSqlExpression(args.get(1), context);
                 Expression element = compileToSqlExpression(args.get(2), context);
-                Expression before = SqlFunctionCall.of("list_slice", source, Literal.integer(1), offset);
-                Expression elemList = SqlFunctionCall.of("list_value", element);
+                Expression before = FunctionExpression.of("list_slice", source, Literal.integer(1), offset);
+                Expression elemList = FunctionExpression.of("list_value", element);
                 Expression afterStart = ArithmeticExpression.add(offset, Literal.integer(1));
-                Expression listLen = SqlFunctionCall.of("length", source);
-                Expression after = SqlFunctionCall.of("list_slice", source, afterStart, listLen);
-                yield SqlFunctionCall.of("list_concat",
-                        SqlFunctionCall.of("list_concat", before, elemList), after);
+                Expression listLen = FunctionExpression.of("length", source);
+                Expression after = FunctionExpression.of("list_slice", source, afterStart, listLen);
+                yield FunctionExpression.of("list_concat",
+                        FunctionExpression.of("list_concat", before, elemList), after);
             }
             // Collection: reverse() -> list_reverse(list)
             case "reverse" -> {
@@ -3763,7 +3760,7 @@ public final class PureCompiler {
                     throw new PureCompileException("reverse() requires an argument");
                 }
                 Expression source = compileToSqlExpression(args.getFirst(), context);
-                yield SqlFunctionCall.of("list_reverse", source);
+                yield FunctionExpression.of("list_reverse", source);
             }
             // Collection: sort() -> list_sort(list)
             case "sort" -> {
@@ -3771,129 +3768,129 @@ public final class PureCompiler {
                     throw new PureCompileException("sort() requires an argument");
                 }
                 Expression source = compileToSqlExpression(args.getFirst(), context);
-                yield SqlFunctionCall.of("list_sort", source);
+                yield FunctionExpression.of("list_sort", source);
             }
             case "in" -> compilePureFunctionIn(args, context);
             case "toString" -> {
                 if (args.isEmpty()) throw new PureCompileException("toString() requires an argument");
-                yield new SqlFunctionCall("cast",
+                yield new FunctionExpression("cast",
                         compileToSqlExpression(args.getFirst(), context),
-                        java.util.List.of(), PureType.STRING);
+                        java.util.List.of(), Primitive.STRING);
             }
             case "parseInteger" -> {
                 if (args.isEmpty()) throw new PureCompileException("parseInteger() requires an argument");
                 yield new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(args.getFirst(), context), "BIGINT");
+                        compileToSqlExpression(args.getFirst(), context), Primitive.INTEGER);
             }
             case "parseFloat" -> {
                 if (args.isEmpty()) throw new PureCompileException("parseFloat() requires an argument");
                 yield new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(args.getFirst(), context), "DOUBLE");
+                        compileToSqlExpression(args.getFirst(), context), Primitive.FLOAT);
             }
             case "parseDecimal" -> {
                 if (args.isEmpty()) throw new PureCompileException("parseDecimal() requires an argument");
                 // Strip d/D suffix, cast to DOUBLE for full numeric precision
                 // IR type is DECIMAL so adapter creates Pure Decimal
                 Expression src = compileToSqlExpression(args.getFirst(), context);
-                Expression stripped = SqlFunctionCall.of("regexp_replace", src, Literal.string("[dD]$"), Literal.string(""));
-                yield new org.finos.legend.engine.plan.CastExpression(stripped, "DECIMAL");
+                Expression stripped = FunctionExpression.of("regexp_replace", src, Literal.string("[dD]$"), Literal.string(""));
+                yield new org.finos.legend.engine.plan.CastExpression(stripped, Primitive.DECIMAL);
             }
             case "parseBoolean" -> {
                 if (args.isEmpty()) throw new PureCompileException("parseBoolean() requires an argument");
                 yield new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(args.getFirst(), context), "BOOLEAN");
+                        compileToSqlExpression(args.getFirst(), context), Primitive.BOOLEAN);
             }
             case "char" -> {
                 if (args.isEmpty()) throw new PureCompileException("char() requires an argument");
-                yield SqlFunctionCall.of("chr", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("chr", compileToSqlExpression(args.getFirst(), context));
             }
             case "ascii" -> {
                 if (args.isEmpty()) throw new PureCompileException("ascii() requires an argument");
-                yield SqlFunctionCall.of("ASCII", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("ASCII", compileToSqlExpression(args.getFirst(), context));
             }
             // List aggregate functions (function-call style)
             case "sum", "plus" -> {
                 if (args.isEmpty()) throw new PureCompileException("sum() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_sum", compileToSqlExpression(args.getFirst(), context));
+                    yield FunctionExpression.of("list_sum", compileToSqlExpression(args.getFirst(), context));
                 }
                 yield compileToSqlExpression(args.getFirst(), context);
             }
             case "average", "mean" -> {
                 if (args.isEmpty()) throw new PureCompileException("average() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_avg", compileToSqlExpression(args.getFirst(), context));
+                    yield FunctionExpression.of("list_avg", compileToSqlExpression(args.getFirst(), context));
                 }
                 // average/mean always returns Float, so cast scalar to DOUBLE
                 yield new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(args.getFirst(), context), "DOUBLE");
+                        compileToSqlExpression(args.getFirst(), context), Primitive.FLOAT);
             }
             case "min" -> {
                 if (args.isEmpty()) throw new PureCompileException("min() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_min", compileToSqlExpression(args.getFirst(), context));
+                    yield FunctionExpression.of("list_min", compileToSqlExpression(args.getFirst(), context));
                 }
                 if (args.size() >= 2) {
                     // min(a, b) -> LEAST(a, b) for scalar comparison
-                    yield SqlFunctionCall.of("least",
+                    yield FunctionExpression.of("least",
                             compileToSqlExpression(args.get(0), context),
                             compileToSqlExpression(args.get(1), context));
                 }
-                yield SqlFunctionCall.of("min", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("min", compileToSqlExpression(args.getFirst(), context));
             }
             case "max" -> {
                 if (args.isEmpty()) throw new PureCompileException("max() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_max", compileToSqlExpression(args.getFirst(), context));
+                    yield FunctionExpression.of("list_max", compileToSqlExpression(args.getFirst(), context));
                 }
                 if (args.size() >= 2) {
                     // max(a, b) -> GREATEST(a, b) for scalar comparison
-                    yield SqlFunctionCall.of("greatest",
+                    yield FunctionExpression.of("greatest",
                             compileToSqlExpression(args.get(0), context),
                             compileToSqlExpression(args.get(1), context));
                 }
-                yield SqlFunctionCall.of("max", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("max", compileToSqlExpression(args.getFirst(), context));
             }
             case "mode" -> {
                 if (args.isEmpty()) throw new PureCompileException("mode() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(args.getFirst(), context), Literal.of("mode"));
                 }
-                yield SqlFunctionCall.of("mode", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("mode", compileToSqlExpression(args.getFirst(), context));
             }
             case "stdDevSample" -> {
                 if (args.isEmpty()) throw new PureCompileException("stdDevSample() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_samp"));
                 }
-                yield SqlFunctionCall.of("stddev_samp", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("stddev_samp", compileToSqlExpression(args.getFirst(), context));
             }
             case "stdDevPopulation" -> {
                 if (args.isEmpty()) throw new PureCompileException("stdDevPopulation() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_pop"));
                 }
-                yield SqlFunctionCall.of("stddev_pop", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("stddev_pop", compileToSqlExpression(args.getFirst(), context));
             }
             case "median" -> {
                 if (args.isEmpty()) throw new PureCompileException("median() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(args.getFirst(), context), Literal.of("median"));
                 }
-                yield SqlFunctionCall.of("median", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("median", compileToSqlExpression(args.getFirst(), context));
             }
             case "varianceSample" -> {
                 if (args.isEmpty()) throw new PureCompileException("varianceSample() requires an argument");
-                yield SqlFunctionCall.of("list_aggr",
+                yield FunctionExpression.of("list_aggr",
                         compileToSqlExpression(args.getFirst(), context), Literal.of("var_samp"));
             }
             case "variancePopulation" -> {
                 if (args.isEmpty()) throw new PureCompileException("variancePopulation() requires an argument");
-                yield SqlFunctionCall.of("list_aggr",
+                yield FunctionExpression.of("list_aggr",
                         compileToSqlExpression(args.getFirst(), context), Literal.of("var_pop"));
             }
             case "covarSample" -> {
@@ -3921,14 +3918,14 @@ public final class PureCompiler {
             case "and" -> {
                 if (args.isEmpty()) throw new PureCompileException("and() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_bool_and", compileToSqlExpression(args.getFirst(), context));
+                    yield FunctionExpression.of("list_bool_and", compileToSqlExpression(args.getFirst(), context));
                 }
                 yield compileToSqlExpression(args.getFirst(), context);
             }
             case "or" -> {
                 if (args.isEmpty()) throw new PureCompileException("or() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_bool_or", compileToSqlExpression(args.getFirst(), context));
+                    yield FunctionExpression.of("list_bool_or", compileToSqlExpression(args.getFirst(), context));
                 }
                 yield compileToSqlExpression(args.getFirst(), context);
             }
@@ -3957,20 +3954,20 @@ public final class PureCompiler {
                 }
                 // Map Pure hash types to DuckDB functions
                 if (hashType.contains("SHA256")) {
-                    yield SqlFunctionCall.of("sha256", src);
+                    yield FunctionExpression.of("sha256", src);
                 } else if (hashType.contains("SHA1")) {
-                    yield SqlFunctionCall.of("sha1", src);
+                    yield FunctionExpression.of("sha1", src);
                 }
                 // Default (MD5 or unknown): use md5
-                yield SqlFunctionCall.of("md5", src);
+                yield FunctionExpression.of("md5", src);
             }
             // generateGuid() -> uuid()
             case "generateGuid" -> {
-                yield SqlFunctionCall.of("uuid");
+                yield FunctionExpression.of("uuid");
             }
             // pi() -> pi()
             case "pi" -> {
-                yield SqlFunctionCall.of("pi");
+                yield FunctionExpression.of("pi");
             }
             // round(x) or round(x, scale) -> round_even for no-scale, round(x, scale) with scale
             case "round" -> {
@@ -3979,11 +3976,11 @@ public final class PureCompiler {
                 if (args.size() == 1) {
                     // round(x) -> CAST(ROUND_EVEN(x, 0) AS BIGINT)
                     yield new org.finos.legend.engine.plan.CastExpression(
-                            SqlFunctionCall.of("round_even", src, Literal.integer(0)), "BIGINT");
+                            FunctionExpression.of("round_even", src, Literal.integer(0)), Primitive.INTEGER);
                 } else {
                     // round(x, scale) -> ROUND_EVEN(x, scale)
                     Expression scale = compileToSqlExpression(args.get(1), context);
-                    yield SqlFunctionCall.of("round_even", src, scale);
+                    yield FunctionExpression.of("round_even", src, scale);
                 }
             }
             // mod(a, b) -> mod(mod(a, b) + b, b) (Pure mod is always non-negative)
@@ -3991,9 +3988,9 @@ public final class PureCompiler {
                 if (args.size() < 2) throw new PureCompileException("mod() requires 2 arguments");
                 Expression a = compileToSqlExpression(args.get(0), context);
                 Expression b = compileToSqlExpression(args.get(1), context);
-                Expression innerMod = SqlFunctionCall.of("mod", a, b);
+                Expression innerMod = FunctionExpression.of("mod", a, b);
                 Expression addB = ArithmeticExpression.add(innerMod, b);
-                yield SqlFunctionCall.of("mod", addB, b);
+                yield FunctionExpression.of("mod", addB, b);
             }
             // between(x, low, high) -> x >= low AND x <= high
             case "between" -> {
@@ -4023,13 +4020,13 @@ public final class PureCompiler {
                 if (args.isEmpty()) throw new PureCompileException("parseDate() requires a string argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
                 if (args.size() == 1) {
-                    // No format: auto-parse via CAST (TIMESTAMPTZ preserves timezone)
-                    yield new org.finos.legend.engine.plan.CastExpression(src, "TIMESTAMPTZ");
+                    // No format: parseDate IR node, generator emits CAST(... AS TIMESTAMPTZ)
+                    yield FunctionExpression.of("parseDate", src, Primitive.DATE_TIME);
                 }
-                yield new SqlFunctionCall("cast",
-                        SqlFunctionCall.of("strptime", src,
+                yield new FunctionExpression("cast",
+                        FunctionExpression.of("strptime", src,
                                 compileToSqlExpression(args.get(1), context)),
-                        java.util.List.of(), PureType.STRICT_DATE);
+                        java.util.List.of(), Primitive.STRICT_DATE);
             }
             case "hasMonth", "hasDay" -> {
                 if (args.isEmpty()) throw new PureCompileException(simpleName + "() requires a date argument");
@@ -4070,7 +4067,7 @@ public final class PureCompiler {
                     Expression a = compileToSqlExpression(args.get(0), context);
                     Expression b = compileToSqlExpression(args.get(1), context);
                     Expression scale = compileToSqlExpression(args.get(2), context);
-                    yield SqlFunctionCall.of("round", ArithmeticExpression.divide(a, b), scale);
+                    yield FunctionExpression.of("round", ArithmeticExpression.divide(a, b), scale);
                 }
                 // 2-arg divide: normal division
                 if (args.size() == 2) {
@@ -4096,10 +4093,10 @@ public final class PureCompiler {
                 }
                 Expression target = sqlArgs.getFirst();
                 if (sqlArgs.size() == 1) {
-                    yield SqlFunctionCall.of(funcName, target);
+                    yield FunctionExpression.of(funcName, target);
                 } else {
                     Expression[] additionalArgs = sqlArgs.subList(1, sqlArgs.size()).toArray(new Expression[0]);
-                    yield SqlFunctionCall.of(funcName, target, additionalArgs);
+                    yield FunctionExpression.of(funcName, target, additionalArgs);
                 }
             }
         };
@@ -4332,7 +4329,7 @@ public final class PureCompiler {
 
         // DuckDB doesn't have a direct removeDuplicatesBy, so approximate with list_distinct
         // This removes exact duplicates (correct when keyFn is identity/toString)
-        return SqlFunctionCall.of("list_distinct", source);
+        return FunctionExpression.of("list_distinct", source);
     }
 
     /**
@@ -4347,9 +4344,9 @@ public final class PureCompiler {
 
             // COALESCE(list_bool_and(list_transform(source, param -> condition)), true)
             // COALESCE handles empty list case (vacuous truth: forAll on [] = true)
-            Expression transformed = SqlCollectionCall.map(source, param, condition);
-            Expression boolAnd = SqlFunctionCall.of("list_bool_and", transformed);
-            return SqlFunctionCall.of("COALESCE", boolAnd, new Literal(true, Literal.LiteralType.BOOLEAN));
+            Expression transformed = CollectionExpression.map(source, param, condition);
+            Expression boolAnd = FunctionExpression.of("list_bool_and", transformed);
+            return FunctionExpression.of("COALESCE", boolAnd, new Literal(true, Literal.LiteralType.BOOLEAN));
         }
         throw new PureCompileException("forAll() predicate must be a lambda, got: " + predicate);
     }
@@ -4367,7 +4364,7 @@ public final class PureCompiler {
             // list_filter(source, param -> condition)
             Expression filtered = new ListFilterExpression(source, param, condition);
             // [1] — first matching element
-            return SqlFunctionCall.of("list_extract", filtered, Literal.integer(1));
+            return FunctionExpression.of("list_extract", filtered, Literal.integer(1));
         }
         throw new PureCompileException("find() predicate must be a lambda, got: " + predicate);
     }
@@ -4401,34 +4398,34 @@ public final class PureCompiler {
 
         // If the list is JSON[] (mixed-type), wrap the search element in to_json() too
         if (isJsonList(list)) {
-            operand = SqlFunctionCall.of("to_json", operand);
+            operand = FunctionExpression.of("to_json", operand);
         }
-        return SqlFunctionCall.of("list_contains", list, operand);
+        return FunctionExpression.of("list_contains", list, operand);
     }
 
     /**
-     * Compiles cast(@Type) to a SqlFunctionCall with appropriate return type.
+     * Compiles cast(@Type) to a FunctionExpression with appropriate return type.
      */
     private Expression compileCastExpression(CastExpression cast, CompilationContext context) {
         Expression source = compileToSqlExpression(cast.source(), context);
-        PureType targetType = mapTypeName(cast.targetType());
-        return SqlFunctionCall.of("cast", source, targetType);
+        GenericType targetType = mapTypeName(cast.targetType());
+        return FunctionExpression.of("cast", source, targetType);
     }
 
     /**
      * Maps Pure type names to PureType.
      */
-    private PureType mapTypeName(String typeName) {
+    private GenericType mapTypeName(String typeName) {
         return switch (typeName.toLowerCase()) {
-            case "integer", "int" -> PureType.INTEGER;
-            case "float", "double", "number" -> PureType.FLOAT;
-            case "string", "varchar" -> PureType.STRING;
-            case "boolean", "bool" -> PureType.BOOLEAN;
-            case "date" -> PureType.DATE;
-            case "strictdate" -> PureType.STRICT_DATE;
-            case "datetime" -> PureType.DATE_TIME;
-            case "decimal" -> PureType.DECIMAL;
-            default -> PureType.UNKNOWN;
+            case "integer", "int" -> Primitive.INTEGER;
+            case "float", "double", "number" -> Primitive.FLOAT;
+            case "string", "varchar" -> Primitive.STRING;
+            case "boolean", "bool" -> Primitive.BOOLEAN;
+            case "date" -> Primitive.DATE;
+            case "strictdate" -> Primitive.STRICT_DATE;
+            case "datetime" -> Primitive.DATE_TIME;
+            case "decimal" -> Primitive.DECIMAL;
+            default -> Primitive.ANY;
         };
     }
 
@@ -4462,18 +4459,18 @@ public final class PureCompiler {
                 }
                 if (methodCall.arguments().size() == 1) {
                     Expression element = compileToSqlExpression(methodCall.arguments().getFirst(), context);
-                    yield SqlFunctionCall.of("list_append", source, element);
+                    yield FunctionExpression.of("list_append", source, element);
                 }
                 // add(offset, element) -> splice via list_concat + list_slice
                 Expression offset = compileToSqlExpression(methodCall.arguments().get(0), context);
                 Expression element = compileToSqlExpression(methodCall.arguments().get(1), context);
-                Expression before = SqlFunctionCall.of("list_slice", source, Literal.integer(1), offset);
-                Expression elemList = SqlFunctionCall.of("list_value", element);
+                Expression before = FunctionExpression.of("list_slice", source, Literal.integer(1), offset);
+                Expression elemList = FunctionExpression.of("list_value", element);
                 Expression afterStart = ArithmeticExpression.add(offset, Literal.integer(1));
-                Expression listLen = SqlFunctionCall.of("length", source);
-                Expression after = SqlFunctionCall.of("list_slice", source, afterStart, listLen);
-                yield SqlFunctionCall.of("list_concat",
-                        SqlFunctionCall.of("list_concat", before, elemList), after);
+                Expression listLen = FunctionExpression.of("length", source);
+                Expression after = FunctionExpression.of("list_slice", source, afterStart, listLen);
+                yield FunctionExpression.of("list_concat",
+                        FunctionExpression.of("list_concat", before, elemList), after);
             }
             // Pure multiplicity/meta functions - identity in SQL context
             case "toOne", "deactivate" -> compileToSqlExpression(methodCall.source(), context);
@@ -4534,7 +4531,7 @@ public final class PureCompiler {
             case "removeDuplicatesBy" -> {
                 Expression source = compileToSqlExpression(methodCall.source(), context);
                 // Approximate with list_distinct (exact duplicates only)
-                yield SqlFunctionCall.of("list_distinct", source);
+                yield FunctionExpression.of("list_distinct", source);
             }
             // Relation eval() - evaluates a column spec against a row
             // ~columnName->eval($row) compiles to just the column reference
@@ -4577,7 +4574,7 @@ public final class PureCompiler {
                     if (methodCall.arguments().isEmpty())
                         throw new PureCompileException("contains() requires an argument");
                     yield new ComparisonExpression(
-                            SqlFunctionCall.of("strpos",
+                            FunctionExpression.of("strpos",
                                     compileToSqlExpression(methodCall.source(), context),
                                     compileToSqlExpression(methodCall.arguments().getFirst(), context)),
                             ComparisonExpression.ComparisonOperator.GREATER_THAN, Literal.integer(0));
@@ -4592,13 +4589,13 @@ public final class PureCompiler {
             // greatest/least on arrays: [1,2,3]->greatest() -> list_max([1, 2, 3])
             case "greatest" -> {
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_max", compileToSqlExpression(methodCall.source(), context));
+                    yield FunctionExpression.of("list_max", compileToSqlExpression(methodCall.source(), context));
                 }
                 yield compileToSqlExpression(methodCall.source(), context);
             }
             case "least" -> {
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_min", compileToSqlExpression(methodCall.source(), context));
+                    yield FunctionExpression.of("list_min", compileToSqlExpression(methodCall.source(), context));
                 }
                 yield compileToSqlExpression(methodCall.source(), context);
             }
@@ -4616,9 +4613,9 @@ public final class PureCompiler {
                     int lastSep = className.lastIndexOf("::");
                     yield Literal.string(lastSep >= 0 ? className.substring(lastSep + 2) : className);
                 }
-                yield new SqlFunctionCall("cast",
+                yield new FunctionExpression("cast",
                         compileToSqlExpression(methodCall.source(), context),
-                        java.util.List.of(), PureType.STRING);
+                        java.util.List.of(), Primitive.STRING);
             }
 
             // ===== STRING FUNCTIONS =====
@@ -4640,7 +4637,7 @@ public final class PureCompiler {
                 }
 
                 // Create format function call — SQLGenerator handles dialect-specific translation
-                yield new SqlFunctionCall("format", formatStr, argExprs, PureType.STRING);
+                yield new FunctionExpression("format", formatStr, argExprs, Primitive.STRING);
             }
             case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx+1)
                 // Pure splitPart is 0-based, DuckDB split_part is 1-based
@@ -4656,7 +4653,7 @@ public final class PureCompiler {
                 Expression delim = compileToSqlExpression(args.get(0), context);
                 Expression idx = compileToSqlExpression(args.get(1), context);
                 Expression oneBasedIdx = ArithmeticExpression.add(idx, Literal.integer(1));
-                Expression splitResult = SqlFunctionCall.of("split_part", src, delim, oneBasedIdx);
+                Expression splitResult = FunctionExpression.of("split_part", src, delim, oneBasedIdx);
                 // CASE WHEN delim = '' THEN src ELSE split_part(...) END
                 yield CaseExpression.of(
                         ComparisonExpression.equals(delim, Literal.string("")),
@@ -4667,18 +4664,18 @@ public final class PureCompiler {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 // DuckDB: upper(s[1]) || s[2:]
                 yield new ConcatExpression(java.util.List.of(
-                        SqlFunctionCall.of("upper",
-                                new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
-                                        PureType.STRING)),
-                        new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), PureType.STRING)));
+                        FunctionExpression.of("upper",
+                                new FunctionExpression("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
+                                        Primitive.STRING)),
+                        new FunctionExpression("substr", src, java.util.List.of(Literal.of(2)), Primitive.STRING)));
             }
             case "toLowerFirstCharacter" -> { // lower(s[1]) || s[2:]
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 yield new ConcatExpression(java.util.List.of(
-                        SqlFunctionCall.of("lower",
-                                new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
-                                        PureType.STRING)),
-                        new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), PureType.STRING)));
+                        FunctionExpression.of("lower",
+                                new FunctionExpression("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
+                                        Primitive.STRING)),
+                        new FunctionExpression("substr", src, java.util.List.of(Literal.of(2)), Primitive.STRING)));
             }
             case "indexOf" -> { // indexOf on list or string
                 if (methodCall.arguments().isEmpty())
@@ -4688,7 +4685,7 @@ public final class PureCompiler {
                 if (methodCall.source() instanceof ArrayLiteral) {
                     // List indexOf: list_position(list, elem) returns 1-based, subtract 1 for 0-based
                     yield ArithmeticExpression.subtract(
-                            SqlFunctionCall.of("list_position", src, arg),
+                            FunctionExpression.of("list_position", src, arg),
                             Literal.integer(1));
                 }
                 // String indexOf: instr(string, search) returns 1-based, subtract 1 for Pure's 0-based
@@ -4697,17 +4694,17 @@ public final class PureCompiler {
                     Expression fromIndex = compileToSqlExpression(methodCall.arguments().get(1), context);
                     // DuckDB doesn't have instr with offset, so use:
                     // fromIndex + instr(substring(src, fromIndex+1), search) - 1
-                    Expression subStr = new SqlFunctionCall("substr", src,
+                    Expression subStr = new FunctionExpression("substr", src,
                             java.util.List.of(ArithmeticExpression.add(fromIndex, Literal.integer(1))),
-                            PureType.STRING);
+                            Primitive.STRING);
                     yield ArithmeticExpression.subtract(
                             ArithmeticExpression.add(
                                     fromIndex,
-                                    SqlFunctionCall.of("instr", subStr, arg)),
+                                    FunctionExpression.of("instr", subStr, arg)),
                             Literal.integer(1));
                 }
                 yield ArithmeticExpression.subtract(
-                        SqlFunctionCall.of("instr", src, arg),
+                        FunctionExpression.of("instr", src, arg),
                         Literal.integer(1));
             }
             case "substring" -> { // substring(start) or substring(start, end) — Pure is 0-based
@@ -4721,12 +4718,12 @@ public final class PureCompiler {
                     // substring(start, end) -> SUBSTRING(str, start+1, end-start)
                     Expression end = compileToSqlExpression(methodCall.arguments().get(1), context);
                     Expression length = ArithmeticExpression.subtract(end, start);
-                    yield new SqlFunctionCall("substr", src,
-                            java.util.List.of(oneBasedStart, length), PureType.STRING);
+                    yield new FunctionExpression("substr", src,
+                            java.util.List.of(oneBasedStart, length), Primitive.STRING);
                 }
                 // substring(start) -> SUBSTRING(str, start+1)
-                yield new SqlFunctionCall("substr", src,
-                        java.util.List.of(oneBasedStart), PureType.STRING);
+                yield new FunctionExpression("substr", src,
+                        java.util.List.of(oneBasedStart), Primitive.STRING);
             }
             case "lpad" -> { // lpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE lpad(s,n,fill) END
                 if (methodCall.arguments().isEmpty())
@@ -4741,15 +4738,15 @@ public final class PureCompiler {
                 //      ELSE lpad(s, n, fill) END
                 yield CaseExpression.of(
                         new ComparisonExpression(
-                                SqlFunctionCall.of("length", src),
+                                FunctionExpression.of("length", src),
                                 ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, len),
-                        SqlFunctionCall.of("left", src, len),
+                        FunctionExpression.of("left", src, len),
                         CaseExpression.of(
                                 new ComparisonExpression(
-                                        SqlFunctionCall.of("length", fill),
+                                        FunctionExpression.of("length", fill),
                                         ComparisonExpression.ComparisonOperator.EQUALS, Literal.integer(0)),
                                 src,
-                                SqlFunctionCall.of("lpad", src, len, fill)));
+                                FunctionExpression.of("lpad", src, len, fill)));
             }
             case "rpad" -> { // rpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE rpad(s,n,fill) END
                 if (methodCall.arguments().isEmpty())
@@ -4764,52 +4761,52 @@ public final class PureCompiler {
                 //      ELSE rpad(s, n, fill) END
                 yield CaseExpression.of(
                         new ComparisonExpression(
-                                SqlFunctionCall.of("length", src),
+                                FunctionExpression.of("length", src),
                                 ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, len),
-                        SqlFunctionCall.of("left", src, len),
+                        FunctionExpression.of("left", src, len),
                         CaseExpression.of(
                                 new ComparisonExpression(
-                                        SqlFunctionCall.of("length", fill),
+                                        FunctionExpression.of("length", fill),
                                         ComparisonExpression.ComparisonOperator.EQUALS, Literal.integer(0)),
                                 src,
-                                SqlFunctionCall.of("rpad", src, len, fill)));
+                                FunctionExpression.of("rpad", src, len, fill)));
             }
             case "char" -> // char(n) -> chr(n) (DuckDB uses chr, not char)
-                SqlFunctionCall.of("chr", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("chr", compileToSqlExpression(methodCall.source(), context));
             case "ascii" -> // ascii(s) -> ASCII(s)
-                SqlFunctionCall.of("ASCII", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("ASCII", compileToSqlExpression(methodCall.source(), context));
             case "parseInteger" -> // parseInteger(s) -> CAST(s AS BIGINT)
                 new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(methodCall.source(), context), "BIGINT");
+                        compileToSqlExpression(methodCall.source(), context), Primitive.INTEGER);
             case "parseFloat" -> // parseFloat(s) -> CAST(s AS DOUBLE)
                 new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(methodCall.source(), context), "DOUBLE");
+                        compileToSqlExpression(methodCall.source(), context), Primitive.FLOAT);
             case "parseDecimal" -> { // parseDecimal(s) -> CAST(regexp_replace(s, '[dD]$', '') AS DECIMAL)
                 Expression src = compileToSqlExpression(methodCall.source(), context);
-                Expression stripped = SqlFunctionCall.of("regexp_replace", src, Literal.string("[dD]$"), Literal.string(""));
-                yield new org.finos.legend.engine.plan.CastExpression(stripped, "DECIMAL");
+                Expression stripped = FunctionExpression.of("regexp_replace", src, Literal.string("[dD]$"), Literal.string(""));
+                yield new org.finos.legend.engine.plan.CastExpression(stripped, Primitive.DECIMAL);
             }
             case "parseBoolean" -> // parseBoolean(s) -> CAST(s AS BOOLEAN)
                 new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(methodCall.source(), context), "BOOLEAN");
+                        compileToSqlExpression(methodCall.source(), context), Primitive.BOOLEAN);
             case "repeatString" -> { // repeatString(s, n) -> repeat(s, n)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("repeatString requires a count argument");
-                yield SqlFunctionCall.of("repeat",
+                yield FunctionExpression.of("repeat",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
             case "startsWith" -> { // startsWith(s, prefix) -> starts_with(s, prefix)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("startsWith requires an argument");
-                yield SqlFunctionCall.of("starts_with",
+                yield FunctionExpression.of("starts_with",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
             case "endsWith" -> { // endsWith(s, suffix) -> suffix_search(s, suffix)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("endsWith requires an argument");
-                yield SqlFunctionCall.of("ends_with",
+                yield FunctionExpression.of("ends_with",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
@@ -4827,14 +4824,14 @@ public final class PureCompiler {
                     Expression separator = compileToSqlExpression(methodCall.arguments().get(1), context);
                     Expression suffix = compileToSqlExpression(methodCall.arguments().get(2), context);
                     // COALESCE handles empty lists where ARRAY_TO_STRING returns NULL
-                    Expression joined = SqlFunctionCall.of("coalesce",
-                            SqlFunctionCall.of("array_to_string", listExpr, separator), Literal.of(""));
+                    Expression joined = FunctionExpression.of("coalesce",
+                            FunctionExpression.of("array_to_string", listExpr, separator), Literal.of(""));
                     yield new ConcatExpression(java.util.List.of(prefix, joined, suffix));
                 }
                 // 1-arg form: joinStrings(separator)
                 // COALESCE handles empty lists where ARRAY_TO_STRING returns NULL
-                yield SqlFunctionCall.of("coalesce",
-                        SqlFunctionCall.of("array_to_string", listExpr,
+                yield FunctionExpression.of("coalesce",
+                        FunctionExpression.of("array_to_string", listExpr,
                                 compileToSqlExpression(methodCall.arguments().getFirst(), context)),
                         Literal.of(""));
             }
@@ -4843,26 +4840,25 @@ public final class PureCompiler {
                 // Strip existing '=' padding first, then re-pad correctly
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 // rtrim(s, '=') removes existing padding
-                Expression stripped = SqlFunctionCall.of("rtrim", src, Literal.string("="));
+                Expression stripped = FunctionExpression.of("rtrim", src, Literal.string("="));
                 // CAST((length(stripped) + 3) / 4 AS INTEGER) * 4
                 Expression divResult = new org.finos.legend.engine.plan.CastExpression(
                         ArithmeticExpression.divide(
-                                ArithmeticExpression.add(SqlFunctionCall.of("length", stripped), Literal.integer(3)),
+                                ArithmeticExpression.add(FunctionExpression.of("length", stripped), Literal.integer(3)),
                                 Literal.integer(4)),
-                        "INTEGER");
+                        Primitive.INTEGER);
                 Expression paddedLen = ArithmeticExpression.multiply(divResult, Literal.integer(4));
-                Expression padded = SqlFunctionCall.of("rpad", stripped, paddedLen, Literal.string("="));
+                Expression padded = FunctionExpression.of("rpad", stripped, paddedLen, Literal.string("="));
                 yield new org.finos.legend.engine.plan.CastExpression(
-                        SqlFunctionCall.of("from_base64", padded), "VARCHAR");
+                        FunctionExpression.of("from_base64", padded), Primitive.STRING);
             }
-            case "encodeBase64" -> // encodeBase64(s) -> to_base64(CAST(s AS BLOB))
-                SqlFunctionCall.of("to_base64",
-                        new org.finos.legend.engine.plan.CastExpression(
-                                compileToSqlExpression(methodCall.source(), context), "BLOB"));
+            case "encodeBase64" -> // encodeBase64(s) -> encodeBase64(s), generator handles BLOB cast
+                FunctionExpression.of("encodeBase64",
+                        compileToSqlExpression(methodCall.source(), context), Primitive.STRING);
             case "toLower" -> // toLower(s) -> LOWER(s)
-                SqlFunctionCall.of("lower", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("lower", compileToSqlExpression(methodCall.source(), context));
             case "toUpper" -> // toUpper(s) -> UPPER(s)
-                SqlFunctionCall.of("upper", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("upper", compileToSqlExpression(methodCall.source(), context));
 
             // ===== MATH FUNCTIONS =====
             case "min" -> { // x->min(y) -> LEAST(x, y), or list->min() -> list_min(list)
@@ -4870,9 +4866,9 @@ public final class PureCompiler {
                     Expression src = compileToSqlExpression(methodCall.source(), context);
                     // Scalar->min() is identity; only use list_min for arrays
                     if (!(methodCall.source() instanceof ArrayLiteral)) { yield src; }
-                    yield SqlFunctionCall.of("list_min", src);
+                    yield FunctionExpression.of("list_min", src);
                 }
-                yield SqlFunctionCall.of("least",
+                yield FunctionExpression.of("least",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
@@ -4881,9 +4877,9 @@ public final class PureCompiler {
                     Expression src = compileToSqlExpression(methodCall.source(), context);
                     // Scalar->max() is identity; only use list_max for arrays
                     if (!(methodCall.source() instanceof ArrayLiteral)) { yield src; }
-                    yield SqlFunctionCall.of("list_max", src);
+                    yield FunctionExpression.of("list_max", src);
                 }
-                yield SqlFunctionCall.of("greatest",
+                yield FunctionExpression.of("greatest",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
@@ -4892,17 +4888,17 @@ public final class PureCompiler {
                 if (methodCall.arguments().isEmpty()) {
                     // round() with no scale -> round half-even: CAST(ROUND_EVEN(x, 0) AS BIGINT)
                     yield new org.finos.legend.engine.plan.CastExpression(
-                            SqlFunctionCall.of("round_even", src, Literal.integer(0)), "BIGINT");
+                            FunctionExpression.of("round_even", src, Literal.integer(0)), Primitive.INTEGER);
                 } else {
                     // round(scale) -> ROUND_EVEN(x, scale)
                     Expression scale = compileToSqlExpression(methodCall.arguments().getFirst(), context);
-                    yield SqlFunctionCall.of("round_even", src, scale);
+                    yield FunctionExpression.of("round_even", src, scale);
                 }
             }
             case "rem" -> { // rem(a, b) -> mod(a, b) (can return negative)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("rem requires an argument");
-                yield SqlFunctionCall.of("mod",
+                yield FunctionExpression.of("mod",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
@@ -4911,9 +4907,9 @@ public final class PureCompiler {
                     throw new PureCompileException("mod requires an argument");
                 Expression a = compileToSqlExpression(methodCall.source(), context);
                 Expression b = compileToSqlExpression(methodCall.arguments().getFirst(), context);
-                Expression innerMod = SqlFunctionCall.of("mod", a, b);
+                Expression innerMod = FunctionExpression.of("mod", a, b);
                 Expression addB = ArithmeticExpression.add(innerMod, b);
-                yield SqlFunctionCall.of("mod", addB, b);
+                yield FunctionExpression.of("mod", addB, b);
             }
             case "compare" -> { // compare(a, b) -> CASE WHEN a < b THEN -1 WHEN a > b THEN 1 ELSE 0 END
                 if (methodCall.arguments().isEmpty())
@@ -4939,59 +4935,59 @@ public final class PureCompiler {
             }
             case "average" -> { // [list]->average() -> list_avg(list); scalar->average() -> CAST(x AS DOUBLE)
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_avg", compileToSqlExpression(methodCall.source(), context));
+                    yield FunctionExpression.of("list_avg", compileToSqlExpression(methodCall.source(), context));
                 }
                 // average() always returns Float, so cast scalar to DOUBLE
                 yield new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(methodCall.source(), context), "DOUBLE");
+                        compileToSqlExpression(methodCall.source(), context), Primitive.FLOAT);
             }
             case "mode" -> { // [list]->mode() -> list_aggr(list, 'mode'); scalar->mode() -> MODE(x)
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(methodCall.source(), context),
                             Literal.of("mode"));
                 }
-                yield SqlFunctionCall.of("mode", compileToSqlExpression(methodCall.source(), context));
+                yield FunctionExpression.of("mode", compileToSqlExpression(methodCall.source(), context));
             }
             case "stdDevSample" -> { // [list]->stdDevSample() -> list_aggr(list, 'stddev_samp')
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(methodCall.source(), context),
                             Literal.of("stddev_samp"));
                 }
-                yield SqlFunctionCall.of("stddev_samp", compileToSqlExpression(methodCall.source(), context));
+                yield FunctionExpression.of("stddev_samp", compileToSqlExpression(methodCall.source(), context));
             }
             case "stdDevPopulation" -> { // [list]->stdDevPopulation()
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(methodCall.source(), context),
                             Literal.of("stddev_pop"));
                 }
-                yield SqlFunctionCall.of("stddev_pop", compileToSqlExpression(methodCall.source(), context));
+                yield FunctionExpression.of("stddev_pop", compileToSqlExpression(methodCall.source(), context));
             }
             case "median" -> { // [list]->median() -> list_aggr(list, 'median')
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(methodCall.source(), context),
                             Literal.of("median"));
                 }
-                yield SqlFunctionCall.of("median", compileToSqlExpression(methodCall.source(), context));
+                yield FunctionExpression.of("median", compileToSqlExpression(methodCall.source(), context));
             }
             case "varianceSample" -> { // [list]->varianceSample() -> list_aggr(list, 'var_samp')
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(methodCall.source(), context),
                             Literal.of("var_samp"));
                 }
-                yield SqlFunctionCall.of("var_samp", compileToSqlExpression(methodCall.source(), context));
+                yield FunctionExpression.of("var_samp", compileToSqlExpression(methodCall.source(), context));
             }
             case "variancePopulation" -> { // [list]->variancePopulation() -> list_aggr(list, 'var_pop')
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(methodCall.source(), context),
                             Literal.of("var_pop"));
                 }
-                yield SqlFunctionCall.of("var_pop", compileToSqlExpression(methodCall.source(), context));
+                yield FunctionExpression.of("var_pop", compileToSqlExpression(methodCall.source(), context));
             }
             case "variance" -> { // [list]->variance(bool) -> var_samp (true) or var_pop (false)
                 String varFunc = "var_samp"; // default to sample
@@ -5005,11 +5001,11 @@ public final class PureCompiler {
                     }
                 }
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_aggr",
+                    yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(methodCall.source(), context),
                             Literal.of(varFunc));
                 }
-                yield SqlFunctionCall.of(varFunc, compileToSqlExpression(methodCall.source(), context));
+                yield FunctionExpression.of(varFunc, compileToSqlExpression(methodCall.source(), context));
             }
             case "percentileCont", "percentile" -> { // list->percentileCont(0.5) or list->percentile(0.75, true, false)
                 if (methodCall.arguments().isEmpty())
@@ -5037,14 +5033,14 @@ public final class PureCompiler {
                     // descending percentile(p) = ascending percentile(1-p)
                     pValue = ArithmeticExpression.subtract(Literal.of(1), pValue);
                 }
-                yield SqlFunctionCall.of("list_aggr", src, Literal.of(quantileFunc), pValue);
+                yield FunctionExpression.of("list_aggr", src, Literal.of(quantileFunc), pValue);
             }
             case "percentileDisc" -> { // list->percentileDisc(0.5) -> list_aggr(list, 'quantile_disc', p)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("percentileDisc requires a percentile value argument");
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 Expression pValue = compileToSqlExpression(methodCall.arguments().getFirst(), context);
-                yield SqlFunctionCall.of("list_aggr", src, Literal.of("quantile_disc"), pValue);
+                yield FunctionExpression.of("list_aggr", src, Literal.of("quantile_disc"), pValue);
             }
             case "covarSample" -> { // [list1]->covarSample([list2])
                 if (methodCall.arguments().isEmpty())
@@ -5071,11 +5067,11 @@ public final class PureCompiler {
                         org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.CORR, list1, list2);
             }
             case "toFloat" -> // toFloat(x) -> CAST(x AS DOUBLE)
-                new SqlFunctionCall("cast", compileToSqlExpression(methodCall.source(), context),
-                        java.util.List.of(), PureType.FLOAT);
+                new FunctionExpression("cast", compileToSqlExpression(methodCall.source(), context),
+                        java.util.List.of(), Primitive.FLOAT);
             case "toDecimal" -> // toDecimal(x) -> CAST(x AS DECIMAL)
                 new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(methodCall.source(), context), "DECIMAL");
+                        compileToSqlExpression(methodCall.source(), context), Primitive.DECIMAL);
 
             // ===== LIST FUNCTIONS =====
             case "zip" -> { // zip(l1, l2) -> list_transform(generate_series(1, LEAST(LEN(l1), LEN(l2))), i -> {'first': l1[i], 'second': l2[i]})
@@ -5084,29 +5080,29 @@ public final class PureCompiler {
                 Expression l1 = compileToSqlExpression(methodCall.source(), context);
                 Expression l2 = compileToSqlExpression(methodCall.arguments().getFirst(), context);
                 // generate_series(1, LEAST(LEN(l1), LEN(l2)))
-                Expression range = SqlFunctionCall.of("generate_series",
+                Expression range = FunctionExpression.of("generate_series",
                         Literal.of(1),
-                        SqlFunctionCall.of("LEAST",
-                                SqlFunctionCall.of("LEN", l1),
-                                SqlFunctionCall.of("LEN", l2)));
+                        FunctionExpression.of("LEAST",
+                                FunctionExpression.of("LEN", l1),
+                                FunctionExpression.of("LEN", l2)));
                 // {'first': list_extract(l1, i), 'second': list_extract(l2, i)}
                 String param = "_zip_i";
                 var fields = new java.util.LinkedHashMap<String, Expression>();
-                fields.put("first", SqlFunctionCall.of("list_extract", l1, ColumnReference.of(param)));
-                fields.put("second", SqlFunctionCall.of("list_extract", l2, ColumnReference.of(param)));
+                fields.put("first", FunctionExpression.of("list_extract", l1, ColumnReference.of(param)));
+                fields.put("second", FunctionExpression.of("list_extract", l2, ColumnReference.of(param)));
                 Expression structExpr = new StructLiteralExpression("Pair", fields);
-                yield SqlCollectionCall.map(range, param, structExpr);
+                yield CollectionExpression.map(range, param, structExpr);
             }
             case "head" -> // head(list) -> list[1]
-                SqlFunctionCall.of("list_extract",
+                FunctionExpression.of("list_extract",
                         compileToSqlExpression(methodCall.source(), context),
                         Literal.of(1));
             case "first" -> // first(list) -> list[1]
-                SqlFunctionCall.of("list_extract",
+                FunctionExpression.of("list_extract",
                         compileToSqlExpression(methodCall.source(), context),
                         Literal.of(1));
             case "last" -> // last(list) -> list[-1]
-                SqlFunctionCall.of("list_extract",
+                FunctionExpression.of("list_extract",
                         compileToSqlExpression(methodCall.source(), context),
                         Literal.of(-1));
             case "tail" -> { // tail(list) -> list_slice(list, 2, len(list))
@@ -5116,15 +5112,15 @@ public final class PureCompiler {
                 if (!(tailSource instanceof ListLiteral) && !isListReturningExpression(tailSource)) {
                     tailSource = ListLiteral.of(List.of(tailSource));
                 }
-                yield SqlFunctionCall.of("list_slice", tailSource, Literal.of(2),
-                        SqlFunctionCall.of("len", tailSource));
+                yield FunctionExpression.of("list_slice", tailSource, Literal.of(2),
+                        FunctionExpression.of("len", tailSource));
             }
             case "init" -> { // init(list) -> list_slice(list, 1, -2) - all but last
                 Expression initSource = compileToSqlExpression(methodCall.source(), context);
                 if (!(initSource instanceof ListLiteral) && !isListReturningExpression(initSource)) {
                     initSource = ListLiteral.of(List.of(initSource));
                 }
-                yield SqlFunctionCall.of("list_slice", initSource, Literal.of(1), Literal.of(-2));
+                yield FunctionExpression.of("list_slice", initSource, Literal.of(1), Literal.of(-2));
             }
             case "at" -> { // at(list, idx) -> list_extract(list, idx+1)
                 // Pure at() is 0-indexed, DuckDB list_extract is 1-indexed
@@ -5141,21 +5137,21 @@ public final class PureCompiler {
                 Expression index = compileToSqlExpression(methodCall.arguments().getFirst(), context);
                 // Add 1 to convert 0-based Pure index to 1-based DuckDB index
                 Expression adjustedIndex = ArithmeticExpression.add(index, Literal.integer(1));
-                yield SqlFunctionCall.of("list_extract",
+                yield FunctionExpression.of("list_extract",
                         compileToSqlExpression(methodCall.source(), context),
                         adjustedIndex);
             }
             // Boolean collection functions: [list]->and() / [list]->or()
             case "and" -> {
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_bool_and", compileToSqlExpression(methodCall.source(), context));
+                    yield FunctionExpression.of("list_bool_and", compileToSqlExpression(methodCall.source(), context));
                 }
                 // scalar->and() is just the scalar itself
                 yield compileToSqlExpression(methodCall.source(), context);
             }
             case "or" -> {
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_bool_or", compileToSqlExpression(methodCall.source(), context));
+                    yield FunctionExpression.of("list_bool_or", compileToSqlExpression(methodCall.source(), context));
                 }
                 // scalar->or() is just the scalar itself
                 yield compileToSqlExpression(methodCall.source(), context);
@@ -5163,17 +5159,17 @@ public final class PureCompiler {
             // Aggregate functions on arrays -> DuckDB list aggregate functions
             case "sum" -> {
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_sum", compileToSqlExpression(methodCall.source(), context));
+                    yield FunctionExpression.of("list_sum", compileToSqlExpression(methodCall.source(), context));
                 }
                 yield compileToSqlExpression(methodCall.source(), context);
             }
             case "mean" -> {
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield SqlFunctionCall.of("list_avg", compileToSqlExpression(methodCall.source(), context));
+                    yield FunctionExpression.of("list_avg", compileToSqlExpression(methodCall.source(), context));
                 }
                 // mean() always returns Float, so cast scalar to DOUBLE
                 yield new org.finos.legend.engine.plan.CastExpression(
-                        compileToSqlExpression(methodCall.source(), context), "DOUBLE");
+                        compileToSqlExpression(methodCall.source(), context), Primitive.FLOAT);
             }
 
             case "size" -> {
@@ -5184,22 +5180,22 @@ public final class PureCompiler {
                         && context != null && (context.isLambdaParameter(v.name()) || context.hasScalarBinding(v.name()));
                 if (!isScalarVar && isRelationExpression(methodCall.source())) {
                     RelationNode relationNode = compileExpression(methodCall.source(), context);
-                    yield new SubqueryExpression(relationNode, SqlFunctionCall.of("count", Literal.of("*")));
+                    yield new SubqueryExpression(relationNode, FunctionExpression.of("count", Literal.of("*")));
                 }
                 // Otherwise, it's a list -> len(list)
-                yield SqlFunctionCall.of("len", compileToSqlExpression(methodCall.source(), context));
+                yield FunctionExpression.of("len", compileToSqlExpression(methodCall.source(), context));
             }
             case "length" -> // length(s) -> len(s) or length(s)
-                SqlFunctionCall.of("length", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("length", compileToSqlExpression(methodCall.source(), context));
             case "removeDuplicates" -> // removeDuplicates(list) -> list_distinct(list)
-                SqlFunctionCall.of("list_distinct", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("list_distinct", compileToSqlExpression(methodCall.source(), context));
             case "distinct" -> // distinct(list) -> list_distinct(list)
-                SqlFunctionCall.of("list_distinct", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("list_distinct", compileToSqlExpression(methodCall.source(), context));
             case "reverse" -> // reverse(list) -> list_reverse(list)
-                SqlFunctionCall.of("list_reverse", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("list_reverse", compileToSqlExpression(methodCall.source(), context));
             case "sort" -> { // sort() is parsed as SortExpression; this handles edge cases
                 Expression listExpr = compileToSqlExpression(methodCall.source(), context);
-                yield SqlFunctionCall.of("list_sort", listExpr);
+                yield FunctionExpression.of("list_sort", listExpr);
             }
 
             // ===== DATE FUNCTIONS =====
@@ -5222,12 +5218,12 @@ public final class PureCompiler {
                             ? compileToSqlExpression(args.get(3), context) : Literal.integer(0);
                     Expression second = args.size() >= 5
                             ? compileToSqlExpression(args.get(4), context) : Literal.integer(0);
-                    Expression ts = SqlFunctionCall.of("make_timestamp", year, month, day, hour, minute, second);
+                    Expression ts = FunctionExpression.of("make_timestamp", year, month, day, hour, minute, second);
                     // Preserve precision: hour-only → %Y-%m-%dT%H, minute → %Y-%m-%dT%H:%M
                     if (args.size() == 3) {
-                        yield SqlFunctionCall.of("strftime", ts, Literal.string("%Y-%m-%dT%H"));
+                        yield FunctionExpression.of("strftime", ts, Literal.string("%Y-%m-%dT%H"));
                     } else if (args.size() == 4) {
-                        yield SqlFunctionCall.of("strftime", ts, Literal.string("%Y-%m-%dT%H:%M"));
+                        yield FunctionExpression.of("strftime", ts, Literal.string("%Y-%m-%dT%H:%M"));
                     }
                     // Subsecond precision: if seconds arg is float/decimal (e.g., 11.0),
                     // use strftime with %S.%f and trim trailing zeros (keep at least 1 decimal)
@@ -5238,8 +5234,8 @@ public final class PureCompiler {
                         if (hasSubSecond) {
                             // REGEXP_REPLACE(STRFTIME(ts, '%Y-%m-%dT%H:%M:%S.%f'), '0{1,5}$', '')
                             // Trims 1-5 trailing zeros from 6-digit microseconds, keeping at least 1 decimal
-                            yield SqlFunctionCall.of("regexp_replace",
-                                    SqlFunctionCall.of("strftime", ts, Literal.string("%Y-%m-%dT%H:%M:%S.%f")),
+                            yield FunctionExpression.of("regexp_replace",
+                                    FunctionExpression.of("strftime", ts, Literal.string("%Y-%m-%dT%H:%M:%S.%f")),
                                     Literal.string("0{1,5}$"), Literal.string(""));
                         }
                     }
@@ -5248,12 +5244,12 @@ public final class PureCompiler {
                 // date(y, m, d) or fewer -> make_date(y, m, d)
                 if (args.isEmpty()) {
                     // date(y) -> year-only precision
-                    yield SqlFunctionCall.of("strftime", SqlFunctionCall.of("make_date", year, Literal.integer(1), Literal.integer(1)), Literal.string("%Y"));
+                    yield FunctionExpression.of("strftime", FunctionExpression.of("make_date", year, Literal.integer(1), Literal.integer(1)), Literal.string("%Y"));
                 } else if (args.size() == 1) {
                     // date(y, m) -> year-month precision
-                    yield SqlFunctionCall.of("strftime", SqlFunctionCall.of("make_date", year, month, Literal.integer(1)), Literal.string("%Y-%m"));
+                    yield FunctionExpression.of("strftime", FunctionExpression.of("make_date", year, month, Literal.integer(1)), Literal.string("%Y-%m"));
                 }
-                yield SqlFunctionCall.of("make_date", year, month, day);
+                yield FunctionExpression.of("make_date", year, month, day);
             }
             case "dateDiff" -> { // date1->dateDiff(date2, DurationUnit.DAYS) -> DateDiffExpression
                 var args = methodCall.arguments();
@@ -5278,13 +5274,13 @@ public final class PureCompiler {
             case "parseDate" -> { // parseDate(s, fmt) -> strptime(s, fmt)::DATE or CAST(s AS TIMESTAMPTZ)
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.arguments().isEmpty()) {
-                    // No format arg: use CAST(s AS TIMESTAMPTZ) which preserves timezone
-                    yield new org.finos.legend.engine.plan.CastExpression(src, "TIMESTAMPTZ");
+                    // No format arg: parseDate IR node, generator emits CAST(... AS TIMESTAMPTZ)
+                    yield FunctionExpression.of("parseDate", src, Primitive.DATE_TIME);
                 }
-                yield new SqlFunctionCall("cast",
-                        SqlFunctionCall.of("strptime", src,
+                yield new FunctionExpression("cast",
+                        FunctionExpression.of("strptime", src,
                                 compileToSqlExpression(methodCall.arguments().getFirst(), context)),
-                        java.util.List.of(), PureType.STRICT_DATE);
+                        java.util.List.of(), Primitive.STRICT_DATE);
             }
             case "timeBucket" -> { // timeBucket(count, unit) -> time_bucket(interval, timestamp, origin)
                 // DuckDB time_bucket expects INTERVAL like 'to_days(1)' etc.
@@ -5297,7 +5293,7 @@ public final class PureCompiler {
                 // Get the unit name from the literal
                 String unitName = unitExpr instanceof Literal lit && lit.value() instanceof String s ? s : "DAYS";
                 // Validate unit for StrictDate - only YEARS, MONTHS, WEEKS, DAYS allowed
-                boolean isStrictDate = timestamp.type() == PureType.STRICT_DATE;
+                boolean isStrictDate = timestamp.type() == Primitive.STRICT_DATE;
                 if (isStrictDate) {
                     switch (unitName.toUpperCase()) {
                         case "YEARS", "MONTHS", "WEEKS", "DAYS" -> { }
@@ -5320,62 +5316,62 @@ public final class PureCompiler {
                 // For WEEKS, use ISO Monday epoch 1969-12-29 (Monday before Unix epoch)
                 // ref: legend-engine DuckDB constructTimeBucketOffset
                 String originDate = "WEEKS".equals(unitName.toUpperCase()) ? "1969-12-29" : "1970-01-01";
-                Expression timeBucketExpr = SqlFunctionCall.of("time_bucket",
-                        SqlFunctionCall.of(intervalFunc, count),
+                Expression timeBucketExpr = FunctionExpression.of("time_bucket",
+                        FunctionExpression.of(intervalFunc, count),
                         timestamp,
                         new org.finos.legend.engine.plan.CastExpression(
-                                Literal.of(originDate), "TIMESTAMP"));
+                                Literal.of(originDate), Primitive.DATE_TIME));
                 // For DateTime inputs, cast to TIMESTAMP_NS to preserve nanosecond precision
                 // For StrictDate inputs, cast back to DATE to preserve date-only type
                 if (isStrictDate) {
-                    yield new org.finos.legend.engine.plan.CastExpression(timeBucketExpr, "DATE");
+                    yield new org.finos.legend.engine.plan.CastExpression(timeBucketExpr, Primitive.STRICT_DATE);
                 }
-                yield new org.finos.legend.engine.plan.CastExpression(timeBucketExpr, "TIMESTAMP_NS");
+                yield new org.finos.legend.engine.plan.CastExpression(timeBucketExpr, Primitive.DATE_TIME);
             }
 
             // ===== MATH FUNCTIONS =====
             case "log" -> // x->log() -> ln(x)
-                SqlFunctionCall.of("ln", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("ln", compileToSqlExpression(methodCall.source(), context));
             case "log10" -> // x->log10() -> log10(x)
-                SqlFunctionCall.of("log10", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("log10", compileToSqlExpression(methodCall.source(), context));
             case "exp" -> // x->exp() -> exp(x)
-                SqlFunctionCall.of("exp", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("exp", compileToSqlExpression(methodCall.source(), context));
             case "pow" -> { // x->pow(y) -> pow(x, y)
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("pow requires an exponent argument");
-                yield SqlFunctionCall.of("pow",
+                yield FunctionExpression.of("pow",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
             case "cbrt" -> // x->cbrt() -> cbrt(x)
-                SqlFunctionCall.of("cbrt", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("cbrt", compileToSqlExpression(methodCall.source(), context));
             case "sqrt" -> // x->sqrt() -> sqrt(x)
-                SqlFunctionCall.of("sqrt", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("sqrt", compileToSqlExpression(methodCall.source(), context));
 
             // ===== BITWISE FUNCTIONS =====
             case "bitAnd" -> { // bitAnd(a, b) -> a & b
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("bitAnd requires an argument");
-                yield SqlFunctionCall.of("bitand",
+                yield FunctionExpression.of("bitand",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
             case "bitOr" -> { // bitOr(a, b) -> a | b
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("bitOr requires an argument");
-                yield SqlFunctionCall.of("bitor",
+                yield FunctionExpression.of("bitor",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
             case "bitXor" -> { // bitXor(a, b) -> a ^ b
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("bitXor requires an argument");
-                yield SqlFunctionCall.of("bitxor",
+                yield FunctionExpression.of("bitxor",
                         compileToSqlExpression(methodCall.source(), context),
                         compileToSqlExpression(methodCall.arguments().getFirst(), context));
             }
             case "bitNot" -> // bitNot(a) -> ~a
-                SqlFunctionCall.of("bitnot", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("bitnot", compileToSqlExpression(methodCall.source(), context));
 
             // ===== DATE INTROSPECTION FUNCTIONS =====
             // Pure dates have precision (year-only, year-month, full date, datetime, etc.)
@@ -5428,32 +5424,32 @@ public final class PureCompiler {
             // ===== VARIANT FUNCTIONS =====
             case "toMany" -> { // $x.payload->toMany(@Integer) -> CAST(payload AS BIGINT[])
                 var args = methodCall.arguments();
-                String sqlType = "VARCHAR"; // default
+                GenericType pureType = Primitive.STRING; // default
                 if (!args.isEmpty() && args.get(0) instanceof TypeReference typeRef) {
-                    sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                    pureType = GenericType.fromTypeName(typeRef.typeName());
                 }
                 yield new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(methodCall.source(), context),
-                        sqlType + "[]");
+                        pureType, true);
             }
             case "toVariant" -> // value->toVariant() -> to_json(value)
-                SqlFunctionCall.of("to_json", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("to_json", compileToSqlExpression(methodCall.source(), context));
             case "to" -> { // $x.payload->get(0)->to(@Integer) -> CAST(... AS BIGINT)
                 var args = methodCall.arguments();
-                String sqlType = "VARCHAR"; // default
+                GenericType pureType = Primitive.STRING; // default
                 if (!args.isEmpty() && args.get(0) instanceof TypeReference typeRef) {
-                    sqlType = mapPureTypeToSqlType(typeRef.typeName());
+                    pureType = GenericType.fromTypeName(typeRef.typeName());
                 }
                 yield new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(methodCall.source(), context),
-                        sqlType);
+                        pureType);
             }
 
             // isEmpty: value->isEmpty() -> value IS NULL (scalars) or len(value) = 0 (lists)
             case "isEmpty" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield ComparisonExpression.equals(SqlFunctionCall.of("len", src), Literal.of(0));
+                    yield ComparisonExpression.equals(FunctionExpression.of("len", src), Literal.of(0));
                 }
                 yield new ComparisonExpression(src, ComparisonExpression.ComparisonOperator.IS_NULL, null);
             }
@@ -5461,7 +5457,7 @@ public final class PureCompiler {
             case "isNotEmpty" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    yield ComparisonExpression.greaterThan(SqlFunctionCall.of("len", src), Literal.of(0));
+                    yield ComparisonExpression.greaterThan(FunctionExpression.of("len", src), Literal.of(0));
                 }
                 yield new ComparisonExpression(src, ComparisonExpression.ComparisonOperator.IS_NOT_NULL, null);
             }
@@ -5494,7 +5490,7 @@ public final class PureCompiler {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.arguments().isEmpty()) {
                     // No-arg hash() = hashCode, use DuckDB HASH()
-                    yield SqlFunctionCall.of("hash", src);
+                    yield FunctionExpression.of("hash", src);
                 }
                 PureExpression hashTypeArg = methodCall.arguments().getFirst();
                 String hashType = "";
@@ -5506,11 +5502,11 @@ public final class PureCompiler {
                     hashType = hashTypeArg.toString().toUpperCase();
                 }
                 if (hashType.contains("SHA256")) {
-                    yield SqlFunctionCall.of("sha256", src);
+                    yield FunctionExpression.of("sha256", src);
                 } else if (hashType.contains("SHA1")) {
-                    yield SqlFunctionCall.of("sha1", src);
+                    yield FunctionExpression.of("sha1", src);
                 }
-                yield SqlFunctionCall.of("md5", src);
+                yield FunctionExpression.of("md5", src);
             }
 
             // list(collection) -> no-op; Pure's List<T> wrapper has no SQL equivalent
@@ -5530,7 +5526,7 @@ public final class PureCompiler {
                 }
                 Expression first = coalArgs.getFirst();
                 Expression[] rest = coalArgs.subList(1, coalArgs.size()).toArray(new Expression[0]);
-                yield SqlFunctionCall.of("COALESCE", first, rest);
+                yield FunctionExpression.of("COALESCE", first, rest);
             }
 
             default -> compileSimpleMethodCall(methodCall, context);
@@ -5555,12 +5551,12 @@ public final class PureCompiler {
 
         // Check for optional type argument (@Type)
         // Default to JSON since get() extracts from JSON and returns JSON unless typed
-        PureType returnType = PureType.JSON;
+        GenericType returnType = Primitive.JSON;
         if (args.size() >= 2 && args.get(1) instanceof TypeReference typeRef) {
             returnType = mapTypeName(typeRef.typeName());
         }
 
-        return new SqlFunctionCall("get", source, List.of(keyArg), returnType);
+        return new FunctionExpression("get", source, List.of(keyArg), returnType);
     }
 
     /**
@@ -5576,8 +5572,8 @@ public final class PureCompiler {
             additionalArgs.add(compileToSqlExpression(arg, context));
         }
 
-        // Return SqlFunctionCall which will be handled by SQLGenerator
-        return new SqlFunctionCall(methodCall.functionName(), source, additionalArgs, PureType.UNKNOWN);
+        // Return FunctionExpression which will be handled by SQLGenerator
+        return new FunctionExpression(methodCall.functionName(), source, additionalArgs, Primitive.ANY);
     }
 
     /**
@@ -5596,10 +5592,10 @@ public final class PureCompiler {
         Expression list = compileToSqlExpression(methodCall.arguments().getFirst(), context);
         // If the list is JSON[] (mixed-type), wrap the search element in to_json() too
         if (isJsonList(list)) {
-            valueToCheck = SqlFunctionCall.of("to_json", valueToCheck);
+            valueToCheck = FunctionExpression.of("to_json", valueToCheck);
         }
         // list_contains(list, value)
-        return SqlFunctionCall.of("list_contains", list, valueToCheck);
+        return FunctionExpression.of("list_contains", list, valueToCheck);
     }
 
     /**
@@ -5628,10 +5624,10 @@ public final class PureCompiler {
 
         // If the list is JSON[] (mixed-type), wrap the search element in to_json() too
         if (isJsonList(list)) {
-            valueToCheck = SqlFunctionCall.of("to_json", valueToCheck);
+            valueToCheck = FunctionExpression.of("to_json", valueToCheck);
         }
         // list_contains(list, value)
-        return SqlFunctionCall.of("list_contains", list, valueToCheck);
+        return FunctionExpression.of("list_contains", list, valueToCheck);
     }
 
     /**
@@ -5664,21 +5660,21 @@ public final class PureCompiler {
      */
     private boolean hasMixedTypes(List<Expression> elements) {
         if (elements.size() <= 1) return false;
-        PureType firstType = elements.getFirst().type();
+        GenericType firstType = elements.getFirst().type();
         for (int i = 1; i < elements.size(); i++) {
-            PureType t = elements.get(i).type();
+            GenericType t = elements.get(i).type();
             // Treat UNKNOWN as compatible with anything (it may resolve at runtime)
-            if (t == PureType.UNKNOWN || firstType == PureType.UNKNOWN) continue;
+            if (t == Primitive.ANY || firstType == Primitive.ANY) continue;
             if (t != firstType && !areNumericCompatible(firstType, t)) return true;
         }
         return false;
     }
 
-    private static boolean isNumericType(PureType t) {
+    private static boolean isNumericType(GenericType t) {
         return t.isNumeric();
     }
 
-    private static boolean areNumericCompatible(PureType a, PureType b) {
+    private static boolean areNumericCompatible(GenericType a, GenericType b) {
         return isNumericType(a) && isNumericType(b);
     }
 
@@ -5689,7 +5685,7 @@ public final class PureCompiler {
     private boolean isJsonList(Expression expr) {
         if (expr instanceof ListLiteral list && !list.isEmpty()) {
             Expression first = list.elements().getFirst();
-            return first instanceof SqlFunctionCall fc && "to_json".equals(fc.functionName());
+            return first instanceof FunctionExpression fc && "to_json".equals(fc.functionName());
         }
         return false;
     }
@@ -5702,13 +5698,13 @@ public final class PureCompiler {
     private Expression wrapListToJson(Expression listExpr) {
         if (listExpr instanceof ListLiteral lit) {
             List<Expression> jsonElems = lit.elements().stream()
-                    .map(e -> (Expression) SqlFunctionCall.of("to_json", e))
+                    .map(e -> (Expression) FunctionExpression.of("to_json", e))
                     .toList();
             return ListLiteral.of(jsonElems);
         }
         // For non-literal list expressions, use list_transform
-        return SqlCollectionCall.map(listExpr, "_json_x",
-                SqlFunctionCall.of("to_json", ColumnReference.of("_json_x")));
+        return CollectionExpression.map(listExpr, "_json_x",
+                FunctionExpression.of("to_json", ColumnReference.of("_json_x")));
     }
 
     /**
@@ -5718,9 +5714,9 @@ public final class PureCompiler {
     private boolean needsCrossTypeConcatPromotion(Expression left, Expression right) {
         if (left instanceof ListLiteral ll && right instanceof ListLiteral rl) {
             if (ll.isEmpty() || rl.isEmpty()) return false;
-            PureType leftType = ll.elements().getFirst().type();
-            PureType rightType = rl.elements().getFirst().type();
-            if (leftType == PureType.UNKNOWN || rightType == PureType.UNKNOWN) return false;
+            GenericType leftType = ll.elements().getFirst().type();
+            GenericType rightType = rl.elements().getFirst().type();
+            if (leftType == Primitive.ANY || rightType == Primitive.ANY) return false;
             return leftType != rightType && !areNumericCompatible(leftType, rightType);
         }
         return false;
@@ -5745,7 +5741,7 @@ public final class PureCompiler {
                 elemClassName != null ? elemClassName : "");
         Expression lambdaBody = compileToSqlExpression(lambda.body(), newContext);
 
-        return SqlCollectionCall.map(source, lambdaParam, lambdaBody);
+        return CollectionExpression.map(source, lambdaParam, lambdaBody);
     }
 
     /**
@@ -5762,7 +5758,7 @@ public final class PureCompiler {
         Expression lambdaBody = compileToSqlExpression(lambda.body(),
                 context.withLambdaParameter(lambdaParam, ""));
 
-        return SqlCollectionCall.filter(source, lambdaParam, lambdaBody);
+        return CollectionExpression.filter(source, lambdaParam, lambdaBody);
     }
 
     /**
@@ -5782,9 +5778,9 @@ public final class PureCompiler {
                 context.withLambdaParameter(lambdaParam, ""));
 
         // exists = len(list_filter(source, param -> body)) > 0
-        Expression filtered = SqlCollectionCall.filter(source, lambdaParam, lambdaBody);
+        Expression filtered = CollectionExpression.filter(source, lambdaParam, lambdaBody);
         return new ComparisonExpression(
-                SqlFunctionCall.of("len", filtered),
+                FunctionExpression.of("len", filtered),
                 ComparisonExpression.ComparisonOperator.GREATER_THAN,
                 Literal.integer(0));
     }
@@ -5824,7 +5820,7 @@ public final class PureCompiler {
         // Pure allows 1->fold(...) where source is a single value, not a list.
         // DuckDB's list_reduce requires a list, so wrap scalar sources.
         if (isScalarFoldSource(methodCall.source(), source)) {
-            source = SqlFunctionCall.of("list_value", source);
+            source = FunctionExpression.of("list_value", source);
         }
 
         // Fix 1: Detect "list accumulation" pattern: fold({val, acc | acc->add(val)}, init)
@@ -5834,7 +5830,7 @@ public final class PureCompiler {
             // Strip cast from empty list initial to avoid type mismatch
             // e.g., CAST([] AS VARCHAR[]) -> [] so DuckDB infers type from source
             Expression init = stripEmptyListCast(initialValue);
-            return SqlFunctionCall.of("list_concat", init, source);
+            return FunctionExpression.of("list_concat", init, source);
         }
 
         // Check if source is a struct list that needs decomposition for DuckDB compatibility.
@@ -5849,11 +5845,11 @@ public final class PureCompiler {
             Expression elemTransform = stripAccumulatorFromBody(lambdaBody, pureAccParam);
             if (elemTransform != null) {
                 // Generate: list_reduce(list_transform(source, elem -> elemTransform), (acc, x) -> acc || x, init)
-                Expression transformedList = SqlCollectionCall.map(source, pureElemParam, elemTransform);
+                Expression transformedList = CollectionExpression.map(source, pureElemParam, elemTransform);
                 String freshX = "__x";
                 Expression reduceBody = ConcatExpression.of(
                         ColumnReference.of(pureAccParam), ColumnReference.of(freshX));
-                return SqlCollectionCall.fold(transformedList, pureAccParam, freshX, reduceBody, initialValue);
+                return CollectionExpression.fold(transformedList, pureAccParam, freshX, reduceBody, initialValue);
             }
         }
 
@@ -5865,11 +5861,11 @@ public final class PureCompiler {
                     context.withFoldParameters(pureElemParam, pureAccParam));
             Expression elemTransform = stripAccumulatorFromBody(lambdaBody, pureAccParam);
             if (elemTransform != null) {
-                Expression transformedList = SqlCollectionCall.map(source, pureElemParam, elemTransform);
+                Expression transformedList = CollectionExpression.map(source, pureElemParam, elemTransform);
                 String freshX = "__x";
                 Expression reduceBody = ArithmeticExpression.add(
                         ColumnReference.of(pureAccParam), ColumnReference.of(freshX));
-                return SqlCollectionCall.fold(transformedList, pureAccParam, freshX, reduceBody, initialValue);
+                return CollectionExpression.fold(transformedList, pureAccParam, freshX, reduceBody, initialValue);
             }
         }
 
@@ -5881,17 +5877,17 @@ public final class PureCompiler {
         if (initialValue instanceof ListLiteral initList && !initList.isEmpty()) {
             // Wrap source: list_transform(source, __e -> list_value(__e))
             String wrapParam = "__e";
-            Expression wrappedSource = SqlCollectionCall.map(source, wrapParam,
-                    SqlFunctionCall.of("list_value", ColumnReference.of(wrapParam)));
+            Expression wrappedSource = CollectionExpression.map(source, wrapParam,
+                    FunctionExpression.of("list_value", ColumnReference.of(wrapParam)));
 
             // Compile body with element param overridden to list_extract(param, 1) for unwrapping
-            Expression elemUnwrap = SqlFunctionCall.of("list_extract",
+            Expression elemUnwrap = FunctionExpression.of("list_extract",
                     ColumnReference.of(pureElemParam), Literal.integer(1));
             Expression lambdaBody = compileToSqlExpression(lambda.body(),
                     context.withFoldParameters(pureElemParam, pureAccParam)
                            .withParamOverride(pureElemParam, elemUnwrap));
 
-            return SqlCollectionCall.fold(wrappedSource, pureAccParam, pureElemParam, lambdaBody, initialValue);
+            return CollectionExpression.fold(wrappedSource, pureAccParam, pureElemParam, lambdaBody, initialValue);
         }
 
         // Fallback: standard list_reduce approach
@@ -5900,7 +5896,7 @@ public final class PureCompiler {
 
         // DuckDB list_reduce: (accumulator, element) -> body
         // Map Pure's accumulator to DuckDB's first position (accumulator)
-        return SqlCollectionCall.fold(source, pureAccParam, pureElemParam, lambdaBody, initialValue);
+        return CollectionExpression.fold(source, pureAccParam, pureElemParam, lambdaBody, initialValue);
     }
 
     /**
@@ -5908,7 +5904,7 @@ public final class PureCompiler {
      * Used to avoid double-wrapping in tail/init where scalars need [x] but list results don't.
      */
     private boolean isListReturningExpression(Expression expr) {
-        if (expr instanceof SqlFunctionCall func) {
+        if (expr instanceof FunctionExpression func) {
             return switch (func.functionName().toLowerCase()) {
                 case "list_append", "list_prepend", "list_concat", "list_slice",
                      "list_sort", "list_reverse", "list_distinct", "list_filter",
@@ -5917,7 +5913,7 @@ public final class PureCompiler {
                 default -> false;
             };
         }
-        if (expr instanceof SqlCollectionCall) return true;
+        if (expr instanceof CollectionExpression) return true;
         if (expr instanceof CaseExpression) return true; // CASE branches may return lists
         return false;
     }
@@ -5951,8 +5947,8 @@ public final class PureCompiler {
                 && cast.source() instanceof ListLiteral ll && ll.isEmpty()) {
             return ll;
         }
-        // SqlFunctionCall("cast", [], ...) from compileCastExpression
-        if (expr instanceof SqlFunctionCall func
+        // FunctionExpression("cast", [], ...) from compileCastExpression
+        if (expr instanceof FunctionExpression func
                 && "cast".equals(func.functionName())
                 && func.target() instanceof ListLiteral ll && ll.isEmpty()) {
             return ll;
@@ -6069,7 +6065,7 @@ public final class PureCompiler {
      */
     private Expression compileFlattenCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
-        return SqlCollectionCall.flatten(source);
+        return CollectionExpression.flatten(source);
     }
 
     private Expression compileBinaryExpression(BinaryExpression binary, CompilationContext context) {
@@ -6348,16 +6344,16 @@ public final class PureCompiler {
             // If source returns a scalar struct (at/head/first/last or InstanceExpression),
             // use struct_extract instead of list_transform which expects a list input
             if (propAccess.source() instanceof FunctionCall mc && isScalarMethod(mc.functionName())) {
-                return SqlFunctionCall.of("struct_extract", compiledSource, Literal.string(fullPath));
+                return FunctionExpression.of("struct_extract", compiledSource, Literal.string(fullPath));
             }
             if (compiledSource instanceof StructLiteralExpression) {
-                return SqlFunctionCall.of("struct_extract", compiledSource, Literal.string(fullPath));
+                return FunctionExpression.of("struct_extract", compiledSource, Literal.string(fullPath));
             }
 
             // Source is a collection — wrap in list_transform
             String syntheticParam = "_prop_x";
             Expression body = ColumnReference.of(syntheticParam, fullPath);
-            return SqlCollectionCall.map(compiledSource, syntheticParam, body);
+            return CollectionExpression.map(compiledSource, syntheticParam, body);
         }
 
         // First check symbol table for ROW binding (new approach)
@@ -6463,8 +6459,8 @@ public final class PureCompiler {
 
             // Build: get(COLUMN, 'key') with return type
             Expression columnRef = ColumnReference.of(tableAlias, columnName);
-            PureType returnType = mapTypeName(typeName);
-            return SqlFunctionCall.of("get", columnRef, returnType, Literal.string(jsonKey));
+            GenericType returnType = mapTypeName(typeName);
+            return FunctionExpression.of("get", columnRef, returnType, Literal.string(jsonKey));
         }
 
         throw new PureCompileException("Cannot parse expression mapping: " + expressionStr);

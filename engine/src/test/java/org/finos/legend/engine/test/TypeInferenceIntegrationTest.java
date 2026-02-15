@@ -1101,12 +1101,18 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
     @Test
     void testTimeBucketDateTime() throws SQLException {
         // timeBucket(1, DAYS) on DateTime should return midnight of that day as TIMESTAMP_NS
+        // PCT asserts nanosecond precision (.000000000), so SQL must use TIMESTAMP_NS not TIMESTAMP
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|%2024-01-31T00:32:34+0000->timeBucket(1, meta::pure::functions::date::DurationUnit.DAYS)",
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
         assertTrue(result instanceof ScalarResult);
-        assertEquals(java.sql.Timestamp.valueOf("2024-01-31 00:00:00"), ((ScalarResult) result).value());
+        Object value = ((ScalarResult) result).value();
+        assertEquals(java.sql.Timestamp.valueOf("2024-01-31 00:00:00"), value);
+        // Verify nanosecond precision is preserved (TIMESTAMP_NS)
+        assertInstanceOf(java.sql.Timestamp.class, value);
+        assertEquals(0, ((java.sql.Timestamp) value).getNanos(),
+                "timeBucket should use TIMESTAMP_NS for nanosecond precision");
     }
 
     @Test
@@ -3957,14 +3963,118 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         return map;
     }
 
+    // ==================== PCT Edge Cases: Integer boundary values ====================
+
+    @Test
+    void testLongMinValueCast() throws SQLException {
+        // PCT edge case: CAST of Long.MIN_VALUE must use BIGINT, not INTEGER (INT32 overflows)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|parseInteger('-9223372036854775808')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, Long.MIN_VALUE);
+    }
+
+    @Test
+    void testLongMaxValueCast() throws SQLException {
+        // PCT edge case: CAST of Long.MAX_VALUE must use BIGINT
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|parseInteger('9223372036854775807')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, Long.MAX_VALUE);
+    }
+
+    @Test
+    void testLargeIntegerArithmetic() throws SQLException {
+        // PCT edge case: large integer arithmetic should not overflow
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|9223372036854775807 - 1",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertScalarInteger(result, Long.MAX_VALUE - 1);
+    }
+
+    // ==================== PCT Edge Cases: Date literal scalars ====================
+
+    @Test
+    void testStrictDateLiteralScalar() throws SQLException {
+        // PCT edge case: date literal should return as java.sql.Date/LocalDate, not String
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2025-02-10",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        // Must be a date type, not a String with quotes
+        assertFalse(value instanceof String,
+                "Date literal should not return as String, got: '" + value + "'");
+        assertTrue(value instanceof java.sql.Date || value instanceof java.time.LocalDate,
+                "Expected Date type but got " + value.getClass().getSimpleName() + " = " + value);
+    }
+
+    @Test
+    void testDateTimeLiteralScalar() throws SQLException {
+        // PCT edge case: datetime literal should return as Timestamp, not String
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2025-02-10T20:10:20+0000",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        assertFalse(value instanceof String,
+                "DateTime literal should not return as String, got: '" + value + "'");
+    }
+
+    @Test
+    void testStrictDateFromAdjust() throws SQLException {
+        // PCT edge case: adjust() on StrictDate should preserve StrictDate type
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|%2014-02-27->adjust(0, meta::pure::functions::date::DurationUnit.DAYS)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult, "Expected ScalarResult");
+        Object value = ((ScalarResult) result).value();
+        assertNotNull(value);
+        // Should be a date (not datetime with time component)
+        assertTrue(value instanceof java.sql.Date || value instanceof java.time.LocalDate,
+                "Expected StrictDate but got " + value.getClass().getSimpleName() + " = " + value);
+    }
+
+    // ==================== PCT Edge Cases: rpad/lpad with BIGINT length ====================
+
+    @Test
+    void testRpadWithLargeLength() throws SQLException {
+        // PCT edge case: rpad length arg needs CAST to INTEGER for DuckDB
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'abc'->rpad(10)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("abc       ", ((ScalarResult) result).value());
+    }
+
+    @Test
+    void testLpadWithFill() throws SQLException {
+        // PCT edge case: lpad also needs CAST to INTEGER for DuckDB
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|'abc'->lpad(7, '*')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("****abc", ((ScalarResult) result).value());
+    }
+
     private void assertScalarInteger(Result result, long expected) {
         assertTrue(result instanceof ScalarResult, "Expected ScalarResult but got " + result.getClass().getSimpleName());
         Object value = ((ScalarResult) result).value();
         assertNotNull(value, "Scalar value should not be null");
         assertInstanceOf(Number.class, value, "Scalar value should be a Number");
-        // Must be an integer type (Integer or Long), not Double/Float
-        assertTrue(value instanceof Integer || value instanceof Long,
-                "Expected Integer/Long but got " + value.getClass().getSimpleName() + " = " + value);
+        // Must be an integer type (Integer, Long, or BigInteger), not Double/Float
+        assertTrue(value instanceof Integer || value instanceof Long || value instanceof java.math.BigInteger,
+                "Expected Integer/Long/BigInteger but got " + value.getClass().getSimpleName() + " = " + value);
         assertEquals(expected, ((Number) value).longValue());
     }
 }

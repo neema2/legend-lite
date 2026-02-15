@@ -53,17 +53,17 @@ public record ArithmeticExpression(
     }
 
     @Override
-    public PureType type() {
+    public GenericType type() {
         // Integer arithmetic stays Integer (except division which may produce Float)
-        if (left.type() == PureType.INTEGER && right.type() == PureType.INTEGER
+        if (left.type() == GenericType.Primitive.INTEGER && right.type() == GenericType.Primitive.INTEGER
                 && operator != BinaryArithmeticExpr.Operator.DIVIDE) {
-            return PureType.INTEGER;
+            return GenericType.Primitive.INTEGER;
         }
         // If either operand is Decimal, result is Decimal
-        if (left.type() == PureType.DECIMAL || right.type() == PureType.DECIMAL) {
-            return PureType.DECIMAL;
+        if (left.type() == GenericType.Primitive.DECIMAL || right.type() == GenericType.Primitive.DECIMAL) {
+            return GenericType.Primitive.DECIMAL;
         }
-        return PureType.FLOAT;
+        return GenericType.Primitive.FLOAT;
     }
 
     @Override

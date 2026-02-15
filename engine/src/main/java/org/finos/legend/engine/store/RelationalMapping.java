@@ -94,10 +94,10 @@ public record RelationalMapping(
      * @param propertyName The Pure property name
      * @return The PureType for this property, or UNKNOWN if not found
      */
-    public org.finos.legend.engine.plan.PureType pureTypeForProperty(String propertyName) {
+    public org.finos.legend.engine.plan.GenericType pureTypeForProperty(String propertyName) {
         return pureClass.findProperty(propertyName)
-                .map(p -> org.finos.legend.engine.plan.PureType.fromTypeName(p.genericType().typeName()))
-                .orElse(org.finos.legend.engine.plan.PureType.UNKNOWN);
+                .map(p -> org.finos.legend.engine.plan.GenericType.fromTypeName(p.genericType().typeName()))
+                .orElse(org.finos.legend.engine.plan.GenericType.Primitive.ANY);
     }
 
     @Override

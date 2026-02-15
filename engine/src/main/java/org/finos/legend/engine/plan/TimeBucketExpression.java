@@ -30,8 +30,8 @@ public record TimeBucketExpression(
     }
 
     @Override
-    public PureType type() {
-        return dateExpression.type() != PureType.UNKNOWN ? dateExpression.type() : PureType.DATE_TIME;
+    public GenericType type() {
+        return dateExpression.type() != GenericType.Primitive.ANY ? dateExpression.type() : GenericType.Primitive.DATE_TIME;
     }
 
     @Override

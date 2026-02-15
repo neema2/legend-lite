@@ -54,8 +54,8 @@ public record ExistsExpression(
     }
     
     @Override
-    public PureType type() {
-        return PureType.BOOLEAN;
+    public GenericType type() {
+        return GenericType.Primitive.BOOLEAN;
     }
 
     @Override

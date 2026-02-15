@@ -261,12 +261,12 @@ public class QueryService {
                     return new ScalarResult(precise, "DECIMAL");
                 }
             }
-            PureType irType = cn.expression().type();
-            if (irType == PureType.DECIMAL) {
+            GenericType irType = cn.expression().type();
+            if (irType == GenericType.Primitive.DECIMAL) {
                 // Distinguish toDecimal() CAST (needs trailing zero strip) from
                 // Decimal literal arithmetic (preserves DuckDB scale as-is)
                 boolean fromToDecimalCast = cn.expression() instanceof CastExpression ce
-                        && "DECIMAL".equalsIgnoreCase(ce.targetType());
+                        && ce.targetType() == GenericType.Primitive.DECIMAL;
                 return new ScalarResult(sr.value(), fromToDecimalCast ? "DECIMAL_CAST" : "DECIMAL");
             }
             // Propagate Pure class type from StructLiteralExpression in the IR tree
@@ -492,7 +492,7 @@ public class QueryService {
         if (expr instanceof StructLiteralExpression struct) {
             return struct.className();
         }
-        if (expr instanceof SqlFunctionCall func) {
+        if (expr instanceof FunctionExpression func) {
             // struct_extract changes the type — don't propagate the outer struct type
             if ("struct_extract".equalsIgnoreCase(func.functionName())) {
                 return null;
@@ -513,7 +513,7 @@ public class QueryService {
         if (expr instanceof ListFilterExpression filter) {
             return extractPureType(filter.source());
         }
-        if (expr instanceof SqlCollectionCall coll) {
+        if (expr instanceof CollectionExpression coll) {
             String type = extractPureType(coll.source());
             if (type != null) return type;
             if (coll.lambdaBody() != null) return extractPureType(coll.lambdaBody());
@@ -556,14 +556,14 @@ public class QueryService {
         if (expr instanceof StructLiteralExpression struct) {
             return struct;
         }
-        if (expr instanceof SqlCollectionCall coll) {
+        if (expr instanceof CollectionExpression coll) {
             if (coll.lambdaBody() != null) {
                 StructLiteralExpression found = findStructLiteral(coll.lambdaBody());
                 if (found != null) return found;
             }
             return findStructLiteral(coll.source());
         }
-        if (expr instanceof SqlFunctionCall func) {
+        if (expr instanceof FunctionExpression func) {
             if (func.target() != null) {
                 StructLiteralExpression found = findStructLiteral(func.target());
                 if (found != null) return found;
@@ -589,7 +589,7 @@ public class QueryService {
             }
             return containsDivision(arith.left()) || containsDivision(arith.right());
         }
-        if (expr instanceof SqlFunctionCall func) {
+        if (expr instanceof FunctionExpression func) {
             if (func.target() != null && containsDivision(func.target())) return true;
             for (Expression arg : func.arguments()) {
                 if (containsDivision(arg)) return true;
@@ -626,7 +626,7 @@ public class QueryService {
                         : left.divide(right, MathContext.DECIMAL128);
             };
         }
-        if (expr instanceof SqlFunctionCall func) {
+        if (expr instanceof FunctionExpression func) {
             return switch (func.functionName().toLowerCase()) {
                 case "round" -> {
                     BigDecimal target = evaluateWithBigDecimal(func.target());

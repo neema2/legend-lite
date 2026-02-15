@@ -12,7 +12,7 @@ import java.util.Objects;
 public record ColumnReference(
         String tableAlias,
         String columnName,
-        PureType pureType) implements Expression {
+        GenericType pureType) implements Expression {
 
     public ColumnReference {
         Objects.requireNonNull(tableAlias, "Table alias cannot be null");
@@ -24,20 +24,20 @@ public record ColumnReference(
      * Creates a column reference without a table alias (UNKNOWN type).
      */
     public static ColumnReference of(String columnName) {
-        return new ColumnReference("", columnName, PureType.UNKNOWN);
+        return new ColumnReference("", columnName, GenericType.Primitive.ANY);
     }
 
     /**
      * Creates a column reference with a table alias (UNKNOWN type).
      */
     public static ColumnReference of(String tableAlias, String columnName) {
-        return new ColumnReference(tableAlias, columnName, PureType.UNKNOWN);
+        return new ColumnReference(tableAlias, columnName, GenericType.Primitive.ANY);
     }
 
     /**
      * Creates a column reference with explicit type.
      */
-    public static ColumnReference of(String tableAlias, String columnName, PureType type) {
+    public static ColumnReference of(String tableAlias, String columnName, GenericType type) {
         return new ColumnReference(tableAlias, columnName, type);
     }
 
@@ -47,7 +47,7 @@ public record ColumnReference(
     }
 
     @Override
-    public PureType type() {
+    public GenericType type() {
         return pureType;
     }
 

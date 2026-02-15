@@ -50,7 +50,7 @@ public record EpochExpression(
     }
 
     @Override
-    public PureType type() {
-        return direction == Direction.FROM_EPOCH ? PureType.DATE_TIME : PureType.INTEGER;
+    public GenericType type() {
+        return direction == Direction.FROM_EPOCH ? GenericType.Primitive.DATE_TIME : GenericType.Primitive.INTEGER;
     }
 }

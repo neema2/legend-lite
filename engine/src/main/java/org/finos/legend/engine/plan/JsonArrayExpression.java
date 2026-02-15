@@ -31,8 +31,8 @@ public record JsonArrayExpression(
     }
 
     @Override
-    public PureType type() {
-        return PureType.JSON;
+    public GenericType type() {
+        return GenericType.Primitive.JSON;
     }
 
     @Override

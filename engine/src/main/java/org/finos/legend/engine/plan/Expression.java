@@ -13,8 +13,8 @@ package org.finos.legend.engine.plan;
  */
 public sealed interface Expression
                 permits ColumnReference, Literal, ComparisonExpression, LogicalExpression, ExistsExpression,
-                ConcatExpression, SqlFunctionCall, CaseExpression, ArithmeticExpression, AggregateExpression,
-                JsonObjectExpression, SubqueryExpression, JsonArrayExpression, SqlCollectionCall,
+                ConcatExpression, FunctionExpression, CaseExpression, ArithmeticExpression, AggregateExpression,
+                JsonObjectExpression, SubqueryExpression, JsonArrayExpression, CollectionExpression,
                 DateFunctionExpression, CurrentDateExpression, DateDiffExpression, DateAdjustExpression,
                 DateTruncExpression, EpochExpression, DateComparisonExpression, TimeBucketExpression,
                 MinMaxExpression, InExpression, ListLiteral, CastExpression, ListFilterExpression,
@@ -35,7 +35,7 @@ public sealed interface Expression
          * 
          * @return The Pure type of this expression
          */
-        default PureType type() {
-                return PureType.UNKNOWN;
+        default GenericType type() {
+                return GenericType.Primitive.ANY;
         }
 }

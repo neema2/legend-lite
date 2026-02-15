@@ -428,7 +428,7 @@ public final class SQLCompiler {
             case MINUS -> new ArithmeticExpression(left, BinaryArithmeticExpr.Operator.SUBTRACT, right);
             case MULTIPLY -> new ArithmeticExpression(left, BinaryArithmeticExpr.Operator.MULTIPLY, right);
             case DIVIDE -> new ArithmeticExpression(left, BinaryArithmeticExpr.Operator.DIVIDE, right);
-            case MODULO -> SqlFunctionCall.of("MOD", left, right);
+            case MODULO -> FunctionExpression.of("MOD", left, right);
         };
     }
 
@@ -456,9 +456,9 @@ public final class SQLCompiler {
 
         // Use first arg as target, rest as additional args
         if (args.isEmpty()) {
-            return SqlFunctionCall.of(func.functionName(), Literal.nullValue());
+            return FunctionExpression.of(func.functionName(), Literal.nullValue());
         }
-        return SqlFunctionCall.of(func.functionName(), args.get(0),
+        return FunctionExpression.of(func.functionName(), args.get(0),
                 args.subList(1, args.size()).toArray(new Expression[0]));
     }
 

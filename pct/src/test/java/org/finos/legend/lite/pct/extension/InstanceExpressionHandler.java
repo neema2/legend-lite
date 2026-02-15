@@ -12,8 +12,8 @@ import org.finos.legend.engine.plan.Expression;
 import org.finos.legend.engine.plan.ListFilterExpression;
 import org.finos.legend.engine.plan.ListLiteral;
 import org.finos.legend.engine.plan.RelationNode;
-import org.finos.legend.engine.plan.SqlCollectionCall;
-import org.finos.legend.engine.plan.SqlFunctionCall;
+import org.finos.legend.engine.plan.CollectionExpression;
+import org.finos.legend.engine.plan.FunctionExpression;
 import org.finos.legend.engine.plan.StructLiteralExpression;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
@@ -102,7 +102,7 @@ public class InstanceExpressionHandler {
      */
     private String extractPureType(Expression expr) {
         if (expr instanceof StructLiteralExpression struct) return struct.className();
-        if (expr instanceof SqlFunctionCall func) {
+        if (expr instanceof FunctionExpression func) {
             for (Expression arg : func.arguments()) {
                 String type = extractPureType(arg);
                 if (type != null) return type;
@@ -110,7 +110,7 @@ public class InstanceExpressionHandler {
         }
         if (expr instanceof ListLiteral list && !list.isEmpty()) return extractPureType(list.elements().getFirst());
         if (expr instanceof ListFilterExpression filter) return extractPureType(filter.source());
-        if (expr instanceof SqlCollectionCall coll) return extractPureType(coll.source());
+        if (expr instanceof CollectionExpression coll) return extractPureType(coll.source());
         return null;
     }
 

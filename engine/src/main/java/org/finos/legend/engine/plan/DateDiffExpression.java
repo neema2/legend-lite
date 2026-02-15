@@ -14,8 +14,8 @@ public record DateDiffExpression(
         DurationUnit unit) implements Expression {
 
     @Override
-    public PureType type() {
-        return PureType.INTEGER;
+    public GenericType type() {
+        return GenericType.Primitive.INTEGER;
     }
 
     @Override

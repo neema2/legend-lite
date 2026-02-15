@@ -40,7 +40,7 @@ public interface ExpressionVisitor<T> {
     /**
      * Visit a SQL function call expression.
      */
-    T visitFunctionCall(SqlFunctionCall functionCall);
+    T visitFunctionCall(FunctionExpression functionCall);
 
     /**
      * Visit a CASE/conditional expression.
@@ -75,7 +75,7 @@ public interface ExpressionVisitor<T> {
     /**
      * Visit a collection function call (map, filter, fold, flatten).
      */
-    T visitCollectionCall(SqlCollectionCall collectionCall);
+    T visitCollectionCall(CollectionExpression collectionCall);
 
     /**
      * Visit a date extraction expression (year, month, day, etc.).

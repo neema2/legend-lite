@@ -2,10 +2,20 @@ package org.finos.legend.engine.plan;
 
 /**
  * CAST expression: CAST(expr AS targetType)
- * Used for type conversion, particularly for variant/JSON to typed array
- * conversion.
+ * Uses PureType instead of SQL strings — the SQL generator maps PureType to dialect-specific SQL.
+ * 
+ * @param source     The expression to cast
+ * @param targetType The Pure type to cast to
+ * @param isArray    If true, cast to array type (e.g., INTEGER[])
  */
-public record CastExpression(Expression source, String targetType) implements Expression {
+public record CastExpression(Expression source, GenericType targetType, boolean isArray) implements Expression {
+
+    /**
+     * Convenience constructor for scalar (non-array) casts.
+     */
+    public CastExpression(Expression source, GenericType targetType) {
+        this(source, targetType, false);
+    }
 
     @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
@@ -13,19 +23,7 @@ public record CastExpression(Expression source, String targetType) implements Ex
     }
 
     @Override
-    public PureType type() {
-        // Handle parameterized types like DECIMAL(38,18)
-        String upper = targetType.toUpperCase();
-        if (upper.startsWith("DECIMAL") || upper.startsWith("NUMERIC")) return PureType.DECIMAL;
-        return switch (upper) {
-            case "VARCHAR", "TEXT" -> PureType.STRING;
-            case "BIGINT", "INTEGER", "INT" -> PureType.INTEGER;
-            case "DOUBLE", "FLOAT", "REAL" -> PureType.FLOAT;
-            case "BOOLEAN", "BOOL" -> PureType.BOOLEAN;
-            case "DATE" -> PureType.STRICT_DATE;
-            case "TIMESTAMP" -> PureType.DATE_TIME;
-            case "TIME" -> PureType.STRICT_TIME;
-            default -> PureType.UNKNOWN;
-        };
+    public GenericType type() {
+        return isArray ? GenericType.LIST_ANY() : targetType;
     }
 }

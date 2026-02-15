@@ -53,7 +53,7 @@ public record MinMaxExpression(
     }
 
     @Override
-    public PureType type() {
+    public GenericType type() {
         return arguments.getFirst().type();
     }
 
