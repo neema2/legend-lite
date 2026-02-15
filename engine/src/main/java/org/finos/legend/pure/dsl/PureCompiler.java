@@ -503,12 +503,20 @@ public final class PureCompiler {
 
         // Create a context with ROW binding for the lambda parameter
         // This binds $x in filter(x | $x.col > 5) to the row alias
+        // Collect column types from the source chain (TDS columns, extend, flatten)
+        java.util.Map<String, GenericType> columnTypes = collectExtendedColumns(filter.source());
         CompilationContext lambdaContext = new CompilationContext(
                 filter.lambda().parameter(),
                 rowAlias,
                 null, // No class mapping - we're working with Relation columns
                 null,
-                true).withRowBinding(filter.lambda().parameter(), rowAlias);
+                true,
+                new java.util.HashMap<>(),
+                columnTypes,
+                new java.util.HashMap<>(),
+                new java.util.HashMap<>(),
+                new java.util.HashMap<>(),
+                new java.util.HashMap<>()).withRowBinding(filter.lambda().parameter(), rowAlias);
 
         // Compile the filter condition
         Expression condition = compileToSqlExpression(filter.lambda().body(), lambdaContext);
@@ -2731,7 +2739,7 @@ public final class PureCompiler {
 
             // Collect extended columns from the source expression (from flatten and extend
             // ops)
-            java.util.Set<String> extendedColumns = collectExtendedColumns(extend.source());
+            java.util.Map<String, GenericType> extendedColumns = collectExtendedColumns(extend.source());
 
             CompilationContext lambdaContext = new CompilationContext(
                     extend.expression().parameter(),
@@ -2864,28 +2872,37 @@ public final class PureCompiler {
      * Collects all extended column names from the source expression chain.
      * This includes columns from extend and flatten operations.
      */
-    private java.util.Set<String> collectExtendedColumns(PureExpression source) {
-        java.util.Set<String> columns = new java.util.HashSet<>();
+    private java.util.Map<String, GenericType> collectExtendedColumns(PureExpression source) {
+        java.util.Map<String, GenericType> columns = new java.util.HashMap<>();
         collectExtendedColumnsRecursive(source, columns);
         return columns;
     }
 
-    private void collectExtendedColumnsRecursive(PureExpression source, java.util.Set<String> columns) {
+    private void collectExtendedColumnsRecursive(PureExpression source, java.util.Map<String, GenericType> columns) {
         switch (source) {
             case FlattenExpression flatten -> {
-                // Flatten adds its output column
-                columns.add(flatten.columnName());
+                // Flatten adds its output column — type is JSON (unnested array element)
+                columns.put(flatten.columnName(), Primitive.JSON);
                 collectExtendedColumnsRecursive(flatten.source(), columns);
             }
             case RelationExtendExpression extend -> {
-                // Extend adds its new column
-                columns.add(extend.newColumnName());
+                // Extend adds its new column — type could be inferred from lambda body in future
+                columns.put(extend.newColumnName(), Primitive.ANY);
                 collectExtendedColumnsRecursive(extend.source(), columns);
             }
             case RelationFilterExpression filter -> collectExtendedColumnsRecursive(filter.source(), columns);
             case RelationSelectExpression select -> collectExtendedColumnsRecursive(select.source(), columns);
             case RelationSortExpression sort -> collectExtendedColumnsRecursive(sort.source(), columns);
             case RelationLimitExpression limit -> collectExtendedColumnsRecursive(limit.source(), columns);
+            case TdsLiteral tds -> {
+                // TDS literal columns carry type annotations: #TDS name:String, age:Integer #
+                for (TdsLiteral.TdsColumn col : tds.columns()) {
+                    GenericType colType = col.type() != null
+                            ? GenericType.fromTypeName(col.type())
+                            : Primitive.ANY;
+                    columns.put(col.name(), colType);
+                }
+            }
             default -> {
                 /* Base case - no more extended columns to collect */ }
         }
@@ -6386,7 +6403,7 @@ public final class PureCompiler {
                 // Check if this is an extended column (from extend/flatten) - use unqualified
                 // reference
                 if (context.isExtendedColumn(propertyName)) {
-                    return ColumnReference.of(propertyName, Primitive.ANY);
+                    return ColumnReference.of(propertyName, context.getExtendedColumnType(propertyName));
                 }
 
                 // If there's a mapping, use it to translate property -> column
@@ -6428,7 +6445,7 @@ public final class PureCompiler {
         // Check if this is an extended column (from extend/flatten) - use unqualified
         // reference
         if (context.isExtendedColumn(propertyName)) {
-            return ColumnReference.of(propertyName, Primitive.ANY);
+            return ColumnReference.of(propertyName, context.getExtendedColumnType(propertyName));
         }
 
         // If no mapping exists (direct Relation API access), use full path for STRUCT
@@ -6666,7 +6683,7 @@ public final class PureCompiler {
             String className,
             boolean inFilterContext,
             java.util.Map<String, String> lambdaParameters,
-            java.util.Set<String> extendedColumns,
+            java.util.Map<String, org.finos.legend.engine.plan.GenericType> extendedColumns,
             java.util.Map<String, RelationNode> relationSources,
             java.util.Map<String, SymbolBinding> symbols,
             java.util.Map<String, Expression> paramOverrides,
@@ -6675,7 +6692,7 @@ public final class PureCompiler {
         public CompilationContext(String lambdaParameter, String tableAlias,
                 RelationalMapping mapping, String className, boolean inFilterContext) {
             this(lambdaParameter, tableAlias, mapping, className, inFilterContext,
-                    new java.util.HashMap<>(), new java.util.HashSet<>(), new java.util.HashMap<>(),
+                    new java.util.HashMap<>(), new java.util.HashMap<>(), new java.util.HashMap<>(),
                     new java.util.HashMap<>(), new java.util.HashMap<>(), new java.util.HashMap<>());
         }
 
@@ -6684,7 +6701,7 @@ public final class PureCompiler {
          */
         public CompilationContext(String lambdaParameter, String tableAlias, RelationalMapping mapping) {
             this(lambdaParameter, tableAlias, mapping, mapping.pureClass().name(), false,
-                    new java.util.HashMap<>(), new java.util.HashSet<>(), new java.util.HashMap<>(),
+                    new java.util.HashMap<>(), new java.util.HashMap<>(), new java.util.HashMap<>(),
                     new java.util.HashMap<>(), new java.util.HashMap<>(), new java.util.HashMap<>());
         }
 
@@ -6752,9 +6769,9 @@ public final class PureCompiler {
          * Creates a new context with an extended column (from extend/flatten).
          * Extended columns should use unqualified references.
          */
-        public CompilationContext withExtendedColumn(String columnName) {
-            var newExtended = new java.util.HashSet<>(extendedColumns);
-            newExtended.add(columnName);
+        public CompilationContext withExtendedColumn(String columnName, org.finos.legend.engine.plan.GenericType type) {
+            var newExtended = new java.util.HashMap<>(extendedColumns);
+            newExtended.put(columnName, type);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
                     inFilterContext, lambdaParameters, newExtended, relationSources, symbols, paramOverrides, lambdaParamTypes);
         }
@@ -6843,7 +6860,14 @@ public final class PureCompiler {
          * Checks if a column name is an extended column (should be unqualified).
          */
         public boolean isExtendedColumn(String name) {
-            return extendedColumns.contains(name);
+            return extendedColumns.containsKey(name);
+        }
+
+        /**
+         * Gets the type of an extended column, or ANY if not found.
+         */
+        public org.finos.legend.engine.plan.GenericType getExtendedColumnType(String name) {
+            return extendedColumns.getOrDefault(name, org.finos.legend.engine.plan.GenericType.Primitive.ANY);
         }
 
         /**
