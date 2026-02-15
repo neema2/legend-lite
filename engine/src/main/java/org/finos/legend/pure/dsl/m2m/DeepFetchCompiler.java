@@ -172,9 +172,9 @@ public final class DeepFetchCompiler {
         }
 
         return new ComparisonExpression(
-                ColumnReference.of(leftAlias, leftCol),
+                ColumnReference.of(leftAlias, leftCol, GenericType.Primitive.ANY),
                 ComparisonExpression.ComparisonOperator.EQUALS,
-                ColumnReference.of(rightAlias, rightCol));
+                ColumnReference.of(rightAlias, rightCol, GenericType.Primitive.ANY));
     }
 
     private boolean wantsProperty(GraphFetchTree tree, String propertyName) {

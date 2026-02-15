@@ -275,7 +275,7 @@ public final class SQLCompiler {
         for (SelectItem item : items) {
             switch (item) {
                 case SelectItem.AllColumns all -> {
-                    projections.add(new Projection(ColumnReference.of("", "*"), "*"));
+                    projections.add(new Projection(ColumnReference.of("", "*", GenericType.Primitive.ANY), "*"));
                 }
                 case SelectItem.ExpressionItem expr -> {
                     Expression compiled = compileExpression(expr.expression());
@@ -387,7 +387,7 @@ public final class SQLCompiler {
 
     private Expression compileColumnRef(org.finos.legend.engine.sql.ast.Expression.ColumnRef col) {
         String tableAlias = col.tableAlias() != null ? col.tableAlias() : "";
-        return ColumnReference.of(tableAlias, col.columnName());
+        return ColumnReference.of(tableAlias, col.columnName(), GenericType.Primitive.ANY);
     }
 
     private Expression compileLiteral(org.finos.legend.engine.sql.ast.Expression.Literal lit) {
@@ -450,7 +450,7 @@ public final class SQLCompiler {
         // Check for aggregate functions
         AggregateExpression.AggregateFunction aggFunc = parseAggregateFunction(func.functionName());
         if (aggFunc != null) {
-            Expression arg = args.isEmpty() ? ColumnReference.of("", "*") : args.get(0);
+            Expression arg = args.isEmpty() ? ColumnReference.of("", "*", GenericType.Primitive.ANY) : args.get(0);
             return new AggregateExpression(aggFunc, arg);
         }
 

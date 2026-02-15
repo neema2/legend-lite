@@ -21,24 +21,17 @@ public record ColumnReference(
     }
 
     /**
-     * Creates a column reference without a table alias (UNKNOWN type).
-     */
-    public static ColumnReference of(String columnName) {
-        return new ColumnReference("", columnName, GenericType.Primitive.ANY);
-    }
-
-    /**
-     * Creates a column reference with a table alias (UNKNOWN type).
-     */
-    public static ColumnReference of(String tableAlias, String columnName) {
-        return new ColumnReference(tableAlias, columnName, GenericType.Primitive.ANY);
-    }
-
-    /**
-     * Creates a column reference with explicit type.
+     * Creates a column reference with explicit type. Every call site must provide a type.
      */
     public static ColumnReference of(String tableAlias, String columnName, GenericType type) {
         return new ColumnReference(tableAlias, columnName, type);
+    }
+
+    /**
+     * Creates a column reference without a table alias, with explicit type.
+     */
+    public static ColumnReference of(String columnName, GenericType type) {
+        return new ColumnReference("", columnName, type);
     }
 
     @Override

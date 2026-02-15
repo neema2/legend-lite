@@ -55,7 +55,7 @@ public record ComparisonExpression(
      */
     public static ComparisonExpression columnEquals(String tableAlias, String columnName, String value) {
         return equals(
-                ColumnReference.of(tableAlias, columnName),
+                ColumnReference.of(tableAlias, columnName, GenericType.Primitive.ANY),
                 Literal.string(value)
         );
     }

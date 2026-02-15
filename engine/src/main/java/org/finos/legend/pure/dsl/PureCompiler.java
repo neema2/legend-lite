@@ -728,8 +728,8 @@ public final class PureCompiler {
             // Create the join ON TOP of the current finalSource
             TableNode targetTable = new TableNode(ji.targetMapping().table(), ji.alias());
             Expression joinCondition = ComparisonExpression.equals(
-                    ColumnReference.of(baseTableAlias, ji.leftColumn()),
-                    ColumnReference.of(ji.alias(), ji.rightColumn()));
+                    ColumnReference.of(baseTableAlias, ji.leftColumn(), Primitive.ANY),
+                    ColumnReference.of(ji.alias(), ji.rightColumn(), Primitive.ANY));
             finalSource = new JoinNode(finalSource, targetTable, joinCondition, JoinNode.JoinType.LEFT_OUTER);
         }
 
@@ -1386,7 +1386,7 @@ public final class PureCompiler {
         // Create a lateral join that unnests the array column
         // Use unqualified column reference since the source SQL will handle
         // qualification
-        ColumnReference arrayCol = ColumnReference.of(columnName);
+        ColumnReference arrayCol = ColumnReference.of(columnName, Primitive.ANY);
 
         // Return a LateralJoinNode that represents the lateral join with unnest
         return new LateralJoinNode(source, arrayCol, columnName);
@@ -3122,9 +3122,9 @@ public final class PureCompiler {
         }
 
         Expression correlationCondition = new ComparisonExpression(
-                ColumnReference.of(targetAlias, rightCol),
+                ColumnReference.of(targetAlias, rightCol, Primitive.ANY),
                 ComparisonExpression.ComparisonOperator.EQUALS,
-                ColumnReference.of(sourceAlias, leftCol));
+                ColumnReference.of(sourceAlias, leftCol, Primitive.ANY));
 
         // Build nested projections for the JsonObjectExpression
         List<Projection> nestedProjections = new ArrayList<>();
@@ -3160,9 +3160,9 @@ public final class PureCompiler {
 
             // For JOIN, the condition references source.leftCol = target.rightCol
             Expression joinCondition = new ComparisonExpression(
-                    ColumnReference.of(sourceAlias, leftCol),
+                    ColumnReference.of(sourceAlias, leftCol, Primitive.ANY),
                     ComparisonExpression.ComparisonOperator.EQUALS,
-                    ColumnReference.of(targetAlias, rightCol));
+                    ColumnReference.of(targetAlias, rightCol, Primitive.ANY));
 
             associationJoins.add(new M2MJoinInfo(targetTable, joinCondition, sourceAlias, targetAlias));
 
@@ -3539,7 +3539,7 @@ public final class PureCompiler {
                     Expression tagged = CollectionExpression.map(list, param, structExpr);
                     Expression sorted = FunctionExpression.of("sort", tagged, detectSortDirection(sort.sortColumns()));
                     String param2 = "_sv";
-                    Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
+                    Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2, Primitive.ANY), Literal.string("v"));
                     yield CollectionExpression.map(sorted, param2, extractVal);
                 }
                 yield FunctionExpression.of("sort", list, detectSortDirection(sort.sortColumns()));
@@ -3607,7 +3607,7 @@ public final class PureCompiler {
                         Expression tagged = CollectionExpression.map(source, param, structExpr);
                         Expression sorted = FunctionExpression.of("sort", tagged, detectSortDirection(sort.sortColumns()));
                         String param2 = "_sv";
-                        Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
+                        Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2, Primitive.ANY), Literal.string("v"));
                         yield CollectionExpression.map(sorted, param2, extractVal);
                     }
                     yield FunctionExpression.of("sort", source, detectSortDirection(sort.sortColumns()));
@@ -4545,7 +4545,7 @@ public final class PureCompiler {
             case "eval" -> {
                 if (methodCall.source() instanceof ColumnSpec cs) {
                     // Column spec evaluated on row becomes simple column reference
-                    yield ColumnReference.of(cs.name());
+                    yield ColumnReference.of(cs.name(), Primitive.ANY);
                 }
                 if (methodCall.source() instanceof ClassReference cr) {
                     // funcRef->eval(args): extract function name and compile as function call
@@ -4644,7 +4644,7 @@ public final class PureCompiler {
                 }
 
                 // Create format function call — SQLGenerator handles dialect-specific translation
-                yield new FunctionExpression("format", formatStr, argExprs, Primitive.ANY);
+                yield new FunctionExpression("format", formatStr, argExprs, Primitive.STRING);
             }
             case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx+1)
                 // Pure splitPart is 0-based, DuckDB split_part is 1-based
@@ -4673,16 +4673,16 @@ public final class PureCompiler {
                 yield new ConcatExpression(java.util.List.of(
                         FunctionExpression.of("toUpper",
                                 new FunctionExpression("substring", src, java.util.List.of(Literal.of(1), Literal.of(1)),
-                                        Primitive.ANY)),
-                        new FunctionExpression("substring", src, java.util.List.of(Literal.of(2)), Primitive.ANY)));
+                                        Primitive.STRING)),
+                        new FunctionExpression("substring", src, java.util.List.of(Literal.of(2)), Primitive.STRING)));
             }
             case "toLowerFirstCharacter" -> { // lower(s[1]) || s[2:]
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 yield new ConcatExpression(java.util.List.of(
                         FunctionExpression.of("toLower",
                                 new FunctionExpression("substring", src, java.util.List.of(Literal.of(1), Literal.of(1)),
-                                        Primitive.ANY)),
-                        new FunctionExpression("substring", src, java.util.List.of(Literal.of(2)), Primitive.ANY)));
+                                        Primitive.STRING)),
+                        new FunctionExpression("substring", src, java.util.List.of(Literal.of(2)), Primitive.STRING)));
             }
             case "indexOf" -> { // indexOf on list or string
                 if (methodCall.arguments().isEmpty())
@@ -4703,7 +4703,7 @@ public final class PureCompiler {
                     // fromIndex + instr(substring(src, fromIndex+1), search) - 1
                     Expression subStr = new FunctionExpression("substring", src,
                             java.util.List.of(ArithmeticExpression.add(fromIndex, Literal.integer(1))),
-                            Primitive.ANY);
+                            Primitive.STRING);
                     yield ArithmeticExpression.subtract(
                             ArithmeticExpression.add(
                                     fromIndex,
@@ -4726,11 +4726,11 @@ public final class PureCompiler {
                     Expression end = compileToSqlExpression(methodCall.arguments().get(1), context);
                     Expression length = ArithmeticExpression.subtract(end, start);
                     yield new FunctionExpression("substring", src,
-                            java.util.List.of(oneBasedStart, length), Primitive.ANY);
+                            java.util.List.of(oneBasedStart, length), Primitive.STRING);
                 }
                 // substring(start) -> SUBSTRING(str, start+1)
                 yield new FunctionExpression("substring", src,
-                        java.util.List.of(oneBasedStart), Primitive.ANY);
+                        java.util.List.of(oneBasedStart), Primitive.STRING);
             }
             case "lpad" -> { // lpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE lpad(s,n,fill) END
                 if (methodCall.arguments().isEmpty())
@@ -5098,8 +5098,8 @@ public final class PureCompiler {
                 // {'first': list_extract(l1, i), 'second': list_extract(l2, i)}
                 String param = "_zip_i";
                 var fields = new java.util.LinkedHashMap<String, Expression>();
-                fields.put("first", FunctionExpression.of("list_extract", l1, ColumnReference.of(param)));
-                fields.put("second", FunctionExpression.of("list_extract", l2, ColumnReference.of(param)));
+                fields.put("first", FunctionExpression.of("list_extract", l1, new ColumnReference("", param, Primitive.INTEGER)));
+                fields.put("second", FunctionExpression.of("list_extract", l2, new ColumnReference("", param, Primitive.INTEGER)));
                 Expression structExpr = new StructLiteralExpression("Pair", fields);
                 yield CollectionExpression.map(range, param, structExpr);
             }
@@ -5714,8 +5714,9 @@ public final class PureCompiler {
             return ListLiteral.of(jsonElems);
         }
         // For non-literal list expressions, use list_transform
+        GenericType jsonElemType = listExpr.type().elementType();
         return CollectionExpression.map(listExpr, "_json_x",
-                FunctionExpression.of("to_json", ColumnReference.of("_json_x")));
+                FunctionExpression.of("to_json", new ColumnReference("", "_json_x", jsonElemType)));
     }
 
     /**
@@ -5861,8 +5862,10 @@ public final class PureCompiler {
                 // Generate: list_reduce(list_transform(source, elem -> elemTransform), (acc, x) -> acc || x, init)
                 Expression transformedList = CollectionExpression.map(source, pureElemParam, elemTransform);
                 String freshX = "__x";
+                GenericType accType = initialValue.type();
+                GenericType freshXType = transformedList.type().elementType();
                 Expression reduceBody = ConcatExpression.of(
-                        ColumnReference.of(pureAccParam), ColumnReference.of(freshX));
+                        new ColumnReference("", pureAccParam, accType), new ColumnReference("", freshX, freshXType));
                 return CollectionExpression.fold(transformedList, pureAccParam, freshX, reduceBody, initialValue);
             }
         }
@@ -5877,8 +5880,10 @@ public final class PureCompiler {
             if (elemTransform != null) {
                 Expression transformedList = CollectionExpression.map(source, pureElemParam, elemTransform);
                 String freshX = "__x";
+                GenericType accType2 = initialValue.type();
+                GenericType freshXType2 = transformedList.type().elementType();
                 Expression reduceBody = ArithmeticExpression.add(
-                        ColumnReference.of(pureAccParam), ColumnReference.of(freshX));
+                        new ColumnReference("", pureAccParam, accType2), new ColumnReference("", freshX, freshXType2));
                 return CollectionExpression.fold(transformedList, pureAccParam, freshX, reduceBody, initialValue);
             }
         }
@@ -5891,12 +5896,14 @@ public final class PureCompiler {
         if (initialValue instanceof ListLiteral initList && !initList.isEmpty()) {
             // Wrap source: list_transform(source, __e -> list_value(__e))
             String wrapParam = "__e";
+            GenericType wrapElemType = source.type().elementType();
             Expression wrappedSource = CollectionExpression.map(source, wrapParam,
-                    FunctionExpression.of("list", ColumnReference.of(wrapParam)));
+                    FunctionExpression.of("list", new ColumnReference("", wrapParam, wrapElemType)));
 
             // Compile body with element param overridden to list_extract(param, 1) for unwrapping
+            GenericType elemListType = wrappedSource.type().elementType();
             Expression elemUnwrap = FunctionExpression.of("list_extract",
-                    ColumnReference.of(pureElemParam), Literal.integer(1));
+                    new ColumnReference("", pureElemParam, elemListType), Literal.integer(1));
             Expression lambdaBody = compileToSqlExpression(lambda.body(),
                     context.withFoldParameters(pureElemParam, pureAccParam)
                            .withParamOverride(pureElemParam, elemUnwrap));
@@ -6292,8 +6299,8 @@ public final class PureCompiler {
         String innerColumn = join.getColumnForTable(targetMapping.table().name());
 
         Expression correlation = ComparisonExpression.equals(
-                ColumnReference.of(targetAlias, innerColumn),
-                ColumnReference.of(context.tableAlias(), outerColumn));
+                ColumnReference.of(targetAlias, innerColumn, Primitive.ANY),
+                ColumnReference.of(context.tableAlias(), outerColumn, Primitive.ANY));
 
         // Build the filter condition on the target property
         // The final segment should be a property access on the target class
@@ -6302,7 +6309,7 @@ public final class PureCompiler {
         String targetColumn = targetMapping.getColumnForProperty(targetProperty)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + targetProperty));
 
-        Expression left = ColumnReference.of(targetAlias, targetColumn);
+        Expression left = ColumnReference.of(targetAlias, targetColumn, Primitive.ANY);
         Expression right = compileLiteral((LiteralExpr) rightExpr);
 
         ComparisonExpression.ComparisonOperator sqlOp = switch (op) {
@@ -6366,7 +6373,7 @@ public final class PureCompiler {
 
             // Source is a collection — wrap in list_transform
             String syntheticParam = "_prop_x";
-            Expression body = ColumnReference.of(syntheticParam, fullPath);
+            Expression body = ColumnReference.of(syntheticParam, fullPath, Primitive.ANY);
             return CollectionExpression.map(compiledSource, syntheticParam, body);
         }
 
@@ -6379,7 +6386,7 @@ public final class PureCompiler {
                 // Check if this is an extended column (from extend/flatten) - use unqualified
                 // reference
                 if (context.isExtendedColumn(propertyName)) {
-                    return ColumnReference.of(propertyName);
+                    return ColumnReference.of(propertyName, Primitive.ANY);
                 }
 
                 // If there's a mapping, use it to translate property -> column
@@ -6392,7 +6399,7 @@ public final class PureCompiler {
 
                 // No mapping - use full path (for nested STRUCT access like
                 // employees.firstName)
-                return ColumnReference.of(rowAlias, fullPath);
+                return ColumnReference.of(rowAlias, fullPath, Primitive.ANY);
             }
             // SCALAR binding: if value is a StructLiteralExpression, extract the field
             if (binding.kind() == SymbolBinding.BindingKind.SCALAR && binding.value() instanceof StructLiteralExpression struct) {
@@ -6409,7 +6416,7 @@ public final class PureCompiler {
         // Check if variable is a lambda parameter (from collection operations like map/filter/fold)
         // For struct elements, property access becomes struct field access: p.lastName
         if (context != null && context.lambdaParameters() != null && context.isLambdaParameter(varName)) {
-            return ColumnReference.of(varName, fullPath);
+            return ColumnReference.of(varName, fullPath, Primitive.ANY);
         }
 
         // Legacy fallback: check lambdaParameter directly
@@ -6421,13 +6428,13 @@ public final class PureCompiler {
         // Check if this is an extended column (from extend/flatten) - use unqualified
         // reference
         if (context.isExtendedColumn(propertyName)) {
-            return ColumnReference.of(propertyName);
+            return ColumnReference.of(propertyName, Primitive.ANY);
         }
 
         // If no mapping exists (direct Relation API access), use full path for STRUCT
         // access
         if (context.mapping() == null) {
-            return ColumnReference.of(context.tableAlias(), fullPath);
+            return ColumnReference.of(context.tableAlias(), fullPath, Primitive.ANY);
         }
 
         String columnName = context.mapping().getColumnForProperty(propertyName)
@@ -6472,7 +6479,7 @@ public final class PureCompiler {
             String typeName = matcher.group(3);
 
             // Build: get(COLUMN, 'key') with return type
-            Expression columnRef = ColumnReference.of(tableAlias, columnName);
+            Expression columnRef = new ColumnReference(tableAlias, columnName, Primitive.JSON);
             GenericType returnType = mapTypeName(typeName);
             return FunctionExpression.of("get", columnRef, returnType, Literal.string(jsonKey));
         }
@@ -6498,7 +6505,7 @@ public final class PureCompiler {
             String tableAlias, String columnName, String enumType,
             java.util.Map<String, java.util.List<Object>> enumMapping) {
 
-        Expression columnRef = ColumnReference.of(tableAlias, columnName);
+        Expression columnRef = ColumnReference.of(tableAlias, columnName, Primitive.ANY);
 
         // Build nested CASE WHEN expressions
         // Start from the end with NULL as the final ELSE
@@ -6682,14 +6689,7 @@ public final class PureCompiler {
         }
 
         /**
-         * Creates a new context with a lambda parameter (for map/filter).
-         */
-        public CompilationContext withLambdaParameter(String paramName, String alias) {
-            return withLambdaParameter(paramName, alias, org.finos.legend.engine.plan.GenericType.Primitive.ANY);
-        }
-
-        /**
-         * Creates a new context with a typed lambda parameter.
+         * Creates a new context with a typed lambda parameter. Every call site must provide a type.
          */
         public CompilationContext withLambdaParameter(String paramName, String alias, org.finos.legend.engine.plan.GenericType elementType) {
             var newParams = new java.util.HashMap<>(lambdaParameters);

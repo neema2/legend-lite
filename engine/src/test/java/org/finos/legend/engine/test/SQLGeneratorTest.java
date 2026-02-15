@@ -43,7 +43,7 @@ class SQLGeneratorTest {
                 // Filter: lastName == 'Smith'
                 FilterNode filterNode = new FilterNode(tableNode,
                                 ComparisonExpression.equals(
-                                                ColumnReference.of("t0", "LAST_NAME"),
+                                                ColumnReference.of("t0", "LAST_NAME", GenericType.Primitive.ANY),
                                                 Literal.string("Smith")));
 
                 // Project: firstName, lastName
@@ -151,7 +151,7 @@ class SQLGeneratorTest {
 
                 // Filter: age > 18
                 Expression ageFilter = ComparisonExpression.greaterThan(
-                                ColumnReference.of("t0", "AGE_VAL"),
+                                ColumnReference.of("t0", "AGE_VAL", GenericType.Primitive.ANY),
                                 Literal.integer(18));
                 FilterNode filterNode = new FilterNode(tableNode, ageFilter);
 
@@ -218,8 +218,8 @@ class SQLGeneratorTest {
                 TableNode addressNode = new TableNode(addressTable, "a");
 
                 Expression joinCondition = ComparisonExpression.equals(
-                                ColumnReference.of("p", "ID"),
-                                ColumnReference.of("a", "PERSON_ID"));
+                                ColumnReference.of("p", "ID", GenericType.Primitive.ANY),
+                                ColumnReference.of("a", "PERSON_ID", GenericType.Primitive.ANY));
 
                 JoinNode joinNode = JoinNode.inner(personNode, addressNode, joinCondition);
 
@@ -248,8 +248,8 @@ class SQLGeneratorTest {
                 TableNode addressNode = new TableNode(addressTable, "a");
 
                 Expression joinCondition = ComparisonExpression.equals(
-                                ColumnReference.of("p", "ID"),
-                                ColumnReference.of("a", "PERSON_ID"));
+                                ColumnReference.of("p", "ID", GenericType.Primitive.ANY),
+                                ColumnReference.of("a", "PERSON_ID", GenericType.Primitive.ANY));
 
                 JoinNode joinNode = JoinNode.leftOuter(personNode, addressNode, joinCondition);
 
@@ -268,7 +268,7 @@ class SQLGeneratorTest {
         @DisplayName("AggregateExpression generates correct SQL function")
         void testAggregateExpressionFunctions() {
                 // Test each aggregate function
-                ColumnReference col = ColumnReference.of("t0", "SALARY");
+                ColumnReference col = ColumnReference.of("t0", "SALARY", GenericType.Primitive.ANY);
 
                 assertEquals("SUM(\"t0\".\"SALARY\")",
                                 sqlGenerator.generateExpression(new AggregateExpression(

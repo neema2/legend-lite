@@ -137,7 +137,7 @@ public final class M2MCompiler {
                         .orElseThrow(() -> new PureCompileException(
                                 "No column mapping for property: " + propertyName));
 
-                return ColumnReference.of(tableAlias, columnName);
+                return ColumnReference.of(tableAlias, columnName, sourceMapping.pureTypeForProperty(propertyName));
             }
 
             @Override

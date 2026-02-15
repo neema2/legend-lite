@@ -32,7 +32,7 @@ public record Projection(
      */
     public static Projection column(String tableAlias, String columnName, String propertyName) {
         return new Projection(
-                ColumnReference.of(tableAlias, columnName),
+                ColumnReference.of(tableAlias, columnName, GenericType.Primitive.ANY),
                 propertyName
         );
     }
