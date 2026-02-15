@@ -4021,7 +4021,7 @@ public final class PureCompiler {
                 Expression src = compileToSqlExpression(args.getFirst(), context);
                 if (args.size() == 1) {
                     // No format: parseDate IR node, generator emits CAST(... AS TIMESTAMPTZ)
-                    yield FunctionExpression.of("parseDate", src, Primitive.DATE_TIME);
+                    yield FunctionExpression.of("parseDate", src);
                 }
                 yield new FunctionExpression("cast",
                         FunctionExpression.of("strptime", src,
@@ -4637,7 +4637,7 @@ public final class PureCompiler {
                 }
 
                 // Create format function call — SQLGenerator handles dialect-specific translation
-                yield new FunctionExpression("format", formatStr, argExprs, Primitive.STRING);
+                yield new FunctionExpression("format", formatStr, argExprs, Primitive.ANY);
             }
             case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx+1)
                 // Pure splitPart is 0-based, DuckDB split_part is 1-based
@@ -4666,16 +4666,16 @@ public final class PureCompiler {
                 yield new ConcatExpression(java.util.List.of(
                         FunctionExpression.of("upper",
                                 new FunctionExpression("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
-                                        Primitive.STRING)),
-                        new FunctionExpression("substr", src, java.util.List.of(Literal.of(2)), Primitive.STRING)));
+                                        Primitive.ANY)),
+                        new FunctionExpression("substr", src, java.util.List.of(Literal.of(2)), Primitive.ANY)));
             }
             case "toLowerFirstCharacter" -> { // lower(s[1]) || s[2:]
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 yield new ConcatExpression(java.util.List.of(
                         FunctionExpression.of("lower",
                                 new FunctionExpression("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
-                                        Primitive.STRING)),
-                        new FunctionExpression("substr", src, java.util.List.of(Literal.of(2)), Primitive.STRING)));
+                                        Primitive.ANY)),
+                        new FunctionExpression("substr", src, java.util.List.of(Literal.of(2)), Primitive.ANY)));
             }
             case "indexOf" -> { // indexOf on list or string
                 if (methodCall.arguments().isEmpty())
@@ -5275,7 +5275,7 @@ public final class PureCompiler {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.arguments().isEmpty()) {
                     // No format arg: parseDate IR node, generator emits CAST(... AS TIMESTAMPTZ)
-                    yield FunctionExpression.of("parseDate", src, Primitive.DATE_TIME);
+                    yield FunctionExpression.of("parseDate", src);
                 }
                 yield new FunctionExpression("cast",
                         FunctionExpression.of("strptime", src,

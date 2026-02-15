@@ -68,18 +68,14 @@ public record FunctionExpression(
 
     @Override
     public GenericType type() {
-        if (returnType != GenericType.Primitive.ANY) {
-            return returnType;
+        // 1. Registry is the PRIMARY source of return types
+        GenericType targetType = target != null ? target.type() : GenericType.Primitive.ANY;
+        List<GenericType> argTypes = arguments.stream().map(Expression::type).toList();
+        GenericType registryType = PureFunctionRegistry.resolveReturnType(functionName, targetType, argTypes);
+        if (registryType != GenericType.Primitive.ANY) {
+            return registryType;
         }
-        // Propagate DECIMAL type from target or any argument
-        if (target != null && target.type() == GenericType.Primitive.DECIMAL) {
-            return GenericType.Primitive.DECIMAL;
-        }
-        for (Expression arg : arguments) {
-            if (arg.type() == GenericType.Primitive.DECIMAL) {
-                return GenericType.Primitive.DECIMAL;
-            }
-        }
+        // 2. Explicit returnType override for special cases not in registry
         return returnType;
     }
 
