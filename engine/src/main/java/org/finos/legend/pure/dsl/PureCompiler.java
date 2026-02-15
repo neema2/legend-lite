@@ -3535,12 +3535,12 @@ public final class PureCompiler {
                     fields.put("v", ColumnReference.of(param));
                     Expression structExpr = new StructLiteralExpression("_sort", fields);
                     Expression tagged = CollectionExpression.map(list, param, structExpr);
-                    Expression sorted = FunctionExpression.of("list_sort", tagged, detectSortDirection(sort.sortColumns()));
+                    Expression sorted = FunctionExpression.of("sort", tagged, detectSortDirection(sort.sortColumns()));
                     String param2 = "_sv";
                     Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
                     yield CollectionExpression.map(sorted, param2, extractVal);
                 }
-                yield FunctionExpression.of("list_sort", list, detectSortDirection(sort.sortColumns()));
+                yield FunctionExpression.of("sort", list, detectSortDirection(sort.sortColumns()));
             }
             // Relation expressions that reach here need special handling
             case TdsLiteral tds -> {
@@ -3577,7 +3577,7 @@ public final class PureCompiler {
                 // Collection sort: $list->sort() has empty sortColumns and non-relation source
                 if (sort.sortColumns().isEmpty()) {
                     Expression source = compileToSqlExpression(sort.source(), context);
-                    yield FunctionExpression.of("list_sort", source);
+                    yield FunctionExpression.of("sort", source);
                 }
                 // Collection sort with comparator: $list->sort({x,y|$y->compare($x)})
                 // or sort with key function: $list->sort(keyFn, comparatorFn)
@@ -3601,12 +3601,12 @@ public final class PureCompiler {
                         fields.put("v", ColumnReference.of(param));
                         Expression structExpr = new StructLiteralExpression("_sort", fields);
                         Expression tagged = CollectionExpression.map(source, param, structExpr);
-                        Expression sorted = FunctionExpression.of("list_sort", tagged, detectSortDirection(sort.sortColumns()));
+                        Expression sorted = FunctionExpression.of("sort", tagged, detectSortDirection(sort.sortColumns()));
                         String param2 = "_sv";
                         Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2), Literal.string("v"));
                         yield CollectionExpression.map(sorted, param2, extractVal);
                     }
-                    yield FunctionExpression.of("list_sort", source, detectSortDirection(sort.sortColumns()));
+                    yield FunctionExpression.of("sort", source, detectSortDirection(sort.sortColumns()));
                 }
                 // Otherwise it's a relation sort that should be handled elsewhere
                 throw new PureCompileException(
@@ -3768,7 +3768,7 @@ public final class PureCompiler {
                     throw new PureCompileException("sort() requires an argument");
                 }
                 Expression source = compileToSqlExpression(args.getFirst(), context);
-                yield FunctionExpression.of("list_sort", source);
+                yield FunctionExpression.of("sort", source);
             }
             case "in" -> compilePureFunctionIn(args, context);
             case "toString" -> {
@@ -3802,7 +3802,7 @@ public final class PureCompiler {
             }
             case "char" -> {
                 if (args.isEmpty()) throw new PureCompileException("char() requires an argument");
-                yield FunctionExpression.of("chr", compileToSqlExpression(args.getFirst(), context));
+                yield FunctionExpression.of("char", compileToSqlExpression(args.getFirst(), context));
             }
             case "ascii" -> {
                 if (args.isEmpty()) throw new PureCompileException("ascii() requires an argument");
@@ -3976,11 +3976,11 @@ public final class PureCompiler {
                 if (args.size() == 1) {
                     // round(x) -> CAST(ROUND_EVEN(x, 0) AS BIGINT)
                     yield new org.finos.legend.engine.plan.CastExpression(
-                            FunctionExpression.of("round_even", src, Literal.integer(0)), Primitive.INTEGER);
+                            FunctionExpression.of("round", src, Literal.integer(0)), Primitive.INTEGER);
                 } else {
                     // round(x, scale) -> ROUND_EVEN(x, scale)
                     Expression scale = compileToSqlExpression(args.get(1), context);
-                    yield FunctionExpression.of("round_even", src, scale);
+                    yield FunctionExpression.of("round", src, scale);
                 }
             }
             // mod(a, b) -> mod(mod(a, b) + b, b) (Pure mod is always non-negative)
@@ -4020,11 +4020,12 @@ public final class PureCompiler {
                 if (args.isEmpty()) throw new PureCompileException("parseDate() requires a string argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
                 if (args.size() == 1) {
-                    // No format: parseDate IR node, generator emits CAST(... AS TIMESTAMPTZ)
+                    // No format: generator emits CAST(... AS TIMESTAMPTZ)
                     yield FunctionExpression.of("parseDate", src);
                 }
+                // With format: generator emits CAST(STRPTIME(s, fmt) AS DATE)
                 yield new FunctionExpression("cast",
-                        FunctionExpression.of("strptime", src,
+                        FunctionExpression.of("parseDate", src,
                                 compileToSqlExpression(args.get(1), context)),
                         java.util.List.of(), Primitive.STRICT_DATE);
             }
@@ -4653,7 +4654,7 @@ public final class PureCompiler {
                 Expression delim = compileToSqlExpression(args.get(0), context);
                 Expression idx = compileToSqlExpression(args.get(1), context);
                 Expression oneBasedIdx = ArithmeticExpression.add(idx, Literal.integer(1));
-                Expression splitResult = FunctionExpression.of("split_part", src, delim, oneBasedIdx);
+                Expression splitResult = FunctionExpression.of("splitPart", src, delim, oneBasedIdx);
                 // CASE WHEN delim = '' THEN src ELSE split_part(...) END
                 yield CaseExpression.of(
                         ComparisonExpression.equals(delim, Literal.string("")),
@@ -4664,18 +4665,18 @@ public final class PureCompiler {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 // DuckDB: upper(s[1]) || s[2:]
                 yield new ConcatExpression(java.util.List.of(
-                        FunctionExpression.of("upper",
-                                new FunctionExpression("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
+                        FunctionExpression.of("toUpper",
+                                new FunctionExpression("substring", src, java.util.List.of(Literal.of(1), Literal.of(1)),
                                         Primitive.ANY)),
-                        new FunctionExpression("substr", src, java.util.List.of(Literal.of(2)), Primitive.ANY)));
+                        new FunctionExpression("substring", src, java.util.List.of(Literal.of(2)), Primitive.ANY)));
             }
             case "toLowerFirstCharacter" -> { // lower(s[1]) || s[2:]
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 yield new ConcatExpression(java.util.List.of(
-                        FunctionExpression.of("lower",
-                                new FunctionExpression("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
+                        FunctionExpression.of("toLower",
+                                new FunctionExpression("substring", src, java.util.List.of(Literal.of(1), Literal.of(1)),
                                         Primitive.ANY)),
-                        new FunctionExpression("substr", src, java.util.List.of(Literal.of(2)), Primitive.ANY)));
+                        new FunctionExpression("substring", src, java.util.List.of(Literal.of(2)), Primitive.ANY)));
             }
             case "indexOf" -> { // indexOf on list or string
                 if (methodCall.arguments().isEmpty())
@@ -4685,7 +4686,7 @@ public final class PureCompiler {
                 if (methodCall.source() instanceof ArrayLiteral) {
                     // List indexOf: list_position(list, elem) returns 1-based, subtract 1 for 0-based
                     yield ArithmeticExpression.subtract(
-                            FunctionExpression.of("list_position", src, arg),
+                            FunctionExpression.of("listIndexOf", src, arg),
                             Literal.integer(1));
                 }
                 // String indexOf: instr(string, search) returns 1-based, subtract 1 for Pure's 0-based
@@ -4694,17 +4695,17 @@ public final class PureCompiler {
                     Expression fromIndex = compileToSqlExpression(methodCall.arguments().get(1), context);
                     // DuckDB doesn't have instr with offset, so use:
                     // fromIndex + instr(substring(src, fromIndex+1), search) - 1
-                    Expression subStr = new FunctionExpression("substr", src,
+                    Expression subStr = new FunctionExpression("substring", src,
                             java.util.List.of(ArithmeticExpression.add(fromIndex, Literal.integer(1))),
-                            Primitive.STRING);
+                            Primitive.ANY);
                     yield ArithmeticExpression.subtract(
                             ArithmeticExpression.add(
                                     fromIndex,
-                                    FunctionExpression.of("instr", subStr, arg)),
+                                    FunctionExpression.of("indexOf", subStr, arg)),
                             Literal.integer(1));
                 }
                 yield ArithmeticExpression.subtract(
-                        FunctionExpression.of("instr", src, arg),
+                        FunctionExpression.of("indexOf", src, arg),
                         Literal.integer(1));
             }
             case "substring" -> { // substring(start) or substring(start, end) — Pure is 0-based
@@ -4718,12 +4719,12 @@ public final class PureCompiler {
                     // substring(start, end) -> SUBSTRING(str, start+1, end-start)
                     Expression end = compileToSqlExpression(methodCall.arguments().get(1), context);
                     Expression length = ArithmeticExpression.subtract(end, start);
-                    yield new FunctionExpression("substr", src,
-                            java.util.List.of(oneBasedStart, length), Primitive.STRING);
+                    yield new FunctionExpression("substring", src,
+                            java.util.List.of(oneBasedStart, length), Primitive.ANY);
                 }
                 // substring(start) -> SUBSTRING(str, start+1)
-                yield new FunctionExpression("substr", src,
-                        java.util.List.of(oneBasedStart), Primitive.STRING);
+                yield new FunctionExpression("substring", src,
+                        java.util.List.of(oneBasedStart), Primitive.ANY);
             }
             case "lpad" -> { // lpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE lpad(s,n,fill) END
                 if (methodCall.arguments().isEmpty())
@@ -4772,7 +4773,7 @@ public final class PureCompiler {
                                 FunctionExpression.of("rpad", src, len, fill)));
             }
             case "char" -> // char(n) -> chr(n) (DuckDB uses chr, not char)
-                FunctionExpression.of("chr", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("char", compileToSqlExpression(methodCall.source(), context));
             case "ascii" -> // ascii(s) -> ASCII(s)
                 FunctionExpression.of("ASCII", compileToSqlExpression(methodCall.source(), context));
             case "parseInteger" -> // parseInteger(s) -> CAST(s AS BIGINT)
@@ -4850,15 +4851,15 @@ public final class PureCompiler {
                 Expression paddedLen = ArithmeticExpression.multiply(divResult, Literal.integer(4));
                 Expression padded = FunctionExpression.of("rpad", stripped, paddedLen, Literal.string("="));
                 yield new org.finos.legend.engine.plan.CastExpression(
-                        FunctionExpression.of("from_base64", padded), Primitive.STRING);
+                        FunctionExpression.of("decodeBase64", padded), Primitive.STRING);
             }
             case "encodeBase64" -> // encodeBase64(s) -> encodeBase64(s), generator handles BLOB cast
                 FunctionExpression.of("encodeBase64",
                         compileToSqlExpression(methodCall.source(), context), Primitive.STRING);
             case "toLower" -> // toLower(s) -> LOWER(s)
-                FunctionExpression.of("lower", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("toLower", compileToSqlExpression(methodCall.source(), context));
             case "toUpper" -> // toUpper(s) -> UPPER(s)
-                FunctionExpression.of("upper", compileToSqlExpression(methodCall.source(), context));
+                FunctionExpression.of("toUpper", compileToSqlExpression(methodCall.source(), context));
 
             // ===== MATH FUNCTIONS =====
             case "min" -> { // x->min(y) -> LEAST(x, y), or list->min() -> list_min(list)
@@ -4888,11 +4889,11 @@ public final class PureCompiler {
                 if (methodCall.arguments().isEmpty()) {
                     // round() with no scale -> round half-even: CAST(ROUND_EVEN(x, 0) AS BIGINT)
                     yield new org.finos.legend.engine.plan.CastExpression(
-                            FunctionExpression.of("round_even", src, Literal.integer(0)), Primitive.INTEGER);
+                            FunctionExpression.of("round", src, Literal.integer(0)), Primitive.INTEGER);
                 } else {
                     // round(scale) -> ROUND_EVEN(x, scale)
                     Expression scale = compileToSqlExpression(methodCall.arguments().getFirst(), context);
-                    yield FunctionExpression.of("round_even", src, scale);
+                    yield FunctionExpression.of("round", src, scale);
                 }
             }
             case "rem" -> { // rem(a, b) -> mod(a, b) (can return negative)
@@ -5195,7 +5196,7 @@ public final class PureCompiler {
                 FunctionExpression.of("list_reverse", compileToSqlExpression(methodCall.source(), context));
             case "sort" -> { // sort() is parsed as SortExpression; this handles edge cases
                 Expression listExpr = compileToSqlExpression(methodCall.source(), context);
-                yield FunctionExpression.of("list_sort", listExpr);
+                yield FunctionExpression.of("sort", listExpr);
             }
 
             // ===== DATE FUNCTIONS =====
@@ -5271,14 +5272,15 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(args.get(1));
                 yield new DateAdjustExpression(dateExpr, amountExpr, unit);
             }
-            case "parseDate" -> { // parseDate(s, fmt) -> strptime(s, fmt)::DATE or CAST(s AS TIMESTAMPTZ)
+            case "parseDate" -> { // parseDate(s) or parseDate(s, fmt)
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.arguments().isEmpty()) {
-                    // No format arg: parseDate IR node, generator emits CAST(... AS TIMESTAMPTZ)
+                    // No format: generator emits CAST(... AS TIMESTAMPTZ)
                     yield FunctionExpression.of("parseDate", src);
                 }
+                // With format: generator emits CAST(STRPTIME(s, fmt) AS DATE)
                 yield new FunctionExpression("cast",
-                        FunctionExpression.of("strptime", src,
+                        FunctionExpression.of("parseDate", src,
                                 compileToSqlExpression(methodCall.arguments().getFirst(), context)),
                         java.util.List.of(), Primitive.STRICT_DATE);
             }
@@ -5316,7 +5318,7 @@ public final class PureCompiler {
                 // For WEEKS, use ISO Monday epoch 1969-12-29 (Monday before Unix epoch)
                 // ref: legend-engine DuckDB constructTimeBucketOffset
                 String originDate = "WEEKS".equals(unitName.toUpperCase()) ? "1969-12-29" : "1970-01-01";
-                Expression timeBucketExpr = FunctionExpression.of("time_bucket",
+                Expression timeBucketExpr = FunctionExpression.of("timeBucket",
                         FunctionExpression.of(intervalFunc, count),
                         timestamp,
                         new org.finos.legend.engine.plan.CastExpression(
@@ -5907,7 +5909,7 @@ public final class PureCompiler {
         if (expr instanceof FunctionExpression func) {
             return switch (func.functionName().toLowerCase()) {
                 case "list_append", "list_prepend", "list_concat", "list_slice",
-                     "list_sort", "list_reverse", "list_distinct", "list_filter",
+                     "sort", "list_reverse", "list_distinct", "list_filter",
                      "list_transform", "list_value", "list_resize", "flatten",
                      "list_reduce" -> true;
                 default -> false;

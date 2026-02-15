@@ -79,7 +79,7 @@ public final class PureFunctionRegistry {
             register(fn, FunctionSig.constant(GenericType.Primitive.FLOAT));
         }
 
-        register("round", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("round", FunctionSig.numericPassthrough());
         register("sign", FunctionSig.constant(GenericType.Primitive.INTEGER));
         register("pi", FunctionSig.constant(GenericType.Primitive.FLOAT));
 
@@ -167,17 +167,6 @@ public final class PureFunctionRegistry {
         register("toVariant", FunctionSig.constant(GenericType.Primitive.JSON));
         register("fromJson", FunctionSig.passthrough());
         register("get", FunctionSig.passthrough());
-
-        // ===== DuckDB-specific names in IR (cleanup in Step C) =====
-        register("round_even", FunctionSig.numericPassthrough());
-        register("from_base64", FunctionSig.constant(GenericType.Primitive.STRING));
-        register("strptime", FunctionSig.constant(GenericType.Primitive.DATE_TIME));
-        register("time_bucket", FunctionSig.passthrough());
-        register("list_position", FunctionSig.constant(GenericType.Primitive.INTEGER));
-        register("list_sort", FunctionSig.passthrough());
-        register("split_part", FunctionSig.constant(GenericType.Primitive.STRING));
-        register("upper", FunctionSig.constant(GenericType.Primitive.STRING));
-        register("lower", FunctionSig.constant(GenericType.Primitive.STRING));
 
         // ===== Other =====
         register("char", FunctionSig.constant(GenericType.Primitive.STRING));

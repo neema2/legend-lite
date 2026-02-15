@@ -1475,7 +1475,15 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case "fromjson" -> dialect.getJsonDialect().variantFromJson(target);
             case "tojson" -> dialect.getJsonDialect().variantToJson(target);
             case "encodebase64" -> "TO_BASE64(CAST(" + target + " AS BLOB))";
-            case "parsedate" -> "CAST(" + target + " AS TIMESTAMPTZ)";
+            case "parsedate" -> {
+                if (functionCall.arguments().isEmpty()) {
+                    // parseDate(s) -> CAST(s AS TIMESTAMPTZ)
+                    yield "CAST(" + target + " AS TIMESTAMPTZ)";
+                }
+                // parseDate(s, fmt) -> STRPTIME(s, fmt)
+                String fmt = functionCall.arguments().getFirst().accept(this);
+                yield "STRPTIME(" + target + ", " + fmt + ")";
+            }
             case "rpad", "lpad" -> {
                 // DuckDB rpad/lpad require INTEGER (32-bit) length, not BIGINT
                 String[] argsSql = functionCall.arguments().stream()
@@ -1535,11 +1543,11 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case "round" -> {
                 if (functionCall.arguments().isEmpty()) {
                     // round(x) with no scale -> Pure expects Integer
-                    yield "CAST(round(" + target + ") AS BIGINT)";
+                    yield "CAST(" + funcName + "(" + target + ") AS BIGINT)";
                 }
-                // round(x, scale) -> ROUND(x, scale) returns DECIMAL
+                // round(x, scale) -> ROUND_EVEN(x, scale) returns DECIMAL
                 String scale = functionCall.arguments().getFirst().accept(this);
-                yield "round(" + target + ", " + scale + ")";
+                yield funcName + "(" + target + ", " + scale + ")";
             }
 
             // Bit operations - DuckDB uses operators, not functions
@@ -1787,19 +1795,23 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case "trim" -> "TRIM";
             case "length" -> "LENGTH";
             case "reversestring", "reverse" -> "REVERSE";
+            case "sort" -> "LIST_SORT";
+            case "splitpart" -> "SPLIT_PART";
+            case "char" -> "CHR";
             case "substring" -> "SUBSTRING";
             case "concat" -> "CONCAT";
             case "startswith" -> "STARTS_WITH";
             case "endswith" -> "ENDS_WITH";
             case "contains" -> "STRPOS";
             case "indexof" -> "INSTR";
+            case "listindexof" -> "LIST_POSITION";
             case "matches" -> "REGEXP_MATCHES";
             case "levenshteindistance" -> "LEVENSHTEIN";
             case "jarowinklersimilarity" -> "JARO_WINKLER_SIMILARITY";
 
             // Math functions
             case "abs" -> "ABS";
-            case "round" -> "ROUND";
+            case "round" -> "ROUND_EVEN";
             case "ceiling", "ceil" -> "CEIL";
             case "floor" -> "FLOOR";
             case "sqrt" -> "SQRT";
@@ -1828,6 +1840,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case "parseboolean" -> "CAST";
 
             // Collection/null functions
+            case "decodebase64" -> "FROM_BASE64";
             case "isempty" -> "COALESCE";
             case "size" -> "LENGTH";
             case "first" -> "FIRST";
@@ -1845,6 +1858,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             case "hashcode", "hash" -> "HASH";
 
             // Date functions
+            case "timebucket" -> "TIME_BUCKET";
             case "monthnumber", "month" -> "MONTH";
             case "daynumber", "day" -> "DAY";
             case "yearnumber", "year" -> "YEAR";
@@ -2147,7 +2161,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
 
     private boolean isTimeBucketSource(Expression expr) {
         if (expr instanceof TimeBucketExpression) return true;
-        return expr instanceof FunctionExpression fe && "time_bucket".equalsIgnoreCase(fe.functionName());
+        return expr instanceof FunctionExpression fe && "timeBucket".equalsIgnoreCase(fe.functionName());
     }
 
     @Override
