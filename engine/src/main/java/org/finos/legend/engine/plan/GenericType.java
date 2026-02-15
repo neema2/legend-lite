@@ -105,9 +105,9 @@ public sealed interface GenericType
                 case "DateTime" -> DATE_TIME;
                 case "StrictTime" -> STRICT_TIME;
                 case "Variant" -> JSON;
-                // Class/Enum names (e.g., Person, ProductType) are not primitives — return ANY
-                // These are handled by ClassType/EnumType at higher levels
-                default -> ANY;
+                case "Any" -> ANY;
+                default -> throw new IllegalArgumentException(
+                        "Unknown primitive type: '" + simpleName + "'. Use GenericType.fromType() for class/enum types.");
             };
         }
     }
@@ -185,10 +185,22 @@ public sealed interface GenericType
 
     /**
      * Maps a Pure type name string to the best GenericType.
-     * Returns Primitive for known types, Primitive.ANY for unknown.
+     * Only use for known primitive type names. For property types, use fromType(Type) instead.
      */
     static GenericType fromTypeName(String name) {
         return Primitive.fromTypeName(name);
+    }
+
+    /**
+     * Converts a Pure m3 Type to a GenericType, preserving class/enum identity.
+     * This is the preferred conversion — avoids the lossy string path through fromTypeName.
+     */
+    static GenericType fromType(org.finos.legend.pure.m3.Type type) {
+        return switch (type) {
+            case org.finos.legend.pure.m3.PrimitiveType pt -> Primitive.fromTypeName(pt.typeName());
+            case org.finos.legend.pure.m3.PureClass pc -> new ClassType(pc.qualifiedName());
+            case org.finos.legend.pure.m3.PureEnumType et -> new EnumType(et.qualifiedName());
+        };
     }
 
     // ========== Helper methods ==========

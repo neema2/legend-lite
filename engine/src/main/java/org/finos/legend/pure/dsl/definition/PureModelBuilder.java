@@ -651,7 +651,9 @@ public final class PureModelBuilder implements ModelContext {
             return SqlDataType.DOUBLE;
         if (upper.equals("DECIMAL") || upper.startsWith("DECIMAL"))
             return SqlDataType.DECIMAL;
-        return SqlDataType.VARCHAR; // Default fallback
+        if (upper.equals("SEMISTRUCTURED") || upper.equals("JSON") || upper.equals("VARIANT"))
+            return SqlDataType.SEMISTRUCTURED;
+        throw new IllegalArgumentException("Unknown SQL data type: '" + typeName + "'. Add it to SqlDataType enum.");
     }
 
     /**

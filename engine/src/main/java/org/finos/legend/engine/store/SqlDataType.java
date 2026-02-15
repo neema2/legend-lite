@@ -13,7 +13,8 @@ public enum SqlDataType {
     DATE,
     TIMESTAMP,
     DOUBLE,
-    DECIMAL;
+    DECIMAL,
+    SEMISTRUCTURED;
 
     /**
      * Maps this SQL data type to its corresponding Pure GenericType.
@@ -28,6 +29,7 @@ public enum SqlDataType {
             case TIMESTAMP -> org.finos.legend.engine.plan.GenericType.Primitive.DATE_TIME;
             case DOUBLE -> org.finos.legend.engine.plan.GenericType.Primitive.FLOAT;
             case DECIMAL -> org.finos.legend.engine.plan.GenericType.Primitive.DECIMAL;
+            case SEMISTRUCTURED -> org.finos.legend.engine.plan.GenericType.Primitive.JSON;
         };
     }
 

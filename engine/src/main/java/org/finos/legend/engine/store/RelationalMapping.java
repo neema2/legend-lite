@@ -97,7 +97,7 @@ public record RelationalMapping(
      */
     public org.finos.legend.engine.plan.GenericType pureTypeForProperty(String propertyName) {
         return pureClass.findProperty(propertyName)
-                .map(p -> org.finos.legend.engine.plan.GenericType.fromTypeName(p.genericType().typeName()))
+                .map(p -> org.finos.legend.engine.plan.GenericType.fromType(p.genericType()))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Property '" + propertyName + "' not found in class " + pureClass.name()));
     }

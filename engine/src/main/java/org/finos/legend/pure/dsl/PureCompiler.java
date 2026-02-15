@@ -32,6 +32,7 @@ public final class PureCompiler {
     private final ModelContext modelContext;
     private final TypeEnvironment typeEnvironment;
     private int aliasCounter = 0;
+    private final java.util.Map<String, PureExpression> letBindings = new java.util.HashMap<>();
 
     /**
      * Creates a compiler with just a mapping registry (legacy compatibility).
@@ -2281,35 +2282,31 @@ public final class PureCompiler {
      * This creates a TableScanNode directly from the database table reference.
      */
     private RelationNode compileRelationLiteral(RelationLiteral literal) {
-        // Extract simple database name from qualified reference
-        // e.g., "store::PersonDatabase" -> "PersonDatabase"
+        return new TableNode(resolveTable(literal), "t0");
+    }
+
+    /**
+     * Resolves a RelationLiteral to its physical Table.
+     * Shared between compileRelationLiteral and collectExtendedColumnsRecursive.
+     */
+    private org.finos.legend.engine.store.Table resolveTable(RelationLiteral literal) {
         String dbRef = literal.databaseRef();
         String simpleDbName = dbRef.contains("::")
                 ? dbRef.substring(dbRef.lastIndexOf("::") + 2)
                 : dbRef;
-
-        // Build table key: simpleDbName.tableName (e.g., "PersonDatabase.T_PERSON")
         String tableKey = simpleDbName + "." + literal.tableName();
 
-        // Look up via model context if available
         if (modelContext != null) {
             var tableOpt = modelContext.findTable(tableKey);
-            if (tableOpt.isPresent()) {
-                return new TableNode(tableOpt.get(), "t0");
-            }
-            // Fallback: try just table name
+            if (tableOpt.isPresent()) return tableOpt.get();
             tableOpt = modelContext.findTable(literal.tableName());
-            if (tableOpt.isPresent()) {
-                return new TableNode(tableOpt.get(), "t0");
-            }
+            if (tableOpt.isPresent()) return tableOpt.get();
         }
 
-        // Fallback to mapping registry lookup
-        RelationalMapping mapping = mappingRegistry.findByTableName(tableKey)
+        return mappingRegistry.findByTableName(tableKey)
+                .map(RelationalMapping::table)
                 .orElseThrow(() -> new PureCompileException(
                         "Table not found: " + literal.tableName() + " in " + literal.databaseRef()));
-
-        return new TableNode(mapping.table(), "t0");
     }
 
     /**
@@ -2892,23 +2889,18 @@ public final class PureCompiler {
                 collectExtendedColumnsRecursive(extend.source(), columns);
                 // Infer extend column type by compiling the lambda body
                 if (extend.expression() != null) {
-                    try {
-                        String tableAlias = "";
-                        CompilationContext inferCtx = new CompilationContext(
-                                extend.expression().parameter(), tableAlias, null, null, false,
-                                new java.util.HashMap<>(), new java.util.HashMap<>(columns),
-                                new java.util.HashMap<>(), new java.util.HashMap<>(),
-                                new java.util.HashMap<>(), new java.util.HashMap<>())
-                                .withRowBinding(extend.expression().parameter(), tableAlias);
-                        Expression body = compileToSqlExpression(extend.expression().body(), inferCtx);
-                        columns.put(extend.newColumnName(), body.type());
-                    } catch (Exception e) {
-                        // If inference fails, fall back to ANY
-                        columns.put(extend.newColumnName(), Primitive.ANY);
-                    }
+                    String tableAlias = "";
+                    CompilationContext inferCtx = new CompilationContext(
+                            extend.expression().parameter(), tableAlias, null, null, false,
+                            new java.util.HashMap<>(), new java.util.HashMap<>(columns),
+                            new java.util.HashMap<>(), new java.util.HashMap<>(),
+                            new java.util.HashMap<>(), new java.util.HashMap<>())
+                            .withRowBinding(extend.expression().parameter(), tableAlias);
+                    Expression body = compileToSqlExpression(extend.expression().body(), inferCtx);
+                    columns.put(extend.newColumnName(), body.type());
                 } else {
-                    // Window function extend — type depends on window function (usually numeric)
-                    columns.put(extend.newColumnName(), Primitive.ANY);
+                    // Window function extend — compute type from the window function spec
+                    columns.put(extend.newColumnName(), inferWindowFunctionType(extend.windowSpec(), columns));
                 }
             }
             case RelationFilterExpression filter -> collectExtendedColumnsRecursive(filter.source(), columns);
@@ -2927,9 +2919,62 @@ public final class PureCompiler {
                     }
                 }
             }
+            case RelationLiteral literal -> {
+                // Database table reference: extract all column types from the table schema
+                var table = resolveTable(literal);
+                for (var col : table.columns()) {
+                    columns.put(col.name(), col.dataType().toGenericType());
+                }
+            }
+            case VariableExpr var -> {
+                // Follow let bindings: let t = #TDS...# in t->extend(...)
+                PureExpression bound = letBindings.get(var.name());
+                if (bound != null) {
+                    collectExtendedColumnsRecursive(bound, columns);
+                }
+            }
+            case FunctionCall fc -> {
+                // Arrow calls like $a->filter(...), $a->sort(...) are pass-through for column structure
+                if (fc.source() != null) {
+                    collectExtendedColumnsRecursive(fc.source(), columns);
+                }
+            }
             default -> {
                 /* Base case - no more extended columns to collect */ }
         }
+    }
+
+    /**
+     * Infers the return type of a window function from its spec.
+     * Ranking functions return INTEGER, aggregate functions have known return types,
+     * value functions pass through the source column type.
+     */
+    private GenericType inferWindowFunctionType(RelationExtendExpression.TypedWindowSpec windowSpec,
+                                                java.util.Map<String, GenericType> columns) {
+        if (windowSpec == null) return Primitive.DEFERRED;
+        return inferWindowSpecType(windowSpec.spec(), columns);
+    }
+
+    private GenericType inferWindowSpecType(WindowFunctionSpec spec, java.util.Map<String, GenericType> columns) {
+        return switch (spec) {
+            case RankingFunctionSpec ranking -> switch (ranking.function()) {
+                case PERCENT_RANK, CUME_DIST -> Primitive.FLOAT;
+                default -> Primitive.INTEGER; // ROW_NUMBER, RANK, DENSE_RANK, NTILE
+            };
+            case AggregateFunctionSpec agg -> switch (agg.function()) {
+                case COUNT -> Primitive.INTEGER;
+                case SUM, AVG, STDDEV, STDDEV_SAMP, STDDEV_POP, VARIANCE, VAR_SAMP, VAR_POP,
+                     MEDIAN, CORR, COVAR_SAMP, COVAR_POP, PERCENTILE_CONT, PERCENTILE_DISC,
+                     WAVG -> Primitive.FLOAT;
+                case STRING_AGG -> Primitive.STRING;
+                case MIN, MAX, MODE, ARG_MIN, ARG_MAX ->
+                    columns.getOrDefault(agg.column(), Primitive.FLOAT);
+            };
+            case ValueFunctionSpec value ->
+                columns.getOrDefault(value.column(), Primitive.DEFERRED);
+            case PostProcessedWindowFunctionSpec pp ->
+                inferWindowSpecType(pp.inner(), columns);
+        };
     }
 
     /**
@@ -3483,6 +3528,7 @@ public final class PureCompiler {
                 CompilationContext workingCtx = context != null ? context
                         : new CompilationContext(null, null, null, null, false);
                 for (LetExpression let : block.letStatements()) {
+                    letBindings.put(let.variableName(), let.value());
                     Expression scalarExpr = compileToSqlExpression(let.value(), workingCtx);
                     workingCtx = workingCtx.withScalarBinding(let.variableName(), scalarExpr);
                 }
@@ -6526,11 +6572,14 @@ public final class PureCompiler {
 
     /**
      * Resolves the GenericType for a property access.
-     * Checks (in order): extendedColumns map, class definition from context, DEFERRED fallback.
+     * Checks (in order): extendedColumns, mapping, class definition, lambda params.
+     * Falls back to DEFERRED for: ClassType params not in local model, pivot output columns,
+     * join lambdas, and other paths where context threading is incomplete.
+     * TODO: eliminate remaining DEFERRED fallbacks by threading context through pivot, join, project paths
      */
     private GenericType resolvePropertyType(String propertyName, CompilationContext context) {
         if (context == null) return Primitive.DEFERRED;
-        // 1. Extended columns (from TDS/extend/flatten chain)
+        // 1. Extended columns (from TDS/extend/flatten/table chain)
         if (context.isExtendedColumn(propertyName)) {
             return context.getExtendedColumnType(propertyName);
         }
@@ -6548,7 +6597,7 @@ public final class PureCompiler {
             if (pureClass.isPresent()) {
                 var prop = pureClass.get().findProperty(propertyName);
                 if (prop.isPresent()) {
-                    return GenericType.fromTypeName(prop.get().genericType().typeName());
+                    return GenericType.fromType(prop.get().genericType());
                 }
             }
         }
@@ -6557,6 +6606,7 @@ public final class PureCompiler {
             GenericType resolved = resolveFromLambdaParamClass(propertyName, context);
             if (resolved != null) return resolved;
         }
+        // 5. Fallback — remaining gaps: pivot output, join lambdas, chained lets, project transformations
         return Primitive.DEFERRED;
     }
 
@@ -6580,7 +6630,7 @@ public final class PureCompiler {
             if (pureClass.isPresent()) {
                 var prop = pureClass.get().findProperty(propertyName);
                 if (prop.isPresent()) {
-                    return GenericType.fromTypeName(prop.get().genericType().typeName());
+                    return GenericType.fromType(prop.get().genericType());
                 }
             }
         }
