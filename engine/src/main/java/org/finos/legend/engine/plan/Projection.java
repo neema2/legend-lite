@@ -36,6 +36,16 @@ public record Projection(
                 propertyName
         );
     }
+
+    /**
+     * Creates a typed projection from a column reference with a property alias.
+     */
+    public static Projection column(String tableAlias, String columnName, String propertyName, PureType type) {
+        return new Projection(
+                ColumnReference.of(tableAlias, columnName, type),
+                propertyName
+        );
+    }
     
     /**
      * Creates a projection from a column reference using the column name as alias.

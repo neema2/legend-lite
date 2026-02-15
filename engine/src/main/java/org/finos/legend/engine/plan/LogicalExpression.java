@@ -65,6 +65,11 @@ public record LogicalExpression(
     }
     
     @Override
+    public PureType type() {
+        return PureType.BOOLEAN;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitLogical(this);
     }

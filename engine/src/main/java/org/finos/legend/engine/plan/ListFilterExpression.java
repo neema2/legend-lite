@@ -14,6 +14,11 @@ public record ListFilterExpression(
         Expression condition) implements Expression {
 
     @Override
+    public PureType type() {
+        return PureType.LIST;
+    }
+
+    @Override
     public <R> R accept(ExpressionVisitor<R> visitor) {
         return visitor.visit(this);
     }

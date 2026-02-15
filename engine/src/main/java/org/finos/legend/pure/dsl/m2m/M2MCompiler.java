@@ -167,7 +167,7 @@ public final class M2MCompiler {
                         .map(M2MCompiler.this::compileExpression)
                         .toList();
 
-                return new SqlFunctionCall(funcName, target, args, SqlType.UNKNOWN);
+                return new SqlFunctionCall(funcName, target, args, PureType.UNKNOWN);
             }
 
             @Override

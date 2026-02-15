@@ -62,6 +62,11 @@ public record SqlCollectionCall(
     }
 
     @Override
+    public PureType type() {
+        return PureType.LIST;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitCollectionCall(this);
     }

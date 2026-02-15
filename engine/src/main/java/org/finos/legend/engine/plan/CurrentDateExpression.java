@@ -26,6 +26,11 @@ public record CurrentDateExpression(
     }
 
     @Override
+    public PureType type() {
+        return function == CurrentDateFunction.NOW ? PureType.DATE_TIME : PureType.STRICT_DATE;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visit(this);
     }

@@ -14,6 +14,11 @@ public record DateDiffExpression(
         DurationUnit unit) implements Expression {
 
     @Override
+    public PureType type() {
+        return PureType.INTEGER;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visit(this);
     }

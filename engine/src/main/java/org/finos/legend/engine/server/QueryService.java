@@ -261,8 +261,8 @@ public class QueryService {
                     return new ScalarResult(precise, "DECIMAL");
                 }
             }
-            SqlType irType = cn.expression().type();
-            if (irType == SqlType.DECIMAL) {
+            PureType irType = cn.expression().type();
+            if (irType == PureType.DECIMAL) {
                 // Distinguish toDecimal() CAST (needs trailing zero strip) from
                 // Decimal literal arithmetic (preserves DuckDB scale as-is)
                 boolean fromToDecimalCast = cn.expression() instanceof CastExpression ce

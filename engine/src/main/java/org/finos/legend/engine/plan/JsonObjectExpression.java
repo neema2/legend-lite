@@ -33,6 +33,11 @@ public record JsonObjectExpression(List<Projection> projections) implements Expr
     }
 
     @Override
+    public PureType type() {
+        return PureType.JSON;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visit(this);
     }

@@ -1485,8 +1485,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 // get('key', @Type) -> returns typed value using ->> + CAST (returnType is
                 // scalar)
                 // JSON is the default, so we only cast for explicit scalar types
-                SqlType type = functionCall.returnType();
-                boolean hasTypeArg = type != SqlType.UNKNOWN && type != SqlType.JSON;
+                PureType type = functionCall.returnType();
+                boolean hasTypeArg = type != PureType.UNKNOWN && type != PureType.JSON;
 
                 if (arg instanceof Literal lit && lit.literalType() == Literal.LiteralType.INTEGER) {
                     // Array index access - always returns JSON
@@ -1496,13 +1496,7 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                     if (hasTypeArg) {
                         // get('key', @Type) - extract as text and cast
                         String textValue = dialect.getJsonDialect().variantGet(target, key);
-                        String sqlType = switch (type) {
-                            case INTEGER -> "INTEGER";
-                            case DOUBLE -> "DOUBLE";
-                            case VARCHAR -> "VARCHAR";
-                            case BOOLEAN -> "BOOLEAN";
-                            default -> "VARCHAR";
-                        };
+                        String sqlType = pureTypeToSql(type);
                         yield "CAST(" + textValue + " AS " + sqlType + ")";
                     } else {
                         // get('key') - return JSON structure
@@ -1516,14 +1510,8 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
             }
             case "cast" -> {
                 // Generate SQL CAST based on return type
-                SqlType type = functionCall.returnType();
-                String sqlType = switch (type) {
-                    case INTEGER -> "INTEGER";
-                    case DOUBLE -> "DOUBLE";
-                    case VARCHAR -> "VARCHAR";
-                    case BOOLEAN -> "BOOLEAN";
-                    default -> "VARCHAR"; // fallback
-                };
+                PureType type = functionCall.returnType();
+                String sqlType = pureTypeToSql(type);
                 // When casting a list/array, use array type (e.g., INTEGER[] not INTEGER)
                 if (functionCall.target() instanceof ListLiteral) {
                     sqlType = sqlType + "[]";
@@ -1777,11 +1765,31 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         return "(" + left + " " + arithmetic.sqlOperator() + " " + right + ")";
     }
 
+    /**
+     * Maps a PureType to its SQL type string for this dialect.
+     * This is the single point where Pure types are converted to SQL types.
+     */
+    private static String pureTypeToSql(PureType type) {
+        return switch (type) {
+            case INTEGER -> "BIGINT";
+            case FLOAT, NUMBER -> "DOUBLE";
+            case DECIMAL -> "DECIMAL";
+            case STRING, ENUM -> "VARCHAR";
+            case BOOLEAN -> "BOOLEAN";
+            case STRICT_DATE -> "DATE";
+            case DATE_TIME, DATE -> "TIMESTAMP";
+            case STRICT_TIME -> "TIME";
+            case JSON -> "JSON";
+            case LIST -> "JSON";
+            case UNKNOWN -> "VARCHAR";
+        };
+    }
+
     private boolean isStringExpression(Expression expr) {
         if (expr instanceof Literal lit && lit.value() instanceof String) return true;
         if (expr instanceof ColumnReference) return false; // Could be any type
         if (expr instanceof ArithmeticExpression arith) return isStringExpression(arith.left());
-        if (expr.type() == SqlType.VARCHAR) return true;
+        if (expr.type() == PureType.STRING) return true;
         return false;
     }
 

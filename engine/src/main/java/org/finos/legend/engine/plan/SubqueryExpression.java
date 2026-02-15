@@ -39,6 +39,11 @@ public record SubqueryExpression(
     }
 
     @Override
+    public PureType type() {
+        return selectExpression.type();
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visit(this);
     }

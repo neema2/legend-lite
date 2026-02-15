@@ -50,7 +50,7 @@ public record EpochExpression(
     }
 
     @Override
-    public SqlType type() {
-        return direction == Direction.FROM_EPOCH ? SqlType.TIMESTAMP : SqlType.BIGINT;
+    public PureType type() {
+        return direction == Direction.FROM_EPOCH ? PureType.DATE_TIME : PureType.INTEGER;
     }
 }

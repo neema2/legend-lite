@@ -184,7 +184,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (ctx.functionExpressionParameters() != null) {
             // It's a method call like .toOne()
             List<PureExpression> args = parseFunctionArgs(ctx.functionExpressionParameters());
-            return new MethodCall(source, propName, args);
+            return new FunctionCall(propName, source, args);
         }
 
         // Check if this is an enum value access: ClassReference.VALUE ->
@@ -304,8 +304,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 if (args.isEmpty()) {
                     yield new FirstExpression(source);
                 } else {
-                    // Window function: first($w, $r) - use standard MethodCall
-                    yield new MethodCall(source, "first", args);
+                    // Window function: first($w, $r) - use standard FunctionCall
+                    yield new FunctionCall("first", source, args);
                 }
             }
             case "select" -> parseSelectCall(source, args);
@@ -325,7 +325,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "asOfJoin" -> parseAsOfJoinCall(source, args);
             case "aggregate" -> parseAggregateCall(source, args);
             case "pivot" -> parsePivotCall(source, args);
-            default -> new MethodCall(source, simpleName, args);
+            default -> new FunctionCall(simpleName, source, args);
         };
     }
 
@@ -1180,8 +1180,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new GroupByExpression(castSource, groupByColumns, aggregations, aliases);
         }
 
-        // Fallback to MethodCall for other source types
-        return new MethodCall(source, "groupBy", args);
+        // Fallback to FunctionCall for other source types
+        return new FunctionCall("groupBy", source, args);
     }
 
     /**
@@ -1204,11 +1204,11 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             PureExpression columnAccess = mapLambda.body();
 
             // Get the aggregate function from aggLambda body (e.g., $y->joinStrings(''))
-            if (aggLambda.body() instanceof MethodCall aggCall) {
+            if (aggLambda.body() instanceof FunctionCall aggCall && aggCall.source() != null) {
                 // Replace the variable reference in aggCall.source() with the column access
                 // The aggCall.source() is $y, we replace it with the actual property access
                 // Create: $x.name->joinStrings('') style expression wrapped in lambda
-                PureExpression mergedBody = new MethodCall(columnAccess, aggCall.methodName(), aggCall.arguments());
+                PureExpression mergedBody = new FunctionCall(aggCall.functionName(), columnAccess, aggCall.arguments());
                 return new LambdaExpression(mapLambda.parameter(), mergedBody);
             }
             // Fallback: just use the map lambda if agg pattern doesn't match
@@ -1283,8 +1283,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new GroupByExpression(castSource, groupByLambdas, aggregations, fullAliases);
         }
 
-        // Fallback to MethodCall for other source types
-        return new MethodCall(source, "groupBy", args);
+        // Fallback to FunctionCall for other source types
+        return new FunctionCall("groupBy", source, args);
     }
 
     /**
@@ -1347,7 +1347,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new AggregateExpression(relExpr, mapFunctions, aggFunctions, aliases);
         }
 
-        return new MethodCall(source, "aggregate", args);
+        return new FunctionCall("aggregate", source, args);
     }
 
     /**
@@ -1451,8 +1451,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         if (cs.extraFunction() instanceof LambdaExpression aggLambda) {
             // Second lambda: y | $y->plus() - extracts the aggregate
             PureExpression body = aggLambda.body();
-            if (body instanceof MethodCall mc) {
-                aggFunction = mapAggFunctionName(mc.methodName());
+            if (body instanceof FunctionCall fc && fc.source() != null) {
+                aggFunction = mapAggFunctionName(fc.functionName());
             } else if (body instanceof FunctionCall fc) {
                 aggFunction = mapAggFunctionName(fc.functionName());
             }
@@ -1501,12 +1501,11 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             String left = expressionToSqlString(bin.left());
             String right = expressionToSqlString(bin.right());
             return "(" + left + " " + bin.operator() + " " + right + ")";
-        } else if (expr instanceof MethodCall mc) {
-            if ("toOne".equals(mc.methodName())) {
-                // toOne() just unwraps - return the source
-                return expressionToSqlString(mc.source());
-            }
-            return expressionToSqlString(mc.source());
+        } else if (expr instanceof FunctionCall fc && fc.source() != null && "toOne".equals(fc.functionName())) {
+            // toOne() just unwraps - return the source
+            return expressionToSqlString(fc.source());
+        } else if (expr instanceof FunctionCall fc && fc.source() != null) {
+            return expressionToSqlString(fc.source());
         } else if (expr instanceof FunctionCall fc) {
             // Handle meta::pure::functions::multiplicity::toOne and similar
             if (fc.functionName().endsWith("toOne") && !fc.arguments().isEmpty()) {
@@ -1580,8 +1579,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return new JoinExpression(source, rightArg, joinType, condition);
         }
 
-        // Fallback to MethodCall for other source types
-        return new MethodCall(source, "join", args);
+        // Fallback to FunctionCall for other source types
+        return new FunctionCall("join", source, args);
     }
 
     /**
@@ -1866,8 +1865,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     // ===================== TYPED WINDOW PARSING =====================
 
     private boolean isOverCall(PureExpression expr) {
-        return (expr instanceof FunctionCall fc && "over".equals(fc.functionName())) ||
-                (expr instanceof MethodCall mc && "over".equals(mc.methodName()));
+        return expr instanceof FunctionCall fc && "over".equals(fc.functionName());
     }
 
     /**
@@ -1913,7 +1911,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
      * Parses: extend(~col : row_number()->over(...))
      */
     private PureExpression parseTypedWindowExtendFromChain(PureExpression source, ColumnSpec cs) {
-        MethodCall overCall = (MethodCall) cs.extraFunction();
+        FunctionCall overCall = (FunctionCall) cs.extraFunction();
         WindowContext ctx = parseWindowContext(overCall);
         WindowFunctionSpec funcSpec = parseWindowFunctionFromExpr(overCall.source());
 
@@ -1924,11 +1922,11 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     /**
-     * Parses: extend(~col : row_number()->over()) where cs.lambda() is a MethodCall
+     * Parses: extend(~col : row_number()->over()) where cs.lambda() is a FunctionCall
      * to over()
      */
     private PureExpression parseTypedWindowExtendFromLambda(PureExpression source, ColumnSpec cs) {
-        MethodCall overCall = (MethodCall) cs.lambda();
+        FunctionCall overCall = (FunctionCall) cs.lambda();
         WindowContext ctx = parseWindowContext(overCall);
         WindowFunctionSpec funcSpec = parseWindowFunctionFromExpr(overCall.source());
 
@@ -1953,8 +1951,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         AggregateFunctionSpec.AggregateFunction aggFunc = AggregateFunctionSpec.AggregateFunction.SUM; // default
         if (cs.extraFunction() instanceof LambdaExpression aggLambda) {
             PureExpression aggBody = aggLambda.body();
-            if (aggBody instanceof MethodCall mc) {
-                aggFunc = switch (mc.methodName().toLowerCase()) {
+            if (aggBody instanceof FunctionCall mc && mc.source() != null) {
+                aggFunc = switch (mc.functionName().toLowerCase()) {
                     case "plus", "sum" -> AggregateFunctionSpec.AggregateFunction.SUM;
                     case "avg", "average" -> AggregateFunctionSpec.AggregateFunction.AVG;
                     case "count", "size" -> AggregateFunctionSpec.AggregateFunction.COUNT;
@@ -1973,7 +1971,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     case "covarpopulation" -> AggregateFunctionSpec.AggregateFunction.COVAR_POP;
                     case "percentile", "percentilecont" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_CONT;
                     case "percentiledisc" -> AggregateFunctionSpec.AggregateFunction.PERCENTILE_DISC;
-                    default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
+                    default -> throw new PureParseException("Unknown aggregate function: " + mc.functionName());
                 };
                 // Extract percentile value for percentile functions
                 if ((aggFunc == AggregateFunctionSpec.AggregateFunction.PERCENTILE_CONT
@@ -2020,10 +2018,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
     private WindowContext parseWindowContext(PureExpression overExpr) {
         List<PureExpression> overArgs = (overExpr instanceof FunctionCall fc)
-                ? fc.arguments()
-                : (overExpr instanceof MethodCall mc)
-                        ? concatWithSource(mc.source(), mc.arguments())
-                        : List.of();
+                ? (fc.source() != null ? concatWithSource(fc.source(), fc.arguments()) : fc.arguments())
+                : List.of();
 
         List<String> partitionCols = new ArrayList<>();
         List<RelationExtendExpression.SortSpec> orderSpecs = new ArrayList<>();
@@ -2037,38 +2033,34 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     if (spec instanceof ColumnSpec c)
                         partitionCols.add(c.name());
                 }
-            } else if (arg instanceof MethodCall mc) {
-                String method = mc.methodName();
-                if ("descending".equals(method) || "desc".equals(method)) {
-                    orderSpecs.add(new RelationExtendExpression.SortSpec(
-                            extractColName(mc.source()), RelationExtendExpression.SortDirection.DESC));
-                } else if ("ascending".equals(method) || "asc".equals(method)) {
-                    orderSpecs.add(new RelationExtendExpression.SortSpec(
-                            extractColName(mc.source()), RelationExtendExpression.SortDirection.ASC));
-                } else if ("rows".equals(method)) {
-                    // Handle: unbounded()->rows(unbounded()) as MethodCall
-                    frame = parseFrameFromMethodCall(mc, RelationExtendExpression.FrameType.ROWS);
-                } else if ("range".equals(method) || "_range".equals(method)) {
-                    // Handle: unbounded()->range(unbounded()) as MethodCall
-                    frame = parseFrameFromMethodCall(mc, RelationExtendExpression.FrameType.RANGE);
-                }
             } else if (arg instanceof FunctionCall fc) {
-                if ("rows".equals(fc.functionName())) {
-                    frame = parseFrame(fc, RelationExtendExpression.FrameType.ROWS);
-                } else if ("range".equals(fc.functionName()) || "_range".equals(fc.functionName())) {
-                    frame = parseFrame(fc, RelationExtendExpression.FrameType.RANGE);
+                String method = fc.functionName();
+                if (fc.source() != null && ("descending".equals(method) || "desc".equals(method))) {
+                    orderSpecs.add(new RelationExtendExpression.SortSpec(
+                            extractColName(fc.source()), RelationExtendExpression.SortDirection.DESC));
+                } else if (fc.source() != null && ("ascending".equals(method) || "asc".equals(method))) {
+                    orderSpecs.add(new RelationExtendExpression.SortSpec(
+                            extractColName(fc.source()), RelationExtendExpression.SortDirection.ASC));
+                } else if ("rows".equals(method)) {
+                    frame = fc.source() != null
+                            ? parseFrameFromFunctionCall(fc, RelationExtendExpression.FrameType.ROWS)
+                            : parseFrame(fc, RelationExtendExpression.FrameType.ROWS);
+                } else if ("range".equals(method) || "_range".equals(method)) {
+                    frame = fc.source() != null
+                            ? parseFrameFromFunctionCall(fc, RelationExtendExpression.FrameType.RANGE)
+                            : parseFrame(fc, RelationExtendExpression.FrameType.RANGE);
                 }
             } else if (arg instanceof ArrayLiteral arr) {
                 // Handle: [~col1->ascending(), ~col2->descending()] as array of order specs
                 for (PureExpression element : arr.elements()) {
-                    if (element instanceof MethodCall mc) {
-                        String method = mc.methodName();
-                        if ("descending".equals(method) || "desc".equals(method)) {
+                    if (element instanceof FunctionCall fc) {
+                        String method = fc.functionName();
+                        if (fc.source() != null && ("descending".equals(method) || "desc".equals(method))) {
                             orderSpecs.add(new RelationExtendExpression.SortSpec(
-                                    extractColName(mc.source()), RelationExtendExpression.SortDirection.DESC));
-                        } else if ("ascending".equals(method) || "asc".equals(method)) {
+                                    extractColName(fc.source()), RelationExtendExpression.SortDirection.DESC));
+                        } else if (fc.source() != null && ("ascending".equals(method) || "asc".equals(method))) {
                             orderSpecs.add(new RelationExtendExpression.SortSpec(
-                                    extractColName(mc.source()), RelationExtendExpression.SortDirection.ASC));
+                                    extractColName(fc.source()), RelationExtendExpression.SortDirection.ASC));
                         }
                     }
                 }
@@ -2094,15 +2086,15 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     }
 
     /**
-     * Parses frame from MethodCall pattern: unbounded()->rows(unbounded())
+     * Parses frame from FunctionCall with source: unbounded()->rows(unbounded())
      * Source is the start bound, first argument is the end bound.
      */
-    private RelationExtendExpression.FrameSpec parseFrameFromMethodCall(MethodCall mc,
+    private RelationExtendExpression.FrameSpec parseFrameFromFunctionCall(FunctionCall fc,
             RelationExtendExpression.FrameType type) {
-        RelationExtendExpression.FrameBound startBound = parseFrameBound(mc.source());
-        RelationExtendExpression.FrameBound endBound = mc.arguments().isEmpty()
+        RelationExtendExpression.FrameBound startBound = parseFrameBound(fc.source());
+        RelationExtendExpression.FrameBound endBound = fc.arguments().isEmpty()
                 ? RelationExtendExpression.FrameBound.currentRow()
-                : parseFrameBound(mc.arguments().get(0));
+                : parseFrameBound(fc.arguments().get(0));
         return new RelationExtendExpression.FrameSpec(type, startBound, endBound);
     }
 
@@ -2136,9 +2128,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
 
             // Get the aggregate function from the agg lambda body
             PureExpression aggBody = aggLambda.body();
-            if (aggBody instanceof MethodCall mc) {
+            if (aggBody instanceof FunctionCall mc && mc.source() != null) {
                 // Pattern: $y->plus() or $y->sum() or $y->joinStrings('')
-                AggregateFunctionSpec.AggregateFunction aggFunc = switch (mc.methodName().toLowerCase()) {
+                AggregateFunctionSpec.AggregateFunction aggFunc = switch (mc.functionName().toLowerCase()) {
                     case "plus", "sum" -> AggregateFunctionSpec.AggregateFunction.SUM;
                     case "avg", "average" -> AggregateFunctionSpec.AggregateFunction.AVG;
                     case "count", "size" -> AggregateFunctionSpec.AggregateFunction.COUNT;
@@ -2161,7 +2153,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                     case "wavg" -> AggregateFunctionSpec.AggregateFunction.WAVG;
                     case "maxby" -> AggregateFunctionSpec.AggregateFunction.ARG_MAX;
                     case "minby" -> AggregateFunctionSpec.AggregateFunction.ARG_MIN;
-                    default -> throw new PureParseException("Unknown aggregate function: " + mc.methodName());
+                    default -> throw new PureParseException("Unknown aggregate function: " + mc.functionName());
                 };
                 // Extract percentile value for percentile functions
                 if ((aggFunc == AggregateFunctionSpec.AggregateFunction.PERCENTILE_CONT
@@ -2203,25 +2195,25 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         // Pattern: {p,w,r|$p->rowNumber($r)} - ranking functions
         // Pattern: {p,w,r|$p->cumulativeDistribution($w,$r)->round(2)} - with
         // post-processor
-        if (body instanceof MethodCall mc) {
+        if (body instanceof FunctionCall mc && mc.source() != null) {
             // Check if this is a chain: window_func()->scalar_func()
-            if (isScalarPostProcessor(mc.methodName()) && mc.source() instanceof MethodCall innerMc) {
+            if (isScalarPostProcessor(mc.functionName()) && mc.source() instanceof FunctionCall innerMc && innerMc.source() != null) {
                 // outer mc is post-processor, inner is the window function
-                WindowFunctionSpec spec = parseWindowFunctionFromMethodCall(innerMc);
+                WindowFunctionSpec spec = parseWindowFunctionFromFunctionCall(innerMc);
                 // Extract post-processor args as Objects
                 List<Object> postProcessorArgs = mc.arguments().stream()
                         .map(this::extractLiteralValue)
                         .toList();
-                return new PostProcessedWindowFunctionSpec(spec, mc.methodName(), postProcessorArgs);
+                return new PostProcessedWindowFunctionSpec(spec, mc.functionName(), postProcessorArgs);
             }
-            return parseWindowFunctionFromMethodCall(mc);
+            return parseWindowFunctionFromFunctionCall(mc);
         }
 
         // Pattern: {p,w,r|$p->lead($r).salary} or {p,w,r|$p->sum($w,$r).salary}
         // - value/aggregate functions with PropertyAccessExpression
-        if (body instanceof PropertyAccessExpression pae && pae.source() instanceof MethodCall mc) {
+        if (body instanceof PropertyAccessExpression pae && pae.source() instanceof FunctionCall mc && mc.source() != null) {
             // The property name (salary) becomes the column for the function
-            WindowFunctionSpec spec = parseWindowFunctionFromMethodCall(mc);
+            WindowFunctionSpec spec = parseWindowFunctionFromFunctionCall(mc);
             // Update the column name based on function type
             if (spec instanceof ValueFunctionSpec vfs) {
                 return new ValueFunctionSpec(vfs.function(), pae.propertyName(),
@@ -2241,8 +2233,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         }
 
         // Also check PropertyAccess for compatibility
-        if (body instanceof PropertyAccess pa && pa.source() instanceof MethodCall mc) {
-            WindowFunctionSpec spec = parseWindowFunctionFromMethodCall(mc);
+        if (body instanceof PropertyAccess pa && pa.source() instanceof FunctionCall mc && mc.source() != null) {
+            WindowFunctionSpec spec = parseWindowFunctionFromFunctionCall(mc);
             if (spec instanceof ValueFunctionSpec vfs) {
                 return new ValueFunctionSpec(vfs.function(), pa.propertyName(),
                         vfs.offset(), vfs.partitionBy(), vfs.orderBy(), vfs.frame());
@@ -2269,9 +2261,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             return extractSecondColumnFromRowMapper(lambda.body());
         }
         // Unqualified: $r.col1->rowMapper($r.col2)
-        if (expr instanceof MethodCall mc && "rowMapper".equals(mc.methodName())) {
-            if (!mc.arguments().isEmpty()) {
-                return extractColumnFromExpression(mc.arguments().get(0));
+        if (expr instanceof FunctionCall fc && fc.source() != null && "rowMapper".equals(fc.functionName())) {
+            if (!fc.arguments().isEmpty()) {
+                return extractColumnFromExpression(fc.arguments().get(0));
             }
         }
         // Qualified: meta::pure::functions::math::mathUtility::rowMapper($r.col1, $r.col2)
@@ -2298,9 +2290,9 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
      * Extracts the column name from an expression like $r.id->cast(@Integer).
      */
     private String extractColumnFromExpression(PureExpression expr) {
-        // Pattern: $r.id->cast(@Integer) - property access with method call
-        if (expr instanceof MethodCall mc) {
-            return extractColumnFromExpression(mc.source());
+        // Pattern: $r.id->cast(@Integer) - property access with function call
+        if (expr instanceof FunctionCall fc && fc.source() != null) {
+            return extractColumnFromExpression(fc.source());
         }
 
         // Pattern: $r.id->cast(@Integer) - parsed as CastExpression
@@ -2348,8 +2340,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 "Expected FunctionCall for window function, got: " + expr.getClass().getSimpleName());
     }
 
-    private WindowFunctionSpec parseWindowFunctionFromMethodCall(MethodCall mc) {
-        return switch (mc.methodName()) {
+    private WindowFunctionSpec parseWindowFunctionFromFunctionCall(FunctionCall mc) {
+        return switch (mc.functionName()) {
             // Ranking functions
             case "rowNumber" -> RankingFunctionSpec.of(
                     RankingFunctionSpec.RankingFunction.ROW_NUMBER, List.of(), List.of());
@@ -2404,7 +2396,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
             case "variance" -> AggregateFunctionSpec.of(AggregateFunctionSpec.AggregateFunction.VARIANCE,
                     extractColFromMethodCall(mc), List.of(), List.of());
 
-            default -> throw new PureParseException("Unknown window function method: " + mc.methodName());
+            default -> throw new PureParseException("Unknown window function method: " + mc.functionName());
         };
     }
 
@@ -2437,7 +2429,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         return expr.toString();
     }
 
-    private String extractValueColumn(MethodCall mc) {
+    private String extractValueColumn(FunctionCall mc) {
         // For lag($r).salary, the column name comes from the property access AFTER the
         // method call
         // (the outer PropertyAccessExpression), not from inside the MethodCall.
@@ -2453,7 +2445,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         return null;
     }
 
-    private int extractNthOffset(MethodCall mc) {
+    private int extractNthOffset(FunctionCall mc) {
         // For nth($w, $r, N), extract the integer offset from arguments
         for (PureExpression arg : mc.arguments()) {
             if (arg instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.INTEGER) {
@@ -2473,7 +2465,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
         return "unknown";
     }
 
-    private String extractColFromMethodCall(MethodCall mc) {
+    private String extractColFromMethodCall(FunctionCall mc) {
         return "value"; // placeholder for aggregate column extraction
     }
 
@@ -2521,8 +2513,8 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
                 return new GraphFetchExpression(classExpr, tree);
             }
         }
-        // Fallback to MethodCall for unsupported patterns
-        return new MethodCall(source, "graphFetch", args);
+        // Fallback to FunctionCall for unsupported patterns
+        return new FunctionCall("graphFetch", source, args);
     }
 
     private PureExpression parseSerializeCall(PureExpression source, List<PureExpression> args) {
@@ -2544,7 +2536,7 @@ public class PureAstBuilder extends PureParserBaseVisitor<PureExpression> {
     private PureExpression parseUpdateCall(PureExpression source, List<PureExpression> args) {
         if (args.isEmpty()) {
             // Simple update without lambda
-            return new MethodCall(source, "update", args);
+            return new FunctionCall("update", source, args);
         }
         return new UpdateExpression(source, (LambdaExpression) args.get(0));
     }

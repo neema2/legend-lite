@@ -30,9 +30,9 @@ class InstanceExpressionHandlerTest {
             var ast = org.finos.legend.pure.dsl.PureParser.parse(expr);
             System.out.println("Parsed AST: " + ast);
             System.out.println("AST type: " + ast.getClass().getSimpleName());
-            if (ast instanceof org.finos.legend.pure.dsl.MethodCall mc) {
-                System.out.println("MethodCall source: " + mc.source());
-                System.out.println("MethodCall source type: " + mc.source().getClass().getSimpleName());
+            if (ast instanceof org.finos.legend.pure.dsl.FunctionCall fc && fc.source() != null) {
+                System.out.println("FunctionCall source: " + fc.source());
+                System.out.println("FunctionCall source type: " + fc.source().getClass().getSimpleName());
             }
         } catch (Exception e) {
             System.out.println("Parse error: " + e);

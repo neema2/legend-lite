@@ -28,8 +28,8 @@ public record StructLiteralExpression(
     }
 
     @Override
-    public SqlType type() {
-        return SqlType.UNKNOWN;
+    public PureType type() {
+        return PureType.UNKNOWN;
     }
 
     @Override

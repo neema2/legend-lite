@@ -137,17 +137,17 @@ public record Literal(
     }
 
     @Override
-    public SqlType type() {
+    public PureType type() {
         return switch (literalType) {
-            case STRING -> SqlType.VARCHAR;
-            case INTEGER -> SqlType.INTEGER;
-            case BOOLEAN -> SqlType.BOOLEAN;
-            case DOUBLE -> SqlType.DOUBLE;
-            case DECIMAL -> SqlType.DECIMAL;
-            case NULL -> SqlType.UNKNOWN;
-            case DATE -> SqlType.DATE;
-            case TIMESTAMP -> SqlType.TIMESTAMP;
-            case TIME -> SqlType.TIME;
+            case STRING -> PureType.STRING;
+            case INTEGER -> PureType.INTEGER;
+            case BOOLEAN -> PureType.BOOLEAN;
+            case DOUBLE -> PureType.FLOAT;
+            case DECIMAL -> PureType.DECIMAL;
+            case NULL -> PureType.UNKNOWN;
+            case DATE -> PureType.STRICT_DATE;
+            case TIMESTAMP -> PureType.DATE_TIME;
+            case TIME -> PureType.STRICT_TIME;
         };
     }
 

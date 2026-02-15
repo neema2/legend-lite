@@ -53,6 +53,11 @@ public record MinMaxExpression(
     }
 
     @Override
+    public PureType type() {
+        return arguments.getFirst().type();
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visit(this);
     }

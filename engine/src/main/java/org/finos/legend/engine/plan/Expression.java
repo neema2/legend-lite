@@ -30,12 +30,12 @@ public sealed interface Expression
         <T> T accept(ExpressionVisitor<T> visitor);
 
         /**
-         * Returns the SQL type of this expression.
-         * Used for type-aware SQL generation (e.g., CAST insertion).
+         * Returns the Pure type of this expression.
+         * Used for type-aware compilation and SQL generation.
          * 
-         * @return The SQL type of this expression
+         * @return The Pure type of this expression
          */
-        default SqlType type() {
-                return SqlType.UNKNOWN;
+        default PureType type() {
+                return PureType.UNKNOWN;
         }
 }

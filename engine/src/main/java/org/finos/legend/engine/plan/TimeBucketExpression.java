@@ -30,6 +30,11 @@ public record TimeBucketExpression(
     }
 
     @Override
+    public PureType type() {
+        return dateExpression.type() != PureType.UNKNOWN ? dateExpression.type() : PureType.DATE_TIME;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visit(this);
     }

@@ -123,7 +123,7 @@ public class InstanceExpressionHandler {
             case ArrayLiteral arr when !arr.elements().isEmpty()
                     && arr.elements().get(0) instanceof InstanceExpression ->
                 arr;
-            case org.finos.legend.pure.dsl.MethodCall mc -> findInstanceArray(mc.source());
+            case org.finos.legend.pure.dsl.FunctionCall fc when fc.source() != null -> findInstanceArray(fc.source());
             case org.finos.legend.pure.dsl.RelationProjectExpression rpe -> findInstanceArray(rpe.source());
             case org.finos.legend.pure.dsl.RelationFilterExpression rfe -> findInstanceArray(rfe.source());
             case org.finos.legend.pure.dsl.LimitExpression le -> findInstanceArray(le.source());

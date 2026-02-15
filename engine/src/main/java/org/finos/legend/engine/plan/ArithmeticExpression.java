@@ -53,17 +53,17 @@ public record ArithmeticExpression(
     }
 
     @Override
-    public SqlType type() {
-        // Integer arithmetic stays Integer (except division which may produce Double)
-        if (left.type() == SqlType.INTEGER && right.type() == SqlType.INTEGER
+    public PureType type() {
+        // Integer arithmetic stays Integer (except division which may produce Float)
+        if (left.type() == PureType.INTEGER && right.type() == PureType.INTEGER
                 && operator != BinaryArithmeticExpr.Operator.DIVIDE) {
-            return SqlType.INTEGER;
+            return PureType.INTEGER;
         }
         // If either operand is Decimal, result is Decimal
-        if (left.type() == SqlType.DECIMAL || right.type() == SqlType.DECIMAL) {
-            return SqlType.DECIMAL;
+        if (left.type() == PureType.DECIMAL || right.type() == PureType.DECIMAL) {
+            return PureType.DECIMAL;
         }
-        return SqlType.DOUBLE;
+        return PureType.FLOAT;
     }
 
     @Override

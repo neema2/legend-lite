@@ -54,6 +54,11 @@ public record ExistsExpression(
     }
     
     @Override
+    public PureType type() {
+        return PureType.BOOLEAN;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitExists(this);
     }

@@ -48,7 +48,7 @@ public record DateComparisonExpression(
     }
 
     @Override
-    public SqlType type() {
-        return SqlType.BOOLEAN;
+    public PureType type() {
+        return PureType.BOOLEAN;
     }
 }

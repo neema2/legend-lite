@@ -13,16 +13,19 @@ public record CastExpression(Expression source, String targetType) implements Ex
     }
 
     @Override
-    public SqlType type() {
+    public PureType type() {
         // Handle parameterized types like DECIMAL(38,18)
         String upper = targetType.toUpperCase();
-        if (upper.startsWith("DECIMAL") || upper.startsWith("NUMERIC")) return SqlType.DECIMAL;
+        if (upper.startsWith("DECIMAL") || upper.startsWith("NUMERIC")) return PureType.DECIMAL;
         return switch (upper) {
-            case "VARCHAR", "TEXT" -> SqlType.VARCHAR;
-            case "BIGINT", "INTEGER", "INT" -> SqlType.BIGINT;
-            case "DOUBLE", "FLOAT", "REAL" -> SqlType.DOUBLE;
-            case "BOOLEAN", "BOOL" -> SqlType.BOOLEAN;
-            default -> SqlType.UNKNOWN;
+            case "VARCHAR", "TEXT" -> PureType.STRING;
+            case "BIGINT", "INTEGER", "INT" -> PureType.INTEGER;
+            case "DOUBLE", "FLOAT", "REAL" -> PureType.FLOAT;
+            case "BOOLEAN", "BOOL" -> PureType.BOOLEAN;
+            case "DATE" -> PureType.STRICT_DATE;
+            case "TIMESTAMP" -> PureType.DATE_TIME;
+            case "TIME" -> PureType.STRICT_TIME;
+            default -> PureType.UNKNOWN;
         };
     }
 }

@@ -65,9 +65,8 @@ public record ListLiteral(List<Expression> elements) implements Expression {
     }
 
     @Override
-    public SqlType type() {
-        // DuckDB list type - for now return UNKNOWN as we don't have a LIST type
-        return SqlType.UNKNOWN;
+    public PureType type() {
+        return PureType.LIST;
     }
 
     @Override

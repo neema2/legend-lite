@@ -49,6 +49,12 @@ public record CaseExpression(
     }
     
     @Override
+    public PureType type() {
+        PureType thenType = thenValue.type();
+        return thenType != PureType.UNKNOWN ? thenType : elseValue.type();
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitCase(this);
     }

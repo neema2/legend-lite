@@ -557,26 +557,21 @@ public final class PureCompiler {
                 // Association navigation - collect join info and create projection
                 Projection proj = compileAssociationProjection(path, alias, joinInfos, baseTableAlias, baseMapping);
                 projections.add(proj);
-            } else if (lambda.body() instanceof MethodCall mc && isDateFunction(mc.methodName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && isDateFunction(mc.functionName())) {
                 // Date function call: $e.birthDate->year()
                 String propertyName = extractPropertyName(mc.source());
                 String columnName = baseMapping.getColumnForProperty(propertyName)
                         .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
-                Expression colRef = ColumnReference.of(baseTableAlias, columnName);
+                Expression colRef = ColumnReference.of(baseTableAlias, columnName, baseMapping.pureTypeForProperty(propertyName));
                 DateFunctionExpression dateExpr = new DateFunctionExpression(
-                        mapDateFunction(mc.methodName()), colRef);
+                        mapDateFunction(mc.functionName()), colRef);
                 projections.add(new Projection(dateExpr, alias));
-            } else if (lambda.body() instanceof MethodCall mc && isCurrentDateFunction(mc.methodName())) {
-                // Zero-arg date function as MethodCall: now() or today()
-                CurrentDateExpression currentDateExpr = new CurrentDateExpression(
-                        mapCurrentDateFunction(mc.methodName()));
-                projections.add(new Projection(currentDateExpr, alias));
             } else if (lambda.body() instanceof FunctionCall fc && isCurrentDateFunction(fc.functionName())) {
-                // Zero-arg date function as FunctionCall: now() or today()
+                // Zero-arg date function: now() or today()
                 CurrentDateExpression currentDateExpr = new CurrentDateExpression(
                         mapCurrentDateFunction(fc.functionName()));
                 projections.add(new Projection(currentDateExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall fc && "dateDiff".equalsIgnoreCase(fc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null && "dateDiff".equalsIgnoreCase(fc.functionName())) {
                 // dateDiff(d1, d2, DurationUnit.DAYS) -> DATE_DIFF('day', d1, d2)
                 if (fc.arguments().size() != 3) {
                     throw new PureCompileException("dateDiff requires 3 arguments: dateDiff(date1, date2, unit)");
@@ -586,7 +581,7 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(fc.arguments().get(2));
                 DateDiffExpression dateDiffExpr = new DateDiffExpression(d1, d2, unit);
                 projections.add(new Projection(dateDiffExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall fc && "adjust".equalsIgnoreCase(fc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null && "adjust".equalsIgnoreCase(fc.functionName())) {
                 // adjust(date, amount, DurationUnit.DAYS) -> date + INTERVAL 'amount' DAY
                 if (fc.arguments().size() != 3) {
                     throw new PureCompileException("adjust requires 3 arguments: adjust(date, amount, unit)");
@@ -596,10 +591,10 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(fc.arguments().get(2));
                 DateAdjustExpression adjustExpr = new DateAdjustExpression(dateExpr, amountExpr, unit);
                 projections.add(new Projection(adjustExpr, alias));
-            } else if (lambda.body() instanceof MethodCall mc && isDateTruncFunction(mc.methodName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && isDateTruncFunction(mc.functionName())) {
                 // Date truncation function: $e.date->firstDayOfMonth()
                 Expression argument;
-                if (isDateTruncThisFunction(mc.methodName())) {
+                if (isDateTruncThisFunction(mc.functionName())) {
                     // firstDayOfThisMonth() - use CURRENT_DATE as argument
                     argument = new CurrentDateExpression(CurrentDateExpression.CurrentDateFunction.TODAY);
                 } else {
@@ -608,10 +603,10 @@ public final class PureCompiler {
                     String columnName = baseMapping.getColumnForProperty(propertyName)
                             .orElseThrow(
                                     () -> new PureCompileException("No column mapping for property: " + propertyName));
-                    argument = ColumnReference.of(baseTableAlias, columnName);
+                    argument = ColumnReference.of(baseTableAlias, columnName, baseMapping.pureTypeForProperty(propertyName));
                 }
                 DateTruncExpression truncExpr = new DateTruncExpression(
-                        mapDateTruncFunction(mc.methodName()), argument);
+                        mapDateTruncFunction(mc.functionName()), argument);
                 projections.add(new Projection(truncExpr, alias));
             } else if (lambda.body() instanceof FunctionCall fc
                     && "fromEpochValue".equalsIgnoreCase(fc.functionName())) {
@@ -637,7 +632,7 @@ public final class PureCompiler {
                         : DurationUnit.SECONDS;
                 EpochExpression epochExpr = EpochExpression.toEpoch(value, unit);
                 projections.add(new Projection(epochExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall fc && isDateComparisonFunction(fc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null && isDateComparisonFunction(fc.functionName())) {
                 // isOnDay(d1, d2), isAfterDay, etc.
                 if (fc.arguments().size() != 2) {
                     throw new PureCompileException(fc.functionName() + " requires 2 arguments");
@@ -646,16 +641,16 @@ public final class PureCompiler {
                 Expression d2 = compileProjectionArg(fc.arguments().get(1), baseTableAlias, baseMapping);
                 DateComparisonExpression dateCompExpr = mapDateComparisonFunction(fc.functionName(), d1, d2);
                 projections.add(new Projection(dateCompExpr, alias));
-            } else if (lambda.body() instanceof MethodCall mc && isDateComparisonFunction(mc.methodName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && isDateComparisonFunction(mc.functionName())) {
                 // $e.date1->isOnDay($e.date2)
                 Expression d1 = compileProjectionArg(mc.source(), baseTableAlias, baseMapping);
                 if (mc.arguments().isEmpty()) {
-                    throw new PureCompileException(mc.methodName() + " requires 1 argument");
+                    throw new PureCompileException(mc.functionName() + " requires 1 argument");
                 }
                 Expression d2 = compileProjectionArg(mc.arguments().get(0), baseTableAlias, baseMapping);
-                DateComparisonExpression dateCompExpr = mapDateComparisonFunction(mc.methodName(), d1, d2);
+                DateComparisonExpression dateCompExpr = mapDateComparisonFunction(mc.functionName(), d1, d2);
                 projections.add(new Projection(dateCompExpr, alias));
-            } else if (lambda.body() instanceof MethodCall mc && "timeBucket".equalsIgnoreCase(mc.methodName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && "timeBucket".equalsIgnoreCase(mc.functionName())) {
                 // $e.date->timeBucket(5, DurationUnit.DAYS)
                 if (mc.arguments().size() != 2) {
                     throw new PureCompileException("timeBucket requires 2 arguments: timeBucket(quantity, unit)");
@@ -665,7 +660,7 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(mc.arguments().get(1));
                 TimeBucketExpression timeBucketExpr = TimeBucketExpression.of(dateExpr, quantity, unit);
                 projections.add(new Projection(timeBucketExpr, alias));
-            } else if (lambda.body() instanceof MethodCall mc && "adjust".equalsIgnoreCase(mc.methodName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && "adjust".equalsIgnoreCase(mc.functionName())) {
                 // $e.date->adjust(amount, DurationUnit.DAYS) - method call syntax with 2 args
                 if (mc.arguments().size() != 2) {
                     throw new PureCompileException("adjust as method requires 2 arguments: date->adjust(amount, unit)");
@@ -675,7 +670,7 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(mc.arguments().get(1));
                 DateAdjustExpression adjustExpr = new DateAdjustExpression(dateExpr, amountExpr, unit);
                 projections.add(new Projection(adjustExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall fc && "timeBucket".equalsIgnoreCase(fc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null && "timeBucket".equalsIgnoreCase(fc.functionName())) {
                 // timeBucket(date, quantity, unit)
                 if (fc.arguments().size() != 3) {
                     throw new PureCompileException("timeBucket requires 3 arguments: timeBucket(date, quantity, unit)");
@@ -720,7 +715,7 @@ public final class PureCompiler {
                     String columnName = baseMapping.getColumnForProperty(propertyName)
                             .orElseThrow(
                                     () -> new PureCompileException("No column mapping for property: " + propertyName));
-                    projections.add(Projection.column(baseTableAlias, columnName, alias));
+                    projections.add(Projection.column(baseTableAlias, columnName, alias, baseMapping.pureTypeForProperty(propertyName)));
                 }
             }
         }
@@ -796,26 +791,25 @@ public final class PureCompiler {
             org.finos.legend.engine.plan.AggregateExpression.AggregateFunction aggFunc;
 
             PureExpression body = aggLambda.body();
-            if (body instanceof MethodCall methodCall) {
+            if (body instanceof FunctionCall methodCall) {
                 // Pattern: $r.col->stdDev() or $r.col1->corr($r.col2) or
                 // $r.col->percentileCont(0.5) or $r.col->joinStrings(',')
                 // Also: rowMapper($x.col1, $x.col2)->wavg() (merged from two-lambda pattern)
-                aggFunc = mapAggregateFunction(methodCall.methodName());
+                aggFunc = mapAggregateFunction(methodCall.functionName());
 
                 // Detect rowMapper pattern: source is rowMapper($x.col1, $x.col2)
-                if (methodCall.source() instanceof MethodCall rowMapperCall
-                        && "rowMapper".equals(rowMapperCall.methodName())) {
-                    // rowMapper source is $x.col1, first arg is $x.col2
-                    columnName = extractPropertyName(rowMapperCall.source());
-                    if (!rowMapperCall.arguments().isEmpty()) {
-                        secondColumnName = extractPropertyName(rowMapperCall.arguments().get(0));
-                    }
-                } else if (methodCall.source() instanceof FunctionCall rowMapperFc
-                        && rowMapperFc.functionName().endsWith("rowMapper")) {
-                    // Qualified: meta::pure::functions::math::mathUtility::rowMapper($x.col1, $x.col2)
-                    if (rowMapperFc.arguments().size() >= 2) {
-                        columnName = extractPropertyName(rowMapperFc.arguments().get(0));
-                        secondColumnName = extractPropertyName(rowMapperFc.arguments().get(1));
+                if (methodCall.source() instanceof FunctionCall rowMapperCall
+                        && rowMapperCall.functionName().endsWith("rowMapper")) {
+                    if (rowMapperCall.source() != null) {
+                        // Arrow style: $x.col1->rowMapper($x.col2)
+                        columnName = extractPropertyName(rowMapperCall.source());
+                        if (!rowMapperCall.arguments().isEmpty()) {
+                            secondColumnName = extractPropertyName(rowMapperCall.arguments().get(0));
+                        }
+                    } else if (rowMapperCall.arguments().size() >= 2) {
+                        // Standalone: rowMapper($x.col1, $x.col2)
+                        columnName = extractPropertyName(rowMapperCall.arguments().get(0));
+                        secondColumnName = extractPropertyName(rowMapperCall.arguments().get(1));
                     } else {
                         columnName = extractPropertyName(methodCall.source());
                     }
@@ -929,7 +923,7 @@ public final class PureCompiler {
             String columnName;
             String secondColumnName = null;
             PureExpression mapBody = mapLambda.body();
-            if (mapBody instanceof MethodCall rowMapperMc && "rowMapper".equals(rowMapperMc.methodName())) {
+            if (mapBody instanceof FunctionCall rowMapperMc && "rowMapper".equals(rowMapperMc.functionName())) {
                 columnName = extractPropertyName(rowMapperMc.source());
                 if (!rowMapperMc.arguments().isEmpty()) {
                     secondColumnName = extractPropertyName(rowMapperMc.arguments().get(0));
@@ -950,9 +944,9 @@ public final class PureCompiler {
 
             // Extract aggregation function from agg function body
             PureExpression aggBody = aggLambda.body();
-            if (aggBody instanceof MethodCall methodCall) {
+            if (aggBody instanceof FunctionCall methodCall) {
                 // Pattern: y | $y->plus() or y | $y->sum()
-                aggFunc = mapAggregateFunction(methodCall.methodName());
+                aggFunc = mapAggregateFunction(methodCall.functionName());
 
                 // Check for bi-variate function with second argument
                 if (aggFunc.isBivariate() && !methodCall.arguments().isEmpty()) {
@@ -1182,7 +1176,7 @@ public final class PureCompiler {
             String propertyName = pa.propertyName();
             String columnName = mapping.getColumnForProperty(propertyName)
                     .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
-            return ColumnReference.of(tableAlias, columnName);
+            return ColumnReference.of(tableAlias, columnName, mapping.pureTypeForProperty(propertyName));
         }
         // LiteralExpr (integers, strings, floats, etc. from ANTLR parser)
         if (expr instanceof LiteralExpr le) {
@@ -1216,8 +1210,8 @@ public final class PureCompiler {
         }
         // Qualified enum: meta::pure::duration::DurationUnit.DAYS (parsed as
         // MethodCall)
-        if (expr instanceof MethodCall mc) {
-            return DurationUnit.fromPure(mc.methodName());
+        if (expr instanceof FunctionCall mc) {
+            return DurationUnit.fromPure(mc.functionName());
         }
         // String literal: 'day' or 'DAYS'
         if (expr instanceof StringLiteral sl) {
@@ -1626,7 +1620,7 @@ public final class PureCompiler {
             case ColumnSpec col -> col.name();
             case LambdaExpression lambda -> extractPropertyName(lambda.body());
             case PropertyAccessExpression prop -> prop.propertyName();
-            case MethodCall method -> extractColumnName(method.source());
+            case FunctionCall method -> extractColumnName(method.source());
             default -> throw new PureCompileException("Cannot extract column name from: " + expr);
         };
     }
@@ -1636,8 +1630,8 @@ public final class PureCompiler {
      * Handles MethodCall with .desc()/.descending() or .asc()/.ascending() suffix.
      */
     private SortNode.SortDirection extractSortDirection(PureExpression expr) {
-        if (expr instanceof MethodCall method) {
-            String methodName = method.methodName().toLowerCase();
+        if (expr instanceof FunctionCall method) {
+            String methodName = method.functionName().toLowerCase();
             if ("desc".equals(methodName) || "descending".equals(methodName)) {
                 return SortNode.SortDirection.DESC;
             }
@@ -1682,8 +1676,8 @@ public final class PureCompiler {
         // BUT only if there are additional ColumnSpec columns after it.
         // If the MethodCall with over() is the only column, it should be processed
         // directly.
-        MethodCall overMethodCall = null;
-        if (columns.size() > 1 && columns.get(0) instanceof MethodCall mc && "over".equals(mc.methodName())) {
+        FunctionCall overMethodCall = null;
+        if (columns.size() > 1 && columns.get(0) instanceof FunctionCall mc && "over".equals(mc.functionName())) {
             // Check if the second column is a ColumnSpec (legend-engine style with separate
             // over + aggregate)
             if (columns.get(1) instanceof ColumnSpec) {
@@ -1693,7 +1687,7 @@ public final class PureCompiler {
         }
 
         for (PureExpression colExpr : columns) {
-            if (colExpr instanceof MethodCall overCall && "over".equals(overCall.methodName())) {
+            if (colExpr instanceof FunctionCall overCall && "over".equals(overCall.functionName())) {
                 // Old style: MethodCall with over()
                 ExtendNode.WindowProjection projection = compileWindowProjection(overCall);
                 projections.add(projection);
@@ -1707,14 +1701,14 @@ public final class PureCompiler {
                 ExtendNode.WindowProjection projection = compileWindowProjectionFromMethodCall(overMethodCall,
                         colSpec);
                 projections.add(projection);
-            } else if (colExpr instanceof ColumnSpec colSpec && colSpec.lambda() instanceof MethodCall mc
-                    && "over".equals(mc.methodName())) {
+            } else if (colExpr instanceof ColumnSpec colSpec && colSpec.lambda() instanceof FunctionCall mc
+                    && "over".equals(mc.functionName())) {
                 // Handle: ~prevSalary : lag(~salary, 1)->over(...) where lambda is the over()
                 // call
                 ExtendNode.WindowProjection projection = compileWindowProjectionWithAlias(colSpec.name(), mc);
                 projections.add(projection);
-            } else if (colExpr instanceof ColumnSpec colSpec && colSpec.extraFunction() instanceof MethodCall mc
-                    && "over".equals(mc.methodName())) {
+            } else if (colExpr instanceof ColumnSpec colSpec && colSpec.extraFunction() instanceof FunctionCall mc
+                    && "over".equals(mc.functionName())) {
                 // Handle: ~prevSalary : ... extraFunction contains over()
                 ExtendNode.WindowProjection projection = compileWindowProjectionWithAlias(colSpec.name(), mc);
                 projections.add(projection);
@@ -1736,7 +1730,7 @@ public final class PureCompiler {
      * lambda,
      * the lambda contains the window function call.
      */
-    private ExtendNode.WindowProjection compileWindowProjection(MethodCall overCall) {
+    private ExtendNode.WindowProjection compileWindowProjection(FunctionCall overCall) {
         // The source of the over() call contains the column spec with window function
         // info
         PureExpression source = overCall.source();
@@ -1762,9 +1756,9 @@ public final class PureCompiler {
                     offset = lit.value().intValue();
                 }
             }
-        } else if (source instanceof MethodCall funcCall) {
+        } else if (source instanceof FunctionCall funcCall) {
             // Nested method call like sum(~val)->over(...) or lag(~col, 1)->over(...)
-            functionName = funcCall.methodName();
+            functionName = funcCall.functionName();
 
             // Extract column and offset for LAG/LEAD
             if ("lag".equals(functionName) || "lead".equals(functionName)) {
@@ -1796,11 +1790,11 @@ public final class PureCompiler {
             if (arg instanceof ColumnSpec cs) {
                 // Partition column
                 partitionColumns.add(cs.name());
-            } else if (arg instanceof MethodCall mc) {
-                if ("desc".equals(mc.methodName()) || "asc".equals(mc.methodName())) {
+            } else if (arg instanceof FunctionCall mc) {
+                if ("desc".equals(mc.functionName()) || "asc".equals(mc.functionName())) {
                     // Sort column with direction
                     String colName = extractColumnName(mc.source());
-                    WindowExpression.SortDirection dir = "desc".equals(mc.methodName())
+                    WindowExpression.SortDirection dir = "desc".equals(mc.functionName())
                             ? WindowExpression.SortDirection.DESC
                             : WindowExpression.SortDirection.ASC;
                     orderBy.add(new WindowExpression.SortSpec(colName, dir));
@@ -1833,7 +1827,7 @@ public final class PureCompiler {
      * Compiles a window function with an explicit column alias.
      * Used for patterns like: ~prevSalary : lag(~salary, 1)->over(...)
      */
-    private ExtendNode.WindowProjection compileWindowProjectionWithAlias(String alias, MethodCall overCall) {
+    private ExtendNode.WindowProjection compileWindowProjectionWithAlias(String alias, FunctionCall overCall) {
         // The source of the over() call contains the function call (e.g., lag(~col,
         // offset))
         PureExpression source = overCall.source();
@@ -1860,8 +1854,8 @@ public final class PureCompiler {
                     }
                 }
             }
-        } else if (source instanceof MethodCall mc) {
-            functionName = mc.methodName();
+        } else if (source instanceof FunctionCall mc) {
+            functionName = mc.functionName();
             if (!mc.arguments().isEmpty()) {
                 PureExpression firstArg = mc.arguments().get(0);
                 if ("ntile".equals(functionName)) {
@@ -1887,10 +1881,10 @@ public final class PureCompiler {
         for (PureExpression arg : overCall.arguments()) {
             if (arg instanceof ColumnSpec cs) {
                 partitionColumns.add(cs.name());
-            } else if (arg instanceof MethodCall mc) {
-                if ("desc".equals(mc.methodName()) || "asc".equals(mc.methodName())) {
+            } else if (arg instanceof FunctionCall mc) {
+                if ("desc".equals(mc.functionName()) || "asc".equals(mc.functionName())) {
                     String colName = extractColumnName(mc.source());
-                    WindowExpression.SortDirection dir = "desc".equals(mc.methodName())
+                    WindowExpression.SortDirection dir = "desc".equals(mc.functionName())
                             ? WindowExpression.SortDirection.DESC
                             : WindowExpression.SortDirection.ASC;
                     orderBy.add(new WindowExpression.SortSpec(colName, dir));
@@ -1943,8 +1937,8 @@ public final class PureCompiler {
             if (arg instanceof ColumnSpec cs) {
                 // Partition column
                 partitionColumns.add(cs.name());
-            } else if (arg instanceof MethodCall mc) {
-                String methodName = mc.methodName();
+            } else if (arg instanceof FunctionCall mc) {
+                String methodName = mc.functionName();
                 if ("ascending".equals(methodName) || "descending".equals(methodName)
                         || "asc".equals(methodName) || "desc".equals(methodName)) {
                     String colName = extractColumnName(mc.source());
@@ -1983,8 +1977,8 @@ public final class PureCompiler {
             // Check if body is a property access on a method call: $p->lag($r).salary or
             // $p->nth($w,$r,2).id
             if (body instanceof PropertyAccessExpression pa) {
-                if (pa.source() instanceof MethodCall mc) {
-                    functionName = mc.methodName();
+                if (pa.source() instanceof FunctionCall mc) {
+                    functionName = mc.functionName();
                     aggregateColumn = pa.propertyName();
                     // Extract offset for nth() - it's the last integer argument
                     // Pattern: $p->nth($w, $r, 2).id - args are [$w, $r, 2]
@@ -2005,8 +1999,8 @@ public final class PureCompiler {
                 }
             }
             // Check if body is a direct method call: $p->ntile($r,2) or $p->rank($w,$r)
-            else if (body instanceof MethodCall mc) {
-                functionName = mc.methodName();
+            else if (body instanceof FunctionCall mc) {
+                functionName = mc.functionName();
                 // Extract numeric argument (for ntile)
                 for (PureExpression arg : mc.arguments()) {
                     if (arg instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.INTEGER) {
@@ -2024,8 +2018,8 @@ public final class PureCompiler {
 
         // Determine function from extraFunction (e.g., y|$y->sum() = sum)
         if (colSpec.extraFunction() instanceof LambdaExpression extraLambda) {
-            if (extraLambda.body() instanceof MethodCall mc) {
-                functionName = mapAggregateMethodToFunction(mc.methodName());
+            if (extraLambda.body() instanceof FunctionCall mc) {
+                functionName = mapAggregateMethodToFunction(mc.functionName());
             }
         }
 
@@ -2071,7 +2065,7 @@ public final class PureCompiler {
      * The colSpec contains the new column name and aggregate function in its
      * extraFunction.
      */
-    private ExtendNode.WindowProjection compileWindowProjectionFromMethodCall(MethodCall overCall,
+    private ExtendNode.WindowProjection compileWindowProjectionFromMethodCall(FunctionCall overCall,
             ColumnSpec colSpec) {
         // Extract partition column from the source of over()
         List<String> partitionColumns = new ArrayList<>();
@@ -2086,8 +2080,8 @@ public final class PureCompiler {
         for (PureExpression arg : overCall.arguments()) {
             if (arg instanceof ColumnSpec cs) {
                 partitionColumns.add(cs.name());
-            } else if (arg instanceof MethodCall mc) {
-                String methodName = mc.methodName();
+            } else if (arg instanceof FunctionCall mc) {
+                String methodName = mc.functionName();
                 if ("ascending".equals(methodName) || "descending".equals(methodName)
                         || "asc".equals(methodName) || "desc".equals(methodName)) {
                     String colName = extractColumnName(mc.source());
@@ -2117,8 +2111,8 @@ public final class PureCompiler {
                 aggregateColumn = pa.propertyName();
 
                 // Check if this is a method call with property access: $p->nth($w,$r,2).id
-                if (pa.source() instanceof MethodCall mc) {
-                    functionName = mc.methodName();
+                if (pa.source() instanceof FunctionCall mc) {
+                    functionName = mc.functionName();
                     // Extract offset for nth() - it's the last integer argument
                     for (PureExpression arg : mc.arguments()) {
                         if (arg instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.INTEGER) {
@@ -2133,8 +2127,8 @@ public final class PureCompiler {
 
         // Extract window function from extraFunction (e.g., y|$y->size() = count)
         if (colSpec.extraFunction() instanceof LambdaExpression extraLambda) {
-            if (extraLambda.body() instanceof MethodCall mc) {
-                functionName = mapAggregateMethodToFunction(mc.methodName());
+            if (extraLambda.body() instanceof FunctionCall mc) {
+                functionName = mapAggregateMethodToFunction(mc.functionName());
             } else if (extraLambda.body() instanceof UnaryExpression unary) {
                 // Handle unary +$y which means sum
                 if ("+".equals(unary.operator())) {
@@ -3334,7 +3328,7 @@ public final class PureCompiler {
         } else {
             // Simple column mapping
             String columnName = propertyMapping.columnName();
-            return Projection.column(targetAlias, columnName, projectionAlias);
+            return Projection.column(targetAlias, columnName, projectionAlias, targetMapping.pureTypeForProperty(finalProperty));
         }
     }
 
@@ -3430,7 +3424,6 @@ public final class PureCompiler {
                 yield compileToSqlExpression(block.result(), workingCtx);
             }
 
-            case MethodCall methodCall -> compileMethodCall(methodCall, context);
             case VariableExpr var -> {
                 // Check if this is a lambda parameter (e.g., `i` in map(i | $i->get('price')))
                 if (context != null && context.lambdaParameters() != null && context.isLambdaParameter(var.name())) {
@@ -3452,7 +3445,9 @@ public final class PureCompiler {
                 throw new PureCompileException("Unexpected variable in expression context: " + var);
             }
             case CastExpression cast -> compileCastExpression(cast, context);
-            case FunctionCall funcCall -> compileFunctionCallToSql(funcCall, context);
+            case FunctionCall funcCall -> funcCall.source() != null
+                    ? compileMethodCall(funcCall, context)
+                    : compileFunctionCallToSql(funcCall, context);
             case UnaryExpression unary -> {
                 // Handle unary expressions like -5, +3
                 Expression operand = compileToSqlExpression(unary.operand(), context);
@@ -3783,7 +3778,7 @@ public final class PureCompiler {
                 if (args.isEmpty()) throw new PureCompileException("toString() requires an argument");
                 yield new SqlFunctionCall("cast",
                         compileToSqlExpression(args.getFirst(), context),
-                        java.util.List.of(), SqlType.VARCHAR);
+                        java.util.List.of(), PureType.STRING);
             }
             case "parseInteger" -> {
                 if (args.isEmpty()) throw new PureCompileException("parseInteger() requires an argument");
@@ -4034,7 +4029,7 @@ public final class PureCompiler {
                 yield new SqlFunctionCall("cast",
                         SqlFunctionCall.of("strptime", src,
                                 compileToSqlExpression(args.get(1), context)),
-                        java.util.List.of(), SqlType.DATE);
+                        java.util.List.of(), PureType.STRICT_DATE);
             }
             case "hasMonth", "hasDay" -> {
                 if (args.isEmpty()) throw new PureCompileException(simpleName + "() requires a date argument");
@@ -4143,7 +4138,7 @@ public final class PureCompiler {
      * Resolves type at compile time for scalar literals, picks the first matching branch.
      * Binds the matched lambda's first param to the source value, extra params to extra args.
      */
-    private Expression compileMatchExpression(MethodCall methodCall, CompilationContext context) {
+    private Expression compileMatchExpression(FunctionCall methodCall, CompilationContext context) {
         if (methodCall.arguments().isEmpty()) {
             throw new PureCompileException("match() requires at least one argument (array of typed lambdas)");
         }
@@ -4225,7 +4220,7 @@ public final class PureCompiler {
             return lastSep >= 0 ? className.substring(lastSep + 2) : className;
         }
         // For method calls that chain through cast
-        if (expr instanceof MethodCall mc && "cast".equals(mc.methodName())) {
+        if (expr instanceof FunctionCall mc && "cast".equals(mc.functionName())) {
             if (!mc.arguments().isEmpty() && mc.arguments().getFirst() instanceof ClassReference cr) {
                 String className = cr.className();
                 int lastSep = className.lastIndexOf("::");
@@ -4416,20 +4411,24 @@ public final class PureCompiler {
      */
     private Expression compileCastExpression(CastExpression cast, CompilationContext context) {
         Expression source = compileToSqlExpression(cast.source(), context);
-        SqlType targetType = mapTypeName(cast.targetType());
+        PureType targetType = mapTypeName(cast.targetType());
         return SqlFunctionCall.of("cast", source, targetType);
     }
 
     /**
-     * Maps Pure type names to SqlType.
+     * Maps Pure type names to PureType.
      */
-    private SqlType mapTypeName(String typeName) {
+    private PureType mapTypeName(String typeName) {
         return switch (typeName.toLowerCase()) {
-            case "integer", "int" -> SqlType.INTEGER;
-            case "float", "double", "number" -> SqlType.DOUBLE;
-            case "string", "varchar" -> SqlType.VARCHAR;
-            case "boolean", "bool" -> SqlType.BOOLEAN;
-            default -> SqlType.UNKNOWN;
+            case "integer", "int" -> PureType.INTEGER;
+            case "float", "double", "number" -> PureType.FLOAT;
+            case "string", "varchar" -> PureType.STRING;
+            case "boolean", "bool" -> PureType.BOOLEAN;
+            case "date" -> PureType.DATE;
+            case "strictdate" -> PureType.STRICT_DATE;
+            case "datetime" -> PureType.DATE_TIME;
+            case "decimal" -> PureType.DECIMAL;
+            default -> PureType.UNKNOWN;
         };
     }
 
@@ -4438,8 +4437,8 @@ public final class PureCompiler {
      * ->fold()) to a SQL
      * function call.
      */
-    private Expression compileMethodCall(MethodCall methodCall, CompilationContext context) {
-        String methodName = methodCall.methodName();
+    private Expression compileMethodCall(FunctionCall methodCall, CompilationContext context) {
+        String methodName = methodCall.functionName();
 
         // Handle collection functions that take lambdas
         // Also handle fully-qualified Pure paths like
@@ -4619,7 +4618,7 @@ public final class PureCompiler {
                 }
                 yield new SqlFunctionCall("cast",
                         compileToSqlExpression(methodCall.source(), context),
-                        java.util.List.of(), SqlType.VARCHAR);
+                        java.util.List.of(), PureType.STRING);
             }
 
             // ===== STRING FUNCTIONS =====
@@ -4641,7 +4640,7 @@ public final class PureCompiler {
                 }
 
                 // Create format function call — SQLGenerator handles dialect-specific translation
-                yield new SqlFunctionCall("format", formatStr, argExprs, SqlType.VARCHAR);
+                yield new SqlFunctionCall("format", formatStr, argExprs, PureType.STRING);
             }
             case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx+1)
                 // Pure splitPart is 0-based, DuckDB split_part is 1-based
@@ -4670,16 +4669,16 @@ public final class PureCompiler {
                 yield new ConcatExpression(java.util.List.of(
                         SqlFunctionCall.of("upper",
                                 new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
-                                        SqlType.VARCHAR)),
-                        new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), SqlType.VARCHAR)));
+                                        PureType.STRING)),
+                        new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), PureType.STRING)));
             }
             case "toLowerFirstCharacter" -> { // lower(s[1]) || s[2:]
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 yield new ConcatExpression(java.util.List.of(
                         SqlFunctionCall.of("lower",
                                 new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(1), Literal.of(1)),
-                                        SqlType.VARCHAR)),
-                        new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), SqlType.VARCHAR)));
+                                        PureType.STRING)),
+                        new SqlFunctionCall("substr", src, java.util.List.of(Literal.of(2)), PureType.STRING)));
             }
             case "indexOf" -> { // indexOf on list or string
                 if (methodCall.arguments().isEmpty())
@@ -4700,7 +4699,7 @@ public final class PureCompiler {
                     // fromIndex + instr(substring(src, fromIndex+1), search) - 1
                     Expression subStr = new SqlFunctionCall("substr", src,
                             java.util.List.of(ArithmeticExpression.add(fromIndex, Literal.integer(1))),
-                            SqlType.VARCHAR);
+                            PureType.STRING);
                     yield ArithmeticExpression.subtract(
                             ArithmeticExpression.add(
                                     fromIndex,
@@ -4723,11 +4722,11 @@ public final class PureCompiler {
                     Expression end = compileToSqlExpression(methodCall.arguments().get(1), context);
                     Expression length = ArithmeticExpression.subtract(end, start);
                     yield new SqlFunctionCall("substr", src,
-                            java.util.List.of(oneBasedStart, length), SqlType.VARCHAR);
+                            java.util.List.of(oneBasedStart, length), PureType.STRING);
                 }
                 // substring(start) -> SUBSTRING(str, start+1)
                 yield new SqlFunctionCall("substr", src,
-                        java.util.List.of(oneBasedStart), SqlType.VARCHAR);
+                        java.util.List.of(oneBasedStart), PureType.STRING);
             }
             case "lpad" -> { // lpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE lpad(s,n,fill) END
                 if (methodCall.arguments().isEmpty())
@@ -5073,7 +5072,7 @@ public final class PureCompiler {
             }
             case "toFloat" -> // toFloat(x) -> CAST(x AS DOUBLE)
                 new SqlFunctionCall("cast", compileToSqlExpression(methodCall.source(), context),
-                        java.util.List.of(), SqlType.DOUBLE);
+                        java.util.List.of(), PureType.FLOAT);
             case "toDecimal" -> // toDecimal(x) -> CAST(x AS DECIMAL)
                 new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(methodCall.source(), context), "DECIMAL");
@@ -5285,7 +5284,7 @@ public final class PureCompiler {
                 yield new SqlFunctionCall("cast",
                         SqlFunctionCall.of("strptime", src,
                                 compileToSqlExpression(methodCall.arguments().getFirst(), context)),
-                        java.util.List.of(), SqlType.DATE);
+                        java.util.List.of(), PureType.STRICT_DATE);
             }
             case "timeBucket" -> { // timeBucket(count, unit) -> time_bucket(interval, timestamp, origin)
                 // DuckDB time_bucket expects INTERVAL like 'to_days(1)' etc.
@@ -5298,7 +5297,7 @@ public final class PureCompiler {
                 // Get the unit name from the literal
                 String unitName = unitExpr instanceof Literal lit && lit.value() instanceof String s ? s : "DAYS";
                 // Validate unit for StrictDate - only YEARS, MONTHS, WEEKS, DAYS allowed
-                boolean isStrictDate = timestamp.type() == SqlType.DATE;
+                boolean isStrictDate = timestamp.type() == PureType.STRICT_DATE;
                 if (isStrictDate) {
                     switch (unitName.toUpperCase()) {
                         case "YEARS", "MONTHS", "WEEKS", "DAYS" -> { }
@@ -5543,7 +5542,7 @@ public final class PureCompiler {
      * get('key') returns JSON (for arrays/objects).
      * get('key', @Type) returns typed scalar value.
      */
-    private Expression compileGetCall(MethodCall methodCall, CompilationContext context) {
+    private Expression compileGetCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
         List<PureExpression> args = methodCall.arguments();
 
@@ -5556,7 +5555,7 @@ public final class PureCompiler {
 
         // Check for optional type argument (@Type)
         // Default to JSON since get() extracts from JSON and returns JSON unless typed
-        SqlType returnType = SqlType.JSON;
+        PureType returnType = PureType.JSON;
         if (args.size() >= 2 && args.get(1) instanceof TypeReference typeRef) {
             returnType = mapTypeName(typeRef.typeName());
         }
@@ -5567,7 +5566,7 @@ public final class PureCompiler {
     /**
      * Compiles a simple method call (get, fromJson, toJson, etc.)
      */
-    private Expression compileSimpleMethodCall(MethodCall methodCall, CompilationContext context) {
+    private Expression compileSimpleMethodCall(FunctionCall methodCall, CompilationContext context) {
         // Compile the source expression (e.g., $_.PAYLOAD)
         Expression source = compileToSqlExpression(methodCall.source(), context);
 
@@ -5578,14 +5577,14 @@ public final class PureCompiler {
         }
 
         // Return SqlFunctionCall which will be handled by SQLGenerator
-        return new SqlFunctionCall(methodCall.methodName(), source, additionalArgs, SqlType.UNKNOWN);
+        return new SqlFunctionCall(methodCall.functionName(), source, additionalArgs, PureType.UNKNOWN);
     }
 
     /**
      * Compiles $x->in([a, b, c]) to list_contains([a, b, c], x)
      * Uses DuckDB's native list_contains function.
      */
-    private Expression compileListContains(MethodCall methodCall, CompilationContext context) {
+    private Expression compileListContains(FunctionCall methodCall, CompilationContext context) {
         // The source is the value to check
         Expression valueToCheck = compileToSqlExpression(methodCall.source(), context);
 
@@ -5607,7 +5606,7 @@ public final class PureCompiler {
      * Compiles [a, b, c]->contains($value) to list_contains([a, b, c], value)
      * Uses DuckDB's native list_contains function.
      */
-    private Expression compileListContainsMethod(MethodCall methodCall, CompilationContext context) {
+    private Expression compileListContainsMethod(FunctionCall methodCall, CompilationContext context) {
         // The source is the list
         Expression list = compileToSqlExpression(methodCall.source(), context);
 
@@ -5643,8 +5642,8 @@ public final class PureCompiler {
     private Expression detectSortDirection(List<PureExpression> sortColumns) {
         for (PureExpression arg : sortColumns) {
             if (arg instanceof LambdaExpression lambda && lambda.isMultiParam()
-                    && lambda.body() instanceof MethodCall cmp
-                    && (cmp.methodName().equals("compare") || cmp.methodName().endsWith("::compare"))) {
+                    && lambda.body() instanceof FunctionCall cmp
+                    && (cmp.functionName().equals("compare") || cmp.functionName().endsWith("::compare"))) {
                 String firstParam = lambda.parameters().get(0);
                 String secondParam = lambda.parameters().get(1);
                 if (cmp.source() instanceof VariableExpr v && v.name().equals(secondParam)
@@ -5665,21 +5664,21 @@ public final class PureCompiler {
      */
     private boolean hasMixedTypes(List<Expression> elements) {
         if (elements.size() <= 1) return false;
-        SqlType firstType = elements.getFirst().type();
+        PureType firstType = elements.getFirst().type();
         for (int i = 1; i < elements.size(); i++) {
-            SqlType t = elements.get(i).type();
+            PureType t = elements.get(i).type();
             // Treat UNKNOWN as compatible with anything (it may resolve at runtime)
-            if (t == SqlType.UNKNOWN || firstType == SqlType.UNKNOWN) continue;
+            if (t == PureType.UNKNOWN || firstType == PureType.UNKNOWN) continue;
             if (t != firstType && !areNumericCompatible(firstType, t)) return true;
         }
         return false;
     }
 
-    private static boolean isNumericType(SqlType t) {
-        return t == SqlType.INTEGER || t == SqlType.BIGINT || t == SqlType.DOUBLE || t == SqlType.DECIMAL;
+    private static boolean isNumericType(PureType t) {
+        return t.isNumeric();
     }
 
-    private static boolean areNumericCompatible(SqlType a, SqlType b) {
+    private static boolean areNumericCompatible(PureType a, PureType b) {
         return isNumericType(a) && isNumericType(b);
     }
 
@@ -5719,9 +5718,9 @@ public final class PureCompiler {
     private boolean needsCrossTypeConcatPromotion(Expression left, Expression right) {
         if (left instanceof ListLiteral ll && right instanceof ListLiteral rl) {
             if (ll.isEmpty() || rl.isEmpty()) return false;
-            SqlType leftType = ll.elements().getFirst().type();
-            SqlType rightType = rl.elements().getFirst().type();
-            if (leftType == SqlType.UNKNOWN || rightType == SqlType.UNKNOWN) return false;
+            PureType leftType = ll.elements().getFirst().type();
+            PureType rightType = rl.elements().getFirst().type();
+            if (leftType == PureType.UNKNOWN || rightType == PureType.UNKNOWN) return false;
             return leftType != rightType && !areNumericCompatible(leftType, rightType);
         }
         return false;
@@ -5730,7 +5729,7 @@ public final class PureCompiler {
     /**
      * Compiles map(x | expr) to list_transform(arr, lambda x: expr)
      */
-    private Expression compileMapCall(MethodCall methodCall, CompilationContext context) {
+    private Expression compileMapCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
 
         if (methodCall.arguments().isEmpty() || !(methodCall.arguments().get(0) instanceof LambdaExpression lambda)) {
@@ -5752,7 +5751,7 @@ public final class PureCompiler {
     /**
      * Compiles filter(x | condition) on collections to list_filter
      */
-    private Expression compileFilterCollectionCall(MethodCall methodCall, CompilationContext context) {
+    private Expression compileFilterCollectionCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
 
         if (methodCall.arguments().isEmpty() || !(methodCall.arguments().get(0) instanceof LambdaExpression lambda)) {
@@ -5771,7 +5770,7 @@ public final class PureCompiler {
      * Pure: [1,2,3]->exists(x|$x > 2) = true
      * SQL:  len(list_filter([1,2,3], x -> x > 2)) > 0  
      */
-    private Expression compileExistsCall(MethodCall methodCall, CompilationContext context) {
+    private Expression compileExistsCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
 
         if (methodCall.arguments().isEmpty() || !(methodCall.arguments().get(0) instanceof LambdaExpression lambda)) {
@@ -5798,7 +5797,7 @@ public final class PureCompiler {
      * (e.g., string), DuckDB's list_reduce fails with a type mismatch error.
      * In this case, we decompose into: list_reduce(list_transform(source, elem -> f(elem)), (acc, x) -> acc + x, init)
      */
-    private Expression compileFoldCall(MethodCall methodCall, CompilationContext context) {
+    private Expression compileFoldCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
 
         if (methodCall.arguments().size() < 2) {
@@ -5929,10 +5928,10 @@ public final class PureCompiler {
      */
     private boolean isFoldListAccumulation(LambdaExpression lambda, String elemParam, String accParam) {
         PureExpression body = lambda.body();
-        if (!(body instanceof MethodCall addCall)) return false;
-        String shortName = addCall.methodName().contains("::")
-                ? addCall.methodName().substring(addCall.methodName().lastIndexOf("::") + 2)
-                : addCall.methodName();
+        if (!(body instanceof FunctionCall addCall)) return false;
+        String shortName = addCall.functionName().contains("::")
+                ? addCall.functionName().substring(addCall.functionName().lastIndexOf("::") + 2)
+                : addCall.functionName();
         if (!"add".equals(shortName)) return false;
         // Source must be the accumulator variable
         if (!(addCall.source() instanceof VariableExpr accVar) || !accVar.name().equals(accParam)) return false;
@@ -5969,7 +5968,7 @@ public final class PureCompiler {
         // Array literals are already lists
         if (pureSource instanceof ArrayLiteral) return false;
         // Method calls that return lists (cast, range, etc.) are not scalar
-        if (pureSource instanceof MethodCall) return false;
+        if (pureSource instanceof FunctionCall) return false;
         if (pureSource instanceof FunctionCall) return false;
         // Literal values (integers, strings) are scalar
         if (pureSource instanceof LiteralExpr) return true;
@@ -6068,7 +6067,7 @@ public final class PureCompiler {
     /**
      * Compiles flatten() to flatten(arr)
      */
-    private Expression compileFlattenCall(MethodCall methodCall, CompilationContext context) {
+    private Expression compileFlattenCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
         return SqlCollectionCall.flatten(source);
     }
@@ -6112,7 +6111,7 @@ public final class PureCompiler {
             return true;
         }
         // Check toString() method call
-        if (expr instanceof MethodCall mc && "toString".equals(mc.methodName())) {
+        if (expr instanceof FunctionCall mc && "toString".equals(mc.functionName())) {
             return true;
         }
         // Check binary expressions where one side is string (propagates string type)
@@ -6348,7 +6347,7 @@ public final class PureCompiler {
 
             // If source returns a scalar struct (at/head/first/last or InstanceExpression),
             // use struct_extract instead of list_transform which expects a list input
-            if (propAccess.source() instanceof MethodCall mc && isScalarMethod(mc.methodName())) {
+            if (propAccess.source() instanceof FunctionCall mc && isScalarMethod(mc.functionName())) {
                 return SqlFunctionCall.of("struct_extract", compiledSource, Literal.string(fullPath));
             }
             if (compiledSource instanceof StructLiteralExpression) {
@@ -6378,7 +6377,7 @@ public final class PureCompiler {
                     String columnName = context.mapping().getColumnForProperty(propertyName)
                             .orElseThrow(
                                     () -> new PureCompileException("No column mapping for property: " + propertyName));
-                    return ColumnReference.of(rowAlias, columnName);
+                    return ColumnReference.of(rowAlias, columnName, context.mapping().pureTypeForProperty(propertyName));
                 }
 
                 // No mapping - use full path (for nested STRUCT access like
@@ -6424,7 +6423,7 @@ public final class PureCompiler {
         String columnName = context.mapping().getColumnForProperty(propertyName)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
 
-        return ColumnReference.of(context.tableAlias(), columnName);
+        return ColumnReference.of(context.tableAlias(), columnName, context.mapping().pureTypeForProperty(propertyName));
     }
 
     /**
@@ -6464,7 +6463,7 @@ public final class PureCompiler {
 
             // Build: get(COLUMN, 'key') with return type
             Expression columnRef = ColumnReference.of(tableAlias, columnName);
-            SqlType returnType = mapTypeName(typeName);
+            PureType returnType = mapTypeName(typeName);
             return SqlFunctionCall.of("get", columnRef, returnType, Literal.string(jsonKey));
         }
 
@@ -6574,7 +6573,7 @@ public final class PureCompiler {
             return propAccess.propertyName();
         }
         // Handle method calls on property access: $x.prop->toOne(), etc.
-        if (expr instanceof MethodCall mc) {
+        if (expr instanceof FunctionCall mc) {
             return extractPropertyName(mc.source());
         }
         // Handle cast on property access: $x.prop->cast(@Type)

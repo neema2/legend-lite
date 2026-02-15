@@ -43,6 +43,11 @@ public record DateTruncExpression(
     }
 
     @Override
+    public PureType type() {
+        return argument.type() != PureType.UNKNOWN ? argument.type() : PureType.STRICT_DATE;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visit(this);
     }

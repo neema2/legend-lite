@@ -31,6 +31,11 @@ public record JsonArrayExpression(
     }
 
     @Override
+    public PureType type() {
+        return PureType.JSON;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visit(this);
     }

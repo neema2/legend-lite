@@ -27,6 +27,11 @@ public record ConcatExpression(List<Expression> parts) implements Expression {
     }
     
     @Override
+    public PureType type() {
+        return PureType.STRING;
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitConcat(this);
     }

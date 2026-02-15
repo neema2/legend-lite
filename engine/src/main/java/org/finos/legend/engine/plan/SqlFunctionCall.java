@@ -11,20 +11,20 @@ import java.util.Objects;
  * @param functionName The SQL function name (lowercase)
  * @param target       The primary expression the function operates on
  * @param arguments    Additional arguments (if any)
- * @param returnType   The SQL type returned by this function
+ * @param returnType   The Pure type returned by this function
  */
 public record SqlFunctionCall(
         String functionName,
         Expression target,
         List<Expression> arguments,
-        SqlType returnType) implements Expression {
+        PureType returnType) implements Expression {
 
     public SqlFunctionCall {
         Objects.requireNonNull(functionName, "Function name cannot be null");
         Objects.requireNonNull(arguments, "Arguments cannot be null");
         arguments = List.copyOf(arguments);
         if (returnType == null) {
-            returnType = SqlType.UNKNOWN;
+            returnType = PureType.UNKNOWN;
         }
     }
 
@@ -33,17 +33,17 @@ public record SqlFunctionCall(
      * E.g., UPPER(column)
      */
     public static SqlFunctionCall of(String functionName) {
-        return new SqlFunctionCall(functionName, null, List.of(), SqlType.UNKNOWN);
+        return new SqlFunctionCall(functionName, null, List.of(), PureType.UNKNOWN);
     }
 
     public static SqlFunctionCall of(String functionName, Expression target) {
-        return new SqlFunctionCall(functionName, target, List.of(), SqlType.UNKNOWN);
+        return new SqlFunctionCall(functionName, target, List.of(), PureType.UNKNOWN);
     }
 
     /**
      * Creates a function call with type specified.
      */
-    public static SqlFunctionCall of(String functionName, Expression target, SqlType returnType) {
+    public static SqlFunctionCall of(String functionName, Expression target, PureType returnType) {
         return new SqlFunctionCall(functionName, target, List.of(), returnType);
     }
 
@@ -52,13 +52,13 @@ public record SqlFunctionCall(
      * E.g., SUBSTRING(column, 1, 10)
      */
     public static SqlFunctionCall of(String functionName, Expression target, Expression... args) {
-        return new SqlFunctionCall(functionName, target, List.of(args), SqlType.UNKNOWN);
+        return new SqlFunctionCall(functionName, target, List.of(args), PureType.UNKNOWN);
     }
 
     /**
      * Creates a function call with arguments and type.
      */
-    public static SqlFunctionCall of(String functionName, Expression target, SqlType returnType, Expression... args) {
+    public static SqlFunctionCall of(String functionName, Expression target, PureType returnType, Expression... args) {
         return new SqlFunctionCall(functionName, target, List.of(args), returnType);
     }
 
@@ -170,17 +170,17 @@ public record SqlFunctionCall(
     }
 
     @Override
-    public SqlType type() {
-        if (returnType != SqlType.UNKNOWN) {
+    public PureType type() {
+        if (returnType != PureType.UNKNOWN) {
             return returnType;
         }
         // Propagate DECIMAL type from target or any argument
-        if (target != null && target.type() == SqlType.DECIMAL) {
-            return SqlType.DECIMAL;
+        if (target != null && target.type() == PureType.DECIMAL) {
+            return PureType.DECIMAL;
         }
         for (Expression arg : arguments) {
-            if (arg.type() == SqlType.DECIMAL) {
-                return SqlType.DECIMAL;
+            if (arg.type() == PureType.DECIMAL) {
+                return PureType.DECIMAL;
             }
         }
         return returnType;

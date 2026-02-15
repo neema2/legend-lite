@@ -95,6 +95,19 @@ public record AggregateExpression(
     }
 
     @Override
+    public PureType type() {
+        return switch (function) {
+            case COUNT, COUNT_DISTINCT -> PureType.INTEGER;
+            case AVG, STDDEV, STDDEV_SAMP, STDDEV_POP, VARIANCE, VAR_SAMP, VAR_POP,
+                 MEDIAN, CORR, COVAR_SAMP, COVAR_POP, WAVG,
+                 PERCENTILE_CONT, PERCENTILE_DISC -> PureType.FLOAT;
+            case STRING_AGG -> PureType.STRING;
+            case HASH_CODE -> PureType.INTEGER;
+            case SUM, MIN, MAX, ARG_MAX, ARG_MIN, MODE -> argument.type();
+        };
+    }
+
+    @Override
     public <T> T accept(ExpressionVisitor<T> visitor) {
         return visitor.visitAggregate(this);
     }
