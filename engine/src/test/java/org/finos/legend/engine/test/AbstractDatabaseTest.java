@@ -26,19 +26,7 @@ public abstract class AbstractDatabaseTest {
     protected MappingRegistry mappingRegistry;
     protected PureCompiler pureCompiler;
     protected PureModelBuilder modelBuilder;
-    protected QueryService queryService = createQueryService();
-
-    /**
-     * Creates QueryService with compiler mode from system property.
-     * Use -Dcompiler.mode=LEGEND to test with new PureLegendCompiler.
-     */
-    private static QueryService createQueryService() {
-        String mode = System.getProperty("compiler.mode", "LEGACY");
-        QueryService.CompilerMode compilerMode = "LEGEND".equalsIgnoreCase(mode)
-                ? QueryService.CompilerMode.LEGEND
-                : QueryService.CompilerMode.LEGACY;
-        return new QueryService(compilerMode);
-    }
+    protected QueryService queryService = new QueryService();
 
     // ==================== Pure Definitions ====================
 

@@ -18,7 +18,6 @@ import org.finos.legend.engine.transpiler.json.JsonSqlDialect;
 import org.finos.legend.engine.transpiler.json.JsonSqlGenerator;
 import org.finos.legend.pure.dsl.PureCompiler;
 import org.finos.legend.pure.dsl.TypeEnvironment;
-import org.finos.legend.pure.dsl.legend.PureLegendCompiler;
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
 import org.finos.legend.pure.dsl.definition.RuntimeDefinition;
@@ -67,27 +66,7 @@ public class QueryService {
 
     private final ConnectionResolver connectionResolver = new ConnectionResolver();
 
-    /**
-     * Compiler mode toggle - allows switching between legacy and new compiler.
-     * LEGEND = New PureLegendCompiler (ANTLR-based, feature parity in progress)
-     * LEGACY = Original PureCompiler (hand-written parser, feature complete)
-     */
-    private CompilerMode compilerMode = CompilerMode.LEGACY;
-
     public QueryService() {
-        // Default: use legacy compiler for maximum compatibility
-    }
-
-    public QueryService(CompilerMode mode) {
-        this.compilerMode = mode;
-    }
-
-    public void setCompilerMode(CompilerMode mode) {
-        this.compilerMode = mode;
-    }
-
-    public CompilerMode getCompilerMode() {
-        return compilerMode;
     }
 
     /**
@@ -501,10 +480,7 @@ public class QueryService {
     }
 
     private RelationNode compileQuery(String query, MappingRegistry mappingRegistry, PureModelBuilder model, TypeEnvironment typeEnv) {
-        return switch (compilerMode) {
-            case LEGACY -> new PureCompiler(mappingRegistry, model, typeEnv).compile(query);
-            case LEGEND -> new PureLegendCompiler(mappingRegistry, model).compile(query);
-        };
+        return new PureCompiler(mappingRegistry, model, typeEnv).compile(query);
     }
 
     /**
@@ -704,13 +680,4 @@ public class QueryService {
         SCALAR
     }
 
-    /**
-     * Compiler mode selection for switching between implementations.
-     */
-    public enum CompilerMode {
-        /** Original hand-written parser + compiler (feature complete) */
-        LEGACY,
-        /** New ANTLR-based parser + PureLegendCompiler (feature parity in progress) */
-        LEGEND
-    }
 }
