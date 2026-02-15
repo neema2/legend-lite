@@ -88,7 +88,9 @@ public sealed interface GenericType
          * Maps a Pure type name string to the corresponding Primitive.
          */
         public static Primitive fromTypeName(String name) {
-            return switch (name) {
+            // Handle qualified names: meta::pure::metamodel::variant::Variant -> Variant
+            String simpleName = name.contains("::") ? name.substring(name.lastIndexOf("::") + 2) : name;
+            return switch (simpleName) {
                 case "Integer" -> INTEGER;
                 case "Float" -> FLOAT;
                 case "Decimal" -> DECIMAL;
@@ -99,6 +101,9 @@ public sealed interface GenericType
                 case "StrictDate" -> STRICT_DATE;
                 case "DateTime" -> DATE_TIME;
                 case "StrictTime" -> STRICT_TIME;
+                case "Variant" -> JSON;
+                // Class/Enum names (e.g., Person, ProductType) are not primitives — return ANY
+                // These are handled by ClassType/EnumType at higher levels
                 default -> ANY;
             };
         }

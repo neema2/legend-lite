@@ -2886,9 +2886,28 @@ public final class PureCompiler {
                 collectExtendedColumnsRecursive(flatten.source(), columns);
             }
             case RelationExtendExpression extend -> {
-                // Extend adds its new column — type could be inferred from lambda body in future
-                columns.put(extend.newColumnName(), Primitive.ANY);
+                // First collect upstream columns so we can use them to infer this extend's type
                 collectExtendedColumnsRecursive(extend.source(), columns);
+                // Infer extend column type by compiling the lambda body
+                if (extend.expression() != null) {
+                    try {
+                        String tableAlias = "";
+                        CompilationContext inferCtx = new CompilationContext(
+                                extend.expression().parameter(), tableAlias, null, null, false,
+                                new java.util.HashMap<>(), new java.util.HashMap<>(columns),
+                                new java.util.HashMap<>(), new java.util.HashMap<>(),
+                                new java.util.HashMap<>(), new java.util.HashMap<>())
+                                .withRowBinding(extend.expression().parameter(), tableAlias);
+                        Expression body = compileToSqlExpression(extend.expression().body(), inferCtx);
+                        columns.put(extend.newColumnName(), body.type());
+                    } catch (Exception e) {
+                        // If inference fails, fall back to ANY
+                        columns.put(extend.newColumnName(), Primitive.ANY);
+                    }
+                } else {
+                    // Window function extend — type depends on window function (usually numeric)
+                    columns.put(extend.newColumnName(), Primitive.ANY);
+                }
             }
             case RelationFilterExpression filter -> collectExtendedColumnsRecursive(filter.source(), columns);
             case RelationSelectExpression select -> collectExtendedColumnsRecursive(select.source(), columns);
@@ -2896,16 +2915,41 @@ public final class PureCompiler {
             case RelationLimitExpression limit -> collectExtendedColumnsRecursive(limit.source(), columns);
             case TdsLiteral tds -> {
                 // TDS literal columns carry type annotations: #TDS name:String, age:Integer #
-                for (TdsLiteral.TdsColumn col : tds.columns()) {
-                    GenericType colType = col.type() != null
-                            ? GenericType.fromTypeName(col.type())
-                            : Primitive.ANY;
-                    columns.put(col.name(), colType);
+                for (int i = 0; i < tds.columns().size(); i++) {
+                    TdsLiteral.TdsColumn col = tds.columns().get(i);
+                    if (col.type() != null) {
+                        columns.put(col.name(), GenericType.fromTypeName(col.type()));
+                    } else {
+                        // Infer type from first non-null row value (PCT adapter compatibility)
+                        columns.put(col.name(), inferTdsColumnType(tds.rows(), i));
+                    }
                 }
             }
             default -> {
                 /* Base case - no more extended columns to collect */ }
         }
+    }
+
+    /**
+     * Infers a TDS column's GenericType from the first non-null value in the column's row data.
+     * Used when TDS columns lack type annotations (e.g., PCT adapter CSV output).
+     */
+    private GenericType inferTdsColumnType(List<List<Object>> rows, int colIndex) {
+        for (List<Object> row : rows) {
+            if (colIndex < row.size()) {
+                Object val = row.get(colIndex);
+                if (val instanceof Long) return Primitive.INTEGER;
+                if (val instanceof Double) return Primitive.FLOAT;
+                if (val instanceof Boolean) return Primitive.BOOLEAN;
+                if (val instanceof String s) {
+                    // Try to detect date/datetime patterns
+                    if (s.matches("\\d{4}-\\d{2}-\\d{2}T.*")) return Primitive.DATE_TIME;
+                    if (s.matches("\\d{4}-\\d{2}-\\d{2}")) return Primitive.STRICT_DATE;
+                    return Primitive.STRING;
+                }
+            }
+        }
+        return Primitive.STRING; // Default to STRING for empty TDS
     }
 
     /**
@@ -3556,7 +3600,7 @@ public final class PureCompiler {
                     Expression tagged = CollectionExpression.map(list, param, structExpr);
                     Expression sorted = FunctionExpression.of("sort", tagged, detectSortDirection(sort.sortColumns()));
                     String param2 = "_sv";
-                    Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2, Primitive.ANY), Literal.string("v"));
+                    Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2, sortElemType), Literal.string("v"));
                     yield CollectionExpression.map(sorted, param2, extractVal);
                 }
                 yield FunctionExpression.of("sort", list, detectSortDirection(sort.sortColumns()));
@@ -3624,7 +3668,7 @@ public final class PureCompiler {
                         Expression tagged = CollectionExpression.map(source, param, structExpr);
                         Expression sorted = FunctionExpression.of("sort", tagged, detectSortDirection(sort.sortColumns()));
                         String param2 = "_sv";
-                        Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2, Primitive.ANY), Literal.string("v"));
+                        Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2, sortElemType2), Literal.string("v"));
                         yield CollectionExpression.map(sorted, param2, extractVal);
                     }
                     yield FunctionExpression.of("sort", source, detectSortDirection(sort.sortColumns()));
@@ -4440,7 +4484,9 @@ public final class PureCompiler {
      * Maps Pure type names to PureType.
      */
     private GenericType mapTypeName(String typeName) {
-        return switch (typeName.toLowerCase()) {
+        // Handle qualified names: meta::pure::metamodel::type::Any -> Any
+        String simpleName = typeName.contains("::") ? typeName.substring(typeName.lastIndexOf("::") + 2) : typeName;
+        return switch (simpleName.toLowerCase()) {
             case "integer", "int" -> Primitive.INTEGER;
             case "float", "double", "number" -> Primitive.FLOAT;
             case "string", "varchar" -> Primitive.STRING;
@@ -4449,7 +4495,9 @@ public final class PureCompiler {
             case "strictdate" -> Primitive.STRICT_DATE;
             case "datetime" -> Primitive.DATE_TIME;
             case "decimal" -> Primitive.DECIMAL;
-            default -> Primitive.ANY;
+            case "json", "variant" -> Primitive.JSON;
+            case "any" -> Primitive.ANY;
+            default -> throw new PureCompileException("Unknown type name: " + typeName);
         };
     }
 
@@ -4562,7 +4610,8 @@ public final class PureCompiler {
             case "eval" -> {
                 if (methodCall.source() instanceof ColumnSpec cs) {
                     // Column spec evaluated on row becomes simple column reference
-                    yield ColumnReference.of(cs.name(), Primitive.ANY);
+                    GenericType colType = context != null ? context.getExtendedColumnType(cs.name()) : Primitive.STRING;
+                    yield ColumnReference.of(cs.name(), colType);
                 }
                 if (methodCall.source() instanceof ClassReference cr) {
                     // funcRef->eval(args): extract function name and compile as function call
@@ -5600,8 +5649,8 @@ public final class PureCompiler {
             additionalArgs.add(compileToSqlExpression(arg, context));
         }
 
-        // Return FunctionExpression which will be handled by SQLGenerator
-        return new FunctionExpression(methodCall.functionName(), source, additionalArgs, Primitive.ANY);
+        // Return FunctionExpression — registry resolves type; source type is fallback
+        return new FunctionExpression(methodCall.functionName(), source, additionalArgs, source.type());
     }
 
     /**
@@ -6390,7 +6439,8 @@ public final class PureCompiler {
 
             // Source is a collection — wrap in list_transform
             String syntheticParam = "_prop_x";
-            Expression body = ColumnReference.of(syntheticParam, fullPath, Primitive.ANY);
+            GenericType propType = context != null ? context.getExtendedColumnType(propertyName) : Primitive.STRING;
+            Expression body = ColumnReference.of(syntheticParam, fullPath, propType);
             return CollectionExpression.map(compiledSource, syntheticParam, body);
         }
 
@@ -6416,7 +6466,7 @@ public final class PureCompiler {
 
                 // No mapping - use full path (for nested STRUCT access like
                 // employees.firstName)
-                return ColumnReference.of(rowAlias, fullPath, Primitive.ANY);
+                return ColumnReference.of(rowAlias, fullPath, context.getExtendedColumnType(propertyName));
             }
             // SCALAR binding: if value is a StructLiteralExpression, extract the field
             if (binding.kind() == SymbolBinding.BindingKind.SCALAR && binding.value() instanceof StructLiteralExpression struct) {
@@ -6433,7 +6483,7 @@ public final class PureCompiler {
         // Check if variable is a lambda parameter (from collection operations like map/filter/fold)
         // For struct elements, property access becomes struct field access: p.lastName
         if (context != null && context.lambdaParameters() != null && context.isLambdaParameter(varName)) {
-            return ColumnReference.of(varName, fullPath, Primitive.ANY);
+            return ColumnReference.of(varName, fullPath, context.getExtendedColumnType(propertyName));
         }
 
         // Legacy fallback: check lambdaParameter directly
@@ -6451,7 +6501,7 @@ public final class PureCompiler {
         // If no mapping exists (direct Relation API access), use full path for STRUCT
         // access
         if (context.mapping() == null) {
-            return ColumnReference.of(context.tableAlias(), fullPath, Primitive.ANY);
+            return ColumnReference.of(context.tableAlias(), fullPath, context.getExtendedColumnType(propertyName));
         }
 
         String columnName = context.mapping().getColumnForProperty(propertyName)
