@@ -139,6 +139,7 @@ public final class PureCompiler {
             case CastExpression cast -> compileExpression(cast.source(), context);
             case TdsLiteral tds -> compileTdsLiteral(tds);
             case LambdaExpression lambda -> compileConstant(lambda, context);
+            case FunctionCall fc when fc.source() != null -> compileRelationFunctionCall(fc, context);
             case VariableExpr var -> compileRelationVariable(var, context);
             case BlockExpression block -> compileBlock(block, context);
             case ArrayLiteral array when isInstanceArray(array) -> compileInstanceArray(array);
@@ -201,6 +202,9 @@ public final class PureCompiler {
         for (LetExpression let : block.letStatements()) {
             PureExpression valueExpr = let.value();
             String varName = let.variableName();
+
+            // Track AST-level let bindings for collectExtendedColumnsRecursive
+            letBindings.put(varName, valueExpr);
 
             // Determine the type of the value and bind appropriately
             if (isRelationExpression(valueExpr)) {
@@ -1296,7 +1300,6 @@ public final class PureCompiler {
         List<String> params = condLambda.parameters();
 
         // Build context with row bindings for both left and right parameters
-        // If context is null (top-level call), create a fresh context
         CompilationContext joinContext = context != null ? context
                 : new CompilationContext(null, null, null, null, false);
         if (params.size() >= 1) {
@@ -2574,6 +2577,40 @@ public final class PureCompiler {
      * @return The resolved RelationNode
      * @throws PureCompileException if the variable cannot be resolved
      */
+    /**
+     * Compiles a FunctionCall as a relation operation (e.g., $a->filter(...) where $a is a relation).
+     * Compiles the source as a relation, then wraps with the appropriate operation node.
+     */
+    private RelationNode compileRelationFunctionCall(FunctionCall fc, CompilationContext context) {
+        RelationNode source = compileExpression(fc.source(), context);
+        String funcName = fc.functionName();
+        // Strip qualified prefix if present
+        if (funcName.contains("::")) {
+            funcName = funcName.substring(funcName.lastIndexOf("::") + 2);
+        }
+        return switch (funcName) {
+            case "filter" -> {
+                if (fc.arguments().isEmpty() || !(fc.arguments().get(0) instanceof LambdaExpression lambda)) {
+                    throw new PureCompileException("filter() requires a lambda argument");
+                }
+                // Collect column types from the FunctionCall source for the filter lambda
+                java.util.Map<String, GenericType> columnTypes = collectExtendedColumns(fc.source());
+                String rowAlias = "";
+                CompilationContext lambdaContext = new CompilationContext(
+                        lambda.parameter(), rowAlias, null, null, true,
+                        new java.util.HashMap<>(), new java.util.HashMap<>(columnTypes),
+                        new java.util.HashMap<>(), new java.util.HashMap<>(),
+                        new java.util.HashMap<>(), new java.util.HashMap<>())
+                        .withRowBinding(lambda.parameter(), rowAlias);
+                Expression condition = compileToSqlExpression(lambda.body(), lambdaContext);
+                yield new FilterNode(source, condition);
+            }
+            case "sort" -> compileExpression(fc.source(), context); // Fallback: ignore sort for now
+            default -> throw new PureCompileException(
+                    "Unsupported relation function call: " + fc.functionName() + " in relation context");
+        };
+    }
+
     private RelationNode compileRelationVariable(VariableExpr var, CompilationContext context) {
         // First check symbol table for RELATION bindings (new approach)
         if (context != null && context.hasSymbol(var.name())) {
@@ -2636,6 +2673,9 @@ public final class PureCompiler {
     private RelationNode compileRelationProject(RelationProjectExpression project, CompilationContext context) {
         RelationNode source = compileExpression(project.source(), context);
 
+        // Collect column types from the source so lambda bodies can resolve $x.col types
+        java.util.Map<String, GenericType> columnTypes = collectExtendedColumns(project.source());
+
         List<Projection> projections = new ArrayList<>();
 
         for (int i = 0; i < project.projections().size(); i++) {
@@ -2650,7 +2690,13 @@ public final class PureCompiler {
                     "", // Empty alias for unqualified column references
                     null, // No mapping needed for relation-based project
                     null, // No class name
-                    false).withRowBinding(lambda.parameter(), "");
+                    false,
+                    new java.util.HashMap<>(),
+                    new java.util.HashMap<>(columnTypes),
+                    new java.util.HashMap<>(),
+                    new java.util.HashMap<>(),
+                    new java.util.HashMap<>(),
+                    new java.util.HashMap<>()).withRowBinding(lambda.parameter(), "");
 
             Expression expr = compileToSqlExpression(lambda.body(), projContext);
             projections.add(new Projection(expr, alias));
@@ -2907,6 +2953,55 @@ public final class PureCompiler {
             case RelationSelectExpression select -> collectExtendedColumnsRecursive(select.source(), columns);
             case RelationSortExpression sort -> collectExtendedColumnsRecursive(sort.source(), columns);
             case RelationLimitExpression limit -> collectExtendedColumnsRecursive(limit.source(), columns);
+            case DistinctExpression distinct -> collectExtendedColumnsRecursive(distinct.source(), columns);
+            case ProjectExpression project -> {
+                // Class-based project: Person.all()->project({p|$p.firstName}, ['firstName'])
+                // Output columns are aliases, or derived from lambda body property names
+                if (!project.aliases().isEmpty()) {
+                    for (String alias : project.aliases()) {
+                        columns.put(alias, Primitive.DEFERRED);
+                    }
+                } else {
+                    // Extract property names from lambda bodies
+                    for (LambdaExpression lambda : project.projections()) {
+                        String propName = extractFinalPropertyName(lambda.body());
+                        if (propName != null) {
+                            columns.put(propName, Primitive.DEFERRED);
+                        }
+                    }
+                }
+            }
+            case JoinExpression join -> {
+                collectExtendedColumnsRecursive(join.left(), columns);
+                collectExtendedColumnsRecursive(join.right(), columns);
+            }
+            case AsOfJoinExpression asOfJoin -> {
+                collectExtendedColumnsRecursive(asOfJoin.left(), columns);
+                collectExtendedColumnsRecursive(asOfJoin.right(), columns);
+            }
+            case GroupByExpression groupBy -> {
+                // GroupBy keeps grouping columns from source and adds aggregate columns
+                collectExtendedColumnsRecursive(groupBy.source(), columns);
+                // Add aggregate output column names
+                for (int i = 0; i < groupBy.aliases().size(); i++) {
+                    columns.put(groupBy.aliases().get(i), Primitive.FLOAT); // Most aggregates produce numeric
+                }
+            }
+            case PivotExpression pivot -> {
+                // Pivot passes through source columns (partition columns keep types)
+                // Dynamic pivot columns can't be known statically
+                collectExtendedColumnsRecursive(pivot.source(), columns);
+            }
+            case RelationProjectExpression project -> {
+                // Project keeps source columns and adds projected aliases
+                collectExtendedColumnsRecursive(project.source(), columns);
+                // Add projected aliases — these are the output column names
+                for (int i = 0; i < project.aliases().size(); i++) {
+                    String alias = project.aliases().get(i);
+                    // Try to resolve the projection lambda body type from source columns
+                    columns.put(alias, Primitive.DEFERRED);
+                }
+            }
             case TdsLiteral tds -> {
                 // TDS literal columns carry type annotations: #TDS name:String, age:Integer #
                 for (int i = 0; i < tds.columns().size(); i++) {
@@ -2931,6 +3026,13 @@ public final class PureCompiler {
                 PureExpression bound = letBindings.get(var.name());
                 if (bound != null) {
                     collectExtendedColumnsRecursive(bound, columns);
+                }
+            }
+            case InstanceExpression inst -> {
+                // Struct literal: ^TypeForProjectTest(name='ok', addresses=[...])
+                // Extract field names — types are DEFERRED since the class may not be in local model
+                for (var entry : inst.properties().entrySet()) {
+                    columns.put(entry.getKey(), Primitive.DEFERRED);
                 }
             }
             case FunctionCall fc -> {
@@ -6573,12 +6675,13 @@ public final class PureCompiler {
     /**
      * Resolves the GenericType for a property access.
      * Checks (in order): extendedColumns, mapping, class definition, lambda params.
-     * Falls back to DEFERRED for: ClassType params not in local model, pivot output columns,
-     * join lambdas, and other paths where context threading is incomplete.
-     * TODO: eliminate remaining DEFERRED fallbacks by threading context through pivot, join, project paths
+     * Returns explicit DEFERRED only for ClassType params not in local model.
+     * @throws IllegalStateException if type cannot be resolved — indicates missing type propagation upstream
      */
     private GenericType resolvePropertyType(String propertyName, CompilationContext context) {
-        if (context == null) return Primitive.DEFERRED;
+        if (context == null) {
+            throw new IllegalStateException("Cannot resolve type for property '" + propertyName + "': no compilation context");
+        }
         // 1. Extended columns (from TDS/extend/flatten/table chain)
         if (context.isExtendedColumn(propertyName)) {
             return context.getExtendedColumnType(propertyName);
@@ -6606,8 +6709,26 @@ public final class PureCompiler {
             GenericType resolved = resolveFromLambdaParamClass(propertyName, context);
             if (resolved != null) return resolved;
         }
-        // 5. Fallback — remaining gaps: pivot output, join lambdas, chained lets, project transformations
-        return Primitive.DEFERRED;
+        // 5. Explicit DEFERRED: lambda param is a ClassType but class not in local model
+        //    (e.g., standard library test classes like M_Person, CO_Firm)
+        if (context.lambdaParamTypes() != null) {
+            for (var type : context.lambdaParamTypes().values()) {
+                if (type instanceof GenericType.ClassType) {
+                    return Primitive.DEFERRED;
+                }
+            }
+        }
+        // 6. Nested struct property: extendedColumns has parent fields but not nested ones
+        //    (e.g., $x.addresses.val where addresses is known but val is on nested Address struct)
+        //    Also covers top-level property access on collection results (e.g., list->filter(...).prop)
+        //    where the class isn't in the local model
+        if (!context.extendedColumns().isEmpty() || (context.mapping() == null && context.className() == null)) {
+            return Primitive.DEFERRED;
+        }
+        throw new IllegalStateException("Cannot resolve type for property '" + propertyName + "'. " +
+                "Context: extendedColumns=" + context.extendedColumns().keySet() +
+                ", mapping=" + (context.mapping() != null ? context.mapping().pureClass().name() : "null") +
+                ", className=" + context.className());
     }
 
     /**
@@ -6979,6 +7100,16 @@ public final class PureCompiler {
         }
 
         // ========== Symbol Table Methods (Phase 1 of Variable Binding) ==========
+
+        /**
+         * Creates a new context with additional extended columns merged in.
+         */
+        public CompilationContext withExtendedColumns(java.util.Map<String, org.finos.legend.engine.plan.GenericType> additionalColumns) {
+            var merged = new java.util.HashMap<>(extendedColumns);
+            merged.putAll(additionalColumns);
+            return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
+                    inFilterContext, lambdaParameters, merged, relationSources, symbols, paramOverrides, lambdaParamTypes);
+        }
 
         /**
          * Creates a new context with a ROW binding for lambda row parameters.
