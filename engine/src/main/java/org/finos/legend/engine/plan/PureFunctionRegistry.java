@@ -168,6 +168,55 @@ public final class PureFunctionRegistry {
         register("fromJson", FunctionSig.passthrough());
         register("get", FunctionSig.passthrough());
 
+        // ===== DuckDB list helpers (still in IR, to be cleaned up) =====
+        register("list_sum", FunctionSig.numericPassthrough());
+        register("list_min", FunctionSig.passthrough());
+        register("list_max", FunctionSig.passthrough());
+        register("list_avg", FunctionSig.constant(GenericType.Primitive.FLOAT));
+        register("list_distinct", FunctionSig.passthrough());
+        register("list_reverse", FunctionSig.passthrough());
+        register("list_contains", FunctionSig.constant(GenericType.Primitive.BOOLEAN));
+        register("list_concat", FunctionSig.passthrough());
+        register("list_append", FunctionSig.passthrough());
+        register("list_value", FunctionSig.passthrough());
+        register("list_slice", FunctionSig.passthrough());
+        register("list_extract", FunctionSig.passthrough());
+        register("list_aggr", FunctionSig.passthrough());
+        register("list_bool_and", FunctionSig.constant(GenericType.Primitive.BOOLEAN));
+        register("list_bool_or", FunctionSig.constant(GenericType.Primitive.BOOLEAN));
+
+        // ===== DuckDB string/utility helpers (still in IR) =====
+        register("starts_with", FunctionSig.constant(GenericType.Primitive.BOOLEAN));
+        register("ends_with", FunctionSig.constant(GenericType.Primitive.BOOLEAN));
+        register("strpos", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("strftime", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("array_to_string", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("regexp_replace", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("repeat", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("left", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("len", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("struct_extract", FunctionSig.passthrough());
+        register("generate_series", FunctionSig.passthrough());
+
+        // ===== DuckDB math/date helpers (still in IR) =====
+        register("greatest", FunctionSig.passthrough());
+        register("least", FunctionSig.passthrough());
+        register("ln", FunctionSig.constant(GenericType.Primitive.FLOAT));
+        register("make_date", FunctionSig.constant(GenericType.Primitive.STRICT_DATE));
+        register("make_timestamp", FunctionSig.constant(GenericType.Primitive.DATE_TIME));
+        register("sha1", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("sha256", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("md5", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("not", FunctionSig.constant(GenericType.Primitive.BOOLEAN));
+        register("to_json", FunctionSig.constant(GenericType.Primitive.JSON));
+
+        // ===== DuckDB stat helpers (still in IR) =====
+        register("stddev_pop", FunctionSig.constant(GenericType.Primitive.FLOAT));
+        register("stddev_samp", FunctionSig.constant(GenericType.Primitive.FLOAT));
+        register("var_pop", FunctionSig.constant(GenericType.Primitive.FLOAT));
+        register("var_samp", FunctionSig.constant(GenericType.Primitive.FLOAT));
+        register("quantile_disc", FunctionSig.passthrough());
+
         // ===== Other =====
         register("char", FunctionSig.constant(GenericType.Primitive.STRING));
         register("chr", FunctionSig.constant(GenericType.Primitive.STRING));

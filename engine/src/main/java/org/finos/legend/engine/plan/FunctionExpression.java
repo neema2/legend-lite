@@ -76,18 +76,6 @@ public record FunctionExpression(
             return registryType;
         }
         // 2. Explicit returnType override for special cases not in registry
-        if (returnType != GenericType.Primitive.ANY) {
-            return returnType;
-        }
-        // 3. DECIMAL propagation for unregistered functions (remove in Step D)
-        if (target != null && target.type() == GenericType.Primitive.DECIMAL) {
-            return GenericType.Primitive.DECIMAL;
-        }
-        for (Expression arg : arguments) {
-            if (arg.type() == GenericType.Primitive.DECIMAL) {
-                return GenericType.Primitive.DECIMAL;
-            }
-        }
         return returnType;
     }
 
