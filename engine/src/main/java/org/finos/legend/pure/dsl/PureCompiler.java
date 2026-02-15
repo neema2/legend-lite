@@ -1394,7 +1394,7 @@ public final class PureCompiler {
         // Create a lateral join that unnests the array column
         // Use unqualified column reference since the source SQL will handle
         // qualification
-        ColumnReference arrayCol = ColumnReference.of(columnName, Primitive.ANY);
+        ColumnReference arrayCol = ColumnReference.of(columnName, Primitive.JSON);
 
         // Return a LateralJoinNode that represents the lateral join with unnest
         return new LateralJoinNode(source, arrayCol, columnName);
