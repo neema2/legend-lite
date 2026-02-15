@@ -131,7 +131,7 @@ public final class DeepFetchCompiler {
         TableNode targetTable = new TableNode(targetMapping.table(), targetAlias);
 
         // Build JOIN condition
-        Expression joinCondition = buildJoinCondition(join, sourceAlias, targetAlias, sourceTableName);
+        Expression joinCondition = buildJoinCondition(join, sourceAlias, targetAlias, sourceMapping.table(), targetMapping.table());
 
         // Get the nested graphFetch tree for this property
         GraphFetchTree nestedTree = getNestedTree(parentTree, propertyName);
@@ -160,10 +160,11 @@ public final class DeepFetchCompiler {
         return new JoinInfo(targetTable, joinCondition, projection);
     }
 
-    private Expression buildJoinCondition(Join join, String leftAlias, String rightAlias, String leftTableName) {
+    private Expression buildJoinCondition(Join join, String leftAlias, String rightAlias,
+            org.finos.legend.engine.store.Table leftTable, org.finos.legend.engine.store.Table rightTable) {
         // Determine which side is left and which is right based on the source table
         String leftCol, rightCol;
-        if (join.leftTable().equals(leftTableName)) {
+        if (join.leftTable().equals(leftTable.name())) {
             leftCol = join.leftColumn();
             rightCol = join.rightColumn();
         } else {
@@ -172,9 +173,9 @@ public final class DeepFetchCompiler {
         }
 
         return new ComparisonExpression(
-                ColumnReference.of(leftAlias, leftCol, GenericType.Primitive.ANY),
+                ColumnReference.of(leftAlias, leftCol, leftTable.getColumnType(leftCol)),
                 ComparisonExpression.ComparisonOperator.EQUALS,
-                ColumnReference.of(rightAlias, rightCol, GenericType.Primitive.ANY));
+                ColumnReference.of(rightAlias, rightCol, rightTable.getColumnType(rightCol)));
     }
 
     private boolean wantsProperty(GraphFetchTree tree, String propertyName) {

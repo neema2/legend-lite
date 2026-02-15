@@ -708,7 +708,7 @@ public final class PureCompiler {
                     // values
                     String columnName = propertyMapping.get().columnName();
                     Expression caseExpr = buildEnumMappingCaseExpression(
-                            baseTableAlias, columnName,
+                            baseTableAlias, columnName, baseMapping.table(),
                             propertyMapping.get().enumType(),
                             propertyMapping.get().enumMapping());
                     projections.add(new Projection(caseExpr, alias));
@@ -728,8 +728,8 @@ public final class PureCompiler {
             // Create the join ON TOP of the current finalSource
             TableNode targetTable = new TableNode(ji.targetMapping().table(), ji.alias());
             Expression joinCondition = ComparisonExpression.equals(
-                    ColumnReference.of(baseTableAlias, ji.leftColumn(), Primitive.ANY),
-                    ColumnReference.of(ji.alias(), ji.rightColumn(), Primitive.ANY));
+                    ColumnReference.of(baseTableAlias, ji.leftColumn(), baseMapping.table().getColumnType(ji.leftColumn())),
+                    ColumnReference.of(ji.alias(), ji.rightColumn(), ji.targetMapping().table().getColumnType(ji.rightColumn())));
             finalSource = new JoinNode(finalSource, targetTable, joinCondition, JoinNode.JoinType.LEFT_OUTER);
         }
 
@@ -3122,9 +3122,9 @@ public final class PureCompiler {
         }
 
         Expression correlationCondition = new ComparisonExpression(
-                ColumnReference.of(targetAlias, rightCol, Primitive.ANY),
+                ColumnReference.of(targetAlias, rightCol, targetMapping.table().getColumnType(rightCol)),
                 ComparisonExpression.ComparisonOperator.EQUALS,
-                ColumnReference.of(sourceAlias, leftCol, Primitive.ANY));
+                ColumnReference.of(sourceAlias, leftCol, sourceMapping.table().getColumnType(leftCol)));
 
         // Build nested projections for the JsonObjectExpression
         List<Projection> nestedProjections = new ArrayList<>();
@@ -3160,9 +3160,9 @@ public final class PureCompiler {
 
             // For JOIN, the condition references source.leftCol = target.rightCol
             Expression joinCondition = new ComparisonExpression(
-                    ColumnReference.of(sourceAlias, leftCol, Primitive.ANY),
+                    ColumnReference.of(sourceAlias, leftCol, sourceMapping.table().getColumnType(leftCol)),
                     ComparisonExpression.ComparisonOperator.EQUALS,
-                    ColumnReference.of(targetAlias, rightCol, Primitive.ANY));
+                    ColumnReference.of(targetAlias, rightCol, targetMapping.table().getColumnType(rightCol)));
 
             associationJoins.add(new M2MJoinInfo(targetTable, joinCondition, sourceAlias, targetAlias));
 
@@ -6299,8 +6299,8 @@ public final class PureCompiler {
         String innerColumn = join.getColumnForTable(targetMapping.table().name());
 
         Expression correlation = ComparisonExpression.equals(
-                ColumnReference.of(targetAlias, innerColumn, Primitive.ANY),
-                ColumnReference.of(context.tableAlias(), outerColumn, Primitive.ANY));
+                ColumnReference.of(targetAlias, innerColumn, targetMapping.table().getColumnType(innerColumn)),
+                ColumnReference.of(context.tableAlias(), outerColumn, context.mapping().table().getColumnType(outerColumn)));
 
         // Build the filter condition on the target property
         // The final segment should be a property access on the target class
@@ -6309,7 +6309,7 @@ public final class PureCompiler {
         String targetColumn = targetMapping.getColumnForProperty(targetProperty)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + targetProperty));
 
-        Expression left = ColumnReference.of(targetAlias, targetColumn, Primitive.ANY);
+        Expression left = ColumnReference.of(targetAlias, targetColumn, targetMapping.pureTypeForProperty(targetProperty));
         Expression right = compileLiteral((LiteralExpr) rightExpr);
 
         ComparisonExpression.ComparisonOperator sqlOp = switch (op) {
@@ -6502,10 +6502,10 @@ public final class PureCompiler {
      * @param enumMapping Map from enum value name to list of source db values
      */
     private Expression buildEnumMappingCaseExpression(
-            String tableAlias, String columnName, String enumType,
+            String tableAlias, String columnName, Table table, String enumType,
             java.util.Map<String, java.util.List<Object>> enumMapping) {
 
-        Expression columnRef = ColumnReference.of(tableAlias, columnName, Primitive.ANY);
+        Expression columnRef = ColumnReference.of(tableAlias, columnName, table.getColumnType(columnName));
 
         // Build nested CASE WHEN expressions
         // Start from the end with NULL as the final ELSE
