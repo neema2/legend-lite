@@ -267,7 +267,7 @@ public class QueryService {
             // type, not the selected value's original type.
             if (sr.value() instanceof Number num && cn.expression() instanceof FunctionExpression fe
                     && isValueSelectingFunction(fe)) {
-                Object originalValue = findMatchingArgValue(fe, num);
+                Object originalValue = findMatchingArgValue(fe, num, isListAggrMode(fe));
                 if (originalValue != null) {
                     return new ScalarResult(originalValue, sqlTypeForValue(originalValue));
                 }
@@ -619,30 +619,39 @@ public class QueryService {
      * Returns the original Java value (Long for INTEGER, Double for FLOAT, BigDecimal for DECIMAL)
      * so the caller can preserve the original type instead of DuckDB's promoted type.
      */
-    private static Object findMatchingArgValue(FunctionExpression fe, Number result) {
+    private static Object findMatchingArgValue(FunctionExpression fe, Number result, boolean preferLast) {
         double resultDouble = result.doubleValue();
         // Check target
-        Object match = matchLiteralValue(fe.target(), resultDouble);
+        Object match = matchLiteralValue(fe.target(), resultDouble, preferLast);
         if (match != null) return match;
         // Check arguments (may be Literals or ListLiterals containing Literals)
         for (Expression arg : fe.arguments()) {
-            match = matchLiteralValue(arg, resultDouble);
+            match = matchLiteralValue(arg, resultDouble, preferLast);
             if (match != null) return match;
         }
         return null;
     }
 
-    private static Object matchLiteralValue(Expression expr, double resultDouble) {
+    private static Object findMatchingArgValue(FunctionExpression fe, Number result) {
+        return findMatchingArgValue(fe, result, false);
+    }
+
+    private static Object matchLiteralValue(Expression expr, double resultDouble, boolean preferLast) {
         if (expr instanceof Literal lit && lit.value() instanceof Number litNum) {
             if (litNum.doubleValue() == resultDouble) return lit.value();
         }
         // Walk into ListLiteral elements (e.g., LIST_MAX([1.23, 2]))
         if (expr instanceof ListLiteral list) {
+            Object lastMatch = null;
             for (Expression elem : list.elements()) {
                 if (elem instanceof Literal lit && lit.value() instanceof Number litNum) {
-                    if (litNum.doubleValue() == resultDouble) return lit.value();
+                    if (litNum.doubleValue() == resultDouble) {
+                        if (!preferLast) return lit.value();
+                        lastMatch = lit.value();
+                    }
                 }
             }
+            return lastMatch;
         }
         return null;
     }

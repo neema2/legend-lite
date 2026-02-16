@@ -5057,6 +5057,33 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testMode_MixedNumericList_returnsDouble() throws SQLException {
+        // PCT: |[3, 2, 3.0, 7.0, 2, 2, 3, 2.0, 2.0]->meta::pure::functions::math::mode()
+        // Mixed Integer+Float list → Pure promotes to Number → result should be Double 2.0
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[3, 2, 3.0, 7.0, 2, 2, 3, 2.0, 2.0]->meta::pure::functions::math::mode()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertInstanceOf(Double.class, sr.value(), "mode of mixed Number list should return Double");
+        assertEquals(2.0, ((Double) sr.value()), 0.001);
+    }
+
+    @Test
+    void testMode_IntegerOnlyList_returnsLong() throws SQLException {
+        // PCT: |[3, 3, 3, 2, 2]->mode() — Integer-only list → result should stay Integer
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[3, 3, 3, 2, 2]->meta::pure::functions::math::mode()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertTrue(sr.value() instanceof Number);
+        assertEquals(3, ((Number) sr.value()).intValue());
+    }
+
+    @Test
     void testVariance_Sample_doesNotMatchInputArgs() throws SQLException {
         // PCT: |[2, 4, 6]->meta::pure::functions::math::variance(true)
         // Same as varianceSample - DuckDB returns 4, Pure expects 4.0
