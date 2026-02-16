@@ -505,8 +505,11 @@ public final class PureCompiler {
 
         // Create a context with ROW binding for the lambda parameter
         // This binds $x in filter(x | $x.col > 5) to the row alias
-        // Collect column types from the source chain (TDS columns, extend, flatten)
-        java.util.Map<String, GenericType> columnTypes = collectExtendedColumns(filter.source());
+        // Prefer typed lambda params (authoritative), fall back to source-chain walking
+        java.util.Map<String, GenericType> columnTypes = extractColumnTypesFromLambda(filter.lambda());
+        if (columnTypes.isEmpty()) {
+            columnTypes = collectExtendedColumns(filter.source());
+        }
         CompilationContext lambdaContext = new CompilationContext(
                 filter.lambda().parameter(),
                 rowAlias,
@@ -2602,8 +2605,11 @@ public final class PureCompiler {
                 if (fc.arguments().isEmpty() || !(fc.arguments().get(0) instanceof LambdaExpression lambda)) {
                     throw new PureCompileException("filter() requires a lambda argument");
                 }
-                // Collect column types from the FunctionCall source for the filter lambda
-                java.util.Map<String, GenericType> columnTypes = collectExtendedColumns(fc.source());
+                // Prefer typed lambda params, fall back to source-chain walking
+                java.util.Map<String, GenericType> columnTypes = extractColumnTypesFromLambda(lambda);
+                if (columnTypes.isEmpty()) {
+                    columnTypes = collectExtendedColumns(fc.source());
+                }
                 String rowAlias = "";
                 CompilationContext lambdaContext = new CompilationContext(
                         lambda.parameter(), rowAlias, null, null, true,
@@ -2682,8 +2688,14 @@ public final class PureCompiler {
     private RelationNode compileRelationProject(RelationProjectExpression project, CompilationContext context) {
         RelationNode source = compileExpression(project.source(), context);
 
-        // Collect column types from the source so lambda bodies can resolve $x.col types
-        java.util.Map<String, GenericType> columnTypes = collectExtendedColumns(project.source());
+        // Prefer typed lambda params, fall back to source-chain walking
+        java.util.Map<String, GenericType> columnTypes = new java.util.HashMap<>();
+        if (!project.projections().isEmpty()) {
+            columnTypes = extractColumnTypesFromLambda(project.projections().getFirst());
+        }
+        if (columnTypes.isEmpty()) {
+            columnTypes = collectExtendedColumns(project.source());
+        }
 
         List<Projection> projections = new ArrayList<>();
 
@@ -2791,9 +2803,11 @@ public final class PureCompiler {
             // or JSON access: ~page: x | $x.PAYLOAD->get('page')
             String tableAlias = getTableAlias(source);
 
-            // Collect extended columns from the source expression (from flatten and extend
-            // ops)
-            java.util.Map<String, GenericType> extendedColumns = collectExtendedColumns(extend.source());
+            // Prefer typed lambda params (authoritative), fall back to source-chain walking
+            java.util.Map<String, GenericType> extendedColumns = extractColumnTypesFromLambda(extend.expression());
+            if (extendedColumns.isEmpty()) {
+                extendedColumns = collectExtendedColumns(extend.source());
+            }
 
             CompilationContext lambdaContext = new CompilationContext(
                     extend.expression().parameter(),
@@ -2923,6 +2937,20 @@ public final class PureCompiler {
     }
 
     /**
+     * Extracts column types from the typed lambda parameter annotation.
+     * For PCT expressions, lambda params carry tuple types like (city:String, country:String, ...)
+     * which are the authoritative column type source (equivalent to legend-engine's RelationType).
+     * Returns empty map if lambda has no typed params or params aren't tuple types.
+     */
+    private java.util.Map<String, GenericType> extractColumnTypesFromLambda(LambdaExpression lambda) {
+        if (lambda.parameterTypes() != null && !lambda.parameterTypes().isEmpty()) {
+            var colTypes = lambda.parameterTypes().getFirst().columnTypes();
+            if (!colTypes.isEmpty()) return new java.util.HashMap<>(colTypes);
+        }
+        return new java.util.HashMap<>();
+    }
+
+    /**
      * Collects all extended column names from the source expression chain.
      * This includes columns from extend and flatten operations.
      */
@@ -2988,6 +3016,16 @@ public final class PureCompiler {
             case AsOfJoinExpression asOfJoin -> {
                 collectExtendedColumnsRecursive(asOfJoin.left(), columns);
                 collectExtendedColumnsRecursive(asOfJoin.right(), columns);
+            }
+            case AggregateExpression agg -> {
+                // Aggregate produces new columns from aliases (no groupBy columns)
+                for (int i = 0; i < agg.aliases().size(); i++) {
+                    GenericType aggType = Primitive.ANY;
+                    if (i < agg.aggFunctions().size()) {
+                        aggType = inferAggregateType(agg.aggFunctions().get(i), columns);
+                    }
+                    columns.put(agg.aliases().get(i), aggType);
+                }
             }
             case GroupByExpression groupBy -> {
                 // GroupBy keeps grouping columns from source and adds aggregate columns

@@ -4209,6 +4209,60 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals("****abc", ((ScalarResult) result).value());
     }
 
+    /**
+     * Mirrors PCT testSimpleAggregate_WithFilter: aggregate produces new columns,
+     * then filter accesses them. Fails if collectExtendedColumnsRecursive doesn't
+     * track AggregateExpression output columns.
+     */
+    @Test
+    void testAggregateWithFilter() throws SQLException {
+        String query = """
+                |#TDS
+                  id,grp,name
+                  1,2,A
+                  2,1,A
+                  3,3,A
+                #->aggregate(~idSum:x|$x.id:y|$y->plus())->filter(x|$x.idSum > 0)
+                """;
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                query, "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        BufferedResult buffered = result.toBuffered();
+        assertEquals(1, buffered.rows().size());
+        assertEquals("idSum", buffered.columns().get(0).name());
+    }
+
+    /**
+     * Exact PCT test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit expression.
+     * Chain: TDS → extend(~yr) → filter(yr>10) → select → groupBy → pivot → cast → extend(~newCol using $x.city)
+     * Fails because after pivot→cast, collectExtendedColumnsRecursive returns empty extendedColumns
+     * so $x.city in the final extend lambda can't resolve.
+     */
+    @Test
+    void testExtendFilterSelectGroupByPivotExtendSortLimit() throws SQLException {
+        String query = """
+                |#TDS
+                  city, country, year, treePlanted
+                  NYC, USA, 2011, 5000
+                  NYC, USA, 2000, 5000
+                  SAN, USA, 2000, 2000
+                  SAN, USA, 2011, 100
+                  LDN, UK, 2011, 3000
+                  SAN, USA, 2011, 2500
+                  NYC, USA, 2000, 10000
+                  NYC, USA, 2012, 7600
+                  NYC, USA, 2012, 7600
+                #->meta::pure::functions::relation::extend(~yr:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|$x.year->meta::pure::functions::multiplicity::toOne() - 2000)->meta::pure::functions::relation::filter(x: (city:String, country:String, year:Integer, treePlanted:Integer, yr:Integer)[1]|$x.yr > 10)->meta::pure::functions::relation::select(~[city,country,year,treePlanted])->meta::pure::functions::relation::groupBy(~[year,city,country], ~treePlanted:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|$x.treePlanted:x: Integer[*]|$x->plus())->meta::pure::functions::relation::pivot(~[year], ~[newCol:x: (year:Integer, city:String, country:String, treePlanted:Integer)[1]|$x.treePlanted:y: Integer[*]|$y->plus()])->meta::pure::functions::lang::cast(@meta::pure::metamodel::relation::Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)->meta::pure::functions::relation::extend(~newCol:x: (city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)[1]|$x.city->meta::pure::functions::multiplicity::toOne() + '_0')
+                """;
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                query, "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        BufferedResult buffered = result.toBuffered();
+        assertNotNull(buffered);
+        // After the full chain: should have city, country, 2011__|__newCol, 2012__|__newCol, newCol
+        assertTrue(buffered.columns().size() >= 4, "Should have at least 4 columns");
+    }
+
     private void assertScalarInteger(Result result, long expected) {
         assertTrue(result instanceof ScalarResult, "Expected ScalarResult but got " + result.getClass().getSimpleName());
         Object value = ((ScalarResult) result).value();
