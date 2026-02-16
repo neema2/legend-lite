@@ -65,6 +65,19 @@ public class InstanceExpressionHandler {
         return executeWithTypes(pureExpression, connection, TypeEnvironment.empty());
     }
 
+    public Result execute(String pureExpression, Connection connection,
+            org.finos.legend.pure.dsl.definition.PureModelBuilder model) throws SQLException {
+        return executeWithModel(pureExpression, connection, model);
+    }
+
+    private Result executeWithModel(String pureExpression, Connection connection,
+            org.finos.legend.pure.dsl.definition.PureModelBuilder model) throws SQLException {
+        PureExpression ast = PureParser.parse(pureExpression);
+        PureCompiler compiler = new PureCompiler(null, model);
+        RelationNode ir = compiler.compileExpression(ast, null);
+        return executeIR(ir, connection);
+    }
+
     private Result executeWithTypes(String pureExpression, Connection connection, TypeEnvironment typeEnv) throws SQLException {
         // 1. Parse to AST
         PureExpression ast = PureParser.parse(pureExpression);
@@ -76,13 +89,14 @@ public class InstanceExpressionHandler {
         PureCompiler compiler = new PureCompiler(null, model);
         RelationNode ir = compiler.compileExpression(ast, null);
         System.out.println("[InstanceHandler] Compiled IR: " + ir.getClass().getSimpleName());
+        return executeIR(ir, connection);
+    }
 
-        // 3. Generate SQL with STRUCT literals
+    private Result executeIR(RelationNode ir, Connection connection) throws SQLException {
         SQLGenerator generator = new SQLGenerator(DuckDBDialect.INSTANCE);
         String sql = generator.generate(ir);
         System.out.println("[InstanceHandler] Generated SQL: " + sql);
 
-        // 4. Execute SQL using BufferedResult helper
         try (var stmt = connection.createStatement();
                 var rs = stmt.executeQuery(sql)) {
             BufferedResult buffered = BufferedResult.fromResultSet(rs);

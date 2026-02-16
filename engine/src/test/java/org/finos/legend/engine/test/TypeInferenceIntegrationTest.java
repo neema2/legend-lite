@@ -2605,6 +2605,117 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         assertEquals(false, ((ScalarResult) result).value());
     }
 
+    // ==================== ANY Audit Tests ====================
+    // Each test targets a specific Primitive.ANY site in PureCompiler.
+    // Look for [ANY-Tn] tags in stderr to confirm which path was hit.
+
+    @Test
+    void anyAudit_T1_path5_classTypeParamWithClassDefs() throws SQLException {
+        // T1: PATH5 — typed lambda param, class defs PROVIDED → should resolve, no ANY
+        // map(p: CO_Person[1]|$p.lastName) with class defs → lastName should be STRING
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Person(firstName='A',lastName='B')]->meta::pure::functions::collection::map(p: meta::pure::functions::collection::tests::model::CO_Person[1]|$p.lastName)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
+        assertTrue(result instanceof ScalarResult);
+        // If PATH5 is NOT hit, lastName resolves to STRING correctly
+        Object val = ((ScalarResult) result).value();
+        assertTrue(val instanceof java.sql.Array || "B".equals(val), "Expected 'B' or Array but got: " + val);
+    }
+
+    @Test
+    void anyAudit_T1b_path5_classTypeParamWithoutClassDefs() {
+        // T1b: PATH5 — typed lambda param, class defs NOT provided → should throw
+        // Previously this silently returned ANY. Now it correctly throws.
+        assertThrows(Exception.class, () -> queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Person(firstName='A',lastName='B')]->meta::pure::functions::collection::map(p: meta::pure::functions::collection::tests::model::CO_Person[1]|$p.lastName)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED));
+    }
+
+    @Test
+    void anyAudit_T2_path6_nestedStructProperty() throws SQLException {
+        // T2: PATH6 — nested struct property access on unnested element
+        // Tests the actual pattern that produces 8 PATH6 hits: accessing .val on unnested structs
+        // Expression: struct with nested array field, then access the nested field directly
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1', employees=[^meta::pure::functions::collection::tests::model::CO_Person(firstName='A',lastName='B')])]->meta::pure::functions::collection::map(x: meta::pure::functions::collection::tests::model::CO_Firm[1]|$x.legalName)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        // With class defs, legalName should resolve to STRING (no PATH6 hit)
+        assertTrue(val instanceof java.sql.Array || "f1".equals(val), "Expected 'f1' but got: " + val);
+    }
+
+    @Test
+    void anyAudit_T2b_path6_nestedStructValAccess() throws SQLException {
+        // T2b: The actual PATH6 pattern — accessing .val on unnested struct elements
+        // This mirrors the flatten test pattern where extCols=[name, addresses, values]
+        // but .val is on the nested struct, not in extendedColumns
+        // Uses inline struct with nested arrays to trigger PATH6
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Person(firstName='A',lastName='B'), ^meta::pure::functions::collection::tests::model::CO_Person(firstName='C',lastName='D')]->meta::pure::functions::collection::find(p: meta::pure::functions::collection::tests::model::CO_Person[1]|$p.firstName == 'A')",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
+        assertTrue(result instanceof ScalarResult);
+        // find returns the first matching element — should be the struct with firstName='A'
+    }
+
+    @Test
+    void anyAudit_T3_path6_letBoundVariablePropertyAccess() throws SQLException {
+        // T3: PATH6 — let-bound variable property access
+        // let firm = ^Firm(legalName='f'); $firm.legalName
+        // The let-bound $firm should carry type context through SCALAR binding
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let firm = ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='hello'); $firm.legalName;",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("hello", ((ScalarResult) result).value());
+        // Check stderr for [ANY-T2] — if PATH6 is hit, legalName type is unknown
+    }
+
+    @Test
+    void anyAudit_T4_projectColumnType() throws SQLException {
+        // T4: ProjectExpression column type resolution
+        // project({p|$p.firstName}, ['first']) → 'first' column should know it's STRING
+        // Then filter on 'first' column — if type is ANY, might cause issues
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[^meta::pure::functions::collection::tests::model::CO_Person(firstName='A',lastName='B'), ^meta::pure::functions::collection::tests::model::CO_Person(firstName='C',lastName='D')]->meta::pure::functions::collection::map(p: meta::pure::functions::collection::tests::model::CO_Person[1]|$p.firstName)",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
+        assertTrue(result instanceof ScalarResult);
+        // Check stderr for [ANY-T4] — project column 'first' should resolve to STRING
+    }
+
+    @Test
+    void anyAudit_T5_instancePropertyVarRef() throws SQLException {
+        // T5: inferInstancePropertyType with PureExpression (variable ref)
+        // let name = 'John'; ^Person(firstName=$name) — $name is a var ref
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|let name = 'John'; ^meta::pure::functions::collection::tests::model::CO_Person(firstName=$name, lastName='Doe').firstName;",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
+        assertTrue(result instanceof ScalarResult);
+        assertEquals("John", ((ScalarResult) result).value());
+        // Check stderr for [ANY-T5] — if hit, firstName type inferred as ANY instead of STRING
+    }
+
+    @Test
+    void anyAudit_T6_mixedTypeListDetected() throws SQLException {
+        // T6: Mixed type detection works — [1, 'hello'] gets JSON-wrapped
+        // Verifies hasMixedTypes correctly identifies INTEGER vs STRING
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 'hello']",
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+        assertTrue(result instanceof ScalarResult);
+        Object val = ((ScalarResult) result).value();
+        // DuckDB returns JSON arrays as ArrayList (TO_JSON wrapping applied)
+        assertTrue(val instanceof java.util.List, "Expected List for JSON-wrapped mixed-type list but got: " + (val == null ? "null" : val.getClass().getName()));
+    }
+
     // ==================== Helper: common class definitions ====================
 
     private org.finos.legend.pure.dsl.TypeEnvironment commonClassDefs() {

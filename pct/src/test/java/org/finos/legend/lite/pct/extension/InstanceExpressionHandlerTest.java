@@ -4,10 +4,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.Result;
+import org.finos.legend.pure.dsl.TypeEnvironment;
+import org.finos.legend.pure.dsl.definition.PureModelBuilder;
+import org.finos.legend.pure.m3.Multiplicity;
+import org.finos.legend.pure.m3.PrimitiveType;
+import org.finos.legend.pure.m3.Property;
+import org.finos.legend.pure.m3.PureClass;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -17,6 +25,118 @@ import org.junit.jupiter.api.Test;
  * (e.g., [^FirmType(...)...]->project(...)->filter(...))
  */
 class InstanceExpressionHandlerTest {
+
+    private static final String CLASS_DEFS = """
+            Class meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests
+            {
+                firstName: String[1];
+                lastName: String[1];
+            }
+
+            Class meta::pure::functions::relation::tests::composition::FirmTypeForCompositionTests
+            {
+                legalName: String[1];
+                employees: meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests[*];
+            }
+
+            Class test::Address
+            {
+                val: String[1];
+            }
+
+            Class test::PrimitiveContainer
+            {
+                val: Integer[1];
+            }
+
+            Class test::TypeForProjectTest
+            {
+                name: String[1];
+                addresses: test::Address[*];
+                values: test::PrimitiveContainer[*];
+            }
+            """;
+
+    private static PureModelBuilder testModel() {
+        return new PureModelBuilder().addSource(CLASS_DEFS);
+    }
+
+    /**
+     * Mirrors PCT testSimpleProject: nested struct property access (addresses.val).
+     * This is the pattern that fails when class types aren't properly resolved.
+     */
+    @Test
+    void testNestedStructProjection() throws Exception {
+        InstanceExpressionHandler handler = new InstanceExpressionHandler();
+
+        String expr = """
+                [^test::TypeForProjectTest(
+                    name='ok',
+                    addresses=[^test::Address(val='no'), ^test::Address(val='other')],
+                    values=[^test::PrimitiveContainer(val=1), ^test::PrimitiveContainer(val=2), ^test::PrimitiveContainer(val=3)]
+                )]->project(~[
+                    one:x|$x.name,
+                    two:x|$x.addresses.val,
+                    three:x|$x.values.val
+                ])
+                """;
+
+        assertTrue(handler.requiresInstanceHandling(expr));
+
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+            Result result = handler.execute(expr, connection, testModel());
+            BufferedResult buffered = result.toBuffered();
+
+            // Cross product: 2 addresses × 3 values = 6 rows
+            assertEquals(6, buffered.rows().size(), "Should have 6 rows (cross-product)");
+            assertEquals(3, buffered.columns().size(), "Should have 3 columns");
+        }
+    }
+
+    /**
+     * Same as testNestedStructProjection but builds classes programmatically
+     * (mimicking the extractClassRecursive path used by PCT).
+     * This exposes bugs where non-primitive property types are wrong.
+     */
+    @Test
+    void testNestedStructProjection_viaTypeEnvironment() throws Exception {
+        InstanceExpressionHandler handler = new InstanceExpressionHandler();
+
+        // Build classes programmatically — same as extractClassRecursive would
+        PureClass addressClass = new PureClass("test", "Address", List.of(),
+                List.of(new Property("val", PrimitiveType.STRING, Multiplicity.ONE)));
+        PureClass containerClass = new PureClass("test", "PrimitiveContainer", List.of(),
+                List.of(new Property("val", PrimitiveType.INTEGER, Multiplicity.ONE)));
+        PureClass projectTestClass = new PureClass("test", "TypeForProjectTest", List.of(),
+                List.of(
+                        new Property("name", PrimitiveType.STRING, Multiplicity.ONE),
+                        new Property("addresses", addressClass, Multiplicity.MANY),
+                        new Property("values", containerClass, Multiplicity.MANY)));
+
+        Map<String, PureClass> classes = new HashMap<>();
+        classes.put("test::Address", addressClass);
+        classes.put("test::PrimitiveContainer", containerClass);
+        classes.put("test::TypeForProjectTest", projectTestClass);
+        TypeEnvironment typeEnv = TypeEnvironment.of(classes);
+
+        String expr = """
+                [^test::TypeForProjectTest(
+                    name='ok',
+                    addresses=[^test::Address(val='no'), ^test::Address(val='other')],
+                    values=[^test::PrimitiveContainer(val=1), ^test::PrimitiveContainer(val=2), ^test::PrimitiveContainer(val=3)]
+                )]->project(~[
+                    one:x|$x.name,
+                    two:x|$x.addresses.val,
+                    three:x|$x.values.val
+                ])
+                """;
+
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+            Result result = handler.execute(expr, connection, typeEnv);
+            BufferedResult buffered = result.toBuffered();
+            assertEquals(6, buffered.rows().size(), "Should have 6 rows (cross-product)");
+        }
+    }
 
     @Test
     void testRequiresInstanceHandling_withInstanceArray() {
@@ -83,7 +203,7 @@ class InstanceExpressionHandlerTest {
                 "Should detect InstanceExpression pattern");
 
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-            Result result = handler.execute(expr, connection);
+            Result result = handler.execute(expr, connection, testModel());
 
             assertNotNull(result, "Result should not be null");
             BufferedResult buffered = result.toBuffered();
@@ -125,7 +245,7 @@ class InstanceExpressionHandlerTest {
         assertTrue(handler.requiresInstanceHandling(expr));
 
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-            Result result = handler.execute(expr, connection);
+            Result result = handler.execute(expr, connection, testModel());
 
             BufferedResult buffered = result.toBuffered();
 
@@ -164,7 +284,7 @@ class InstanceExpressionHandlerTest {
         assertTrue(handler.requiresInstanceHandling(expr));
 
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-            Result result = handler.execute(expr, connection);
+            Result result = handler.execute(expr, connection, testModel());
 
             BufferedResult buffered = result.toBuffered();
 
@@ -225,7 +345,7 @@ class InstanceExpressionHandlerTest {
         assertTrue(handler.requiresInstanceHandling(expr));
 
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-            Result result = handler.execute(expr, connection);
+            Result result = handler.execute(expr, connection, testModel());
 
             BufferedResult buffered = result.toBuffered();
 
@@ -267,7 +387,7 @@ class InstanceExpressionHandlerTest {
         assertTrue(handler.requiresInstanceHandling(expr));
 
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-            Result result = handler.execute(expr, connection);
+            Result result = handler.execute(expr, connection, testModel());
 
             BufferedResult buffered = result.toBuffered();
 

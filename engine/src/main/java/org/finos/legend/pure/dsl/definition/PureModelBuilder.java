@@ -501,6 +501,11 @@ public final class PureModelBuilder implements ModelContext {
         if (externalClasses != null) {
             for (var entry : externalClasses.entrySet()) {
                 classes.putIfAbsent(entry.getKey(), entry.getValue());
+                // Also register by simple name for unqualified lookups
+                String simpleName = entry.getValue().name();
+                if (simpleName != null && !simpleName.equals(entry.getKey())) {
+                    classes.putIfAbsent(simpleName, entry.getValue());
+                }
             }
         }
     }

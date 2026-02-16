@@ -112,11 +112,34 @@ public abstract class AbstractDatabaseTest {
             """;
 
     /**
+     * Pure Class definitions for struct array tests.
+     */
+    protected static final String STRUCT_TEST_CLASSES = """
+            Class test::StructAddress
+            {
+                val: String[1];
+            }
+
+            Class test::StructValue
+            {
+                val: Integer[1];
+            }
+
+            Class test::TypeForProjectTest
+            {
+                name: String[1];
+                addresses: test::StructAddress[*];
+                values: test::StructValue[*];
+            }
+            """;
+
+    /**
      * Complete Pure model (Classes + Association + Database + Mapping).
      */
     protected static final String COMPLETE_PURE_MODEL = PERSON_CLASS + "\n" +
             ADDRESS_CLASS + "\n" +
             PERSON_ADDRESS_ASSOCIATION + "\n" +
+            STRUCT_TEST_CLASSES + "\n" +
             PERSON_DATABASE + "\n" +
             PERSON_MAPPING;
 

@@ -718,6 +718,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             CoreInstance rawType = (genericType != null)
                     ? genericType.getValueForMetaPropertyToOne(M3Properties.rawType)
                     : null;
+            // Resolve import stubs (lazy references) to get the actual type
+            if (rawType != null) {
+                rawType = org.finos.legend.pure.m3.navigation.importstub.ImportStub
+                        .withImportStubByPass(rawType, processorSupport);
+            }
             String typeName = "Any";
             if (rawType != null) {
                 CoreInstance rawTypeName = rawType.getValueForMetaPropertyToOne(M3Properties.name);
@@ -726,23 +731,31 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 }
             }
 
-            // Build type reference — Phase 1 only uses multiplicity
+            // Build type reference
             org.finos.legend.pure.m3.Type propType;
             try {
                 propType = PrimitiveType.fromName(typeName);
             } catch (IllegalArgumentException e) {
-                propType = PrimitiveType.STRING;
+                // Non-primitive type — resolve to extracted PureClass
+                if (rawType != null) {
+                    String qualifiedTypeName = getQualifiedName(rawType);
+                    if (qualifiedTypeName != null) {
+                        extractClassRecursive(qualifiedTypeName, classes, visited, processorSupport);
+                        PureClass referenced = classes.get(qualifiedTypeName);
+                        if (referenced != null) {
+                            propType = referenced;
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
             }
 
             properties.add(new Property(propName, propType, multiplicity));
-
-            // Recursively resolve non-primitive types
-            if (rawType != null && !isPrimitiveTypeName(typeName)) {
-                String qualifiedTypeName = getQualifiedName(rawType);
-                if (qualifiedTypeName != null) {
-                    extractClassRecursive(qualifiedTypeName, classes, visited, processorSupport);
-                }
-            }
         }
 
         // Extract package path

@@ -3051,11 +3051,27 @@ public final class PureCompiler {
                     collectExtendedColumnsRecursive(bound, columns);
                 }
             }
+            case ArrayLiteral arr when !arr.elements().isEmpty()
+                    && arr.elements().getFirst() instanceof InstanceExpression -> {
+                // Array of instance expressions: [^Firm(...), ^Firm(...)]
+                // Delegate to first element to collect property types
+                collectExtendedColumnsRecursive(arr.elements().getFirst(), columns);
+            }
             case InstanceExpression inst -> {
                 // Struct literal: ^TypeForProjectTest(name='ok', addresses=[...])
-                // Infer types from literal values
+                // Resolve property types from class definition in model
+                var pureClass = findClass(inst.className())
+                        .orElseThrow(() -> new PureCompileException(
+                                "Class '" + inst.className() + "' not found in model. "
+                                        + "Provide class definitions for all classes used in instance expressions."));
                 for (var entry : inst.properties().entrySet()) {
-                    columns.put(entry.getKey(), inferInstancePropertyType(entry.getValue()));
+                    var prop = pureClass.findProperty(entry.getKey());
+                    if (prop.isPresent()) {
+                        columns.put(entry.getKey(), GenericType.fromType(prop.get().genericType()));
+                    } else {
+                        throw new PureCompileException(
+                                "Property '" + entry.getKey() + "' not found on class '" + inst.className() + "'");
+                    }
                 }
             }
             case FunctionCall fc -> {
@@ -3643,6 +3659,13 @@ public final class PureCompiler {
                 return GenericType.listOf(inferInstancePropertyType(list.getFirst()));
             }
             return GenericType.listOf(Primitive.NIL); // Empty list
+        }
+        // ArrayLiteral: [^Address(val='no'), ^Address(val='other')] → List<ClassType(Address)>
+        if (value instanceof ArrayLiteral arr) {
+            if (!arr.elements().isEmpty()) {
+                return GenericType.listOf(inferInstancePropertyType(arr.elements().getFirst()));
+            }
+            return GenericType.listOf(Primitive.NIL); // Empty array literal
         }
         // PureExpression (variable refs, function calls) — can't resolve in static pre-pass
         if (value instanceof PureExpression) return Primitive.ANY;
@@ -6702,7 +6725,12 @@ public final class PureCompiler {
 
             // Source is a collection — wrap in list_transform
             String syntheticParam = "_prop_x";
-            GenericType propType = resolvePropertyType(propertyName, context);
+            // Resolve property type from the source's element type (e.g., List<CO_Firm> → CO_Firm.legalName → STRING)
+            GenericType elemType = compiledSource.type().elementType();
+            GenericType propType = resolvePropertyFromClassType(propertyName, elemType);
+            if (propType == null) {
+                propType = resolvePropertyType(propertyName, context);
+            }
             Expression body = ColumnReference.of(syntheticParam, fullPath, propType);
             return CollectionExpression.map(compiledSource, syntheticParam, body);
         }
@@ -6733,6 +6761,17 @@ public final class PureCompiler {
                     return ColumnReference.of(rowAlias, fullPath, colType);
                 }
 
+                // For nested paths like "addresses.val", resolve via parent column's class type
+                if (fullPath.contains(".")) {
+                    String parentProp = fullPath.substring(0, fullPath.indexOf('.'));
+                    if (context.isExtendedColumn(parentProp)) {
+                        GenericType parentType = context.getExtendedColumnType(parentProp);
+                        GenericType resolved = resolvePropertyFromClassType(propertyName, parentType.elementType());
+                        if (resolved != null) {
+                            return ColumnReference.of(rowAlias, fullPath, resolved);
+                        }
+                    }
+                }
                 // No mapping - use full path (for nested STRUCT access like
                 // employees.firstName)
                 return ColumnReference.of(rowAlias, fullPath, resolvePropertyType(propertyName, context));
@@ -6816,18 +6855,22 @@ public final class PureCompiler {
             GenericType resolved = resolveFromLambdaParamClass(propertyName, context);
             if (resolved != null) return resolved;
         }
-        // 5. Lambda param is a ClassType but class not found — type genuinely unknown
+        // 5. Lambda param is a ClassType but class not found — caller must provide class defs
         if (context.lambdaParamTypes() != null) {
-            for (var type : context.lambdaParamTypes().values()) {
-                if (type instanceof GenericType.ClassType) {
-                    return Primitive.ANY;
+            for (var entry : context.lambdaParamTypes().entrySet()) {
+                if (entry.getValue() instanceof GenericType.ClassType ct) {
+                    throw new PureCompileException("Cannot resolve property '" + propertyName
+                            + "': class '" + ct.qualifiedName() + "' not found in model "
+                            + "(lambda param '" + entry.getKey() + "'). Provide class definitions.");
                 }
             }
         }
-        // 6. Nested struct property or classless context — type genuinely unknown
-        //    (e.g., $x.addresses.val where val is on a nested struct without class definition)
+        // 6. Nested struct property or classless context — type should be resolvable
         if (!context.extendedColumns().isEmpty() || (context.mapping() == null && context.className() == null)) {
-            return Primitive.ANY;
+            throw new PureCompileException("Cannot resolve type for property '" + propertyName
+                    + "'. extendedColumns=" + context.extendedColumns().keySet()
+                    + ", mapping=" + (context.mapping() != null)
+                    + ", className=" + context.className());
         }
         throw new IllegalStateException("Cannot resolve type for property '" + propertyName + "'. " +
                 "Context: extendedColumns=" + context.extendedColumns().keySet() +

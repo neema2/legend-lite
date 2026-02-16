@@ -125,8 +125,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     |^test::TypeForProjectTest(
                         name='ok',
-                        addresses=[^test::Address(val='no'), ^test::Address(val='other')],
-                        values=[^test::PrimitiveContainer(val=1), ^test::PrimitiveContainer(val=2), ^test::PrimitiveContainer(val=3)]
+                        addresses=[^test::StructAddress(val='no'), ^test::StructAddress(val='other')],
+                        values=[^test::StructValue(val=1), ^test::StructValue(val=2), ^test::StructValue(val=3)]
                     )->project(~[
                         one:x|$x.name,
                         two:x|$x.addresses.val,
@@ -175,7 +175,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     |^test::TypeForProjectTest(
                         name='ok',
-                        addresses=[^test::Address(val='no'), ^test::Address(val='other')],
+                        addresses=[^test::StructAddress(val='no'), ^test::StructAddress(val='other')],
                         values=[]
                     )->project(~[
                         one:x|$x.name,
