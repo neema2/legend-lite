@@ -265,11 +265,20 @@ public class QueryService {
             // to a common type. Match the result back to the original arg's value and type.
             // This must run before DECIMAL handling since the IR type reflects the promoted
             // type, not the selected value's original type.
-            if (sr.value() instanceof Number num && cn.expression() instanceof FunctionExpression fe
-                    && isValueSelectingFunction(fe)) {
-                Object originalValue = findMatchingArgValue(fe, num, isListAggrMode(fe));
-                if (originalValue != null) {
-                    return new ScalarResult(originalValue, sqlTypeForValue(originalValue));
+            if (cn.expression() instanceof FunctionExpression fe && isValueSelectingFunction(fe)) {
+                if (sr.value() instanceof Number num) {
+                    Object originalValue = findMatchingArgValue(fe, num, isListAggrMode(fe));
+                    if (originalValue != null) {
+                        return new ScalarResult(originalValue, sqlTypeForValue(originalValue));
+                    }
+                }
+                // Date value-matching: DuckDB promotes DATE→TIMESTAMP in mixed lists.
+                // If the result TIMESTAMP matches a StrictDate literal (midnight time), restore DATE type.
+                if (sr.value() instanceof java.sql.Timestamp ts) {
+                    String matchedDateType = findMatchingDateType(fe, ts);
+                    if (matchedDateType != null) {
+                        return new ScalarResult(sr.value(), matchedDateType);
+                    }
                 }
             }
             GenericType irType = cn.expression().type();
@@ -632,10 +641,6 @@ public class QueryService {
         return null;
     }
 
-    private static Object findMatchingArgValue(FunctionExpression fe, Number result) {
-        return findMatchingArgValue(fe, result, false);
-    }
-
     private static Object matchLiteralValue(Expression expr, double resultDouble, boolean preferLast) {
         if (expr instanceof Literal lit && lit.value() instanceof Number litNum) {
             if (litNum.doubleValue() == resultDouble) return lit.value();
@@ -654,6 +659,44 @@ public class QueryService {
             return lastMatch;
         }
         return null;
+    }
+
+    /**
+     * For a value-selecting function on mixed date types, finds if the TIMESTAMP result
+     * originally came from a StrictDate (DATE) literal. DuckDB promotes DATE→TIMESTAMP,
+     * but we need to preserve the original type.
+     * Returns "DATE" if matched to a DATE literal, null otherwise.
+     */
+    private static String findMatchingDateType(FunctionExpression fe, java.sql.Timestamp ts) {
+        // Extract the date string from the timestamp: "2025-04-09 00:00:00.0" → "2025-04-09"
+        String tsStr = ts.toString(); // format: "yyyy-mm-dd hh:mm:ss.f"
+        boolean isMidnight = tsStr.endsWith(" 00:00:00.0");
+        if (!isMidnight) return null; // has real time component → genuine TIMESTAMP
+        String datePart = tsStr.substring(0, 10); // "2025-04-09"
+
+        // Scan the function's target and args for a DATE literal matching this date
+        if (fe.target() != null && matchesDateLiteral(fe.target(), datePart)) return "DATE";
+        for (Expression arg : fe.arguments()) {
+            if (matchesDateLiteral(arg, datePart)) return "DATE";
+        }
+        return null;
+    }
+
+    private static boolean matchesDateLiteral(Expression expr, String datePart) {
+        if (expr instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+            // Pure date literals have % prefix: "%2025-04-09" → strip it for comparison
+            String litDate = lit.value() instanceof String s && s.startsWith("%") ? s.substring(1) : String.valueOf(lit.value());
+            return datePart.equals(litDate);
+        }
+        if (expr instanceof ListLiteral list) {
+            for (Expression elem : list.elements()) {
+                if (elem instanceof Literal lit && lit.literalType() == Literal.LiteralType.DATE) {
+                    String litDate = lit.value() instanceof String s && s.startsWith("%") ? s.substring(1) : String.valueOf(lit.value());
+                    if (datePart.equals(litDate)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

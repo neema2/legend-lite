@@ -5084,6 +5084,50 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void testGreatest_MixedDateTypes_preservesStrictDate() throws SQLException {
+        // PCT: |[%2025-02-09, %2025-04-09, %2025-02-09T01:15:20+0000, %2025-01-10T15:25:30+0000]->greatest()
+        // StrictDate %2025-04-09 is greatest, but DuckDB promotes all to TIMESTAMP
+        // Result should preserve StrictDate type (no time component)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[%2025-02-09, %2025-04-09, %2025-02-09T01:15:20+0000, %2025-01-10T15:25:30+0000]->meta::pure::functions::collection::greatest()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        // The SQL type should indicate DATE (StrictDate), not TIMESTAMP (DateTime)
+        assertEquals("DATE", sr.sqlType(),
+                "greatest of mixed dates where StrictDate wins should return DATE type, got: " + sr.sqlType() + " value: " + sr.value());
+    }
+
+    @Test
+    void testGreatest_MixedDateTypes_preservesDateTime() throws SQLException {
+        // PCT: |[%2025-02-10T20:10:20+0000, %2025-02-10]->greatest()
+        // DateTime wins — should stay as TIMESTAMP
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::greatest()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertTrue(sr.sqlType().contains("TIMESTAMP"),
+                "greatest where DateTime wins should return TIMESTAMP type, got: " + sr.sqlType());
+    }
+
+    @Test
+    void testLeast_MixedDateTypes_preservesStrictDate() throws SQLException {
+        // PCT: |[%2025-02-10T20:10:20+0000, %2025-02-10]->least()
+        // StrictDate %2025-02-10 is least, DuckDB promotes to TIMESTAMP
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::least()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertEquals("DATE", sr.sqlType(),
+                "least of mixed dates where StrictDate wins should return DATE type, got: " + sr.sqlType() + " value: " + sr.value());
+    }
+
+    @Test
     void testVariance_Sample_doesNotMatchInputArgs() throws SQLException {
         // PCT: |[2, 4, 6]->meta::pure::functions::math::variance(true)
         // Same as varianceSample - DuckDB returns 4, Pure expects 4.0

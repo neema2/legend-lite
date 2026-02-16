@@ -411,6 +411,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
         }
         if (value instanceof java.sql.Timestamp ts) {
+            // DuckDB promotes DATE→TIMESTAMP in mixed lists; sqlType="DATE" means original was StrictDate
+            if ("DATE".equalsIgnoreCase(sqlType)) {
+                LocalDateTime ldt = ts.toLocalDateTime();
+                PureDate pureDate = DateFunctions.newPureDate(ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth());
+                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
+            }
             LocalDateTime ldt = ts.toLocalDateTime();
             int nanos = ldt.getNano();
             if (nanos > 0) {

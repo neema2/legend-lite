@@ -6034,7 +6034,7 @@ public final class PureCompiler {
             GenericType t = elements.get(i).type();
             // Skip any/nil types — they can't participate in type comparison
             if (isTypeComparisonNeutral(t) || isTypeComparisonNeutral(firstType)) continue;
-            if (!t.equals(firstType) && !areNumericCompatible(firstType, t)) return true;
+            if (!t.equals(firstType) && !areNumericCompatible(firstType, t) && !areDateCompatible(firstType, t)) return true;
         }
         return false;
     }
@@ -6045,6 +6045,10 @@ public final class PureCompiler {
 
     private static boolean areNumericCompatible(GenericType a, GenericType b) {
         return isNumericType(a) && isNumericType(b);
+    }
+
+    private static boolean areDateCompatible(GenericType a, GenericType b) {
+        return a.isTemporal() && b.isTemporal();
     }
 
     /**
