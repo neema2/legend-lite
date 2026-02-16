@@ -19,24 +19,14 @@ import java.util.Map;
  */
 public final class PureFunctionRegistry {
 
-    public enum TypeRule {
-        CONSTANT,
-        PASSTHROUGH,
-        NUMERIC_PASSTHROUGH
-    }
+    public sealed interface FunctionSig {
+        record Constant(GenericType returnType) implements FunctionSig {}
+        record Passthrough() implements FunctionSig {}
+        record NumericPassthrough() implements FunctionSig {}
 
-    public record FunctionSig(TypeRule rule, GenericType returnType) {
-        static FunctionSig constant(GenericType type) {
-            return new FunctionSig(TypeRule.CONSTANT, type);
-        }
-
-        static FunctionSig passthrough() {
-            return new FunctionSig(TypeRule.PASSTHROUGH, GenericType.Primitive.ANY);
-        }
-
-        static FunctionSig numericPassthrough() {
-            return new FunctionSig(TypeRule.NUMERIC_PASSTHROUGH, GenericType.Primitive.NUMBER);
-        }
+        static FunctionSig constant(GenericType type) { return new Constant(type); }
+        static FunctionSig passthrough() { return new Passthrough(); }
+        static FunctionSig numericPassthrough() { return new NumericPassthrough(); }
     }
 
     private static final Map<String, FunctionSig> REGISTRY = new HashMap<>();
@@ -249,10 +239,10 @@ public final class PureFunctionRegistry {
             throw new IllegalArgumentException(
                     "Unregistered function: '" + functionName + "'. Add it to PureFunctionRegistry.");
         }
-        return switch (sig.rule()) {
-            case CONSTANT -> sig.returnType();
-            case PASSTHROUGH -> targetType;
-            case NUMERIC_PASSTHROUGH -> resolveNumericType(targetType, argTypes);
+        return switch (sig) {
+            case FunctionSig.Constant c -> c.returnType();
+            case FunctionSig.Passthrough ignored -> targetType;
+            case FunctionSig.NumericPassthrough ignored -> resolveNumericType(targetType, argTypes);
         };
     }
 

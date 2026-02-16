@@ -76,11 +76,7 @@ public record LambdaExpression(
                 colName = colName.substring(1, colName.length() - 1);
             }
             String typePart = colDef.substring(firstColon + 1).trim();
-            try {
-                result.put(colName, GenericType.fromTypeName(typePart));
-            } catch (Exception e) {
-                result.put(colName, GenericType.Primitive.ANY);
-            }
+            result.put(colName, GenericType.fromTypeName(typePart));
         }
     }
 

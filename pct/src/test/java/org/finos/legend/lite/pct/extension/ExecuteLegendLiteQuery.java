@@ -783,14 +783,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
     }
 
-    private boolean isPrimitiveTypeName(String typeName) {
-        return switch (typeName) {
-            case "String", "Integer", "Float", "Boolean", "Date", "DateTime",
-                 "StrictDate", "Decimal", "Number", "Any", "Nil" -> true;
-            default -> false;
-        };
-    }
-
     /**
      * Remaps DuckDB-specific error messages to Pure-expected error messages.
      */

@@ -3006,7 +3006,11 @@ public final class PureCompiler {
                     GenericType resolved = (modelContext != null && propName != null)
                             ? resolvePropertyFromClassType(propName, classType)
                             : null;
-                    columns.put(alias, resolved != null ? resolved : Primitive.ANY);
+                    if (resolved == null) {
+                        throw new PureCompileException("Cannot resolve type for projected property '" + propName
+                                + "' on class '" + className + "' in collectExtendedColumns");
+                    }
+                    columns.put(alias, resolved);
                 }
             }
             case JoinExpression join -> {
@@ -3020,10 +3024,11 @@ public final class PureCompiler {
             case AggregateExpression agg -> {
                 // Aggregate produces new columns from aliases (no groupBy columns)
                 for (int i = 0; i < agg.aliases().size(); i++) {
-                    GenericType aggType = Primitive.ANY;
-                    if (i < agg.aggFunctions().size()) {
-                        aggType = inferAggregateType(agg.aggFunctions().get(i), columns);
+                    if (i >= agg.aggFunctions().size()) {
+                        throw new PureCompileException("Aggregate alias '" + agg.aliases().get(i)
+                                + "' at index " + i + " has no corresponding aggregation function");
                     }
+                    GenericType aggType = inferAggregateType(agg.aggFunctions().get(i), columns);
                     columns.put(agg.aliases().get(i), aggType);
                 }
             }
@@ -3683,31 +3688,6 @@ public final class PureCompiler {
             return propAccess.propertyName();
         }
         return null;
-    }
-
-    private GenericType inferInstancePropertyType(Object value) {
-        if (value instanceof String) return Primitive.STRING;
-        if (value instanceof Long || value instanceof Integer) return Primitive.INTEGER;
-        if (value instanceof Double || value instanceof Float) return Primitive.FLOAT;
-        if (value instanceof Boolean) return Primitive.BOOLEAN;
-        if (value instanceof InstanceExpression inst) return new GenericType.ClassType(inst.className());
-        if (value instanceof java.util.List<?> list) {
-            // Infer element type from first element
-            if (!list.isEmpty()) {
-                return GenericType.listOf(inferInstancePropertyType(list.getFirst()));
-            }
-            return GenericType.listOf(Primitive.NIL); // Empty list
-        }
-        // ArrayLiteral: [^Address(val='no'), ^Address(val='other')] → List<ClassType(Address)>
-        if (value instanceof ArrayLiteral arr) {
-            if (!arr.elements().isEmpty()) {
-                return GenericType.listOf(inferInstancePropertyType(arr.elements().getFirst()));
-            }
-            return GenericType.listOf(Primitive.NIL); // Empty array literal
-        }
-        // PureExpression (variable refs, function calls) — can't resolve in static pre-pass
-        if (value instanceof PureExpression) return Primitive.ANY;
-        throw new PureCompileException("Unexpected instance property value type: " + value.getClass().getSimpleName());
     }
 
     private String extractFinalPropertyName(PureExpression expr) {

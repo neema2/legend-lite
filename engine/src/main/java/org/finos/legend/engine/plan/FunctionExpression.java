@@ -24,22 +24,20 @@ public record FunctionExpression(
         Objects.requireNonNull(functionName, "Function name cannot be null");
         Objects.requireNonNull(arguments, "Arguments cannot be null");
         arguments = List.copyOf(arguments);
-        if (returnType == null) {
-            returnType = GenericType.Primitive.ANY;
-        }
+        Objects.requireNonNull(returnType, "Return type cannot be null for function '" + functionName + "'");
     }
 
     /**
      * Creates a function call with no additional arguments. Return type resolved eagerly from registry.
      */
     public static FunctionExpression of(String functionName) {
-        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, GenericType.Primitive.ANY, List.of());
+        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, GenericType.Primitive.NIL, List.of());
         return new FunctionExpression(functionName, null, List.of(), resolved);
     }
 
     public static FunctionExpression of(String functionName, Expression target) {
-        GenericType targetType = target != null ? target.type() : GenericType.Primitive.ANY;
-        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, targetType, List.of());
+        Objects.requireNonNull(target, "Target cannot be null — use of(String) for no-target functions");
+        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, target.type(), List.of());
         return new FunctionExpression(functionName, target, List.of(), resolved);
     }
 
@@ -54,9 +52,9 @@ public record FunctionExpression(
      * Creates a function call with additional arguments. Return type resolved eagerly from registry.
      */
     public static FunctionExpression of(String functionName, Expression target, Expression... args) {
-        GenericType targetType = target != null ? target.type() : GenericType.Primitive.ANY;
+        Objects.requireNonNull(target, "Target cannot be null — use of(String) for no-target functions");
         List<GenericType> argTypes = java.util.Arrays.stream(args).map(Expression::type).toList();
-        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, targetType, argTypes);
+        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, target.type(), argTypes);
         return new FunctionExpression(functionName, target, List.of(args), resolved);
     }
 
