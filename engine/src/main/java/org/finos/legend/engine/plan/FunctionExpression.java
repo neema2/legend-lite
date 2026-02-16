@@ -25,19 +25,22 @@ public record FunctionExpression(
         Objects.requireNonNull(arguments, "Arguments cannot be null");
         arguments = List.copyOf(arguments);
         if (returnType == null) {
-            returnType = GenericType.Primitive.DEFERRED;
+            returnType = GenericType.Primitive.ANY;
         }
     }
 
     /**
-     * Creates a function call with no additional arguments and unknown return type.
+     * Creates a function call with no additional arguments. Return type resolved eagerly from registry.
      */
     public static FunctionExpression of(String functionName) {
-        return new FunctionExpression(functionName, null, List.of(), GenericType.Primitive.DEFERRED);
+        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, GenericType.Primitive.ANY, List.of());
+        return new FunctionExpression(functionName, null, List.of(), resolved);
     }
 
     public static FunctionExpression of(String functionName, Expression target) {
-        return new FunctionExpression(functionName, target, List.of(), GenericType.Primitive.DEFERRED);
+        GenericType targetType = target != null ? target.type() : GenericType.Primitive.ANY;
+        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, targetType, List.of());
+        return new FunctionExpression(functionName, target, List.of(), resolved);
     }
 
     /**
@@ -48,10 +51,13 @@ public record FunctionExpression(
     }
 
     /**
-     * Creates a function call with additional arguments.
+     * Creates a function call with additional arguments. Return type resolved eagerly from registry.
      */
     public static FunctionExpression of(String functionName, Expression target, Expression... args) {
-        return new FunctionExpression(functionName, target, List.of(args), GenericType.Primitive.DEFERRED);
+        GenericType targetType = target != null ? target.type() : GenericType.Primitive.ANY;
+        List<GenericType> argTypes = java.util.Arrays.stream(args).map(Expression::type).toList();
+        GenericType resolved = PureFunctionRegistry.resolveReturnType(functionName, targetType, argTypes);
+        return new FunctionExpression(functionName, target, List.of(args), resolved);
     }
 
     /**
@@ -68,14 +74,6 @@ public record FunctionExpression(
 
     @Override
     public GenericType type() {
-        // 1. Registry is the PRIMARY source of return types
-        GenericType targetType = target != null ? target.type() : GenericType.Primitive.DEFERRED;
-        List<GenericType> argTypes = arguments.stream().map(Expression::type).toList();
-        GenericType registryType = PureFunctionRegistry.resolveReturnType(functionName, targetType, argTypes);
-        if (registryType != GenericType.Primitive.DEFERRED) {
-            return registryType;
-        }
-        // 2. Explicit returnType override for special cases not in registry
         return returnType;
     }
 

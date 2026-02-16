@@ -48,27 +48,12 @@ public final class TypeEnvironment {
     }
 
     /**
-     * Finds a class by qualified or simple name.
-     * Tries exact match first, then falls back to simple name matching.
+     * Finds a class by fully qualified name (exact match only).
      */
     public Optional<PureClass> findClass(String className) {
         if (className == null) return Optional.empty();
-
-        // Exact match
         PureClass cls = classes.get(className);
-        if (cls != null) return Optional.of(cls);
-
-        // Try simple name match (last segment after ::)
-        String simpleName = className.contains("::") 
-                ? className.substring(className.lastIndexOf("::") + 2)
-                : className;
-        for (var entry : classes.entrySet()) {
-            if (entry.getKey().endsWith("::" + simpleName) || entry.getValue().name().equals(simpleName)) {
-                return Optional.of(entry.getValue());
-            }
-        }
-
-        return Optional.empty();
+        return cls != null ? Optional.of(cls) : Optional.empty();
     }
 
     /**

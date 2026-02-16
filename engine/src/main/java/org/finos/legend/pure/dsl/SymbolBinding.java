@@ -25,7 +25,8 @@ import org.finos.legend.engine.plan.Expression;
  * - RELATION: Let-bound relations (e.g., let tds = #TDS...#; $tds->filter(...))
  * - SCALAR: Let-bound scalar values (e.g., let x = 5; $x + 1)
  */
-public record SymbolBinding(String name, BindingKind kind, Object value) {
+public record SymbolBinding(String name, BindingKind kind, Object value,
+        java.util.Map<String, org.finos.legend.engine.plan.GenericType> columnTypes) {
 
     public enum BindingKind {
         /** Row variable - value is the table alias (String) */
@@ -43,7 +44,22 @@ public record SymbolBinding(String name, BindingKind kind, Object value) {
      * @param tableAlias The SQL table alias (e.g., "t0")
      */
     public static SymbolBinding row(String name, String tableAlias) {
-        return new SymbolBinding(name, BindingKind.ROW, tableAlias);
+        return new SymbolBinding(name, BindingKind.ROW, tableAlias, java.util.Map.of());
+    }
+
+    /**
+     * Creates a ROW binding with source relation column types.
+     * Used for join/asOfJoin lambdas where each parameter carries its source schema.
+     * Follows legend-engine's pattern of typing lambda parameters with RelationType.
+     *
+     * @param name        Variable name (e.g., "l" or "r")
+     * @param tableAlias  The SQL table alias (e.g., "left_src")
+     * @param columnTypes Column name → GenericType from the source relation
+     */
+    public static SymbolBinding row(String name, String tableAlias,
+            java.util.Map<String, org.finos.legend.engine.plan.GenericType> columnTypes) {
+        return new SymbolBinding(name, BindingKind.ROW, tableAlias,
+                columnTypes != null ? columnTypes : java.util.Map.of());
     }
 
     /**
@@ -53,7 +69,7 @@ public record SymbolBinding(String name, BindingKind kind, Object value) {
      * @param relation The compiled RelationNode to inline
      */
     public static SymbolBinding relation(String name, RelationNode relation) {
-        return new SymbolBinding(name, BindingKind.RELATION, relation);
+        return new SymbolBinding(name, BindingKind.RELATION, relation, java.util.Map.of());
     }
 
     /**
@@ -63,7 +79,7 @@ public record SymbolBinding(String name, BindingKind kind, Object value) {
      * @param expression The scalar expression value
      */
     public static SymbolBinding scalar(String name, Expression expression) {
-        return new SymbolBinding(name, BindingKind.SCALAR, expression);
+        return new SymbolBinding(name, BindingKind.SCALAR, expression, java.util.Map.of());
     }
 
     /**

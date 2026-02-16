@@ -51,8 +51,7 @@ public record CaseExpression(
     @Override
     public GenericType type() {
         GenericType thenType = thenValue.type();
-        return thenType != GenericType.Primitive.DEFERRED && thenType != GenericType.Primitive.NIL
-                ? thenType : elseValue.type();
+        return thenType != GenericType.Primitive.NIL ? thenType : elseValue.type();
     }
 
     @Override

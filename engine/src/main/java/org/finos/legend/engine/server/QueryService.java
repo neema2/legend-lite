@@ -476,11 +476,12 @@ public class QueryService {
      * @return The compiled RelationNode IR
      */
     private RelationNode compileQuery(String query, MappingRegistry mappingRegistry, PureModelBuilder model) {
-        return compileQuery(query, mappingRegistry, model, TypeEnvironment.empty());
+        return new PureCompiler(mappingRegistry, model).compile(query);
     }
 
     private RelationNode compileQuery(String query, MappingRegistry mappingRegistry, PureModelBuilder model, TypeEnvironment typeEnv) {
-        return new PureCompiler(mappingRegistry, model, typeEnv).compile(query);
+        model.addClasses(typeEnv.classes());
+        return new PureCompiler(mappingRegistry, model).compile(query);
     }
 
     /**

@@ -2357,7 +2357,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[^meta::pure::functions::collection::tests::map::model::M_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::map::model::M_Person(firstName='Pierre',lastName='Doe')]->meta::pure::functions::collection::map(p: meta::pure::functions::collection::tests::map::model::M_Person[1]|$p.lastName)",
-                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
         assertTrue(result instanceof ScalarResult);
         Object val = ((ScalarResult) result).value();
         assertTrue(val instanceof java.sql.Array, "Expected sql.Array but got " + val.getClass());
@@ -2404,7 +2404,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[^meta::pure::functions::collection::tests::model::CO_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::model::CO_Person(firstName='Pierre',lastName='Doe')]->meta::pure::functions::collection::find(p: meta::pure::functions::collection::tests::model::CO_Person[1]|$p.lastName->meta::pure::functions::collection::isEmpty()->meta::pure::functions::boolean::not() && ($p.lastName->meta::pure::functions::multiplicity::toOne()->meta::pure::functions::string::length() < 6))",
-                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
         assertTrue(result instanceof ScalarResult);
     }
 
@@ -2425,7 +2425,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[^meta::pure::functions::collection::tests::model::CO_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::model::CO_Person(firstName='Pierre',lastName='Doe')]->meta::pure::functions::collection::find(p: meta::pure::functions::collection::tests::model::CO_Person[1]|$p.lastName->meta::pure::functions::multiplicity::toOne()->meta::pure::functions::string::length() < 6)",
-                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
         assertTrue(result instanceof ScalarResult);
         Object value = ((ScalarResult) result).value();
         // After struct unwrapping, should be a Map with firstName/lastName keys
@@ -2442,7 +2442,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f2')]->meta::pure::functions::collection::exists(f: meta::pure::functions::collection::tests::model::CO_Firm[1]|$f.legalName == 'f1')",
-                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
         assertTrue(result instanceof ScalarResult);
         assertEquals(true, ((ScalarResult) result).value());
     }
@@ -2453,7 +2453,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         Result result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='a'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='b')]->meta::pure::functions::collection::filter(f: meta::pure::functions::collection::tests::model::CO_Firm[1]|$f.legalName == 'a').legalName",
-                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
         assertTrue(result instanceof ScalarResult);
     }
 
@@ -2603,6 +2603,37 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
         assertTrue(result instanceof ScalarResult);
         assertEquals(false, ((ScalarResult) result).value());
+    }
+
+    // ==================== Helper: common class definitions ====================
+
+    private org.finos.legend.pure.dsl.TypeEnvironment commonClassDefs() {
+        var coPersonClass = new org.finos.legend.pure.m3.PureClass(
+                "meta::pure::functions::collection::tests::model", "CO_Person", java.util.List.of(
+                new org.finos.legend.pure.m3.Property("firstName", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(1, 1)),
+                new org.finos.legend.pure.m3.Property("lastName", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(1, 1))
+        ));
+        var coFirmClass = new org.finos.legend.pure.m3.PureClass(
+                "meta::pure::functions::collection::tests::model", "CO_Firm", java.util.List.of(
+                new org.finos.legend.pure.m3.Property("legalName", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(1, 1)),
+                new org.finos.legend.pure.m3.Property("employees", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(0, null))
+        ));
+        var mPersonClass = new org.finos.legend.pure.m3.PureClass(
+                "meta::pure::functions::collection::tests::map::model", "M_Person", java.util.List.of(
+                new org.finos.legend.pure.m3.Property("firstName", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(1, 1)),
+                new org.finos.legend.pure.m3.Property("lastName", org.finos.legend.pure.m3.PrimitiveType.STRING,
+                        new org.finos.legend.pure.m3.Multiplicity(1, 1))
+        ));
+        return org.finos.legend.pure.dsl.TypeEnvironment.of(java.util.Map.of(
+                "meta::pure::functions::collection::tests::model::CO_Person", coPersonClass,
+                "meta::pure::functions::collection::tests::model::CO_Firm", coFirmClass,
+                "meta::pure::functions::collection::tests::map::model::M_Person", mPersonClass
+        ));
     }
 
     // ==================== TypeEnvironment / multiplicity tests ====================

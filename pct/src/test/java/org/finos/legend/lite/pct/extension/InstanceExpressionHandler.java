@@ -71,7 +71,9 @@ public class InstanceExpressionHandler {
         System.out.println("[InstanceHandler] Parsed AST: " + ast.getClass().getSimpleName());
 
         // 2. Compile to IR (null mapping registry is OK for STRUCT literal compilation)
-        PureCompiler compiler = new PureCompiler(null, null, typeEnv);
+        org.finos.legend.pure.dsl.definition.PureModelBuilder model = new org.finos.legend.pure.dsl.definition.PureModelBuilder();
+        model.addClasses(typeEnv.classes());
+        PureCompiler compiler = new PureCompiler(null, model);
         RelationNode ir = compiler.compileExpression(ast, null);
         System.out.println("[InstanceHandler] Compiled IR: " + ir.getClass().getSimpleName());
 

@@ -31,7 +31,7 @@ public final class PureFunctionRegistry {
         }
 
         static FunctionSig passthrough() {
-            return new FunctionSig(TypeRule.PASSTHROUGH, GenericType.Primitive.DEFERRED);
+            return new FunctionSig(TypeRule.PASSTHROUGH, GenericType.Primitive.ANY);
         }
 
         static FunctionSig numericPassthrough() {
@@ -75,6 +75,7 @@ public final class PureFunctionRegistry {
 
         for (String fn : List.of(
                 "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+                "sinh", "cosh", "tanh", "cot",
                 "toRadians", "toDegrees")) {
             register(fn, FunctionSig.constant(GenericType.Primitive.FLOAT));
         }
@@ -199,12 +200,23 @@ public final class PureFunctionRegistry {
         register("strftime", FunctionSig.constant(GenericType.Primitive.STRING));
         register("repeat", FunctionSig.constant(GenericType.Primitive.STRING));
         register("left", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("right", FunctionSig.constant(GenericType.Primitive.STRING));
+        register("split", FunctionSig.constant(GenericType.Primitive.STRING));
         register("len", FunctionSig.constant(GenericType.Primitive.INTEGER));
         register("struct_extract", FunctionSig.passthrough());
+
+        register("strpos", FunctionSig.constant(GenericType.Primitive.INTEGER));
 
         // ===== Math/date helpers =====
         register("greatest", FunctionSig.passthrough());
         register("least", FunctionSig.passthrough());
+        register("to_days", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("to_weeks", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("to_years", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("to_months", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("to_hours", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("to_minutes", FunctionSig.constant(GenericType.Primitive.INTEGER));
+        register("to_seconds", FunctionSig.constant(GenericType.Primitive.INTEGER));
         register("ln", FunctionSig.constant(GenericType.Primitive.FLOAT));
         register("sha1", FunctionSig.constant(GenericType.Primitive.STRING));
         register("sha256", FunctionSig.constant(GenericType.Primitive.STRING));
@@ -229,8 +241,7 @@ public final class PureFunctionRegistry {
      * Resolves the return type for a function call.
      * Primary source of truth for FunctionExpression.type().
      *
-     * @return The resolved return type, or DEFERRED if the function is unregistered
-     *         or PASSTHROUGH with deferred input type
+     * @return The resolved return type (never DEFERRED)
      */
     public static GenericType resolveReturnType(String functionName, GenericType targetType, List<GenericType> argTypes) {
         FunctionSig sig = REGISTRY.get(functionName.toLowerCase());
@@ -240,7 +251,7 @@ public final class PureFunctionRegistry {
         }
         return switch (sig.rule()) {
             case CONSTANT -> sig.returnType();
-            case PASSTHROUGH -> targetType != GenericType.Primitive.DEFERRED ? targetType : GenericType.Primitive.DEFERRED;
+            case PASSTHROUGH -> targetType;
             case NUMERIC_PASSTHROUGH -> resolveNumericType(targetType, argTypes);
         };
     }

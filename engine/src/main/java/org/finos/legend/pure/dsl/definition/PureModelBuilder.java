@@ -492,6 +492,19 @@ public final class PureModelBuilder implements ModelContext {
         return Optional.ofNullable(classes.get(className));
     }
 
+    /**
+     * Merges external class definitions into this model.
+     * Used to add classes extracted from external sources (e.g., PCT interpreter metadata).
+     * Does not overwrite existing classes from parsed Pure source.
+     */
+    public void addClasses(java.util.Map<String, PureClass> externalClasses) {
+        if (externalClasses != null) {
+            for (var entry : externalClasses.entrySet()) {
+                classes.putIfAbsent(entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
     @Override
     public Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName) {
         // Search all associations for one that has this property navigating from the

@@ -30,7 +30,6 @@ public final class PureCompiler {
 
     private final MappingRegistry mappingRegistry;
     private final ModelContext modelContext;
-    private final TypeEnvironment typeEnvironment;
     private int aliasCounter = 0;
     private final java.util.Map<String, PureExpression> letBindings = new java.util.HashMap<>();
 
@@ -38,7 +37,7 @@ public final class PureCompiler {
      * Creates a compiler with just a mapping registry (legacy compatibility).
      */
     public PureCompiler(MappingRegistry mappingRegistry) {
-        this(mappingRegistry, null, TypeEnvironment.empty());
+        this(mappingRegistry, null);
     }
 
     /**
@@ -49,20 +48,18 @@ public final class PureCompiler {
      * @param modelContext    The model context (optional)
      */
     public PureCompiler(MappingRegistry mappingRegistry, ModelContext modelContext) {
-        this(mappingRegistry, modelContext, TypeEnvironment.empty());
+        this.mappingRegistry = mappingRegistry;
+        this.modelContext = modelContext;
     }
 
     /**
-     * Creates a compiler with full model context and type environment.
-     * 
-     * @param mappingRegistry  The mapping registry (can be null for STRUCT literal compilation)
-     * @param modelContext     The model context (optional)
-     * @param typeEnvironment  Type metadata for classes, multiplicities, etc.
+     * Looks up a class by fully qualified name from the model context.
      */
-    public PureCompiler(MappingRegistry mappingRegistry, ModelContext modelContext, TypeEnvironment typeEnvironment) {
-        this.mappingRegistry = mappingRegistry; // Allow null for STRUCT literal compilation
-        this.modelContext = modelContext;
-        this.typeEnvironment = typeEnvironment != null ? typeEnvironment : TypeEnvironment.empty();
+    private java.util.Optional<org.finos.legend.pure.m3.PureClass> findClass(String className) {
+        if (modelContext != null) {
+            return modelContext.findClass(className);
+        }
+        return java.util.Optional.empty();
     }
 
     /**
@@ -1299,14 +1296,20 @@ public final class PureCompiler {
         LambdaExpression condLambda = join.condition();
         List<String> params = condLambda.parameters();
 
-        // Build context with row bindings for both left and right parameters
+        // Collect column types from each source so the join lambda can resolve property types
+        var leftColumns = new java.util.HashMap<String, GenericType>();
+        collectExtendedColumnsRecursive(join.left(), leftColumns);
+        var rightColumns = new java.util.HashMap<String, GenericType>();
+        collectExtendedColumnsRecursive(join.right(), rightColumns);
+
+        // Build context with typed row bindings (each param carries its source schema)
         CompilationContext joinContext = context != null ? context
                 : new CompilationContext(null, null, null, null, false);
         if (params.size() >= 1) {
-            joinContext = joinContext.withRowBinding(params.get(0), leftAlias);
+            joinContext = joinContext.withRowBinding(params.get(0), leftAlias, leftColumns);
         }
         if (params.size() >= 2) {
-            joinContext = joinContext.withRowBinding(params.get(1), rightAlias);
+            joinContext = joinContext.withRowBinding(params.get(1), rightAlias, rightColumns);
         }
 
         // Compile the join condition using the enriched context
@@ -1357,14 +1360,20 @@ public final class PureCompiler {
         LambdaExpression matchLambda = asOfJoin.matchCondition();
         List<String> params = matchLambda.parameters();
 
-        // Build context with row bindings for both parameters
+        // Collect column types from each source so the lambda can resolve property types
+        var leftColumns = new java.util.HashMap<String, GenericType>();
+        collectExtendedColumnsRecursive(asOfJoin.left(), leftColumns);
+        var rightColumns = new java.util.HashMap<String, GenericType>();
+        collectExtendedColumnsRecursive(asOfJoin.right(), rightColumns);
+
+        // Build context with typed row bindings (each param carries its source schema)
         CompilationContext joinContext = context != null ? context
                 : new CompilationContext(null, null, null, null, false);
         if (params.size() >= 1) {
-            joinContext = joinContext.withRowBinding(params.get(0), leftAlias);
+            joinContext = joinContext.withRowBinding(params.get(0), leftAlias, leftColumns);
         }
         if (params.size() >= 2) {
-            joinContext = joinContext.withRowBinding(params.get(1), rightAlias);
+            joinContext = joinContext.withRowBinding(params.get(1), rightAlias, rightColumns);
         }
 
         // Compile the match condition
@@ -2489,8 +2498,8 @@ public final class PureCompiler {
     private Expression compileInstanceExpression(InstanceExpression inst, CompilationContext context) {
         Map<String, Expression> compiledFields = new LinkedHashMap<>();
 
-        // Look up class in TypeEnvironment for multiplicity-aware compilation
-        var pureClass = typeEnvironment.findClass(inst.className());
+        // Look up class for multiplicity-aware compilation
+        var pureClass = findClass(inst.className());
 
         for (var entry : inst.properties().entrySet()) {
             String key = entry.getKey();
@@ -2969,7 +2978,7 @@ public final class PureCompiler {
                     GenericType resolved = (modelContext != null && propName != null)
                             ? resolvePropertyFromClassType(propName, classType)
                             : null;
-                    columns.put(alias, resolved != null ? resolved : Primitive.DEFERRED);
+                    columns.put(alias, resolved != null ? resolved : Primitive.ANY);
                 }
             }
             case JoinExpression join -> {
@@ -3636,7 +3645,7 @@ public final class PureCompiler {
             return GenericType.listOf(Primitive.NIL); // Empty list
         }
         // PureExpression (variable refs, function calls) — can't resolve in static pre-pass
-        if (value instanceof PureExpression) return Primitive.DEFERRED;
+        if (value instanceof PureExpression) return Primitive.ANY;
         throw new PureCompileException("Unexpected instance property value type: " + value.getClass().getSimpleName());
     }
 
@@ -5982,7 +5991,7 @@ public final class PureCompiler {
         GenericType firstType = elements.getFirst().type();
         for (int i = 1; i < elements.size(); i++) {
             GenericType t = elements.get(i).type();
-            // Skip deferred/nil/any types — they can't participate in type comparison
+            // Skip any/nil types — they can't participate in type comparison
             if (isTypeComparisonNeutral(t) || isTypeComparisonNeutral(firstType)) continue;
             if (!t.equals(firstType) && !areNumericCompatible(firstType, t)) return true;
         }
@@ -5999,10 +6008,10 @@ public final class PureCompiler {
 
     /**
      * Types that should not trigger mixed-type detection:
-     * ANY (top type, flexible), DEFERRED (not yet resolved), NIL (null, compatible with everything).
+     * ANY (top type, flexible), NIL (null, compatible with everything).
      */
     private static boolean isTypeComparisonNeutral(GenericType t) {
-        return t == Primitive.ANY || t == Primitive.DEFERRED || t == Primitive.NIL;
+        return t == Primitive.ANY || t == Primitive.NIL;
     }
 
     /**
@@ -6326,7 +6335,7 @@ public final class PureCompiler {
         String className = context.getLambdaParamClass(var.name());
         if (className == null) return false;
 
-        var pureClass = typeEnvironment.findClass(className);
+        var pureClass = findClass(className);
         if (pureClass.isEmpty()) return false;
 
         var property = pureClass.get().findProperty(propAccess.propertyName());
@@ -6718,6 +6727,12 @@ public final class PureCompiler {
                     return ColumnReference.of(rowAlias, columnName, context.mapping().pureTypeForProperty(propertyName));
                 }
 
+                // Check binding's source column types (for join/asOfJoin lambdas)
+                var colType = binding.columnTypes().get(propertyName);
+                if (colType != null) {
+                    return ColumnReference.of(rowAlias, fullPath, colType);
+                }
+
                 // No mapping - use full path (for nested STRUCT access like
                 // employees.firstName)
                 return ColumnReference.of(rowAlias, fullPath, resolvePropertyType(propertyName, context));
@@ -6767,7 +6782,7 @@ public final class PureCompiler {
     /**
      * Resolves the GenericType for a property access.
      * Checks (in order): extendedColumns, mapping, class definition, lambda params.
-     * Returns explicit DEFERRED only for ClassType params not in local model.
+     * Throws if ClassType lambda param class is not found in model.
      * @throws IllegalStateException if type cannot be resolved — indicates missing type propagation upstream
      */
     private GenericType resolvePropertyType(String propertyName, CompilationContext context) {
@@ -6787,8 +6802,8 @@ public final class PureCompiler {
             }
         }
         // 3. Look up class from className in context
-        if (context.className() != null && modelContext != null) {
-            var pureClass = modelContext.findClass(context.className());
+        if (context.className() != null) {
+            var pureClass = findClass(context.className());
             if (pureClass.isPresent()) {
                 var prop = pureClass.get().findProperty(propertyName);
                 if (prop.isPresent()) {
@@ -6797,25 +6812,22 @@ public final class PureCompiler {
             }
         }
         // 4. Lambda param type (for struct iteration like p.lastName)
-        if (modelContext != null) {
+        {
             GenericType resolved = resolveFromLambdaParamClass(propertyName, context);
             if (resolved != null) return resolved;
         }
-        // 5. Explicit DEFERRED: lambda param is a ClassType but class not in local model
-        //    (e.g., standard library test classes like M_Person, CO_Firm)
+        // 5. Lambda param is a ClassType but class not found — type genuinely unknown
         if (context.lambdaParamTypes() != null) {
             for (var type : context.lambdaParamTypes().values()) {
                 if (type instanceof GenericType.ClassType) {
-                    return Primitive.DEFERRED;
+                    return Primitive.ANY;
                 }
             }
         }
-        // 6. Nested struct property: extendedColumns has parent fields but not nested ones
-        //    (e.g., $x.addresses.val where addresses is known but val is on nested Address struct)
-        //    Also covers top-level property access on collection results (e.g., list->filter(...).prop)
-        //    where the class isn't in the local model
+        // 6. Nested struct property or classless context — type genuinely unknown
+        //    (e.g., $x.addresses.val where val is on a nested struct without class definition)
         if (!context.extendedColumns().isEmpty() || (context.mapping() == null && context.className() == null)) {
-            return Primitive.DEFERRED;
+            return Primitive.ANY;
         }
         throw new IllegalStateException("Cannot resolve type for property '" + propertyName + "'. " +
                 "Context: extendedColumns=" + context.extendedColumns().keySet() +
@@ -6839,7 +6851,7 @@ public final class PureCompiler {
 
     private GenericType resolvePropertyFromClassType(String propertyName, GenericType type) {
         if (type instanceof GenericType.ClassType ct) {
-            var pureClass = modelContext.findClass(ct.qualifiedName());
+            var pureClass = findClass(ct.qualifiedName());
             if (pureClass.isPresent()) {
                 var prop = pureClass.get().findProperty(propertyName);
                 if (prop.isPresent()) {
@@ -7211,6 +7223,18 @@ public final class PureCompiler {
             var newSymbols = new java.util.HashMap<>(symbols);
             newSymbols.put(paramName, SymbolBinding.row(paramName, alias));
             // Also update lambdaParameter for backward compatibility
+            return new CompilationContext(paramName, alias, mapping, className,
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides, lambdaParamTypes);
+        }
+
+        /**
+         * Creates a new context with a ROW binding that carries source relation column types.
+         * Used for join/asOfJoin lambdas where each parameter's source schema is known.
+         */
+        public CompilationContext withRowBinding(String paramName, String alias,
+                java.util.Map<String, org.finos.legend.engine.plan.GenericType> columnTypes) {
+            var newSymbols = new java.util.HashMap<>(symbols);
+            newSymbols.put(paramName, SymbolBinding.row(paramName, alias, columnTypes));
             return new CompilationContext(paramName, alias, mapping, className,
                     inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides, lambdaParamTypes);
         }

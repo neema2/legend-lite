@@ -1933,7 +1933,6 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
                 case STRICT_TIME -> "TIME";
                 case JSON -> "JSON";
                 case ANY, NIL -> "VARCHAR";
-                case DEFERRED -> throw new IllegalStateException("DEFERRED type must be resolved before SQL generation");
             };
         }
         if (type instanceof GenericType.EnumType) return "VARCHAR";
