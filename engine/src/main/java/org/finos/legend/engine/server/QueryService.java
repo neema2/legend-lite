@@ -261,6 +261,17 @@ public class QueryService {
                     return new ScalarResult(precise, "DECIMAL");
                 }
             }
+            // For value-selecting functions (greatest/least), DuckDB promotes all args
+            // to a common type. Match the result back to the original arg's value and type.
+            // This must run before DECIMAL handling since the IR type reflects the promoted
+            // type, not the selected value's original type.
+            if (sr.value() instanceof Number num && cn.expression() instanceof FunctionExpression fe
+                    && isValueSelectingFunction(fe)) {
+                Object originalValue = findMatchingArgValue(fe, num);
+                if (originalValue != null) {
+                    return new ScalarResult(originalValue, sqlTypeForValue(originalValue));
+                }
+            }
             GenericType irType = cn.expression().type();
             if (irType == GenericType.Primitive.DECIMAL) {
                 // Distinguish toDecimal() CAST (needs trailing zero strip) from
@@ -577,6 +588,72 @@ public class QueryService {
         if (expr instanceof ListLiteral list && !list.isEmpty()) {
             return findStructLiteral(list.elements().getFirst());
         }
+        return null;
+    }
+
+    /**
+     * Checks if a function selects one of its input values (e.g., greatest, least).
+     * For these functions, the result IS one of the args, so we can preserve its original type.
+     */
+    private static boolean isValueSelectingFunction(FunctionExpression fe) {
+        return switch (fe.functionName().toLowerCase()) {
+            case "greatest", "least", "max", "min", "list_max", "list_min" -> true;
+            case "list_aggr" -> isListAggrMode(fe);
+            default -> false;
+        };
+    }
+
+    /**
+     * Checks if a list_aggr call is using 'mode' (which selects from input values).
+     * Other list_aggr operations like 'stddev', 'var_samp' compute new values.
+     */
+    private static boolean isListAggrMode(FunctionExpression fe) {
+        for (Expression arg : fe.arguments()) {
+            if (arg instanceof Literal lit && "mode".equals(lit.value())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * For a value-selecting function, finds the Literal arg whose numeric value equals the result.
+     * Returns the original Java value (Long for INTEGER, Double for FLOAT, BigDecimal for DECIMAL)
+     * so the caller can preserve the original type instead of DuckDB's promoted type.
+     */
+    private static Object findMatchingArgValue(FunctionExpression fe, Number result) {
+        double resultDouble = result.doubleValue();
+        // Check target
+        Object match = matchLiteralValue(fe.target(), resultDouble);
+        if (match != null) return match;
+        // Check arguments (may be Literals or ListLiterals containing Literals)
+        for (Expression arg : fe.arguments()) {
+            match = matchLiteralValue(arg, resultDouble);
+            if (match != null) return match;
+        }
+        return null;
+    }
+
+    private static Object matchLiteralValue(Expression expr, double resultDouble) {
+        if (expr instanceof Literal lit && lit.value() instanceof Number litNum) {
+            if (litNum.doubleValue() == resultDouble) return lit.value();
+        }
+        // Walk into ListLiteral elements (e.g., LIST_MAX([1.23, 2]))
+        if (expr instanceof ListLiteral list) {
+            for (Expression elem : list.elements()) {
+                if (elem instanceof Literal lit && lit.value() instanceof Number litNum) {
+                    if (litNum.doubleValue() == resultDouble) return lit.value();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Maps a Java value to its appropriate SQL type string.
+     */
+    private static String sqlTypeForValue(Object value) {
+        if (value instanceof Integer || value instanceof Long) return "INTEGER";
+        if (value instanceof Double || value instanceof Float) return "DOUBLE";
+        if (value instanceof BigDecimal) return "DECIMAL";
         return null;
     }
 

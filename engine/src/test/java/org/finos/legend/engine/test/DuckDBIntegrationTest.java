@@ -1,6 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.store.*;
+import org.finos.legend.engine.execution.Result;
 import org.finos.legend.engine.execution.ScalarResult;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
@@ -4933,5 +4934,139 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(1, result.rows().size(), "write() should return a single row with count");
         var count = ((Number) result.rows().get(0).get(0)).intValue();
         assertEquals(5, count, "write() should return count of rows written");
+    }
+
+    // ========================================
+    // Value-Selecting Function Type Preservation
+    // (PCT: testMax_Numbers, testMin_Numbers, testGreatest_Number, testLeast_Number, testMode_Number)
+    // ========================================
+
+    @Test
+    void testMaxNumbers_preservesIntegerType() throws SQLException {
+        // PCT: |1.23->meta::pure::functions::math::max(2)
+        // DuckDB promotes to DECIMAL, but result 2 should be Integer
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|1.23->meta::pure::functions::math::max(2)",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertTrue(sr.value() instanceof Integer || sr.value() instanceof Long,
+                "max(1.23, 2) should return Integer/Long 2, not promoted Decimal, got: " + sr.value().getClass());
+        assertEquals(2, ((Number) sr.value()).intValue());
+    }
+
+    @Test
+    void testMinNumbers_preservesOriginalType() throws SQLException {
+        // PCT: |2->meta::pure::functions::math::min(1.23)
+        // Result 1.23 was originally a Float literal, should preserve its type
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|2->meta::pure::functions::math::min(1.23)",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertEquals(1.23, ((Number) sr.value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testGreatestNumber_preservesIntegerType() throws SQLException {
+        // PCT: |[1.23, 2]->meta::pure::functions::collection::greatest()
+        // LIST_MAX promotes to DECIMAL, but result 2 was originally Integer
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1.23, 2]->meta::pure::functions::collection::greatest()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertTrue(sr.value() instanceof Integer || sr.value() instanceof Long,
+                "greatest([1.23, 2]) should return Integer/Long 2, got: " + sr.value().getClass());
+        assertEquals(2, ((Number) sr.value()).intValue());
+    }
+
+    @Test
+    void testLeastNumber_preservesOriginalType() throws SQLException {
+        // PCT: |[4.23, 7.345, 1.0, 3, 4]->meta::pure::functions::collection::least()
+        // Result 1.0 should preserve its original Float type
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[4.23, 7.345, 1.0, 3, 4]->meta::pure::functions::collection::least()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertEquals(1.0, ((Number) sr.value()).doubleValue(), 0.001);
+    }
+
+    @Test
+    void testModeNumber_preservesIntegerType() throws SQLException {
+        // PCT: |[3, 3.0, 3, 2, 2]->meta::pure::functions::math::mode()
+        // LIST_AGGR mode promotes to DECIMAL, but most frequent value 3 was Integer
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[3, 3.0, 3, 2, 2]->meta::pure::functions::math::mode()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertTrue(sr.value() instanceof Integer || sr.value() instanceof Long,
+                "mode([3, 3.0, 3, 2, 2]) should return Integer/Long 3, got: " + sr.value().getClass());
+        assertEquals(3, ((Number) sr.value()).intValue());
+    }
+
+    // Regression: stdDev/variance are NOT value-selecting — must NOT match back to input args
+    @Test
+    void testStdDevSample_doesNotMatchInputArgs() throws SQLException {
+        // PCT: |[1, 2, 3]->meta::pure::functions::math::stdDevSample()
+        // DuckDB returns 1 (INTEGER), but Pure expects 1.0 (Float)
+        // Value-matching must NOT convert this to Integer
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[1, 2, 3]->meta::pure::functions::math::stdDevSample()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertFalse(sr.value() instanceof Long && ((Long) sr.value()) == 1L,
+                "stdDevSample should NOT be matched back to input arg 1 — it computes a new value");
+    }
+
+    @Test
+    void testStdDevSample_negativeNumbers() throws SQLException {
+        // PCT: |[-5, 0, 5]->meta::pure::functions::math::stdDevSample()
+        // DuckDB returns 5 (INTEGER), but Pure expects 5.0 (Float)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[-5, 0, 5]->meta::pure::functions::math::stdDevSample()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertFalse(sr.value() instanceof Long && ((Long) sr.value()) == 5L,
+                "stdDevSample should NOT be matched back to input arg 5");
+    }
+
+    @Test
+    void testVarianceSample_doesNotMatchInputArgs() throws SQLException {
+        // PCT: |[2, 4, 6]->meta::pure::functions::math::varianceSample()
+        // DuckDB returns 4 (INTEGER), but Pure expects 4.0 (Float)
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[2, 4, 6]->meta::pure::functions::math::varianceSample()",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertFalse(sr.value() instanceof Long && ((Long) sr.value()) == 4L,
+                "varianceSample should NOT be matched back to input arg 4");
+    }
+
+    @Test
+    void testVariance_Sample_doesNotMatchInputArgs() throws SQLException {
+        // PCT: |[2, 4, 6]->meta::pure::functions::math::variance(true)
+        // Same as varianceSample - DuckDB returns 4, Pure expects 4.0
+        Result result = queryService.execute(
+                getCompletePureModelWithRuntime(),
+                "|[2, 4, 6]->meta::pure::functions::math::variance(true)",
+                "test::TestRuntime", connection, QueryService.ResultMode.SCALAR);
+        assertInstanceOf(ScalarResult.class, result);
+        ScalarResult sr = (ScalarResult) result;
+        assertFalse(sr.value() instanceof Long && ((Long) sr.value()) == 4L,
+                "variance(true) should NOT be matched back to input arg 4");
     }
 }
