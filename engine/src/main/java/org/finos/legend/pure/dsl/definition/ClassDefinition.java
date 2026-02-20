@@ -102,15 +102,28 @@ public record ClassDefinition(
      * @param type       The property type (e.g., "String", "Integer")
      * @param lowerBound Lower multiplicity bound
      * @param upperBound Upper multiplicity bound (null for *)
+     * @param stereotypes Stereotype annotations on this property
+     * @param taggedValues Tagged value annotations on this property
      */
     public record PropertyDefinition(
             String name,
             String type,
             int lowerBound,
-            Integer upperBound) {
+            Integer upperBound,
+            List<StereotypeApplication> stereotypes,
+            List<TaggedValue> taggedValues) {
         public PropertyDefinition {
             Objects.requireNonNull(name, "Property name cannot be null");
             Objects.requireNonNull(type, "Property type cannot be null");
+            stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
+            taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+        }
+
+        /**
+         * Constructor for backwards compatibility (no annotations).
+         */
+        public PropertyDefinition(String name, String type, int lowerBound, Integer upperBound) {
+            this(name, type, lowerBound, upperBound, List.of(), List.of());
         }
 
         /**

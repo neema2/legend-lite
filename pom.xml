@@ -17,6 +17,7 @@
 
     <modules>
         <module>engine</module>
+        <module>nlq</module>
         <module>pct</module>
     </modules>
 

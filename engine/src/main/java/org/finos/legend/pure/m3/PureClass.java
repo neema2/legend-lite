@@ -1,5 +1,8 @@
 package org.finos.legend.pure.m3;
 
+import org.finos.legend.pure.dsl.definition.StereotypeApplication;
+import org.finos.legend.pure.dsl.definition.TaggedValue;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -16,12 +19,16 @@ import java.util.Set;
  * @param name         The class name (e.g., "Person")
  * @param superClasses List of superclasses (resolved references)
  * @param properties   Immutable list of properties belonging to this class
+ * @param stereotypes  Stereotype annotations on this class (e.g., nlq.rootEntity)
+ * @param taggedValues Tagged value annotations on this class (e.g., nlq.description)
  */
 public record PureClass(
         String packagePath,
         String name,
         List<PureClass> superClasses,
-        List<Property> properties) implements Type {
+        List<Property> properties,
+        List<StereotypeApplication> stereotypes,
+        List<TaggedValue> taggedValues) implements Type {
 
     public PureClass {
         Objects.requireNonNull(packagePath, "Package path cannot be null");
@@ -35,6 +42,15 @@ public record PureClass(
         // Ensure immutability
         superClasses = superClasses == null ? List.of() : List.copyOf(superClasses);
         properties = List.copyOf(properties);
+        stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
+        taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+    }
+
+    /**
+     * Constructor for backwards compatibility (no annotations).
+     */
+    public PureClass(String packagePath, String name, List<PureClass> superClasses, List<Property> properties) {
+        this(packagePath, name, superClasses, properties, List.of(), List.of());
     }
 
     /**
@@ -49,6 +65,30 @@ public record PureClass(
      */
     public PureClass(String name, List<Property> properties) {
         this("", name, List.of(), properties);
+    }
+
+    /**
+     * Gets the value of a tagged value by profile and tag name.
+     */
+    public String getTagValue(String profileName, String tagName) {
+        for (TaggedValue tv : taggedValues) {
+            if (tv.profileName().equals(profileName) && tv.tagName().equals(tagName)) {
+                return tv.value();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Checks if a stereotype is applied to this class.
+     */
+    public boolean hasStereotype(String profileName, String stereotypeName) {
+        for (StereotypeApplication sa : stereotypes) {
+            if (sa.profileName().equals(profileName) && sa.stereotypeName().equals(stereotypeName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

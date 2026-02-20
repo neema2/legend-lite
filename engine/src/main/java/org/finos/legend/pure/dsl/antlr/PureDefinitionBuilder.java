@@ -156,7 +156,29 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
             }
         }
 
-        return new PropertyDefinition(name, type, lowerBound, upperBound);
+        // Extract property-level stereotypes
+        List<StereotypeApplication> stereotypes = new ArrayList<>();
+        if (ctx.stereotypes() != null) {
+            for (PureParser.StereotypeContext stereotypeCtx : ctx.stereotypes().stereotype()) {
+                StereotypeApplication stereotype = visitStereotype(stereotypeCtx);
+                if (stereotype != null) {
+                    stereotypes.add(stereotype);
+                }
+            }
+        }
+
+        // Extract property-level tagged values
+        List<TaggedValue> taggedValues = new ArrayList<>();
+        if (ctx.taggedValues() != null) {
+            for (PureParser.TaggedValueContext tvCtx : ctx.taggedValues().taggedValue()) {
+                TaggedValue tv = visitTaggedValue(tvCtx);
+                if (tv != null) {
+                    taggedValues.add(tv);
+                }
+            }
+        }
+
+        return new PropertyDefinition(name, type, lowerBound, upperBound, stereotypes, taggedValues);
     }
 
     /**

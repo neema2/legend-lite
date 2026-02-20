@@ -247,6 +247,7 @@ public class LegendHttpServer {
         }
     }
 
+
     /**
      * Extract the Runtime name from the Pure source.
      */
@@ -312,14 +313,14 @@ public class LegendHttpServer {
         return new String[] { modelSource, query.toString().trim() };
     }
 
-    private void addCorsHeaders(HttpExchange exchange) {
+    public static void addCorsHeaders(HttpExchange exchange) {
         var headers = exchange.getResponseHeaders();
         headers.add("Access-Control-Allow-Origin", "*");
         headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         headers.add("Access-Control-Allow-Headers", "Content-Type");
     }
 
-    private String readBody(HttpExchange exchange) throws IOException {
+    public static String readBody(HttpExchange exchange) throws IOException {
         try (InputStream is = exchange.getRequestBody();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             StringBuilder sb = new StringBuilder();
@@ -331,7 +332,7 @@ public class LegendHttpServer {
         }
     }
 
-    private void sendResponse(HttpExchange exchange, int status, String body) throws IOException {
+    public static void sendResponse(HttpExchange exchange, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(status, bytes.length);
@@ -344,6 +345,14 @@ public class LegendHttpServer {
         if (s == null)
             return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    /**
+     * Register an additional HTTP context (route) on this server.
+     * Used by extension modules (e.g. nlq) to add endpoints.
+     */
+    public void addContext(String path, HttpHandler handler) {
+        server.createContext(path, handler);
     }
 
     public void start() {

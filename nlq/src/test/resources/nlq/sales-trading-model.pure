@@ -1,0 +1,607 @@
+// ============================================================
+// Sales & Trading / Hedge Fund Domain Model — NLQ Eval Model
+// ~30 representative classes across key subdomains
+// All annotated with nlq::NlqProfile metadata
+// ============================================================
+
+Profile nlq::NlqProfile
+{
+    stereotypes: [rootEntity, dimension, fact, lookup, deprecated];
+    tags: [description, synonyms, sampleValues, businessDomain,
+           unit, exampleQuestions, importance, displayName];
+}
+
+// ==================== Reference Data ====================
+
+Class <<nlq::NlqProfile.lookup>>
+  {nlq::NlqProfile.description = 'ISO currency code used for pricing and settlement',
+   nlq::NlqProfile.synonyms = 'ccy, fx, money',
+   nlq::NlqProfile.businessDomain = 'RefData',
+   nlq::NlqProfile.importance = 'medium'}
+refdata::Currency
+{
+    {nlq::NlqProfile.description = 'ISO 4217 currency code', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP, JPY'}
+    code: String[1];
+    {nlq::NlqProfile.description = 'Full currency name', nlq::NlqProfile.sampleValues = 'US Dollar, Euro, British Pound'}
+    name: String[1];
+}
+
+Class <<nlq::NlqProfile.lookup>>
+  {nlq::NlqProfile.description = 'Stock exchange or electronic trading venue',
+   nlq::NlqProfile.synonyms = 'venue, market, bourse',
+   nlq::NlqProfile.businessDomain = 'RefData',
+   nlq::NlqProfile.importance = 'low'}
+refdata::Exchange
+{
+    {nlq::NlqProfile.description = 'Exchange MIC code', nlq::NlqProfile.sampleValues = 'XNYS, XNAS, XLON'}
+    mic: String[1];
+    {nlq::NlqProfile.description = 'Exchange display name', nlq::NlqProfile.sampleValues = 'NYSE, NASDAQ, LSE'}
+    name: String[1];
+}
+
+Class <<nlq::NlqProfile.lookup>>
+  {nlq::NlqProfile.description = 'Industry sector classification for securities',
+   nlq::NlqProfile.synonyms = 'industry, sector, GICS',
+   nlq::NlqProfile.businessDomain = 'RefData',
+   nlq::NlqProfile.importance = 'low'}
+refdata::Sector
+{
+    {nlq::NlqProfile.description = 'Sector name', nlq::NlqProfile.sampleValues = 'Technology, Financials, Healthcare, Energy'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'GICS sector code', nlq::NlqProfile.sampleValues = '45, 40, 35, 10'}
+    code: String[1];
+}
+
+// ==================== Products & Instruments ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A tradeable financial instrument such as a stock, bond, or derivative',
+   nlq::NlqProfile.synonyms = 'security, product, asset, financial instrument',
+   nlq::NlqProfile.businessDomain = 'Products',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'list all instruments|instruments by currency|instruments in sector X'}
+products::Instrument
+{
+    {nlq::NlqProfile.description = 'Unique instrument identifier', nlq::NlqProfile.sampleValues = 'INST-00001, INST-00002'}
+    instrumentId: String[1];
+    {nlq::NlqProfile.description = 'Ticker or short name', nlq::NlqProfile.sampleValues = 'AAPL, MSFT, T 4.5 03/15/28'}
+    ticker: String[1];
+    {nlq::NlqProfile.description = 'Full instrument name'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Asset class category', nlq::NlqProfile.sampleValues = 'Equity, FixedIncome, FX, Rates, Credit, Commodity'}
+    assetClass: String[1];
+    {nlq::NlqProfile.description = 'Product type within asset class', nlq::NlqProfile.sampleValues = 'Stock, Bond, Swap, Option, Future, FxSpot'}
+    productType: String[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A publicly traded equity security (stock)',
+   nlq::NlqProfile.synonyms = 'stock, share, equity',
+   nlq::NlqProfile.businessDomain = 'Products',
+   nlq::NlqProfile.importance = 'medium'}
+products::Equity extends products::Instrument
+{
+    {nlq::NlqProfile.description = 'Market capitalization in USD', nlq::NlqProfile.unit = 'USD'}
+    marketCap: Float[0..1];
+    {nlq::NlqProfile.description = 'Shares outstanding'}
+    sharesOutstanding: Integer[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A fixed income bond or note',
+   nlq::NlqProfile.synonyms = 'bond, note, fixed income, debt',
+   nlq::NlqProfile.businessDomain = 'Products',
+   nlq::NlqProfile.importance = 'medium'}
+products::Bond extends products::Instrument
+{
+    {nlq::NlqProfile.description = 'Annual coupon rate', nlq::NlqProfile.unit = 'percentage', nlq::NlqProfile.sampleValues = '2.5, 4.75, 0.0'}
+    couponRate: Float[1];
+    {nlq::NlqProfile.description = 'Bond maturity date'}
+    maturityDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Face value of the bond', nlq::NlqProfile.unit = 'USD'}
+    faceValue: Float[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A plain vanilla interest rate swap with fixed and floating legs',
+   nlq::NlqProfile.synonyms = 'IRS, rate swap, fixed-float swap, swap',
+   nlq::NlqProfile.businessDomain = 'Products',
+   nlq::NlqProfile.importance = 'medium'}
+products::IRSwap extends products::Instrument
+{
+    {nlq::NlqProfile.description = 'Fixed rate of the swap', nlq::NlqProfile.unit = 'percentage'}
+    fixedRate: Float[1];
+    {nlq::NlqProfile.description = 'Floating rate benchmark', nlq::NlqProfile.sampleValues = 'SOFR, EURIBOR, SONIA'}
+    floatingIndex: String[1];
+    {nlq::NlqProfile.description = 'Swap notional amount', nlq::NlqProfile.unit = 'USD'}
+    notional: Float[1];
+    {nlq::NlqProfile.description = 'Swap effective date'}
+    effectiveDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Swap termination date'}
+    terminationDate: StrictDate[1];
+}
+
+// ==================== Counterparties ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'An external legal entity that is a trading counterparty or client',
+   nlq::NlqProfile.synonyms = 'counterparty, cpty, client, trading partner',
+   nlq::NlqProfile.businessDomain = 'Counterparty',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'list all counterparties|trades with Goldman|exposure to JPM'}
+counterparty::Counterparty
+{
+    {nlq::NlqProfile.description = 'Unique counterparty identifier'}
+    counterpartyId: String[1];
+    {nlq::NlqProfile.description = 'Legal entity name', nlq::NlqProfile.sampleValues = 'Goldman Sachs, JPMorgan, Citadel, Millennium'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'LEI (Legal Entity Identifier)', nlq::NlqProfile.sampleValues = '549300DTUYXM3FG3TJ95'}
+    lei: String[0..1];
+    {nlq::NlqProfile.description = 'Client tier level', nlq::NlqProfile.sampleValues = 'Tier1, Tier2, Tier3'}
+    tier: String[1];
+    {nlq::NlqProfile.description = 'Country of incorporation', nlq::NlqProfile.sampleValues = 'US, GB, JP, DE'}
+    country: String[1];
+}
+
+// ==================== Organization ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A trading desk within a business unit, grouped by asset class and region',
+   nlq::NlqProfile.synonyms = 'trading desk, desk, pod',
+   nlq::NlqProfile.businessDomain = 'Organization',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'list all desks|traders on AMER rates desk|desks in EMEA'}
+org::Desk
+{
+    {nlq::NlqProfile.description = 'Unique desk identifier'}
+    deskId: String[1];
+    {nlq::NlqProfile.description = 'Desk display name', nlq::NlqProfile.sampleValues = 'AMER Equity Swaps, EMEA Rates, APAC Credit'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Geographic region', nlq::NlqProfile.sampleValues = 'AMER, EMEA, APAC'}
+    region: String[1];
+    {nlq::NlqProfile.description = 'Asset class focus', nlq::NlqProfile.sampleValues = 'Equity, Rates, Credit, FX, Commodity'}
+    assetClass: String[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A trader who executes trades on a desk',
+   nlq::NlqProfile.synonyms = 'trader, dealer, market maker',
+   nlq::NlqProfile.businessDomain = 'Organization',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'list all traders|traders on desk X|trader PnL'}
+org::Trader
+{
+    {nlq::NlqProfile.description = 'Unique trader identifier'}
+    traderId: String[1];
+    {nlq::NlqProfile.description = 'Trader full name', nlq::NlqProfile.sampleValues = 'John Smith, Jane Doe'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Trader badge or short ID'}
+    badge: String[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A portfolio manager who manages investment portfolios',
+   nlq::NlqProfile.synonyms = 'PM, portfolio manager, fund manager',
+   nlq::NlqProfile.businessDomain = 'Organization',
+   nlq::NlqProfile.importance = 'medium'}
+org::PortfolioManager
+{
+    {nlq::NlqProfile.description = 'PM unique identifier'}
+    pmId: String[1];
+    {nlq::NlqProfile.description = 'PM full name'}
+    name: String[1];
+}
+
+// ==================== Positions & Portfolios ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A trading book that holds positions and tracks PnL',
+   nlq::NlqProfile.synonyms = 'book, trading book, risk book',
+   nlq::NlqProfile.businessDomain = 'Positions',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'list all books|positions in book X|book PnL'}
+positions::Book
+{
+    {nlq::NlqProfile.description = 'Unique book identifier'}
+    bookId: String[1];
+    {nlq::NlqProfile.description = 'Book display name', nlq::NlqProfile.sampleValues = 'EQ-FLOW-1, RATES-MM-2, CREDIT-PROP-1'}
+    name: String[1];
+}
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Current holding position in an instrument within a book',
+   nlq::NlqProfile.synonyms = 'holding, inventory, exposure, position',
+   nlq::NlqProfile.businessDomain = 'Positions',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'show positions in AAPL|total exposure by book|positions on desk X'}
+positions::Position
+{
+    {nlq::NlqProfile.description = 'Unique position identifier'}
+    positionId: String[1];
+    {nlq::NlqProfile.description = 'Current quantity held', nlq::NlqProfile.unit = 'shares or contracts'}
+    quantity: Float[1];
+    {nlq::NlqProfile.description = 'Current market value', nlq::NlqProfile.unit = 'USD'}
+    marketValue: Float[1];
+    {nlq::NlqProfile.description = 'Average cost basis per unit', nlq::NlqProfile.unit = 'USD'}
+    averageCost: Float[1];
+    {nlq::NlqProfile.description = 'Position open date'}
+    openDate: StrictDate[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'An investment portfolio grouping positions under a strategy',
+   nlq::NlqProfile.synonyms = 'portfolio, fund, strategy',
+   nlq::NlqProfile.businessDomain = 'Positions',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'list all portfolios|portfolio NAV|positions in portfolio X'}
+positions::Portfolio
+{
+    {nlq::NlqProfile.description = 'Portfolio unique identifier'}
+    portfolioId: String[1];
+    {nlq::NlqProfile.description = 'Portfolio display name', nlq::NlqProfile.sampleValues = 'Global Macro, L/S Equity, Credit Arb'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Net asset value', nlq::NlqProfile.unit = 'USD'}
+    nav: Float[1];
+    {nlq::NlqProfile.description = 'Investment strategy type', nlq::NlqProfile.sampleValues = 'LongShort, GlobalMacro, StatArb, CreditArb'}
+    strategy: String[1];
+}
+
+// ==================== Trading ====================
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'An OTC or listed trade executed on a trading desk',
+   nlq::NlqProfile.synonyms = 'deal, execution, transaction, ticket',
+   nlq::NlqProfile.businessDomain = 'Trading',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'show all trades today|total notional by desk|trades with counterparty X|trades in AAPL'}
+trading::Trade
+{
+    {nlq::NlqProfile.description = 'Unique trade identifier', nlq::NlqProfile.sampleValues = 'TRD-2026-00001'}
+    tradeId: String[1];
+    {nlq::NlqProfile.description = 'Trade execution date'}
+    tradeDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Trade settlement date'}
+    settlementDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'Net notional in settlement currency', nlq::NlqProfile.unit = 'USD', nlq::NlqProfile.synonyms = 'notional, face value, principal'}
+    notional: Float[1];
+    {nlq::NlqProfile.description = 'Trade price per unit', nlq::NlqProfile.unit = 'USD'}
+    price: Float[1];
+    {nlq::NlqProfile.description = 'Number of units traded', nlq::NlqProfile.unit = 'shares or contracts'}
+    quantity: Float[1];
+    {nlq::NlqProfile.description = 'Buy or Sell direction', nlq::NlqProfile.sampleValues = 'BUY, SELL'}
+    side: String[1];
+    {nlq::NlqProfile.description = 'Current lifecycle status', nlq::NlqProfile.sampleValues = 'NEW, VERIFIED, SETTLED, CANCELLED'}
+    status: String[1];
+}
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A client order to buy or sell an instrument',
+   nlq::NlqProfile.synonyms = 'order, client order, instruction',
+   nlq::NlqProfile.businessDomain = 'Trading',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'show open orders|orders today|orders by client'}
+trading::Order
+{
+    {nlq::NlqProfile.description = 'Unique order identifier'}
+    orderId: String[1];
+    {nlq::NlqProfile.description = 'Order entry timestamp'}
+    orderDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Requested quantity'}
+    quantity: Float[1];
+    {nlq::NlqProfile.description = 'Limit price if applicable', nlq::NlqProfile.unit = 'USD'}
+    limitPrice: Float[0..1];
+    {nlq::NlqProfile.description = 'Buy or Sell', nlq::NlqProfile.sampleValues = 'BUY, SELL'}
+    side: String[1];
+    {nlq::NlqProfile.description = 'Order status', nlq::NlqProfile.sampleValues = 'OPEN, FILLED, PARTIAL, CANCELLED'}
+    status: String[1];
+}
+
+// ==================== P&L ====================
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Daily profit and loss for a trader, book, or desk',
+   nlq::NlqProfile.synonyms = 'profit, loss, daily pnl, revenue, earnings, P&L',
+   nlq::NlqProfile.businessDomain = 'PnL',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'total PnL by trader|desk PnL this month|YTD revenue|PnL for book X'}
+pnl::DailyPnL
+{
+    {nlq::NlqProfile.description = 'PnL record date'}
+    pnlDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Total PnL for the day', nlq::NlqProfile.unit = 'USD', nlq::NlqProfile.synonyms = 'daily pnl, total pnl'}
+    totalPnL: Float[1];
+    {nlq::NlqProfile.description = 'Realized PnL from closed positions', nlq::NlqProfile.unit = 'USD'}
+    realizedPnL: Float[1];
+    {nlq::NlqProfile.description = 'Unrealized PnL from open positions (mark-to-market)', nlq::NlqProfile.unit = 'USD'}
+    unrealizedPnL: Float[1];
+}
+
+// ==================== Risk ====================
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Value-at-Risk calculation result for a portfolio or desk',
+   nlq::NlqProfile.synonyms = 'VaR, value at risk, risk measure',
+   nlq::NlqProfile.businessDomain = 'Risk',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'VaR by portfolio|risk exposure by desk|VaR over 10M'}
+risk::VaRResult
+{
+    {nlq::NlqProfile.description = 'VaR calculation date'}
+    varDate: StrictDate[1];
+    {nlq::NlqProfile.description = '1-day 99% VaR amount', nlq::NlqProfile.unit = 'USD', nlq::NlqProfile.synonyms = 'VaR, value at risk'}
+    varAmount: Float[1];
+    {nlq::NlqProfile.description = 'Confidence level', nlq::NlqProfile.sampleValues = '0.95, 0.99'}
+    confidenceLevel: Float[1];
+    {nlq::NlqProfile.description = 'Holding period in days', nlq::NlqProfile.sampleValues = '1, 10'}
+    holdingPeriod: Integer[1];
+}
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Option greeks (delta, gamma, vega, theta) for a trade or position',
+   nlq::NlqProfile.synonyms = 'greeks, delta, gamma, vega, theta, sensitivities',
+   nlq::NlqProfile.businessDomain = 'Risk',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'show greeks for trade X|total delta by desk|gamma exposure'}
+risk::Greeks
+{
+    {nlq::NlqProfile.description = 'Delta - sensitivity to underlying price'}
+    delta: Float[1];
+    {nlq::NlqProfile.description = 'Gamma - rate of change of delta'}
+    gamma: Float[1];
+    {nlq::NlqProfile.description = 'Vega - sensitivity to volatility'}
+    vega: Float[1];
+    {nlq::NlqProfile.description = 'Theta - time decay per day', nlq::NlqProfile.unit = 'USD/day'}
+    theta: Float[1];
+    {nlq::NlqProfile.description = 'Calculation date'}
+    calcDate: StrictDate[1];
+}
+
+// ==================== Sales ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A salesperson who covers clients and earns revenue credits',
+   nlq::NlqProfile.synonyms = 'salesperson, sales, account manager, coverage',
+   nlq::NlqProfile.businessDomain = 'Sales',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'list all salespeople|sales revenue by person|top salespeople'}
+sales::SalesPerson
+{
+    {nlq::NlqProfile.description = 'Salesperson unique identifier'}
+    salesId: String[1];
+    {nlq::NlqProfile.description = 'Salesperson full name'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Coverage region', nlq::NlqProfile.sampleValues = 'AMER, EMEA, APAC'}
+    region: String[1];
+}
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Revenue credit allocated to a salesperson for a trade',
+   nlq::NlqProfile.synonyms = 'sales credit, commission, revenue attribution',
+   nlq::NlqProfile.businessDomain = 'Sales',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'sales credits this month|revenue by salesperson|top revenue clients'}
+sales::SalesCredit
+{
+    {nlq::NlqProfile.description = 'Credit amount in USD', nlq::NlqProfile.unit = 'USD'}
+    creditAmount: Float[1];
+    {nlq::NlqProfile.description = 'Credit date'}
+    creditDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Credit allocation percentage', nlq::NlqProfile.unit = 'percentage'}
+    allocationPct: Float[1];
+}
+
+// ==================== Margin & Collateral ====================
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A margin call issued to or received from a counterparty',
+   nlq::NlqProfile.synonyms = 'margin call, collateral call, margin notice',
+   nlq::NlqProfile.businessDomain = 'Collateral',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'open margin calls|margin calls by counterparty|past due margin calls'}
+collateral::MarginCall
+{
+    {nlq::NlqProfile.description = 'Margin call unique identifier'}
+    marginCallId: String[1];
+    {nlq::NlqProfile.description = 'Call amount', nlq::NlqProfile.unit = 'USD'}
+    callAmount: Float[1];
+    {nlq::NlqProfile.description = 'Call date'}
+    callDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Due date for response'}
+    dueDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Direction: issued or received', nlq::NlqProfile.sampleValues = 'ISSUED, RECEIVED'}
+    direction: String[1];
+    {nlq::NlqProfile.description = 'Call status', nlq::NlqProfile.sampleValues = 'OPEN, AGREED, DISPUTED, SETTLED'}
+    status: String[1];
+}
+
+// ==================== Settlement ====================
+
+Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A settlement instruction for a trade, tracking delivery and payment',
+   nlq::NlqProfile.synonyms = 'settlement, delivery, payment, clearing',
+   nlq::NlqProfile.businessDomain = 'Settlement',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'pending settlements|settlements due this week|failed settlements'}
+settlement::Settlement
+{
+    {nlq::NlqProfile.description = 'Settlement unique identifier'}
+    settlementId: String[1];
+    {nlq::NlqProfile.description = 'Expected settlement date'}
+    settlementDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Settlement amount', nlq::NlqProfile.unit = 'USD'}
+    amount: Float[1];
+    {nlq::NlqProfile.description = 'Settlement status', nlq::NlqProfile.sampleValues = 'PENDING, MATCHED, SETTLED, FAILED'}
+    status: String[1];
+}
+
+// ==================== Market Data ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A yield curve snapshot for a given currency and date',
+   nlq::NlqProfile.synonyms = 'rate curve, discount curve, zero curve, yield curve',
+   nlq::NlqProfile.businessDomain = 'MarketData',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'USD yield curve|curve for EUR|latest curves'}
+marketdata::YieldCurve
+{
+    {nlq::NlqProfile.description = 'Curve identifier'}
+    curveId: String[1];
+    {nlq::NlqProfile.description = 'Curve snapshot date'}
+    curveDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Currency of the curve', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP'}
+    currency: String[1];
+    {nlq::NlqProfile.description = 'Curve type', nlq::NlqProfile.sampleValues = 'OIS, LIBOR, SOFR, GOVT'}
+    curveType: String[1];
+}
+
+// ==================== Associations ====================
+
+Association trading::Trade_Instrument
+{
+    trades: trading::Trade[*];
+    instrument: products::Instrument[1];
+}
+
+Association trading::Trade_Counterparty
+{
+    trades: trading::Trade[*];
+    counterparty: counterparty::Counterparty[1];
+}
+
+Association trading::Trade_Book
+{
+    trades: trading::Trade[*];
+    book: positions::Book[1];
+}
+
+Association trading::Trade_Trader
+{
+    trades: trading::Trade[*];
+    trader: org::Trader[1];
+}
+
+Association trading::Trade_Settlement
+{
+    trade: trading::Trade[1];
+    settlements: settlement::Settlement[*];
+}
+
+Association trading::Trade_SalesCredit
+{
+    trade: trading::Trade[1];
+    salesCredits: sales::SalesCredit[*];
+}
+
+Association trading::Order_Instrument
+{
+    orders: trading::Order[*];
+    instrument: products::Instrument[1];
+}
+
+Association trading::Order_Counterparty
+{
+    orders: trading::Order[*];
+    counterparty: counterparty::Counterparty[1];
+}
+
+Association positions::Position_Instrument
+{
+    positions: positions::Position[*];
+    instrument: products::Instrument[1];
+}
+
+Association positions::Position_Book
+{
+    positions: positions::Position[*];
+    book: positions::Book[1];
+}
+
+Association positions::Portfolio_Position
+{
+    portfolio: positions::Portfolio[1];
+    positions: positions::Position[*];
+}
+
+Association positions::Portfolio_Manager
+{
+    portfolios: positions::Portfolio[*];
+    manager: org::PortfolioManager[1];
+}
+
+Association pnl::DailyPnL_Trader
+{
+    pnlRecords: pnl::DailyPnL[*];
+    trader: org::Trader[1];
+}
+
+Association pnl::DailyPnL_Desk
+{
+    pnlRecords: pnl::DailyPnL[*];
+    desk: org::Desk[1];
+}
+
+Association pnl::DailyPnL_Book
+{
+    pnlRecords: pnl::DailyPnL[*];
+    book: positions::Book[1];
+}
+
+Association risk::VaR_Portfolio
+{
+    varResults: risk::VaRResult[*];
+    portfolio: positions::Portfolio[1];
+}
+
+Association risk::Greeks_Trade
+{
+    greeks: risk::Greeks[*];
+    trade: trading::Trade[1];
+}
+
+Association org::Desk_Trader
+{
+    desk: org::Desk[1];
+    traders: org::Trader[*];
+}
+
+Association org::Desk_Book
+{
+    desk: org::Desk[1];
+    books: positions::Book[*];
+}
+
+Association sales::SalesCredit_SalesPerson
+{
+    salesCredits: sales::SalesCredit[*];
+    salesPerson: sales::SalesPerson[1];
+}
+
+Association sales::SalesCredit_Client
+{
+    salesCredits: sales::SalesCredit[*];
+    client: counterparty::Counterparty[1];
+}
+
+Association collateral::MarginCall_Counterparty
+{
+    marginCalls: collateral::MarginCall[*];
+    counterparty: counterparty::Counterparty[1];
+}
+
+Association products::Instrument_Currency
+{
+    instruments: products::Instrument[*];
+    currency: refdata::Currency[1];
+}
+
+Association products::Instrument_Sector
+{
+    instruments: products::Instrument[*];
+    sector: refdata::Sector[0..1];
+}
+
+Association products::Equity_Exchange
+{
+    equities: products::Equity[*];
+    exchange: refdata::Exchange[1];
+}

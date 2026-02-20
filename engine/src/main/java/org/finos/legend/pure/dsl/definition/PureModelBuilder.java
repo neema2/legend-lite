@@ -101,12 +101,14 @@ public final class PureModelBuilder implements ModelContext {
                 .map(this::convertProperty)
                 .toList();
 
-        // Create class with empty superclass list initially
+        // Create class with empty superclass list initially, but carry metadata
         PureClass pureClass = new PureClass(
                 classDef.packagePath(),
                 classDef.simpleName(),
                 List.of(), // Superclasses resolved later
-                properties);
+                properties,
+                classDef.stereotypes(),
+                classDef.taggedValues());
 
         classes.put(classDef.qualifiedName(), pureClass);
         classes.put(classDef.simpleName(), pureClass); // Also register by simple name
@@ -147,13 +149,15 @@ public final class PureModelBuilder implements ModelContext {
                 resolvedSuperClasses.add(superClass);
             }
 
-            // Create new PureClass with resolved superclasses
+            // Create new PureClass with resolved superclasses (preserve metadata)
             PureClass existingClass = classes.get(qualifiedName);
             PureClass updatedClass = new PureClass(
                     existingClass.packagePath(),
                     existingClass.name(),
                     resolvedSuperClasses,
-                    existingClass.properties());
+                    existingClass.properties(),
+                    existingClass.stereotypes(),
+                    existingClass.taggedValues());
 
             // Replace in registry
             classes.put(qualifiedName, updatedClass);
@@ -480,6 +484,45 @@ public final class PureModelBuilder implements ModelContext {
         return services.get(serviceName);
     }
 
+    // ==================== Bulk Accessors (for NLQ indexing) ====================
+
+    /**
+     * Returns all registered classes, deduplicated by qualified name.
+     * Classes registered by both simple and qualified name are included once.
+     */
+    public Map<String, PureClass> getAllClasses() {
+        Map<String, PureClass> result = new HashMap<>();
+        for (var entry : classes.entrySet()) {
+            PureClass pc = entry.getValue();
+            result.putIfAbsent(pc.qualifiedName(), pc);
+        }
+        return result;
+    }
+
+    /**
+     * Returns all registered associations, deduplicated by qualified name.
+     */
+    public Map<String, Association> getAllAssociations() {
+        Map<String, Association> result = new HashMap<>();
+        for (var entry : associations.entrySet()) {
+            Association a = entry.getValue();
+            result.putIfAbsent(a.qualifiedName(), a);
+        }
+        return result;
+    }
+
+    /**
+     * Returns all registered enums, deduplicated by qualified name.
+     */
+    public Map<String, EnumDefinition> getAllEnums() {
+        Map<String, EnumDefinition> result = new HashMap<>();
+        for (var entry : enums.entrySet()) {
+            EnumDefinition e = entry.getValue();
+            result.putIfAbsent(e.qualifiedName(), e);
+        }
+        return result;
+    }
+
     // ==================== ModelContext Implementation ====================
 
     @Override
@@ -610,7 +653,7 @@ public final class PureModelBuilder implements ModelContext {
     private Property convertProperty(ClassDefinition.PropertyDefinition propDef) {
         Type type = resolveType(propDef.type());
         Multiplicity multiplicity = new Multiplicity(propDef.lowerBound(), propDef.upperBound());
-        return new Property(propDef.name(), type, multiplicity);
+        return new Property(propDef.name(), type, multiplicity, propDef.taggedValues());
     }
 
     private Type resolveType(String typeName) {

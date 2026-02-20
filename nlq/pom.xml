@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.finos.legend</groupId>
+        <artifactId>legend-lite</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>legend-lite-nlq</artifactId>
+    <packaging>jar</packaging>
+    <name>Legend Lite - NLQ</name>
+    <description>Natural Language Query to Pure — semantic index, LLM pipeline, and evaluation framework.</description>
+
+    <dependencies>
+        <!-- Legend-Lite Engine (provides PureModelBuilder, PureClass, etc.) -->
+        <dependency>
+            <groupId>org.finos.legend</groupId>
+            <artifactId>legend-lite-engine</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Skip NLQ tests by default (they require GEMINI_API_KEY and cost money).
+                         Run explicitly with: mvn test -pl nlq -Dtest="NlqFullPipelineEvalTest"
+                         Non-LLM tests always run: mvn test -pl nlq -->
+                    <excludes>
+                        <exclude>**/NlqFullPipelineEvalTest.java</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
