@@ -148,10 +148,33 @@ public class GeminiClient implements LlmClient {
     }
 
     private static String unescapeJson(String s) {
-        return s.replace("\\n", "\n")
-                .replace("\\r", "\r")
-                .replace("\\t", "\t")
-                .replace("\\\"", "\"")
-                .replace("\\\\", "\\");
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                switch (next) {
+                    case 'n' -> { sb.append('\n'); i++; }
+                    case 'r' -> { sb.append('\r'); i++; }
+                    case 't' -> { sb.append('\t'); i++; }
+                    case '"' -> { sb.append('"'); i++; }
+                    case '\\' -> { sb.append('\\'); i++; }
+                    case '/' -> { sb.append('/'); i++; }
+                    case 'u' -> {
+                        if (i + 5 < s.length()) {
+                            String hex = s.substring(i + 2, i + 6);
+                            sb.append((char) Integer.parseInt(hex, 16));
+                            i += 5;
+                        } else {
+                            sb.append(c);
+                        }
+                    }
+                    default -> sb.append(c);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 }

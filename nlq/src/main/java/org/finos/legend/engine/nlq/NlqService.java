@@ -134,13 +134,24 @@ public class NlqService {
         String systemPrompt = """
                 You are a Pure language code generator. Generate a valid Pure query expression.
                 
+                IMPORTANT — there are TWO kinds of filter in Pure:
+                1. Class filter (BEFORE project): Only use when you need to navigate associations.
+                   Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project(...)
+                2. Relation filter (AFTER project): The PREFERRED way to filter on simple properties.
+                   Trade.all()->project([t|$t.tradeId, t|$t.status], ['Trade ID', 'Status'])->filter(row|$row.getString('Status') == 'NEW')
+                
+                Use post-project filter (relation filter) for simple property filters.
+                Use pre-project filter (class filter) ONLY when filtering on navigated association properties.
+                
+                Relation filter accessor methods: getString('col'), getInteger('col'), getFloat('col'), getDate('col')
+                
                 Pure query syntax examples:
                 
-                1. Simple filter:
-                   Trade.all()->filter(t|$t.status == 'NEW')
+                1. Project with post-filter (preferred for simple filters):
+                   Person.all()->project([p|$p.firstName, p|$p.age], ['Name', 'Age'])->filter(row|$row.getInteger('Age') > 30)
                 
-                2. Filter with navigation:
-                   Trade.all()->filter(t|$t.desk.name == 'AMER Equity Swaps')
+                2. Class filter for association navigation (pre-project):
+                   Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project([t|$t.tradeId, t|$t.notional], ['Trade ID', 'Notional'])
                 
                 3. Project columns:
                    Trade.all()->project([t|$t.tradeId, t|$t.notional, t|$t.counterparty.name], ['Trade ID', 'Notional', 'Counterparty'])
@@ -149,10 +160,10 @@ public class NlqService {
                    DailyPnL.all()->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])
                 
                 5. Sort and limit:
-                   Trade.all()->sortBy(t|$t.notional->descending())->limit(10)
+                   Trade.all()->project([t|$t.tradeId, t|$t.notional], ['Trade ID', 'Notional'])->sortBy('Notional')->limit(10)
                 
-                6. Combined:
-                   DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps' && $p.pnlDate >= %2026-01-01)->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])
+                6. Combined — class filter + project + relation filter:
+                   DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps')->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])->filter(row|$row.getFloat('Total PnL') > 0)
                 
                 Key rules:
                 - Always start with ClassName.all()
@@ -160,6 +171,8 @@ public class NlqService {
                 - Date literals use %YYYY-MM-DD format
                 - Navigate associations using dot notation
                 - groupBy takes 3 args: [group lambdas], [agg expressions], ['column names']
+                - Prefer post-project filter for simple property conditions
+                - Use pre-project (class) filter only for association navigation filters
                 
                 Return ONLY the Pure query expression. No explanation, no markdown.
                 """;
