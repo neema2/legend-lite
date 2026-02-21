@@ -165,6 +165,26 @@ public class NlqService {
                 6. Combined — class filter + project + relation filter:
                    DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps')->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])->filter(row|$row.getFloat('Total PnL') > 0)
                 
+                7. Window functions — use extend(over(...), ~colName:{p,w,r|...}):
+                   // ROW_NUMBER (no partition):
+                   Employee.all()->project({e|$e.name}, {e|$e.department})->extend(over(), ~rowNum:{p,w,r|$p->rowNumber($r)})
+                   // RANK with partition + order:
+                   Employee.all()->project({e|$e.name}, {e|$e.department}, {e|$e.salary})->extend(over(~department, ~salary->desc()), ~rank:{p,w,r|$p->rank($w,$r)})
+                   // DENSE_RANK:
+                   Employee.all()->project({e|$e.name}, {e|$e.department}, {e|$e.salary})->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
+                   // LAG (previous row's value):
+                   Employee.all()->project({e|$e.name}, {e|$e.department}, {e|$e.salary})->extend(over(~department, ~salary->descending()), ~prevSalary:{p,w,r|$p->lag($r).salary})
+                   // LEAD (next row's value):
+                   Employee.all()->project({e|$e.name}, {e|$e.department}, {e|$e.salary})->extend(over(~department, ~salary->descending()), ~nextSalary:{p,w,r|$p->lead($r).salary})
+                
+                Window function rules:
+                - over(~partitionCol) — partition by a projected column
+                - over(~partitionCol, ~orderCol->desc()) — partition + order
+                - over() — no partition (whole result set)
+                - Ranking functions (rowNumber, rank, denseRank) use $p->func($r) or $p->func($w,$r)
+                - Value functions (lead, lag) use $p->func($r).property to access a property of the offset row
+                - extend() always comes AFTER project()
+                
                 Key rules:
                 - Always start with ClassName.all()
                 - Use $variable references inside lambdas
