@@ -1,6 +1,6 @@
 // ============================================================
 // Sales & Trading / Hedge Fund Domain Model — NLQ Eval Model
-// ~30 representative classes across key subdomains
+// ~60 classes across key subdomains
 // All annotated with nlq::NlqProfile metadata
 // ============================================================
 
@@ -8,7 +8,7 @@ Profile nlq::NlqProfile
 {
     stereotypes: [rootEntity, dimension, fact, lookup, deprecated];
     tags: [description, synonyms, sampleValues, businessDomain,
-           unit, exampleQuestions, importance, displayName];
+           unit, exampleQuestions, importance, displayName, whenToUse];
 }
 
 // ==================== Reference Data ====================
@@ -323,7 +323,8 @@ Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
    nlq::NlqProfile.synonyms = 'VaR, value at risk, risk measure',
    nlq::NlqProfile.businessDomain = 'Risk',
    nlq::NlqProfile.importance = 'high',
-   nlq::NlqProfile.exampleQuestions = 'VaR by portfolio|risk exposure by desk|VaR over 10M'}
+   nlq::NlqProfile.exampleQuestions = 'VaR by portfolio|risk exposure by desk|VaR over 10M',
+   nlq::NlqProfile.whenToUse = 'Use as root when querying VaR amounts, risk thresholds, or filtering by VaR level. Prefer over Portfolio when the question involves VaR values.'}
 risk::VaRResult
 {
     {nlq::NlqProfile.description = 'VaR calculation date'}
@@ -452,6 +453,637 @@ marketdata::YieldCurve
     currency: String[1];
     {nlq::NlqProfile.description = 'Curve type', nlq::NlqProfile.sampleValues = 'OIS, LIBOR, SOFR, GOVT'}
     curveType: String[1];
+}
+
+// ==================== Products (Extended) ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A listed or OTC option contract giving the right to buy/sell an underlying',
+   nlq::NlqProfile.synonyms = 'option, call, put, derivative, vol product',
+   nlq::NlqProfile.businessDomain = 'Products',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'list all options|options expiring this month|options by strike'}
+products::Option extends products::Instrument
+{
+    {nlq::NlqProfile.description = 'Strike price of the option', nlq::NlqProfile.unit = 'USD'}
+    strike: Float[1];
+    {nlq::NlqProfile.description = 'Option expiry date'}
+    expiryDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Call or Put', nlq::NlqProfile.sampleValues = 'CALL, PUT'}
+    optionType: String[1];
+    {nlq::NlqProfile.description = 'American or European exercise style', nlq::NlqProfile.sampleValues = 'AMERICAN, EUROPEAN'}
+    exerciseStyle: String[1];
+    {nlq::NlqProfile.description = 'Implied volatility at last mark', nlq::NlqProfile.unit = 'percentage'}
+    impliedVol: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'An exchange-traded futures contract',
+   nlq::NlqProfile.synonyms = 'future, futures contract, listed derivative',
+   nlq::NlqProfile.businessDomain = 'Products',
+   nlq::NlqProfile.importance = 'medium'}
+products::Future extends products::Instrument
+{
+    {nlq::NlqProfile.description = 'Contract expiry date'}
+    expiryDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Contract size / multiplier'}
+    contractSize: Float[1];
+    {nlq::NlqProfile.description = 'Last settlement price', nlq::NlqProfile.unit = 'USD'}
+    lastPrice: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A foreign exchange forward contract to exchange currencies at a future date',
+   nlq::NlqProfile.synonyms = 'fx forward, currency forward, fx swap',
+   nlq::NlqProfile.businessDomain = 'Products',
+   nlq::NlqProfile.importance = 'medium'}
+products::FxForward extends products::Instrument
+{
+    {nlq::NlqProfile.description = 'Base currency', nlq::NlqProfile.sampleValues = 'EUR, GBP, JPY'}
+    baseCurrency: String[1];
+    {nlq::NlqProfile.description = 'Quote currency', nlq::NlqProfile.sampleValues = 'USD, EUR'}
+    quoteCurrency: String[1];
+    {nlq::NlqProfile.description = 'Forward rate'}
+    forwardRate: Float[1];
+    {nlq::NlqProfile.description = 'Value date'}
+    valueDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Notional amount in base currency', nlq::NlqProfile.unit = 'base currency'}
+    notionalBase: Float[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A credit default swap providing protection against credit events',
+   nlq::NlqProfile.synonyms = 'CDS, credit swap, credit protection, credit derivative',
+   nlq::NlqProfile.businessDomain = 'Products',
+   nlq::NlqProfile.importance = 'medium'}
+products::CreditDefaultSwap extends products::Instrument
+{
+    {nlq::NlqProfile.description = 'Annual spread in basis points', nlq::NlqProfile.unit = 'bps'}
+    spread: Float[1];
+    {nlq::NlqProfile.description = 'Protection buyer or seller', nlq::NlqProfile.sampleValues = 'BUYER, SELLER'}
+    protectionSide: String[1];
+    {nlq::NlqProfile.description = 'CDS maturity date'}
+    maturityDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Notional amount', nlq::NlqProfile.unit = 'USD'}
+    notional: Float[1];
+    {nlq::NlqProfile.description = 'Reference entity name', nlq::NlqProfile.sampleValues = 'Ford Motor, General Electric'}
+    referenceEntity: String[1];
+}
+
+// ==================== Reference Data (Extended) ====================
+
+Class <<nlq::NlqProfile.lookup>>
+  {nlq::NlqProfile.description = 'An entity that issues securities (bonds, equities)',
+   nlq::NlqProfile.synonyms = 'issuer, borrower, obligor',
+   nlq::NlqProfile.businessDomain = 'RefData',
+   nlq::NlqProfile.importance = 'medium'}
+refdata::Issuer
+{
+    {nlq::NlqProfile.description = 'Issuer unique identifier'}
+    issuerId: String[1];
+    {nlq::NlqProfile.description = 'Issuer legal name', nlq::NlqProfile.sampleValues = 'Apple Inc, US Treasury, Deutsche Bank'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Credit rating', nlq::NlqProfile.sampleValues = 'AAA, AA+, A, BBB-, BB'}
+    creditRating: String[0..1];
+    {nlq::NlqProfile.description = 'Country of domicile', nlq::NlqProfile.sampleValues = 'US, GB, DE, JP'}
+    country: String[1];
+}
+
+Class <<nlq::NlqProfile.lookup>>
+  {nlq::NlqProfile.description = 'Industry classification for securities',
+   nlq::NlqProfile.synonyms = 'industry, sub-sector, business segment',
+   nlq::NlqProfile.businessDomain = 'RefData',
+   nlq::NlqProfile.importance = 'low'}
+refdata::Industry
+{
+    {nlq::NlqProfile.description = 'Industry name', nlq::NlqProfile.sampleValues = 'Software, Banking, Pharmaceuticals, Oil & Gas'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Industry code'}
+    code: String[1];
+}
+
+// ==================== Organization (Extended) ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A business unit that contains multiple trading desks',
+   nlq::NlqProfile.synonyms = 'business unit, division, BU',
+   nlq::NlqProfile.businessDomain = 'Organization',
+   nlq::NlqProfile.importance = 'medium'}
+org::BusinessUnit
+{
+    {nlq::NlqProfile.description = 'Business unit identifier'}
+    buId: String[1];
+    {nlq::NlqProfile.description = 'Business unit name', nlq::NlqProfile.sampleValues = 'Global Markets, Investment Banking, Asset Management'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Head of business unit'}
+    head: String[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'An internal legal entity for booking and regulatory purposes',
+   nlq::NlqProfile.synonyms = 'legal entity, booking entity, LE',
+   nlq::NlqProfile.businessDomain = 'Organization',
+   nlq::NlqProfile.importance = 'medium'}
+org::InternalLegalEntity
+{
+    {nlq::NlqProfile.description = 'Legal entity identifier'}
+    leId: String[1];
+    {nlq::NlqProfile.description = 'Legal entity name', nlq::NlqProfile.sampleValues = 'Acme Securities LLC, Acme Europe Ltd'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Jurisdiction', nlq::NlqProfile.sampleValues = 'US, UK, DE, SG, HK'}
+    jurisdiction: String[1];
+}
+
+// ==================== Trading (Extended) ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A fill or partial fill execution against an order',
+   nlq::NlqProfile.synonyms = 'execution, fill, partial fill, exec',
+   nlq::NlqProfile.businessDomain = 'Trading',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'executions today|fills for order X|average fill price'}
+trading::Execution
+{
+    {nlq::NlqProfile.description = 'Execution unique identifier'}
+    executionId: String[1];
+    {nlq::NlqProfile.description = 'Execution timestamp'}
+    executionTime: DateTime[1];
+    {nlq::NlqProfile.description = 'Filled quantity'}
+    filledQuantity: Float[1];
+    {nlq::NlqProfile.description = 'Fill price', nlq::NlqProfile.unit = 'USD'}
+    fillPrice: Float[1];
+    {nlq::NlqProfile.description = 'Execution venue', nlq::NlqProfile.sampleValues = 'NYSE, NASDAQ, DARK, OTC'}
+    venue: String[1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'An allocation of a block trade to client accounts',
+   nlq::NlqProfile.synonyms = 'allocation, alloc, trade allocation, account allocation',
+   nlq::NlqProfile.businessDomain = 'Trading',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'allocations for trade X|allocations by account'}
+trading::Allocation
+{
+    {nlq::NlqProfile.description = 'Allocation unique identifier'}
+    allocationId: String[1];
+    {nlq::NlqProfile.description = 'Allocated quantity'}
+    quantity: Float[1];
+    {nlq::NlqProfile.description = 'Target account or fund', nlq::NlqProfile.sampleValues = 'FUND-A, ACCT-001'}
+    account: String[1];
+    {nlq::NlqProfile.description = 'Allocation date'}
+    allocationDate: StrictDate[1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A lifecycle event on a trade such as amendment, cancellation, or novation',
+   nlq::NlqProfile.synonyms = 'trade event, lifecycle event, amendment, cancellation, novation',
+   nlq::NlqProfile.businessDomain = 'Trading',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'trade amendments today|cancelled trades|novations this month',
+   nlq::NlqProfile.whenToUse = 'Use as root when querying lifecycle events like cancellations, amendments, or novations. Prefer over Trade when the question is about event types or event dates.'}
+trading::TradeLifecycleEvent
+{
+    {nlq::NlqProfile.description = 'Event unique identifier'}
+    eventId: String[1];
+    {nlq::NlqProfile.description = 'Event type', nlq::NlqProfile.sampleValues = 'AMEND, CANCEL, NOVATION, EXERCISE, EXPIRY'}
+    eventType: String[1];
+    {nlq::NlqProfile.description = 'Event timestamp'}
+    eventDate: DateTime[1];
+    {nlq::NlqProfile.description = 'Reason or comment for the event'}
+    reason: String[0..1];
+}
+
+// ==================== P&L (Extended) ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Breakdown of PnL into attribution categories (market, carry, theta, new trades)',
+   nlq::NlqProfile.synonyms = 'PnL attribution, PnL explain, PnL breakdown',
+   nlq::NlqProfile.businessDomain = 'PnL',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'PnL attribution by category|what drove PnL today|market vs carry PnL',
+   nlq::NlqProfile.whenToUse = 'Use as root when querying PnL breakdown by category, driver, or attribution type. Prefer over DailyPnL when the question is about what drove PnL.'}
+pnl::PnLAttribution
+{
+    {nlq::NlqProfile.description = 'Attribution date'}
+    attributionDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Attribution category', nlq::NlqProfile.sampleValues = 'MARKET, CARRY, THETA, NEW_TRADE, ROLL, RESIDUAL'}
+    category: String[1];
+    {nlq::NlqProfile.description = 'Attribution amount', nlq::NlqProfile.unit = 'USD'}
+    amount: Float[1];
+}
+
+// ==================== Risk (Extended) ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A risk limit defining the maximum allowed exposure or loss',
+   nlq::NlqProfile.synonyms = 'risk limit, limit, exposure limit, loss limit',
+   nlq::NlqProfile.businessDomain = 'Risk',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'show all risk limits|limits by desk|limits near threshold'}
+risk::Limit
+{
+    {nlq::NlqProfile.description = 'Limit unique identifier'}
+    limitId: String[1];
+    {nlq::NlqProfile.description = 'Limit type', nlq::NlqProfile.sampleValues = 'VAR, NOTIONAL, DELTA, DV01, LOSS'}
+    limitType: String[1];
+    {nlq::NlqProfile.description = 'Maximum allowed value', nlq::NlqProfile.unit = 'USD'}
+    limitAmount: Float[1];
+    {nlq::NlqProfile.description = 'Current utilization', nlq::NlqProfile.unit = 'USD'}
+    currentUtilization: Float[1];
+    {nlq::NlqProfile.description = 'Utilization percentage', nlq::NlqProfile.unit = 'percentage'}
+    utilizationPct: Float[1];
+    {nlq::NlqProfile.description = 'Limit status', nlq::NlqProfile.sampleValues = 'ACTIVE, BREACHED, SUSPENDED'}
+    status: String[1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'An event where a risk limit was breached',
+   nlq::NlqProfile.synonyms = 'limit breach, breach, limit violation, exceedance',
+   nlq::NlqProfile.businessDomain = 'Risk',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'show limit breaches|breaches this week|breaches by desk',
+   nlq::NlqProfile.whenToUse = 'Use as root when querying breach events, breach severity, or breach amounts. Use Limit instead when filtering limits by status or utilization.'}
+risk::LimitBreach
+{
+    {nlq::NlqProfile.description = 'Breach unique identifier'}
+    breachId: String[1];
+    {nlq::NlqProfile.description = 'Breach timestamp'}
+    breachDate: DateTime[1];
+    {nlq::NlqProfile.description = 'Breach amount over the limit', nlq::NlqProfile.unit = 'USD'}
+    breachAmount: Float[1];
+    {nlq::NlqProfile.description = 'Severity level', nlq::NlqProfile.sampleValues = 'WARNING, SOFT, HARD'}
+    severity: String[1];
+    {nlq::NlqProfile.description = 'Resolution status', nlq::NlqProfile.sampleValues = 'OPEN, RESOLVED, ESCALATED'}
+    status: String[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A stress testing scenario with market shocks',
+   nlq::NlqProfile.synonyms = 'stress test, scenario, shock scenario',
+   nlq::NlqProfile.businessDomain = 'Risk',
+   nlq::NlqProfile.importance = 'medium'}
+risk::StressScenario
+{
+    {nlq::NlqProfile.description = 'Scenario unique identifier'}
+    scenarioId: String[1];
+    {nlq::NlqProfile.description = 'Scenario name', nlq::NlqProfile.sampleValues = '2008 Financial Crisis, COVID Shock, Rate +200bp, Equity -20%'}
+    name: String[1];
+    {nlq::NlqProfile.description = 'Scenario category', nlq::NlqProfile.sampleValues = 'HISTORICAL, HYPOTHETICAL, REGULATORY'}
+    category: String[1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Result of running a stress scenario against a portfolio',
+   nlq::NlqProfile.synonyms = 'stress result, scenario PnL, stress PnL',
+   nlq::NlqProfile.businessDomain = 'Risk',
+   nlq::NlqProfile.importance = 'high',
+   nlq::NlqProfile.exampleQuestions = 'worst stress result|stress PnL by scenario|stress results for portfolio X'}
+risk::StressResult
+{
+    {nlq::NlqProfile.description = 'Calculation date'}
+    calcDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Stressed PnL impact', nlq::NlqProfile.unit = 'USD'}
+    stressedPnL: Float[1];
+    {nlq::NlqProfile.description = 'Stressed VaR', nlq::NlqProfile.unit = 'USD'}
+    stressedVaR: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Sensitivity of portfolio value to a risk factor (DV01, CS01, etc)',
+   nlq::NlqProfile.synonyms = 'sensitivity, DV01, CS01, risk factor sensitivity, PV01',
+   nlq::NlqProfile.businessDomain = 'Risk',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'DV01 by desk|sensitivities for portfolio X|CS01 exposure',
+   nlq::NlqProfile.whenToUse = 'Use as root when querying specific risk sensitivities like DV01, CS01, or Vega. For general risk or VaR queries, use VaRResult instead.'}
+risk::SensitivityResult
+{
+    {nlq::NlqProfile.description = 'Sensitivity type', nlq::NlqProfile.sampleValues = 'DV01, CS01, VEGA, FX_DELTA'}
+    sensitivityType: String[1];
+    {nlq::NlqProfile.description = 'Risk factor name', nlq::NlqProfile.sampleValues = 'USD_SOFR_5Y, SPX, EUR/USD'}
+    riskFactor: String[1];
+    {nlq::NlqProfile.description = 'Sensitivity value', nlq::NlqProfile.unit = 'USD'}
+    sensitivityValue: Float[1];
+    {nlq::NlqProfile.description = 'Calculation date'}
+    calcDate: StrictDate[1];
+}
+
+// ==================== Operations / Middle Office ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A trade confirmation sent to or received from a counterparty',
+   nlq::NlqProfile.synonyms = 'confirmation, confirm, trade confirm',
+   nlq::NlqProfile.businessDomain = 'Operations',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'unconfirmed trades|confirmations pending|confirmations by counterparty',
+   nlq::NlqProfile.whenToUse = 'Use as root when querying confirmation status, pending confirms, or confirmation dates. Trade can also be used if navigating via association.'}
+ops::Confirmation
+{
+    {nlq::NlqProfile.description = 'Confirmation unique identifier'}
+    confirmId: String[1];
+    {nlq::NlqProfile.description = 'Confirmation status', nlq::NlqProfile.sampleValues = 'PENDING, SENT, AFFIRMED, DISPUTED'}
+    status: String[1];
+    {nlq::NlqProfile.description = 'Sent date'}
+    sentDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'Affirmed date'}
+    affirmedDate: StrictDate[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A netting agreement defining how trades are netted for settlement',
+   nlq::NlqProfile.synonyms = 'netting set, netting agreement, CSA',
+   nlq::NlqProfile.businessDomain = 'Operations',
+   nlq::NlqProfile.importance = 'medium'}
+ops::NettingSet
+{
+    {nlq::NlqProfile.description = 'Netting set identifier'}
+    nettingSetId: String[1];
+    {nlq::NlqProfile.description = 'Agreement type', nlq::NlqProfile.sampleValues = 'ISDA, CSA, GMRA'}
+    agreementType: String[1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A netting calculation reducing gross to net settlement amounts',
+   nlq::NlqProfile.synonyms = 'netting, net calculation, close-out netting',
+   nlq::NlqProfile.businessDomain = 'Operations',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'netting results|net exposure by counterparty',
+   nlq::NlqProfile.whenToUse = 'Use as root when querying netting results, net vs gross amounts, or netting by counterparty.'}
+ops::NettingResult
+{
+    {nlq::NlqProfile.description = 'Netting date'}
+    nettingDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Gross amount before netting', nlq::NlqProfile.unit = 'USD'}
+    grossAmount: Float[1];
+    {nlq::NlqProfile.description = 'Net amount after netting', nlq::NlqProfile.unit = 'USD'}
+    netAmount: Float[1];
+    {nlq::NlqProfile.description = 'Number of trades included'}
+    tradeCount: Integer[1];
+}
+
+// ==================== Collateral (Extended) ====================
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A collateral agreement (CSA/ISDA) governing margin terms with a counterparty',
+   nlq::NlqProfile.synonyms = 'collateral agreement, CSA, ISDA, margin agreement',
+   nlq::NlqProfile.businessDomain = 'Collateral',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'collateral agreements|CSA with Goldman|agreements by threshold'}
+collateral::CollateralAgreement
+{
+    {nlq::NlqProfile.description = 'Agreement unique identifier'}
+    agreementId: String[1];
+    {nlq::NlqProfile.description = 'Agreement type', nlq::NlqProfile.sampleValues = 'CSA, VM_CSA, IM_CSA'}
+    agreementType: String[1];
+    {nlq::NlqProfile.description = 'Minimum transfer amount', nlq::NlqProfile.unit = 'USD'}
+    minimumTransferAmount: Float[1];
+    {nlq::NlqProfile.description = 'Independent amount / threshold', nlq::NlqProfile.unit = 'USD'}
+    threshold: Float[1];
+    {nlq::NlqProfile.description = 'Eligible collateral types', nlq::NlqProfile.sampleValues = 'CASH, GOVT_BOND, CORP_BOND'}
+    eligibleCollateral: String[1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'An actual collateral posting (cash or securities) against a margin call',
+   nlq::NlqProfile.synonyms = 'collateral posting, margin posting, collateral transfer',
+   nlq::NlqProfile.businessDomain = 'Collateral',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'collateral posted today|total collateral by counterparty|pending postings'}
+collateral::CollateralPosting
+{
+    {nlq::NlqProfile.description = 'Posting unique identifier'}
+    postingId: String[1];
+    {nlq::NlqProfile.description = 'Posted amount', nlq::NlqProfile.unit = 'USD'}
+    amount: Float[1];
+    {nlq::NlqProfile.description = 'Collateral type', nlq::NlqProfile.sampleValues = 'CASH, US_TREASURY, CORP_BOND'}
+    collateralType: String[1];
+    {nlq::NlqProfile.description = 'Posting date'}
+    postingDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Direction', nlq::NlqProfile.sampleValues = 'DELIVERED, RECEIVED'}
+    direction: String[1];
+    {nlq::NlqProfile.description = 'Posting status', nlq::NlqProfile.sampleValues = 'PENDING, SETTLED, FAILED'}
+    status: String[1];
+}
+
+// ==================== Positions (Extended) ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Cash balance in a specific currency for a book or account',
+   nlq::NlqProfile.synonyms = 'cash balance, cash, funding balance',
+   nlq::NlqProfile.businessDomain = 'Positions',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'cash balances by book|USD cash positions|total cash by currency'}
+positions::CashBalance
+{
+    {nlq::NlqProfile.description = 'Balance amount', nlq::NlqProfile.unit = 'local currency'}
+    balance: Float[1];
+    {nlq::NlqProfile.description = 'Currency of the balance', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP, JPY'}
+    currency: String[1];
+    {nlq::NlqProfile.description = 'Balance date'}
+    balanceDate: StrictDate[1];
+}
+
+// ==================== Regulatory / Compliance ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A regulatory trade report submitted to a trade repository or regulator',
+   nlq::NlqProfile.synonyms = 'trade report, regulatory report, EMIR report, MiFID report, Dodd-Frank report',
+   nlq::NlqProfile.businessDomain = 'Regulatory',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'trade reports pending|failed regulatory reports|reports by regime'}
+regulatory::TradeReport
+{
+    {nlq::NlqProfile.description = 'Report unique identifier'}
+    reportId: String[1];
+    {nlq::NlqProfile.description = 'Regulatory regime', nlq::NlqProfile.sampleValues = 'EMIR, MiFID, DODD_FRANK, MAS'}
+    regime: String[1];
+    {nlq::NlqProfile.description = 'Report status', nlq::NlqProfile.sampleValues = 'PENDING, SUBMITTED, ACCEPTED, REJECTED'}
+    status: String[1];
+    {nlq::NlqProfile.description = 'Submission timestamp'}
+    submissionDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Report type', nlq::NlqProfile.sampleValues = 'NEW, MODIFY, CANCEL, VALUATION'}
+    reportType: String[1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Transaction cost analysis (TCA) measuring execution quality',
+   nlq::NlqProfile.synonyms = 'TCA, transaction cost, execution cost, slippage, best execution',
+   nlq::NlqProfile.businessDomain = 'Regulatory',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'transaction costs by desk|average slippage|TCA report'}
+regulatory::TransactionCost
+{
+    {nlq::NlqProfile.description = 'Execution cost in basis points', nlq::NlqProfile.unit = 'bps'}
+    costBps: Float[1];
+    {nlq::NlqProfile.description = 'Implementation shortfall', nlq::NlqProfile.unit = 'USD'}
+    implementationShortfall: Float[1];
+    {nlq::NlqProfile.description = 'Market impact', nlq::NlqProfile.unit = 'bps'}
+    marketImpactBps: Float[1];
+    {nlq::NlqProfile.description = 'Benchmark price', nlq::NlqProfile.sampleValues = 'ARRIVAL, VWAP, TWAP, CLOSE'}
+    benchmark: String[1];
+    {nlq::NlqProfile.description = 'Analysis date'}
+    analysisDate: StrictDate[1];
+}
+
+// ==================== Market Data (Extended) ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A market price quote (bid, ask, mid) for an instrument',
+   nlq::NlqProfile.synonyms = 'quote, price, market price, mark, level',
+   nlq::NlqProfile.businessDomain = 'MarketData',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'latest prices|price for AAPL|quotes today'}
+marketdata::MarketQuote
+{
+    {nlq::NlqProfile.description = 'Quote timestamp'}
+    quoteTime: DateTime[1];
+    {nlq::NlqProfile.description = 'Bid price', nlq::NlqProfile.unit = 'USD'}
+    bid: Float[1];
+    {nlq::NlqProfile.description = 'Ask price', nlq::NlqProfile.unit = 'USD'}
+    ask: Float[1];
+    {nlq::NlqProfile.description = 'Mid price', nlq::NlqProfile.unit = 'USD'}
+    mid: Float[1];
+    {nlq::NlqProfile.description = 'Volume traded'}
+    volume: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A foreign exchange rate between two currencies',
+   nlq::NlqProfile.synonyms = 'fx rate, exchange rate, currency rate, fx spot',
+   nlq::NlqProfile.businessDomain = 'MarketData',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'current fx rates|EUR/USD rate|fx rates today'}
+marketdata::FxRate
+{
+    {nlq::NlqProfile.description = 'Currency pair', nlq::NlqProfile.sampleValues = 'EUR/USD, GBP/USD, USD/JPY'}
+    currencyPair: String[1];
+    {nlq::NlqProfile.description = 'Spot rate'}
+    spotRate: Float[1];
+    {nlq::NlqProfile.description = 'Rate timestamp'}
+    rateDate: DateTime[1];
+    {nlq::NlqProfile.description = 'Rate source', nlq::NlqProfile.sampleValues = 'ECB, BLOOMBERG, REUTERS'}
+    source: String[1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'An implied volatility surface for options pricing',
+   nlq::NlqProfile.synonyms = 'vol surface, volatility surface, vol grid, smile',
+   nlq::NlqProfile.businessDomain = 'MarketData',
+   nlq::NlqProfile.importance = 'medium'}
+marketdata::VolatilitySurface
+{
+    {nlq::NlqProfile.description = 'Surface identifier'}
+    surfaceId: String[1];
+    {nlq::NlqProfile.description = 'Surface snapshot date'}
+    surfaceDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Underlying instrument ticker'}
+    underlying: String[1];
+    {nlq::NlqProfile.description = 'Surface type', nlq::NlqProfile.sampleValues = 'EQUITY, FX, RATE'}
+    surfaceType: String[1];
+}
+
+// ==================== Funding ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A cash flow payment or receipt for a trade or position',
+   nlq::NlqProfile.synonyms = 'cash flow, payment, coupon, dividend, cashflow',
+   nlq::NlqProfile.businessDomain = 'Funding',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'upcoming cash flows|cash flows this week|coupon payments by book'}
+funding::CashFlow
+{
+    {nlq::NlqProfile.description = 'Cash flow unique identifier'}
+    cashFlowId: String[1];
+    {nlq::NlqProfile.description = 'Payment or receipt amount', nlq::NlqProfile.unit = 'USD'}
+    amount: Float[1];
+    {nlq::NlqProfile.description = 'Cash flow type', nlq::NlqProfile.sampleValues = 'COUPON, DIVIDEND, PRINCIPAL, FEE, PREMIUM'}
+    cashFlowType: String[1];
+    {nlq::NlqProfile.description = 'Payment date'}
+    paymentDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Currency', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP'}
+    currency: String[1];
+    {nlq::NlqProfile.description = 'Direction', nlq::NlqProfile.sampleValues = 'PAY, RECEIVE'}
+    direction: String[1];
+    {nlq::NlqProfile.description = 'Cash flow status', nlq::NlqProfile.sampleValues = 'PROJECTED, CONFIRMED, SETTLED'}
+    status: String[1];
+}
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'Funding rate or cost for borrowing/lending cash or securities',
+   nlq::NlqProfile.synonyms = 'funding rate, borrow cost, repo rate, financing rate',
+   nlq::NlqProfile.businessDomain = 'Funding',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'funding rates|borrow cost for equities|repo rates by tenor'}
+funding::FundingRate
+{
+    {nlq::NlqProfile.description = 'Rate date'}
+    rateDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Funding rate in basis points', nlq::NlqProfile.unit = 'bps'}
+    rateBps: Float[1];
+    {nlq::NlqProfile.description = 'Tenor or term', nlq::NlqProfile.sampleValues = 'ON, 1W, 1M, 3M, 6M, 1Y'}
+    tenor: String[1];
+    {nlq::NlqProfile.description = 'Rate type', nlq::NlqProfile.sampleValues = 'REPO, SEC_LENDING, UNSECURED'}
+    rateType: String[1];
+    {nlq::NlqProfile.description = 'Currency', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP'}
+    currency: String[1];
+}
+
+// ==================== Sales (Extended) ====================
+
+Class <<nlq::NlqProfile.fact>>
+  {nlq::NlqProfile.description = 'A client relationship mapping salespeople to counterparties with coverage details',
+   nlq::NlqProfile.synonyms = 'client coverage, client relationship, sales coverage',
+   nlq::NlqProfile.businessDomain = 'Sales',
+   nlq::NlqProfile.importance = 'medium',
+   nlq::NlqProfile.exampleQuestions = 'client coverage|who covers Goldman|salesperson clients',
+   nlq::NlqProfile.whenToUse = 'Use as root when querying which salesperson covers which client. SalesPerson can also be used if navigating via coverages association.'}
+sales::ClientCoverage
+{
+    {nlq::NlqProfile.description = 'Coverage role', nlq::NlqProfile.sampleValues = 'PRIMARY, SECONDARY, SPECIALIST'}
+    role: String[1];
+    {nlq::NlqProfile.description = 'Coverage start date'}
+    startDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Product coverage area', nlq::NlqProfile.sampleValues = 'Equity, Rates, Credit, FX'}
+    productArea: String[1];
+}
+
+// ==================== Enums ====================
+
+Enum trading::OrderType
+{
+    MARKET,
+    LIMIT,
+    STOP,
+    STOP_LIMIT,
+    IOC,
+    FOK
+}
+
+Enum risk::RiskMeasureType
+{
+    VAR,
+    EXPECTED_SHORTFALL,
+    STRESSED_VAR,
+    DV01,
+    CS01,
+    VEGA,
+    DELTA
+}
+
+Enum settlement::SettlementMethod
+{
+    DVP,
+    FOP,
+    PAYMENT,
+    PHYSICAL
+}
+
+Enum collateral::CollateralType
+{
+    CASH,
+    GOVT_BOND,
+    CORP_BOND,
+    EQUITY,
+    LETTER_OF_CREDIT
 }
 
 // ==================== Associations ====================
@@ -604,4 +1236,186 @@ Association products::Equity_Exchange
 {
     equities: products::Equity[*];
     exchange: refdata::Exchange[1];
+}
+
+// ==================== New Associations ====================
+
+Association products::Bond_Issuer
+{
+    bonds: products::Bond[*];
+    issuer: refdata::Issuer[1];
+}
+
+Association refdata::Sector_Industry
+{
+    sector: refdata::Sector[1];
+    industries: refdata::Industry[*];
+}
+
+Association org::BusinessUnit_Desk
+{
+    businessUnit: org::BusinessUnit[1];
+    desks: org::Desk[*];
+}
+
+Association org::BusinessUnit_LegalEntity
+{
+    businessUnit: org::BusinessUnit[1];
+    legalEntities: org::InternalLegalEntity[*];
+}
+
+Association trading::Trade_LegalEntity
+{
+    trades: trading::Trade[*];
+    bookingEntity: org::InternalLegalEntity[1];
+}
+
+Association trading::Order_Execution
+{
+    order: trading::Order[1];
+    executions: trading::Execution[*];
+}
+
+Association trading::Order_Trade
+{
+    order: trading::Order[0..1];
+    trades: trading::Trade[*];
+}
+
+Association trading::Trade_Allocation
+{
+    trade: trading::Trade[1];
+    allocations: trading::Allocation[*];
+}
+
+Association trading::Trade_LifecycleEvent
+{
+    trade: trading::Trade[1];
+    lifecycleEvents: trading::TradeLifecycleEvent[*];
+}
+
+Association pnl::PnLAttribution_DailyPnL
+{
+    dailyPnL: pnl::DailyPnL[1];
+    attributions: pnl::PnLAttribution[*];
+}
+
+Association risk::Limit_Desk
+{
+    limits: risk::Limit[*];
+    desk: org::Desk[1];
+}
+
+Association risk::LimitBreach_Limit
+{
+    limit: risk::Limit[1];
+    breaches: risk::LimitBreach[*];
+}
+
+Association risk::StressResult_Scenario
+{
+    scenario: risk::StressScenario[1];
+    results: risk::StressResult[*];
+}
+
+Association risk::StressResult_Portfolio
+{
+    portfolio: positions::Portfolio[1];
+    stressResults: risk::StressResult[*];
+}
+
+Association risk::SensitivityResult_Portfolio
+{
+    portfolio: positions::Portfolio[1];
+    sensitivities: risk::SensitivityResult[*];
+}
+
+Association ops::Confirmation_Trade
+{
+    trade: trading::Trade[1];
+    confirmation: ops::Confirmation[0..1];
+}
+
+Association ops::NettingSet_Counterparty
+{
+    nettingSets: ops::NettingSet[*];
+    counterparty: counterparty::Counterparty[1];
+}
+
+Association ops::NettingResult_NettingSet
+{
+    nettingSet: ops::NettingSet[1];
+    nettingResults: ops::NettingResult[*];
+}
+
+Association collateral::CollateralAgreement_Counterparty
+{
+    agreements: collateral::CollateralAgreement[*];
+    counterparty: counterparty::Counterparty[1];
+}
+
+Association collateral::MarginCall_Agreement
+{
+    agreement: collateral::CollateralAgreement[1];
+    marginCalls: collateral::MarginCall[*];
+}
+
+Association collateral::CollateralPosting_MarginCall
+{
+    marginCall: collateral::MarginCall[1];
+    postings: collateral::CollateralPosting[*];
+}
+
+Association positions::CashBalance_Book
+{
+    book: positions::Book[1];
+    cashBalances: positions::CashBalance[*];
+}
+
+Association regulatory::TradeReport_Trade
+{
+    trade: trading::Trade[1];
+    tradeReports: regulatory::TradeReport[*];
+}
+
+Association regulatory::TransactionCost_Trade
+{
+    trade: trading::Trade[1];
+    transactionCosts: regulatory::TransactionCost[*];
+}
+
+Association marketdata::MarketQuote_Instrument
+{
+    instrument: products::Instrument[1];
+    quotes: marketdata::MarketQuote[*];
+}
+
+Association marketdata::VolatilitySurface_Instrument
+{
+    instrument: products::Instrument[1];
+    volSurfaces: marketdata::VolatilitySurface[*];
+}
+
+Association funding::CashFlow_Trade
+{
+    trade: trading::Trade[1];
+    cashFlows: funding::CashFlow[*];
+}
+
+Association funding::CashFlow_Book
+{
+    book: positions::Book[1];
+    cashFlows: funding::CashFlow[*];
+}
+
+Association sales::ClientCoverage_SalesPerson
+{
+    salesPerson: sales::SalesPerson[1];
+    coverages: sales::ClientCoverage[*];
+}
+
+Association sales::ClientCoverage_Client
+{
+    client: counterparty::Counterparty[1];
+    coverages: sales::ClientCoverage[*];
 }

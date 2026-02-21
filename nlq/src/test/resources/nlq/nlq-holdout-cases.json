@@ -1,0 +1,627 @@
+[
+  {
+    "id": "h-trd-001",
+    "question": "largest trades by notional yesterday",
+    "subdomain": "Trading",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Trade"],
+        "mustExclude": ["YieldCurve", "Sector"],
+        "maxK": 15
+      },
+      "rootClass": "Trade",
+      "acceptableRootClasses": ["Trade"],
+      "query": {
+        "referenceQuery": "Trade.all()->project([t|$t.tradeId, t|$t.notional, t|$t.instrument.ticker, t|$t.counterparty.name, t|$t.tradeDate], ['Trade ID', 'Notional', 'Ticker', 'Counterparty', 'Date'])->filter(row|$row.getDate('Date') == today()->adjust(-1, DurationUnit.DAYS))->sort(descending('Notional'))",
+        "mustContainOps": ["project", "sort"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["~Date"],
+          "sortedBy": ["Notional"]
+        }
+      }
+    }
+  },
+  {
+    "id": "h-trd-002",
+    "question": "trades by product type this week",
+    "subdomain": "Trading",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Trade", "Instrument"],
+        "mustExclude": ["YieldCurve"],
+        "maxK": 15
+      },
+      "rootClass": "Trade",
+      "acceptableRootClasses": ["Trade"],
+      "query": {
+        "referenceQuery": "Trade.all()->groupBy([t|$t.instrument.productType], [agg(t|$t.tradeId, x|$x->count())], ['Product Type', 'Count'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": ["instrument.productType"],
+          "metrics": [{"property": "tradeId", "function": "count"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-pos-001",
+    "question": "short positions across all books",
+    "subdomain": "Positions",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Position"],
+        "mustExclude": ["YieldCurve"],
+        "maxK": 15
+      },
+      "rootClass": "Position",
+      "acceptableRootClasses": ["Position"],
+      "query": {
+        "referenceQuery": "Position.all()->project([p|$p.instrument.ticker, p|$p.quantity, p|$p.marketValue, p|$p.book.name], ['Ticker', 'Quantity', 'Market Value', 'Book'])->filter(row|$row.getFloat('Quantity') < 0)",
+        "mustContainOps": ["project", "filter"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["~Quantity"],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-pos-002",
+    "question": "total position value by currency",
+    "subdomain": "Positions",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Position"],
+        "mustExclude": ["YieldCurve"],
+        "maxK": 15
+      },
+      "rootClass": "Position",
+      "acceptableRootClasses": ["Position"],
+      "query": {
+        "referenceQuery": "Position.all()->groupBy([p|$p.instrument.currency], [agg(p|$p.marketValue, x|$x->sum())], ['Currency', 'Total Value'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": ["instrument.currency"],
+          "metrics": [{"property": "marketValue", "function": "sum"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-pnl-001",
+    "question": "worst performing books by realized PnL",
+    "subdomain": "PnL",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["DailyPnL"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "DailyPnL",
+      "acceptableRootClasses": ["DailyPnL"],
+      "query": {
+        "referenceQuery": "DailyPnL.all()->groupBy([p|$p.book.name], [agg(p|$p.realizedPnL, x|$x->sum())], ['Book', 'Realized PnL'])->sort('Realized PnL')",
+        "mustContainOps": ["groupBy", "sort"],
+        "properties": {
+          "dimensions": ["book.name"],
+          "metrics": [{"property": "realizedPnL", "function": "sum"}],
+          "filters": [],
+          "sortedBy": ["Realized PnL"]
+        }
+      }
+    }
+  },
+  {
+    "id": "h-pnl-002",
+    "question": "daily PnL trend for the credit desk",
+    "subdomain": "PnL",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["DailyPnL"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "DailyPnL",
+      "acceptableRootClasses": ["DailyPnL"],
+      "query": {
+        "referenceQuery": "DailyPnL.all()->filter(p|$p.desk.name == 'Credit')->project([p|$p.pnlDate, p|$p.totalPnL], ['Date', 'Total PnL'])->sort('Date')",
+        "mustContainOps": ["project", "filter", "sort"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["desk.name"],
+          "sortedBy": ["Date"]
+        }
+      }
+    }
+  },
+  {
+    "id": "h-risk-001",
+    "question": "desks exceeding their VaR limit",
+    "subdomain": "Risk",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["VaRResult"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "VaRResult",
+      "acceptableRootClasses": ["VaRResult", "Limit"],
+      "query": {
+        "referenceQuery": "VaRResult.all()->project([v|$v.portfolio.name, v|$v.varAmount], ['Portfolio', 'VaR'])",
+        "mustContainOps": ["project"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-risk-002",
+    "question": "gamma exposure by instrument",
+    "subdomain": "Risk",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Greeks"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "Greeks",
+      "acceptableRootClasses": ["Greeks"],
+      "query": {
+        "referenceQuery": "Greeks.all()->groupBy([g|$g.trade.instrument.ticker], [agg(g|$g.gamma, x|$x->sum())], ['Instrument', 'Total Gamma'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": ["trade.instrument.ticker"],
+          "metrics": [{"property": "gamma", "function": "sum"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-sales-001",
+    "question": "top salesperson by revenue this quarter",
+    "subdomain": "Sales",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["SalesCredit", "SalesPerson"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "SalesCredit",
+      "acceptableRootClasses": ["SalesCredit"],
+      "query": {
+        "referenceQuery": "SalesCredit.all()->groupBy([s|$s.salesPerson.name], [agg(s|$s.creditAmount, x|$x->sum())], ['Salesperson', 'Total Revenue'])->sort(descending('Total Revenue'))->limit(10)",
+        "mustContainOps": ["groupBy", "sort"],
+        "properties": {
+          "dimensions": ["salesPerson.name"],
+          "metrics": [{"property": "creditAmount", "function": "sum"}],
+          "filters": [],
+          "sortedBy": ["Total Revenue"]
+        }
+      }
+    }
+  },
+  {
+    "id": "h-sales-002",
+    "question": "sales revenue by product area",
+    "subdomain": "Sales",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["SalesCredit"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "SalesCredit",
+      "acceptableRootClasses": ["SalesCredit", "ClientCoverage"],
+      "query": {
+        "referenceQuery": "SalesCredit.all()->groupBy([s|$s.salesPerson.name], [agg(s|$s.creditAmount, x|$x->sum())], ['Salesperson', 'Revenue'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [{"property": "creditAmount", "function": "sum"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-settle-001",
+    "question": "unmatched settlements by amount",
+    "subdomain": "Operations",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Settlement"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "Settlement",
+      "acceptableRootClasses": ["Settlement"],
+      "query": {
+        "referenceQuery": "Settlement.all()->project([s|$s.trade.tradeId, s|$s.amount, s|$s.status, s|$s.settlementDate], ['Trade ID', 'Amount', 'Status', 'Date'])->filter(row|$row.getString('Status') == 'UNMATCHED')->sort(descending('Amount'))",
+        "mustContainOps": ["project", "filter", "sort"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["~Status"],
+          "sortedBy": ["Amount"]
+        }
+      }
+    }
+  },
+  {
+    "id": "h-confirm-001",
+    "question": "confirmations sent this week",
+    "subdomain": "Operations",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Confirmation"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "Confirmation",
+      "acceptableRootClasses": ["Confirmation", "Trade"],
+      "query": {
+        "referenceQuery": "Confirmation.all()->project([c|$c.confirmId, c|$c.status, c|$c.sentDate, c|$c.trade.tradeId], ['Confirm ID', 'Status', 'Sent Date', 'Trade ID'])->filter(row|$row.getString('Status') == 'SENT')",
+        "mustContainOps": ["project", "filter"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["~Status"],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-bond-001",
+    "question": "high yield bonds maturing this year",
+    "subdomain": "Products",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Bond"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "Bond",
+      "acceptableRootClasses": ["Bond"],
+      "query": {
+        "referenceQuery": "Bond.all()->project([b|$b.ticker, b|$b.couponRate, b|$b.maturityDate, b|$b.issuer.name], ['Ticker', 'Coupon', 'Maturity', 'Issuer'])->filter(row|$row.getFloat('Coupon') > 5.0)",
+        "mustContainOps": ["project", "filter"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["~Coupon"],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-cds-001",
+    "question": "CDS notional by reference entity",
+    "subdomain": "Products",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["CreditDefaultSwap"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "CreditDefaultSwap",
+      "acceptableRootClasses": ["CreditDefaultSwap"],
+      "query": {
+        "referenceQuery": "CreditDefaultSwap.all()->groupBy([c|$c.referenceEntity], [agg(c|$c.notional, x|$x->sum())], ['Reference Entity', 'Total Notional'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": ["referenceEntity"],
+          "metrics": [{"property": "notional", "function": "sum"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-limit-001",
+    "question": "limits near capacity",
+    "subdomain": "Risk",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["Limit"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "Limit",
+      "acceptableRootClasses": ["Limit"],
+      "query": {
+        "referenceQuery": "Limit.all()->project([l|$l.limitId, l|$l.limitType, l|$l.utilizationPct, l|$l.desk.name], ['Limit ID', 'Type', 'Utilization %', 'Desk'])->filter(row|$row.getFloat('Utilization %') > 80.0)->sort(descending('Utilization %'))",
+        "mustContainOps": ["project", "filter", "sort"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["~Utilization %"],
+          "sortedBy": ["Utilization %"]
+        }
+      }
+    }
+  },
+  {
+    "id": "h-stress-001",
+    "question": "worst stress test result by portfolio",
+    "subdomain": "Risk",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["StressResult"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "StressResult",
+      "acceptableRootClasses": ["StressResult"],
+      "query": {
+        "referenceQuery": "StressResult.all()->groupBy([s|$s.portfolio.name], [agg(s|$s.stressedPnL, x|$x->min())], ['Portfolio', 'Worst PnL'])->sort('Worst PnL')",
+        "mustContainOps": ["groupBy", "sort"],
+        "properties": {
+          "dimensions": ["portfolio.name"],
+          "metrics": [{"property": "stressedPnL", "function": "min"}],
+          "filters": [],
+          "sortedBy": ["Worst PnL"]
+        }
+      }
+    }
+  },
+  {
+    "id": "h-coll-001",
+    "question": "total collateral posted by type",
+    "subdomain": "Collateral",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["CollateralPosting"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "CollateralPosting",
+      "acceptableRootClasses": ["CollateralPosting"],
+      "query": {
+        "referenceQuery": "CollateralPosting.all()->groupBy([p|$p.collateralType], [agg(p|$p.amount, x|$x->sum())], ['Type', 'Total Amount'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": ["collateralType"],
+          "metrics": [{"property": "amount", "function": "sum"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-csa-001",
+    "question": "CSA agreements by type",
+    "subdomain": "Collateral",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["CollateralAgreement"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "CollateralAgreement",
+      "acceptableRootClasses": ["CollateralAgreement"],
+      "query": {
+        "referenceQuery": "CollateralAgreement.all()->groupBy([a|$a.agreementType], [agg(a|$a.agreementId, x|$x->count())], ['Agreement Type', 'Count'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": ["agreementType"],
+          "metrics": [{"property": "agreementId", "function": "count"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-fx-001",
+    "question": "latest FX rates for EUR pairs",
+    "subdomain": "MarketData",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["FxRate"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "FxRate",
+      "acceptableRootClasses": ["FxRate"],
+      "query": {
+        "referenceQuery": "FxRate.all()->filter(f|$f.currencyPair->contains('EUR'))->project([f|$f.currencyPair, f|$f.spotRate, f|$f.rateDate], ['Pair', 'Rate', 'Date'])->sort(descending('Date'))",
+        "mustContainOps": ["filter", "project", "sort"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["currencyPair"],
+          "sortedBy": ["Date"]
+        }
+      }
+    }
+  },
+  {
+    "id": "h-quote-001",
+    "question": "bid-ask spread for SPY",
+    "subdomain": "MarketData",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["MarketQuote"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "MarketQuote",
+      "acceptableRootClasses": ["MarketQuote"],
+      "query": {
+        "referenceQuery": "MarketQuote.all()->filter(q|$q.instrument.ticker == 'SPY')->project([q|$q.bid, q|$q.ask, q|$q.mid, q|$q.quoteTime], ['Bid', 'Ask', 'Mid', 'Time'])->sort(descending('Time'))",
+        "mustContainOps": ["filter", "project"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["instrument.ticker"],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-cf-001",
+    "question": "upcoming interest payments next month",
+    "subdomain": "Funding",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["CashFlow"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "CashFlow",
+      "acceptableRootClasses": ["CashFlow"],
+      "query": {
+        "referenceQuery": "CashFlow.all()->project([c|$c.cashFlowId, c|$c.cashFlowType, c|$c.amount, c|$c.paymentDate, c|$c.currency], ['CF ID', 'Type', 'Amount', 'Date', 'Currency'])->filter(row|$row.getString('Type') == 'INTEREST')",
+        "mustContainOps": ["project", "filter"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["~Type"],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-reg-001",
+    "question": "EMIR reports that failed submission",
+    "subdomain": "Regulatory",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["TradeReport"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "TradeReport",
+      "acceptableRootClasses": ["TradeReport"],
+      "query": {
+        "referenceQuery": "TradeReport.all()->project([r|$r.reportId, r|$r.regime, r|$r.status, r|$r.reportType], ['Report ID', 'Regime', 'Status', 'Type'])->filter(row|$row.getString('Regime') == 'EMIR' && $row.getString('Status') == 'FAILED')",
+        "mustContainOps": ["project", "filter"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": ["~Regime", "~Status"],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-tca-001",
+    "question": "average slippage by venue",
+    "subdomain": "Regulatory",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["TransactionCost"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "TransactionCost",
+      "acceptableRootClasses": ["TransactionCost", "Execution"],
+      "query": {
+        "referenceQuery": "TransactionCost.all()->groupBy([t|$t.trade.instrument.ticker], [agg(t|$t.marketImpactBps, x|$x->avg())], ['Instrument', 'Avg Market Impact (bps)'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [{"property": "marketImpactBps", "function": "avg"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-attr-001",
+    "question": "market PnL vs carry PnL this month",
+    "subdomain": "PnL",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["PnLAttribution"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "PnLAttribution",
+      "acceptableRootClasses": ["PnLAttribution", "DailyPnL"],
+      "query": {
+        "referenceQuery": "PnLAttribution.all()->groupBy([p|$p.category], [agg(p|$p.amount, x|$x->sum())], ['Category', 'Total'])",
+        "mustContainOps": ["groupBy"],
+        "properties": {
+          "dimensions": ["category"],
+          "metrics": [{"property": "amount", "function": "sum"}],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "h-netting-001",
+    "question": "netting efficiency by counterparty",
+    "subdomain": "Operations",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": ["NettingResult"],
+        "mustExclude": [],
+        "maxK": 15
+      },
+      "rootClass": "NettingResult",
+      "acceptableRootClasses": ["NettingResult"],
+      "query": {
+        "referenceQuery": "NettingResult.all()->project([n|$n.nettingSet.counterparty.name, n|$n.grossAmount, n|$n.netAmount], ['Counterparty', 'Gross', 'Net'])",
+        "mustContainOps": ["project"],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  }
+]

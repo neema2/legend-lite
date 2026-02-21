@@ -161,6 +161,30 @@ class NlqEvalRetrievalTest {
                         100 * passRate, passed, total));
     }
 
+    // ==================== Holdout Retrieval Eval ====================
+
+    @Test
+    @DisplayName("Holdout retrieval eval (blind set)")
+    void testHoldoutRetrievalEval() throws Exception {
+        List<NlqEvalCase> holdoutCases = NlqEvalRunner.loadCases("/nlq/nlq-holdout-cases.json");
+        NlqEvalRunner runner = new NlqEvalRunner(index, modelBuilder);
+        List<NlqEvalResult> results = runner.runRetrievalEval(holdoutCases, 15);
+
+        String report = NlqEvalMetrics.generateReport(results);
+        System.out.println("\nHOLDOUT Retrieval Report:");
+        System.out.println(report);
+
+        long passed = results.stream()
+                .filter(r -> !r.hasError() && r.retrieval() != null && r.retrieval().passed())
+                .count();
+        long total = results.size();
+        double passRate = (double) passed / total;
+
+        System.out.printf("Holdout pass rate: %d/%d = %.1f%%%n", passed, total, 100 * passRate);
+        assertTrue(passRate >= 0.40,
+                String.format("Holdout retrieval pass rate %.1f%% below 40%% threshold", 100 * passRate));
+    }
+
     // ==================== Schema Extraction Test ====================
 
     @Test

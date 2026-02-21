@@ -118,11 +118,18 @@ public class NlqEvalRunner {
         List<NlqFullEvalResult> results = new ArrayList<>();
         for (int i = 0; i < cases.size(); i++) {
             NlqEvalCase evalCase = cases.get(i);
-            results.add(runSingleFullPipelineEval(evalCase, service, judge, fullSchema));
+            System.out.printf("[%d/%d] %s: \"%s\"...%n", i + 1, cases.size(), evalCase.id(), evalCase.question());
+            System.out.flush();
+            long caseStart = System.nanoTime();
+            NlqFullEvalResult result = runSingleFullPipelineEval(evalCase, service, judge, fullSchema);
+            long caseMs = (System.nanoTime() - caseStart) / 1_000_000;
+            results.add(result);
+            System.out.printf("  → %s (%d ms)%s%n", result.error() != null ? "ERROR: " + result.error() : "done", caseMs, result.error() != null ? "" : "");
+            System.out.flush();
 
             // Rate-limit: pause between cases to avoid API throttling (4 LLM calls per case)
             if (i < cases.size() - 1) {
-                try { Thread.sleep(4000); } catch (InterruptedException ignored) {}
+                try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
             }
         }
         return results;
@@ -144,8 +151,12 @@ public class NlqEvalRunner {
                             evalCase.expected().retrieval());
 
             // Run full pipeline
+            System.out.print("    pipeline...");
+            System.out.flush();
             NlqResult nlqResult = service.process(evalCase.question(), null);
             long elapsed = (System.nanoTime() - start) / 1_000_000;
+            System.out.printf(" root=%s (%d ms)%n", nlqResult.rootClass(), elapsed);
+            System.out.flush();
 
             if (!nlqResult.isValid()) {
                 return NlqFullEvalResult.error(
@@ -153,18 +164,33 @@ public class NlqEvalRunner {
                         nlqResult.validationError());
             }
 
-            // Score routing
+            // Score routing (preferred + acceptable)
             NlqFullEvalResult.RoutingScore routing =
-                    NlqEvalMetrics.scoreRouting(evalCase.expected().rootClass(), nlqResult.rootClass());
+                    NlqEvalMetrics.scoreRouting(
+                            evalCase.expected().rootClass(),
+                            evalCase.expected().acceptableRootClasses(),
+                            nlqResult.rootClass());
 
-            // Score query accuracy (deterministic)
+            // Score query accuracy (deterministic ops)
             NlqFullEvalResult.QueryAccuracyScore queryAccuracy =
                     NlqEvalMetrics.scoreQueryAccuracy(nlqResult.pureQuery(), evalCase.expected().query());
 
-            // LLM-as-judge
+            // Score property roles (deterministic)
+            NlqFullEvalResult.PropertyRoleScore propertyRoles =
+                    NlqEvalMetrics.scorePropertyRoles(nlqResult.pureQuery(), evalCase.expected().query().properties());
+
+            // LLM-as-judge (structured multi-dimension)
+            System.out.print("    judging...");
+            System.out.flush();
             NlqFullEvalResult.LlmJudgeScore judgeScore =
                     NlqEvalMetrics.judgeQuery(judge, evalCase.question(), schema,
                             nlqResult.pureQuery(), evalCase.expected().query().referenceQuery());
+
+            System.out.printf(" overall=%d (c%d/f%d/a%d/s%d)%n",
+                    judgeScore.overall(), judgeScore.columnSelection(),
+                    judgeScore.filtering(), judgeScore.aggregation(),
+                    judgeScore.semanticEquivalence());
+            System.out.flush();
 
             return new NlqFullEvalResult(
                     evalCase.id(),
@@ -173,6 +199,7 @@ public class NlqEvalRunner {
                     retrievalScore,
                     routing,
                     queryAccuracy,
+                    propertyRoles,
                     judgeScore,
                     nlqResult.pureQuery(),
                     evalCase.expected().query().referenceQuery(),
@@ -190,8 +217,6 @@ public class NlqEvalRunner {
     static List<NlqEvalCase> parseEvalCases(String json) {
         List<NlqEvalCase> cases = new ArrayList<>();
 
-        // Split into individual case objects
-        // Each case is delimited by top-level { ... } inside the array
         List<String> caseBlocks = splitJsonObjects(json);
 
         for (String block : caseBlocks) {
@@ -200,6 +225,11 @@ public class NlqEvalRunner {
             String subdomain = extractString(block, "subdomain");
             String difficulty = extractString(block, "difficulty");
             String rootClass = extractString(block, "rootClass");
+
+            List<String> acceptableRootClasses = extractStringArray(block, "acceptableRootClasses");
+            if (acceptableRootClasses.isEmpty() && rootClass != null) {
+                acceptableRootClasses = List.of(rootClass);
+            }
 
             List<String> mustInclude = extractStringArray(block, "mustInclude");
             List<String> mustExclude = extractStringArray(block, "mustExclude");
@@ -210,17 +240,92 @@ public class NlqEvalRunner {
 
             String referenceQuery = extractString(block, "referenceQuery");
             List<String> mustContainOps = extractStringArray(block, "mustContainOps");
-            List<String> mustReferenceProperties = extractStringArray(block, "mustReferenceProperties");
+
+            // Parse role-based properties
+            NlqEvalCase.PropertyRoles properties = parsePropertyRoles(block);
+
             NlqEvalCase.QueryExpectation query =
-                    new NlqEvalCase.QueryExpectation(referenceQuery, mustContainOps, mustReferenceProperties);
+                    new NlqEvalCase.QueryExpectation(referenceQuery, mustContainOps, properties);
 
             NlqEvalCase.ExpectedOutcome expected =
-                    new NlqEvalCase.ExpectedOutcome(retrieval, rootClass, query);
+                    new NlqEvalCase.ExpectedOutcome(retrieval, rootClass, acceptableRootClasses, query);
 
             cases.add(new NlqEvalCase(id, question, subdomain, difficulty, expected));
         }
 
         return cases;
+    }
+
+    private static NlqEvalCase.PropertyRoles parsePropertyRoles(String block) {
+        // Extract the "properties" object using brace matching
+        String propsBlock = extractNestedObject(block, "properties");
+        if (propsBlock == null) {
+            return NlqEvalCase.PropertyRoles.EMPTY;
+        }
+
+        List<String> dimensions = extractStringArray(propsBlock, "dimensions");
+        List<String> filters = extractStringArray(propsBlock, "filters");
+        List<String> sortedBy = extractStringArray(propsBlock, "sortedBy");
+
+        // Parse metrics: array of {"property": "...", "function": "..."} objects
+        List<NlqEvalCase.MetricExpectation> metrics = new ArrayList<>();
+        String metricsBlock = extractNestedArray(propsBlock, "metrics");
+        if (metricsBlock != null) {
+            List<String> metricObjects = splitJsonObjects(metricsBlock);
+            for (String mo : metricObjects) {
+                String prop = extractString(mo, "property");
+                String func = extractString(mo, "function");
+                if (prop != null && func != null) {
+                    metrics.add(new NlqEvalCase.MetricExpectation(prop, func));
+                }
+            }
+        }
+
+        return new NlqEvalCase.PropertyRoles(dimensions, metrics, filters, sortedBy);
+    }
+
+    private static String extractNestedObject(String json, String key) {
+        int keyIdx = json.indexOf("\"" + key + "\"");
+        if (keyIdx < 0) return null;
+
+        int colonIdx = json.indexOf(':', keyIdx + key.length() + 2);
+        if (colonIdx < 0) return null;
+
+        // Find the opening brace
+        int braceStart = json.indexOf('{', colonIdx);
+        if (braceStart < 0) return null;
+
+        // Match braces
+        int depth = 0;
+        for (int i = braceStart; i < json.length(); i++) {
+            if (json.charAt(i) == '{') depth++;
+            else if (json.charAt(i) == '}') {
+                depth--;
+                if (depth == 0) return json.substring(braceStart, i + 1);
+            }
+        }
+        return null;
+    }
+
+    private static String extractNestedArray(String json, String key) {
+        int keyIdx = json.indexOf("\"" + key + "\"");
+        if (keyIdx < 0) return null;
+
+        int colonIdx = json.indexOf(':', keyIdx + key.length() + 2);
+        if (colonIdx < 0) return null;
+
+        int bracketStart = json.indexOf('[', colonIdx);
+        if (bracketStart < 0) return null;
+
+        int depth = 0;
+        for (int i = bracketStart; i < json.length(); i++) {
+            if (json.charAt(i) == '[') depth++;
+            else if (json.charAt(i) == ']') {
+                depth--;
+                if (depth == 0) return json.substring(bracketStart, i + 1);
+            }
+        }
+        return null;
     }
 
     private static List<String> splitJsonObjects(String json) {

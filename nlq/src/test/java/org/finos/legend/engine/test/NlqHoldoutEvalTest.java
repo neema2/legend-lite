@@ -14,15 +14,16 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Full pipeline eval that hits the real Gemini API.
+ * Holdout (blind) eval set — measures generalization.
+ * These cases should NEVER be used to tune prompts, metadata, or examples.
  * Skipped unless GEMINI_API_KEY is set.
  *
  * Run with:
- *   GEMINI_API_KEY=... mvn test -pl engine -Dtest="NlqFullPipelineEvalTest"
+ *   GEMINI_API_KEY=... mvn test -pl nlq -Dtest="NlqHoldoutEvalTest"
  */
 @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class NlqFullPipelineEvalTest {
+class NlqHoldoutEvalTest {
 
     private static PureModelBuilder modelBuilder;
     private static SemanticIndex index;
@@ -34,7 +35,7 @@ class NlqFullPipelineEvalTest {
 
     @BeforeAll
     static void setup() throws Exception {
-        InputStream is = NlqFullPipelineEvalTest.class.getResourceAsStream("/nlq/sales-trading-model.pure");
+        InputStream is = NlqHoldoutEvalTest.class.getResourceAsStream("/nlq/sales-trading-model.pure");
         assertNotNull(is, "Test model not found");
         String pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
 
@@ -48,10 +49,9 @@ class NlqFullPipelineEvalTest {
         service = new NlqService(index, modelBuilder, gemini);
         runner = new NlqEvalRunner(index, modelBuilder);
 
-        evalCases = NlqEvalRunner.loadCases("/nlq/nlq-eval-cases.json");
+        evalCases = NlqEvalRunner.loadCases("/nlq/nlq-holdout-cases.json");
 
-        // Run full pipeline eval for all cases (pipeline + judge = 4 LLM calls per case)
-        System.out.println("Running full pipeline eval for " + evalCases.size() + " cases...");
+        System.out.println("Running HOLDOUT eval for " + evalCases.size() + " cases...");
         results = runner.runFullPipelineEval(evalCases, service, gemini);
     }
 
@@ -59,8 +59,8 @@ class NlqFullPipelineEvalTest {
 
     @Test
     @Order(0)
-    @DisplayName("Full pipeline eval report")
-    void testFullReport() {
+    @DisplayName("Holdout eval report")
+    void testHoldoutReport() {
         String report = NlqEvalMetrics.generateFullReport(results);
         System.out.println(report);
     }
@@ -69,7 +69,7 @@ class NlqFullPipelineEvalTest {
 
     @TestFactory
     @Order(1)
-    @DisplayName("Per-case pipeline eval")
+    @DisplayName("Per-case holdout eval")
     Stream<DynamicTest> testPerCase() {
         return results.stream().map(result ->
                 DynamicTest.dynamicTest(result.caseId() + ": " + result.question(), () -> {
@@ -118,11 +118,11 @@ class NlqFullPipelineEvalTest {
                 .filter(r -> !r.hasError() && r.routing() != null && r.routing().preferredMatch())
                 .count();
 
-        System.out.printf("Routing: preferred=%d/%d (%.1f%%), acceptable=%d/%d (%.1f%%)%n",
+        System.out.printf("HOLDOUT Routing: preferred=%d/%d (%.1f%%), acceptable=%d/%d (%.1f%%)%n",
                 preferred, total, 100.0 * preferred / Math.max(1, total),
                 acceptable, total, accuracy * 100);
         assertTrue(accuracy >= 0.70,
-                String.format("Acceptable routing %.1f%% below 70%% threshold", accuracy * 100));
+                String.format("Holdout acceptable routing %.1f%% below 70%% threshold", accuracy * 100));
     }
 
     @Test
@@ -135,8 +135,8 @@ class NlqFullPipelineEvalTest {
                 .average()
                 .orElse(0.0);
 
-        System.out.printf("Average LLM judge overall: %.1f / 5.0%n", avgScore);
+        System.out.printf("HOLDOUT Average LLM judge overall: %.1f / 5.0%n", avgScore);
         assertTrue(avgScore >= 3.0,
-                String.format("Average judge overall %.1f below 3.0 threshold", avgScore));
+                String.format("Holdout average judge overall %.1f below 3.0 threshold", avgScore));
     }
 }

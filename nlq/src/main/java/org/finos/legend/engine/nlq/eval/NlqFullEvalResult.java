@@ -12,6 +12,7 @@ public record NlqFullEvalResult(
         NlqEvalResult.RetrievalScore retrieval,
         RoutingScore routing,
         QueryAccuracyScore queryAccuracy,
+        PropertyRoleScore propertyRoles,
         LlmJudgeScore llmJudge,
         String generatedQuery,
         String referenceQuery,
@@ -20,27 +21,52 @@ public record NlqFullEvalResult(
 ) {
 
     public record RoutingScore(
-            String expected,
+            String preferred,
+            List<String> acceptable,
             String actual,
-            boolean correct
+            boolean preferredMatch,
+            boolean acceptableMatch
     ) {}
 
     public record QueryAccuracyScore(
             boolean parseable,
-            boolean correctRoot,
             double opCoverage,
-            double propertyCoverage,
-            List<String> missingOps,
-            List<String> missingProperties
+            List<String> missingOps
+    ) {}
+
+    /**
+     * Scores how well properties are used in the correct roles.
+     */
+    public record PropertyRoleScore(
+            double dimensionCoverage,
+            double metricCoverage,
+            double filterCoverage,
+            double sortCoverage,
+            List<String> missingDimensions,
+            List<String> missingMetrics,
+            List<String> missingFilters,
+            List<String> missingSorts
     ) {
-        public double score() {
-            double rootScore = correctRoot ? 1.0 : 0.0;
-            return 0.4 * rootScore + 0.3 * opCoverage + 0.3 * propertyCoverage;
+        public double overallScore() {
+            int count = 0;
+            double sum = 0;
+            if (!missingDimensions.isEmpty() || dimensionCoverage > 0) { sum += dimensionCoverage; count++; }
+            if (!missingMetrics.isEmpty() || metricCoverage > 0) { sum += metricCoverage; count++; }
+            if (!missingFilters.isEmpty() || filterCoverage > 0) { sum += filterCoverage; count++; }
+            if (!missingSorts.isEmpty() || sortCoverage > 0) { sum += sortCoverage; count++; }
+            return count > 0 ? sum / count : 1.0;
         }
     }
 
+    /**
+     * Structured LLM judge with multi-dimension sub-scores.
+     */
     public record LlmJudgeScore(
-            int score,
+            int columnSelection,
+            int filtering,
+            int aggregation,
+            int semanticEquivalence,
+            int overall,
             String reasoning
     ) {}
 
@@ -49,6 +75,6 @@ public record NlqFullEvalResult(
     }
 
     public static NlqFullEvalResult error(String caseId, String question, String difficulty, String error) {
-        return new NlqFullEvalResult(caseId, question, difficulty, null, null, null, null, null, null, 0, error);
+        return new NlqFullEvalResult(caseId, question, difficulty, null, null, null, null, null, null, null, 0, error);
     }
 }

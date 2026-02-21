@@ -150,6 +150,12 @@ public class ModelSchemaExtractor {
             sb.append("  Domain: ").append(domain).append("\n");
         }
 
+        // When to use (routing hint)
+        String whenToUse = pc.getTagValue("nlq::NlqProfile", "whenToUse");
+        if (whenToUse != null) {
+            sb.append("  When to use: ").append(whenToUse).append("\n");
+        }
+
         // Properties
         sb.append("  Properties:\n");
         for (Property prop : pc.allProperties()) {
@@ -205,6 +211,46 @@ public class ModelSchemaExtractor {
           .append("[").append(assoc.property1().multiplicity()).append("]");
 
         sb.append("\n");
+    }
+
+    /**
+     * Extracts routing hints from model metadata for the semantic router.
+     * Builds a compact string of disambiguation hints from whenToUse and exampleQuestions tags.
+     * Returns empty string if no hints are found (model-agnostic).
+     */
+    public static String extractRoutingHints(Set<String> classNames, PureModelBuilder modelBuilder) {
+        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        StringBuilder sb = new StringBuilder();
+
+        for (String name : classNames) {
+            PureClass pc = allClasses.get(name);
+            if (pc == null) {
+                for (PureClass candidate : allClasses.values()) {
+                    if (candidate.name().equals(name)) {
+                        pc = candidate;
+                        break;
+                    }
+                }
+            }
+            if (pc == null) continue;
+
+            String whenToUse = pc.getTagValue("nlq::NlqProfile", "whenToUse");
+            String examples = pc.getTagValue("nlq::NlqProfile", "exampleQuestions");
+
+            if (whenToUse != null || examples != null) {
+                sb.append(pc.name()).append(": ");
+                if (whenToUse != null) {
+                    sb.append(whenToUse);
+                }
+                if (examples != null) {
+                    if (whenToUse != null) sb.append(" ");
+                    sb.append("(examples: ").append(examples.replace("|", ", ")).append(")");
+                }
+                sb.append("\n");
+            }
+        }
+
+        return sb.toString();
     }
 
     private static boolean matchesAny(String name, Set<String> names) {

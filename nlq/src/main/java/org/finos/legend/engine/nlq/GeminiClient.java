@@ -56,10 +56,17 @@ public class GeminiClient implements LlmClient {
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                         .build();
 
+                long t0 = System.nanoTime();
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                long ms = (System.nanoTime() - t0) / 1_000_000;
+                System.out.printf("      [Gemini] attempt=%d status=%d %dms prompt=%dchars%n",
+                        attempt, response.statusCode(), ms, requestBody.length());
+                System.out.flush();
 
                 if (response.statusCode() == 429 && attempt < MAX_RETRIES) {
                     long backoff = INITIAL_BACKOFF_MS * (1L << attempt);
+                    System.out.printf("      [Gemini] rate-limited, backing off %ds%n", backoff / 1000);
+                    System.out.flush();
                     try { Thread.sleep(backoff); } catch (InterruptedException ignored) {}
                     continue;
                 }

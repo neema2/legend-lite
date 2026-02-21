@@ -6,15 +6,34 @@
     "difficulty": "easy",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Trade"],
-        "mustExclude": ["YieldCurve", "Exchange", "Sector"],
+        "mustInclude": [
+          "Trade"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange",
+          "Sector"
+        ],
         "maxK": 15
       },
       "rootClass": "Trade",
+      "acceptableRootClasses": [
+        "Trade"
+      ],
       "query": {
-        "referenceQuery": "Trade.all()->filter(t|$t.tradeDate == %2026-02-20)",
-        "mustContainOps": ["filter"],
-        "mustReferenceProperties": ["tradeDate"]
+        "referenceQuery": "Trade.all()->project([t|$t.tradeId, t|$t.tradeDate, t|$t.side, t|$t.notional], ['Trade ID', 'Date', 'Side', 'Notional'])->filter(row|$row.getDate('Date') == today())",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Date"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -25,15 +44,39 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Trade", "Desk"],
-        "mustExclude": ["YieldCurve", "Exchange", "Sector"],
+        "mustInclude": [
+          "Trade",
+          "Desk"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange",
+          "Sector"
+        ],
         "maxK": 15
       },
       "rootClass": "Trade",
+      "acceptableRootClasses": [
+        "Trade"
+      ],
       "query": {
         "referenceQuery": "Trade.all()->groupBy([t|$t.trader.desk.name], [agg(t|$t.notional, x|$x->sum())], ['Desk', 'Total Notional'])",
-        "mustContainOps": ["groupBy"],
-        "mustReferenceProperties": ["desk.name", "notional"]
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "trader.desk.name"
+          ],
+          "metrics": [
+            {
+              "property": "notional",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -44,15 +87,34 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Trade", "Counterparty"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Trade",
+          "Counterparty"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "Trade",
+      "acceptableRootClasses": [
+        "Trade"
+      ],
       "query": {
-        "referenceQuery": "Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')",
-        "mustContainOps": ["filter"],
-        "mustReferenceProperties": ["counterparty.name"]
+        "referenceQuery": "Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project([t|$t.tradeId, t|$t.tradeDate, t|$t.notional, t|$t.counterparty.name], ['Trade ID', 'Date', 'Notional', 'Counterparty'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "counterparty.name"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -63,15 +125,39 @@
     "difficulty": "hard",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Trade", "Instrument"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Trade",
+          "Instrument"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "Trade",
+      "acceptableRootClasses": [
+        "Trade"
+      ],
       "query": {
         "referenceQuery": "Trade.all()->groupBy([t|$t.side, t|$t.instrument.assetClass], [agg(t|$t.tradeId, x|$x->count())], ['Side', 'Asset Class', 'Count'])",
-        "mustContainOps": ["groupBy"],
-        "mustReferenceProperties": ["side", "instrument.assetClass"]
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "side",
+            "instrument.assetClass"
+          ],
+          "metrics": [
+            {
+              "property": "tradeId",
+              "function": "count"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -82,15 +168,34 @@
     "difficulty": "easy",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Position"],
-        "mustExclude": ["YieldCurve", "Exchange", "Sector"],
+        "mustInclude": [
+          "Position"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange",
+          "Sector"
+        ],
         "maxK": 15
       },
       "rootClass": "Position",
+      "acceptableRootClasses": [
+        "Position"
+      ],
       "query": {
-        "referenceQuery": "Position.all()->filter(p|$p.instrument.ticker == 'AAPL')",
-        "mustContainOps": ["filter"],
-        "mustReferenceProperties": ["instrument.ticker"]
+        "referenceQuery": "Position.all()->filter(p|$p.instrument.ticker == 'AAPL')->project([p|$p.instrument.ticker, p|$p.quantity, p|$p.marketValue, p|$p.book.name], ['Ticker', 'Quantity', 'Market Value', 'Book'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "instrument.ticker"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -101,15 +206,38 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Position", "Book"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Position",
+          "Book"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "Position",
+      "acceptableRootClasses": [
+        "Position"
+      ],
       "query": {
         "referenceQuery": "Position.all()->groupBy([p|$p.book.name], [agg(p|$p.marketValue, x|$x->sum())], ['Book', 'Total Market Value'])",
-        "mustContainOps": ["groupBy"],
-        "mustReferenceProperties": ["book.name", "marketValue"]
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "book.name"
+          ],
+          "metrics": [
+            {
+              "property": "marketValue",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -120,15 +248,34 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Portfolio"],
-        "mustExclude": ["YieldCurve", "Exchange", "Sector"],
+        "mustInclude": [
+          "Portfolio"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange",
+          "Sector"
+        ],
         "maxK": 15
       },
       "rootClass": "Portfolio",
+      "acceptableRootClasses": [
+        "Portfolio"
+      ],
       "query": {
-        "referenceQuery": "Portfolio.all()->filter(p|$p.strategy == 'GlobalMacro')->project([p|$p.name, p|$p.nav], ['Portfolio', 'NAV'])",
-        "mustContainOps": ["filter"],
-        "mustReferenceProperties": ["strategy", "nav"]
+        "referenceQuery": "Portfolio.all()->project([p|$p.name, p|$p.nav, p|$p.strategy], ['Portfolio', 'NAV', 'Strategy'])->filter(row|$row.getString('Strategy') == 'GlobalMacro')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Strategy"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -139,15 +286,43 @@
     "difficulty": "hard",
     "expected": {
       "retrieval": {
-        "mustInclude": ["DailyPnL", "Trader", "Desk"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "DailyPnL",
+          "Trader",
+          "Desk"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "DailyPnL",
+      "acceptableRootClasses": [
+        "DailyPnL",
+        "Trader"
+      ],
       "query": {
         "referenceQuery": "DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps')->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])",
-        "mustContainOps": ["filter", "groupBy"],
-        "mustReferenceProperties": ["desk.name", "trader.name", "totalPnL"]
+        "mustContainOps": [
+          "filter",
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "trader.name"
+          ],
+          "metrics": [
+            {
+              "property": "totalPnL",
+              "function": "sum"
+            }
+          ],
+          "filters": [
+            "desk.name"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -158,15 +333,38 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["DailyPnL", "Book"],
-        "mustExclude": ["Exchange", "Sector"],
+        "mustInclude": [
+          "DailyPnL",
+          "Book"
+        ],
+        "mustExclude": [
+          "Exchange",
+          "Sector"
+        ],
         "maxK": 15
       },
       "rootClass": "DailyPnL",
+      "acceptableRootClasses": [
+        "DailyPnL"
+      ],
       "query": {
         "referenceQuery": "DailyPnL.all()->groupBy([p|$p.book.name], [agg(p|$p.realizedPnL, x|$x->sum())], ['Book', 'Realized PnL'])",
-        "mustContainOps": ["groupBy"],
-        "mustReferenceProperties": ["book.name", "realizedPnL"]
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "book.name"
+          ],
+          "metrics": [
+            {
+              "property": "realizedPnL",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -177,15 +375,33 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["DailyPnL", "Desk"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "DailyPnL",
+          "Desk"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "DailyPnL",
+      "acceptableRootClasses": [
+        "DailyPnL"
+      ],
       "query": {
         "referenceQuery": "DailyPnL.all()->filter(p|$p.desk.name == 'EMEA Rates')->project([p|$p.pnlDate, p|$p.totalPnL], ['Date', 'Total PnL'])",
-        "mustContainOps": ["filter"],
-        "mustReferenceProperties": ["desk.name", "totalPnL"]
+        "mustContainOps": [
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "desk.name"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -196,15 +412,31 @@
     "difficulty": "easy",
     "expected": {
       "retrieval": {
-        "mustInclude": ["VaRResult", "Portfolio"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "VaRResult",
+          "Portfolio"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "VaRResult",
+      "acceptableRootClasses": [
+        "VaRResult"
+      ],
       "query": {
         "referenceQuery": "VaRResult.all()->project([v|$v.portfolio.name, v|$v.varAmount], ['Portfolio', 'VaR'])",
-        "mustContainOps": ["project"],
-        "mustReferenceProperties": ["portfolio.name", "varAmount"]
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -215,15 +447,38 @@
     "difficulty": "hard",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Greeks"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Greeks"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "Greeks",
+      "acceptableRootClasses": [
+        "Greeks",
+        "Trade"
+      ],
       "query": {
         "referenceQuery": "Greeks.all()->groupBy([g|$g.trade.trader.desk.name], [agg(g|$g.delta, x|$x->sum())], ['Desk', 'Total Delta'])",
-        "mustContainOps": ["groupBy"],
-        "mustReferenceProperties": ["desk.name", "delta"]
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "trade.trader.desk.name"
+          ],
+          "metrics": [
+            {
+              "property": "delta",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -234,15 +489,35 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["VaRResult", "Portfolio"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "VaRResult",
+          "Portfolio"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "VaRResult",
+      "acceptableRootClasses": [
+        "VaRResult",
+        "Portfolio"
+      ],
       "query": {
-        "referenceQuery": "VaRResult.all()->filter(v|$v.varAmount > 10000000)->project([v|$v.portfolio.name, v|$v.varAmount], ['Portfolio', 'VaR'])",
-        "mustContainOps": ["filter", "project"],
-        "mustReferenceProperties": ["varAmount", "portfolio.name"]
+        "referenceQuery": "VaRResult.all()->project([v|$v.portfolio.name, v|$v.varAmount], ['Portfolio', 'VaR'])->filter(row|$row.getFloat('VaR') > 10000000)",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~VaR"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -253,15 +528,38 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["SalesCredit", "SalesPerson"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "SalesCredit",
+          "SalesPerson"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "SalesCredit",
+      "acceptableRootClasses": [
+        "SalesCredit"
+      ],
       "query": {
         "referenceQuery": "SalesCredit.all()->groupBy([s|$s.salesPerson.name], [agg(s|$s.creditAmount, x|$x->sum())], ['Salesperson', 'Total Credit'])",
-        "mustContainOps": ["groupBy"],
-        "mustReferenceProperties": ["salesPerson.name", "creditAmount"]
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "salesPerson.name"
+          ],
+          "metrics": [
+            {
+              "property": "creditAmount",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -272,15 +570,40 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["SalesCredit"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "SalesCredit"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "SalesCredit",
+      "acceptableRootClasses": [
+        "SalesCredit"
+      ],
       "query": {
-        "referenceQuery": "SalesCredit.all()->groupBy([s|$s.client.name], [agg(s|$s.creditAmount, x|$x->sum())], ['Client', 'Total Revenue'])",
-        "mustContainOps": ["groupBy"],
-        "mustReferenceProperties": ["client.name", "creditAmount"]
+        "referenceQuery": "SalesCredit.all()->groupBy([s|$s.client.name], [agg(s|$s.creditAmount, x|$x->sum())], ['Client', 'Total Revenue'])->sort(descending('Total Revenue'))->limit(10)",
+        "mustContainOps": [
+          "groupBy",
+          "sort"
+        ],
+        "properties": {
+          "dimensions": [
+            "client.name"
+          ],
+          "metrics": [
+            {
+              "property": "creditAmount",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": [
+            "Total Revenue"
+          ]
+        }
       }
     }
   },
@@ -291,15 +614,34 @@
     "difficulty": "easy",
     "expected": {
       "retrieval": {
-        "mustInclude": ["MarginCall"],
-        "mustExclude": ["YieldCurve", "Exchange", "Sector"],
+        "mustInclude": [
+          "MarginCall"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange",
+          "Sector"
+        ],
         "maxK": 15
       },
       "rootClass": "MarginCall",
+      "acceptableRootClasses": [
+        "MarginCall"
+      ],
       "query": {
-        "referenceQuery": "MarginCall.all()->filter(m|$m.status == 'OPEN')",
-        "mustContainOps": ["filter"],
-        "mustReferenceProperties": ["status"]
+        "referenceQuery": "MarginCall.all()->project([m|$m.counterparty.name, m|$m.callAmount, m|$m.status, m|$m.dueDate], ['Counterparty', 'Amount', 'Status', 'Due Date'])->filter(row|$row.getString('Status') == 'OPEN')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Status"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -310,15 +652,34 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["MarginCall", "Counterparty"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "MarginCall",
+          "Counterparty"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "MarginCall",
+      "acceptableRootClasses": [
+        "MarginCall"
+      ],
       "query": {
-        "referenceQuery": "MarginCall.all()->filter(m|$m.status == 'OPEN')->project([m|$m.counterparty.name, m|$m.callAmount, m|$m.dueDate], ['Counterparty', 'Amount', 'Due Date'])",
-        "mustContainOps": ["filter", "project"],
-        "mustReferenceProperties": ["counterparty.name", "status"]
+        "referenceQuery": "MarginCall.all()->project([m|$m.counterparty.name, m|$m.callAmount, m|$m.status, m|$m.dueDate], ['Counterparty', 'Amount', 'Status', 'Due Date'])->filter(row|$row.getString('Status') == 'OPEN')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Status"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -329,15 +690,34 @@
     "difficulty": "easy",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Settlement"],
-        "mustExclude": ["YieldCurve", "Exchange", "Sector"],
+        "mustInclude": [
+          "Settlement"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange",
+          "Sector"
+        ],
         "maxK": 15
       },
       "rootClass": "Settlement",
+      "acceptableRootClasses": [
+        "Settlement"
+      ],
       "query": {
-        "referenceQuery": "Settlement.all()->filter(s|$s.status == 'PENDING')",
-        "mustContainOps": ["filter"],
-        "mustReferenceProperties": ["status"]
+        "referenceQuery": "Settlement.all()->project([s|$s.trade.tradeId, s|$s.amount, s|$s.status, s|$s.settlementDate], ['Trade ID', 'Amount', 'Status', 'Settlement Date'])->filter(row|$row.getString('Status') == 'PENDING')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Status"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -348,15 +728,33 @@
     "difficulty": "medium",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Settlement"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Settlement"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "Settlement",
+      "acceptableRootClasses": [
+        "Settlement"
+      ],
       "query": {
-        "referenceQuery": "Settlement.all()->filter(s|$s.status == 'FAILED')->project([s|$s.trade.counterparty.name, s|$s.amount], ['Counterparty', 'Amount'])",
-        "mustContainOps": ["filter", "project"],
-        "mustReferenceProperties": ["status", "counterparty.name"]
+        "referenceQuery": "Settlement.all()->project([s|$s.trade.counterparty.name, s|$s.amount, s|$s.status], ['Counterparty', 'Amount', 'Status'])->filter(row|$row.getString('Status') == 'FAILED')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Status"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -367,15 +765,35 @@
     "difficulty": "hard",
     "expected": {
       "retrieval": {
-        "mustInclude": ["SalesCredit", "Trade"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "SalesCredit",
+          "Trade"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "SalesCredit",
+      "acceptableRootClasses": [
+        "SalesCredit",
+        "Trade"
+      ],
       "query": {
         "referenceQuery": "SalesCredit.all()->filter(s|$s.trade.trader.desk.name == 'EMEA Rates')->project([s|$s.salesPerson.name, s|$s.creditAmount, s|$s.trade.tradeId], ['Salesperson', 'Credit', 'Trade ID'])",
-        "mustContainOps": ["filter", "project"],
-        "mustReferenceProperties": ["trade", "desk.name", "creditAmount"]
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "trade.trader.desk.name"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -386,15 +804,33 @@
     "difficulty": "hard",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Greeks"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Greeks"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "Greeks",
+      "acceptableRootClasses": [
+        "Greeks"
+      ],
       "query": {
         "referenceQuery": "Greeks.all()->filter(g|$g.trade.instrument.productType == 'Bond')->project([g|$g.trade.instrument.ticker, g|$g.delta, g|$g.gamma, g|$g.vega, g|$g.theta], ['Instrument', 'Delta', 'Gamma', 'Vega', 'Theta'])",
-        "mustContainOps": ["filter", "project"],
-        "mustReferenceProperties": ["trade.instrument", "delta"]
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "trade.instrument.productType"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -405,15 +841,35 @@
     "difficulty": "hard",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Trade", "Counterparty", "Desk"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Trade",
+          "Counterparty",
+          "Desk"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "Trade",
+      "acceptableRootClasses": [
+        "Trade"
+      ],
       "query": {
         "referenceQuery": "Trade.all()->filter(t|$t.trader.desk.name == 'AMER Equity Swaps')->project([t|$t.tradeId, t|$t.counterparty.name], ['Trade ID', 'Counterparty'])",
-        "mustContainOps": ["filter", "project"],
-        "mustReferenceProperties": ["counterparty.name", "desk.name"]
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "trader.desk.name"
+          ],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -424,15 +880,30 @@
     "difficulty": "hard",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Position"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Position"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "Position",
+      "acceptableRootClasses": [
+        "Position"
+      ],
       "query": {
         "referenceQuery": "Position.all()->project([p|$p.instrument.ticker, p|$p.quantity, p|$p.marketValue], ['Instrument', 'Quantity', 'Market Value'])",
-        "mustContainOps": ["project"],
-        "mustReferenceProperties": ["marketValue"]
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
       }
     }
   },
@@ -443,15 +914,1188 @@
     "difficulty": "hard",
     "expected": {
       "retrieval": {
-        "mustInclude": ["Counterparty"],
-        "mustExclude": ["YieldCurve", "Exchange"],
+        "mustInclude": [
+          "Counterparty"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "Exchange"
+        ],
         "maxK": 15
       },
       "rootClass": "VaRResult",
+      "acceptableRootClasses": [
+        "VaRResult",
+        "SensitivityResult",
+        "Greeks"
+      ],
       "query": {
         "referenceQuery": "VaRResult.all()->filter(v|$v.portfolio.name == 'Goldman Sachs')->project([v|$v.portfolio.name, v|$v.varAmount, v|$v.confidenceLevel], ['Portfolio', 'VaR', 'Confidence'])",
-        "mustContainOps": ["filter", "project"],
-        "mustReferenceProperties": ["varAmount"]
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "portfolio.name"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "opt-001",
+    "question": "options expiring this month",
+    "subdomain": "Products",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Option"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Option",
+      "acceptableRootClasses": [
+        "Option"
+      ],
+      "query": {
+        "referenceQuery": "Option.all()->project([o|$o.ticker, o|$o.optionType, o|$o.strike, o|$o.expiryDate], ['Ticker', 'Type', 'Strike', 'Expiry'])->filter(row|$row.getDate('Expiry') >= %2026-02-01 && $row.getDate('Expiry') <= %2026-02-28)",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Expiry"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "opt-002",
+    "question": "implied vol for AAPL options",
+    "subdomain": "Products",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Option"
+        ],
+        "mustExclude": [
+          "FundingRate",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Option",
+      "acceptableRootClasses": [
+        "Option"
+      ],
+      "query": {
+        "referenceQuery": "Option.all()->filter(o|$o.ticker == 'AAPL')->project([o|$o.ticker, o|$o.strike, o|$o.expiryDate, o|$o.impliedVol], ['Ticker', 'Strike', 'Expiry', 'Implied Vol'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "ticker"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cds-001",
+    "question": "CDS protection we bought on investment grade names",
+    "subdomain": "Products",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CreditDefaultSwap"
+        ],
+        "mustExclude": [
+          "FundingRate",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "CreditDefaultSwap",
+      "acceptableRootClasses": [
+        "CreditDefaultSwap"
+      ],
+      "query": {
+        "referenceQuery": "CreditDefaultSwap.all()->project([c|$c.referenceEntity, c|$c.spread, c|$c.notional, c|$c.maturityDate, c|$c.protectionSide], ['Reference Entity', 'Spread', 'Notional', 'Maturity', 'Side'])->filter(row|$row.getString('Side') == 'BUYER')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Side"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "exec-001",
+    "question": "executions today on NYSE",
+    "subdomain": "Trading",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Execution"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Execution",
+      "acceptableRootClasses": [
+        "Execution"
+      ],
+      "query": {
+        "referenceQuery": "Execution.all()->project([e|$e.executionId, e|$e.filledQuantity, e|$e.fillPrice, e|$e.venue], ['Exec ID', 'Quantity', 'Price', 'Venue'])->filter(row|$row.getString('Venue') == 'NYSE')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Venue"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "exec-002",
+    "question": "average fill price by venue",
+    "subdomain": "Trading",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Execution"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Execution",
+      "acceptableRootClasses": [
+        "Execution"
+      ],
+      "query": {
+        "referenceQuery": "Execution.all()->groupBy([e|$e.venue], [agg(e|$e.fillPrice, x|$x->avg())], ['Venue', 'Avg Fill Price'])",
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "venue"
+          ],
+          "metrics": [
+            {
+              "property": "fillPrice",
+              "function": "avg"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "alloc-001",
+    "question": "allocations by account this week",
+    "subdomain": "Trading",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Allocation"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Allocation",
+      "acceptableRootClasses": [
+        "Allocation"
+      ],
+      "query": {
+        "referenceQuery": "Allocation.all()->project([a|$a.allocationId, a|$a.account, a|$a.quantity, a|$a.allocationDate], ['Alloc ID', 'Account', 'Quantity', 'Date'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "lce-001",
+    "question": "trade cancellations today",
+    "subdomain": "Trading",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "TradeLifecycleEvent"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "TradeLifecycleEvent",
+      "acceptableRootClasses": [
+        "TradeLifecycleEvent",
+        "Trade"
+      ],
+      "query": {
+        "referenceQuery": "TradeLifecycleEvent.all()->project([e|$e.eventId, e|$e.eventType, e|$e.eventDate, e|$e.reason], ['Event ID', 'Type', 'Date', 'Reason'])->filter(row|$row.getString('Type') == 'CANCEL')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Type"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "pnlattr-001",
+    "question": "what drove PnL today",
+    "subdomain": "PnL",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "PnLAttribution"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "PnLAttribution",
+      "acceptableRootClasses": [
+        "PnLAttribution",
+        "DailyPnL"
+      ],
+      "query": {
+        "referenceQuery": "PnLAttribution.all()->project([p|$p.category, p|$p.amount, p|$p.attributionDate], ['Category', 'Amount', 'Date'])->filter(row|$row.getDate('Date') == today())",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Date"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "pnlattr-002",
+    "question": "PnL attribution by category for this month",
+    "subdomain": "PnL",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "PnLAttribution"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "PnLAttribution",
+      "acceptableRootClasses": [
+        "PnLAttribution"
+      ],
+      "query": {
+        "referenceQuery": "PnLAttribution.all()->groupBy([p|$p.category], [agg(p|$p.amount, x|$x->sum())], ['Category', 'Total'])->sort(descending('Total'))",
+        "mustContainOps": [
+          "groupBy",
+          "sort"
+        ],
+        "properties": {
+          "dimensions": [
+            "category"
+          ],
+          "metrics": [
+            {
+              "property": "amount",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": [
+            "Total"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "limit-001",
+    "question": "risk limits near breach",
+    "subdomain": "Risk",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Limit"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Limit",
+      "acceptableRootClasses": [
+        "Limit"
+      ],
+      "query": {
+        "referenceQuery": "Limit.all()->project([l|$l.limitId, l|$l.limitType, l|$l.limitAmount, l|$l.utilizationPct, l|$l.desk.name], ['Limit ID', 'Type', 'Limit', 'Utilization %', 'Desk'])->filter(row|$row.getFloat('Utilization %') > 80)->sort(descending('Utilization %'))",
+        "mustContainOps": [
+          "project",
+          "filter",
+          "sort"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Utilization %"
+          ],
+          "sortedBy": [
+            "Utilization %"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "limit-002",
+    "question": "breached limits by desk",
+    "subdomain": "Risk",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Limit"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Limit",
+      "acceptableRootClasses": [
+        "Limit",
+        "LimitBreach"
+      ],
+      "query": {
+        "referenceQuery": "Limit.all()->project([l|$l.limitId, l|$l.limitType, l|$l.status, l|$l.desk.name], ['Limit ID', 'Type', 'Status', 'Desk'])->filter(row|$row.getString('Status') == 'BREACHED')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Status"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "breach-001",
+    "question": "limit breaches this week",
+    "subdomain": "Risk",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "LimitBreach"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "LimitBreach",
+      "acceptableRootClasses": [
+        "LimitBreach"
+      ],
+      "query": {
+        "referenceQuery": "LimitBreach.all()->project([b|$b.breachId, b|$b.severity, b|$b.breachAmount, b|$b.status, b|$b.breachDate], ['Breach ID', 'Severity', 'Amount', 'Status', 'Date'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "stress-001",
+    "question": "worst stress scenario PnL by portfolio",
+    "subdomain": "Risk",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "StressResult"
+        ],
+        "mustExclude": [
+          "NettingSet",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "StressResult",
+      "acceptableRootClasses": [
+        "StressResult"
+      ],
+      "query": {
+        "referenceQuery": "StressResult.all()->groupBy([s|$s.portfolio.name], [agg(s|$s.stressedPnL, x|$x->min())], ['Portfolio', 'Worst Stress PnL'])->sort('Worst Stress PnL')",
+        "mustContainOps": [
+          "groupBy",
+          "sort"
+        ],
+        "properties": {
+          "dimensions": [
+            "portfolio.name"
+          ],
+          "metrics": [
+            {
+              "property": "stressedPnL",
+              "function": "min"
+            }
+          ],
+          "filters": [],
+          "sortedBy": [
+            "Worst Stress PnL"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "sens-001",
+    "question": "DV01 exposure by portfolio",
+    "subdomain": "Risk",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "SensitivityResult"
+        ],
+        "mustExclude": [
+          "NettingSet",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "SensitivityResult",
+      "acceptableRootClasses": [
+        "SensitivityResult"
+      ],
+      "query": {
+        "referenceQuery": "SensitivityResult.all()->project([s|$s.sensitivityType, s|$s.sensitivityValue, s|$s.riskFactor, s|$s.portfolio.name], ['Type', 'Value', 'Risk Factor', 'Portfolio'])->filter(row|$row.getString('Type') == 'DV01')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Type"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "confirm-001",
+    "question": "unconfirmed trades",
+    "subdomain": "Operations",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Confirmation"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Confirmation",
+      "acceptableRootClasses": [
+        "Confirmation",
+        "Trade"
+      ],
+      "query": {
+        "referenceQuery": "Confirmation.all()->project([c|$c.confirmId, c|$c.status, c|$c.trade.tradeId], ['Confirm ID', 'Status', 'Trade ID'])->filter(row|$row.getString('Status') == 'PENDING')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Status"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "netting-001",
+    "question": "net exposure by counterparty",
+    "subdomain": "Operations",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "NettingResult"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "NettingResult",
+      "acceptableRootClasses": [
+        "NettingResult"
+      ],
+      "query": {
+        "referenceQuery": "NettingResult.all()->project([n|$n.nettingSet.counterparty.name, n|$n.grossAmount, n|$n.netAmount, n|$n.nettingDate], ['Counterparty', 'Gross', 'Net', 'Date'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "csa-001",
+    "question": "collateral agreements with Goldman",
+    "subdomain": "Collateral",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CollateralAgreement"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "CollateralAgreement",
+      "acceptableRootClasses": [
+        "CollateralAgreement"
+      ],
+      "query": {
+        "referenceQuery": "CollateralAgreement.all()->filter(a|$a.counterparty.name == 'Goldman Sachs')->project([a|$a.agreementId, a|$a.agreementType, a|$a.threshold, a|$a.counterparty.name], ['Agreement ID', 'Type', 'Threshold', 'Counterparty'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "counterparty.name"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "posting-001",
+    "question": "collateral posted today",
+    "subdomain": "Collateral",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CollateralPosting"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "CollateralPosting",
+      "acceptableRootClasses": [
+        "CollateralPosting"
+      ],
+      "query": {
+        "referenceQuery": "CollateralPosting.all()->project([p|$p.postingId, p|$p.amount, p|$p.collateralType, p|$p.direction, p|$p.postingDate], ['Posting ID', 'Amount', 'Type', 'Direction', 'Date'])->filter(row|$row.getDate('Date') == today())",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Date"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cash-001",
+    "question": "cash balances by book in USD",
+    "subdomain": "Positions",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CashBalance"
+        ],
+        "mustExclude": [
+          "YieldCurve"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "CashBalance",
+      "acceptableRootClasses": [
+        "CashBalance"
+      ],
+      "query": {
+        "referenceQuery": "CashBalance.all()->project([c|$c.book.name, c|$c.balance, c|$c.currency], ['Book', 'Balance', 'Currency'])->filter(row|$row.getString('Currency') == 'USD')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Currency"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "regrpt-001",
+    "question": "failed regulatory reports",
+    "subdomain": "Regulatory",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "TradeReport"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "TradeReport",
+      "acceptableRootClasses": [
+        "TradeReport"
+      ],
+      "query": {
+        "referenceQuery": "TradeReport.all()->project([r|$r.reportId, r|$r.regime, r|$r.status, r|$r.reportType], ['Report ID', 'Regime', 'Status', 'Type'])->filter(row|$row.getString('Status') == 'REJECTED')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Status"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "regrpt-002",
+    "question": "pending EMIR reports",
+    "subdomain": "Regulatory",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "TradeReport"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "TradeReport",
+      "acceptableRootClasses": [
+        "TradeReport"
+      ],
+      "query": {
+        "referenceQuery": "TradeReport.all()->project([r|$r.reportId, r|$r.regime, r|$r.status, r|$r.reportType], ['Report ID', 'Regime', 'Status', 'Type'])->filter(row|$row.getString('Regime') == 'EMIR' && $row.getString('Status') == 'PENDING')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Regime"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "tca-001",
+    "question": "transaction cost analysis by desk",
+    "subdomain": "Regulatory",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "TransactionCost"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "TransactionCost",
+      "acceptableRootClasses": [
+        "TransactionCost"
+      ],
+      "query": {
+        "referenceQuery": "TransactionCost.all()->groupBy([t|$t.trade.trader.desk.name], [agg(t|$t.costBps, x|$x->avg()), agg(t|$t.marketImpactBps, x|$x->avg())], ['Desk', 'Avg Cost (bps)', 'Avg Market Impact (bps)'])",
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "trade.trader.desk.name"
+          ],
+          "metrics": [
+            {
+              "property": "costBps",
+              "function": "avg"
+            },
+            {
+              "property": "marketImpactBps",
+              "function": "avg"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "quote-001",
+    "question": "latest price for AAPL",
+    "subdomain": "MarketData",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "MarketQuote"
+        ],
+        "mustExclude": [
+          "NettingSet",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "MarketQuote",
+      "acceptableRootClasses": [
+        "MarketQuote"
+      ],
+      "query": {
+        "referenceQuery": "MarketQuote.all()->filter(q|$q.instrument.ticker == 'AAPL')->project([q|$q.instrument.ticker, q|$q.bid, q|$q.ask, q|$q.mid, q|$q.quoteTime], ['Ticker', 'Bid', 'Ask', 'Mid', 'Time'])->sort(descending('Time'))->limit(1)",
+        "mustContainOps": [
+          "filter",
+          "project",
+          "sort"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "instrument.ticker"
+          ],
+          "sortedBy": [
+            "Time"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "fx-001",
+    "question": "current EUR/USD exchange rate",
+    "subdomain": "MarketData",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "FxRate"
+        ],
+        "mustExclude": [
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "FxRate",
+      "acceptableRootClasses": [
+        "FxRate"
+      ],
+      "query": {
+        "referenceQuery": "FxRate.all()->project([f|$f.currencyPair, f|$f.spotRate, f|$f.rateDate, f|$f.source], ['Pair', 'Rate', 'Date', 'Source'])->filter(row|$row.getString('Pair') == 'EUR/USD')->sort(descending('Date'))->limit(1)",
+        "mustContainOps": [
+          "project",
+          "filter",
+          "sort"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Pair"
+          ],
+          "sortedBy": [
+            "Date"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "cf-001",
+    "question": "upcoming coupon payments this week",
+    "subdomain": "Funding",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CashFlow"
+        ],
+        "mustExclude": [
+          "NettingSet",
+          "VolatilitySurface"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "CashFlow",
+      "acceptableRootClasses": [
+        "CashFlow"
+      ],
+      "query": {
+        "referenceQuery": "CashFlow.all()->project([c|$c.cashFlowId, c|$c.cashFlowType, c|$c.amount, c|$c.paymentDate, c|$c.currency], ['CF ID', 'Type', 'Amount', 'Payment Date', 'Currency'])->filter(row|$row.getString('Type') == 'COUPON')",
+        "mustContainOps": [
+          "project",
+          "filter"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Type"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cf-002",
+    "question": "total cash flows by type and currency",
+    "subdomain": "Funding",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CashFlow"
+        ],
+        "mustExclude": [
+          "VolatilitySurface"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "CashFlow",
+      "acceptableRootClasses": [
+        "CashFlow"
+      ],
+      "query": {
+        "referenceQuery": "CashFlow.all()->groupBy([c|$c.cashFlowType, c|$c.currency], [agg(c|$c.amount, x|$x->sum())], ['Type', 'Currency', 'Total Amount'])",
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "cashFlowType",
+            "currency"
+          ],
+          "metrics": [
+            {
+              "property": "amount",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "funding-001",
+    "question": "repo rates by tenor",
+    "subdomain": "Funding",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "FundingRate"
+        ],
+        "mustExclude": [
+          "NettingSet",
+          "VolatilitySurface"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "FundingRate",
+      "acceptableRootClasses": [
+        "FundingRate"
+      ],
+      "query": {
+        "referenceQuery": "FundingRate.all()->project([f|$f.tenor, f|$f.rateBps, f|$f.rateType, f|$f.currency, f|$f.rateDate], ['Tenor', 'Rate (bps)', 'Type', 'Currency', 'Date'])->filter(row|$row.getString('Type') == 'REPO')->sort('Tenor')",
+        "mustContainOps": [
+          "project",
+          "filter",
+          "sort"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "~Type"
+          ],
+          "sortedBy": [
+            "Tenor"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "coverage-001",
+    "question": "who covers Goldman Sachs",
+    "subdomain": "Sales",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "ClientCoverage"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "FundingRate"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "ClientCoverage",
+      "acceptableRootClasses": [
+        "ClientCoverage",
+        "SalesPerson"
+      ],
+      "query": {
+        "referenceQuery": "ClientCoverage.all()->filter(c|$c.client.name == 'Goldman Sachs')->project([c|$c.salesPerson.name, c|$c.role, c|$c.productArea, c|$c.client.name], ['Salesperson', 'Role', 'Product Area', 'Client'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "client.name"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "issuer-001",
+    "question": "bonds issued by Apple",
+    "subdomain": "RefData",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Issuer"
+        ],
+        "mustExclude": [
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "Bond",
+      "acceptableRootClasses": [
+        "Bond"
+      ],
+      "query": {
+        "referenceQuery": "Bond.all()->filter(b|$b.issuer.name == 'Apple Inc')->project([b|$b.ticker, b|$b.couponRate, b|$b.maturityDate, b|$b.faceValue, b|$b.issuer.name], ['Ticker', 'Coupon', 'Maturity', 'Face Value', 'Issuer'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [],
+          "metrics": [],
+          "filters": [
+            "issuer.name"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "window-001",
+    "question": "rank traders by total PnL",
+    "subdomain": "PnL",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "DailyPnL"
+        ],
+        "mustExclude": [
+          "YieldCurve",
+          "NettingSet"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "DailyPnL",
+      "acceptableRootClasses": [
+        "DailyPnL",
+        "Trader"
+      ],
+      "query": {
+        "referenceQuery": "DailyPnL.all()->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])->extend(over(~'Total PnL'->desc()), ~rank:{p,w,r|$p->rank($w,$r)})->sort('rank')",
+        "mustContainOps": [
+          "groupBy",
+          "extend"
+        ],
+        "properties": {
+          "dimensions": [
+            "trader.name"
+          ],
+          "metrics": [
+            {
+              "property": "totalPnL",
+              "function": "sum"
+            }
+          ],
+          "filters": [],
+          "sortedBy": [
+            "rank"
+          ]
+        }
       }
     }
   }

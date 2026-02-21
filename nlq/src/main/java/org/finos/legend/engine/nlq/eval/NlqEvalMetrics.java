@@ -151,11 +151,21 @@ public final class NlqEvalMetrics {
 
     // ==================== Routing Scoring ====================
 
-    public static NlqFullEvalResult.RoutingScore scoreRouting(String expected, String actual) {
-        // Compare simple names — LLM may return "sales::SalesCredit" vs expected "SalesCredit"
-        boolean correct = expected != null && actual != null
-                && simpleName(expected).equals(simpleName(actual));
-        return new NlqFullEvalResult.RoutingScore(expected, actual, correct);
+    public static NlqFullEvalResult.RoutingScore scoreRouting(
+            String preferred, List<String> acceptable, String actual) {
+        String actualSimple = actual != null ? simpleName(actual) : null;
+        boolean preferredMatch = preferred != null && actualSimple != null
+                && simpleName(preferred).equals(actualSimple);
+        boolean acceptableMatch = preferredMatch;
+        if (!acceptableMatch && actualSimple != null) {
+            for (String acc : acceptable) {
+                if (simpleName(acc).equals(actualSimple)) {
+                    acceptableMatch = true;
+                    break;
+                }
+            }
+        }
+        return new NlqFullEvalResult.RoutingScore(preferred, acceptable, actual, preferredMatch, acceptableMatch);
     }
 
     // ==================== Query Accuracy Scoring ====================
@@ -165,15 +175,10 @@ public final class NlqEvalMetrics {
 
         if (pureQuery == null || pureQuery.isBlank()) {
             return new NlqFullEvalResult.QueryAccuracyScore(
-                    false, false, 0.0, 0.0,
-                    expected.mustContainOps(), expected.mustReferenceProperties());
+                    false, 0.0, expected.mustContainOps());
         }
 
-        // Check if it starts with ClassName.all()
         boolean parseable = pureQuery.contains(".all()");
-        boolean correctRoot = expected.referenceQuery() != null
-                && extractRootClass(pureQuery) != null
-                && extractRootClass(pureQuery).equals(extractRootClass(expected.referenceQuery()));
 
         // Op coverage: check for expected operations
         List<String> missingOps = new ArrayList<>();
@@ -186,27 +191,102 @@ public final class NlqEvalMetrics {
                 : (double) (expected.mustContainOps().size() - missingOps.size())
                   / expected.mustContainOps().size();
 
-        // Property coverage: check for expected property references
-        List<String> missingProperties = new ArrayList<>();
-        for (String prop : expected.mustReferenceProperties()) {
-            if (!pureQuery.contains(prop)) {
-                missingProperties.add(prop);
-            }
-        }
-        double propertyCoverage = expected.mustReferenceProperties().isEmpty() ? 1.0
-                : (double) (expected.mustReferenceProperties().size() - missingProperties.size())
-                  / expected.mustReferenceProperties().size();
-
-        return new NlqFullEvalResult.QueryAccuracyScore(
-                parseable, correctRoot, opCoverage, propertyCoverage,
-                missingOps, missingProperties);
+        return new NlqFullEvalResult.QueryAccuracyScore(parseable, opCoverage, missingOps);
     }
 
-    private static String extractRootClass(String query) {
-        // Handle both "Trade.all()" and "trading::Trade.all()"
-        Pattern p = Pattern.compile("^\\s*([\\w:]+)\\.all\\(\\)");
-        Matcher m = p.matcher(query);
-        return m.find() ? simpleName(m.group(1)) : null;
+    // ==================== Property Role Scoring ====================
+
+    public static NlqFullEvalResult.PropertyRoleScore scorePropertyRoles(
+            String pureQuery, NlqEvalCase.PropertyRoles expected) {
+
+        if (pureQuery == null || pureQuery.isBlank() || expected == null) {
+            return new NlqFullEvalResult.PropertyRoleScore(0, 0, 0, 0,
+                    expected != null ? expected.dimensions() : List.of(),
+                    expected != null ? expected.metrics().stream().map(m -> m.property() + ":" + m.function()).toList() : List.of(),
+                    expected != null ? expected.filters() : List.of(),
+                    expected != null ? expected.sortedBy() : List.of());
+        }
+
+        // Extract query sections for role-based checking
+        String groupBySection = extractSection(pureQuery, "groupBy");
+        String filterSection = extractSection(pureQuery, "filter");
+        String sortSection = extractSection(pureQuery, "sort");
+
+        // Dimension coverage: properties in groupBy first arg
+        List<String> missingDims = new ArrayList<>();
+        for (String dim : expected.dimensions()) {
+            String leaf = dim.contains(".") ? dim.substring(dim.lastIndexOf('.') + 1) : dim;
+            if (groupBySection == null || (!groupBySection.contains(dim) && !groupBySection.contains(leaf))) {
+                missingDims.add(dim);
+            }
+        }
+        double dimCov = expected.dimensions().isEmpty() ? 0.0
+                : (double) (expected.dimensions().size() - missingDims.size()) / expected.dimensions().size();
+
+        // Metric coverage: property + aggregation function in groupBy/agg
+        List<String> missingMetrics = new ArrayList<>();
+        for (NlqEvalCase.MetricExpectation metric : expected.metrics()) {
+            String leaf = metric.property().contains(".")
+                    ? metric.property().substring(metric.property().lastIndexOf('.') + 1) : metric.property();
+            boolean propFound = pureQuery.contains(metric.property()) || pureQuery.contains(leaf);
+            boolean funcFound = pureQuery.contains(metric.function());
+            if (!propFound || !funcFound) {
+                missingMetrics.add(metric.property() + ":" + metric.function());
+            }
+        }
+        double metricCov = expected.metrics().isEmpty() ? 0.0
+                : (double) (expected.metrics().size() - missingMetrics.size()) / expected.metrics().size();
+
+        // Filter coverage: properties mentioned in filter context
+        List<String> missingFilters = new ArrayList<>();
+        for (String filt : expected.filters()) {
+            // Strip ~ prefix (column alias marker) for matching
+            String lookup = filt.startsWith("~") ? filt.substring(1) : filt;
+            boolean found = false;
+            if (filterSection != null && (filterSection.contains(lookup) || filterSection.contains(filt))) {
+                found = true;
+            }
+            // Also check full query for class-level filters
+            if (!found && pureQuery.contains(lookup)) {
+                found = true;
+            }
+            if (!found) missingFilters.add(filt);
+        }
+        double filterCov = expected.filters().isEmpty() ? 0.0
+                : (double) (expected.filters().size() - missingFilters.size()) / expected.filters().size();
+
+        // Sort coverage
+        List<String> missingSorts = new ArrayList<>();
+        for (String s : expected.sortedBy()) {
+            if (sortSection == null || (!sortSection.contains(s) && !pureQuery.contains("sort") )) {
+                missingSorts.add(s);
+            }
+        }
+        double sortCov = expected.sortedBy().isEmpty() ? 0.0
+                : (double) (expected.sortedBy().size() - missingSorts.size()) / expected.sortedBy().size();
+
+        return new NlqFullEvalResult.PropertyRoleScore(
+                dimCov, metricCov, filterCov, sortCov,
+                missingDims, missingMetrics, missingFilters, missingSorts);
+    }
+
+    private static String extractSection(String query, String operation) {
+        int idx = query.indexOf("->" + operation + "(");
+        if (idx < 0) idx = query.indexOf("." + operation + "(");
+        if (idx < 0) return null;
+
+        // Extract from operation to next ->  or end
+        int start = idx;
+        int depth = 0;
+        for (int i = query.indexOf('(', idx); i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '(') depth++;
+            else if (c == ')') {
+                depth--;
+                if (depth == 0) return query.substring(start, i + 1);
+            }
+        }
+        return query.substring(start);
     }
 
     // ==================== LLM-as-Judge Scoring ====================
@@ -217,16 +297,23 @@ public final class NlqEvalMetrics {
 
         String systemPrompt = """
                 You are an expert evaluator of Pure language queries against a data model.
-                Given a natural language question, a data model schema, a reference (gold standard) query,
-                and a generated query, rate the generated query on a 1-5 scale:
+                Given a natural language question, a reference query, and a generated query,
+                rate the generated query on four dimensions (each 1-5):
                 
-                5: Semantically equivalent — would return the same data as the reference
-                4: Minor differences (extra columns, slightly different filter) but captures the intent
-                3: Correct root class and general approach but missing key elements (wrong groupBy, missing filter)
-                2: Wrong approach or significant structural errors
-                1: Completely wrong or broken syntax
+                IMPORTANT: A query starting from a different but associated class that navigates
+                to the correct data via associations is equally valid. Do NOT penalize for choosing
+                a different root class if the query reaches the same data.
                 
-                Return ONLY a JSON object: {"score": N, "reasoning": "brief explanation"}
+                Dimensions:
+                - columnSelection: Are the right columns projected/output? (5=all key columns, 1=none)
+                - filtering: Are the right predicates applied? (5=exact, 3=partial, 1=none/wrong)
+                - aggregation: Are groupBy dimensions and metric aggregations correct? (5=exact, 3=partial, 1=wrong. Use 5 if N/A)
+                - semanticEquivalence: Would this query return essentially the same result set? (5=yes, 1=no)
+                
+                Also provide an overall score (1-5) and brief reasoning.
+                
+                Return ONLY a JSON object:
+                {"columnSelection": N, "filtering": N, "aggregation": N, "semanticEquivalence": N, "overall": N, "reasoning": "brief explanation"}
                 """;
 
         String userMessage = "Question: " + question +
@@ -238,28 +325,33 @@ public final class NlqEvalMetrics {
             String response = judge.complete(systemPrompt, userMessage);
             return parseLlmJudgeResponse(response);
         } catch (Exception e) {
-            return new NlqFullEvalResult.LlmJudgeScore(0, "Judge error: " + e.getMessage());
+            return new NlqFullEvalResult.LlmJudgeScore(0, 0, 0, 0, 0, "Judge error: " + e.getMessage());
         }
     }
 
     private static NlqFullEvalResult.LlmJudgeScore parseLlmJudgeResponse(String response) {
-        // Strip markdown fences if present
         String cleaned = response.strip();
         if (cleaned.startsWith("```")) {
             cleaned = cleaned.replaceAll("^```[a-z]*\\n?", "").replaceAll("\\n?```$", "").strip();
         }
 
-        // Extract score
-        Pattern scorePat = Pattern.compile("\"score\"\\s*:\\s*(\\d)");
-        Matcher sm = scorePat.matcher(cleaned);
-        int score = sm.find() ? Integer.parseInt(sm.group(1)) : 0;
+        int colSel = extractJsonInt(cleaned, "columnSelection");
+        int filtering = extractJsonInt(cleaned, "filtering");
+        int aggregation = extractJsonInt(cleaned, "aggregation");
+        int semEquiv = extractJsonInt(cleaned, "semanticEquivalence");
+        int overall = extractJsonInt(cleaned, "overall");
 
-        // Extract reasoning
         Pattern reasonPat = Pattern.compile("\"reasoning\"\\s*:\\s*\"([^\"]*?)\"");
         Matcher rm = reasonPat.matcher(cleaned);
         String reasoning = rm.find() ? rm.group(1) : cleaned;
 
-        return new NlqFullEvalResult.LlmJudgeScore(score, reasoning);
+        return new NlqFullEvalResult.LlmJudgeScore(colSel, filtering, aggregation, semEquiv, overall, reasoning);
+    }
+
+    private static int extractJsonInt(String json, String key) {
+        Pattern p = Pattern.compile("\"" + key + "\"\\s*:\\s*(\\d)");
+        Matcher m = p.matcher(json);
+        return m.find() ? Integer.parseInt(m.group(1)) : 0;
     }
 
     // ==================== Full Pipeline Report ====================
@@ -269,15 +361,18 @@ public final class NlqEvalMetrics {
 
         int total = results.size();
         int errors = 0;
-        int routingCorrect = 0;
+        int routingPreferred = 0;
+        int routingAcceptable = 0;
         double totalOpCoverage = 0;
-        double totalPropCoverage = 0;
-        double totalJudgeScore = 0;
+        double totalRoleScore = 0;
+        int roleCount = 0;
+        double totalJudgeOverall = 0;
+        double totalJudgeCols = 0;
+        double totalJudgeFilter = 0;
+        double totalJudgeAgg = 0;
+        double totalJudgeSemantic = 0;
         int judgeCount = 0;
         long totalLatency = 0;
-
-        Map<String, int[]> byDifficulty = new LinkedHashMap<>();
-        Map<String, int[]> bySubdomain = new LinkedHashMap<>();
 
         for (NlqFullEvalResult r : results) {
             if (r.hasError()) {
@@ -287,13 +382,23 @@ public final class NlqEvalMetrics {
 
             totalLatency += r.latencyMs();
 
-            if (r.routing() != null && r.routing().correct()) routingCorrect++;
+            if (r.routing() != null) {
+                if (r.routing().preferredMatch()) routingPreferred++;
+                if (r.routing().acceptableMatch()) routingAcceptable++;
+            }
             if (r.queryAccuracy() != null) {
                 totalOpCoverage += r.queryAccuracy().opCoverage();
-                totalPropCoverage += r.queryAccuracy().propertyCoverage();
             }
-            if (r.llmJudge() != null && r.llmJudge().score() > 0) {
-                totalJudgeScore += r.llmJudge().score();
+            if (r.propertyRoles() != null) {
+                double roleScore = r.propertyRoles().overallScore();
+                if (roleScore > 0) { totalRoleScore += roleScore; roleCount++; }
+            }
+            if (r.llmJudge() != null && r.llmJudge().overall() > 0) {
+                totalJudgeOverall += r.llmJudge().overall();
+                totalJudgeCols += r.llmJudge().columnSelection();
+                totalJudgeFilter += r.llmJudge().filtering();
+                totalJudgeAgg += r.llmJudge().aggregation();
+                totalJudgeSemantic += r.llmJudge().semanticEquivalence();
                 judgeCount++;
             }
         }
@@ -305,60 +410,25 @@ public final class NlqEvalMetrics {
         sb.append(String.format("  Cases: %d | Errors: %d\n", total, errors));
         sb.append("═══════════════════════════════════════════════════════════\n\n");
 
-        sb.append(String.format("  Routing Accuracy:      %d/%d (%.1f%%)\n",
-                routingCorrect, scored, 100.0 * routingCorrect / Math.max(1, scored)));
-        sb.append(String.format("  Avg Op Coverage:       %.1f%%\n", 100.0 * totalOpCoverage / Math.max(1, scored)));
-        sb.append(String.format("  Avg Property Coverage: %.1f%%\n", 100.0 * totalPropCoverage / Math.max(1, scored)));
-        sb.append(String.format("  Avg LLM Judge Score:   %.1f / 5.0\n",
-                totalJudgeScore / Math.max(1, judgeCount)));
-        sb.append(String.format("  Avg Latency:           %d ms\n\n", totalLatency / Math.max(1, scored)));
+        sb.append("  Routing:\n");
+        sb.append(String.format("    Preferred Match:    %d/%d (%.1f%%)\n",
+                routingPreferred, scored, 100.0 * routingPreferred / Math.max(1, scored)));
+        sb.append(String.format("    Acceptable Match:   %d/%d (%.1f%%)\n",
+                routingAcceptable, scored, 100.0 * routingAcceptable / Math.max(1, scored)));
 
-        // By difficulty
-        for (NlqFullEvalResult r : results) {
-            if (r.hasError()) continue;
-            String diff = r.difficulty() != null ? r.difficulty() : "unknown";
-            byDifficulty.computeIfAbsent(diff, k -> new int[4]); // [total, routeOk, judgeSum, judgeCount]
-            int[] d = byDifficulty.get(diff);
-            d[0]++;
-            if (r.routing() != null && r.routing().correct()) d[1]++;
-            if (r.llmJudge() != null && r.llmJudge().score() > 0) {
-                d[2] += r.llmJudge().score();
-                d[3]++;
-            }
+        sb.append(String.format("\n  Avg Op Coverage:       %.1f%%\n", 100.0 * totalOpCoverage / Math.max(1, scored)));
+        if (roleCount > 0) {
+            sb.append(String.format("  Avg Property Role:     %.1f%%\n", 100.0 * totalRoleScore / roleCount));
         }
 
-        sb.append("  By Difficulty:\n");
-        for (var entry : byDifficulty.entrySet()) {
-            int[] d = entry.getValue();
-            sb.append(String.format("    %-8s routing %d/%d, judge avg %.1f\n",
-                    entry.getKey() + ":", d[1], d[0],
-                    d[3] > 0 ? (double) d[2] / d[3] : 0.0));
-        }
-        sb.append("\n");
+        sb.append(String.format("\n  LLM Judge (avg of %d):\n", judgeCount));
+        sb.append(String.format("    Column Selection:   %.1f / 5.0\n", totalJudgeCols / Math.max(1, judgeCount)));
+        sb.append(String.format("    Filtering:          %.1f / 5.0\n", totalJudgeFilter / Math.max(1, judgeCount)));
+        sb.append(String.format("    Aggregation:        %.1f / 5.0\n", totalJudgeAgg / Math.max(1, judgeCount)));
+        sb.append(String.format("    Semantic Equiv:     %.1f / 5.0\n", totalJudgeSemantic / Math.max(1, judgeCount)));
+        sb.append(String.format("    Overall:            %.1f / 5.0\n", totalJudgeOverall / Math.max(1, judgeCount)));
 
-        // By subdomain — collect from eval case metadata
-        for (NlqFullEvalResult r : results) {
-            if (r.hasError()) continue;
-            // Use caseId prefix as subdomain proxy
-            String sub = r.caseId().replaceAll("-\\d+$", "");
-            bySubdomain.computeIfAbsent(sub, k -> new int[4]);
-            int[] d = bySubdomain.get(sub);
-            d[0]++;
-            if (r.routing() != null && r.routing().correct()) d[1]++;
-            if (r.llmJudge() != null && r.llmJudge().score() > 0) {
-                d[2] += r.llmJudge().score();
-                d[3]++;
-            }
-        }
-
-        sb.append("  By Subdomain:\n");
-        for (var entry : bySubdomain.entrySet()) {
-            int[] d = entry.getValue();
-            sb.append(String.format("    %-10s routing %d/%d, judge avg %.1f\n",
-                    entry.getKey() + ":", d[1], d[0],
-                    d[3] > 0 ? (double) d[2] / d[3] : 0.0));
-        }
-        sb.append("\n");
+        sb.append(String.format("\n  Avg Latency:           %d ms\n\n", totalLatency / Math.max(1, scored)));
 
         // Per-case detail
         sb.append("  Per-Case Detail:\n");
@@ -368,26 +438,34 @@ public final class NlqEvalMetrics {
                 continue;
             }
 
-            boolean routeOk = r.routing() != null && r.routing().correct();
-            String routeStr = routeOk ? "✓" :
-                    "✗(expected " + (r.routing() != null ? r.routing().expected() : "?") + ")";
+            String routeStr;
+            if (r.routing() != null && r.routing().preferredMatch()) routeStr = "✓";
+            else if (r.routing() != null && r.routing().acceptableMatch()) routeStr = "~";
+            else routeStr = "✗";
 
             String opsStr = r.queryAccuracy() != null
                     ? String.format("%.0f%%", r.queryAccuracy().opCoverage() * 100) : "?";
-            String propsStr = r.queryAccuracy() != null
-                    ? String.format("%.0f%%", r.queryAccuracy().propertyCoverage() * 100) : "?";
-            String judgeStr = r.llmJudge() != null && r.llmJudge().score() > 0
-                    ? r.llmJudge().score() + "/5" : "?";
+            String roleStr = r.propertyRoles() != null
+                    ? String.format("%.0f%%", r.propertyRoles().overallScore() * 100) : "-";
+            String judgeStr = r.llmJudge() != null && r.llmJudge().overall() > 0
+                    ? String.format("%d(c%d/f%d/a%d/s%d)",
+                        r.llmJudge().overall(),
+                        r.llmJudge().columnSelection(),
+                        r.llmJudge().filtering(),
+                        r.llmJudge().aggregation(),
+                        r.llmJudge().semanticEquivalence())
+                    : "?";
 
-            String icon = routeOk && r.llmJudge() != null && r.llmJudge().score() >= 4 ? "✅" : "❌";
+            boolean good = r.llmJudge() != null && r.llmJudge().overall() >= 4;
+            String icon = good ? "✅" : "❌";
 
-            sb.append(String.format("    %s %-12s root=%s %s  ops=%s  props=%s  judge=%s\n",
-                    icon, r.caseId() + ":",
+            sb.append(String.format("    %s [%s] root=%s(%s) ops=%s roles=%s judge=%s\n",
+                    icon, r.caseId(),
                     r.routing() != null ? r.routing().actual() : "?",
-                    routeStr, opsStr, propsStr, judgeStr));
+                    routeStr, opsStr, roleStr, judgeStr));
 
-            // Show generated query for failures
-            if (!routeOk || (r.llmJudge() != null && r.llmJudge().score() < 4)) {
+            // Show detail for failures
+            if (!good) {
                 if (r.generatedQuery() != null) {
                     sb.append("                   Generated: ").append(r.generatedQuery()).append("\n");
                 }

@@ -20,6 +20,198 @@ public class NlqService {
 
     private static final int DEFAULT_TOP_K = 15;
 
+    // ==================== Pure Language Reference Prompt ====================
+
+    private static final String PURE_GENERATOR_PROMPT = """
+            You are a Pure language code generator. Generate a valid Pure query expression.
+
+            ═══════════════════════════════════════════
+            RULE 1: PROJECT FIRST
+            ═══════════════════════════════════════════
+            ALWAYS project columns before applying filters, sort, limit, extend, or distinct.
+            The only exception is a "class filter" that navigates an association (see Rule 2).
+
+            Standard pattern:
+              ClassName.all()->project([lambdas], ['Column Names'])->filter(...)->sort(...)->limit(...)
+
+            ═══════════════════════════════════════════
+            RULE 2: CLASS FILTER vs RELATION FILTER
+            ═══════════════════════════════════════════
+            There are TWO kinds of filter:
+
+            (A) Class filter — BEFORE project. ONLY when filtering through an association:
+                Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project(...)
+
+            (B) Relation filter — AFTER project. PREFERRED for simple property filters:
+                Trade.all()->project([t|$t.tradeId, t|$t.status], ['ID', 'Status'])->filter(row|$row.getString('Status') == 'NEW')
+
+            Relation filter accessor methods:
+              getString('col'), getInteger('col'), getFloat('col'), getNumber('col'), getDate('col')
+
+            ═══════════════════════════════════════════
+            CORE OPERATIONS
+            ═══════════════════════════════════════════
+
+            --- project() ---
+            Project columns from class properties. ALWAYS include relevant columns.
+              Person.all()->project([p|$p.firstName, p|$p.lastName, p|$p.age], ['First Name', 'Last Name', 'Age'])
+            Navigate associations with dot notation:
+              Trade.all()->project([t|$t.tradeId, t|$t.counterparty.name, t|$t.trader.desk.name], ['Trade ID', 'Counterparty', 'Desk'])
+
+            --- filter() on relation ---
+            After project, filter using column accessors:
+              ->filter(row|$row.getInteger('Age') > 30)
+              ->filter(row|$row.getString('Status') == 'ACTIVE')
+              ->filter(row|$row.getDate('Trade Date') >= %2026-01-01)
+              ->filter(row|$row.getString('Name')->contains('Smith'))
+              ->filter(row|$row.getString('Name')->startsWith('A'))
+              ->filter(row|$row.getFloat('Amount') > 0 && $row.getString('Status') != 'CANCELLED')
+
+            --- groupBy() ---
+            Aggregation with 3 arguments: [group lambdas], [agg expressions], ['column names']
+              Trade.all()->groupBy([t|$t.trader.desk.name], [agg(t|$t.notional, x|$x->sum())], ['Desk', 'Total Notional'])
+            Multiple aggregations:
+              Trade.all()->groupBy([t|$t.side], [agg(t|$t.notional, x|$x->sum()), agg(t|$t.tradeId, x|$x->count())], ['Side', 'Total Notional', 'Count'])
+            Available agg functions: sum(), avg(), count(), min(), max(), stdDev(), variance(), median(), mode()
+            Percentile: agg(x|$x.salary, y|$y->percentile(0.95, true))  // (percentile, ascending)
+
+            --- sort() / sortBy() ---
+            After project:
+              ->sort('Column Name')           // ascending
+              ->sort(descending('Amount'))     // descending
+              ->sort('Desk', descending('PnL'))  // multi-column
+
+            --- limit() / take() / drop() / slice() ---
+              ->limit(10)       // first 10 rows
+              ->take(10)        // alias for limit
+              ->drop(5)         // skip first 5 rows (OFFSET)
+              ->slice(10, 20)   // rows 10 through 20
+
+            --- distinct() ---
+              ->distinct()      // deduplicate rows (after project)
+
+            ═══════════════════════════════════════════
+            WINDOW FUNCTIONS
+            ═══════════════════════════════════════════
+            Use extend(over(...), ~colName:{p,w,r|...}) AFTER project:
+
+            Ranking:
+              ->extend(over(), ~rowNum:{p,w,r|$p->rowNumber($r)})
+              ->extend(over(~department, ~salary->desc()), ~rank:{p,w,r|$p->rank($w,$r)})
+              ->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
+
+            Value offset:
+              ->extend(over(~department, ~salary->descending()), ~prevSalary:{p,w,r|$p->lag($r).salary})
+              ->extend(over(~department, ~salary->descending()), ~nextSalary:{p,w,r|$p->lead($r).salary})
+
+            Window aggregation:
+              ->extend(over(~department), ~deptTotal:{p,w,r|$p->sum($w,$r).salary})
+
+            Window spec:
+              over()                              — whole result set
+              over(~partitionCol)                  — partition only
+              over(~partitionCol, ~orderCol->desc()) — partition + order
+
+            ═══════════════════════════════════════════
+            COMPUTED COLUMNS (extend without window)
+            ═══════════════════════════════════════════
+              ->extend(~margin:{row|$row.getFloat('Revenue') - $row.getFloat('Cost')})
+              ->extend(~label:{row|if($row.getFloat('PnL') > 0, |'Profit', |'Loss')})
+
+            ═══════════════════════════════════════════
+            ADDITIONAL OPERATIONS
+            ═══════════════════════════════════════════
+
+            --- rename() ---
+              ->rename(~oldName, ~newName)
+
+            --- concatenate() (UNION) ---
+              relation1->concatenate(relation2)
+
+            --- join() (explicit) ---
+              relation1->join(relation2, JoinKind.INNER, {a,b|$a.getString('id') == $b.getString('id')})
+              JoinKind options: INNER, LEFT_OUTER
+
+            ═══════════════════════════════════════════
+            SCALAR FUNCTIONS (use in extend or filter)
+            ═══════════════════════════════════════════
+
+            String:  toUpper(), toLower(), length(), trim(),
+                     contains('x'), startsWith('x'), endsWith('x'),
+                     substring(start, end), indexOf('x'), splitPart('delim', n),
+                     format('template %s', [args])
+
+            Math:    round(), floor(), ceiling(), abs(), rem(n), sign()
+
+            Date:    today(), now(),
+                     dateDiff(date1, date2, DurationUnit.DAYS),
+                     adjust(%2026-01-01, 7, DurationUnit.DAYS)
+
+            Conditional: if(cond, |trueVal, |falseVal), coalesce(val1, val2)
+
+            Parse/Cast: parseInteger('123'), parseFloat('1.5'), toString(42)
+
+            ═══════════════════════════════════════════
+            DATE LITERALS
+            ═══════════════════════════════════════════
+              %2026-02-20                    — StrictDate
+              %2026-02-20T14:30:00           — DateTime
+              today()                        — current date
+              now()                          — current timestamp
+              adjust(%2026-02-20, -30, DurationUnit.DAYS) — date arithmetic
+
+            ═══════════════════════════════════════════
+            LET BINDINGS
+            ═══════════════════════════════════════════
+              {|
+                let cutoff = %2026-01-01;
+                Trade.all()->project([t|$t.tradeDate, t|$t.notional], ['Date', 'Notional'])
+                  ->filter(row|$row.getDate('Date') >= $cutoff)
+              }
+
+            ═══════════════════════════════════════════
+            COMPLETE EXAMPLES
+            ═══════════════════════════════════════════
+
+            1. Simple project + relation filter:
+               Person.all()->project([p|$p.firstName, p|$p.age], ['Name', 'Age'])->filter(row|$row.getInteger('Age') > 30)
+
+            2. Class filter (association navigation) + project:
+               Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project([t|$t.tradeId, t|$t.notional, t|$t.counterparty.name], ['Trade ID', 'Notional', 'Counterparty'])
+
+            3. GroupBy with class filter:
+               DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps')->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])
+
+            4. Project + sort + limit (top N):
+               Trade.all()->project([t|$t.tradeId, t|$t.notional, t|$t.trader.name], ['Trade ID', 'Notional', 'Trader'])->sort(descending('Notional'))->limit(10)
+
+            5. Project + window function:
+               Trade.all()->project([t|$t.tradeId, t|$t.trader.desk.name, t|$t.notional], ['Trade ID', 'Desk', 'Notional'])->extend(over(~Desk, ~Notional->desc()), ~rank:{p,w,r|$p->rank($w,$r)})
+
+            6. Project + relation filter + sort:
+               Trade.all()->project([t|$t.tradeId, t|$t.tradeDate, t|$t.status, t|$t.notional], ['Trade ID', 'Date', 'Status', 'Notional'])->filter(row|$row.getDate('Date') == today())->sort(descending('Notional'))
+
+            7. GroupBy + relation filter on aggregate:
+               Trade.all()->groupBy([t|$t.trader.name], [agg(t|$t.notional, x|$x->sum())], ['Trader', 'Total Notional'])->filter(row|$row.getFloat('Total Notional') > 1000000)->sort(descending('Total Notional'))
+
+            8. Complex: class filter + groupBy + sort + limit:
+               DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps' && $p.pnlDate >= %2026-01-01)->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum()), agg(p|$p.totalPnL, x|$x->count())], ['Trader', 'Total PnL', 'Days'])->sort(descending('Total PnL'))->limit(10)
+
+            ═══════════════════════════════════════════
+            KEY RULES
+            ═══════════════════════════════════════════
+            - Always start with ClassName.all()
+            - ALWAYS project() before filter/sort/limit/extend/distinct
+            - Class filter ONLY for association navigation; everything else is relation filter
+            - Use $variable references inside lambdas (e.g., $p, $row, $x)
+            - Date literals: %YYYY-MM-DD or %YYYY-MM-DDThh:mm:ss
+            - Navigate associations via dot notation (e.g., $t.trader.desk.name)
+            - groupBy takes 3 args: [group lambdas], [agg expressions], ['column names']
+            - extend() for window functions always comes AFTER project()
+
+            Return ONLY the Pure query expression. No explanation, no markdown, no code fences.
+            """;
+
     private final SemanticIndex index;
     private final PureModelBuilder modelBuilder;
     private final LlmClient llmClient;
@@ -51,9 +243,10 @@ public class NlqService {
                     .toList();
 
             String schema = ModelSchemaExtractor.extractSchema(classNames, modelBuilder);
+            String routingHints = ModelSchemaExtractor.extractRoutingHints(classNames, modelBuilder);
 
             // Step 1: Semantic Router — identify root class
-            String rootClass = routeToRootClass(question, schema);
+            String rootClass = routeToRootClass(question, schema, routingHints);
 
             // Step 2: Query Planner — build structured plan
             String queryPlan = planQuery(question, rootClass, schema);
@@ -81,22 +274,32 @@ public class NlqService {
 
     // ==================== Step 1: Semantic Router ====================
 
-    private String routeToRootClass(String question, String schema) {
+    private String routeToRootClass(String question, String schema, String routingHints) {
         String systemPrompt = """
                 You are a data model expert. Given a data model schema and a natural language question,
                 identify which class is the PRIMARY entity (root class) that the query should start from.
                 
                 The root class is the main entity being queried — the one that appears after ".all()" in a Pure query.
-                For example, if someone asks "total PnL by trader", the root class is DailyPnL (not Trader),
-                because we're querying PnL records and navigating to Trader via association.
+                
+                KEY RULES:
+                - Prefer the most SPECIFIC class that directly holds the data being asked about.
+                - If a detail/child class exists for the concept, prefer it over the parent.
+                - Look for "When to use" hints in the routing hints section — they disambiguate similar classes.
+                - The root class should be the one whose properties you'd filter/aggregate on.
+                - When in doubt, choose the class that has the columns you'd want to project or aggregate.
                 
                 Return ONLY a JSON object with this exact format (no markdown, no explanation):
                 {"rootClass": "ClassName", "reasoning": "brief explanation"}
                 """;
 
-        String userMessage = "Data Model:\n" + schema + "\n\nQuestion: " + question;
+        StringBuilder userMessage = new StringBuilder();
+        userMessage.append("Data Model:\n").append(schema);
+        if (routingHints != null && !routingHints.isBlank()) {
+            userMessage.append("\n\nRouting Hints:\n").append(routingHints);
+        }
+        userMessage.append("\n\nQuestion: ").append(question);
 
-        String response = llmClient.complete(systemPrompt, userMessage);
+        String response = llmClient.complete(systemPrompt, userMessage.toString());
         return extractJsonField(response, "rootClass");
     }
 
@@ -107,17 +310,29 @@ public class NlqService {
                 You are a Pure language query planner. Given a data model, a root class, and a natural language question,
                 produce a structured query plan as JSON.
                 
+                IMPORTANT: The first step should ALWAYS be projections — decide which columns to output.
+                Then apply filters, aggregations, sorting, etc. on the projected relation.
+                
                 The plan should specify:
-                - projections: list of property paths to select (e.g., ["trader.name", "totalPnL"])
-                - filters: list of filter conditions with path, operator, and value
+                - projections: list of property paths to select (REQUIRED, always first)
+                - classFilters: list of filters that require association navigation (BEFORE project)
+                - relationFilters: list of filters on simple projected columns (AFTER project)
                 - groupBy: list of property paths to group by (if aggregation needed)
                 - aggregations: list of {function, property, alias} objects
+                - windowFunctions: list of {function, partitionBy, orderBy, alias} objects
                 - sort: list of {column, direction} objects
                 - limit: optional row limit
+                - distinct: boolean (if deduplication needed)
                 
                 Navigation uses dot notation through associations (e.g., "desk.name", "trader.badge").
-                Available operators: ==, !=, >, <, >=, <=, contains, in
-                Available aggregation functions: sum, avg, count, min, max
+                
+                Available filter operators: ==, !=, >, <, >=, <=, contains, in, startsWith, endsWith
+                Available aggregation functions: sum, avg, count, min, max, stdDev, variance, median, mode, percentile
+                Available window functions: rowNumber, rank, denseRank, lead, lag, sum, avg, count, min, max
+                
+                Classify each filter as either:
+                - classFilter: requires navigating an association (e.g., "counterparty.name == 'Goldman'")
+                - relationFilter: operates on a simple property of the root class (e.g., "status == 'NEW'")
                 
                 Return ONLY valid JSON (no markdown, no explanation).
                 """;
@@ -131,71 +346,7 @@ public class NlqService {
     // ==================== Step 3: Pure Generator ====================
 
     private String generatePure(String question, String rootClass, String queryPlan, String schema) {
-        String systemPrompt = """
-                You are a Pure language code generator. Generate a valid Pure query expression.
-                
-                IMPORTANT — there are TWO kinds of filter in Pure:
-                1. Class filter (BEFORE project): Only use when you need to navigate associations.
-                   Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project(...)
-                2. Relation filter (AFTER project): The PREFERRED way to filter on simple properties.
-                   Trade.all()->project([t|$t.tradeId, t|$t.status], ['Trade ID', 'Status'])->filter(row|$row.getString('Status') == 'NEW')
-                
-                Use post-project filter (relation filter) for simple property filters.
-                Use pre-project filter (class filter) ONLY when filtering on navigated association properties.
-                
-                Relation filter accessor methods: getString('col'), getInteger('col'), getFloat('col'), getDate('col')
-                
-                Pure query syntax examples:
-                
-                1. Project with post-filter (preferred for simple filters):
-                   Person.all()->project([p|$p.firstName, p|$p.age], ['Name', 'Age'])->filter(row|$row.getInteger('Age') > 30)
-                
-                2. Class filter for association navigation (pre-project):
-                   Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project([t|$t.tradeId, t|$t.notional], ['Trade ID', 'Notional'])
-                
-                3. Project columns:
-                   Trade.all()->project([t|$t.tradeId, t|$t.notional, t|$t.counterparty.name], ['Trade ID', 'Notional', 'Counterparty'])
-                
-                4. GroupBy with aggregation:
-                   DailyPnL.all()->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])
-                
-                5. Sort and limit:
-                   Trade.all()->project([t|$t.tradeId, t|$t.notional], ['Trade ID', 'Notional'])->sortBy('Notional')->limit(10)
-                
-                6. Combined — class filter + project + relation filter:
-                   DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps')->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])->filter(row|$row.getFloat('Total PnL') > 0)
-                
-                7. Window functions — use extend(over(...), ~colName:{p,w,r|...}):
-                   // ROW_NUMBER (no partition):
-                   Employee.all()->project({e|$e.name}, {e|$e.department})->extend(over(), ~rowNum:{p,w,r|$p->rowNumber($r)})
-                   // RANK with partition + order:
-                   Employee.all()->project({e|$e.name}, {e|$e.department}, {e|$e.salary})->extend(over(~department, ~salary->desc()), ~rank:{p,w,r|$p->rank($w,$r)})
-                   // DENSE_RANK:
-                   Employee.all()->project({e|$e.name}, {e|$e.department}, {e|$e.salary})->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
-                   // LAG (previous row's value):
-                   Employee.all()->project({e|$e.name}, {e|$e.department}, {e|$e.salary})->extend(over(~department, ~salary->descending()), ~prevSalary:{p,w,r|$p->lag($r).salary})
-                   // LEAD (next row's value):
-                   Employee.all()->project({e|$e.name}, {e|$e.department}, {e|$e.salary})->extend(over(~department, ~salary->descending()), ~nextSalary:{p,w,r|$p->lead($r).salary})
-                
-                Window function rules:
-                - over(~partitionCol) — partition by a projected column
-                - over(~partitionCol, ~orderCol->desc()) — partition + order
-                - over() — no partition (whole result set)
-                - Ranking functions (rowNumber, rank, denseRank) use $p->func($r) or $p->func($w,$r)
-                - Value functions (lead, lag) use $p->func($r).property to access a property of the offset row
-                - extend() always comes AFTER project()
-                
-                Key rules:
-                - Always start with ClassName.all()
-                - Use $variable references inside lambdas
-                - Date literals use %YYYY-MM-DD format
-                - Navigate associations using dot notation
-                - groupBy takes 3 args: [group lambdas], [agg expressions], ['column names']
-                - Prefer post-project filter for simple property conditions
-                - Use pre-project (class) filter only for association navigation filters
-                
-                Return ONLY the Pure query expression. No explanation, no markdown.
-                """;
+        String systemPrompt = PURE_GENERATOR_PROMPT;
 
         String userMessage = "Root Class: " + rootClass +
                 "\n\nQuery Plan:\n" + queryPlan +
