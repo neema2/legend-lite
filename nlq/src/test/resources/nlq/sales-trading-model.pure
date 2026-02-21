@@ -141,6 +141,16 @@ counterparty::Counterparty
     tier: String[1];
     {nlq::NlqProfile.description = 'Country of incorporation', nlq::NlqProfile.sampleValues = 'US, GB, JP, DE'}
     country: String[1];
+    {nlq::NlqProfile.description = 'Entity type', nlq::NlqProfile.sampleValues = 'BANK, HEDGE_FUND, ASSET_MANAGER, CORPORATE, SOVEREIGN'}
+    entityType: String[1];
+    {nlq::NlqProfile.description = 'Internal credit rating', nlq::NlqProfile.sampleValues = 'A1, A2, B1, B2, C'}
+    internalRating: String[0..1];
+    {nlq::NlqProfile.description = 'Whether the counterparty has an active ISDA agreement', nlq::NlqProfile.sampleValues = 'true, false'}
+    hasIsda: Boolean[1];
+    {nlq::NlqProfile.description = 'Onboarding date when the counterparty was set up'}
+    onboardingDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'Primary contact email at the counterparty'}
+    contactEmail: String[0..1];
 }
 
 // ==================== Organization ====================
@@ -226,6 +236,18 @@ positions::Position
     averageCost: Float[1];
     {nlq::NlqProfile.description = 'Position open date'}
     openDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Unrealized PnL on the position', nlq::NlqProfile.unit = 'USD'}
+    unrealizedPnL: Float[1];
+    {nlq::NlqProfile.description = 'Daily change in position value', nlq::NlqProfile.unit = 'USD'}
+    dailyPnL: Float[0..1];
+    {nlq::NlqProfile.description = 'Long or Short position indicator', nlq::NlqProfile.sampleValues = 'LONG, SHORT'}
+    positionSide: String[1];
+    {nlq::NlqProfile.description = 'Notional exposure of the position', nlq::NlqProfile.unit = 'USD'}
+    notionalExposure: Float[1];
+    {nlq::NlqProfile.description = 'Position settlement currency', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP, JPY'}
+    currency: String[1];
+    {nlq::NlqProfile.description = 'Last mark-to-market price', nlq::NlqProfile.unit = 'USD'}
+    lastMarkPrice: Float[0..1];
 }
 
 Class <<nlq::NlqProfile.dimension>>
@@ -272,6 +294,20 @@ trading::Trade
     side: String[1];
     {nlq::NlqProfile.description = 'Current lifecycle status', nlq::NlqProfile.sampleValues = 'NEW, VERIFIED, SETTLED, CANCELLED'}
     status: String[1];
+    {nlq::NlqProfile.description = 'Trading strategy or algorithm used', nlq::NlqProfile.sampleValues = 'VWAP, TWAP, MANUAL, DMA, ALGO'}
+    tradingStrategy: String[0..1];
+    {nlq::NlqProfile.description = 'Commission charged for the trade', nlq::NlqProfile.unit = 'USD'}
+    commission: Float[0..1];
+    {nlq::NlqProfile.description = 'Accrued interest for fixed income trades', nlq::NlqProfile.unit = 'USD'}
+    accruedInterest: Float[0..1];
+    {nlq::NlqProfile.description = 'Trade entry timestamp with time of day'}
+    entryTimestamp: DateTime[1];
+    {nlq::NlqProfile.description = 'Whether the trade is cleared through a CCP', nlq::NlqProfile.sampleValues = 'true, false'}
+    isCentrallyCleared: Boolean[1];
+    {nlq::NlqProfile.description = 'Settlement currency ISO code', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP, JPY'}
+    settlementCurrency: String[1];
+    {nlq::NlqProfile.description = 'Internal comments or notes on the trade'}
+    tradeComment: String[0..1];
 }
 
 Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
@@ -314,6 +350,18 @@ pnl::DailyPnL
     realizedPnL: Float[1];
     {nlq::NlqProfile.description = 'Unrealized PnL from open positions (mark-to-market)', nlq::NlqProfile.unit = 'USD'}
     unrealizedPnL: Float[1];
+    {nlq::NlqProfile.description = 'New trade PnL from trades entered today', nlq::NlqProfile.unit = 'USD'}
+    newTradePnL: Float[0..1];
+    {nlq::NlqProfile.description = 'Commission and fee PnL impact', nlq::NlqProfile.unit = 'USD'}
+    commissionPnL: Float[0..1];
+    {nlq::NlqProfile.description = 'Funding cost charged for the day', nlq::NlqProfile.unit = 'USD'}
+    fundingCost: Float[0..1];
+    {nlq::NlqProfile.description = 'Number of trades contributing to PnL'}
+    tradeCount: Integer[0..1];
+    {nlq::NlqProfile.description = 'PnL explanation status', nlq::NlqProfile.sampleValues = 'EXPLAINED, UNEXPLAINED, PARTIAL'}
+    explainStatus: String[0..1];
+    {nlq::NlqProfile.description = 'Month-to-date cumulative PnL', nlq::NlqProfile.unit = 'USD'}
+    mtdPnL: Float[0..1];
 }
 
 // ==================== Risk ====================
@@ -335,6 +383,16 @@ risk::VaRResult
     confidenceLevel: Float[1];
     {nlq::NlqProfile.description = 'Holding period in days', nlq::NlqProfile.sampleValues = '1, 10'}
     holdingPeriod: Integer[1];
+    {nlq::NlqProfile.description = 'VaR calculation method', nlq::NlqProfile.sampleValues = 'HISTORICAL, PARAMETRIC, MONTE_CARLO'}
+    methodology: String[1];
+    {nlq::NlqProfile.description = 'Expected shortfall (CVaR) at same confidence', nlq::NlqProfile.unit = 'USD'}
+    expectedShortfall: Float[0..1];
+    {nlq::NlqProfile.description = 'Number of scenarios used in calculation'}
+    scenarioCount: Integer[0..1];
+    {nlq::NlqProfile.description = 'Whether the VaR limit was breached', nlq::NlqProfile.sampleValues = 'true, false'}
+    limitBreached: Boolean[0..1];
+    {nlq::NlqProfile.description = 'VaR as percentage of NAV', nlq::NlqProfile.unit = 'percentage'}
+    varPctOfNav: Float[0..1];
 }
 
 Class <<nlq::NlqProfile.rootEntity, nlq::NlqProfile.fact>>
@@ -355,6 +413,14 @@ risk::Greeks
     theta: Float[1];
     {nlq::NlqProfile.description = 'Calculation date'}
     calcDate: StrictDate[1];
+    {nlq::NlqProfile.description = 'Rho - sensitivity to interest rates'}
+    rho: Float[0..1];
+    {nlq::NlqProfile.description = 'Dollar delta (delta * notional)', nlq::NlqProfile.unit = 'USD'}
+    dollarDelta: Float[0..1];
+    {nlq::NlqProfile.description = 'Dollar gamma (gamma * notional * spot)', nlq::NlqProfile.unit = 'USD'}
+    dollarGamma: Float[0..1];
+    {nlq::NlqProfile.description = 'Underlying spot price at time of calculation', nlq::NlqProfile.unit = 'USD'}
+    underlyingSpot: Float[0..1];
 }
 
 // ==================== Sales ====================
@@ -389,6 +455,16 @@ sales::SalesCredit
     creditDate: StrictDate[1];
     {nlq::NlqProfile.description = 'Credit allocation percentage', nlq::NlqProfile.unit = 'percentage'}
     allocationPct: Float[1];
+    {nlq::NlqProfile.description = 'Credit type category', nlq::NlqProfile.sampleValues = 'EXECUTION, ADVISORY, RESEARCH, ORIGINATION'}
+    creditType: String[1];
+    {nlq::NlqProfile.description = 'Whether the credit is finalized', nlq::NlqProfile.sampleValues = 'true, false'}
+    isFinalized: Boolean[1];
+    {nlq::NlqProfile.description = 'Revenue pool the credit belongs to', nlq::NlqProfile.sampleValues = 'FLOW, STRUCTURED, ADVISORY'}
+    revenuePool: String[0..1];
+    {nlq::NlqProfile.description = 'Quarter for revenue recognition', nlq::NlqProfile.sampleValues = 'Q1-2026, Q2-2026'}
+    revenueQuarter: String[0..1];
+    {nlq::NlqProfile.description = 'Gross credit amount before splits', nlq::NlqProfile.unit = 'USD'}
+    grossCredit: Float[1];
 }
 
 // ==================== Margin & Collateral ====================
@@ -413,6 +489,16 @@ collateral::MarginCall
     direction: String[1];
     {nlq::NlqProfile.description = 'Call status', nlq::NlqProfile.sampleValues = 'OPEN, AGREED, DISPUTED, SETTLED'}
     status: String[1];
+    {nlq::NlqProfile.description = 'Margin type', nlq::NlqProfile.sampleValues = 'INITIAL, VARIATION, INDEPENDENT_AMOUNT'}
+    marginType: String[1];
+    {nlq::NlqProfile.description = 'Amount agreed by counterparty', nlq::NlqProfile.unit = 'USD'}
+    agreedAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Dispute amount (difference between call and agreed)', nlq::NlqProfile.unit = 'USD'}
+    disputeAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Settlement date when collateral was delivered'}
+    settledDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'Currency of the margin call', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP'}
+    callCurrency: String[1];
 }
 
 // ==================== Settlement ====================
@@ -433,6 +519,16 @@ settlement::Settlement
     amount: Float[1];
     {nlq::NlqProfile.description = 'Settlement status', nlq::NlqProfile.sampleValues = 'PENDING, MATCHED, SETTLED, FAILED'}
     status: String[1];
+    {nlq::NlqProfile.description = 'Settlement method', nlq::NlqProfile.sampleValues = 'DVP, FOP, PAYMENT'}
+    settlementMethod: String[1];
+    {nlq::NlqProfile.description = 'Custodian or CSD handling settlement', nlq::NlqProfile.sampleValues = 'DTCC, Euroclear, Clearstream'}
+    custodian: String[0..1];
+    {nlq::NlqProfile.description = 'Settlement currency', nlq::NlqProfile.sampleValues = 'USD, EUR, GBP'}
+    currency: String[1];
+    {nlq::NlqProfile.description = 'Actual settlement date (if settled)'}
+    actualSettlementDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'Failure reason if status is FAILED', nlq::NlqProfile.sampleValues = 'INSUFFICIENT_SECURITIES, COUNTERPARTY_DEFAULT, SYSTEM_ERROR'}
+    failureReason: String[0..1];
 }
 
 // ==================== Market Data ====================
@@ -614,6 +710,16 @@ trading::Execution
     fillPrice: Float[1];
     {nlq::NlqProfile.description = 'Execution venue', nlq::NlqProfile.sampleValues = 'NYSE, NASDAQ, DARK, OTC'}
     venue: String[1];
+    {nlq::NlqProfile.description = 'Execution broker', nlq::NlqProfile.sampleValues = 'CITI, JPMC, GS_EXEC, MS_ALGO'}
+    broker: String[0..1];
+    {nlq::NlqProfile.description = 'Commission for this execution', nlq::NlqProfile.unit = 'USD'}
+    commission: Float[0..1];
+    {nlq::NlqProfile.description = 'Whether this is a partial or full fill', nlq::NlqProfile.sampleValues = 'FULL, PARTIAL'}
+    fillType: String[1];
+    {nlq::NlqProfile.description = 'Execution algorithm or strategy', nlq::NlqProfile.sampleValues = 'VWAP, TWAP, IS, DMA, SOR'}
+    executionAlgo: String[0..1];
+    {nlq::NlqProfile.description = 'Market price at time of execution (for TCA)', nlq::NlqProfile.unit = 'USD'}
+    arrivalPrice: Float[0..1];
 }
 
 Class <<nlq::NlqProfile.fact>>
@@ -786,6 +892,14 @@ ops::Confirmation
     sentDate: StrictDate[0..1];
     {nlq::NlqProfile.description = 'Affirmed date'}
     affirmedDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'Confirmation method', nlq::NlqProfile.sampleValues = 'ELECTRONIC, PAPER, SWIFT, MARKITWIRE'}
+    confirmMethod: String[1];
+    {nlq::NlqProfile.description = 'Counterparty contact who affirmed'}
+    affirmedBy: String[0..1];
+    {nlq::NlqProfile.description = 'Number of days outstanding since sent'}
+    daysOutstanding: Integer[0..1];
+    {nlq::NlqProfile.description = 'Whether the confirmation is overdue', nlq::NlqProfile.sampleValues = 'true, false'}
+    isOverdue: Boolean[0..1];
 }
 
 Class <<nlq::NlqProfile.dimension>>
