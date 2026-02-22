@@ -47,6 +47,7 @@ public class LegendHttpServer {
         // Engine - query and SQL execution
         server.createContext("/engine/execute", new ExecuteHandler());
         server.createContext("/engine/sql", new ExecuteSqlHandler());
+        server.createContext("/engine/diagram", new DiagramHandler());
 
         // Health check
         server.createContext("/health", exchange -> {
@@ -345,6 +346,52 @@ public class LegendHttpServer {
         if (s == null)
             return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    /**
+     * HTTP handler for /engine/diagram — delegates to DiagramService.
+     */
+    private class DiagramHandler implements HttpHandler {
+        private final DiagramService diagramService = new DiagramService();
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            addCorsHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
+                return;
+            }
+
+            try {
+                String body = readBody(exchange);
+                Map<String, Object> request = LegendHttpJson.parseObject(body);
+                String pureSource = LegendHttpJson.getString(request, "code");
+
+                if (pureSource == null || pureSource.isBlank()) {
+                    sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");
+                    return;
+                }
+
+                DiagramService.DiagramData data = diagramService.extract(pureSource);
+                String json = diagramService.toJson(data);
+                sendResponse(exchange, 200, json);
+
+            } catch (Throwable e) {
+                System.err.println("DiagramHandler error: " + e);
+                e.printStackTrace(System.err);
+                System.err.flush();
+                try {
+                    sendResponse(exchange, 500, "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+                } catch (Throwable ignore) {
+                    // response already committed
+                }
+            }
+        }
     }
 
     /**
