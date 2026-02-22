@@ -369,14 +369,64 @@ def generate():
             lines.append("}")
             lines.append("")
 
+    # ─── Generate Associations from type references ───
+    # Each Rosetta attribute whose type is another CDM type → Association
+    assoc_count = 0
+    seen_assocs = set()
+
+    # Build type_name → qualified Pure name lookup
+    type_to_qualified = {}
+    for domain in domain_models:
+        for model in domain_models[domain]:
+            qn = f"{model['domain']}::{model['name']}"
+            if qn in seen_classes:
+                type_to_qualified[model['name']] = qn
+
+    lines.append("// ═══════════════════════════════════════════════════════════")
+    lines.append("// Associations — derived from Rosetta type references")
+    lines.append("// ═══════════════════════════════════════════════════════════")
+    lines.append("")
+
+    for domain in sorted(domain_models.keys()):
+        for model in domain_models[domain]:
+            src_qn = f"{model['domain']}::{model['name']}"
+            if src_qn not in seen_classes:
+                continue
+            for attr in model['attrs']:
+                attr_type = attr['type']
+                if attr_type not in type_to_qualified:
+                    continue
+                tgt_qn = type_to_qualified[attr_type]
+                if src_qn == tgt_qn:
+                    continue
+
+                assoc_key = f"{src_qn}_{tgt_qn}_{attr['name']}"
+                if assoc_key in seen_assocs:
+                    continue
+                seen_assocs.add(assoc_key)
+
+                src_simple = model['name']
+                src_prop = src_simple[0].lower() + src_simple[1:]
+                tgt_prop = to_camel(attr['name'])
+                assoc_name = f"{src_simple}_{attr_type}_{attr['name']}"
+
+                lines.append(f"Association cdm_assoc::{assoc_name}")
+                lines.append("{")
+                lines.append(f"    {src_prop}: {src_qn}[*];")
+                lines.append(f"    {tgt_prop}: {tgt_qn}[*];")
+                lines.append("}")
+                lines.append("")
+                assoc_count += 1
+
     # Write
     with open(OUTPUT_FILE, 'w') as f:
         f.write('\n'.join(lines))
 
     print(f"\nGenerated {OUTPUT_FILE}")
-    print(f"  Classes:    {class_count}")
-    print(f"  Properties: {total_props}")
-    print(f"  Domains:    {len(domain_models)}")
+    print(f"  Classes:      {class_count}")
+    print(f"  Properties:   {total_props}")
+    print(f"  Associations: {assoc_count}")
+    print(f"  Domains:      {len(domain_models)}")
 
 
 if __name__ == "__main__":

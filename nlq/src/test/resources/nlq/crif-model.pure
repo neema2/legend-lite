@@ -1,0 +1,277 @@
+// ═══════════════════════════════════════════════════════════
+// ISDA CRIF & SIMM — Risk Data Standards
+// Source: ISDA Common Risk Interchange Format v1.36 + AcadiaSoft simm-lib
+// ═══════════════════════════════════════════════════════════
+
+Profile nlq::NlqProfile
+{
+    stereotypes: [dimension, metric];
+    tags: [description, synonyms, sampleValues, unit, importance, businessDomain, exampleQuestions, whenToUse];
+}
+
+// ─── CRIF (Common Risk Interchange Format) ───
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'ISDA Common Risk Interchange Format record for exchanging risk sensitivities between counterparties',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for ISDA SIMM initial margin calculations, risk sensitivity exchange, and regulatory capital',
+   nlq::NlqProfile.exampleQuestions = 'What are the total SIMM sensitivities by product class? Show me CRIF records for IR delta risk'}
+crif::CRIFRecord
+{
+    {nlq::NlqProfile.description = 'Unique trade identifier'}
+    tradeId: String[0..1];
+    {nlq::NlqProfile.description = 'Portfolio or netting set identifier'}
+    portfolioId: String[0..1];
+    {nlq::NlqProfile.description = 'SIMM product class: RatesFX, Credit, Equity, Commodity', nlq::NlqProfile.sampleValues = 'RatesFX, Credit, Equity, Commodity'}
+    productClass: String[0..1];
+    {nlq::NlqProfile.description = 'SIMM risk type: Risk_IRCurve, Risk_IRVol, Risk_CreditQ, Risk_Equity, Risk_FX, Risk_Commodity, etc.', nlq::NlqProfile.sampleValues = 'Risk_IRCurve, Risk_IRVol, Risk_CreditQ, Risk_Equity, Risk_FX'}
+    riskType: String[0..1];
+    {nlq::NlqProfile.description = 'Risk qualifier — currency for IR, issuer/index for Credit, ticker for Equity, commodity type for Commodity'}
+    qualifier: String[0..1];
+    {nlq::NlqProfile.description = 'SIMM bucket number within the risk type'}
+    bucket: String[0..1];
+    {nlq::NlqProfile.description = 'Sub-bucket label — tenor for IR (e.g. 2w, 1m, 3m, 1y, 5y, 10y, 30y), maturity for Credit/Equity vol'}
+    label1: String[0..1];
+    {nlq::NlqProfile.description = 'Secondary label — sub-curve for IR (e.g. OIS, Libor3m), empty for other risk types'}
+    label2: String[0..1];
+    {nlq::NlqProfile.description = 'Risk sensitivity amount in local currency', nlq::NlqProfile.unit = 'currency'}
+    amount: Float[0..1];
+    {nlq::NlqProfile.description = 'Currency of the sensitivity amount (ISO 4217)'}
+    amountCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'Risk sensitivity amount converted to USD', nlq::NlqProfile.unit = 'currency'}
+    amountUSD: Float[0..1];
+    {nlq::NlqProfile.description = 'Initial margin model: SIMM, Schedule', nlq::NlqProfile.sampleValues = 'SIMM, Schedule'}
+    imModel: String[0..1];
+    {nlq::NlqProfile.description = 'Regulation under which the posting entity calculates margin'}
+    postRegulation: String[0..1];
+    {nlq::NlqProfile.description = 'Regulation under which the collecting entity calculates margin'}
+    collectRegulation: String[0..1];
+    {nlq::NlqProfile.description = 'Maturity or end date of the trade'}
+    endDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'Credit quality category for Schedule IM'}
+    creditQuality: String[0..1];
+    {nlq::NlqProfile.description = 'Long or short indicator for Schedule IM'}
+    longShortInd: String[0..1];
+    {nlq::NlqProfile.description = 'Covered bond indicator'}
+    coveredBondInd: String[0..1];
+    {nlq::NlqProfile.description = 'Tranche thickness for securitized products', nlq::NlqProfile.unit = 'percent'}
+    trancheThickness: Float[0..1];
+}
+
+// ─── SIMM Calculation Model ───
+
+// ─── SIMM Calculation ───
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'ISDA SIMM calculation result — initial margin amount for a portfolio or netting set',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for ISDA SIMM initial margin results, margin amounts by product class and risk class'}
+simm::SIMMResult
+{
+    {nlq::NlqProfile.description = 'Portfolio or netting set identifier'}
+    portfolioId: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the SIMM calculation'}
+    calculationDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'SIMM version used (e.g. 2.5, 2.6)'}
+    simmVersion: String[0..1];
+    {nlq::NlqProfile.description = 'Total SIMM initial margin amount', nlq::NlqProfile.unit = 'currency'}
+    totalMargin: Float[0..1];
+    {nlq::NlqProfile.description = 'Margin currency'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'SIMM margin for RatesFX product class', nlq::NlqProfile.unit = 'currency'}
+    productMarginRatesFX: Float[0..1];
+    {nlq::NlqProfile.description = 'SIMM margin for Credit product class', nlq::NlqProfile.unit = 'currency'}
+    productMarginCredit: Float[0..1];
+    {nlq::NlqProfile.description = 'SIMM margin for Equity product class', nlq::NlqProfile.unit = 'currency'}
+    productMarginEquity: Float[0..1];
+    {nlq::NlqProfile.description = 'SIMM margin for Commodity product class', nlq::NlqProfile.unit = 'currency'}
+    productMarginCommodity: Float[0..1];
+    {nlq::NlqProfile.description = 'SIMM add-on margin for notional and fixed amounts', nlq::NlqProfile.unit = 'currency'}
+    addOnMargin: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'SIMM margin breakdown by product class (RatesFX, Credit, Equity, Commodity)',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for SIMM product class level margin components'}
+simm::ProductClassMargin
+{
+    {nlq::NlqProfile.description = 'Product class: RatesFX, Credit, Equity, Commodity'}
+    productClass: String[0..1];
+    {nlq::NlqProfile.description = 'Delta margin component', nlq::NlqProfile.unit = 'currency'}
+    deltaMargin: Float[0..1];
+    {nlq::NlqProfile.description = 'Vega margin component', nlq::NlqProfile.unit = 'currency'}
+    vegaMargin: Float[0..1];
+    {nlq::NlqProfile.description = 'Curvature margin component', nlq::NlqProfile.unit = 'currency'}
+    curvatureMargin: Float[0..1];
+    {nlq::NlqProfile.description = 'Base correlation margin (Credit only)', nlq::NlqProfile.unit = 'currency'}
+    baseCorrMargin: Float[0..1];
+    {nlq::NlqProfile.description = 'Total margin for this product class', nlq::NlqProfile.unit = 'currency'}
+    totalMargin: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'SIMM margin for a specific risk class within a product class',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for SIMM risk class level margin details'}
+simm::RiskClassMargin
+{
+    {nlq::NlqProfile.description = 'Risk class: InterestRate, CreditQualifying, CreditNonQualifying, Equity, Commodity, FX'}
+    riskClass: String[0..1];
+    {nlq::NlqProfile.description = 'Sensitivity class: Delta, Vega, Curvature'}
+    sensitivityClass: String[0..1];
+    {nlq::NlqProfile.description = 'Margin amount for this risk class', nlq::NlqProfile.unit = 'currency'}
+    marginAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Concentration risk factor applied'}
+    concentrationRiskFactor: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'SIMM margin at the bucket level within a risk class',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for SIMM bucket level margin details and risk concentration'}
+simm::BucketMargin
+{
+    {nlq::NlqProfile.description = 'Bucket identifier'}
+    bucket: String[0..1];
+    {nlq::NlqProfile.description = 'Parent risk class'}
+    riskClass: String[0..1];
+    {nlq::NlqProfile.description = 'Sum of risk-weighted sensitivities in this bucket', nlq::NlqProfile.unit = 'currency'}
+    weightedSensitivity: Float[0..1];
+    {nlq::NlqProfile.description = 'Threshold-based concentration risk factor'}
+    concentrationFactor: Float[0..1];
+    {nlq::NlqProfile.description = 'Net margin for this bucket', nlq::NlqProfile.unit = 'currency'}
+    bucketMargin: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'SIMM risk weight parameter for a specific risk type and bucket',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for SIMM risk weight calibration parameters'}
+simm::RiskWeight
+{
+    {nlq::NlqProfile.description = 'Risk type this weight applies to'}
+    riskType: String[0..1];
+    {nlq::NlqProfile.description = 'Bucket this weight applies to'}
+    bucket: String[0..1];
+    {nlq::NlqProfile.description = 'Risk weight value', nlq::NlqProfile.unit = 'percent'}
+    riskWeight: Float[0..1];
+    {nlq::NlqProfile.description = 'Concentration threshold', nlq::NlqProfile.unit = 'currency'}
+    concentrationThreshold: Float[0..1];
+    {nlq::NlqProfile.description = 'Intra-bucket correlation parameter', nlq::NlqProfile.unit = 'percent'}
+    correlationWithinBucket: Float[0..1];
+    {nlq::NlqProfile.description = 'Inter-bucket correlation parameter', nlq::NlqProfile.unit = 'percent'}
+    correlationAcrossBucket: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'Individual risk sensitivity input to the SIMM calculation',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for individual trade-level or portfolio-level risk sensitivities'}
+simm::Sensitivity
+{
+    {nlq::NlqProfile.description = 'Product class'}
+    productClass: String[0..1];
+    {nlq::NlqProfile.description = 'Risk type'}
+    riskType: String[0..1];
+    {nlq::NlqProfile.description = 'Risk qualifier (currency, issuer, ticker, etc.)'}
+    qualifier: String[0..1];
+    {nlq::NlqProfile.description = 'Bucket'}
+    bucket: String[0..1];
+    {nlq::NlqProfile.description = 'Primary label (tenor, maturity)'}
+    label1: String[0..1];
+    {nlq::NlqProfile.description = 'Secondary label (sub-curve)'}
+    label2: String[0..1];
+    {nlq::NlqProfile.description = 'Sensitivity amount', nlq::NlqProfile.unit = 'currency'}
+    amount: Float[0..1];
+    {nlq::NlqProfile.description = 'Sensitivity amount in USD', nlq::NlqProfile.unit = 'currency'}
+    amountUSD: Float[0..1];
+    {nlq::NlqProfile.description = 'Currency of sensitivity'}
+    amountCurrency: String[0..1];
+}
+
+// ─── Schedule IM ───
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'Schedule IM calculation result — gross and net initial margin using the simplified schedule approach',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for Schedule IM initial margin results as an alternative to SIMM'}
+schedule::ScheduleIMResult
+{
+    {nlq::NlqProfile.description = 'Portfolio identifier'}
+    portfolioId: String[0..1];
+    {nlq::NlqProfile.description = 'Gross initial margin before netting', nlq::NlqProfile.unit = 'currency'}
+    grossIM: Float[0..1];
+    {nlq::NlqProfile.description = 'Net initial margin after NGR adjustment', nlq::NlqProfile.unit = 'currency'}
+    netIM: Float[0..1];
+    {nlq::NlqProfile.description = 'Net-to-gross ratio (NGR)', nlq::NlqProfile.unit = 'percent'}
+    netToGrossRatio: Float[0..1];
+    {nlq::NlqProfile.description = 'Margin currency'}
+    currency: String[0..1];
+}
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'Schedule IM notional input for a trade',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for Schedule IM trade-level notional inputs'}
+schedule::ScheduleNotional
+{
+    {nlq::NlqProfile.description = 'Trade identifier'}
+    tradeId: String[0..1];
+    {nlq::NlqProfile.description = 'Product class'}
+    productClass: String[0..1];
+    {nlq::NlqProfile.description = 'Trade notional amount', nlq::NlqProfile.unit = 'currency'}
+    notionalAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Notional currency'}
+    notionalCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'Present value of the trade', nlq::NlqProfile.unit = 'currency'}
+    presentValue: Float[0..1];
+    {nlq::NlqProfile.description = 'PV currency'}
+    pvCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'Trade maturity date'}
+    endDate: StrictDate[0..1];
+}
+
+// ─── FRTB Standardized Approach ───
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'FRTB Standardized Approach capital calculation result',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for FRTB-SA market risk capital requirements'}
+frtb::FRTBSAResult
+{
+    {nlq::NlqProfile.description = 'Portfolio identifier'}
+    portfolioId: String[0..1];
+    {nlq::NlqProfile.description = 'Calculation date'}
+    calculationDate: StrictDate[0..1];
+    {nlq::NlqProfile.description = 'Sensitivities-based capital charge (SbM)', nlq::NlqProfile.unit = 'currency'}
+    sensitivitiesBasedCharge: Float[0..1];
+    {nlq::NlqProfile.description = 'Default risk charge (DRC)', nlq::NlqProfile.unit = 'currency'}
+    defaultRiskCharge: Float[0..1];
+    {nlq::NlqProfile.description = 'Residual risk add-on (RRAO)', nlq::NlqProfile.unit = 'currency'}
+    residualRiskAddOn: Float[0..1];
+    {nlq::NlqProfile.description = 'Total FRTB-SA capital requirement', nlq::NlqProfile.unit = 'currency'}
+    totalCapital: Float[0..1];
+    {nlq::NlqProfile.description = 'Capital currency'}
+    currency: String[0..1];
+}
+
+Class <<nlq::NlqProfile.metric>>
+  {nlq::NlqProfile.description = 'FRTB-SA risk sensitivity input',
+   nlq::NlqProfile.businessDomain = 'Risk Data Standards',
+   nlq::NlqProfile.whenToUse = 'Use for FRTB standardized approach sensitivity inputs'}
+frtb::FRTBSensitivity
+{
+    {nlq::NlqProfile.description = 'FRTB risk class: GIRR, CSR, Equity, Commodity, FX'}
+    riskClass: String[0..1];
+    {nlq::NlqProfile.description = 'Risk measure: Delta, Vega, Curvature'}
+    riskMeasure: String[0..1];
+    {nlq::NlqProfile.description = 'FRTB bucket'}
+    bucket: String[0..1];
+    {nlq::NlqProfile.description = 'Specific risk factor'}
+    riskFactor: String[0..1];
+    {nlq::NlqProfile.description = 'Sensitivity value', nlq::NlqProfile.unit = 'currency'}
+    sensitivity: Float[0..1];
+    {nlq::NlqProfile.description = 'Sensitivity currency'}
+    currency: String[0..1];
+}

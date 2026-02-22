@@ -1,0 +1,1840 @@
+// ═══════════════════════════════════════════════════════════
+// ACTUS (Algorithmic Contract Types Unified Standards) — Auto-generated
+// Source: 32 contract types, 124 terms
+// ═══════════════════════════════════════════════════════════
+
+Profile nlq::NlqProfile
+{
+    stereotypes: [dimension, metric];
+    tags: [description, synonyms, sampleValues, unit, importance, businessDomain, exampleQuestions, whenToUse];
+}
+
+// ─── Asymmetric (Option-like) Contracts (9 types) ───
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A boundary controlled switch is a derivative contract with subcontract legs which can be activated (knocked in) or extinguished (knocked out) when ...',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures',
+   nlq::NlqProfile.synonyms = 'Knock-in and Knock-out barrier options with a single boundary. Bonus contracts with payout when u...'}
+asymmetric::BoundaryControlledSwitch
+{
+    {nlq::NlqProfile.description = 'Boundary direction specifies the direction of motion in the underlying asset\'s price which will be considered a vali...'}
+    boundaryDirection: String[0..1];
+    {nlq::NlqProfile.description = 'This term specifies which leg - if any- becomes the active subcontract when the underlying asset\'s price crosses the...'}
+    boundaryEffect: String[0..1];
+    {nlq::NlqProfile.description = 'Specifies which leg - if any - is the active contract in effect when the boundary controlled switch contract starts.'}
+    boundaryLegInitiallyActive: String[0..1];
+    {nlq::NlqProfile.description = 'The first Boundary monitoring event occurs on this date'}
+    boundaryMonitoringAnchorDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The frequency with which boundary monitoring events occur. It defines how often the system checks to test whether the...'}
+    boundaryMonitoringCycle: String[0..1];
+    {nlq::NlqProfile.description = 'Boundary monitoring ends on this date'}
+    boundaryMonitoringEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Boundary value in a barrier options contract, when reached, triggers the boundary effect specified e.g. Knock-In or K...', nlq::NlqProfile.unit = 'currency'}
+    boundaryValue: Float[0..1];
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'A structure identifying individual or sets of underlying contracts. E.g. for FUTUR, this structure identifies the sin...'}
+    contractStructure: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates whether the contract is settled in cash or physical delivery. In case of physical delivery, the underlying ...'}
+    deliverySettlement: String[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This attribute relates either to physical contracts (COM) or underlyings of traded contracts. In case of physical con...'}
+    quantity: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines the period from fixing of a contingent event/obligation (Exercise Date) to settlement of the obligation.'}
+    settlementPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Interest rate option expressed in a maximum or minimum interest rate.',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures',
+   nlq::NlqProfile.synonyms = 'Caps and Floor options.'}
+asymmetric::CapFloors
+{
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'A structure identifying individual or sets of underlying contracts. E.g. for FUTUR, this structure identifies the sin...'}
+    contractStructure: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a cap on the interest rate that applies during the entire lifetime of the...'}
+    lifeCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a floor on the interest rate that applies during the entire lifetime of t...'}
+    lifeFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Bonds with a call or put option. If option is exercised, underlying bond ceases to exist.',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures',
+   nlq::NlqProfile.synonyms = 'Callable and puttable bonds or loans.'}
+asymmetric::ConvertibleNote
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A payment is triggered if one or more of the ndelying counterparties defaults.',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures',
+   nlq::NlqProfile.synonyms = 'All sorts of credit default swaps'}
+asymmetric::CreditDefaultSwap
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A credit linked note is a security with an embedded CDSWP',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures'}
+asymmetric::CreditLinkedNote
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'As of current, most of the exotic options which were popular before 2008 are out of favor and factually irrelevant.Which of the exotic options will...',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures',
+   nlq::NlqProfile.synonyms = 'Knock-in and Knock-out, Barrier, Ladder, Rainbow options etc.'}
+asymmetric::EXOTi
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Calculates straight option pay-off for any basic CT as underlying (PAM, ANN etc.) but also SWAPS, FXOUT, STK and COM. Single, periodic and continuo...',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures',
+   nlq::NlqProfile.synonyms = 'European, American and Bermudan options with Interest rate, FX and stock futures as underlying in...'}
+asymmetric::Option
+{
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'A structure identifying individual or sets of underlying contracts. E.g. for FUTUR, this structure identifies the sin...'}
+    contractStructure: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Used for Basic Maturities (such as PAM, RGM, ANN, NGM and their Step-up versions) and American and Bermudan style opt...'}
+    cycleAnchorDateOfOptionality: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the option exercise date schedule will be calculated. OPCL can be NULL for American Options ...'}
+    cycleOfOptionality: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates whether the contract is settled in cash or physical delivery. In case of physical delivery, the underlying ...'}
+    deliverySettlement: String[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'The amount fixed at Exercise Date for a contingent event/obligation such as a forward condition, optionality etc. The...', nlq::NlqProfile.unit = 'currency'}
+    exerciseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Date of exercising a contingent event/obligation such as a forward condition, optionality etc. The Exercise date mark...'}
+    exerciseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Final exercise date for American and Bermudan options, expiry date for European options.'}
+    optionExerciseEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines whether the option is European (exercised at a specific date), American (exercised during a span of time) or ...'}
+    optionExerciseType: String[0..1];
+    {nlq::NlqProfile.description = 'Strike price of the option. Whether it is a call/put is determined by the attribute OPTP, i.e a call or a put (or a c...'}
+    optionStrike1: Float[0..1];
+    {nlq::NlqProfile.description = 'Put price in case of call/put.'}
+    optionStrike2: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines whether the option is a call or put or a combination of it. This field has to be seen in combination with CNT...'}
+    optionType: String[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'Defines the period from fixing of a contingent event/obligation (Exercise Date) to settlement of the obligation.'}
+    settlementPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A total return swap is a swap agreement in which one party makes payments based on a set rate, either fixed or variable, while the other party make...',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures'}
+asymmetric::TotalReturnSwap
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Bonds with a warrant. If option is exercised, underlying bond continues to exist.',
+   nlq::NlqProfile.businessDomain = 'Asymmetric (Option-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for options, caps, floors, and other asymmetric payoff structures',
+   nlq::NlqProfile.synonyms = 'Warrants.'}
+asymmetric::Warrant
+{
+}
+
+// ─── Credit Enhancement Contracts (4 types) ───
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Collateral creates a relationship between a collateral an obligee and a debtor, covering the exposure from the debtor with the collateral.',
+   nlq::NlqProfile.businessDomain = 'Credit Enhancement Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for guarantees, credit default swaps, and credit enhancement instruments',
+   nlq::NlqProfile.synonyms = 'Mortgages include a collateral contract. Any coverage with financial or physical collateral.'}
+credit_enhancement::Collateral
+{
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'A structure identifying individual or sets of underlying contracts. E.g. for FUTUR, this structure identifies the sin...'}
+    contractStructure: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'Defines which percentage of the exposure is covered'}
+    coverageOfCreditEnhancement: Float[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The type of credit events covered e.g. in credit enhancement or credit default swap contracts. Only the defined credi...'}
+    creditEventTypeCovered: String[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'The amount fixed at Exercise Date for a contingent event/obligation such as a forward condition, optionality etc. The...', nlq::NlqProfile.unit = 'currency'}
+    exerciseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Date of exercising a contingent event/obligation such as a forward condition, optionality etc. The Exercise date mark...'}
+    exerciseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines which value of the exposure is covered: - NO: Nominal Value - NI: Nominal plus Interest - MV: Market Value'}
+    guaranteedExposure: String[0..1];
+    {nlq::NlqProfile.description = 'Defines the period from fixing of a contingent event/obligation (Exercise Date) to settlement of the obligation.'}
+    settlementPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Guarantee creates a relationship between a guarantor, an obligee and a debtor, moving the exposure from the debtor to the guarantor.',
+   nlq::NlqProfile.businessDomain = 'Credit Enhancement Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for guarantees, credit default swaps, and credit enhancement instruments',
+   nlq::NlqProfile.synonyms = 'Personal guarantee. Government guarantee. Underlyings of CDO´s.'}
+credit_enhancement::Guarantee
+{
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'A structure identifying individual or sets of underlying contracts. E.g. for FUTUR, this structure identifies the sin...'}
+    contractStructure: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'Defines which percentage of the exposure is covered'}
+    coverageOfCreditEnhancement: Float[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The type of credit events covered e.g. in credit enhancement or credit default swap contracts. Only the defined credi...'}
+    creditEventTypeCovered: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the fee payment date schedule is calculated according to the cycle length. The first fee payment even...'}
+    cycleAnchorDateOfFee: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with FEANX the payment points of fees'}
+    cycleOfFee: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'The amount fixed at Exercise Date for a contingent event/obligation such as a forward condition, optionality etc. The...', nlq::NlqProfile.unit = 'currency'}
+    exerciseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Date of exercising a contingent event/obligation such as a forward condition, optionality etc. The Exercise date mark...'}
+    exerciseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Accrued fees as per SD', nlq::NlqProfile.unit = 'currency'}
+    feeAccrued: Float[0..1];
+    {nlq::NlqProfile.description = 'Basis, on which Fee is calculated. For FEB=’A’, FER is interpreted as an absolute amount to be paid at every FP event...'}
+    feeBasis: String[0..1];
+    {nlq::NlqProfile.description = 'Rate of Fee which is a percentage of the underlying or FER is an absolute amount. For all contracts where FEB does no...', nlq::NlqProfile.unit = 'currency'}
+    feeRate: Float[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Defines which value of the exposure is covered: - NO: Nominal Value - NI: Nominal plus Interest - MV: Market Value'}
+    guaranteedExposure: String[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'Defines the period from fixing of a contingent event/obligation (Exercise Date) to settlement of the obligation.'}
+    settlementPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A Margining contract traces the value changes and the different margin categories like inital and variation margin.',
+   nlq::NlqProfile.businessDomain = 'Credit Enhancement Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for guarantees, credit default swaps, and credit enhancement instruments',
+   nlq::NlqProfile.synonyms = 'Margin contracts as applied in central depositories for any underlying or portfolio of underlying...'}
+credit_enhancement::Margining
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'A Repo contract controls and manages the sale and repurchase of assets on the books.',
+   nlq::NlqProfile.businessDomain = 'Credit Enhancement Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for guarantees, credit default swaps, and credit enhancement instruments',
+   nlq::NlqProfile.synonyms = 'Classical repo and reverse repo agreements.'}
+credit_enhancement::RepurchaseAgreement
+{
+}
+
+// ─── Fixed Income Contracts (10 types) ───
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Principal payment fully at IED and interest plus principal repaid periodically in constant amounts till MD. If variable rate, total amount for inte...',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'Classical level payment mortgages, leasing contracts etc.'}
+fixed_income::Annuity
+{
+    {nlq::NlqProfile.description = 'Accrued interest as per SD. In case of NULL, this value will be recalculated using IPANX, IPCL and IPNR information. ...'}
+    accruedInterest: Float[0..1];
+    {nlq::NlqProfile.description = 'This Date is used to calculate the annuity amounts for ANN and ANX NGX CT\'s. Needs only to be set in case where the ...'}
+    amortizationDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'If IPCED is set, then interest is not paid or received but added to the balance (NT) until IPCED. If IPCED does not c...'}
+    capitalizationEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'If defined, gives the total amount that can be drawn from a credit line. The remaining amount that can still be drawn...', nlq::NlqProfile.unit = 'currency'}
+    creditLineAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the fee payment date schedule is calculated according to the cycle length. The first fee payment even...'}
+    cycleAnchorDateOfFee: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest calculation base date schedule is calculated according to the cycle length. The first in...'}
+    cycleAnchorDateOfInterestCalculationBase: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest payment date schedule is calculated according to the cycle length. The first interest pa...'}
+    cycleAnchorDateOfInterestPayment: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Used for Basic Maturities (such as PAM, RGM, ANN, NGM and their Step-up versions) and American and Bermudan style opt...'}
+    cycleAnchorDateOfOptionality: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the principal payment date schedule is calculated according to the cycle length. The first principal ...'}
+    cycleAnchorDateOfPrincipalRedemption: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the rate reset date schedule is calculated according to the cycle length. The first rate reset event ...'}
+    cycleAnchorDateOfRateReset: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the scaling date schedule is calculated according to the cycle length. The first scaling event takes ...'}
+    cycleAnchorDateOfScalingIndex: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with FEANX the payment points of fees'}
+    cycleOfFee: String[0..1];
+    {nlq::NlqProfile.description = 'Concerning the format see PRCL. Defines the subsequent adjustment points to NT of the interest payment calculation base.'}
+    cycleOfInterestCalculationBase: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case IPCL is not set, then there w...'}
+    cycleOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the option exercise date schedule will be calculated. OPCL can be NULL for American Options ...'}
+    cycleOfOptionality: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case PRCL is not set, then there w...'}
+    cycleOfPrincipalRedemption: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the rate reset date schedule will be calculated. In case RRCL is not set, then there will on...'}
+    cycleOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the scaling date schedule will be calculated. In case SCCL is not set, then there will only ...'}
+    cycleOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Method defining how days are counted between two dates. This finally defines the year fraction in accrual calculations.'}
+    dayCountConvention: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Accrued fees as per SD', nlq::NlqProfile.unit = 'currency'}
+    feeAccrued: Float[0..1];
+    {nlq::NlqProfile.description = 'Basis, on which Fee is calculated. For FEB=’A’, FER is interpreted as an absolute amount to be paid at every FP event...'}
+    feeBasis: String[0..1];
+    {nlq::NlqProfile.description = 'Rate of Fee which is a percentage of the underlying or FER is an absolute amount. For all contracts where FEB does no...', nlq::NlqProfile.unit = 'currency'}
+    feeRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate resets (adjustments) are usually fixed one or two days (usually Business Days) before the new rate appl...'}
+    fixingPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the initial cash flow for Maturity and Non-Maturity CT\'s. It also coincides with the beginning of interest a...'}
+    initialExchangeDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This is important for amortizing instruments. The basis of interest calculation is normally the notional outstanding ...'}
+    interestCalculationBase: String[0..1];
+    {nlq::NlqProfile.description = 'This is the amount used for the calculation of interest. Calculation base per SD.', nlq::NlqProfile.unit = 'currency'}
+    interestCalculationBaseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to interest cash flows'}
+    interestScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a cap on the interest rate that applies during the entire lifetime of the...'}
+    lifeCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a floor on the interest rate that applies during the entire lifetime of t...'}
+    lifeFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the interest rate driver (MarketObject) used for rate reset uniquely. Unique codes for market objects ...'}
+    marketObjectCodeOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Market Object Code Of Scaling Index'}
+    marketObjectCodeOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Amount of principal that will be paid during the redemption cycle at the next payment date. For amortizing contracts ...'}
+    nextPrincipalRedemptionPayment: Float[0..1];
+    {nlq::NlqProfile.description = 'Holds the new rate that has been fixed already (cf. attribute FixingDays) but not applied. This new rate will be appl...', nlq::NlqProfile.unit = 'percent'}
+    nextResetRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date....', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to principal cash flows', nlq::NlqProfile.unit = 'currency'}
+    notionalScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Final exercise date for American and Bermudan options, expiry date for European options.'}
+    optionExerciseEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Either the rate or the absolute amount of the prepayment.', nlq::NlqProfile.unit = 'percent'}
+    penaltyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines whether prepayment is linked to a penalty and of which kind.'}
+    penaltyType: String[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum positive rate change per rate reset cycle.'}
+    periodCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum negative rate change per rate reset cycle.'}
+    periodFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Total original premium or discount that has been set at CDD and will be added to the (notional) cash flow at IED (cas...', nlq::NlqProfile.unit = 'currency'}
+    premiumDiscountAtIED: Float[0..1];
+    {nlq::NlqProfile.description = 'This attribute defines whether or not the right of prepayment exists and if yes, how prepayment affects the remaining...'}
+    prepaymentEffect: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens before scheduled payment date minus PPP, then it is considered a prepayment. Effect of prepay...'}
+    prepaymentPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Interest rate multiplier. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest r...', nlq::NlqProfile.unit = 'percent'}
+    rateMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate spread. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest rate ...', nlq::NlqProfile.unit = 'percent'}
+    rateSpread: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates which payments are scaled. I = Interest payments, N = Nominal payments and M = Maximum deferred interest am...'}
+    scalingEffect: String[0..1];
+    {nlq::NlqProfile.description = 'The value of the Scaling Index as per Contract Deal Date.'}
+    scalingIndexAtContractDealDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Loans that are rolled over as long as they are not called. Once called it has to be paid back after the stipulated notice period.',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'Interbank loans with call features.'}
+fixed_income::CallMoney
+{
+    {nlq::NlqProfile.description = 'Accrued interest as per SD. In case of NULL, this value will be recalculated using IPANX, IPCL and IPNR information. ...'}
+    accruedInterest: Float[0..1];
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the fee payment date schedule is calculated according to the cycle length. The first fee payment even...'}
+    cycleAnchorDateOfFee: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest payment date schedule is calculated according to the cycle length. The first interest pa...'}
+    cycleAnchorDateOfInterestPayment: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the rate reset date schedule is calculated according to the cycle length. The first rate reset event ...'}
+    cycleAnchorDateOfRateReset: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with FEANX the payment points of fees'}
+    cycleOfFee: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case IPCL is not set, then there w...'}
+    cycleOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the rate reset date schedule will be calculated. In case RRCL is not set, then there will on...'}
+    cycleOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Method defining how days are counted between two dates. This finally defines the year fraction in accrual calculations.'}
+    dayCountConvention: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Accrued fees as per SD', nlq::NlqProfile.unit = 'currency'}
+    feeAccrued: Float[0..1];
+    {nlq::NlqProfile.description = 'Basis, on which Fee is calculated. For FEB=’A’, FER is interpreted as an absolute amount to be paid at every FP event...'}
+    feeBasis: String[0..1];
+    {nlq::NlqProfile.description = 'Rate of Fee which is a percentage of the underlying or FER is an absolute amount. For all contracts where FEB does no...', nlq::NlqProfile.unit = 'currency'}
+    feeRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate resets (adjustments) are usually fixed one or two days (usually Business Days) before the new rate appl...'}
+    fixingPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the initial cash flow for Maturity and Non-Maturity CT\'s. It also coincides with the beginning of interest a...'}
+    initialExchangeDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the interest rate driver (MarketObject) used for rate reset uniquely. Unique codes for market objects ...'}
+    marketObjectCodeOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Holds the new rate that has been fixed already (cf. attribute FixingDays) but not applied. This new rate will be appl...', nlq::NlqProfile.unit = 'percent'}
+    nextResetRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date....', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens before scheduled payment date minus PPP, then it is considered a prepayment. Effect of prepay...'}
+    prepaymentPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Interest rate multiplier. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest r...', nlq::NlqProfile.unit = 'percent'}
+    rateMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate spread. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest rate ...', nlq::NlqProfile.unit = 'percent'}
+    rateSpread: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Used as rolling attribute with the callable CT\'s UMP and CLM uniquely. CLM\'s and UMP\'s will not be settled (MD not...'}
+    xDayNotice: String[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Exotic version of ANN However step ups with respect to (i) Principal, (ii) Interest rates are possible. Highly flexible to match totally irregular ...',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'A special version of this kind are teaser rate loans and mortgages with annuity features.'}
+fixed_income::ExoticAnnuity
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Exotic version of LAM. However step ups with respect to (i) Principal, (ii) Interest rates are possible. Highly flexible to match totally irregular...',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'A special version of this kind are teaser rate loans and mortgages.'}
+fixed_income::ExoticLinearAmortizer
+{
+    {nlq::NlqProfile.description = 'Accrued interest as per SD. In case of NULL, this value will be recalculated using IPANX, IPCL and IPNR information. ...'}
+    accruedInterest: Float[0..1];
+    {nlq::NlqProfile.description = 'Same like IPANX but as array'}
+    arrayCycleAnchorDateOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Same like PRANX but as array'}
+    arrayCycleAnchorDateOfPrincipalRedemption: String[0..1];
+    {nlq::NlqProfile.description = 'Same like RRANX but as array'}
+    arrayCycleAnchorDateOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Same like IPCL but as array'}
+    arrayCycleOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Same like PRCL but as array'}
+    arrayCycleOfPrincipalRedemption: String[0..1];
+    {nlq::NlqProfile.description = 'Same like RRCL but as array'}
+    arrayCycleOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'For array-type rate reset schedules, this attributes defines the meaning of ARRATE.'}
+    arrayFixedVariable: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates whether a certain PRNXT element in ARPRNX increases the principal (NT) or decreases it. Applies only for AN...'}
+    arrayIncreaseDecrease: String[0..1];
+    {nlq::NlqProfile.description = 'Same like PRNXT but as array'}
+    arrayNextPrincipalRedemptionPayment: String[0..1];
+    {nlq::NlqProfile.description = 'For array-type rate reset schedules, this attribute represents either an interest rate (corresponding to IPNR) or a s...'}
+    arrayRate: String[0..1];
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'If IPCED is set, then interest is not paid or received but added to the balance (NT) until IPCED. If IPCED does not c...'}
+    capitalizationEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the fee payment date schedule is calculated according to the cycle length. The first fee payment even...'}
+    cycleAnchorDateOfFee: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest calculation base date schedule is calculated according to the cycle length. The first in...'}
+    cycleAnchorDateOfInterestCalculationBase: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Used for Basic Maturities (such as PAM, RGM, ANN, NGM and their Step-up versions) and American and Bermudan style opt...'}
+    cycleAnchorDateOfOptionality: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the scaling date schedule is calculated according to the cycle length. The first scaling event takes ...'}
+    cycleAnchorDateOfScalingIndex: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with FEANX the payment points of fees'}
+    cycleOfFee: String[0..1];
+    {nlq::NlqProfile.description = 'Concerning the format see PRCL. Defines the subsequent adjustment points to NT of the interest payment calculation base.'}
+    cycleOfInterestCalculationBase: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the option exercise date schedule will be calculated. OPCL can be NULL for American Options ...'}
+    cycleOfOptionality: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the scaling date schedule will be calculated. In case SCCL is not set, then there will only ...'}
+    cycleOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Usually, interest is paid at the end of each IPCL which corresponds to a IPPNT value of E which is also the default. ...'}
+    cyclePointOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Normally rates get reset at the beginning of any resetting cycles. There are contracts where the rate is not set at t...'}
+    cyclePointOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Method defining how days are counted between two dates. This finally defines the year fraction in accrual calculations.'}
+    dayCountConvention: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Accrued fees as per SD', nlq::NlqProfile.unit = 'currency'}
+    feeAccrued: Float[0..1];
+    {nlq::NlqProfile.description = 'Basis, on which Fee is calculated. For FEB=’A’, FER is interpreted as an absolute amount to be paid at every FP event...'}
+    feeBasis: String[0..1];
+    {nlq::NlqProfile.description = 'Rate of Fee which is a percentage of the underlying or FER is an absolute amount. For all contracts where FEB does no...', nlq::NlqProfile.unit = 'currency'}
+    feeRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate resets (adjustments) are usually fixed one or two days (usually Business Days) before the new rate appl...'}
+    fixingPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the initial cash flow for Maturity and Non-Maturity CT\'s. It also coincides with the beginning of interest a...'}
+    initialExchangeDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This is important for amortizing instruments. The basis of interest calculation is normally the notional outstanding ...'}
+    interestCalculationBase: String[0..1];
+    {nlq::NlqProfile.description = 'This is the amount used for the calculation of interest. Calculation base per SD.', nlq::NlqProfile.unit = 'currency'}
+    interestCalculationBaseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to interest cash flows'}
+    interestScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a cap on the interest rate that applies during the entire lifetime of the...'}
+    lifeCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a floor on the interest rate that applies during the entire lifetime of t...'}
+    lifeFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the interest rate driver (MarketObject) used for rate reset uniquely. Unique codes for market objects ...'}
+    marketObjectCodeOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Market Object Code Of Scaling Index'}
+    marketObjectCodeOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Holds the new rate that has been fixed already (cf. attribute FixingDays) but not applied. This new rate will be appl...', nlq::NlqProfile.unit = 'percent'}
+    nextResetRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date....', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to principal cash flows', nlq::NlqProfile.unit = 'currency'}
+    notionalScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Final exercise date for American and Bermudan options, expiry date for European options.'}
+    optionExerciseEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Either the rate or the absolute amount of the prepayment.', nlq::NlqProfile.unit = 'percent'}
+    penaltyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines whether prepayment is linked to a penalty and of which kind.'}
+    penaltyType: String[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum positive rate change per rate reset cycle.'}
+    periodCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum negative rate change per rate reset cycle.'}
+    periodFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Total original premium or discount that has been set at CDD and will be added to the (notional) cash flow at IED (cas...', nlq::NlqProfile.unit = 'currency'}
+    premiumDiscountAtIED: Float[0..1];
+    {nlq::NlqProfile.description = 'This attribute defines whether or not the right of prepayment exists and if yes, how prepayment affects the remaining...'}
+    prepaymentEffect: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens before scheduled payment date minus PPP, then it is considered a prepayment. Effect of prepay...'}
+    prepaymentPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Interest rate multiplier. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest r...', nlq::NlqProfile.unit = 'percent'}
+    rateMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates which payments are scaled. I = Interest payments, N = Nominal payments and M = Maximum deferred interest am...'}
+    scalingEffect: String[0..1];
+    {nlq::NlqProfile.description = 'The value of the Scaling Index as per Contract Deal Date.'}
+    scalingIndexAtContractDealDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Exotic version of NAM However step ups with respect to (i) Principal, (ii) Interest rates are possible. Highly flexible to match totally irregular ...',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'A special version of this kind are teaser rate loans and mortgages with variable MD.'}
+fixed_income::ExoticNegativeAmortizer
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Principal payment fully at IED. Principal repaid periodically in constant amounts till MD. Interest gets reduced accordingly. If variable rate, onl...',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'Many amortizing loans.'}
+fixed_income::LinearAmortizer
+{
+    {nlq::NlqProfile.description = 'Accrued interest as per SD. In case of NULL, this value will be recalculated using IPANX, IPCL and IPNR information. ...'}
+    accruedInterest: Float[0..1];
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'If IPCED is set, then interest is not paid or received but added to the balance (NT) until IPCED. If IPCED does not c...'}
+    capitalizationEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'If defined, gives the total amount that can be drawn from a credit line. The remaining amount that can still be drawn...', nlq::NlqProfile.unit = 'currency'}
+    creditLineAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the fee payment date schedule is calculated according to the cycle length. The first fee payment even...'}
+    cycleAnchorDateOfFee: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest calculation base date schedule is calculated according to the cycle length. The first in...'}
+    cycleAnchorDateOfInterestCalculationBase: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest payment date schedule is calculated according to the cycle length. The first interest pa...'}
+    cycleAnchorDateOfInterestPayment: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Used for Basic Maturities (such as PAM, RGM, ANN, NGM and their Step-up versions) and American and Bermudan style opt...'}
+    cycleAnchorDateOfOptionality: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the principal payment date schedule is calculated according to the cycle length. The first principal ...'}
+    cycleAnchorDateOfPrincipalRedemption: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the rate reset date schedule is calculated according to the cycle length. The first rate reset event ...'}
+    cycleAnchorDateOfRateReset: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the scaling date schedule is calculated according to the cycle length. The first scaling event takes ...'}
+    cycleAnchorDateOfScalingIndex: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with FEANX the payment points of fees'}
+    cycleOfFee: String[0..1];
+    {nlq::NlqProfile.description = 'Concerning the format see PRCL. Defines the subsequent adjustment points to NT of the interest payment calculation base.'}
+    cycleOfInterestCalculationBase: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case IPCL is not set, then there w...'}
+    cycleOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the option exercise date schedule will be calculated. OPCL can be NULL for American Options ...'}
+    cycleOfOptionality: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case PRCL is not set, then there w...'}
+    cycleOfPrincipalRedemption: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the rate reset date schedule will be calculated. In case RRCL is not set, then there will on...'}
+    cycleOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the scaling date schedule will be calculated. In case SCCL is not set, then there will only ...'}
+    cycleOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Usually, interest is paid at the end of each IPCL which corresponds to a IPPNT value of E which is also the default. ...'}
+    cyclePointOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Normally rates get reset at the beginning of any resetting cycles. There are contracts where the rate is not set at t...'}
+    cyclePointOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Method defining how days are counted between two dates. This finally defines the year fraction in accrual calculations.'}
+    dayCountConvention: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Accrued fees as per SD', nlq::NlqProfile.unit = 'currency'}
+    feeAccrued: Float[0..1];
+    {nlq::NlqProfile.description = 'Basis, on which Fee is calculated. For FEB=’A’, FER is interpreted as an absolute amount to be paid at every FP event...'}
+    feeBasis: String[0..1];
+    {nlq::NlqProfile.description = 'Rate of Fee which is a percentage of the underlying or FER is an absolute amount. For all contracts where FEB does no...', nlq::NlqProfile.unit = 'currency'}
+    feeRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate resets (adjustments) are usually fixed one or two days (usually Business Days) before the new rate appl...'}
+    fixingPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the initial cash flow for Maturity and Non-Maturity CT\'s. It also coincides with the beginning of interest a...'}
+    initialExchangeDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This is important for amortizing instruments. The basis of interest calculation is normally the notional outstanding ...'}
+    interestCalculationBase: String[0..1];
+    {nlq::NlqProfile.description = 'This is the amount used for the calculation of interest. Calculation base per SD.', nlq::NlqProfile.unit = 'currency'}
+    interestCalculationBaseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to interest cash flows'}
+    interestScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a cap on the interest rate that applies during the entire lifetime of the...'}
+    lifeCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a floor on the interest rate that applies during the entire lifetime of t...'}
+    lifeFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the interest rate driver (MarketObject) used for rate reset uniquely. Unique codes for market objects ...'}
+    marketObjectCodeOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Market Object Code Of Scaling Index'}
+    marketObjectCodeOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Amount of principal that will be paid during the redemption cycle at the next payment date. For amortizing contracts ...'}
+    nextPrincipalRedemptionPayment: Float[0..1];
+    {nlq::NlqProfile.description = 'Holds the new rate that has been fixed already (cf. attribute FixingDays) but not applied. This new rate will be appl...', nlq::NlqProfile.unit = 'percent'}
+    nextResetRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date....', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to principal cash flows', nlq::NlqProfile.unit = 'currency'}
+    notionalScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Final exercise date for American and Bermudan options, expiry date for European options.'}
+    optionExerciseEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Either the rate or the absolute amount of the prepayment.', nlq::NlqProfile.unit = 'percent'}
+    penaltyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines whether prepayment is linked to a penalty and of which kind.'}
+    penaltyType: String[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum positive rate change per rate reset cycle.'}
+    periodCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum negative rate change per rate reset cycle.'}
+    periodFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Total original premium or discount that has been set at CDD and will be added to the (notional) cash flow at IED (cas...', nlq::NlqProfile.unit = 'currency'}
+    premiumDiscountAtIED: Float[0..1];
+    {nlq::NlqProfile.description = 'This attribute defines whether or not the right of prepayment exists and if yes, how prepayment affects the remaining...'}
+    prepaymentEffect: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens before scheduled payment date minus PPP, then it is considered a prepayment. Effect of prepay...'}
+    prepaymentPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Interest rate multiplier. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest r...', nlq::NlqProfile.unit = 'percent'}
+    rateMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate spread. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest rate ...', nlq::NlqProfile.unit = 'percent'}
+    rateSpread: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates which payments are scaled. I = Interest payments, N = Nominal payments and M = Maximum deferred interest am...'}
+    scalingEffect: String[0..1];
+    {nlq::NlqProfile.description = 'The value of the Scaling Index as per Contract Deal Date.'}
+    scalingIndexAtContractDealDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Similar as ANN. However when resetting rate, total amount (interest plus principal) stay constant. MD shifts. Only variable rates.',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'Special class of ARM´s (adjustable rate mortgages), Certain loans.'}
+fixed_income::NegativeAmortizer
+{
+    {nlq::NlqProfile.description = 'Accrued interest as per SD. In case of NULL, this value will be recalculated using IPANX, IPCL and IPNR information. ...'}
+    accruedInterest: Float[0..1];
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'If IPCED is set, then interest is not paid or received but added to the balance (NT) until IPCED. If IPCED does not c...'}
+    capitalizationEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'If defined, gives the total amount that can be drawn from a credit line. The remaining amount that can still be drawn...', nlq::NlqProfile.unit = 'currency'}
+    creditLineAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the fee payment date schedule is calculated according to the cycle length. The first fee payment even...'}
+    cycleAnchorDateOfFee: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest calculation base date schedule is calculated according to the cycle length. The first in...'}
+    cycleAnchorDateOfInterestCalculationBase: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest payment date schedule is calculated according to the cycle length. The first interest pa...'}
+    cycleAnchorDateOfInterestPayment: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Used for Basic Maturities (such as PAM, RGM, ANN, NGM and their Step-up versions) and American and Bermudan style opt...'}
+    cycleAnchorDateOfOptionality: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the principal payment date schedule is calculated according to the cycle length. The first principal ...'}
+    cycleAnchorDateOfPrincipalRedemption: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the rate reset date schedule is calculated according to the cycle length. The first rate reset event ...'}
+    cycleAnchorDateOfRateReset: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the scaling date schedule is calculated according to the cycle length. The first scaling event takes ...'}
+    cycleAnchorDateOfScalingIndex: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with FEANX the payment points of fees'}
+    cycleOfFee: String[0..1];
+    {nlq::NlqProfile.description = 'Concerning the format see PRCL. Defines the subsequent adjustment points to NT of the interest payment calculation base.'}
+    cycleOfInterestCalculationBase: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case IPCL is not set, then there w...'}
+    cycleOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the option exercise date schedule will be calculated. OPCL can be NULL for American Options ...'}
+    cycleOfOptionality: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case PRCL is not set, then there w...'}
+    cycleOfPrincipalRedemption: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the rate reset date schedule will be calculated. In case RRCL is not set, then there will on...'}
+    cycleOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the scaling date schedule will be calculated. In case SCCL is not set, then there will only ...'}
+    cycleOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Method defining how days are counted between two dates. This finally defines the year fraction in accrual calculations.'}
+    dayCountConvention: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Accrued fees as per SD', nlq::NlqProfile.unit = 'currency'}
+    feeAccrued: Float[0..1];
+    {nlq::NlqProfile.description = 'Basis, on which Fee is calculated. For FEB=’A’, FER is interpreted as an absolute amount to be paid at every FP event...'}
+    feeBasis: String[0..1];
+    {nlq::NlqProfile.description = 'Rate of Fee which is a percentage of the underlying or FER is an absolute amount. For all contracts where FEB does no...', nlq::NlqProfile.unit = 'currency'}
+    feeRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate resets (adjustments) are usually fixed one or two days (usually Business Days) before the new rate appl...'}
+    fixingPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the initial cash flow for Maturity and Non-Maturity CT\'s. It also coincides with the beginning of interest a...'}
+    initialExchangeDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This is important for amortizing instruments. The basis of interest calculation is normally the notional outstanding ...'}
+    interestCalculationBase: String[0..1];
+    {nlq::NlqProfile.description = 'This is the amount used for the calculation of interest. Calculation base per SD.', nlq::NlqProfile.unit = 'currency'}
+    interestCalculationBaseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to interest cash flows'}
+    interestScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a cap on the interest rate that applies during the entire lifetime of the...'}
+    lifeCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a floor on the interest rate that applies during the entire lifetime of t...'}
+    lifeFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the interest rate driver (MarketObject) used for rate reset uniquely. Unique codes for market objects ...'}
+    marketObjectCodeOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Market Object Code Of Scaling Index'}
+    marketObjectCodeOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Amount of principal that will be paid during the redemption cycle at the next payment date. For amortizing contracts ...'}
+    nextPrincipalRedemptionPayment: Float[0..1];
+    {nlq::NlqProfile.description = 'Holds the new rate that has been fixed already (cf. attribute FixingDays) but not applied. This new rate will be appl...', nlq::NlqProfile.unit = 'percent'}
+    nextResetRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date....', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to principal cash flows', nlq::NlqProfile.unit = 'currency'}
+    notionalScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Final exercise date for American and Bermudan options, expiry date for European options.'}
+    optionExerciseEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Either the rate or the absolute amount of the prepayment.', nlq::NlqProfile.unit = 'percent'}
+    penaltyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines whether prepayment is linked to a penalty and of which kind.'}
+    penaltyType: String[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum positive rate change per rate reset cycle.'}
+    periodCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum negative rate change per rate reset cycle.'}
+    periodFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Total original premium or discount that has been set at CDD and will be added to the (notional) cash flow at IED (cas...', nlq::NlqProfile.unit = 'currency'}
+    premiumDiscountAtIED: Float[0..1];
+    {nlq::NlqProfile.description = 'This attribute defines whether or not the right of prepayment exists and if yes, how prepayment affects the remaining...'}
+    prepaymentEffect: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens before scheduled payment date minus PPP, then it is considered a prepayment. Effect of prepay...'}
+    prepaymentPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Interest rate multiplier. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest r...', nlq::NlqProfile.unit = 'percent'}
+    rateMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate spread. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest rate ...', nlq::NlqProfile.unit = 'percent'}
+    rateSpread: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates which payments are scaled. I = Interest payments, N = Nominal payments and M = Maximum deferred interest am...'}
+    scalingEffect: String[0..1];
+    {nlq::NlqProfile.description = 'The value of the Scaling Index as per Contract Deal Date.'}
+    scalingIndexAtContractDealDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Bonds without any maturity date. Interest is paid into eternity if is not terminated.',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'Consoles, war loans.'}
+fixed_income::PerpetualBonds
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Principal payment fully at Initial Exchange Date (IED) and repaid at Maturity Date (MD). Fixed and variable rates.',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'All kind of bonds, term deposits, bullet loans and mortgages etc.'}
+fixed_income::PrincipalatMaturity
+{
+    {nlq::NlqProfile.description = 'Accrued interest as per SD. In case of NULL, this value will be recalculated using IPANX, IPCL and IPNR information. ...'}
+    accruedInterest: Float[0..1];
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'If IPCED is set, then interest is not paid or received but added to the balance (NT) until IPCED. If IPCED does not c...'}
+    capitalizationEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'If defined, gives the total amount that can be drawn from a credit line. The remaining amount that can still be drawn...', nlq::NlqProfile.unit = 'currency'}
+    creditLineAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the fee payment date schedule is calculated according to the cycle length. The first fee payment even...'}
+    cycleAnchorDateOfFee: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest payment date schedule is calculated according to the cycle length. The first interest pa...'}
+    cycleAnchorDateOfInterestPayment: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Used for Basic Maturities (such as PAM, RGM, ANN, NGM and their Step-up versions) and American and Bermudan style opt...'}
+    cycleAnchorDateOfOptionality: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the rate reset date schedule is calculated according to the cycle length. The first rate reset event ...'}
+    cycleAnchorDateOfRateReset: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the scaling date schedule is calculated according to the cycle length. The first scaling event takes ...'}
+    cycleAnchorDateOfScalingIndex: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with FEANX the payment points of fees'}
+    cycleOfFee: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case IPCL is not set, then there w...'}
+    cycleOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the option exercise date schedule will be calculated. OPCL can be NULL for American Options ...'}
+    cycleOfOptionality: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the rate reset date schedule will be calculated. In case RRCL is not set, then there will on...'}
+    cycleOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the scaling date schedule will be calculated. In case SCCL is not set, then there will only ...'}
+    cycleOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Usually, interest is paid at the end of each IPCL which corresponds to a IPPNT value of E which is also the default. ...'}
+    cyclePointOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Normally rates get reset at the beginning of any resetting cycles. There are contracts where the rate is not set at t...'}
+    cyclePointOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Method defining how days are counted between two dates. This finally defines the year fraction in accrual calculations.'}
+    dayCountConvention: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Accrued fees as per SD', nlq::NlqProfile.unit = 'currency'}
+    feeAccrued: Float[0..1];
+    {nlq::NlqProfile.description = 'Basis, on which Fee is calculated. For FEB=’A’, FER is interpreted as an absolute amount to be paid at every FP event...'}
+    feeBasis: String[0..1];
+    {nlq::NlqProfile.description = 'Rate of Fee which is a percentage of the underlying or FER is an absolute amount. For all contracts where FEB does no...', nlq::NlqProfile.unit = 'currency'}
+    feeRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate resets (adjustments) are usually fixed one or two days (usually Business Days) before the new rate appl...'}
+    fixingPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the initial cash flow for Maturity and Non-Maturity CT\'s. It also coincides with the beginning of interest a...'}
+    initialExchangeDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to interest cash flows'}
+    interestScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a cap on the interest rate that applies during the entire lifetime of the...'}
+    lifeCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents a floor on the interest rate that applies during the entire lifetime of t...'}
+    lifeFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the interest rate driver (MarketObject) used for rate reset uniquely. Unique codes for market objects ...'}
+    marketObjectCodeOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Market Object Code Of Scaling Index'}
+    marketObjectCodeOfScalingIndex: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Holds the new rate that has been fixed already (cf. attribute FixingDays) but not applied. This new rate will be appl...', nlq::NlqProfile.unit = 'percent'}
+    nextResetRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date....', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'The multiplier being applied to principal cash flows', nlq::NlqProfile.unit = 'currency'}
+    notionalScalingMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Final exercise date for American and Bermudan options, expiry date for European options.'}
+    optionExerciseEndDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Either the rate or the absolute amount of the prepayment.', nlq::NlqProfile.unit = 'percent'}
+    penaltyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines whether prepayment is linked to a penalty and of which kind.'}
+    penaltyType: String[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum positive rate change per rate reset cycle.'}
+    periodCap: Float[0..1];
+    {nlq::NlqProfile.description = 'For variable rate basic CTs this represents the maximum negative rate change per rate reset cycle.'}
+    periodFloor: Float[0..1];
+    {nlq::NlqProfile.description = 'Total original premium or discount that has been set at CDD and will be added to the (notional) cash flow at IED (cas...', nlq::NlqProfile.unit = 'currency'}
+    premiumDiscountAtIED: Float[0..1];
+    {nlq::NlqProfile.description = 'This attribute defines whether or not the right of prepayment exists and if yes, how prepayment affects the remaining...'}
+    prepaymentEffect: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens before scheduled payment date minus PPP, then it is considered a prepayment. Effect of prepay...'}
+    prepaymentPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Interest rate multiplier. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest r...', nlq::NlqProfile.unit = 'percent'}
+    rateMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate spread. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest rate ...', nlq::NlqProfile.unit = 'percent'}
+    rateSpread: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates which payments are scaled. I = Interest payments, N = Nominal payments and M = Maximum deferred interest am...'}
+    scalingEffect: String[0..1];
+    {nlq::NlqProfile.description = 'The value of the Scaling Index as per Contract Deal Date.'}
+    scalingIndexAtContractDealDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Principal paid in and out at any point in time without prefixed schedule. Interest calculated on outstanding and capitalized periodically. Needs li...',
+   nlq::NlqProfile.businessDomain = 'Fixed Income Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for bonds, annuities, loans, mortgages, and fixed income instruments',
+   nlq::NlqProfile.synonyms = 'Saving products of all kind, current accounts. In some countries even variable rate mortgages can...'}
+fixed_income::UndefinedMaturityProfile
+{
+    {nlq::NlqProfile.description = 'Accrued interest as per SD. In case of NULL, this value will be recalculated using IPANX, IPCL and IPNR information. ...'}
+    accruedInterest: Float[0..1];
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the fee payment date schedule is calculated according to the cycle length. The first fee payment even...'}
+    cycleAnchorDateOfFee: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest payment date schedule is calculated according to the cycle length. The first interest pa...'}
+    cycleAnchorDateOfInterestPayment: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the rate reset date schedule is calculated according to the cycle length. The first rate reset event ...'}
+    cycleAnchorDateOfRateReset: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with FEANX the payment points of fees'}
+    cycleOfFee: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case IPCL is not set, then there w...'}
+    cycleOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the rate reset date schedule will be calculated. In case RRCL is not set, then there will on...'}
+    cycleOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Method defining how days are counted between two dates. This finally defines the year fraction in accrual calculations.'}
+    dayCountConvention: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Accrued fees as per SD', nlq::NlqProfile.unit = 'currency'}
+    feeAccrued: Float[0..1];
+    {nlq::NlqProfile.description = 'Basis, on which Fee is calculated. For FEB=’A’, FER is interpreted as an absolute amount to be paid at every FP event...'}
+    feeBasis: String[0..1];
+    {nlq::NlqProfile.description = 'Rate of Fee which is a percentage of the underlying or FER is an absolute amount. For all contracts where FEB does no...', nlq::NlqProfile.unit = 'currency'}
+    feeRate: Float[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the initial cash flow for Maturity and Non-Maturity CT\'s. It also coincides with the beginning of interest a...'}
+    initialExchangeDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the interest rate driver (MarketObject) used for rate reset uniquely. Unique codes for market objects ...'}
+    marketObjectCodeOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Defines the notional amount which can be withdrawn before XDN without penalty'}
+    maximumPenaltyFreeDisbursement: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date....', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens before scheduled payment date minus PPP, then it is considered a prepayment. Effect of prepay...'}
+    prepaymentPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate spread. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest rate ...', nlq::NlqProfile.unit = 'percent'}
+    rateSpread: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Used as rolling attribute with the callable CT\'s UMP and CLM uniquely. CLM\'s and UMP\'s will not be settled (MD not...'}
+    xDayNotice: String[0..1];
+}
+
+// ─── Other Contract Types (2 types) ───
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Securitiazion contracts where contracs are ranked according to credit default. The lower ranked tranches are hit by the first defaults. Only when t...',
+   nlq::NlqProfile.businessDomain = 'Other Contract Types',
+   nlq::NlqProfile.whenToUse = 'Use for other financial contract types',
+   nlq::NlqProfile.synonyms = 'CDO´s'}
+other::SecuritizationCreditRisk
+{
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Securitiazion contracts where all underlying contracts are treated equal. The buyer of a tranche gets a part of the cash-flows.',
+   nlq::NlqProfile.businessDomain = 'Other Contract Types',
+   nlq::NlqProfile.whenToUse = 'Use for other financial contract types',
+   nlq::NlqProfile.synonyms = 'ABS´s, MBS´s of all sorts. Could be a simple tranche or more complex tranch like interest only an...'}
+other::SecuritizationMarketRisk
+{
+}
+
+// ─── Ownership Contracts (3 types) ───
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Cash or cash equivalent position',
+   nlq::NlqProfile.businessDomain = 'Ownership Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for cash positions, stock ownership, and direct asset holdings',
+   nlq::NlqProfile.synonyms = 'Cash, deposits at central bank.'}
+ownership::Cash
+{
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'This is not a financial contract in its propper sense. However it traks movements of commodities such as oil, gas or even houses. Such commodities ...',
+   nlq::NlqProfile.businessDomain = 'Ownership Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for cash positions, stock ownership, and direct asset holdings',
+   nlq::NlqProfile.synonyms = 'Oil, gas, electricity, houses etc.'}
+ownership::Commodity
+{
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This attribute relates either to physical contracts (COM) or underlyings of traded contracts. In case of physical con...'}
+    quantity: Float[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The physical unit of the contract. Example: Barrels for an Oil COM CT.'}
+    unit: String[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Any instrument which is bought at a certain amount (market price normally) and then follows an index.',
+   nlq::NlqProfile.businessDomain = 'Ownership Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for cash positions, stock ownership, and direct asset holdings',
+   nlq::NlqProfile.synonyms = 'All straight stocks.'}
+ownership::Stock
+{
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the dividend payment date schedule is calculated according to the cycle length. The first dividend pa...'}
+    cycleAnchorDateOfDividend: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines in combination with DVANX the payment points of dividends. The dividend payment schedule will start at DVANX ...'}
+    cycleOfDividend: String[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'In case contract is traded between DVEX and next DV payment date (i.e. PRD>DVEX & PRD<next DV payment date), then the...'}
+    exDividendDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines the next dividend payment (amount) whereas the date of dividend payment is defined through the DVANX/DVCL pai...', nlq::NlqProfile.unit = 'currency'}
+    nextDividendPaymentAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'This attribute relates either to physical contracts (COM) or underlyings of traded contracts. In case of physical con...'}
+    quantity: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+// ─── Symmetric (Swap-like) Contracts (4 types) ───
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Two parties agree to exchange two fixed cash flows in different currencies at a certain point in time in future.',
+   nlq::NlqProfile.businessDomain = 'Symmetric (Swap-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for swaps, forwards, futures, and symmetric derivative contracts',
+   nlq::NlqProfile.synonyms = 'Any FX-outright transaction at a future date. This is also the underlying of FX-options and FX fu...'}
+symmetric::ForeignExchangeOutright
+{
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows of the second leg (if not defined, main currency applies)'}
+    currency2: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates whether the contract is settled in cash or physical delivery. In case of physical delivery, the underlying ...'}
+    deliverySettlement: String[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'The amount fixed at Exercise Date for a contingent event/obligation such as a forward condition, optionality etc. The...', nlq::NlqProfile.unit = 'currency'}
+    exerciseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Date of exercising a contingent event/obligation such as a forward condition, optionality etc. The Exercise date mark...'}
+    exerciseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'Notional amount of the second currency to be exchanged in an FXOUT CT.', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal2: Float[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'Defines the period from fixing of a contingent event/obligation (Exercise Date) to settlement of the obligation.'}
+    settlementPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Keeps track of value changes for any basic CT as underlying (PAM, ANN etc. but also FXOUT, STK, COM). Handles margining calls.',
+   nlq::NlqProfile.businessDomain = 'Symmetric (Swap-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for swaps, forwards, futures, and symmetric derivative contracts',
+   nlq::NlqProfile.synonyms = 'Standard interest rate, FX, stock and commodity futures.'}
+symmetric::Future
+{
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates wheter CRID takes a clearing house function or not. In other word, whether CRID receive margins (MRIM, MRVM).'}
+    clearingHouse: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'A structure identifying individual or sets of underlying contracts. E.g. for FUTUR, this structure identifies the sin...'}
+    contractStructure: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the margin call date schedule is calculated according to the cycle length. The first margin call even...'}
+    cycleAnchorDateOfMargining: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Defines together with MRANX the points where margins can be called.'}
+    cycleOfMargining: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates whether the contract is settled in cash or physical delivery. In case of physical delivery, the underlying ...'}
+    deliverySettlement: String[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'The amount fixed at Exercise Date for a contingent event/obligation such as a forward condition, optionality etc. The...', nlq::NlqProfile.unit = 'currency'}
+    exerciseAmount: Float[0..1];
+    {nlq::NlqProfile.description = 'Date of exercising a contingent event/obligation such as a forward condition, optionality etc. The Exercise date mark...'}
+    exerciseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The price the counterparties agreed upon at which the underlying contract (of a FUTUR) is exchanged/settled at STD. Q...', nlq::NlqProfile.unit = 'currency'}
+    futuresPrice: Float[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Margin to cover losses which may be incurred as a result of market fluctuations. Upon contract closing or maturity, t...'}
+    initialMargin: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines the lower bound of the Maintenance Margin. If MRVM falls below MRMML, then capital must be added to reach the...'}
+    maintenanceMarginLowerBound: Float[0..1];
+    {nlq::NlqProfile.description = 'Defines the upper bound of the Maintenance Margin. If MRVM falls above MRMMU, then capital is refunded to reach the o...'}
+    maintenanceMarginUpperBound: Float[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'Defines the period from fixing of a contingent event/obligation (Exercise Date) to settlement of the obligation.'}
+    settlementPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'MRVM reflects the accrued but not yet paid margin as per SD. Open traded positions are revalued by the exchange at th...'}
+    variationMargin: Float[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Plain vanilla swaps where the underlyings are always two identical PAM´s however with one leg fixed and the other variable.',
+   nlq::NlqProfile.businessDomain = 'Symmetric (Swap-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for swaps, forwards, futures, and symmetric derivative contracts',
+   nlq::NlqProfile.synonyms = 'More than 90% of all interest rate swaps follow this simple pattern.'}
+symmetric::PlainVanillaSwap
+{
+    {nlq::NlqProfile.description = 'BDC\'s are linked to a calendar. Calendars have working and non-working days. A BDC value other than N means that cas...'}
+    businessDayConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Calendar defines the non-working days which affect the dates of contract events (CDE\'s) in combination with EOMC and...'}
+    calendar: String[0..1];
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'Date from which the interest payment date schedule is calculated according to the cycle length. The first interest pa...'}
+    cycleAnchorDateOfInterestPayment: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Date from which the rate reset date schedule is calculated according to the cycle length. The first rate reset event ...'}
+    cycleAnchorDateOfRateReset: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the interest payment date schedule will be calculated. In case IPCL is not set, then there w...'}
+    cycleOfInterestPayment: String[0..1];
+    {nlq::NlqProfile.description = 'Cycle according to which the rate reset date schedule will be calculated. In case RRCL is not set, then there will on...'}
+    cycleOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Normally rates get reset at the beginning of any resetting cycles. There are contracts where the rate is not set at t...'}
+    cyclePointOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Method defining how days are counted between two dates. This finally defines the year fraction in accrual calculations.'}
+    dayCountConvention: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates whether the contract is settled in cash or physical delivery. In case of physical delivery, the underlying ...'}
+    deliverySettlement: String[0..1];
+    {nlq::NlqProfile.description = 'When computing schedules a special problem arises if an anchor date is at the end of a month and a cycle of monthly o...'}
+    endOfMonthConvention: String[0..1];
+    {nlq::NlqProfile.description = 'Interest rate resets (adjustments) are usually fixed one or two days (usually Business Days) before the new rate appl...'}
+    fixingPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Date of the initial cash flow for Maturity and Non-Maturity CT\'s. It also coincides with the beginning of interest a...'}
+    initialExchangeDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the interest rate driver (MarketObject) used for rate reset uniquely. Unique codes for market objects ...'}
+    marketObjectCodeOfRateReset: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'Marks the contractual end of the lifecycle of a CT. Generally, date of the last cash flows. This includes normally a ...'}
+    maturityDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Holds the new rate that has been fixed already (cf. attribute FixingDays) but not applied. This new rate will be appl...', nlq::NlqProfile.unit = 'percent'}
+    nextResetRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date....', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate: Float[0..1];
+    {nlq::NlqProfile.description = 'The nominal interest rate which will be used to calculate accruals and the next interest payment at the next IP date ...', nlq::NlqProfile.unit = 'percent'}
+    nominalInterestRate2: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Current nominal value of the contract. For debt instrument this is the current remaining notional outstanding. NT is ...', nlq::NlqProfile.unit = 'currency'}
+    notionalPrincipal: Float[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Interest rate multiplier. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest r...', nlq::NlqProfile.unit = 'percent'}
+    rateMultiplier: Float[0..1];
+    {nlq::NlqProfile.description = 'Interest rate spread. A typical rate resetting rule is LIBOR plus x basis point where x represents the interest rate ...', nlq::NlqProfile.unit = 'percent'}
+    rateSpread: Float[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
+
+Class <<nlq::NlqProfile.dimension>>
+  {nlq::NlqProfile.description = 'Exchange of two basic CT´s (PAM, ANN etc.). Normally one is fixed, the other variable. However all variants possible including different currencies...',
+   nlq::NlqProfile.businessDomain = 'Symmetric (Swap-like) Contracts',
+   nlq::NlqProfile.whenToUse = 'Use for swaps, forwards, futures, and symmetric derivative contracts',
+   nlq::NlqProfile.synonyms = 'All kind of swaps. The variety is defined by the underlying CT´s which often are PAM and ANN in a...'}
+symmetric::Swap
+{
+    {nlq::NlqProfile.description = 'This date signifies the origination of the contract where an agreement between the customer and the bank has been set...'}
+    contractDealDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Unique identifier of a contract. If the system is used on a single firm level, an internal unique ID can be generated...'}
+    contractID: String[0..1];
+    {nlq::NlqProfile.description = 'Indicates the current contract performance status. Different states of the contract range from performing to default.'}
+    contractPerformance: String[0..1];
+    {nlq::NlqProfile.description = 'CNTRL defines which position the CRID ( the creator of the contract record ) takes in a contract. For example, whethe...'}
+    contractRole: String[0..1];
+    {nlq::NlqProfile.description = 'A structure identifying individual or sets of underlying contracts. E.g. for FUTUR, this structure identifies the sin...'}
+    contractStructure: String[0..1];
+    {nlq::NlqProfile.description = 'The ContractType is the most important information. It defines the cash flow generating pattern of a contract. The Co...'}
+    contractType: String[0..1];
+    {nlq::NlqProfile.description = 'CPID identifies the counterparty to the CRID in this contract. CPID is ideally the official LEI which can be a firm, ...'}
+    counterpartyID: String[0..1];
+    {nlq::NlqProfile.description = 'This identifies the legal entity creating the contract record. The counterparty of the contract is tracked in CPID. C...'}
+    creatorID: String[0..1];
+    {nlq::NlqProfile.description = 'The currency of the cash flows.'}
+    currency: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus DLP, then the counterparty is in technical default. This me...'}
+    delinquencyPeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Rate at which Delinquency Payments accrue on NT (in addition to the interest rate) during the DelinquencyPeriod', nlq::NlqProfile.unit = 'percent'}
+    delinquencyRate: Float[0..1];
+    {nlq::NlqProfile.description = 'Indicates whether the contract is settled in cash or physical delivery. In case of physical delivery, the underlying ...'}
+    deliverySettlement: String[0..1];
+    {nlq::NlqProfile.description = 'If real payment happens after scheduled payment date plus GRP, then the payment is in delay.'}
+    gracePeriod: String[0..1];
+    {nlq::NlqProfile.description = 'Is pointing to the market value at SD (MarketObject). Unique codes for market objects must be used.'}
+    marketObjectCode: String[0..1];
+    {nlq::NlqProfile.description = 'Value as observed in the market at SD per unit. Incase of fixed income instruments it is a fraction.', nlq::NlqProfile.unit = 'currency'}
+    marketValueObserved: Float[0..1];
+    {nlq::NlqProfile.description = 'The date of the (uncovered) payment event responsible for the current value of the Contract Performance attribute.'}
+    nonPerformingDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Purchase price exchanged at PRD. PPRD represents a clean price (includes premium/discount but not IPAC).', nlq::NlqProfile.unit = 'currency'}
+    priceAtPurchaseDate: Float[0..1];
+    {nlq::NlqProfile.description = 'Sellingprice exchanged at PTD PTDrepresents a clean price (includes premium/discount but not IPAC', nlq::NlqProfile.unit = 'currency'}
+    priceAtTerminationDate: Float[0..1];
+    {nlq::NlqProfile.description = 'If a contract is bought after initiation (for example a bond on the secondary market) this date has to be set. It ref...'}
+    purchaseDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'Refers to the order of repayment in the event of a sale or default of the issuer.'}
+    seniority: String[0..1];
+    {nlq::NlqProfile.description = 'The currency in which cash flows are settled. This currency can be different from the currency (CUR) in which cash fl...'}
+    settlementCurrency: String[0..1];
+    {nlq::NlqProfile.description = 'SD holds the date per which all attributes of the record were updated. This is especially important for the highly dy...'}
+    statusDate: DateTime[0..1];
+    {nlq::NlqProfile.description = 'If a contract is sold before MD (for example a bond on the secondary market) this date has to be set. It refers to th...'}
+    terminationDate: DateTime[0..1];
+}
