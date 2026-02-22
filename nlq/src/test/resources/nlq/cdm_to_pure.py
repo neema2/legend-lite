@@ -116,6 +116,12 @@ ROSETTA_TO_PURE = {
 # Collect all CDM type names for reference resolution
 ALL_CDM_TYPES = set()
 ALL_CDM_ENUMS = set()
+# enum_name → list of value names
+ALL_ENUM_VALUES = {}
+# enum_name → domain (for qualified name resolution)
+ENUM_TO_DOMAIN = {}
+
+MAX_ENUM_VALUES = 50  # Cap large enums in Pure output
 
 
 def collect_all_types():
@@ -131,15 +137,41 @@ def collect_all_types():
             ALL_CDM_ENUMS.add(m.group(1))
 
 
+def collect_enum_values():
+    """Parse all enum files to collect enum values and classify by domain."""
+    for fname in sorted(os.listdir(ROSETTA_DIR)):
+        if not fname.endswith('.rosetta'):
+            continue
+        with open(os.path.join(ROSETTA_DIR, fname)) as f:
+            content = f.read()
+        domain = classify_file(fname)
+        # Parse enum blocks: enum Name: <"desc"> \n  VALUE1 \n  VALUE2 ...
+        for m in re.finditer(
+            r'^enum\s+(\w+).*?(?=^(?:type|enum|func|namespace)\s|\Z)',
+            content, re.MULTILINE | re.DOTALL
+        ):
+            name = m.group(1)
+            body = m.group(0)
+            # Extract enum value names (indented identifiers)
+            values = re.findall(r'^\s+(\w+)', body, re.MULTILINE)
+            if values:
+                ALL_ENUM_VALUES[name] = values
+                ENUM_TO_DOMAIN[name] = domain
+
+
 def rosetta_type_to_pure(type_name):
-    """Convert a Rosetta type to Pure type."""
+    """Convert a Rosetta type to Pure type.
+    Returns (pure_type, kind) where kind is 'primitive', 'enum', or 'class_ref'.
+    """
     if type_name in ROSETTA_TO_PURE:
-        return ROSETTA_TO_PURE[type_name], False
+        return ROSETTA_TO_PURE[type_name], 'primitive'
     if type_name in ALL_CDM_ENUMS:
-        return 'String', False  # Enums become String
+        # Real enum — resolve to qualified Pure enum name
+        domain = ENUM_TO_DOMAIN.get(type_name, 'other')
+        return f"{domain}::{type_name}", 'enum'
     if type_name in ALL_CDM_TYPES:
-        return type_name, True  # Reference to another CDM type
-    return 'String', False  # Unknown → String
+        return type_name, 'class_ref'  # Reference to another CDM type
+    return 'String', 'primitive'  # Unknown → String
 
 
 def rosetta_mult_to_pure(mult_str):
@@ -245,6 +277,8 @@ def generate():
     print(f"CDM types found: {len(ALL_CDM_TYPES)}")
     print(f"CDM enums found: {len(ALL_CDM_ENUMS)}")
 
+    collect_enum_values()
+
     domain_models = defaultdict(list)
 
     for fname in sorted(os.listdir(ROSETTA_DIR)):
@@ -280,7 +314,32 @@ def generate():
     lines.append("}")
     lines.append("")
 
+    # ─── Emit Enum definitions ───
+    enum_count = 0
+    seen_enums = set()
+    for enum_name in sorted(ALL_ENUM_VALUES.keys()):
+        domain = ENUM_TO_DOMAIN.get(enum_name, 'other')
+        qualified = f"{domain}::{enum_name}"
+        if qualified in seen_enums:
+            continue
+        seen_enums.add(qualified)
+        enum_count += 1
+
+        values = ALL_ENUM_VALUES[enum_name]
+        if len(values) > MAX_ENUM_VALUES:
+            display_values = values[:MAX_ENUM_VALUES]
+            lines.append(f"// {enum_name} has {len(values)} values, showing first {MAX_ENUM_VALUES}")
+        else:
+            display_values = values
+
+        lines.append(f"Enum {qualified}")
+        lines.append("{")
+        lines.append(",\n".join(f"    {v}" for v in display_values))
+        lines.append("}")
+        lines.append("")
+
     total_props = 0
+    skipped_class_refs = 0
     class_count = 0
     seen_classes = set()
 
@@ -303,10 +362,11 @@ def generate():
             emitted_types.add(model['name'])
             class_count += 1
 
-            # Determine stereotype
-            numeric_attrs = sum(1 for a in model['attrs']
+            # Determine stereotype — only count scalar (non-class-ref) attributes
+            scalar_attrs = [a for a in model['attrs'] if rosetta_type_to_pure(a['type'])[1] != 'class_ref']
+            numeric_attrs = sum(1 for a in scalar_attrs
                                 if rosetta_type_to_pure(a['type'])[0] in ('Float', 'Integer'))
-            stereotype = "metric" if numeric_attrs > len(model['attrs']) / 2 else "dimension"
+            stereotype = "metric" if scalar_attrs and numeric_attrs > len(scalar_attrs) / 2 else "dimension"
 
             desc = model['description']
             if not desc:
@@ -333,13 +393,13 @@ def generate():
                     continue
                 seen_props.add(prop_name)
 
-                pure_type, is_ref = rosetta_type_to_pure(attr['type'])
+                pure_type, kind = rosetta_type_to_pure(attr['type'])
                 pure_mult = rosetta_mult_to_pure(attr['multiplicity'])
 
-                # If it's a reference to another CDM type, flatten to String
-                # (we don't want cross-references in the Pure model for NLQ)
-                if is_ref:
-                    pure_type = 'String'
+                # Class references → skip from class body (handled by Associations)
+                if kind == 'class_ref':
+                    skipped_class_refs += 1
+                    continue
 
                 attr_desc = attr['description']
                 if not attr_desc:
@@ -423,8 +483,9 @@ def generate():
         f.write('\n'.join(lines))
 
     print(f"\nGenerated {OUTPUT_FILE}")
+    print(f"  Enums:        {enum_count} ({sum(len(v) for v in ALL_ENUM_VALUES.values())} values)")
     print(f"  Classes:      {class_count}")
-    print(f"  Properties:   {total_props}")
+    print(f"  Properties:   {total_props} (skipped {skipped_class_refs} class-ref props)")
     print(f"  Associations: {assoc_count}")
     print(f"  Domains:      {len(domain_models)}")
 

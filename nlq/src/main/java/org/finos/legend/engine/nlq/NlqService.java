@@ -242,17 +242,21 @@ public class NlqService {
                     .map(r -> simpleName(r.qualifiedName()))
                     .toList();
 
-            String schema = ModelSchemaExtractor.extractSchema(classNames, modelBuilder);
+            String routerSchema = ModelSchemaExtractor.extractPrimarySchema(classNames, modelBuilder);
             String routingHints = ModelSchemaExtractor.extractRoutingHints(classNames, modelBuilder);
 
             // Step 1: Semantic Router — identify root class
-            String rootClass = routeToRootClass(question, schema, routingHints);
+            String rootClass = routeToRootClass(question, routerSchema, routingHints);
+
+            // Step 2+3: Rebuild a focused schema around the root class for planner/generator.
+            // The router needed all 15 candidates; planner/generator only need root + its associations.
+            String focusedSchema = ModelSchemaExtractor.extractSchema(Set.of(rootClass), modelBuilder);
 
             // Step 2: Query Planner — build structured plan
-            String queryPlan = planQuery(question, rootClass, schema);
+            String queryPlan = planQuery(question, rootClass, focusedSchema);
 
             // Step 3: Pure Generator — generate Pure syntax
-            String pureQuery = generatePure(question, rootClass, queryPlan, schema);
+            String pureQuery = generatePure(question, rootClass, queryPlan, focusedSchema);
 
             long elapsed = (System.nanoTime() - start) / 1_000_000;
 

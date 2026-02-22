@@ -44,7 +44,7 @@ class NlqFullPipelineEvalTest {
         index = new SemanticIndex();
         index.buildIndex(modelBuilder);
 
-        gemini = new GeminiClient(System.getenv("GEMINI_API_KEY"), "gemini-2.0-flash");
+        gemini = new GeminiClient(System.getenv("GEMINI_API_KEY"), "gemini-3-flash-preview");
         service = new NlqService(index, modelBuilder, gemini);
         runner = new NlqEvalRunner(index, modelBuilder);
 

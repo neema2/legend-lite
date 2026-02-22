@@ -1,0 +1,1019 @@
+[
+  {
+    "id": "cdm-005",
+    "question": "show all accounts and their account numbers",
+    "subdomain": "Party & Counterparty",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "Account"
+        ],
+        "mustExclude": [
+          "CreditEvent",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "party::Account",
+      "acceptableRootClasses": [
+        "party::Account"
+      ],
+      "query": {
+        "referenceQuery": "party::Account.all()->project([a|$a.accountNumber, a|$a.accountName, a|$a.accountType], ['Account Number', 'Name', 'Type'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "accountNumber",
+            "accountName",
+            "accountType"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-009",
+    "question": "show me all exercise events and their adjusted dates",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "easy",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "ExerciseEvent"
+        ],
+        "mustExclude": [
+          "CreditDefaultPayout",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::ExerciseEvent",
+      "acceptableRootClasses": [
+        "event::ExerciseEvent"
+      ],
+      "query": {
+        "referenceQuery": "event::ExerciseEvent.all()->project([e|$e.adjustedExerciseDate, e|$e.adjustedRelevantSwapEffectiveDate, e|$e.adjustedCashSettlementPaymentDate], ['Exercise Date', 'Swap Effective Date', 'Cash Settlement Date'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "adjustedExerciseDate",
+            "adjustedRelevantSwapEffectiveDate",
+            "adjustedCashSettlementPaymentDate"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-010",
+    "question": "show securities lending invoices between January and March",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "SecurityLendingInvoice"
+        ],
+        "mustExclude": [
+          "CreditDefaultPayout",
+          "InterestRatePayout"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::SecurityLendingInvoice",
+      "acceptableRootClasses": [
+        "event::SecurityLendingInvoice",
+        "event::BillingInstruction"
+      ],
+      "query": {
+        "referenceQuery": "event::SecurityLendingInvoice.all()->filter(i|$i.billingStartDate >= %2025-01-01 && $i.billingEndDate <= %2025-03-31)->project([i|$i.sendingParty, i|$i.receivingParty, i|$i.billingStartDate, i|$i.billingEndDate], ['Sender', 'Receiver', 'Start', 'End'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "sendingParty",
+            "receivingParty",
+            "billingStartDate",
+            "billingEndDate"
+          ],
+          "metrics": [],
+          "filters": [
+            "billingStartDate",
+            "billingEndDate"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-011",
+    "question": "credit events with recovery above 50%",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CreditEvent"
+        ],
+        "mustExclude": [
+          "InterestRatePayout",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::CreditEvent",
+      "acceptableRootClasses": [
+        "event::CreditEvent"
+      ],
+      "query": {
+        "referenceQuery": "event::CreditEvent.all()->filter(e|$e.recoveryPercent > 0.5)->project([e|$e.creditEventType, e|$e.eventDeterminationDate, e|$e.recoveryPercent], ['Event Type', 'Date', 'Recovery %'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "creditEventType",
+            "eventDeterminationDate"
+          ],
+          "metrics": [],
+          "filters": [
+            "recoveryPercent"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-013",
+    "question": "show collateral with haircut percentage above 10%",
+    "subdomain": "Collateral Management",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CollateralValuationTreatment"
+        ],
+        "mustExclude": [
+          "CreditDefaultPayout",
+          "InterestRatePayout"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "collateral::CollateralValuationTreatment",
+      "acceptableRootClasses": [
+        "collateral::CollateralValuationTreatment"
+      ],
+      "query": {
+        "referenceQuery": "collateral::CollateralValuationTreatment.all()->filter(c|$c.haircutPercentage > 0.1)->project([c|$c.haircutPercentage, c|$c.marginPercentage, c|$c.fxHaircutPercentage], ['Haircut %', 'Margin %', 'FX Haircut %'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "haircutPercentage",
+            "marginPercentage",
+            "fxHaircutPercentage"
+          ],
+          "metrics": [],
+          "filters": [
+            "haircutPercentage"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-015",
+    "question": "show all clearing instructions and the parties involved",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "ClearingInstruction"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "InterestRatePayout"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::ClearingInstruction",
+      "acceptableRootClasses": [
+        "event::ClearingInstruction"
+      ],
+      "query": {
+        "referenceQuery": "event::ClearingInstruction.all()->project([c|$c.clearingParty, c|$c.party1, c|$c.party2, c|$c.isOpenOffer], ['Clearing Party', 'Party 1', 'Party 2', 'Open Offer'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "clearingParty",
+            "party1",
+            "party2",
+            "isOpenOffer"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-017",
+    "question": "workflow steps that were approved, grouped by action type",
+    "subdomain": "Workflow & Processing",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "WorkflowStepApproval"
+        ],
+        "mustExclude": [
+          "CreditEvent",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "workflow::WorkflowStepApproval",
+      "acceptableRootClasses": [
+        "workflow::WorkflowStepApproval",
+        "workflow::WorkflowStep"
+      ],
+      "query": {
+        "referenceQuery": "workflow::WorkflowStepApproval.all()->filter(a|$a.approved == true)->project([a|$a.party, a|$a.timestamp], ['Party', 'Timestamp'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "party",
+            "timestamp"
+          ],
+          "metrics": [],
+          "filters": [
+            "approved"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-018",
+    "question": "what index transitions happened and when did they become effective",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "IndexTransitionInstruction"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "Security"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::IndexTransitionInstruction",
+      "acceptableRootClasses": [
+        "event::IndexTransitionInstruction"
+      ],
+      "query": {
+        "referenceQuery": "event::IndexTransitionInstruction.all()->project([i|$i.effectiveDate, i|$i.priceQuantity, i|$i.cashTransfer], ['Effective Date', 'Price/Quantity', 'Cash Transfer'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "effectiveDate",
+            "priceQuantity",
+            "cashTransfer"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-019",
+    "question": "what are the eligible collateral specifications and their criteria",
+    "subdomain": "Collateral Management",
+    "difficulty": "medium",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "EligibleCollateralSpecification"
+        ],
+        "mustExclude": [
+          "CreditDefaultPayout",
+          "InterestRatePayout"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "collateral::EligibleCollateralSpecification",
+      "acceptableRootClasses": [
+        "collateral::EligibleCollateralSpecification",
+        "collateral::EligibleCollateralCriteria"
+      ],
+      "query": {
+        "referenceQuery": "collateral::EligibleCollateralSpecification.all()->project([e|$e.party, e|$e.counterparty, e|$e.criteria, e|$e.partyRole], ['Party', 'Counterparty', 'Criteria', 'Party Role'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "party",
+            "counterparty",
+            "criteria",
+            "partyRole"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-020",
+    "question": "show initial margin by asset class with notional above 1 million",
+    "subdomain": "Margin & Collateral Scheduling",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "StandardizedSchedule"
+        ],
+        "mustExclude": [
+          "InterestRatePayout",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "margin::StandardizedSchedule",
+      "acceptableRootClasses": [
+        "margin::StandardizedSchedule",
+        "margin::StandardizedScheduleTradeInfo"
+      ],
+      "query": {
+        "referenceQuery": "margin::StandardizedSchedule.all()->filter(m|$m.notional > 1000000)->project([m|$m.assetClass, m|$m.notional, m|$m.durationInYears], ['Asset Class', 'Notional', 'Duration (Years)'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "assetClass",
+            "notional",
+            "durationInYears"
+          ],
+          "metrics": [],
+          "filters": [
+            "notional"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-021",
+    "question": "show me all interest rate swap legs with their day count fractions and payment dates",
+    "subdomain": "Product & Payout Definitions",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "InterestRatePayout"
+        ],
+        "mustExclude": [
+          "CreditEvent",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "product::InterestRatePayout",
+      "acceptableRootClasses": [
+        "product::InterestRatePayout"
+      ],
+      "query": {
+        "referenceQuery": "product::InterestRatePayout.all()->project([p|$p.rateSpecification, p|$p.dayCountFraction, p|$p.paymentDates, p|$p.resetDates, p|$p.compoundingMethod], ['Rate Spec', 'Day Count', 'Payment Dates', 'Reset Dates', 'Compounding'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "rateSpecification",
+            "dayCountFraction",
+            "paymentDates",
+            "resetDates",
+            "compoundingMethod"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-022",
+    "question": "show CDS protection terms and general terms",
+    "subdomain": "Product & Payout Definitions",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CreditDefaultPayout"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "Security"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "product::CreditDefaultPayout",
+      "acceptableRootClasses": [
+        "product::CreditDefaultPayout",
+        "product::GeneralTerms",
+        "product::ProtectionTerms"
+      ],
+      "query": {
+        "referenceQuery": "product::CreditDefaultPayout.all()->project([p|$p.generalTerms, p|$p.protectionTerms, p|$p.transactedPrice], ['General Terms', 'Protection Terms', 'Transacted Price'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "generalTerms",
+            "protectionTerms",
+            "transactedPrice"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-024",
+    "question": "show me the reset schedule for floating rate legs",
+    "subdomain": "Product & Payout Definitions",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "InterestRatePayout"
+        ],
+        "mustExclude": [
+          "CreditEvent",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "product::InterestRatePayout",
+      "acceptableRootClasses": [
+        "product::InterestRatePayout",
+        "event::ResetInstruction"
+      ],
+      "query": {
+        "referenceQuery": "product::InterestRatePayout.all()->filter(p|$p.rateSpecification->isNotEmpty())->project([p|$p.rateSpecification, p|$p.resetDates, p|$p.calculationPeriodDates, p|$p.dayCountFraction], ['Rate Spec', 'Reset Dates', 'Calc Period Dates', 'Day Count'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "rateSpecification",
+            "resetDates",
+            "calculationPeriodDates",
+            "dayCountFraction"
+          ],
+          "metrics": [],
+          "filters": [
+            "rateSpecification"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-025",
+    "question": "what executions happened today and what products were traded",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "ExecutionInstruction"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "Security"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::ExecutionInstruction",
+      "acceptableRootClasses": [
+        "event::ExecutionInstruction",
+        "event::BusinessEvent"
+      ],
+      "query": {
+        "referenceQuery": "event::ExecutionInstruction.all()->filter(e|$e.tradeDate == today())->project([e|$e.product, e|$e.tradeDate, e|$e.counterparty, e|$e.executionDetails, e|$e.priceQuantity], ['Product', 'Trade Date', 'Counterparty', 'Execution Details', 'Price/Qty'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "product",
+            "tradeDate",
+            "counterparty",
+            "executionDetails",
+            "priceQuantity"
+          ],
+          "metrics": [],
+          "filters": [
+            "tradeDate"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-026",
+    "question": "average recovery percentage on credit events by type",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CreditEvent"
+        ],
+        "mustExclude": [
+          "InterestRatePayout",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::CreditEvent",
+      "acceptableRootClasses": [
+        "event::CreditEvent"
+      ],
+      "query": {
+        "referenceQuery": "event::CreditEvent.all()->groupBy([e|$e.creditEventType], [agg(e|$e.recoveryPercent, x|$x->average())], ['Event Type', 'Avg Recovery %'])",
+        "mustContainOps": [
+          "groupBy"
+        ],
+        "properties": {
+          "dimensions": [
+            "creditEventType"
+          ],
+          "metrics": [
+            {
+              "property": "recoveryPercent",
+              "function": "average"
+            }
+          ],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-027",
+    "question": "show trade states with their reset and transfer history",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "TradeState"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "Security"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::TradeState",
+      "acceptableRootClasses": [
+        "event::TradeState"
+      ],
+      "query": {
+        "referenceQuery": "event::TradeState.all()->project([t|$t.trade, t|$t.state, t|$t.resetHistory, t|$t.transferHistory], ['Trade', 'State', 'Reset History', 'Transfer History'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "trade",
+            "state",
+            "resetHistory",
+            "transferHistory"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-028",
+    "question": "what cash settlement terms have a recovery factor below 80%",
+    "subdomain": "Settlement & Delivery",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CashSettlementTerms"
+        ],
+        "mustExclude": [
+          "CreditEvent",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "settlement::CashSettlementTerms",
+      "acceptableRootClasses": [
+        "settlement::CashSettlementTerms"
+      ],
+      "query": {
+        "referenceQuery": "settlement::CashSettlementTerms.all()->filter(c|$c.recoveryFactor < 0.8)->project([c|$c.cashSettlementMethod, c|$c.recoveryFactor, c|$c.fixedSettlement, c|$c.accruedInterest], ['Method', 'Recovery Factor', 'Fixed Settlement', 'Accrued Interest'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "cashSettlementMethod",
+            "recoveryFactor",
+            "fixedSettlement",
+            "accruedInterest"
+          ],
+          "metrics": [],
+          "filters": [
+            "recoveryFactor"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-029",
+    "question": "show me all novated trades and their original counterparties",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "BusinessEvent"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "Security"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::BusinessEvent",
+      "acceptableRootClasses": [
+        "event::BusinessEvent",
+        "event::TradeState"
+      ],
+      "query": {
+        "referenceQuery": "event::BusinessEvent.all()->filter(e|$e.eventQualifier == 'Novation')->project([e|$e.eventQualifier, e|$e.after], ['Event Type', 'After State'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "eventQualifier",
+            "after"
+          ],
+          "metrics": [],
+          "filters": [
+            "eventQualifier"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-030",
+    "question": "which credit default swaps have had a credit event",
+    "subdomain": "Product & Payout Definitions",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "CreditDefaultPayout",
+          "CreditEvent"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "InterestRatePayout"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::CreditEvent",
+      "acceptableRootClasses": [
+        "event::CreditEvent",
+        "product::CreditDefaultPayout",
+        "event::TradeState"
+      ],
+      "query": {
+        "referenceQuery": "event::CreditEvent.all()->project([e|$e.creditEventType, e|$e.eventDeterminationDate, e|$e.referenceInformation, e|$e.recoveryPercent], ['Event Type', 'Date', 'Reference Info', 'Recovery %'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "creditEventType",
+            "eventDeterminationDate",
+            "referenceInformation",
+            "recoveryPercent"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-031",
+    "question": "for each counterparty show total notional across all interest rate swaps",
+    "subdomain": "Product & Payout Definitions",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "ExecutionInstruction"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "Security"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::ExecutionInstruction",
+      "acceptableRootClasses": [
+        "event::ExecutionInstruction",
+        "product::InterestRatePayout"
+      ],
+      "query": {
+        "referenceQuery": "event::ExecutionInstruction.all()->project([e|$e.counterparty, e|$e.product, e|$e.priceQuantity, e|$e.tradeDate], ['Counterparty', 'Product', 'Price/Qty', 'Trade Date'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "counterparty",
+            "product",
+            "priceQuantity",
+            "tradeDate"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-032",
+    "question": "list collateral agreements where eligible collateral includes sovereign bonds rated below AA",
+    "subdomain": "Collateral Management",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "EligibleCollateralSpecification",
+          "AgencyRatingCriteria"
+        ],
+        "mustExclude": [
+          "InterestRatePayout",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "collateral::EligibleCollateralSpecification",
+      "acceptableRootClasses": [
+        "collateral::EligibleCollateralSpecification",
+        "collateral::EligibleCollateralCriteria",
+        "collateral::AgencyRatingCriteria"
+      ],
+      "query": {
+        "referenceQuery": "collateral::EligibleCollateralSpecification.all()->project([e|$e.party, e|$e.counterparty, e|$e.criteria, e|$e.identifier], ['Party', 'Counterparty', 'Criteria', 'Identifier'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "party",
+            "counterparty",
+            "criteria",
+            "identifier"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-033",
+    "question": "what workflow steps are pending approval for trades executed on venue",
+    "subdomain": "Workflow & Processing",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "WorkflowStep"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "Security"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "workflow::WorkflowStep",
+      "acceptableRootClasses": [
+        "workflow::WorkflowStep",
+        "workflow::WorkflowStepApproval"
+      ],
+      "query": {
+        "referenceQuery": "workflow::WorkflowStep.all()->filter(w|$w.rejected->isEmpty())->project([w|$w.action, w|$w.businessEvent, w|$w.approval, w|$w.eventIdentifier], ['Action', 'Business Event', 'Approval', 'Event ID'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "action",
+            "businessEvent",
+            "approval",
+            "eventIdentifier"
+          ],
+          "metrics": [],
+          "filters": [
+            "rejected"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-035",
+    "question": "give me the ISDA determination method for options",
+    "subdomain": "Market Observables & Indices",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "DeterminationMethodology"
+        ],
+        "mustExclude": [
+          "CreditEvent",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "observable::DeterminationMethodology",
+      "acceptableRootClasses": [
+        "observable::DeterminationMethodology",
+        "observable::ObservationIdentifier"
+      ],
+      "query": {
+        "referenceQuery": "observable::DeterminationMethodology.all()->project([d|$d.determinationMethod, d|$d.averagingMethod], ['Determination Method', 'Averaging Method'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "determinationMethod",
+            "averagingMethod"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-037",
+    "question": "what positions changed between yesterday and today in the portfolio",
+    "subdomain": "Positions & Portfolio",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "PortfolioState"
+        ],
+        "mustExclude": [
+          "CreditEvent",
+          "Commodity"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "position::PortfolioState",
+      "acceptableRootClasses": [
+        "position::PortfolioState",
+        "position::CounterpartyPosition",
+        "position::AggregationParameters"
+      ],
+      "query": {
+        "referenceQuery": "position::PortfolioState.all()->project([p|$p.positions, p|$p.lineage], ['Positions', 'Lineage'])",
+        "mustContainOps": [
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "positions",
+            "lineage"
+          ],
+          "metrics": [],
+          "filters": [],
+          "sortedBy": []
+        }
+      }
+    }
+  },
+  {
+    "id": "cdm-038",
+    "question": "list all partial terminations with decrease direction",
+    "subdomain": "Business Events & Lifecycle",
+    "difficulty": "hard",
+    "expected": {
+      "retrieval": {
+        "mustInclude": [
+          "QuantityChangeInstruction"
+        ],
+        "mustExclude": [
+          "Commodity",
+          "Security"
+        ],
+        "maxK": 15
+      },
+      "rootClass": "event::QuantityChangeInstruction",
+      "acceptableRootClasses": [
+        "event::QuantityChangeInstruction",
+        "event::BusinessEvent"
+      ],
+      "query": {
+        "referenceQuery": "event::QuantityChangeInstruction.all()->filter(q|$q.direction == 'Decrease')->project([q|$q.direction, q|$q.change, q|$q.lotIdentifier], ['Direction', 'Change', 'Lot ID'])",
+        "mustContainOps": [
+          "filter",
+          "project"
+        ],
+        "properties": {
+          "dimensions": [
+            "direction",
+            "change",
+            "lotIdentifier"
+          ],
+          "metrics": [],
+          "filters": [
+            "direction"
+          ],
+          "sortedBy": []
+        }
+      }
+    }
+  }
+]

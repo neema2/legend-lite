@@ -108,12 +108,17 @@ public class NlqEvalRunner {
     public List<NlqFullEvalResult> runFullPipelineEval(
             List<NlqEvalCase> cases, NlqService service, LlmClient judge) {
 
-        // Build schema once for the judge
+        // For small models (<100 classes), build full schema once for the judge.
+        // For large models, we'll build per-question scoped schema to keep prompts small.
         List<SemanticIndex.RetrievalResult> allClasses = index.retrieve("", 100);
-        Set<String> allClassNames = allClasses.stream()
-                .map(SemanticIndex.RetrievalResult::qualifiedName)
-                .collect(Collectors.toSet());
-        String fullSchema = ModelSchemaExtractor.extractSchema(allClassNames, modelBuilder);
+        boolean isLargeModel = modelBuilder.getAllClasses().size() > 100;
+        String fullSchema = null;
+        if (!isLargeModel) {
+            Set<String> allClassNames = allClasses.stream()
+                    .map(SemanticIndex.RetrievalResult::qualifiedName)
+                    .collect(Collectors.toSet());
+            fullSchema = ModelSchemaExtractor.extractSchema(allClassNames, modelBuilder);
+        }
 
         List<NlqFullEvalResult> results = new ArrayList<>();
         for (int i = 0; i < cases.size(); i++) {
@@ -180,10 +185,19 @@ public class NlqEvalRunner {
                     NlqEvalMetrics.scorePropertyRoles(nlqResult.pureQuery(), evalCase.expected().query().properties());
 
             // LLM-as-judge (structured multi-dimension)
+            // For large models, build a scoped schema per-question instead of using the full 155K char schema
+            String judgeSchema = schema;
+            if (judgeSchema == null) {
+                List<SemanticIndex.RetrievalResult> relevant = index.retrieve(evalCase.question(), 20);
+                Set<String> relevantNames = relevant.stream()
+                        .map(SemanticIndex.RetrievalResult::qualifiedName)
+                        .collect(Collectors.toSet());
+                judgeSchema = ModelSchemaExtractor.extractSchema(relevantNames, modelBuilder);
+            }
             System.out.print("    judging...");
             System.out.flush();
             NlqFullEvalResult.LlmJudgeScore judgeScore =
-                    NlqEvalMetrics.judgeQuery(judge, evalCase.question(), schema,
+                    NlqEvalMetrics.judgeQuery(judge, evalCase.question(), judgeSchema,
                             nlqResult.pureQuery(), evalCase.expected().query().referenceQuery());
 
             System.out.printf(" overall=%d (c%d/f%d/a%d/s%d)%n",

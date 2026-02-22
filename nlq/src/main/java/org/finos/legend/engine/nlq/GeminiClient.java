@@ -16,9 +16,9 @@ import java.util.regex.Pattern;
  */
 public class GeminiClient implements LlmClient {
 
-    private static final String DEFAULT_MODEL = "gemini-2.0-flash";
+    private static final String DEFAULT_MODEL = "gemini-3-flash-preview";
     private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(90);
 
     private final String apiKey;
     private final String model;
@@ -63,9 +63,9 @@ public class GeminiClient implements LlmClient {
                         attempt, response.statusCode(), ms, requestBody.length());
                 System.out.flush();
 
-                if (response.statusCode() == 429 && attempt < MAX_RETRIES) {
+                if ((response.statusCode() == 429 || response.statusCode() == 503) && attempt < MAX_RETRIES) {
                     long backoff = INITIAL_BACKOFF_MS * (1L << attempt);
-                    System.out.printf("      [Gemini] rate-limited, backing off %ds%n", backoff / 1000);
+                    System.out.printf("      [Gemini] %d, backing off %ds%n", response.statusCode(), backoff / 1000);
                     System.out.flush();
                     try { Thread.sleep(backoff); } catch (InterruptedException ignored) {}
                     continue;
@@ -82,6 +82,13 @@ public class GeminiClient implements LlmClient {
             } catch (LlmException e) {
                 throw e;
             } catch (Exception e) {
+                if (attempt < MAX_RETRIES) {
+                    long backoff = INITIAL_BACKOFF_MS * (1L << attempt);
+                    System.out.printf("      [Gemini] timeout/error, backing off %ds: %s%n", backoff / 1000, e.getMessage());
+                    System.out.flush();
+                    try { Thread.sleep(backoff); } catch (InterruptedException ignored) {}
+                    continue;
+                }
                 throw new LlmException("Gemini API request failed: " + e.getMessage(), e);
             }
         }

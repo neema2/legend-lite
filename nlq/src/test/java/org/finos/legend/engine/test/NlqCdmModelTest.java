@@ -2,8 +2,9 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
 import org.finos.legend.engine.nlq.ModelSchemaExtractor;
+import org.finos.legend.pure.dsl.definition.EnumDefinition;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
-import org.finos.legend.pure.m3.PureClass;
+import org.finos.legend.pure.m3.*;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -148,6 +149,69 @@ class NlqCdmModelTest {
     }
 
     @Test
+    @DisplayName("Model has 250+ enum definitions")
+    void testEnumCount() {
+        Map<String, EnumDefinition> allEnums = modelBuilder.getAllEnums();
+        System.out.println("CDM enums loaded: " + allEnums.size());
+        assertTrue(allEnums.size() >= 250,
+                "Expected at least 250 enums, got " + allEnums.size());
+    }
+
+    @Test
+    @DisplayName("Key enums exist with correct values")
+    void testKeyEnums() {
+        EnumDefinition actionEnum = modelBuilder.getEnum("event::ActionEnum");
+        assertNotNull(actionEnum, "ActionEnum missing");
+        assertTrue(actionEnum.hasValue("New"), "ActionEnum should have 'New'");
+        assertTrue(actionEnum.hasValue("Cancel"), "ActionEnum should have 'Cancel'");
+
+        EnumDefinition creditEventType = modelBuilder.getEnum("event::CreditEventTypeEnum");
+        assertNotNull(creditEventType, "CreditEventTypeEnum missing");
+        assertTrue(creditEventType.hasValue("Bankruptcy"), "CreditEventTypeEnum should have 'Bankruptcy'");
+    }
+
+    @Test
+    @DisplayName("Model has 1100+ associations")
+    void testAssociationCount() {
+        int assocCount = modelBuilder.getAllAssociations().size();
+        System.out.println("CDM associations loaded: " + assocCount);
+        assertTrue(assocCount >= 1100,
+                "Expected at least 1100 associations, got " + assocCount);
+    }
+
+    @Test
+    @DisplayName("Properties are correctly typed (no class refs on class body)")
+    void testPropertyTypes() {
+        int enumProps = 0, primitiveProps = 0, classProps = 0;
+        for (PureClass pc : modelBuilder.getAllClasses().values()) {
+            for (Property p : pc.allProperties()) {
+                if (p.genericType() instanceof PureEnumType) enumProps++;
+                else if (p.genericType() instanceof PrimitiveType) primitiveProps++;
+                else if (p.genericType() instanceof PureClass) classProps++;
+            }
+        }
+        System.out.printf("Property types — primitive: %d, enum: %d, class: %d%n",
+                primitiveProps, enumProps, classProps);
+        assertEquals(0, classProps,
+                "Class body should have no class-typed properties (handled by associations)");
+        assertTrue(enumProps > 0, "Should have enum-typed properties");
+    }
+
+    @Test
+    @DisplayName("CreditEvent has enum-typed creditEventType property")
+    void testEnumTypedProperty() {
+        PureClass ce = modelBuilder.getAllClasses().get("event::CreditEvent");
+        assertNotNull(ce, "CreditEvent missing");
+        Property cet = ce.allProperties().stream()
+                .filter(p -> p.name().equals("creditEventType"))
+                .findFirst().orElse(null);
+        assertNotNull(cet, "creditEventType property missing");
+        assertInstanceOf(PureEnumType.class, cet.genericType(),
+                "creditEventType should be PureEnumType, got: " + cet.genericType().getClass().getSimpleName());
+        assertEquals("CreditEventTypeEnum", cet.genericType().typeName());
+    }
+
+    @Test
     @DisplayName("Model statistics summary")
     void testModelStats() {
         Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
@@ -165,8 +229,10 @@ class NlqCdmModelTest {
         System.out.println("\n═══════════════════════════════════════════════════");
         System.out.println("  ISDA CDM Pure Model Statistics");
         System.out.println("═══════════════════════════════════════════════════");
+        System.out.printf("  Enums:        %d%n", modelBuilder.getAllEnums().size());
         System.out.printf("  Classes:      %d%n", allClasses.size());
         System.out.printf("  Properties:   %d%n", totalProps);
+        System.out.printf("  Associations: %d%n", modelBuilder.getAllAssociations().size());
         System.out.printf("  Domains:      %d (%s)%n", domains.size(), domains);
         System.out.printf("  Index entries: %d%n", index.size());
         System.out.println("═══════════════════════════════════════════════════");

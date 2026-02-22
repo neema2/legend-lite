@@ -14,16 +14,15 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Holdout (blind) eval set — measures generalization.
- * These cases should NEVER be used to tune prompts, metadata, or examples.
+ * CDM model eval — tests NLQ pipeline against the ISDA Common Domain Model (741 classes).
  * Skipped unless GEMINI_API_KEY is set.
  *
  * Run with:
- *   GEMINI_API_KEY=... mvn test -pl nlq -Dtest="NlqHoldoutEvalTest"
+ *   GEMINI_API_KEY=... mvn test -pl nlq -Dtest="NlqCdmEvalTest"
  */
 @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class NlqHoldoutEvalTest {
+class NlqCdmEvalTest {
 
     private static PureModelBuilder modelBuilder;
     private static SemanticIndex index;
@@ -35,8 +34,8 @@ class NlqHoldoutEvalTest {
 
     @BeforeAll
     static void setup() throws Exception {
-        InputStream is = NlqHoldoutEvalTest.class.getResourceAsStream("/nlq/sales-trading-model.pure");
-        assertNotNull(is, "Test model not found");
+        InputStream is = NlqCdmEvalTest.class.getResourceAsStream("/nlq/cdm-model.pure");
+        assertNotNull(is, "CDM model not found");
         String pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
 
         modelBuilder = new PureModelBuilder();
@@ -49,9 +48,10 @@ class NlqHoldoutEvalTest {
         service = new NlqService(index, modelBuilder, gemini);
         runner = new NlqEvalRunner(index, modelBuilder);
 
-        evalCases = NlqEvalRunner.loadCases("/nlq/nlq-holdout-cases.json");
+        evalCases = NlqEvalRunner.loadCases("/nlq/cdm-eval-cases.json");
 
-        System.out.println("Running HOLDOUT eval for " + evalCases.size() + " cases...");
+        System.out.println("Running CDM eval for " + evalCases.size() + " cases (" + 
+                modelBuilder.getAllClasses().size() + " classes)...");
         results = runner.runFullPipelineEval(evalCases, service, gemini);
     }
 
@@ -59,8 +59,8 @@ class NlqHoldoutEvalTest {
 
     @Test
     @Order(0)
-    @DisplayName("Holdout eval report")
-    void testHoldoutReport() {
+    @DisplayName("CDM full pipeline eval report")
+    void testFullReport() {
         String report = NlqEvalMetrics.generateFullReport(results);
         System.out.println(report);
     }
@@ -69,7 +69,7 @@ class NlqHoldoutEvalTest {
 
     @TestFactory
     @Order(1)
-    @DisplayName("Per-case holdout eval")
+    @DisplayName("CDM per-case pipeline eval")
     Stream<DynamicTest> testPerCase() {
         return results.stream().map(result ->
                 DynamicTest.dynamicTest(result.caseId() + ": " + result.question(), () -> {
@@ -106,7 +106,7 @@ class NlqHoldoutEvalTest {
 
     @Test
     @Order(3)
-    @DisplayName("Acceptable routing >= 70%")
+    @DisplayName("Acceptable routing >= 50% (CDM has 741 classes)")
     void testRoutingAccuracy() {
         long acceptable = results.stream()
                 .filter(r -> !r.hasError() && r.routing() != null && r.routing().acceptableMatch())
@@ -118,16 +118,16 @@ class NlqHoldoutEvalTest {
                 .filter(r -> !r.hasError() && r.routing() != null && r.routing().preferredMatch())
                 .count();
 
-        System.out.printf("HOLDOUT Routing: preferred=%d/%d (%.1f%%), acceptable=%d/%d (%.1f%%)%n",
+        System.out.printf("Routing: preferred=%d/%d (%.1f%%), acceptable=%d/%d (%.1f%%)%n",
                 preferred, total, 100.0 * preferred / Math.max(1, total),
                 acceptable, total, accuracy * 100);
-        assertTrue(accuracy >= 0.70,
-                String.format("Holdout acceptable routing %.1f%% below 70%% threshold", accuracy * 100));
+        assertTrue(accuracy >= 0.50,
+                String.format("Acceptable routing %.1f%% below 50%% threshold", accuracy * 100));
     }
 
     @Test
     @Order(4)
-    @DisplayName("Average LLM judge overall >= 3.0")
+    @DisplayName("Average LLM judge overall >= 2.5 (CDM baseline)")
     void testJudgeScore() {
         double avgScore = results.stream()
                 .filter(r -> !r.hasError() && r.llmJudge() != null && r.llmJudge().overall() > 0)
@@ -135,8 +135,8 @@ class NlqHoldoutEvalTest {
                 .average()
                 .orElse(0.0);
 
-        System.out.printf("HOLDOUT Average LLM judge overall: %.1f / 5.0%n", avgScore);
-        assertTrue(avgScore >= 3.0,
-                String.format("Holdout average judge overall %.1f below 3.0 threshold", avgScore));
+        System.out.printf("Average LLM judge overall: %.1f / 5.0%n", avgScore);
+        assertTrue(avgScore >= 2.5,
+                String.format("Average judge overall %.1f below 2.5 threshold", avgScore));
     }
 }

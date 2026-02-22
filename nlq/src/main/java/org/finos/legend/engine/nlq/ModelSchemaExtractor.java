@@ -115,6 +115,81 @@ public class ModelSchemaExtractor {
         return sb.toString();
     }
 
+    /**
+     * Builds a primary-only schema for the router: full class detail for each candidate
+     * plus a compact "Associations:" line per class listing connected class names.
+     * No neighbor summaries or full association blocks — just what the router needs to pick.
+     */
+    public static String extractPrimarySchema(Set<String> classNames, PureModelBuilder modelBuilder) {
+        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, Association> allAssociations = modelBuilder.getAllAssociations();
+
+        // Resolve class names to PureClass objects
+        Map<String, PureClass> primaryClasses = new LinkedHashMap<>();
+        for (String name : classNames) {
+            PureClass pc = allClasses.get(name);
+            if (pc == null) {
+                for (PureClass candidate : allClasses.values()) {
+                    if (candidate.name().equals(name)) {
+                        pc = candidate;
+                        break;
+                    }
+                }
+            }
+            if (pc != null) {
+                primaryClasses.put(pc.qualifiedName(), pc);
+            }
+        }
+
+        Set<String> primaryNames = new HashSet<>();
+        for (PureClass pc : primaryClasses.values()) {
+            primaryNames.add(pc.qualifiedName());
+            primaryNames.add(pc.name());
+        }
+
+        // Build per-class association target map
+        Map<String, List<String>> assocTargets = new LinkedHashMap<>();
+        for (PureClass pc : primaryClasses.values()) {
+            assocTargets.put(pc.qualifiedName(), new ArrayList<>());
+        }
+        for (Association assoc : allAssociations.values()) {
+            String t1 = assoc.property1().targetClass();
+            String t2 = assoc.property2().targetClass();
+            // If t1 is primary, it navigates to t2
+            for (PureClass pc : primaryClasses.values()) {
+                String qn = pc.qualifiedName();
+                String sn = pc.name();
+                if (t1.equals(qn) || t1.equals(sn)) {
+                    assocTargets.get(qn).add(simpleName(t2));
+                }
+                if (t2.equals(qn) || t2.equals(sn)) {
+                    assocTargets.get(qn).add(simpleName(t1));
+                }
+            }
+        }
+
+        // Build schema text
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== Classes ===\n\n");
+        for (PureClass pc : primaryClasses.values()) {
+            appendClassFull(sb, pc);
+            List<String> targets = assocTargets.get(pc.qualifiedName());
+            if (targets != null && !targets.isEmpty()) {
+                // Deduplicate and sort
+                List<String> unique = targets.stream().distinct().sorted().toList();
+                sb.append("  Associations: → ").append(String.join(", ", unique)).append("\n");
+            }
+            sb.append("\n");
+        }
+
+        return sb.toString();
+    }
+
+    private static String simpleName(String qualifiedName) {
+        int idx = qualifiedName.lastIndexOf("::");
+        return idx >= 0 ? qualifiedName.substring(idx + 2) : qualifiedName;
+    }
+
     // ==================== Formatting ====================
 
     private static void appendClassFull(StringBuilder sb, PureClass pc) {
