@@ -1,205 +1,196 @@
 # Legend Lite
 
-A clean-room implementation of the FINOS Legend Engine core, designed for **100% SQL Push-Down** execution.
+A clean-room implementation of the FINOS Legend Engine, designed for **100% SQL push-down** execution. Includes an HTTP server for [Studio Lite](https://github.com/neema2/studio-lite) (the frontend) and an **NLQ (Natural Language Query)** pipeline that translates English questions into Pure queries using LLMs.
 
-## Architecture
+## Modules
 
-Legend Lite uses a **three-server architecture** for query execution:
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ MetadataService │     │  QueryService   │     │ ServiceExecutor │
-│   (Stateful)    │     │  (Stateless)    │     │  (Stateless)    │
-├─────────────────┤     ├─────────────────┤     ├─────────────────┤
-│ • Holds model   │     │ • Ad-hoc queries│     │ • Service exec  │
-│ • Caches plans  │     │ • One-shot      │     │ • Plan playback │
-│ • Service defs  │     │ • No state      │     │ • No compilation│
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-```
-
-### MetadataService (Stateful)
-
-Manages the compiled Pure model and caches execution plans.
-
-```java
-MetadataService metadata = new MetadataService(pureSource);
-
-// Generate and cache execution plan
-ExecutionPlan plan = metadata.generatePlan("app::MyService", "app::MyRuntime");
-```
-
-**Use cases:**
-- Long-running server with pre-deployed models
-- Service definitions that are executed repeatedly
-- Plan caching for performance
-
-### QueryService (Stateless)
-
-Compiles and executes ad-hoc queries in a single call. No state retained.
-
-```java
-QueryService query = new QueryService();
-
-// Execute ad-hoc query
-RelationResult result = query.execute(
-    pureSource,
-    "Person.all()->filter({p | $p.age > 30})->project(...)",
-    "app::MyRuntime"
-);
-
-// Or just compile without executing
-ExecutionPlan plan = query.compile(pureSource, query, runtimeName);
-```
-
-**Use cases:**
-- Exploratory data analysis
-- One-off queries
-- Serverless/lambda execution
-
-### ServiceExecutor (Stateless)
-
-Executes pre-compiled plans. No compilation, just execution.
-
-```java
-ServiceExecutor executor = new ServiceExecutor();
-
-// Execute a pre-compiled plan
-RelationResult result = executor.execute(plan, connectionOverride);
-```
-
-**Use cases:**
-- Plan playback from cache
-- Distributed execution
-- Edge deployment
+| Module | Description |
+|--------|-------------|
+| `engine/` | Pure parser, compiler, SQL generator, DuckDB/SQLite execution, HTTP server |
+| `nlq/` | NLQ-to-Pure pipeline — semantic retrieval, LLM routing, query planning, Pure generation |
+| `pct/` | Pure Compatibility Tests (PCT) against the Legend specification |
 
 ---
 
 ## Quick Start
 
-### Define Your Model (Pure Syntax)
+### Prerequisites
 
-```
-Class model::Person {
-    firstName: String[1];
-    lastName: String[1];
-    age: Integer[1];
-}
+- **Java 21+**
+- **Maven 3.9+**
+- **GEMINI_API_KEY** environment variable (required for NLQ features)
 
-Database store::PersonDB (
-    Table T_PERSON (
-        ID INTEGER PRIMARY KEY,
-        FIRST_NAME VARCHAR(100),
-        LAST_NAME VARCHAR(100),
-        AGE INTEGER
-    )
-)
-
-Mapping model::PersonMapping (
-    Person: Relational {
-        firstName: T_PERSON.FIRST_NAME,
-        lastName: T_PERSON.LAST_NAME,
-        age: T_PERSON.AGE
-    }
-)
-
-Connection store::MyConnection {
-    database: DuckDB;
-    specification: InMemory;
-}
-
-Runtime app::MyRuntime {
-    mappings: [ model::PersonMapping ];
-    connections: [ store::PersonDB: store::MyConnection ];
-}
-```
-
-### Execute a Query
-
-```java
-QueryService qs = new QueryService();
-
-RelationResult result = qs.execute(
-    pureSource,
-    "Person.all()->filter({p | $p.lastName == 'Smith'})->project({p | $p.firstName})",
-    "app::MyRuntime"
-);
-
-for (List<Object> row : result.rows()) {
-    System.out.println(row.get(0)); // firstName
-}
-```
-
----
-
-## FAQ
-
-### What databases are supported?
-
-| Database | Status |
-|----------|--------|
-| DuckDB | ✅ Full support |
-| SQLite | ✅ Full support |
-| H2 | ✅ Basic support |
-| PostgreSQL | 🚧 In progress |
-| Snowflake | 📋 Planned |
-
-### What's the difference between QueryService and MetadataService?
-
-| Feature | QueryService | MetadataService |
-|---------|--------------|-----------------|
-| State | Stateless | Stateful |
-| Plan caching | No | Yes |
-| Use case | Ad-hoc queries | Production services |
-| Startup cost | Higher (compiles each time) | Lower (cached plans) |
-
-### How does SQL push-down work?
-
-All queries are translated to native SQL and executed entirely in the database:
-
-```
-Pure Query:
-Person.all()
-    ->filter({p | $p.age > 30})
-    ->project({p | $p.firstName})
-
-Generated SQL:
-SELECT "t0"."FIRST_NAME" AS "firstName"
-FROM "T_PERSON" AS "t0"
-WHERE "t0"."AGE" > 30
-```
-
-No data is fetched into the JVM for filtering or projection.
-
-### What about associations/joins?
-
-Associations are fully supported with automatic EXISTS optimization:
-
-```
-// Filter through to-many association (uses EXISTS)
-Person.all()
-    ->filter({p | $p.addresses.city == 'NYC'})
-    ->project({p | $p.firstName})
-
-// Project through association (uses LEFT JOIN)
-Person.all()
-    ->project({p | $p.firstName}, {p | $p.addresses.street})
-```
-
----
-
-## Building
+### 1. Build
 
 ```bash
-mvn clean install
+mvn clean install -DskipTests
 ```
+
+### 2. Start the Backend Server
+
+**Without NLQ** (engine only — LSP, query execution, SQL, diagrams):
+
+```bash
+mvn exec:java -pl engine \
+  -Dexec.mainClass="org.finos.legend.engine.server.LegendHttpServer"
+```
+
+**With NLQ** (adds the `POST /engine/nlq` endpoint):
+
+```bash
+GEMINI_API_KEY=your-key-here \
+mvn exec:java -pl nlq \
+  -Dexec.mainClass="org.finos.legend.engine.nlq.NlqHttpServer"
+```
+
+Both start on **port 8080** by default. Pass a port number as the first argument to override:
+
+```bash
+mvn exec:java -pl nlq \
+  -Dexec.mainClass="org.finos.legend.engine.nlq.NlqHttpServer" \
+  -Dexec.args="9090"
+```
+
+### 3. Start the Frontend
+
+See [studio-lite](https://github.com/neema2/studio-lite) — it connects to `http://localhost:8080` by default.
+
+---
+
+## HTTP API
+
+All endpoints are served from the same server on port 8080.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/lsp` | LSP JSON-RPC — diagnostics, completions, hover |
+| `POST` | `/engine/execute` | Compile + execute a Pure query against DuckDB |
+| `POST` | `/engine/sql` | Execute raw SQL against a Runtime's connection |
+| `POST` | `/engine/diagram` | Extract class diagram data from Pure model |
+| `POST` | `/engine/nlq` | **NLQ** — translate natural language to Pure query |
+| `GET`  | `/health` | Health check |
+
+### NLQ Endpoint
+
+**Request:**
+
+```json
+{
+  "code": "Class model::Trade { ... } ...",
+  "question": "show me total notional by desk",
+  "domain": "Trading"
+}
+```
+
+- `code` — full Pure model source (classes, mappings, connections, runtime)
+- `question` — natural language question
+- `domain` — optional hint to narrow semantic search
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "rootClass": "Trade",
+  "pureQuery": "Trade.all()->project([t|$t.trader.desk.name, t|$t.notional], ['desk', 'notional'])->groupBy([{r|$r.desk}], [{r|$r.notional->sum()}], ['desk', 'totalNotional'])",
+  "queryPlan": "{ ... }",
+  "retrievedClasses": ["Trade", "Trader", "Desk"],
+  "latencyMs": 4200
+}
+```
+
+### Execute Endpoint
+
+**Request:**
+
+```json
+{
+  "code": "Class model::Person { ... }\nDatabase store::DB ( ... )\nMapping ...\nRuntime ...\n\nPerson.all()->filter({p|$p.age > 30})->project({p|$p.firstName})"
+}
+```
+
+The `code` field contains the full Pure source with the query expression appended at the end (after the Runtime definition).
+
+---
+
+## NLQ Pipeline
+
+The NLQ module implements a 4-step pipeline:
+
+```
+Question ──► Semantic Retrieval ──► LLM Router ──► Query Planner ──► Pure Generator ──► Parse Validation
+                 (TF-IDF)          (root class)    (structured plan)   (Pure syntax)     (PureParser)
+```
+
+1. **Semantic Retrieval** — TF-IDF index over class names, descriptions, and property metadata. Returns top-K candidate classes.
+2. **Semantic Router** — LLM identifies the root class from candidates (with retry on unparsable responses).
+3. **Query Planner** — LLM builds a structured JSON plan (projections, filters, aggregations, sorts).
+4. **Pure Generator** — LLM generates Pure syntax from the plan (with retry on parse failures).
+5. **Parse Validation** — `PureParser.parse()` hard gate rejects syntactically invalid queries.
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GEMINI_API_KEY` | Yes (for NLQ) | — | Google Gemini API key |
+| `LLM_PROVIDER` | No | `gemini` | LLM provider (`gemini`) |
+| `GEMINI_MODEL` | No | `gemini-3-flash-preview` | Gemini model name |
+
+### NLQ Annotations
+
+Pure models can include NLQ metadata via tagged values to improve retrieval and routing:
+
+```
+Profile nlq {
+  tags: [description, synonyms, businessDomain, importance, exampleQuestions, displayName, sampleValues, unit];
+}
+
+Class {nlq.description = 'Daily profit and loss by trader'} model::DailyPnL {
+  {nlq.synonyms = 'PnL, P&L, daily P&L'} totalPnL: Float[1];
+}
+```
+
+---
 
 ## Testing
 
 ```bash
-mvn test
+# All engine tests (~900 tests, ~10s)
+mvn test -pl engine
+
+# NLQ eval — sales-trading model (requires GEMINI_API_KEY)
+GEMINI_API_KEY=your-key mvn test -pl nlq -Dtest="NlqFullPipelineEvalTest"
+
+# NLQ eval — CDM model (741 classes, requires GEMINI_API_KEY)
+GEMINI_API_KEY=your-key mvn test -pl nlq -Dtest="NlqCdmEvalTest"
+
+# PCT compatibility tests
+mvn test -pl pct
 ```
 
-All 123 tests run in ~3 seconds.
+---
+
+## Pure Language Quick Reference
+
+```
+// Class filter + project
+Trade.all()
+  ->filter({t|$t.status == 'CONFIRMED'})
+  ->project([t|$t.trader.name, t|$t.notional], ['trader', 'notional'])
+
+// GroupBy (always after project)
+Trade.all()
+  ->project([t|$t.trader.desk.name, t|$t.notional], ['desk', 'notional'])
+  ->groupBy([{r|$r.desk}], [{r|$r.notional->sum()}], ['desk', 'totalNotional'])
+
+// Sort + limit
+Trade.all()
+  ->project([t|$t.notional, t|$t.tradeDate], ['notional', 'tradeDate'])
+  ->sort(descending('notional'))
+  ->limit(10)
+```
+
+All queries are translated to native SQL and executed entirely in the database — no data is fetched into the JVM.
 
 ---
 
