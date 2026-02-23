@@ -223,6 +223,8 @@ public class NlqService {
             Return ONLY the Pure query expression. No explanation, no markdown, no code fences.
             """;
 
+    private static final int MAX_RETRIES = 2;
+
     private final SemanticIndex index;
     private final PureModelBuilder modelBuilder;
     private final LlmClient llmClient;
@@ -266,16 +268,27 @@ public class NlqService {
             // Step 2: Query Planner — build structured plan
             String queryPlan = planQuery(question, rootClass, focusedSchema);
 
-            // Step 3: Pure Generator — generate Pure syntax
-            String pureQuery = generatePure(question, rootClass, queryPlan, focusedSchema);
-
-            // Step 4: Parse validation — reject syntactically invalid Pure
-            try {
-                PureParser.parse(pureQuery);
-            } catch (Exception e) {
+            // Step 3: Pure Generator — generate Pure syntax (with parse-retry)
+            String pureQuery = null;
+            Exception lastParseError = null;
+            for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                pureQuery = generatePure(question, rootClass, queryPlan, focusedSchema);
+                try {
+                    PureParser.parse(pureQuery);
+                    lastParseError = null;
+                    break;
+                } catch (Exception e) {
+                    lastParseError = e;
+                    if (attempt < MAX_RETRIES) {
+                        System.out.printf("  [retry] parse failed (attempt %d/%d): %s%n",
+                                attempt + 1, MAX_RETRIES + 1, e.getMessage());
+                    }
+                }
+            }
+            if (lastParseError != null) {
                 long elapsed = (System.nanoTime() - start) / 1_000_000;
-                return NlqResult.error("Parse validation failed: " + e.getMessage(),
-                        retrievedList, elapsed);
+                return NlqResult.error("Parse validation failed after " + (MAX_RETRIES + 1) +
+                        " attempts: " + lastParseError.getMessage(), retrievedList, elapsed);
             }
 
             long elapsed = (System.nanoTime() - start) / 1_000_000;
@@ -323,8 +336,22 @@ public class NlqService {
         }
         userMessage.append("\n\nQuestion: ").append(question);
 
-        String response = llmClient.complete(systemPrompt, userMessage.toString());
-        return extractJsonField(response, "rootClass");
+        Exception lastError = null;
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            String response = llmClient.complete(systemPrompt, userMessage.toString());
+            try {
+                return extractJsonField(response, "rootClass");
+            } catch (Exception e) {
+                lastError = e;
+                if (attempt < MAX_RETRIES) {
+                    System.out.printf("  [retry] rootClass extraction failed (attempt %d/%d): %s%n",
+                            attempt + 1, MAX_RETRIES + 1, e.getMessage());
+                }
+            }
+        }
+        throw new LlmClient.LlmException(
+                "Could not extract rootClass after " + (MAX_RETRIES + 1) + " attempts: " + lastError.getMessage(),
+                -1, lastError.getMessage());
     }
 
     // ==================== Step 2: Query Planner ====================
