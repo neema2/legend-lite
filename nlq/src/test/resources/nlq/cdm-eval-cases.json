@@ -588,7 +588,7 @@
         "event::CreditEvent"
       ],
       "query": {
-        "referenceQuery": "event::CreditEvent.all()->groupBy([e|$e.creditEventType], [agg(e|$e.recoveryPercent, x|$x->average())], ['Event Type', 'Avg Recovery %'])",
+        "referenceQuery": "event::CreditEvent.all()->project([e|$e.creditEventType, e|$e.recoveryPercent], ['eventType', 'recoveryPercent'])->groupBy([{r|$r.eventType}], [{r|$r.recoveryPercent->avg()}], ['eventType', 'avgRecoveryPercent'])",
         "mustContainOps": [
           "groupBy"
         ],
