@@ -21,7 +21,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "Trade.all()->project([t|$t.tradeId, t|$t.tradeDate, t|$t.side, t|$t.notional], ['Trade ID', 'Date', 'Side', 'Notional'])->filter(row|$row.getDate('Date') == today())",
+        "referenceQuery": "Trade.all()->project([t|$t.tradeId, t|$t.tradeDate, t|$t.side, t|$t.notional], ['tradeID', 'date', 'side', 'notional'])->filter(row|$row.date == today())",
         "mustContainOps": [
           "project",
           "filter"
@@ -60,7 +60,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "Trade.all()->groupBy([t|$t.trader.desk.name], [agg(t|$t.notional, x|$x->sum())], ['Desk', 'Total Notional'])",
+        "referenceQuery": "Trade.all()->project([t|$t.trader.desk.name, t|$t.notional], ['name', 'notional'])->groupBy([{r|$r.name}], [{r|$r.notional->sum()}], ['desk', 'totalNotional'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -102,7 +102,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project([t|$t.tradeId, t|$t.tradeDate, t|$t.notional, t|$t.counterparty.name], ['Trade ID', 'Date', 'Notional', 'Counterparty'])",
+        "referenceQuery": "Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project([t|$t.tradeId, t|$t.tradeDate, t|$t.notional, t|$t.counterparty.name], ['tradeID', 'date', 'notional', 'counterparty'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -140,7 +140,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "Trade.all()->groupBy([t|$t.side, t|$t.instrument.assetClass], [agg(t|$t.tradeId, x|$x->count())], ['Side', 'Asset Class', 'Count'])",
+        "referenceQuery": "Trade.all()->project([t|$t.side, t|$t.instrument.assetClass, t|$t.tradeId], ['side', 'assetClass', 'tradeId'])->groupBy([{r|$r.side}, {r|$r.assetClass}], [{r|$r.tradeId->count()}], ['side', 'assetClass', 'count'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -183,7 +183,7 @@
         "Position"
       ],
       "query": {
-        "referenceQuery": "Position.all()->filter(p|$p.instrument.ticker == 'AAPL')->project([p|$p.instrument.ticker, p|$p.quantity, p|$p.marketValue, p|$p.book.name], ['Ticker', 'Quantity', 'Market Value', 'Book'])",
+        "referenceQuery": "Position.all()->filter(p|$p.instrument.ticker == 'AAPL')->project([p|$p.instrument.ticker, p|$p.quantity, p|$p.marketValue, p|$p.book.name], ['ticker', 'quantity', 'marketValue', 'book'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -221,7 +221,7 @@
         "Position"
       ],
       "query": {
-        "referenceQuery": "Position.all()->groupBy([p|$p.book.name], [agg(p|$p.marketValue, x|$x->sum())], ['Book', 'Total Market Value'])",
+        "referenceQuery": "Position.all()->project([p|$p.book.name, p|$p.marketValue], ['name', 'marketValue'])->groupBy([{r|$r.name}], [{r|$r.marketValue->sum()}], ['book', 'totalMarketValue'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -263,7 +263,7 @@
         "Portfolio"
       ],
       "query": {
-        "referenceQuery": "Portfolio.all()->project([p|$p.name, p|$p.nav, p|$p.strategy], ['Portfolio', 'NAV', 'Strategy'])->filter(row|$row.getString('Strategy') == 'GlobalMacro')",
+        "referenceQuery": "Portfolio.all()->project([p|$p.name, p|$p.nav, p|$p.strategy], ['portfolio', 'nAV', 'strategy'])->filter(row|$row.strategy == 'GlobalMacro')",
         "mustContainOps": [
           "project",
           "filter"
@@ -303,7 +303,7 @@
         "Trader"
       ],
       "query": {
-        "referenceQuery": "DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps')->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])",
+        "referenceQuery": "DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps')->project([p|$p.trader.name, p|$p.totalPnL], ['name', 'totalPnl'])->groupBy([{r|$r.name}], [{r|$r.totalPnL->sum()}], ['trader', 'totalPnl'])",
         "mustContainOps": [
           "filter",
           "groupBy"
@@ -348,7 +348,7 @@
         "DailyPnL"
       ],
       "query": {
-        "referenceQuery": "DailyPnL.all()->groupBy([p|$p.book.name], [agg(p|$p.realizedPnL, x|$x->sum())], ['Book', 'Realized PnL'])",
+        "referenceQuery": "DailyPnL.all()->project([p|$p.book.name, p|$p.realizedPnL], ['name', 'realizedPnl'])->groupBy([{r|$r.name}], [{r|$r.realizedPnL->sum()}], ['book', 'realizedPnl'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -390,7 +390,7 @@
         "DailyPnL"
       ],
       "query": {
-        "referenceQuery": "DailyPnL.all()->filter(p|$p.desk.name == 'EMEA Rates')->project([p|$p.pnlDate, p|$p.totalPnL], ['Date', 'Total PnL'])",
+        "referenceQuery": "DailyPnL.all()->filter(p|$p.desk.name == 'eMEARates')->project([p|$p.pnlDate, p|$p.totalPnL], ['date', 'totalPnl'])",
         "mustContainOps": [
           "filter"
         ],
@@ -427,7 +427,7 @@
         "VaRResult"
       ],
       "query": {
-        "referenceQuery": "VaRResult.all()->project([v|$v.portfolio.name, v|$v.varAmount], ['Portfolio', 'VaR'])",
+        "referenceQuery": "VaRResult.all()->project([v|$v.portfolio.name, v|$v.varAmount], ['portfolio', 'vaR'])",
         "mustContainOps": [
           "project"
         ],
@@ -462,7 +462,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "Greeks.all()->groupBy([g|$g.trade.trader.desk.name], [agg(g|$g.delta, x|$x->sum())], ['Desk', 'Total Delta'])",
+        "referenceQuery": "Greeks.all()->project([g|$g.trade.trader.desk.name, g|$g.delta], ['name', 'delta'])->groupBy([{r|$r.name}], [{r|$r.delta->sum()}], ['desk', 'totalDelta'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -505,7 +505,7 @@
         "Portfolio"
       ],
       "query": {
-        "referenceQuery": "VaRResult.all()->project([v|$v.portfolio.name, v|$v.varAmount], ['Portfolio', 'VaR'])->filter(row|$row.getFloat('VaR') > 10000000)",
+        "referenceQuery": "VaRResult.all()->project([v|$v.portfolio.name, v|$v.varAmount], ['portfolio', 'vaR'])->filter(row|$row.vaR > 10000000)",
         "mustContainOps": [
           "project",
           "filter"
@@ -543,7 +543,7 @@
         "SalesCredit"
       ],
       "query": {
-        "referenceQuery": "SalesCredit.all()->groupBy([s|$s.salesPerson.name], [agg(s|$s.creditAmount, x|$x->sum())], ['Salesperson', 'Total Credit'])",
+        "referenceQuery": "SalesCredit.all()->project([s|$s.salesPerson.name, s|$s.creditAmount], ['name', 'creditAmount'])->groupBy([{r|$r.name}], [{r|$r.creditAmount->sum()}], ['salesperson', 'totalCredit'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -584,7 +584,7 @@
         "SalesCredit"
       ],
       "query": {
-        "referenceQuery": "SalesCredit.all()->groupBy([s|$s.client.name], [agg(s|$s.creditAmount, x|$x->sum())], ['Client', 'Total Revenue'])->sort(descending('Total Revenue'))->limit(10)",
+        "referenceQuery": "SalesCredit.all()->project([s|$s.client.name, s|$s.creditAmount], ['name', 'creditAmount'])->groupBy([{r|$r.name}], [{r|$r.creditAmount->sum()}], ['client', 'totalRevenue'])->sort(descending('totalRevenue'))->limit(10)",
         "mustContainOps": [
           "groupBy",
           "sort"
@@ -629,7 +629,7 @@
         "MarginCall"
       ],
       "query": {
-        "referenceQuery": "MarginCall.all()->project([m|$m.counterparty.name, m|$m.callAmount, m|$m.status, m|$m.dueDate], ['Counterparty', 'Amount', 'Status', 'Due Date'])->filter(row|$row.getString('Status') == 'OPEN')",
+        "referenceQuery": "MarginCall.all()->project([m|$m.counterparty.name, m|$m.callAmount, m|$m.status, m|$m.dueDate], ['counterparty', 'amount', 'status', 'dueDate'])->filter(row|$row.status == 'OPEN')",
         "mustContainOps": [
           "project",
           "filter"
@@ -667,7 +667,7 @@
         "MarginCall"
       ],
       "query": {
-        "referenceQuery": "MarginCall.all()->project([m|$m.counterparty.name, m|$m.callAmount, m|$m.status, m|$m.dueDate], ['Counterparty', 'Amount', 'Status', 'Due Date'])->filter(row|$row.getString('Status') == 'OPEN')",
+        "referenceQuery": "MarginCall.all()->project([m|$m.counterparty.name, m|$m.callAmount, m|$m.status, m|$m.dueDate], ['counterparty', 'amount', 'status', 'dueDate'])->filter(row|$row.status == 'OPEN')",
         "mustContainOps": [
           "project",
           "filter"
@@ -705,7 +705,7 @@
         "Settlement"
       ],
       "query": {
-        "referenceQuery": "Settlement.all()->project([s|$s.trade.tradeId, s|$s.amount, s|$s.status, s|$s.settlementDate], ['Trade ID', 'Amount', 'Status', 'Settlement Date'])->filter(row|$row.getString('Status') == 'PENDING')",
+        "referenceQuery": "Settlement.all()->project([s|$s.trade.tradeId, s|$s.amount, s|$s.status, s|$s.settlementDate], ['tradeID', 'amount', 'status', 'settlementDate'])->filter(row|$row.status == 'PENDING')",
         "mustContainOps": [
           "project",
           "filter"
@@ -742,7 +742,7 @@
         "Settlement"
       ],
       "query": {
-        "referenceQuery": "Settlement.all()->project([s|$s.trade.counterparty.name, s|$s.amount, s|$s.status], ['Counterparty', 'Amount', 'Status'])->filter(row|$row.getString('Status') == 'FAILED')",
+        "referenceQuery": "Settlement.all()->project([s|$s.trade.counterparty.name, s|$s.amount, s|$s.status], ['counterparty', 'amount', 'status'])->filter(row|$row.status == 'FAILED')",
         "mustContainOps": [
           "project",
           "filter"
@@ -781,7 +781,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "SalesCredit.all()->filter(s|$s.trade.trader.desk.name == 'EMEA Rates')->project([s|$s.salesPerson.name, s|$s.creditAmount, s|$s.trade.tradeId], ['Salesperson', 'Credit', 'Trade ID'])",
+        "referenceQuery": "SalesCredit.all()->filter(s|$s.trade.trader.desk.name == 'eMEARates')->project([s|$s.salesPerson.name, s|$s.creditAmount, s|$s.trade.tradeId], ['salesperson', 'credit', 'tradeID'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -818,7 +818,7 @@
         "Greeks"
       ],
       "query": {
-        "referenceQuery": "Greeks.all()->filter(g|$g.trade.instrument.productType == 'Bond')->project([g|$g.trade.instrument.ticker, g|$g.delta, g|$g.gamma, g|$g.vega, g|$g.theta], ['Instrument', 'Delta', 'Gamma', 'Vega', 'Theta'])",
+        "referenceQuery": "Greeks.all()->filter(g|$g.trade.instrument.productType == 'Bond')->project([g|$g.trade.instrument.ticker, g|$g.delta, g|$g.gamma, g|$g.vega, g|$g.theta], ['instrument', 'delta', 'gamma', 'vega', 'theta'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -857,7 +857,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "Trade.all()->filter(t|$t.trader.desk.name == 'AMER Equity Swaps')->project([t|$t.tradeId, t|$t.counterparty.name], ['Trade ID', 'Counterparty'])",
+        "referenceQuery": "Trade.all()->filter(t|$t.trader.desk.name == 'AMER Equity Swaps')->project([t|$t.tradeId, t|$t.counterparty.name], ['tradeID', 'counterparty'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -894,7 +894,7 @@
         "Position"
       ],
       "query": {
-        "referenceQuery": "Position.all()->project([p|$p.instrument.ticker, p|$p.quantity, p|$p.marketValue], ['Instrument', 'Quantity', 'Market Value'])",
+        "referenceQuery": "Position.all()->project([p|$p.instrument.ticker, p|$p.quantity, p|$p.marketValue], ['instrument', 'quantity', 'marketValue'])",
         "mustContainOps": [
           "project"
         ],
@@ -930,7 +930,7 @@
         "Greeks"
       ],
       "query": {
-        "referenceQuery": "VaRResult.all()->filter(v|$v.portfolio.name == 'Goldman Sachs')->project([v|$v.portfolio.name, v|$v.varAmount, v|$v.confidenceLevel], ['Portfolio', 'VaR', 'Confidence'])",
+        "referenceQuery": "VaRResult.all()->filter(v|$v.portfolio.name == 'Goldman Sachs')->project([v|$v.portfolio.name, v|$v.varAmount, v|$v.confidenceLevel], ['portfolio', 'vaR', 'confidence'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -967,7 +967,7 @@
         "Option"
       ],
       "query": {
-        "referenceQuery": "Option.all()->project([o|$o.ticker, o|$o.optionType, o|$o.strike, o|$o.expiryDate], ['Ticker', 'Type', 'Strike', 'Expiry'])->filter(row|$row.getDate('Expiry') >= %2026-02-01 && $row.getDate('Expiry') <= %2026-02-28)",
+        "referenceQuery": "Option.all()->project([o|$o.ticker, o|$o.optionType, o|$o.strike, o|$o.expiryDate], ['ticker', 'type', 'strike', 'expiry'])->filter(row|$row.expiry >= %2026-02-01 && $row.expiry <= %2026-02-28)",
         "mustContainOps": [
           "project",
           "filter"
@@ -1004,7 +1004,7 @@
         "Option"
       ],
       "query": {
-        "referenceQuery": "Option.all()->filter(o|$o.ticker == 'AAPL')->project([o|$o.ticker, o|$o.strike, o|$o.expiryDate, o|$o.impliedVol], ['Ticker', 'Strike', 'Expiry', 'Implied Vol'])",
+        "referenceQuery": "Option.all()->filter(o|$o.ticker == 'AAPL')->project([o|$o.ticker, o|$o.strike, o|$o.expiryDate, o|$o.impliedVol], ['ticker', 'strike', 'expiry', 'impliedVol'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -1041,7 +1041,7 @@
         "CreditDefaultSwap"
       ],
       "query": {
-        "referenceQuery": "CreditDefaultSwap.all()->project([c|$c.referenceEntity, c|$c.spread, c|$c.notional, c|$c.maturityDate, c|$c.protectionSide], ['Reference Entity', 'Spread', 'Notional', 'Maturity', 'Side'])->filter(row|$row.getString('Side') == 'BUYER')",
+        "referenceQuery": "CreditDefaultSwap.all()->project([c|$c.referenceEntity, c|$c.spread, c|$c.notional, c|$c.maturityDate, c|$c.protectionSide], ['referenceEntity', 'spread', 'notional', 'maturity', 'side'])->filter(row|$row.side == 'BUYER')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1078,7 +1078,7 @@
         "Execution"
       ],
       "query": {
-        "referenceQuery": "Execution.all()->project([e|$e.executionId, e|$e.filledQuantity, e|$e.fillPrice, e|$e.venue], ['Exec ID', 'Quantity', 'Price', 'Venue'])->filter(row|$row.getString('Venue') == 'NYSE')",
+        "referenceQuery": "Execution.all()->project([e|$e.executionId, e|$e.filledQuantity, e|$e.fillPrice, e|$e.venue], ['execID', 'quantity', 'price', 'venue'])->filter(row|$row.venue == 'NYSE')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1115,7 +1115,7 @@
         "Execution"
       ],
       "query": {
-        "referenceQuery": "Execution.all()->groupBy([e|$e.venue], [agg(e|$e.fillPrice, x|$x->avg())], ['Venue', 'Avg Fill Price'])",
+        "referenceQuery": "Execution.all()->project([e|$e.venue, e|$e.fillPrice], ['venue', 'fillPrice'])->groupBy([{r|$r.venue}], [{r|$r.fillPrice->avg()}], ['venue', 'avgFillPrice'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -1156,7 +1156,7 @@
         "Allocation"
       ],
       "query": {
-        "referenceQuery": "Allocation.all()->project([a|$a.allocationId, a|$a.account, a|$a.quantity, a|$a.allocationDate], ['Alloc ID', 'Account', 'Quantity', 'Date'])",
+        "referenceQuery": "Allocation.all()->project([a|$a.allocationId, a|$a.account, a|$a.quantity, a|$a.allocationDate], ['allocID', 'account', 'quantity', 'date'])",
         "mustContainOps": [
           "project"
         ],
@@ -1191,7 +1191,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "TradeLifecycleEvent.all()->project([e|$e.eventId, e|$e.eventType, e|$e.eventDate, e|$e.reason], ['Event ID', 'Type', 'Date', 'Reason'])->filter(row|$row.getString('Type') == 'CANCEL')",
+        "referenceQuery": "TradeLifecycleEvent.all()->project([e|$e.eventId, e|$e.eventType, e|$e.eventDate, e|$e.reason], ['eventID', 'type', 'date', 'reason'])->filter(row|$row.type == 'CANCEL')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1229,7 +1229,7 @@
         "DailyPnL"
       ],
       "query": {
-        "referenceQuery": "PnLAttribution.all()->project([p|$p.category, p|$p.amount, p|$p.attributionDate], ['Category', 'Amount', 'Date'])->filter(row|$row.getDate('Date') == today())",
+        "referenceQuery": "PnLAttribution.all()->project([p|$p.category, p|$p.amount, p|$p.attributionDate], ['category', 'amount', 'date'])->filter(row|$row.date == today())",
         "mustContainOps": [
           "project",
           "filter"
@@ -1266,7 +1266,7 @@
         "PnLAttribution"
       ],
       "query": {
-        "referenceQuery": "PnLAttribution.all()->groupBy([p|$p.category], [agg(p|$p.amount, x|$x->sum())], ['Category', 'Total'])->sort(descending('Total'))",
+        "referenceQuery": "PnLAttribution.all()->project([p|$p.category, p|$p.amount], ['category', 'amount'])->groupBy([{r|$r.category}], [{r|$r.amount->sum()}], ['category', 'total'])->sort(descending('total'))",
         "mustContainOps": [
           "groupBy",
           "sort"
@@ -1310,7 +1310,7 @@
         "Limit"
       ],
       "query": {
-        "referenceQuery": "Limit.all()->project([l|$l.limitId, l|$l.limitType, l|$l.limitAmount, l|$l.utilizationPct, l|$l.desk.name], ['Limit ID', 'Type', 'Limit', 'Utilization %', 'Desk'])->filter(row|$row.getFloat('Utilization %') > 80)->sort(descending('Utilization %'))",
+        "referenceQuery": "Limit.all()->project([l|$l.limitId, l|$l.limitType, l|$l.limitAmount, l|$l.utilizationPct, l|$l.desk.name], ['limitID', 'type', 'limit', 'utilizationPct', 'desk'])->filter(row|$row.utilizationPct > 80)->sort(descending('utilizationPct'))",
         "mustContainOps": [
           "project",
           "filter",
@@ -1351,7 +1351,7 @@
         "LimitBreach"
       ],
       "query": {
-        "referenceQuery": "Limit.all()->project([l|$l.limitId, l|$l.limitType, l|$l.status, l|$l.desk.name], ['Limit ID', 'Type', 'Status', 'Desk'])->filter(row|$row.getString('Status') == 'BREACHED')",
+        "referenceQuery": "Limit.all()->project([l|$l.limitId, l|$l.limitType, l|$l.status, l|$l.desk.name], ['limitID', 'type', 'status', 'desk'])->filter(row|$row.status == 'BREACHED')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1388,7 +1388,7 @@
         "LimitBreach"
       ],
       "query": {
-        "referenceQuery": "LimitBreach.all()->project([b|$b.breachId, b|$b.severity, b|$b.breachAmount, b|$b.status, b|$b.breachDate], ['Breach ID', 'Severity', 'Amount', 'Status', 'Date'])",
+        "referenceQuery": "LimitBreach.all()->project([b|$b.breachId, b|$b.severity, b|$b.breachAmount, b|$b.status, b|$b.breachDate], ['breachID', 'severity', 'amount', 'status', 'date'])",
         "mustContainOps": [
           "project"
         ],
@@ -1422,7 +1422,7 @@
         "StressResult"
       ],
       "query": {
-        "referenceQuery": "StressResult.all()->groupBy([s|$s.portfolio.name], [agg(s|$s.stressedPnL, x|$x->min())], ['Portfolio', 'Worst Stress PnL'])->sort('Worst Stress PnL')",
+        "referenceQuery": "StressResult.all()->project([s|$s.portfolio.name, s|$s.stressedPnL], ['name', 'stressedPnl'])->groupBy([{r|$r.name}], [{r|$r.stressedPnL->min()}], ['portfolio', 'worstStressPnl'])->sort('worstStressPnl')",
         "mustContainOps": [
           "groupBy",
           "sort"
@@ -1466,7 +1466,7 @@
         "SensitivityResult"
       ],
       "query": {
-        "referenceQuery": "SensitivityResult.all()->project([s|$s.sensitivityType, s|$s.sensitivityValue, s|$s.riskFactor, s|$s.portfolio.name], ['Type', 'Value', 'Risk Factor', 'Portfolio'])->filter(row|$row.getString('Type') == 'DV01')",
+        "referenceQuery": "SensitivityResult.all()->project([s|$s.sensitivityType, s|$s.sensitivityValue, s|$s.riskFactor, s|$s.portfolio.name], ['type', 'value', 'riskFactor', 'portfolio'])->filter(row|$row.type == 'DV01')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1504,7 +1504,7 @@
         "Trade"
       ],
       "query": {
-        "referenceQuery": "Confirmation.all()->project([c|$c.confirmId, c|$c.status, c|$c.trade.tradeId], ['Confirm ID', 'Status', 'Trade ID'])->filter(row|$row.getString('Status') == 'PENDING')",
+        "referenceQuery": "Confirmation.all()->project([c|$c.confirmId, c|$c.status, c|$c.trade.tradeId], ['confirmID', 'status', 'tradeID'])->filter(row|$row.status == 'PENDING')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1541,7 +1541,7 @@
         "NettingResult"
       ],
       "query": {
-        "referenceQuery": "NettingResult.all()->project([n|$n.nettingSet.counterparty.name, n|$n.grossAmount, n|$n.netAmount, n|$n.nettingDate], ['Counterparty', 'Gross', 'Net', 'Date'])",
+        "referenceQuery": "NettingResult.all()->project([n|$n.nettingSet.counterparty.name, n|$n.grossAmount, n|$n.netAmount, n|$n.nettingDate], ['counterparty', 'gross', 'net', 'date'])",
         "mustContainOps": [
           "project"
         ],
@@ -1575,7 +1575,7 @@
         "CollateralAgreement"
       ],
       "query": {
-        "referenceQuery": "CollateralAgreement.all()->filter(a|$a.counterparty.name == 'Goldman Sachs')->project([a|$a.agreementId, a|$a.agreementType, a|$a.threshold, a|$a.counterparty.name], ['Agreement ID', 'Type', 'Threshold', 'Counterparty'])",
+        "referenceQuery": "CollateralAgreement.all()->filter(a|$a.counterparty.name == 'Goldman Sachs')->project([a|$a.agreementId, a|$a.agreementType, a|$a.threshold, a|$a.counterparty.name], ['agreementID', 'type', 'threshold', 'counterparty'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -1612,7 +1612,7 @@
         "CollateralPosting"
       ],
       "query": {
-        "referenceQuery": "CollateralPosting.all()->project([p|$p.postingId, p|$p.amount, p|$p.collateralType, p|$p.direction, p|$p.postingDate], ['Posting ID', 'Amount', 'Type', 'Direction', 'Date'])->filter(row|$row.getDate('Date') == today())",
+        "referenceQuery": "CollateralPosting.all()->project([p|$p.postingId, p|$p.amount, p|$p.collateralType, p|$p.direction, p|$p.postingDate], ['postingID', 'amount', 'type', 'direction', 'date'])->filter(row|$row.date == today())",
         "mustContainOps": [
           "project",
           "filter"
@@ -1648,7 +1648,7 @@
         "CashBalance"
       ],
       "query": {
-        "referenceQuery": "CashBalance.all()->project([c|$c.book.name, c|$c.balance, c|$c.currency], ['Book', 'Balance', 'Currency'])->filter(row|$row.getString('Currency') == 'USD')",
+        "referenceQuery": "CashBalance.all()->project([c|$c.book.name, c|$c.balance, c|$c.currency], ['book', 'balance', 'currency'])->filter(row|$row.currency == 'USD')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1685,7 +1685,7 @@
         "TradeReport"
       ],
       "query": {
-        "referenceQuery": "TradeReport.all()->project([r|$r.reportId, r|$r.regime, r|$r.status, r|$r.reportType], ['Report ID', 'Regime', 'Status', 'Type'])->filter(row|$row.getString('Status') == 'REJECTED')",
+        "referenceQuery": "TradeReport.all()->project([r|$r.reportId, r|$r.regime, r|$r.status, r|$r.reportType], ['reportID', 'regime', 'status', 'type'])->filter(row|$row.status == 'REJECTED')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1722,7 +1722,7 @@
         "TradeReport"
       ],
       "query": {
-        "referenceQuery": "TradeReport.all()->project([r|$r.reportId, r|$r.regime, r|$r.status, r|$r.reportType], ['Report ID', 'Regime', 'Status', 'Type'])->filter(row|$row.getString('Regime') == 'EMIR' && $row.getString('Status') == 'PENDING')",
+        "referenceQuery": "TradeReport.all()->project([r|$r.reportId, r|$r.regime, r|$r.status, r|$r.reportType], ['reportID', 'regime', 'status', 'type'])->filter(row|$row.regime == 'EMIR' && $row.status == 'PENDING')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1759,7 +1759,7 @@
         "TransactionCost"
       ],
       "query": {
-        "referenceQuery": "TransactionCost.all()->groupBy([t|$t.trade.trader.desk.name], [agg(t|$t.costBps, x|$x->avg()), agg(t|$t.marketImpactBps, x|$x->avg())], ['Desk', 'Avg Cost (bps)', 'Avg Market Impact (bps)'])",
+        "referenceQuery": "TransactionCost.all()->project([t|$t.trade.trader.desk.name, t|$t.costBps, t|$t.marketImpactBps], ['name', 'costBps', 'marketImpactBps'])->groupBy([{r|$r.name}], [{r|$r.costBps->avg()}, {r|$r.marketImpactBps->avg()}], ['desk', 'avgCostBps', 'avgMarketImpactBps'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -1804,7 +1804,7 @@
         "MarketQuote"
       ],
       "query": {
-        "referenceQuery": "MarketQuote.all()->filter(q|$q.instrument.ticker == 'AAPL')->project([q|$q.instrument.ticker, q|$q.bid, q|$q.ask, q|$q.mid, q|$q.quoteTime], ['Ticker', 'Bid', 'Ask', 'Mid', 'Time'])->sort(descending('Time'))->limit(1)",
+        "referenceQuery": "MarketQuote.all()->filter(q|$q.instrument.ticker == 'AAPL')->project([q|$q.instrument.ticker, q|$q.bid, q|$q.ask, q|$q.mid, q|$q.quoteTime], ['ticker', 'bid', 'ask', 'mid', 'time'])->sort(descending('Time'))->limit(1)",
         "mustContainOps": [
           "filter",
           "project",
@@ -1843,7 +1843,7 @@
         "FxRate"
       ],
       "query": {
-        "referenceQuery": "FxRate.all()->project([f|$f.currencyPair, f|$f.spotRate, f|$f.rateDate, f|$f.source], ['Pair', 'Rate', 'Date', 'Source'])->filter(row|$row.getString('Pair') == 'EUR/USD')->sort(descending('Date'))->limit(1)",
+        "referenceQuery": "FxRate.all()->project([f|$f.currencyPair, f|$f.spotRate, f|$f.rateDate, f|$f.source], ['pair', 'rate', 'date', 'source'])->filter(row|$row.pair == 'EUR/USD')->sort(descending('date'))->limit(1)",
         "mustContainOps": [
           "project",
           "filter",
@@ -1883,7 +1883,7 @@
         "CashFlow"
       ],
       "query": {
-        "referenceQuery": "CashFlow.all()->project([c|$c.cashFlowId, c|$c.cashFlowType, c|$c.amount, c|$c.paymentDate, c|$c.currency], ['CF ID', 'Type', 'Amount', 'Payment Date', 'Currency'])->filter(row|$row.getString('Type') == 'COUPON')",
+        "referenceQuery": "CashFlow.all()->project([c|$c.cashFlowId, c|$c.cashFlowType, c|$c.amount, c|$c.paymentDate, c|$c.currency], ['cFID', 'type', 'amount', 'paymentDate', 'currency'])->filter(row|$row.type == 'COUPON')",
         "mustContainOps": [
           "project",
           "filter"
@@ -1919,7 +1919,7 @@
         "CashFlow"
       ],
       "query": {
-        "referenceQuery": "CashFlow.all()->groupBy([c|$c.cashFlowType, c|$c.currency], [agg(c|$c.amount, x|$x->sum())], ['Type', 'Currency', 'Total Amount'])",
+        "referenceQuery": "CashFlow.all()->project([c|$c.cashFlowType, c|$c.currency, c|$c.amount], ['cashFlowType', 'currency', 'amount'])->groupBy([{r|$r.cashFlowType}, {r|$r.currency}], [{r|$r.amount->sum()}], ['type', 'currency', 'totalAmount'])",
         "mustContainOps": [
           "groupBy"
         ],
@@ -1961,7 +1961,7 @@
         "FundingRate"
       ],
       "query": {
-        "referenceQuery": "FundingRate.all()->project([f|$f.tenor, f|$f.rateBps, f|$f.rateType, f|$f.currency, f|$f.rateDate], ['Tenor', 'Rate (bps)', 'Type', 'Currency', 'Date'])->filter(row|$row.getString('Type') == 'REPO')->sort('Tenor')",
+        "referenceQuery": "FundingRate.all()->project([f|$f.tenor, f|$f.rateBps, f|$f.rateType, f|$f.currency, f|$f.rateDate], ['tenor', 'rateBps', 'Type', 'Currency', 'Date'])->filter(row|$row.type == 'REPO')->sort('Tenor')",
         "mustContainOps": [
           "project",
           "filter",
@@ -2002,7 +2002,7 @@
         "SalesPerson"
       ],
       "query": {
-        "referenceQuery": "ClientCoverage.all()->filter(c|$c.client.name == 'Goldman Sachs')->project([c|$c.salesPerson.name, c|$c.role, c|$c.productArea, c|$c.client.name], ['Salesperson', 'Role', 'Product Area', 'Client'])",
+        "referenceQuery": "ClientCoverage.all()->filter(c|$c.client.name == 'Goldman Sachs')->project([c|$c.salesPerson.name, c|$c.role, c|$c.productArea, c|$c.client.name], ['salesperson', 'role', 'productArea', 'client'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -2038,7 +2038,7 @@
         "Bond"
       ],
       "query": {
-        "referenceQuery": "Bond.all()->filter(b|$b.issuer.name == 'Apple Inc')->project([b|$b.ticker, b|$b.couponRate, b|$b.maturityDate, b|$b.faceValue, b|$b.issuer.name], ['Ticker', 'Coupon', 'Maturity', 'Face Value', 'Issuer'])",
+        "referenceQuery": "Bond.all()->filter(b|$b.issuer.name == 'Apple Inc')->project([b|$b.ticker, b|$b.couponRate, b|$b.maturityDate, b|$b.faceValue, b|$b.issuer.name], ['ticker', 'coupon', 'maturity', 'faceValue', 'issuer'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -2076,7 +2076,7 @@
         "Trader"
       ],
       "query": {
-        "referenceQuery": "DailyPnL.all()->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])->extend(over(~'Total PnL'->desc()), ~rank:{p,w,r|$p->rank($w,$r)})->sort('rank')",
+        "referenceQuery": "DailyPnL.all()->project([p|$p.trader.name, p|$p.totalPnL], ['name', 'totalPnl'])->groupBy([{r|$r.name}], [{r|$r.totalPnL->sum()}], ['trader', 'totalPnl'])->extend(over(~'totalPnl'->desc()), ~rank:{p,w,r|$p->rank($w,$r)})->sort('rank')",
         "mustContainOps": [
           "groupBy",
           "extend"
