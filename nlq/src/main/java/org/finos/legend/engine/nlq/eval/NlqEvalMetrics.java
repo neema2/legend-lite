@@ -2,6 +2,7 @@ package org.finos.legend.engine.nlq.eval;
 
 import org.finos.legend.engine.nlq.LlmClient;
 import org.finos.legend.engine.nlq.SemanticIndex;
+import org.finos.legend.pure.dsl.PureParser;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -178,7 +179,13 @@ public final class NlqEvalMetrics {
                     false, 0.0, expected.mustContainOps());
         }
 
-        boolean parseable = pureQuery.contains(".all()");
+        boolean parseable;
+        try {
+            PureParser.parse(pureQuery);
+            parseable = true;
+        } catch (Exception e) {
+            parseable = false;
+        }
 
         // Op coverage: check for expected operations
         List<String> missingOps = new ArrayList<>();

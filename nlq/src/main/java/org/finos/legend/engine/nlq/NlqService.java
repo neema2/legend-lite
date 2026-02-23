@@ -1,5 +1,6 @@
 package org.finos.legend.engine.nlq;
 
+import org.finos.legend.pure.dsl.PureParser;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
 
 import java.util.List;
@@ -32,7 +33,7 @@ public class NlqService {
             The only exception is a "class filter" that navigates an association (see Rule 2).
 
             Standard pattern:
-              ClassName.all()->project([lambdas], ['Column Names'])->filter(...)->sort(...)->limit(...)
+              ClassName.all()->project([lambdas], ['colAlias1', 'colAlias2'])->filter(...)->sort(...)->limit(...)
 
             ═══════════════════════════════════════════
             RULE 2: CLASS FILTER vs RELATION FILTER
@@ -40,13 +41,19 @@ public class NlqService {
             There are TWO kinds of filter:
 
             (A) Class filter — BEFORE project. ONLY when filtering through an association:
-                Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project(...)
+                Trade.all()->filter({t|$t.counterparty.name == 'Goldman Sachs'})->project(...)
 
-            (B) Relation filter — AFTER project. PREFERRED for simple property filters:
-                Trade.all()->project([t|$t.tradeId, t|$t.status], ['ID', 'Status'])->filter(row|$row.getString('Status') == 'NEW')
+            (B) Relation filter — AFTER project. PREFERRED for simple property filters.
+                Use property access on the row variable (NOT getString/getInteger — those do not exist):
+                Trade.all()->project([t|$t.tradeId, t|$t.status], ['tradeId', 'status'])->filter({row|$row.status == 'NEW'})
 
-            Relation filter accessor methods:
-              getString('col'), getInteger('col'), getFloat('col'), getNumber('col'), getDate('col')
+            ═══════════════════════════════════════════
+            RULE 3: COLUMN ALIAS CONVENTION
+            ═══════════════════════════════════════════
+            ALWAYS use camelCase property names as column aliases (NO spaces).
+            This ensures relation filters can reference columns via property access.
+              CORRECT: ->project([t|$t.tradeDate, t|$t.notional], ['tradeDate', 'notional'])
+              WRONG:   ->project([t|$t.tradeDate, t|$t.notional], ['Trade Date', 'Notional'])
 
             ═══════════════════════════════════════════
             CORE OPERATIONS
@@ -54,32 +61,34 @@ public class NlqService {
 
             --- project() ---
             Project columns from class properties. ALWAYS include relevant columns.
-              Person.all()->project([p|$p.firstName, p|$p.lastName, p|$p.age], ['First Name', 'Last Name', 'Age'])
+              Person.all()->project([p|$p.firstName, p|$p.lastName, p|$p.age], ['firstName', 'lastName', 'age'])
             Navigate associations with dot notation:
-              Trade.all()->project([t|$t.tradeId, t|$t.counterparty.name, t|$t.trader.desk.name], ['Trade ID', 'Counterparty', 'Desk'])
+              Trade.all()->project([t|$t.tradeId, t|$t.counterparty.name, t|$t.trader.desk.name], ['tradeId', 'counterparty', 'desk'])
 
             --- filter() on relation ---
-            After project, filter using column accessors:
-              ->filter(row|$row.getInteger('Age') > 30)
-              ->filter(row|$row.getString('Status') == 'ACTIVE')
-              ->filter(row|$row.getDate('Trade Date') >= %2026-01-01)
-              ->filter(row|$row.getString('Name')->contains('Smith'))
-              ->filter(row|$row.getString('Name')->startsWith('A'))
-              ->filter(row|$row.getFloat('Amount') > 0 && $row.getString('Status') != 'CANCELLED')
+            After project, filter using property access on the row variable:
+              ->filter({row|$row.age > 30})
+              ->filter({row|$row.status == 'ACTIVE'})
+              ->filter({row|$row.tradeDate >= %2026-01-01})
+              ->filter({row|$row.name->contains('Smith')})
+              ->filter({row|$row.name->startsWith('A')})
+              ->filter({row|$row.amount > 0 && $row.status != 'CANCELLED'})
 
             --- groupBy() ---
-            Aggregation with 3 arguments: [group lambdas], [agg expressions], ['column names']
-              Trade.all()->groupBy([t|$t.trader.desk.name], [agg(t|$t.notional, x|$x->sum())], ['Desk', 'Total Notional'])
+            Aggregation with 3 arguments: [group lambdas], [agg lambdas], ['column names']
+            IMPORTANT: groupBy() MUST be called after project(), never directly on Class.all().
+            Aggregation lambdas apply the agg function directly: {r|$r.col->sum()}
+              Trade.all()->project([t|$t.trader.desk.name, t|$t.notional], ['desk', 'notional'])->groupBy([{r|$r.desk}], [{r|$r.notional->sum()}], ['desk', 'totalNotional'])
             Multiple aggregations:
-              Trade.all()->groupBy([t|$t.side], [agg(t|$t.notional, x|$x->sum()), agg(t|$t.tradeId, x|$x->count())], ['Side', 'Total Notional', 'Count'])
+              Trade.all()->project([t|$t.side, t|$t.notional, t|$t.tradeId], ['side', 'notional', 'tradeId'])->groupBy([{r|$r.side}], [{r|$r.notional->sum()}, {r|$r.tradeId->count()}], ['side', 'totalNotional', 'count'])
             Available agg functions: sum(), avg(), count(), min(), max(), stdDev(), variance(), median(), mode()
-            Percentile: agg(x|$x.salary, y|$y->percentile(0.95, true))  // (percentile, ascending)
+            Percentile: {r|$r.salary->percentile(0.95, true)}
 
-            --- sort() / sortBy() ---
+            --- sort() ---
             After project:
-              ->sort('Column Name')           // ascending
-              ->sort(descending('Amount'))     // descending
-              ->sort('Desk', descending('PnL'))  // multi-column
+              ->sort('columnAlias')              // ascending
+              ->sort(descending('amount'))        // descending
+              ->sort('desk', descending('pnl'))   // multi-column
 
             --- limit() / take() / drop() / slice() ---
               ->limit(10)       // first 10 rows
@@ -115,8 +124,8 @@ public class NlqService {
             ═══════════════════════════════════════════
             COMPUTED COLUMNS (extend without window)
             ═══════════════════════════════════════════
-              ->extend(~margin:{row|$row.getFloat('Revenue') - $row.getFloat('Cost')})
-              ->extend(~label:{row|if($row.getFloat('PnL') > 0, |'Profit', |'Loss')})
+              ->extend(~margin:{row|$row.revenue - $row.cost})
+              ->extend(~label:{row|if($row.pnl > 0, |'Profit', |'Loss')})
 
             ═══════════════════════════════════════════
             ADDITIONAL OPERATIONS
@@ -129,7 +138,7 @@ public class NlqService {
               relation1->concatenate(relation2)
 
             --- join() (explicit) ---
-              relation1->join(relation2, JoinKind.INNER, {a,b|$a.getString('id') == $b.getString('id')})
+              relation1->join(relation2, JoinKind.INNER, {a,b|$a.id == $b.id})
               JoinKind options: INNER, LEFT_OUTER
 
             ═══════════════════════════════════════════
@@ -165,8 +174,8 @@ public class NlqService {
             ═══════════════════════════════════════════
               {|
                 let cutoff = %2026-01-01;
-                Trade.all()->project([t|$t.tradeDate, t|$t.notional], ['Date', 'Notional'])
-                  ->filter(row|$row.getDate('Date') >= $cutoff)
+                Trade.all()->project([t|$t.tradeDate, t|$t.notional], ['tradeDate', 'notional'])
+                  ->filter({row|$row.tradeDate >= $cutoff})
               }
 
             ═══════════════════════════════════════════
@@ -174,39 +183,41 @@ public class NlqService {
             ═══════════════════════════════════════════
 
             1. Simple project + relation filter:
-               Person.all()->project([p|$p.firstName, p|$p.age], ['Name', 'Age'])->filter(row|$row.getInteger('Age') > 30)
+               Person.all()->project([p|$p.firstName, p|$p.age], ['firstName', 'age'])->filter({row|$row.age > 30})
 
             2. Class filter (association navigation) + project:
-               Trade.all()->filter(t|$t.counterparty.name == 'Goldman Sachs')->project([t|$t.tradeId, t|$t.notional, t|$t.counterparty.name], ['Trade ID', 'Notional', 'Counterparty'])
+               Trade.all()->filter({t|$t.counterparty.name == 'Goldman Sachs'})->project([t|$t.tradeId, t|$t.notional, t|$t.counterparty.name], ['tradeId', 'notional', 'counterparty'])
 
             3. GroupBy with class filter:
-               DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps')->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum())], ['Trader', 'Total PnL'])
+               DailyPnL.all()->filter({p|$p.desk.name == 'AMER Equity Swaps'})->project([p|$p.trader.name, p|$p.totalPnL], ['trader', 'totalPnL'])->groupBy([{r|$r.trader}], [{r|$r.totalPnL->sum()}], ['trader', 'totalPnL'])
 
             4. Project + sort + limit (top N):
-               Trade.all()->project([t|$t.tradeId, t|$t.notional, t|$t.trader.name], ['Trade ID', 'Notional', 'Trader'])->sort(descending('Notional'))->limit(10)
+               Trade.all()->project([t|$t.tradeId, t|$t.notional, t|$t.trader.name], ['tradeId', 'notional', 'trader'])->sort(descending('notional'))->limit(10)
 
             5. Project + window function:
-               Trade.all()->project([t|$t.tradeId, t|$t.trader.desk.name, t|$t.notional], ['Trade ID', 'Desk', 'Notional'])->extend(over(~Desk, ~Notional->desc()), ~rank:{p,w,r|$p->rank($w,$r)})
+               Trade.all()->project([t|$t.tradeId, t|$t.trader.desk.name, t|$t.notional], ['tradeId', 'desk', 'notional'])->extend(over(~desk, ~notional->desc()), ~rank:{p,w,r|$p->rank($w,$r)})
 
             6. Project + relation filter + sort:
-               Trade.all()->project([t|$t.tradeId, t|$t.tradeDate, t|$t.status, t|$t.notional], ['Trade ID', 'Date', 'Status', 'Notional'])->filter(row|$row.getDate('Date') == today())->sort(descending('Notional'))
+               Trade.all()->project([t|$t.tradeId, t|$t.tradeDate, t|$t.status, t|$t.notional], ['tradeId', 'tradeDate', 'status', 'notional'])->filter({row|$row.tradeDate == today()})->sort(descending('notional'))
 
             7. GroupBy + relation filter on aggregate:
-               Trade.all()->groupBy([t|$t.trader.name], [agg(t|$t.notional, x|$x->sum())], ['Trader', 'Total Notional'])->filter(row|$row.getFloat('Total Notional') > 1000000)->sort(descending('Total Notional'))
+               Trade.all()->project([t|$t.trader.name, t|$t.notional], ['trader', 'notional'])->groupBy([{r|$r.trader}], [{r|$r.notional->sum()}], ['trader', 'totalNotional'])->filter({row|$row.totalNotional > 1000000})->sort(descending('totalNotional'))
 
-            8. Complex: class filter + groupBy + sort + limit:
-               DailyPnL.all()->filter(p|$p.desk.name == 'AMER Equity Swaps' && $p.pnlDate >= %2026-01-01)->groupBy([p|$p.trader.name], [agg(p|$p.totalPnL, x|$x->sum()), agg(p|$p.totalPnL, x|$x->count())], ['Trader', 'Total PnL', 'Days'])->sort(descending('Total PnL'))->limit(10)
+            8. Complex: class filter + project + groupBy + sort + limit:
+               DailyPnL.all()->filter({p|$p.desk.name == 'AMER Equity Swaps' && $p.pnlDate >= %2026-01-01})->project([p|$p.trader.name, p|$p.totalPnL], ['trader', 'totalPnL'])->groupBy([{r|$r.trader}], [{r|$r.totalPnL->sum()}, {r|$r.totalPnL->count()}], ['trader', 'totalPnL', 'days'])->sort(descending('totalPnL'))->limit(10)
 
             ═══════════════════════════════════════════
             KEY RULES
             ═══════════════════════════════════════════
             - Always start with ClassName.all()
-            - ALWAYS project() before filter/sort/limit/extend/distinct
+            - ALWAYS project() before filter/sort/limit/extend/distinct/groupBy
+            - Column aliases MUST be camelCase with NO spaces (e.g., 'tradeDate' not 'Trade Date')
             - Class filter ONLY for association navigation; everything else is relation filter
+            - Relation filter uses property access: $row.colName (NOT getString/getInteger — those do not exist)
             - Use $variable references inside lambdas (e.g., $p, $row, $x)
             - Date literals: %YYYY-MM-DD or %YYYY-MM-DDThh:mm:ss
             - Navigate associations via dot notation (e.g., $t.trader.desk.name)
-            - groupBy takes 3 args: [group lambdas], [agg expressions], ['column names']
+            - groupBy takes 3 args: [group lambdas], [agg lambdas], ['column names'] — agg lambdas use {r|$r.col->sum()}, NOT agg()
             - extend() for window functions always comes AFTER project()
 
             Return ONLY the Pure query expression. No explanation, no markdown, no code fences.
@@ -257,6 +268,15 @@ public class NlqService {
 
             // Step 3: Pure Generator — generate Pure syntax
             String pureQuery = generatePure(question, rootClass, queryPlan, focusedSchema);
+
+            // Step 4: Parse validation — reject syntactically invalid Pure
+            try {
+                PureParser.parse(pureQuery);
+            } catch (Exception e) {
+                long elapsed = (System.nanoTime() - start) / 1_000_000;
+                return NlqResult.error("Parse validation failed: " + e.getMessage(),
+                        retrievedList, elapsed);
+            }
 
             long elapsed = (System.nanoTime() - start) / 1_000_000;
 
