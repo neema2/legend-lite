@@ -20,7 +20,7 @@
         "party::Account"
       ],
       "query": {
-        "referenceQuery": "party::Account.all()->project([a|$a.accountNumber, a|$a.accountName, a|$a.accountType], ['Account Number', 'Name', 'Type'])",
+        "referenceQuery": "party::Account.all()->project([a|$a.accountNumber, a|$a.accountName, a|$a.accountType], ['accountNumber', 'name', 'type'])",
         "mustContainOps": [
           "project"
         ],
@@ -58,7 +58,7 @@
         "event::ExerciseEvent"
       ],
       "query": {
-        "referenceQuery": "event::ExerciseEvent.all()->project([e|$e.adjustedExerciseDate, e|$e.adjustedRelevantSwapEffectiveDate, e|$e.adjustedCashSettlementPaymentDate], ['Exercise Date', 'Swap Effective Date', 'Cash Settlement Date'])",
+        "referenceQuery": "event::ExerciseEvent.all()->project([e|$e.adjustedExerciseDate, e|$e.adjustedRelevantSwapEffectiveDate, e|$e.adjustedCashSettlementPaymentDate], ['exerciseDate', 'swapEffectiveDate', 'cashSettlementDate'])",
         "mustContainOps": [
           "project"
         ],
@@ -97,7 +97,7 @@
         "event::BillingInstruction"
       ],
       "query": {
-        "referenceQuery": "event::SecurityLendingInvoice.all()->filter(i|$i.billingStartDate >= %2025-01-01 && $i.billingEndDate <= %2025-03-31)->project([i|$i.sendingParty, i|$i.receivingParty, i|$i.billingStartDate, i|$i.billingEndDate], ['Sender', 'Receiver', 'Start', 'End'])",
+        "referenceQuery": "event::SecurityLendingInvoice.all()->filter(i|$i.billingStartDate >= %2025-01-01 && $i.billingEndDate <= %2025-03-31)->project([i|$i.sendingParty, i|$i.receivingParty, i|$i.billingStartDate, i|$i.billingEndDate], ['sender', 'receiver', 'start', 'end'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -140,7 +140,7 @@
         "event::CreditEvent"
       ],
       "query": {
-        "referenceQuery": "event::CreditEvent.all()->filter(e|$e.recoveryPercent > 0.5)->project([e|$e.creditEventType, e|$e.eventDeterminationDate, e|$e.recoveryPercent], ['Event Type', 'Date', 'Recovery %'])",
+        "referenceQuery": "event::CreditEvent.all()->filter(e|$e.recoveryPercent > 0.5)->project([e|$e.creditEventType, e|$e.eventDeterminationDate, e|$e.recoveryPercent], ['eventType', 'date', 'recoveryPct'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -180,7 +180,7 @@
         "collateral::CollateralValuationTreatment"
       ],
       "query": {
-        "referenceQuery": "collateral::CollateralValuationTreatment.all()->filter(c|$c.haircutPercentage > 0.1)->project([c|$c.haircutPercentage, c|$c.marginPercentage, c|$c.fxHaircutPercentage], ['Haircut %', 'Margin %', 'FX Haircut %'])",
+        "referenceQuery": "collateral::CollateralValuationTreatment.all()->filter(c|$c.haircutPercentage > 0.1)->project([c|$c.haircutPercentage, c|$c.marginPercentage, c|$c.fxHaircutPercentage], ['haircutPct', 'marginPct', 'fXHaircutPct'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -221,7 +221,7 @@
         "event::ClearingInstruction"
       ],
       "query": {
-        "referenceQuery": "event::ClearingInstruction.all()->project([c|$c.clearingParty, c|$c.party1, c|$c.party2, c|$c.isOpenOffer], ['Clearing Party', 'Party 1', 'Party 2', 'Open Offer'])",
+        "referenceQuery": "event::ClearingInstruction.all()->project([c|$c.clearingParty, c|$c.party1, c|$c.party2, c|$c.isOpenOffer], ['clearingParty', 'party1', 'party2', 'openOffer'])",
         "mustContainOps": [
           "project"
         ],
@@ -261,7 +261,7 @@
         "workflow::WorkflowStep"
       ],
       "query": {
-        "referenceQuery": "workflow::WorkflowStepApproval.all()->filter(a|$a.approved == true)->project([a|$a.party, a|$a.timestamp], ['Party', 'Timestamp'])",
+        "referenceQuery": "workflow::WorkflowStepApproval.all()->filter(a|$a.approved == true)->project([a|$a.party, a|$a.timestamp], ['party', 'timestamp'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -301,7 +301,7 @@
         "event::IndexTransitionInstruction"
       ],
       "query": {
-        "referenceQuery": "event::IndexTransitionInstruction.all()->project([i|$i.effectiveDate, i|$i.priceQuantity, i|$i.cashTransfer], ['Effective Date', 'Price/Quantity', 'Cash Transfer'])",
+        "referenceQuery": "event::IndexTransitionInstruction.all()->project([i|$i.effectiveDate, i|$i.priceQuantity, i|$i.cashTransfer], ['effectiveDate', 'price/Quantity', 'cashTransfer'])",
         "mustContainOps": [
           "project"
         ],
@@ -340,7 +340,7 @@
         "collateral::EligibleCollateralCriteria"
       ],
       "query": {
-        "referenceQuery": "collateral::EligibleCollateralSpecification.all()->project([e|$e.party, e|$e.counterparty, e|$e.criteria, e|$e.partyRole], ['Party', 'Counterparty', 'Criteria', 'Party Role'])",
+        "referenceQuery": "collateral::EligibleCollateralSpecification.all()->project([e|$e.party, e|$e.counterparty, e|$e.criteria, e|$e.partyRole], ['party', 'counterparty', 'criteria', 'partyRole'])",
         "mustContainOps": [
           "project"
         ],
@@ -380,7 +380,7 @@
         "margin::StandardizedScheduleTradeInfo"
       ],
       "query": {
-        "referenceQuery": "margin::StandardizedSchedule.all()->filter(m|$m.notional > 1000000)->project([m|$m.assetClass, m|$m.notional, m|$m.durationInYears], ['Asset Class', 'Notional', 'Duration (Years)'])",
+        "referenceQuery": "margin::StandardizedSchedule.all()->filter(m|$m.notional > 1000000)->project([m|$m.assetClass, m|$m.notional, m|$m.durationInYears], ['assetClass', 'notional', 'durationYears'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -421,7 +421,7 @@
         "product::InterestRatePayout"
       ],
       "query": {
-        "referenceQuery": "product::InterestRatePayout.all()->project([p|$p.rateSpecification, p|$p.dayCountFraction, p|$p.paymentDates, p|$p.resetDates, p|$p.compoundingMethod], ['Rate Spec', 'Day Count', 'Payment Dates', 'Reset Dates', 'Compounding'])",
+        "referenceQuery": "product::InterestRatePayout.all()->project([p|$p.rateSpecification, p|$p.dayCountFraction, p|$p.paymentDates, p|$p.resetDates, p|$p.compoundingMethod], ['rateSpec', 'dayCount', 'paymentDates', 'resetDates', 'compounding'])",
         "mustContainOps": [
           "project"
         ],
@@ -463,7 +463,7 @@
         "product::ProtectionTerms"
       ],
       "query": {
-        "referenceQuery": "product::CreditDefaultPayout.all()->project([p|$p.generalTerms, p|$p.protectionTerms, p|$p.transactedPrice], ['General Terms', 'Protection Terms', 'Transacted Price'])",
+        "referenceQuery": "product::CreditDefaultPayout.all()->project([p|$p.generalTerms, p|$p.protectionTerms, p|$p.transactedPrice], ['generalTerms', 'protectionTerms', 'transactedPrice'])",
         "mustContainOps": [
           "project"
         ],
@@ -502,7 +502,7 @@
         "event::ResetInstruction"
       ],
       "query": {
-        "referenceQuery": "product::InterestRatePayout.all()->filter(p|$p.rateSpecification->isNotEmpty())->project([p|$p.rateSpecification, p|$p.resetDates, p|$p.calculationPeriodDates, p|$p.dayCountFraction], ['Rate Spec', 'Reset Dates', 'Calc Period Dates', 'Day Count'])",
+        "referenceQuery": "product::InterestRatePayout.all()->filter(p|$p.rateSpecification->isNotEmpty())->project([p|$p.rateSpecification, p|$p.resetDates, p|$p.calculationPeriodDates, p|$p.dayCountFraction], ['rateSpec', 'resetDates', 'calcPeriodDates', 'dayCount'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -545,7 +545,7 @@
         "event::BusinessEvent"
       ],
       "query": {
-        "referenceQuery": "event::ExecutionInstruction.all()->filter(e|$e.tradeDate == today())->project([e|$e.product, e|$e.tradeDate, e|$e.counterparty, e|$e.executionDetails, e|$e.priceQuantity], ['Product', 'Trade Date', 'Counterparty', 'Execution Details', 'Price/Qty'])",
+        "referenceQuery": "event::ExecutionInstruction.all()->filter(e|$e.tradeDate == today())->project([e|$e.product, e|$e.tradeDate, e|$e.counterparty, e|$e.executionDetails, e|$e.priceQuantity], ['product', 'tradeDate', 'counterparty', 'executionDetails', 'price/Qty'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -629,7 +629,7 @@
         "event::TradeState"
       ],
       "query": {
-        "referenceQuery": "event::TradeState.all()->project([t|$t.trade, t|$t.state, t|$t.resetHistory, t|$t.transferHistory], ['Trade', 'State', 'Reset History', 'Transfer History'])",
+        "referenceQuery": "event::TradeState.all()->project([t|$t.trade, t|$t.state, t|$t.resetHistory, t|$t.transferHistory], ['trade', 'state', 'resetHistory', 'transferHistory'])",
         "mustContainOps": [
           "project"
         ],
@@ -668,7 +668,7 @@
         "settlement::CashSettlementTerms"
       ],
       "query": {
-        "referenceQuery": "settlement::CashSettlementTerms.all()->filter(c|$c.recoveryFactor < 0.8)->project([c|$c.cashSettlementMethod, c|$c.recoveryFactor, c|$c.fixedSettlement, c|$c.accruedInterest], ['Method', 'Recovery Factor', 'Fixed Settlement', 'Accrued Interest'])",
+        "referenceQuery": "settlement::CashSettlementTerms.all()->filter(c|$c.recoveryFactor < 0.8)->project([c|$c.cashSettlementMethod, c|$c.recoveryFactor, c|$c.fixedSettlement, c|$c.accruedInterest], ['method', 'recoveryFactor', 'fixedSettlement', 'accruedInterest'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -711,7 +711,7 @@
         "event::TradeState"
       ],
       "query": {
-        "referenceQuery": "event::BusinessEvent.all()->filter(e|$e.eventQualifier == 'Novation')->project([e|$e.eventQualifier, e|$e.after], ['Event Type', 'After State'])",
+        "referenceQuery": "event::BusinessEvent.all()->filter(e|$e.eventQualifier == 'Novation')->project([e|$e.eventQualifier, e|$e.after], ['eventType', 'afterState'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -754,7 +754,7 @@
         "event::TradeState"
       ],
       "query": {
-        "referenceQuery": "event::CreditEvent.all()->project([e|$e.creditEventType, e|$e.eventDeterminationDate, e|$e.referenceInformation, e|$e.recoveryPercent], ['Event Type', 'Date', 'Reference Info', 'Recovery %'])",
+        "referenceQuery": "event::CreditEvent.all()->project([e|$e.creditEventType, e|$e.eventDeterminationDate, e|$e.referenceInformation, e|$e.recoveryPercent], ['eventType', 'date', 'referenceInfo', 'recoveryPct'])",
         "mustContainOps": [
           "project"
         ],
@@ -794,7 +794,7 @@
         "product::InterestRatePayout"
       ],
       "query": {
-        "referenceQuery": "event::ExecutionInstruction.all()->project([e|$e.counterparty, e|$e.product, e|$e.priceQuantity, e|$e.tradeDate], ['Counterparty', 'Product', 'Price/Qty', 'Trade Date'])",
+        "referenceQuery": "event::ExecutionInstruction.all()->project([e|$e.counterparty, e|$e.product, e|$e.priceQuantity, e|$e.tradeDate], ['counterparty', 'product', 'price/Qty', 'tradeDate'])",
         "mustContainOps": [
           "project"
         ],
@@ -836,7 +836,7 @@
         "collateral::AgencyRatingCriteria"
       ],
       "query": {
-        "referenceQuery": "collateral::EligibleCollateralSpecification.all()->project([e|$e.party, e|$e.counterparty, e|$e.criteria, e|$e.identifier], ['Party', 'Counterparty', 'Criteria', 'Identifier'])",
+        "referenceQuery": "collateral::EligibleCollateralSpecification.all()->project([e|$e.party, e|$e.counterparty, e|$e.criteria, e|$e.identifier], ['party', 'counterparty', 'criteria', 'identifier'])",
         "mustContainOps": [
           "project"
         ],
@@ -876,7 +876,7 @@
         "workflow::WorkflowStepApproval"
       ],
       "query": {
-        "referenceQuery": "workflow::WorkflowStep.all()->filter(w|$w.rejected->isEmpty())->project([w|$w.action, w|$w.businessEvent, w|$w.approval, w|$w.eventIdentifier], ['Action', 'Business Event', 'Approval', 'Event ID'])",
+        "referenceQuery": "workflow::WorkflowStep.all()->filter(w|$w.rejected->isEmpty())->project([w|$w.action, w|$w.businessEvent, w|$w.approval, w|$w.eventIdentifier], ['action', 'businessEvent', 'approval', 'eventID'])",
         "mustContainOps": [
           "filter",
           "project"
@@ -919,7 +919,7 @@
         "observable::ObservationIdentifier"
       ],
       "query": {
-        "referenceQuery": "observable::DeterminationMethodology.all()->project([d|$d.determinationMethod, d|$d.averagingMethod], ['Determination Method', 'Averaging Method'])",
+        "referenceQuery": "observable::DeterminationMethodology.all()->project([d|$d.determinationMethod, d|$d.averagingMethod], ['determinationMethod', 'averagingMethod'])",
         "mustContainOps": [
           "project"
         ],
@@ -958,7 +958,7 @@
         "position::AggregationParameters"
       ],
       "query": {
-        "referenceQuery": "position::PortfolioState.all()->project([p|$p.positions, p|$p.lineage], ['Positions', 'Lineage'])",
+        "referenceQuery": "position::PortfolioState.all()->project([p|$p.positions, p|$p.lineage], ['positions', 'lineage'])",
         "mustContainOps": [
           "project"
         ],
@@ -996,7 +996,7 @@
         "event::BusinessEvent"
       ],
       "query": {
-        "referenceQuery": "event::QuantityChangeInstruction.all()->filter(q|$q.direction == 'Decrease')->project([q|$q.direction, q|$q.change, q|$q.lotIdentifier], ['Direction', 'Change', 'Lot ID'])",
+        "referenceQuery": "event::QuantityChangeInstruction.all()->filter(q|$q.direction == 'Decrease')->project([q|$q.direction, q|$q.change, q|$q.lotIdentifier], ['direction', 'change', 'lotID'])",
         "mustContainOps": [
           "filter",
           "project"
