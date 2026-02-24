@@ -14,13 +14,21 @@ import java.util.Map;
  * Extends the base Legend HTTP server with the NLQ endpoint.
  *
  * Run with:
- *   GEMINI_API_KEY=... java -cp nlq/target/classes:engine/target/classes \
- *       org.finos.legend.engine.nlq.NlqHttpServer [port]
+ * GEMINI_API_KEY=... java -cp nlq/target/classes:engine/target/classes \
+ * org.finos.legend.engine.nlq.NlqHttpServer [port]
  */
 public class NlqHttpServer {
 
     public static void main(String[] args) throws IOException {
         int port = 8080;
+        String envPort = System.getenv("PORT");
+        if (envPort != null && !envPort.isBlank()) {
+            try {
+                port = Integer.parseInt(envPort);
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid PORT env var: " + envPort);
+            }
+        }
         if (args.length > 0) {
             try {
                 port = Integer.parseInt(args[0]);
@@ -56,9 +64,9 @@ public class NlqHttpServer {
      *
      * Request format:
      * {
-     *   "code": "full Pure model source",
-     *   "question": "show me total PnL by trader",
-     *   "domain": "PnL"  // optional hint
+     * "code": "full Pure model source",
+     * "question": "show me total PnL by trader",
+     * "domain": "PnL" // optional hint
      * }
      */
     static class NlqHandler implements HttpHandler {
