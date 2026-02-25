@@ -18,3 +18,4 @@ dependency-reduced-pom.xml
 *.wal
 engine/null.wal
 engine/null
+docs/docker-commands.md

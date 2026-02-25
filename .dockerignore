@@ -1,0 +1,10 @@
+.git
+**/target
+*.class
+*.md
+TestDuckDBStruct.java
+TestDuckDBStruct.class
+test_unnest.sql
+null
+null.wal
+docs/
