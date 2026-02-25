@@ -248,7 +248,6 @@ public class LegendHttpServer {
         }
     }
 
-
     /**
      * Extract the Runtime name from the Pure source.
      */
@@ -418,6 +417,14 @@ public class LegendHttpServer {
 
     public static void main(String[] args) throws IOException {
         int port = 8080;
+        String envPort = System.getenv("PORT");
+        if (envPort != null && !envPort.isBlank()) {
+            try {
+                port = Integer.parseInt(envPort);
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid PORT env var: " + envPort);
+            }
+        }
         if (args.length > 0) {
             try {
                 port = Integer.parseInt(args[0]);
