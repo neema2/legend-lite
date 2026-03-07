@@ -66,10 +66,11 @@ class NlqPipelineTest {
     @DisplayName("Pipeline returns error when router fails")
     void testRouterFailure() {
         MockLlmClient mock = MockLlmClient.withResponses(
-                // Router returns garbage
-                "I don't understand the question"
+                // Router returns garbage — need 3 responses for MAX_RETRIES+1 attempts
+                "I don't understand the question",
+                "Still don't understand",
+                "Nope, still garbage"
         );
-
         NlqService service = new NlqService(index, modelBuilder, mock);
         NlqResult result = service.process("show me trades", null);
 

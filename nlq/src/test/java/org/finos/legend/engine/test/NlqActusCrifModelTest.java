@@ -7,8 +7,6 @@ import org.junit.jupiter.api.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("NLQ ACTUS + CRIF Models — Smoke Tests")
@@ -87,7 +85,10 @@ class NlqActusCrifModelTest {
         var results = crifIndex.retrieve("SIMM initial margin sensitivity risk", 10, null);
         var names = results.stream().map(SemanticIndex.RetrievalResult::qualifiedName).toList();
         System.out.println("  'SIMM margin' → " + names);
-        assertTrue(names.stream().anyMatch(n -> n.contains("SIMM") || n.contains("CRIF") || n.contains("Sensitivity") || n.contains("Margin")),
+        assertTrue(
+                names.stream()
+                        .anyMatch(n -> n.contains("SIMM") || n.contains("CRIF") || n.contains("Sensitivity")
+                                || n.contains("Margin")),
                 "Expected SIMM/CRIF class, got: " + names);
     }
 
