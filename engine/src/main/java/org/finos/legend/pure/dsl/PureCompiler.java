@@ -249,13 +249,20 @@ public final class PureCompiler {
      * via compileExpression rather than compileToSqlExpression.
      */
     private boolean isRelationExpression(PureExpression expr) {
-        // Collection operations on scalar sources (ArrayLiteral, LiteralExpr) are scalar, not relational
-        if (expr instanceof DropExpression drop && isScalarSource(drop.source())) return false;
-        if (expr instanceof SliceExpression slice && isScalarSource(slice.source())) return false;
-        if (expr instanceof FirstExpression first && isScalarSource(first.source())) return false;
-        if (expr instanceof LimitExpression limit && isScalarSource(limit.source())) return false;
-        if (expr instanceof ConcatenateExpression concat && isScalarSource(concat.left())) return false;
-        if (expr instanceof SortExpression sort && isScalarSource(sort.source())) return false;
+        // Collection operations on scalar sources (ArrayLiteral, LiteralExpr) are
+        // scalar, not relational
+        if (expr instanceof DropExpression drop && isScalarSource(drop.source()))
+            return false;
+        if (expr instanceof SliceExpression slice && isScalarSource(slice.source()))
+            return false;
+        if (expr instanceof FirstExpression first && isScalarSource(first.source()))
+            return false;
+        if (expr instanceof LimitExpression limit && isScalarSource(limit.source()))
+            return false;
+        if (expr instanceof ConcatenateExpression concat && isScalarSource(concat.left()))
+            return false;
+        if (expr instanceof SortExpression sort && isScalarSource(sort.source()))
+            return false;
 
         return expr instanceof RelationExpression
                 || expr instanceof ClassAllExpression
@@ -571,12 +578,14 @@ public final class PureCompiler {
                 // Association navigation - collect join info and create projection
                 Projection proj = compileAssociationProjection(path, alias, joinInfos, baseTableAlias, baseMapping);
                 projections.add(proj);
-            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && isDateFunction(mc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null
+                    && isDateFunction(mc.functionName())) {
                 // Date function call: $e.birthDate->year()
                 String propertyName = extractPropertyName(mc.source());
                 String columnName = baseMapping.getColumnForProperty(propertyName)
                         .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
-                Expression colRef = ColumnReference.of(baseTableAlias, columnName, baseMapping.pureTypeForProperty(propertyName));
+                Expression colRef = ColumnReference.of(baseTableAlias, columnName,
+                        baseMapping.pureTypeForProperty(propertyName));
                 DateFunctionExpression dateExpr = new DateFunctionExpression(
                         mapDateFunction(mc.functionName()), colRef);
                 projections.add(new Projection(dateExpr, alias));
@@ -585,7 +594,8 @@ public final class PureCompiler {
                 CurrentDateExpression currentDateExpr = new CurrentDateExpression(
                         mapCurrentDateFunction(fc.functionName()));
                 projections.add(new Projection(currentDateExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null && "dateDiff".equalsIgnoreCase(fc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null
+                    && "dateDiff".equalsIgnoreCase(fc.functionName())) {
                 // dateDiff(d1, d2, DurationUnit.DAYS) -> DATE_DIFF('day', d1, d2)
                 if (fc.arguments().size() != 3) {
                     throw new PureCompileException("dateDiff requires 3 arguments: dateDiff(date1, date2, unit)");
@@ -595,7 +605,8 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(fc.arguments().get(2));
                 DateDiffExpression dateDiffExpr = new DateDiffExpression(d1, d2, unit);
                 projections.add(new Projection(dateDiffExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null && "adjust".equalsIgnoreCase(fc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null
+                    && "adjust".equalsIgnoreCase(fc.functionName())) {
                 // adjust(date, amount, DurationUnit.DAYS) -> date + INTERVAL 'amount' DAY
                 if (fc.arguments().size() != 3) {
                     throw new PureCompileException("adjust requires 3 arguments: adjust(date, amount, unit)");
@@ -605,7 +616,8 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(fc.arguments().get(2));
                 DateAdjustExpression adjustExpr = new DateAdjustExpression(dateExpr, amountExpr, unit);
                 projections.add(new Projection(adjustExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && isDateTruncFunction(mc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null
+                    && isDateTruncFunction(mc.functionName())) {
                 // Date truncation function: $e.date->firstDayOfMonth()
                 Expression argument;
                 if (isDateTruncThisFunction(mc.functionName())) {
@@ -617,7 +629,8 @@ public final class PureCompiler {
                     String columnName = baseMapping.getColumnForProperty(propertyName)
                             .orElseThrow(
                                     () -> new PureCompileException("No column mapping for property: " + propertyName));
-                    argument = ColumnReference.of(baseTableAlias, columnName, baseMapping.pureTypeForProperty(propertyName));
+                    argument = ColumnReference.of(baseTableAlias, columnName,
+                            baseMapping.pureTypeForProperty(propertyName));
                 }
                 DateTruncExpression truncExpr = new DateTruncExpression(
                         mapDateTruncFunction(mc.functionName()), argument);
@@ -646,7 +659,8 @@ public final class PureCompiler {
                         : DurationUnit.SECONDS;
                 EpochExpression epochExpr = EpochExpression.toEpoch(value, unit);
                 projections.add(new Projection(epochExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null && isDateComparisonFunction(fc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null
+                    && isDateComparisonFunction(fc.functionName())) {
                 // isOnDay(d1, d2), isAfterDay, etc.
                 if (fc.arguments().size() != 2) {
                     throw new PureCompileException(fc.functionName() + " requires 2 arguments");
@@ -655,7 +669,8 @@ public final class PureCompiler {
                 Expression d2 = compileProjectionArg(fc.arguments().get(1), baseTableAlias, baseMapping);
                 DateComparisonExpression dateCompExpr = mapDateComparisonFunction(fc.functionName(), d1, d2);
                 projections.add(new Projection(dateCompExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && isDateComparisonFunction(mc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null
+                    && isDateComparisonFunction(mc.functionName())) {
                 // $e.date1->isOnDay($e.date2)
                 Expression d1 = compileProjectionArg(mc.source(), baseTableAlias, baseMapping);
                 if (mc.arguments().isEmpty()) {
@@ -664,7 +679,8 @@ public final class PureCompiler {
                 Expression d2 = compileProjectionArg(mc.arguments().get(0), baseTableAlias, baseMapping);
                 DateComparisonExpression dateCompExpr = mapDateComparisonFunction(mc.functionName(), d1, d2);
                 projections.add(new Projection(dateCompExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && "timeBucket".equalsIgnoreCase(mc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null
+                    && "timeBucket".equalsIgnoreCase(mc.functionName())) {
                 // $e.date->timeBucket(5, DurationUnit.DAYS)
                 if (mc.arguments().size() != 2) {
                     throw new PureCompileException("timeBucket requires 2 arguments: timeBucket(quantity, unit)");
@@ -674,7 +690,8 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(mc.arguments().get(1));
                 TimeBucketExpression timeBucketExpr = TimeBucketExpression.of(dateExpr, quantity, unit);
                 projections.add(new Projection(timeBucketExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null && "adjust".equalsIgnoreCase(mc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall mc && mc.source() != null
+                    && "adjust".equalsIgnoreCase(mc.functionName())) {
                 // $e.date->adjust(amount, DurationUnit.DAYS) - method call syntax with 2 args
                 if (mc.arguments().size() != 2) {
                     throw new PureCompileException("adjust as method requires 2 arguments: date->adjust(amount, unit)");
@@ -684,7 +701,8 @@ public final class PureCompiler {
                 DurationUnit unit = parseDurationUnit(mc.arguments().get(1));
                 DateAdjustExpression adjustExpr = new DateAdjustExpression(dateExpr, amountExpr, unit);
                 projections.add(new Projection(adjustExpr, alias));
-            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null && "timeBucket".equalsIgnoreCase(fc.functionName())) {
+            } else if (lambda.body() instanceof FunctionCall fc && fc.source() == null
+                    && "timeBucket".equalsIgnoreCase(fc.functionName())) {
                 // timeBucket(date, quantity, unit)
                 if (fc.arguments().size() != 3) {
                     throw new PureCompileException("timeBucket requires 3 arguments: timeBucket(date, quantity, unit)");
@@ -729,7 +747,8 @@ public final class PureCompiler {
                     String columnName = baseMapping.getColumnForProperty(propertyName)
                             .orElseThrow(
                                     () -> new PureCompileException("No column mapping for property: " + propertyName));
-                    projections.add(Projection.column(baseTableAlias, columnName, alias, baseMapping.pureTypeForProperty(propertyName)));
+                    projections.add(Projection.column(baseTableAlias, columnName, alias,
+                            baseMapping.pureTypeForProperty(propertyName)));
                 }
             }
         }
@@ -741,8 +760,10 @@ public final class PureCompiler {
             // Create the join ON TOP of the current finalSource
             TableNode targetTable = new TableNode(ji.targetMapping().table(), ji.alias());
             Expression joinCondition = ComparisonExpression.equals(
-                    ColumnReference.of(baseTableAlias, ji.leftColumn(), baseMapping.table().getColumnType(ji.leftColumn())),
-                    ColumnReference.of(ji.alias(), ji.rightColumn(), ji.targetMapping().table().getColumnType(ji.rightColumn())));
+                    ColumnReference.of(baseTableAlias, ji.leftColumn(),
+                            baseMapping.table().getColumnType(ji.leftColumn())),
+                    ColumnReference.of(ji.alias(), ji.rightColumn(),
+                            ji.targetMapping().table().getColumnType(ji.rightColumn())));
             finalSource = new JoinNode(finalSource, targetTable, joinCondition, JoinNode.JoinType.LEFT_OUTER);
         }
 
@@ -942,7 +963,8 @@ public final class PureCompiler {
                 if (!rowMapperMc.arguments().isEmpty()) {
                     secondColumnName = extractPropertyName(rowMapperMc.arguments().get(0));
                 }
-            } else if (mapBody instanceof FunctionCall rowMapperFc && rowMapperFc.functionName().endsWith("rowMapper")) {
+            } else if (mapBody instanceof FunctionCall rowMapperFc
+                    && rowMapperFc.functionName().endsWith("rowMapper")) {
                 if (rowMapperFc.arguments().size() >= 2) {
                     columnName = extractPropertyName(rowMapperFc.arguments().get(0));
                     secondColumnName = extractPropertyName(rowMapperFc.arguments().get(1));
@@ -1299,7 +1321,8 @@ public final class PureCompiler {
         LambdaExpression condLambda = join.condition();
         List<String> params = condLambda.parameters();
 
-        // Collect column types from each source so the join lambda can resolve property types
+        // Collect column types from each source so the join lambda can resolve property
+        // types
         var leftColumns = new java.util.HashMap<String, GenericType>();
         collectExtendedColumnsRecursive(join.left(), leftColumns);
         var rightColumns = new java.util.HashMap<String, GenericType>();
@@ -1363,7 +1386,8 @@ public final class PureCompiler {
         LambdaExpression matchLambda = asOfJoin.matchCondition();
         List<String> params = matchLambda.parameters();
 
-        // Collect column types from each source so the lambda can resolve property types
+        // Collect column types from each source so the lambda can resolve property
+        // types
         var leftColumns = new java.util.HashMap<String, GenericType>();
         collectExtendedColumnsRecursive(asOfJoin.left(), leftColumns);
         var rightColumns = new java.util.HashMap<String, GenericType>();
@@ -1645,7 +1669,17 @@ public final class PureCompiler {
             case ColumnSpec col -> col.name();
             case LambdaExpression lambda -> extractPropertyName(lambda.body());
             case PropertyAccessExpression prop -> prop.propertyName();
-            case FunctionCall method -> extractColumnName(method.source());
+            case FunctionCall method -> {
+                // For method calls like ~col->ascending(), source is the col
+                // For standalone functions like ascending(~col), source is null — use args
+                if (method.source() != null) {
+                    yield extractColumnName(method.source());
+                } else if (method.arguments() != null && !method.arguments().isEmpty()) {
+                    yield extractColumnName(method.arguments().get(0));
+                }
+                throw new PureCompileException(
+                        "Cannot extract column name from FunctionCall: " + method.functionName());
+            }
             default -> throw new PureCompileException("Cannot extract column name from: " + expr);
         };
     }
@@ -2313,9 +2347,11 @@ public final class PureCompiler {
 
         if (modelContext != null) {
             var tableOpt = modelContext.findTable(tableKey);
-            if (tableOpt.isPresent()) return tableOpt.get();
+            if (tableOpt.isPresent())
+                return tableOpt.get();
             tableOpt = modelContext.findTable(literal.tableName());
-            if (tableOpt.isPresent()) return tableOpt.get();
+            if (tableOpt.isPresent())
+                return tableOpt.get();
         }
 
         return mappingRegistry.findByTableName(tableKey)
@@ -2496,7 +2532,8 @@ public final class PureCompiler {
      * Recursively compiles property values to Expression nodes.
      *
      * Pure: ^Person(firstName='John', age=30)
-     * IR:   StructLiteralExpression("Person", {firstName: Literal("John"), age: Literal(30)})
+     * IR: StructLiteralExpression("Person", {firstName: Literal("John"), age:
+     * Literal(30)})
      */
     private Expression compileInstanceExpression(InstanceExpression inst, CompilationContext context) {
         Map<String, Expression> compiledFields = new LinkedHashMap<>();
@@ -2510,7 +2547,8 @@ public final class PureCompiler {
             Expression compiled = compileInstancePropertyValue(value, context);
 
             // If property is collection ([*]) but value is a single struct, wrap in array
-            // This ensures DuckDB type consistency: all instances have the same struct shape
+            // This ensures DuckDB type consistency: all instances have the same struct
+            // shape
             if (pureClass.isPresent()) {
                 var prop = pureClass.get().findProperty(key);
                 if (prop.isPresent() && prop.get().isCollection() && !(compiled instanceof ListLiteral)) {
@@ -2590,8 +2628,10 @@ public final class PureCompiler {
      * @throws PureCompileException if the variable cannot be resolved
      */
     /**
-     * Compiles a FunctionCall as a relation operation (e.g., $a->filter(...) where $a is a relation).
-     * Compiles the source as a relation, then wraps with the appropriate operation node.
+     * Compiles a FunctionCall as a relation operation (e.g., $a->filter(...) where
+     * $a is a relation).
+     * Compiles the source as a relation, then wraps with the appropriate operation
+     * node.
      */
     private RelationNode compileRelationFunctionCall(FunctionCall fc, CompilationContext context) {
         RelationNode source = compileExpression(fc.source(), context);
@@ -2938,14 +2978,17 @@ public final class PureCompiler {
 
     /**
      * Extracts column types from the typed lambda parameter annotation.
-     * For PCT expressions, lambda params carry tuple types like (city:String, country:String, ...)
-     * which are the authoritative column type source (equivalent to legend-engine's RelationType).
+     * For PCT expressions, lambda params carry tuple types like (city:String,
+     * country:String, ...)
+     * which are the authoritative column type source (equivalent to legend-engine's
+     * RelationType).
      * Returns empty map if lambda has no typed params or params aren't tuple types.
      */
     private java.util.Map<String, GenericType> extractColumnTypesFromLambda(LambdaExpression lambda) {
         if (lambda.parameterTypes() != null && !lambda.parameterTypes().isEmpty()) {
             var colTypes = lambda.parameterTypes().getFirst().columnTypes();
-            if (!colTypes.isEmpty()) return new java.util.HashMap<>(colTypes);
+            if (!colTypes.isEmpty())
+                return new java.util.HashMap<>(colTypes);
         }
         return new java.util.HashMap<>();
     }
@@ -3000,7 +3043,8 @@ public final class PureCompiler {
                     LambdaExpression lambda = project.projections().get(i);
                     String alias = i < project.aliases().size() ? project.aliases().get(i)
                             : extractFinalPropertyName(lambda.body());
-                    if (alias == null) continue;
+                    if (alias == null)
+                        continue;
                     // Try to resolve property type from class model
                     String propName = extractFinalPropertyName(lambda.body());
                     GenericType resolved = (modelContext != null && propName != null)
@@ -3118,7 +3162,8 @@ public final class PureCompiler {
                 }
             }
             case FunctionCall fc -> {
-                // Arrow calls like $a->filter(...), $a->sort(...) are pass-through for column structure
+                // Arrow calls like $a->filter(...), $a->sort(...) are pass-through for column
+                // structure
                 if (fc.source() != null) {
                     collectExtendedColumnsRecursive(fc.source(), columns);
                 }
@@ -3130,12 +3175,14 @@ public final class PureCompiler {
 
     /**
      * Infers the return type of a window function from its spec.
-     * Ranking functions return INTEGER, aggregate functions have known return types,
+     * Ranking functions return INTEGER, aggregate functions have known return
+     * types,
      * value functions pass through the source column type.
      */
     private GenericType inferWindowFunctionType(RelationExtendExpression.TypedWindowSpec windowSpec,
-                                                java.util.Map<String, GenericType> columns) {
-        if (windowSpec == null) throw new PureCompileException("Window function extend requires a window spec");
+            java.util.Map<String, GenericType> columns) {
+        if (windowSpec == null)
+            throw new PureCompileException("Window function extend requires a window spec");
         return inferWindowSpecType(windowSpec.spec(), columns);
     }
 
@@ -3148,16 +3195,18 @@ public final class PureCompiler {
             case AggregateFunctionSpec agg -> switch (agg.function()) {
                 case COUNT -> Primitive.INTEGER;
                 case SUM, AVG, STDDEV, STDDEV_SAMP, STDDEV_POP, VARIANCE, VAR_SAMP, VAR_POP,
-                     MEDIAN, CORR, COVAR_SAMP, COVAR_POP, PERCENTILE_CONT, PERCENTILE_DISC,
-                     WAVG -> Primitive.FLOAT;
+                        MEDIAN, CORR, COVAR_SAMP, COVAR_POP, PERCENTILE_CONT, PERCENTILE_DISC,
+                        WAVG ->
+                    Primitive.FLOAT;
                 case STRING_AGG -> Primitive.STRING;
                 case MIN, MAX, MODE, ARG_MIN, ARG_MAX ->
                     columns.getOrDefault(agg.column(), Primitive.FLOAT);
             };
             case ValueFunctionSpec value -> {
                 GenericType colType = columns.get(value.column());
-                if (colType == null) throw new PureCompileException(
-                        "Value function references unknown column '" + value.column() + "'");
+                if (colType == null)
+                    throw new PureCompileException(
+                            "Value function references unknown column '" + value.column() + "'");
                 yield colType;
             }
             case PostProcessedWindowFunctionSpec pp ->
@@ -3166,20 +3215,26 @@ public final class PureCompiler {
     }
 
     /**
-     * Infers a TDS column's GenericType from the first non-null value in the column's row data.
+     * Infers a TDS column's GenericType from the first non-null value in the
+     * column's row data.
      * Used when TDS columns lack type annotations (e.g., PCT adapter CSV output).
      */
     private GenericType inferTdsColumnType(List<List<Object>> rows, int colIndex) {
         for (List<Object> row : rows) {
             if (colIndex < row.size()) {
                 Object val = row.get(colIndex);
-                if (val instanceof Long) return Primitive.INTEGER;
-                if (val instanceof Double) return Primitive.FLOAT;
-                if (val instanceof Boolean) return Primitive.BOOLEAN;
+                if (val instanceof Long)
+                    return Primitive.INTEGER;
+                if (val instanceof Double)
+                    return Primitive.FLOAT;
+                if (val instanceof Boolean)
+                    return Primitive.BOOLEAN;
                 if (val instanceof String s) {
                     // Try to detect date/datetime patterns
-                    if (s.matches("\\d{4}-\\d{2}-\\d{2}T.*")) return Primitive.DATE_TIME;
-                    if (s.matches("\\d{4}-\\d{2}-\\d{2}")) return Primitive.STRICT_DATE;
+                    if (s.matches("\\d{4}-\\d{2}-\\d{2}T.*"))
+                        return Primitive.DATE_TIME;
+                    if (s.matches("\\d{4}-\\d{2}-\\d{2}"))
+                        return Primitive.STRICT_DATE;
                     return Primitive.STRING;
                 }
             }
@@ -3626,7 +3681,8 @@ public final class PureCompiler {
         } else {
             // Simple column mapping
             String columnName = propertyMapping.columnName();
-            return Projection.column(targetAlias, columnName, projectionAlias, targetMapping.pureTypeForProperty(finalProperty));
+            return Projection.column(targetAlias, columnName, projectionAlias,
+                    targetMapping.pureTypeForProperty(finalProperty));
         }
     }
 
@@ -3635,7 +3691,8 @@ public final class PureCompiler {
      * For $p.addresses.street, returns "street".
      */
     /**
-     * Extracts the class name from a ClassExpression (ClassAllExpression, ClassFilterExpression, etc.).
+     * Extracts the class name from a ClassExpression (ClassAllExpression,
+     * ClassFilterExpression, etc.).
      */
     private String extractClassName(ClassExpression classExpr) {
         return switch (classExpr) {
@@ -3652,7 +3709,8 @@ public final class PureCompiler {
      */
     /**
      * Infers the return type of a groupBy aggregation lambda.
-     * Lambda body patterns: $r.col (defaults to SUM), $r.col->sum(), $r.col->count(), etc.
+     * Lambda body patterns: $r.col (defaults to SUM), $r.col->sum(),
+     * $r.col->count(), etc.
      */
     private GenericType inferAggregateType(LambdaExpression aggLambda, java.util.Map<String, GenericType> columns) {
         PureExpression body = aggLambda.body();
@@ -3666,10 +3724,11 @@ public final class PureCompiler {
                     yield col != null ? columns.getOrDefault(col, Primitive.FLOAT) : Primitive.FLOAT;
                 }
                 case "avg", "average", "stddev", "stddevsample", "stddevpopulation",
-                     "variancesample", "variancepopulation", "variance",
-                     "median", "corr", "covarsample", "covarpopulation",
-                     "percentilecont", "percentiledisc", "wavg",
-                     "cumulativedistribution" -> Primitive.FLOAT;
+                        "variancesample", "variancepopulation", "variance",
+                        "median", "corr", "covarsample", "covarpopulation",
+                        "percentilecont", "percentiledisc", "wavg",
+                        "cumulativedistribution" ->
+                    Primitive.FLOAT;
                 case "min", "max", "mode", "first", "last" -> {
                     String col = extractPropertyNameSafe(fc.source());
                     yield col != null ? columns.getOrDefault(col, Primitive.FLOAT) : Primitive.FLOAT;
@@ -3819,8 +3878,10 @@ public final class PureCompiler {
                 List<Expression> sqlElements = array.elements().stream()
                         .map(e -> compileToSqlExpression(e, context))
                         .toList();
-                // Detect mixed types: if elements have different SqlTypes, wrap each in to_json()
-                // This creates a JSON[] (list of JSON scalars) which preserves per-element type info
+                // Detect mixed types: if elements have different SqlTypes, wrap each in
+                // to_json()
+                // This creates a JSON[] (list of JSON scalars) which preserves per-element type
+                // info
                 if (sqlElements.size() > 1 && hasMixedTypes(sqlElements)) {
                     List<Expression> jsonElements = sqlElements.stream()
                             .map(e -> (Expression) FunctionExpression.of("to_json", e))
@@ -3864,11 +3925,14 @@ public final class PureCompiler {
                 boolean rightIsJson = isJsonList(right);
                 if (leftIsJson || rightIsJson) {
                     // At least one side is already JSON[]; wrap the other if needed
-                    if (!leftIsJson) left = wrapListToJson(left);
-                    if (!rightIsJson) right = wrapListToJson(right);
+                    if (!leftIsJson)
+                        left = wrapListToJson(left);
+                    if (!rightIsJson)
+                        right = wrapListToJson(right);
                     yield FunctionExpression.of("concatenate", left, right);
                 }
-                // Check if the two sides have different element types (e.g., INTEGER[] vs VARCHAR[])
+                // Check if the two sides have different element types (e.g., INTEGER[] vs
+                // VARCHAR[])
                 if (needsCrossTypeConcatPromotion(left, right)) {
                     left = wrapListToJson(left);
                     right = wrapListToJson(right);
@@ -3892,7 +3956,8 @@ public final class PureCompiler {
                     Expression tagged = CollectionExpression.map(list, param, structExpr);
                     Expression sorted = FunctionExpression.of("sort", tagged, detectSortDirection(sort.sortColumns()));
                     String param2 = "_sv";
-                    Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2, sortElemType), Literal.string("v"));
+                    Expression extractVal = FunctionExpression.of("struct_extract",
+                            ColumnReference.of(param2, sortElemType), Literal.string("v"));
                     yield CollectionExpression.map(sorted, param2, extractVal);
                 }
                 yield FunctionExpression.of("sort", list, detectSortDirection(sort.sortColumns()));
@@ -3922,7 +3987,8 @@ public final class PureCompiler {
                 // Create a new context with the lambda parameter bound to itself (for direct
                 // use in SQL)
                 GenericType filterElemType = source.type().elementType();
-                CompilationContext lambdaContext = context.withLambdaParameter(lambdaParam, lambdaParam, filterElemType);
+                CompilationContext lambdaContext = context.withLambdaParameter(lambdaParam, lambdaParam,
+                        filterElemType);
                 Expression condition = compileToSqlExpression(lambda.body(), lambdaContext);
 
                 // Build list_filter with lambda expression
@@ -3948,7 +4014,8 @@ public final class PureCompiler {
                     }
                     if (keyLambda != null) {
                         // sort(keyFn, comparatorFn): sort by key using struct trick
-                        // list_transform(list_sort(list_transform(source, x -> {'k': keyFn(x), 'v': x}), dir), x -> struct_extract(x, 'v'))
+                        // list_transform(list_sort(list_transform(source, x -> {'k': keyFn(x), 'v':
+                        // x}), dir), x -> struct_extract(x, 'v'))
                         String param = keyLambda.parameters().getFirst();
                         GenericType sortElemType2 = source.type().elementType();
                         CompilationContext keyCtx = context.withLambdaParameter(param, param, sortElemType2);
@@ -3958,9 +4025,11 @@ public final class PureCompiler {
                         fields.put("v", new ColumnReference("", param, sortElemType2));
                         Expression structExpr = new StructLiteralExpression("_sort", fields);
                         Expression tagged = CollectionExpression.map(source, param, structExpr);
-                        Expression sorted = FunctionExpression.of("sort", tagged, detectSortDirection(sort.sortColumns()));
+                        Expression sorted = FunctionExpression.of("sort", tagged,
+                                detectSortDirection(sort.sortColumns()));
                         String param2 = "_sv";
-                        Expression extractVal = FunctionExpression.of("struct_extract", ColumnReference.of(param2, sortElemType2), Literal.string("v"));
+                        Expression extractVal = FunctionExpression.of("struct_extract",
+                                ColumnReference.of(param2, sortElemType2), Literal.string("v"));
                         yield CollectionExpression.map(sorted, param2, extractVal);
                     }
                     yield FunctionExpression.of("sort", source, detectSortDirection(sort.sortColumns()));
@@ -4025,11 +4094,13 @@ public final class PureCompiler {
 
         // Special handling for functions that take arrays
         return switch (simpleName) {
-            // if(condition, |thenBody, |elseBody) -> CASE WHEN condition THEN thenBody ELSE elseBody END
+            // if(condition, |thenBody, |elseBody) -> CASE WHEN condition THEN thenBody ELSE
+            // elseBody END
             case "if" -> compileIfFunction(args, context);
             // eval(lambda, arg1, arg2, ...) -> inline lambda body with args substituted
             case "eval" -> compileEvalFunction(args, context);
-            // forAll(list, predicate) -> list_bool_and(list_transform(list, x -> predicate))
+            // forAll(list, predicate) -> list_bool_and(list_transform(list, x ->
+            // predicate))
             case "forAll" -> compileForAllFunction(args, context);
             // find(list, predicate) -> list_filter(list, x -> predicate)[1]
             case "find" -> compileFindFunction(args, context);
@@ -4129,52 +4200,62 @@ public final class PureCompiler {
             }
             case "in" -> compilePureFunctionIn(args, context);
             case "toString" -> {
-                if (args.isEmpty()) throw new PureCompileException("toString() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("toString() requires an argument");
                 yield new FunctionExpression("cast",
                         compileToSqlExpression(args.getFirst(), context),
                         java.util.List.of(), Primitive.STRING);
             }
             case "parseInteger" -> {
-                if (args.isEmpty()) throw new PureCompileException("parseInteger() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("parseInteger() requires an argument");
                 yield new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(args.getFirst(), context), Primitive.INTEGER);
             }
             case "parseFloat" -> {
-                if (args.isEmpty()) throw new PureCompileException("parseFloat() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("parseFloat() requires an argument");
                 yield new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(args.getFirst(), context), Primitive.FLOAT);
             }
             case "parseDecimal" -> {
-                if (args.isEmpty()) throw new PureCompileException("parseDecimal() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("parseDecimal() requires an argument");
                 // Strip d/D suffix, cast to DOUBLE for full numeric precision
                 // IR type is DECIMAL so adapter creates Pure Decimal
                 Expression src = compileToSqlExpression(args.getFirst(), context);
-                Expression stripped = FunctionExpression.of("replace", src, Literal.string("[dD]$"), Literal.string(""));
+                Expression stripped = FunctionExpression.of("replace", src, Literal.string("[dD]$"),
+                        Literal.string(""));
                 yield new org.finos.legend.engine.plan.CastExpression(stripped, Primitive.DECIMAL);
             }
             case "parseBoolean" -> {
-                if (args.isEmpty()) throw new PureCompileException("parseBoolean() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("parseBoolean() requires an argument");
                 yield new org.finos.legend.engine.plan.CastExpression(
                         compileToSqlExpression(args.getFirst(), context), Primitive.BOOLEAN);
             }
             case "char" -> {
-                if (args.isEmpty()) throw new PureCompileException("char() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("char() requires an argument");
                 yield FunctionExpression.of("char", compileToSqlExpression(args.getFirst(), context));
             }
             case "ascii" -> {
-                if (args.isEmpty()) throw new PureCompileException("ascii() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("ascii() requires an argument");
                 yield FunctionExpression.of("ASCII", compileToSqlExpression(args.getFirst(), context));
             }
             // List aggregate functions (function-call style)
             case "sum", "plus" -> {
-                if (args.isEmpty()) throw new PureCompileException("sum() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("sum() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("sum", compileToSqlExpression(args.getFirst(), context));
                 }
                 yield compileToSqlExpression(args.getFirst(), context);
             }
             case "average", "mean" -> {
-                if (args.isEmpty()) throw new PureCompileException("average() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("average() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("average", compileToSqlExpression(args.getFirst(), context));
                 }
@@ -4183,7 +4264,8 @@ public final class PureCompiler {
                         compileToSqlExpression(args.getFirst(), context), Primitive.FLOAT);
             }
             case "min" -> {
-                if (args.isEmpty()) throw new PureCompileException("min() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("min() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("min", compileToSqlExpression(args.getFirst(), context));
                 }
@@ -4196,7 +4278,8 @@ public final class PureCompiler {
                 yield FunctionExpression.of("min", compileToSqlExpression(args.getFirst(), context));
             }
             case "max" -> {
-                if (args.isEmpty()) throw new PureCompileException("max() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("max() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("max", compileToSqlExpression(args.getFirst(), context));
                 }
@@ -4209,7 +4292,8 @@ public final class PureCompiler {
                 yield FunctionExpression.of("max", compileToSqlExpression(args.getFirst(), context));
             }
             case "mode" -> {
-                if (args.isEmpty()) throw new PureCompileException("mode() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("mode() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(args.getFirst(), context), Literal.of("mode"));
@@ -4217,7 +4301,8 @@ public final class PureCompiler {
                 yield FunctionExpression.of("mode", compileToSqlExpression(args.getFirst(), context));
             }
             case "stdDevSample" -> {
-                if (args.isEmpty()) throw new PureCompileException("stdDevSample() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("stdDevSample() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_samp"));
@@ -4225,7 +4310,8 @@ public final class PureCompiler {
                 yield FunctionExpression.of("stdDevSample", compileToSqlExpression(args.getFirst(), context));
             }
             case "stdDevPopulation" -> {
-                if (args.isEmpty()) throw new PureCompileException("stdDevPopulation() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("stdDevPopulation() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(args.getFirst(), context), Literal.of("stddev_pop"));
@@ -4233,7 +4319,8 @@ public final class PureCompiler {
                 yield FunctionExpression.of("stdDevPopulation", compileToSqlExpression(args.getFirst(), context));
             }
             case "median" -> {
-                if (args.isEmpty()) throw new PureCompileException("median() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("median() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("list_aggr",
                             compileToSqlExpression(args.getFirst(), context), Literal.of("median"));
@@ -4241,31 +4328,36 @@ public final class PureCompiler {
                 yield FunctionExpression.of("median", compileToSqlExpression(args.getFirst(), context));
             }
             case "varianceSample" -> {
-                if (args.isEmpty()) throw new PureCompileException("varianceSample() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("varianceSample() requires an argument");
                 yield FunctionExpression.of("list_aggr",
                         compileToSqlExpression(args.getFirst(), context), Literal.of("var_samp"));
             }
             case "variancePopulation" -> {
-                if (args.isEmpty()) throw new PureCompileException("variancePopulation() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("variancePopulation() requires an argument");
                 yield FunctionExpression.of("list_aggr",
                         compileToSqlExpression(args.getFirst(), context), Literal.of("var_pop"));
             }
             case "covarSample" -> {
-                if (args.size() < 2) throw new PureCompileException("covarSample() requires two arguments");
+                if (args.size() < 2)
+                    throw new PureCompileException("covarSample() requires two arguments");
                 yield new org.finos.legend.engine.plan.AggregateExpression(
                         org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_SAMP,
                         compileToSqlExpression(args.get(0), context),
                         compileToSqlExpression(args.get(1), context));
             }
             case "covarPopulation" -> {
-                if (args.size() < 2) throw new PureCompileException("covarPopulation() requires two arguments");
+                if (args.size() < 2)
+                    throw new PureCompileException("covarPopulation() requires two arguments");
                 yield new org.finos.legend.engine.plan.AggregateExpression(
                         org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.COVAR_POP,
                         compileToSqlExpression(args.get(0), context),
                         compileToSqlExpression(args.get(1), context));
             }
             case "corr" -> {
-                if (args.size() < 2) throw new PureCompileException("corr() requires two arguments");
+                if (args.size() < 2)
+                    throw new PureCompileException("corr() requires two arguments");
                 yield new org.finos.legend.engine.plan.AggregateExpression(
                         org.finos.legend.engine.plan.AggregateExpression.AggregateFunction.CORR,
                         compileToSqlExpression(args.get(0), context),
@@ -4273,22 +4365,26 @@ public final class PureCompiler {
             }
             // and(vals) -> list_bool_and(vals); or(vals) -> list_bool_or(vals)
             case "and" -> {
-                if (args.isEmpty()) throw new PureCompileException("and() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("and() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("and", compileToSqlExpression(args.getFirst(), context));
                 }
                 yield compileToSqlExpression(args.getFirst(), context);
             }
             case "or" -> {
-                if (args.isEmpty()) throw new PureCompileException("or() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("or() requires an argument");
                 if (args.getFirst() instanceof ArrayLiteral) {
                     yield FunctionExpression.of("or", compileToSqlExpression(args.getFirst(), context));
                 }
                 yield compileToSqlExpression(args.getFirst(), context);
             }
-            // xor(a, b) -> (a AND NOT b) OR (NOT a AND b) — DuckDB xor() is bitwise, not logical
+            // xor(a, b) -> (a AND NOT b) OR (NOT a AND b) — DuckDB xor() is bitwise, not
+            // logical
             case "xor" -> {
-                if (args.size() < 2) throw new PureCompileException("xor() requires 2 arguments");
+                if (args.size() < 2)
+                    throw new PureCompileException("xor() requires 2 arguments");
                 Expression a = compileToSqlExpression(args.get(0), context);
                 Expression b = compileToSqlExpression(args.get(1), context);
                 yield LogicalExpression.or(
@@ -4297,7 +4393,8 @@ public final class PureCompiler {
             }
             // hash(str, hashType) -> md5(str), sha256(str), etc.
             case "hash" -> {
-                if (args.size() < 2) throw new PureCompileException("hash() requires string and hash type arguments");
+                if (args.size() < 2)
+                    throw new PureCompileException("hash() requires string and hash type arguments");
                 Expression src = compileToSqlExpression(args.get(0), context);
                 // Second arg is the hash type enum (e.g., HashType.MD5)
                 String hashType = "";
@@ -4326,9 +4423,11 @@ public final class PureCompiler {
             case "pi" -> {
                 yield FunctionExpression.of("pi");
             }
-            // round(x) or round(x, scale) -> round_even for no-scale, round(x, scale) with scale
+            // round(x) or round(x, scale) -> round_even for no-scale, round(x, scale) with
+            // scale
             case "round" -> {
-                if (args.isEmpty()) throw new PureCompileException("round() requires at least 1 argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("round() requires at least 1 argument");
                 Expression src = compileToSqlExpression(args.get(0), context);
                 if (args.size() == 1) {
                     // round(x) -> CAST(ROUND_EVEN(x, 0) AS BIGINT)
@@ -4342,7 +4441,8 @@ public final class PureCompiler {
             }
             // mod(a, b) -> mod(mod(a, b) + b, b) (Pure mod is always non-negative)
             case "mod" -> {
-                if (args.size() < 2) throw new PureCompileException("mod() requires 2 arguments");
+                if (args.size() < 2)
+                    throw new PureCompileException("mod() requires 2 arguments");
                 Expression a = compileToSqlExpression(args.get(0), context);
                 Expression b = compileToSqlExpression(args.get(1), context);
                 Expression innerMod = FunctionExpression.of("mod", a, b);
@@ -4351,30 +4451,36 @@ public final class PureCompiler {
             }
             // between(x, low, high) -> x >= low AND x <= high
             case "between" -> {
-                if (args.size() < 3) throw new PureCompileException("between() requires 3 arguments: value, low, high");
+                if (args.size() < 3)
+                    throw new PureCompileException("between() requires 3 arguments: value, low, high");
                 Expression value = compileToSqlExpression(args.get(0), context);
                 Expression low = compileToSqlExpression(args.get(1), context);
                 Expression high = compileToSqlExpression(args.get(2), context);
                 yield LogicalExpression.and(
-                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, low),
-                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, high));
+                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS,
+                                low),
+                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS,
+                                high));
             }
             // Date functions (function-call syntax)
             case "datePart" -> {
-                if (args.isEmpty()) throw new PureCompileException("datePart() requires a date argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("datePart() requires a date argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
                 yield new DateTruncExpression(DateTruncExpression.TruncPart.DAY, src);
             }
             case "adjust" -> {
                 // adjust(date, amount, DurationUnit) -> DateAdjustExpression
-                if (args.size() < 3) throw new PureCompileException("adjust() requires 3 arguments: date, amount, unit");
+                if (args.size() < 3)
+                    throw new PureCompileException("adjust() requires 3 arguments: date, amount, unit");
                 Expression dateExpr = compileToSqlExpression(args.get(0), context);
                 Expression amountExpr = compileToSqlExpression(args.get(1), context);
                 DurationUnit unit = parseDurationUnit(args.get(2));
                 yield new DateAdjustExpression(dateExpr, amountExpr, unit);
             }
             case "parseDate" -> {
-                if (args.isEmpty()) throw new PureCompileException("parseDate() requires a string argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("parseDate() requires a string argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
                 if (args.size() == 1) {
                     // No format: generator emits CAST(... AS TIMESTAMPTZ)
@@ -4387,21 +4493,26 @@ public final class PureCompiler {
                         java.util.List.of(), Primitive.STRICT_DATE);
             }
             case "hasMonth", "hasDay" -> {
-                if (args.isEmpty()) throw new PureCompileException(simpleName + "() requires a date argument");
+                if (args.isEmpty())
+                    throw new PureCompileException(simpleName + "() requires a date argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
-                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE
+                        || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
                     String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
                     boolean has = simpleName.equals("hasMonth")
-                            ? stripped.length() >= 7 : stripped.length() >= 10;
+                            ? stripped.length() >= 7
+                            : stripped.length() >= 10;
                     yield Literal.bool(has);
                 }
                 yield Literal.bool(true);
             }
             case "hasHour", "hasMinute", "hasSecond" -> {
-                if (args.isEmpty()) throw new PureCompileException(simpleName + "() requires a date argument");
+                if (args.isEmpty())
+                    throw new PureCompileException(simpleName + "() requires a date argument");
                 Expression src = compileToSqlExpression(args.getFirst(), context);
-                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE
+                        || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
                     String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
                     boolean hasTime = stripped.contains("T");
@@ -4437,7 +4548,8 @@ public final class PureCompiler {
             }
             // list(collection) -> no-op; Pure's List<T> wrapper has no SQL equivalent
             case "list" -> {
-                if (args.isEmpty()) throw new PureCompileException("list() requires an argument");
+                if (args.isEmpty())
+                    throw new PureCompileException("list() requires an argument");
                 yield compileToSqlExpression(args.getFirst(), context);
             }
             default -> {
@@ -4461,8 +4573,10 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles if(condition, |thenBody, |elseBody) to CASE WHEN ... THEN ... ELSE ... END.
-     * Handles both simple if and multi-if with pairs: if([pair(|cond1, |val1), ...], |default).
+     * Compiles if(condition, |thenBody, |elseBody) to CASE WHEN ... THEN ... ELSE
+     * ... END.
+     * Handles both simple if and multi-if with pairs: if([pair(|cond1, |val1),
+     * ...], |default).
      */
     private Expression compileIfFunction(List<PureExpression> args, CompilationContext context) {
         if (args.isEmpty()) {
@@ -4489,9 +4603,12 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles value->match([a: Type1[1]|result1, b: Type2[1]|result2, ...], extraParams...)
-     * Resolves type at compile time for scalar literals, picks the first matching branch.
-     * Binds the matched lambda's first param to the source value, extra params to extra args.
+     * Compiles value->match([a: Type1[1]|result1, b: Type2[1]|result2, ...],
+     * extraParams...)
+     * Resolves type at compile time for scalar literals, picks the first matching
+     * branch.
+     * Binds the matched lambda's first param to the source value, extra params to
+     * extra args.
      */
     private Expression compileMatchExpression(FunctionCall methodCall, CompilationContext context) {
         if (methodCall.arguments().isEmpty()) {
@@ -4519,8 +4636,10 @@ public final class PureCompiler {
                 throw new PureCompileException("match() branches must be lambda expressions, got: " + branchExpr);
             }
 
-            LambdaExpression.TypeAnnotation typeAnn = (lambda.parameterTypes() != null && !lambda.parameterTypes().isEmpty())
-                    ? lambda.parameterTypes().getFirst() : null;
+            LambdaExpression.TypeAnnotation typeAnn = (lambda.parameterTypes() != null
+                    && !lambda.parameterTypes().isEmpty())
+                            ? lambda.parameterTypes().getFirst()
+                            : null;
 
             if (typeAnn == null || (typeMatches(sourceType, typeAnn.simpleTypeName())
                     && multiplicityMatches(sourceSize, typeAnn.multiplicity()))) {
@@ -4543,7 +4662,8 @@ public final class PureCompiler {
     }
 
     /**
-     * Detects the Pure type of a source expression for match() compile-time resolution.
+     * Detects the Pure type of a source expression for match() compile-time
+     * resolution.
      */
     private String detectPureType(PureExpression expr) {
         if (expr instanceof LiteralExpr lit) {
@@ -4559,7 +4679,8 @@ public final class PureCompiler {
         }
         if (expr instanceof ArrayLiteral array) {
             // Detect element type from first element
-            if (array.elements().isEmpty()) return "Any";
+            if (array.elements().isEmpty())
+                return "Any";
             return detectPureType(array.elements().getFirst());
         }
         // For cast expressions: []->cast(@String) → CastExpression with targetType
@@ -4590,10 +4711,14 @@ public final class PureCompiler {
      * Returns 1 for scalars, actual count for arrays, -1 for unknown.
      */
     private int detectSourceSize(PureExpression expr) {
-        if (expr instanceof ArrayLiteral array) return array.elements().size();
-        if (expr instanceof LiteralExpr) return 1;
-        if (expr instanceof InstanceExpression) return 1;
-        if (expr instanceof CastExpression cast) return detectSourceSize(cast.source());
+        if (expr instanceof ArrayLiteral array)
+            return array.elements().size();
+        if (expr instanceof LiteralExpr)
+            return 1;
+        if (expr instanceof InstanceExpression)
+            return 1;
+        if (expr instanceof CastExpression cast)
+            return detectSourceSize(cast.source());
         return -1; // unknown
     }
 
@@ -4601,20 +4726,27 @@ public final class PureCompiler {
      * Checks if a detected source type matches a branch's type annotation.
      */
     private boolean typeMatches(String sourceType, String branchType) {
-        if ("Any".equals(branchType)) return true;
-        if ("Any".equals(sourceType)) return true;
+        if ("Any".equals(branchType))
+            return true;
+        if ("Any".equals(sourceType))
+            return true;
         // Number is a supertype of Integer, Float, Decimal
-        if ("Number".equals(branchType) && ("Integer".equals(sourceType) || "Float".equals(sourceType) || "Decimal".equals(sourceType))) return true;
+        if ("Number".equals(branchType)
+                && ("Integer".equals(sourceType) || "Float".equals(sourceType) || "Decimal".equals(sourceType)))
+            return true;
         return sourceType.equals(branchType);
     }
 
     /**
-     * Checks if a source size is compatible with a branch's multiplicity annotation.
+     * Checks if a source size is compatible with a branch's multiplicity
+     * annotation.
      * Multiplicity formats: "1", "0..1", "1..4", "*", "0"
      */
     private boolean multiplicityMatches(int sourceSize, String multiplicity) {
-        if (sourceSize < 0) return true; // unknown size, assume match
-        if ("*".equals(multiplicity)) return true;
+        if (sourceSize < 0)
+            return true; // unknown size, assume match
+        if ("*".equals(multiplicity))
+            return true;
         if (multiplicity.contains("..")) {
             String[] parts = multiplicity.split("\\.\\.");
             int lower = Integer.parseInt(parts[0]);
@@ -4651,7 +4783,8 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles forAll(list, predicate) to list_bool_and(list_transform(list, x -> predicate)).
+     * Compiles forAll(list, predicate) to list_bool_and(list_transform(list, x ->
+     * predicate)).
      */
     private Expression compileForAllFunction(List<PureExpression> args, CompilationContext context) {
         if (args.size() < 2) {
@@ -4676,7 +4809,8 @@ public final class PureCompiler {
 
     /**
      * Compiles removeDuplicatesBy(list, keyFn) using DuckDB list operations.
-     * Strategy: for each element, keep it only if it's the first occurrence of its key.
+     * Strategy: for each element, keep it only if it's the first occurrence of its
+     * key.
      */
     private Expression compileRemoveDuplicatesByFunction(List<PureExpression> args, CompilationContext context) {
         if (args.size() < 2) {
@@ -4685,7 +4819,8 @@ public final class PureCompiler {
 
         Expression source = compileToSqlExpression(args.get(0), context);
 
-        // DuckDB doesn't have a direct removeDuplicatesBy, so approximate with list_distinct
+        // DuckDB doesn't have a direct removeDuplicatesBy, so approximate with
+        // list_distinct
         // This removes exact duplicates (correct when keyFn is identity/toString)
         return FunctionExpression.of("removeDuplicates", source);
     }
@@ -4694,7 +4829,8 @@ public final class PureCompiler {
      * Helper: compile forAll with a lambda predicate on a list source.
      * list_bool_and(list_transform(source, param -> condition))
      */
-    private Expression compileForAllWithLambda(Expression source, PureExpression predicate, CompilationContext context) {
+    private Expression compileForAllWithLambda(Expression source, PureExpression predicate,
+            CompilationContext context) {
         if (predicate instanceof LambdaExpression lambda) {
             String param = lambda.parameters().isEmpty() ? "x" : lambda.parameters().getFirst();
             GenericType elemType = source.type().elementType();
@@ -4742,7 +4878,8 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles in(value, [array]) Pure function to SQL: list_contains([array], value)
+     * Compiles in(value, [array]) Pure function to SQL: list_contains([array],
+     * value)
      * Uses list_contains with JSON[] wrapping for mixed-type lists.
      */
     private Expression compilePureFunctionIn(List<PureExpression> args, CompilationContext context) {
@@ -4838,9 +4975,10 @@ public final class PureCompiler {
             }
             // Pure multiplicity/meta functions - identity in SQL context
             case "toOne", "deactivate" -> compileToSqlExpression(methodCall.source(), context);
-            // if: condition->if(|thenBody, |elseBody) -> CASE WHEN condition THEN then ELSE else END
+            // if: condition->if(|thenBody, |elseBody) -> CASE WHEN condition THEN then ELSE
+            // else END
             // multi-if: [pair(|cond1, |val1), pair(|cond2, |val2)]->if(|default)
-            //        -> CASE WHEN cond1 THEN val1 WHEN cond2 THEN val2 ELSE default END
+            // -> CASE WHEN cond1 THEN val1 WHEN cond2 THEN val2 ELSE default END
             case "if" -> {
                 // Multi-if: source is an array of pair(|condition, |value) calls
                 if (methodCall.source() instanceof ArrayLiteral arrayLit
@@ -4870,12 +5008,14 @@ public final class PureCompiler {
                 }
                 throw new PureCompileException("if() requires two lambda arguments (then, else)");
             }
-            // match: value->match([a: Type1[1]|result1, b: Type2[1]|result2, ...], extraParams...)
+            // match: value->match([a: Type1[1]|result1, b: Type2[1]|result2, ...],
+            // extraParams...)
             // Resolves type at compile time for scalar literals, picks matching branch
             case "match" -> {
                 yield compileMatchExpression(methodCall, context);
             }
-            // forAll: list->forAll(e|condition) -> list_bool_and(list_transform(list, e -> condition))
+            // forAll: list->forAll(e|condition) -> list_bool_and(list_transform(list, e ->
+            // condition))
             case "forAll" -> {
                 Expression source = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.arguments().isEmpty()) {
@@ -4928,12 +5068,14 @@ public final class PureCompiler {
                     }
                     yield compileToSqlExpression(lambda.body(), lambdaContext);
                 }
-                throw new PureCompileException("eval() requires a column spec, class ref, or lambda source, got: " + methodCall.source());
+                throw new PureCompileException(
+                        "eval() requires a column spec, class ref, or lambda source, got: " + methodCall.source());
             }
             // IN expression: $x->in([a, b, c]) -> list_contains([a, b, c], x)
             case "in" -> compileListContains(methodCall, context);
             case "contains" -> {
-                // String contains: STRPOS(s, search) > 0; List contains: list_contains(list, value)
+                // String contains: STRPOS(s, search) > 0; List contains: list_contains(list,
+                // value)
                 if (methodCall.source() instanceof LiteralExpr lit && lit.type() == LiteralExpr.LiteralType.STRING) {
                     // String source -> string contains
                     if (methodCall.arguments().isEmpty())
@@ -5001,7 +5143,8 @@ public final class PureCompiler {
                     }
                 }
 
-                // Create format function call — SQLGenerator handles dialect-specific translation
+                // Create format function call — SQLGenerator handles dialect-specific
+                // translation
                 yield new FunctionExpression("format", formatStr, argExprs, Primitive.STRING);
             }
             case "splitPart" -> { // splitPart(s, sep, idx) -> split_part(s, sep, idx+1)
@@ -5030,7 +5173,8 @@ public final class PureCompiler {
                 // DuckDB: upper(s[1]) || s[2:]
                 yield new ConcatExpression(java.util.List.of(
                         FunctionExpression.of("toUpper",
-                                new FunctionExpression("substring", src, java.util.List.of(Literal.of(1), Literal.of(1)),
+                                new FunctionExpression("substring", src,
+                                        java.util.List.of(Literal.of(1), Literal.of(1)),
                                         Primitive.STRING)),
                         new FunctionExpression("substring", src, java.util.List.of(Literal.of(2)), Primitive.STRING)));
             }
@@ -5038,7 +5182,8 @@ public final class PureCompiler {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 yield new ConcatExpression(java.util.List.of(
                         FunctionExpression.of("toLower",
-                                new FunctionExpression("substring", src, java.util.List.of(Literal.of(1), Literal.of(1)),
+                                new FunctionExpression("substring", src,
+                                        java.util.List.of(Literal.of(1), Literal.of(1)),
                                         Primitive.STRING)),
                         new FunctionExpression("substring", src, java.util.List.of(Literal.of(2)), Primitive.STRING)));
             }
@@ -5048,12 +5193,14 @@ public final class PureCompiler {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 Expression arg = compileToSqlExpression(methodCall.arguments().getFirst(), context);
                 if (methodCall.source() instanceof ArrayLiteral) {
-                    // List indexOf: list_position(list, elem) returns 1-based, subtract 1 for 0-based
+                    // List indexOf: list_position(list, elem) returns 1-based, subtract 1 for
+                    // 0-based
                     yield ArithmeticExpression.subtract(
                             FunctionExpression.of("listIndexOf", src, arg),
                             Literal.integer(1));
                 }
-                // String indexOf: instr(string, search) returns 1-based, subtract 1 for Pure's 0-based
+                // String indexOf: instr(string, search) returns 1-based, subtract 1 for Pure's
+                // 0-based
                 // indexOf(str, fromIndex) 2-arg form: use instr with offset
                 if (methodCall.arguments().size() >= 2) {
                     Expression fromIndex = compileToSqlExpression(methodCall.arguments().get(1), context);
@@ -5090,7 +5237,8 @@ public final class PureCompiler {
                 yield new FunctionExpression("substring", src,
                         java.util.List.of(oneBasedStart), Primitive.STRING);
             }
-            case "lpad" -> { // lpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE lpad(s,n,fill) END
+            case "lpad" -> { // lpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE
+                             // lpad(s,n,fill) END
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("lpad requires a length argument");
                 Expression src = compileToSqlExpression(methodCall.source(), context);
@@ -5099,8 +5247,8 @@ public final class PureCompiler {
                         ? compileToSqlExpression(methodCall.arguments().get(1), context)
                         : Literal.string(" ");
                 // CASE WHEN length(s) >= n THEN left(s, n)
-                //      WHEN length(fill) = 0 THEN s
-                //      ELSE lpad(s, n, fill) END
+                // WHEN length(fill) = 0 THEN s
+                // ELSE lpad(s, n, fill) END
                 yield CaseExpression.of(
                         new ComparisonExpression(
                                 FunctionExpression.of("length", src),
@@ -5113,7 +5261,8 @@ public final class PureCompiler {
                                 src,
                                 FunctionExpression.of("lpad", src, len, fill)));
             }
-            case "rpad" -> { // rpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE rpad(s,n,fill) END
+            case "rpad" -> { // rpad(s, n [, fill]) -> CASE WHEN len(s) >= n THEN left(s,n) ELSE
+                             // rpad(s,n,fill) END
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("rpad requires a length argument");
                 Expression src = compileToSqlExpression(methodCall.source(), context);
@@ -5122,8 +5271,8 @@ public final class PureCompiler {
                         ? compileToSqlExpression(methodCall.arguments().get(1), context)
                         : Literal.string(" ");
                 // CASE WHEN length(s) >= n THEN left(s, n)
-                //      WHEN length(fill) = 0 THEN s
-                //      ELSE rpad(s, n, fill) END
+                // WHEN length(fill) = 0 THEN s
+                // ELSE rpad(s, n, fill) END
                 yield CaseExpression.of(
                         new ComparisonExpression(
                                 FunctionExpression.of("length", src),
@@ -5148,7 +5297,8 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context), Primitive.FLOAT);
             case "parseDecimal" -> { // parseDecimal(s) -> CAST(regexp_replace(s, '[dD]$', '') AS DECIMAL)
                 Expression src = compileToSqlExpression(methodCall.source(), context);
-                Expression stripped = FunctionExpression.of("replace", src, Literal.string("[dD]$"), Literal.string(""));
+                Expression stripped = FunctionExpression.of("replace", src, Literal.string("[dD]$"),
+                        Literal.string(""));
                 yield new org.finos.legend.engine.plan.CastExpression(stripped, Primitive.DECIMAL);
             }
             case "parseBoolean" -> // parseBoolean(s) -> CAST(s AS BOOLEAN)
@@ -5230,7 +5380,9 @@ public final class PureCompiler {
                 if (methodCall.arguments().isEmpty()) {
                     Expression src = compileToSqlExpression(methodCall.source(), context);
                     // Scalar->min() is identity; only use list_min for arrays
-                    if (!(methodCall.source() instanceof ArrayLiteral)) { yield src; }
+                    if (!(methodCall.source() instanceof ArrayLiteral)) {
+                        yield src;
+                    }
                     yield FunctionExpression.of("min", src);
                 }
                 yield FunctionExpression.of("least",
@@ -5241,7 +5393,9 @@ public final class PureCompiler {
                 if (methodCall.arguments().isEmpty()) {
                     Expression src = compileToSqlExpression(methodCall.source(), context);
                     // Scalar->max() is identity; only use list_max for arrays
-                    if (!(methodCall.source() instanceof ArrayLiteral)) { yield src; }
+                    if (!(methodCall.source() instanceof ArrayLiteral)) {
+                        yield src;
+                    }
                     yield FunctionExpression.of("max", src);
                 }
                 yield FunctionExpression.of("greatest",
@@ -5381,8 +5535,8 @@ public final class PureCompiler {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 Expression pValue = compileToSqlExpression(methodCall.arguments().getFirst(), context);
                 // percentile(p, ascending, continuous):
-                //   2nd arg false = descending -> use (1-p)
-                //   3rd arg false = discrete -> use quantile_disc
+                // 2nd arg false = descending -> use (1-p)
+                // 3rd arg false = discrete -> use quantile_disc
                 boolean ascending = true;
                 String quantileFunc = "quantile_cont";
                 if (methodCall.arguments().size() >= 2) {
@@ -5442,7 +5596,8 @@ public final class PureCompiler {
                         compileToSqlExpression(methodCall.source(), context), Primitive.DECIMAL);
 
             // ===== LIST FUNCTIONS =====
-            case "zip" -> { // zip(l1, l2) -> list_transform(generate_series(1, LEAST(LEN(l1), LEN(l2))), i -> {'first': l1[i], 'second': l2[i]})
+            case "zip" -> { // zip(l1, l2) -> list_transform(generate_series(1, LEAST(LEN(l1), LEN(l2))), i
+                            // -> {'first': l1[i], 'second': l2[i]})
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("zip requires an argument");
                 Expression l1 = compileToSqlExpression(methodCall.source(), context);
@@ -5456,8 +5611,10 @@ public final class PureCompiler {
                 // {'first': list_extract(l1, i), 'second': list_extract(l2, i)}
                 String param = "_zip_i";
                 var fields = new java.util.LinkedHashMap<String, Expression>();
-                fields.put("first", FunctionExpression.of("list_extract", l1, new ColumnReference("", param, Primitive.INTEGER)));
-                fields.put("second", FunctionExpression.of("list_extract", l2, new ColumnReference("", param, Primitive.INTEGER)));
+                fields.put("first",
+                        FunctionExpression.of("list_extract", l1, new ColumnReference("", param, Primitive.INTEGER)));
+                fields.put("second",
+                        FunctionExpression.of("list_extract", l2, new ColumnReference("", param, Primitive.INTEGER)));
                 Expression structExpr = new StructLiteralExpression("Pair", fields);
                 yield CollectionExpression.map(range, param, structExpr);
             }
@@ -5495,9 +5652,11 @@ public final class PureCompiler {
                 if (methodCall.arguments().isEmpty())
                     throw new PureCompileException("at requires an index argument");
 
-                // Optimization: at(0) on a scalar struct property (multiplicity [1]) is a no-op.
+                // Optimization: at(0) on a scalar struct property (multiplicity [1]) is a
+                // no-op.
                 // In fold/map over struct lists, $p.lastName->at(0) should just be p.lastName,
-                // not LIST_EXTRACT(p.lastName, 1) which would extract a character from the string.
+                // not LIST_EXTRACT(p.lastName, 1) which would extract a character from the
+                // string.
                 if (isScalarStructPropertyAccess(methodCall.source(), context)) {
                     yield compileToSqlExpression(methodCall.source(), context);
                 }
@@ -5545,7 +5704,8 @@ public final class PureCompiler {
                 // If so, compile as COUNT(*) scalar subquery.
                 // But lambda/fold parameters and scalar bindings are lists, not relations.
                 boolean isScalarVar = methodCall.source() instanceof VariableExpr v
-                        && context != null && (context.isLambdaParameter(v.name()) || context.hasScalarBinding(v.name()));
+                        && context != null
+                        && (context.isLambdaParameter(v.name()) || context.hasScalarBinding(v.name()));
                 if (!isScalarVar && isRelationExpression(methodCall.source())) {
                     RelationNode relationNode = compileExpression(methodCall.source(), context);
                     yield new SubqueryExpression(relationNode, FunctionExpression.of("count", Literal.of("*")));
@@ -5575,17 +5735,21 @@ public final class PureCompiler {
                 var args = methodCall.arguments();
                 Expression year = compileToSqlExpression(methodCall.source(), context);
                 Expression month = args.size() >= 1
-                        ? compileToSqlExpression(args.get(0), context) : Literal.integer(1);
+                        ? compileToSqlExpression(args.get(0), context)
+                        : Literal.integer(1);
                 Expression day = args.size() >= 2
-                        ? compileToSqlExpression(args.get(1), context) : Literal.integer(1);
+                        ? compileToSqlExpression(args.get(1), context)
+                        : Literal.integer(1);
                 if (args.size() >= 3) {
                     // date(y, m, d, h, ...) -> make_timestamp(y, m, d, h, min, sec)
                     // source=y, args=[m, d, h, min?, sec?]
                     Expression hour = compileToSqlExpression(args.get(2), context);
                     Expression minute = args.size() >= 4
-                            ? compileToSqlExpression(args.get(3), context) : Literal.integer(0);
+                            ? compileToSqlExpression(args.get(3), context)
+                            : Literal.integer(0);
                     Expression second = args.size() >= 5
-                            ? compileToSqlExpression(args.get(4), context) : Literal.integer(0);
+                            ? compileToSqlExpression(args.get(4), context)
+                            : Literal.integer(0);
                     Expression ts = FunctionExpression.of("date", year, month, day, hour, minute, second);
                     // Preserve precision: hour-only → %Y-%m-%dT%H, minute → %Y-%m-%dT%H:%M
                     if (args.size() == 3) {
@@ -5598,10 +5762,12 @@ public final class PureCompiler {
                     if (args.size() >= 5) {
                         PureExpression secExpr = args.get(4);
                         boolean hasSubSecond = secExpr instanceof LiteralExpr lit &&
-                                (lit.type() == LiteralExpr.LiteralType.FLOAT || lit.type() == LiteralExpr.LiteralType.DECIMAL);
+                                (lit.type() == LiteralExpr.LiteralType.FLOAT
+                                        || lit.type() == LiteralExpr.LiteralType.DECIMAL);
                         if (hasSubSecond) {
                             // REGEXP_REPLACE(STRFTIME(ts, '%Y-%m-%dT%H:%M:%S.%f'), '0{1,5}$', '')
-                            // Trims 1-5 trailing zeros from 6-digit microseconds, keeping at least 1 decimal
+                            // Trims 1-5 trailing zeros from 6-digit microseconds, keeping at least 1
+                            // decimal
                             yield FunctionExpression.of("replace",
                                     FunctionExpression.of("strftime", ts, Literal.string("%Y-%m-%dT%H:%M:%S.%f")),
                                     Literal.string("0{1,5}$"), Literal.string(""));
@@ -5612,10 +5778,13 @@ public final class PureCompiler {
                 // date(y, m, d) or fewer -> make_date(y, m, d)
                 if (args.isEmpty()) {
                     // date(y) -> year-only precision
-                    yield FunctionExpression.of("strftime", FunctionExpression.of("date", year, Literal.integer(1), Literal.integer(1)), Literal.string("%Y"));
+                    yield FunctionExpression.of("strftime",
+                            FunctionExpression.of("date", year, Literal.integer(1), Literal.integer(1)),
+                            Literal.string("%Y"));
                 } else if (args.size() == 1) {
                     // date(y, m) -> year-month precision
-                    yield FunctionExpression.of("strftime", FunctionExpression.of("date", year, month, Literal.integer(1)), Literal.string("%Y-%m"));
+                    yield FunctionExpression.of("strftime",
+                            FunctionExpression.of("date", year, month, Literal.integer(1)), Literal.string("%Y-%m"));
                 }
                 yield FunctionExpression.of("date", year, month, day);
             }
@@ -5665,7 +5834,8 @@ public final class PureCompiler {
                 boolean isStrictDate = timestamp.type() == Primitive.STRICT_DATE;
                 if (isStrictDate) {
                     switch (unitName.toUpperCase()) {
-                        case "YEARS", "MONTHS", "WEEKS", "DAYS" -> { }
+                        case "YEARS", "MONTHS", "WEEKS", "DAYS" -> {
+                        }
                         default -> throw new PureCompileException(
                                 "Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]");
                     }
@@ -5744,17 +5914,19 @@ public final class PureCompiler {
 
             // ===== DATE INTROSPECTION FUNCTIONS =====
             // Pure dates have precision (year-only, year-month, full date, datetime, etc.)
-            // DuckDB always has full timestamps, so we check based on the original literal precision.
+            // DuckDB always has full timestamps, so we check based on the original literal
+            // precision.
             // For full timestamps/dates, all components are present -> true.
             // For partial dates (%2015, %2015-04), only some components exist.
             case "hasDay", "hasMonth" -> {
                 // Check if source is a date literal with enough precision
                 Expression src = compileToSqlExpression(methodCall.source(), context);
-                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE
+                        || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
                     String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
                     boolean hasComponent = shortMethodName.equals("hasMonth")
-                            ? stripped.length() >= 7  // yyyy-MM
+                            ? stripped.length() >= 7 // yyyy-MM
                             : stripped.length() >= 10; // yyyy-MM-dd
                     yield Literal.bool(hasComponent);
                 }
@@ -5763,7 +5935,8 @@ public final class PureCompiler {
             }
             case "hasHour", "hasMinute", "hasSecond" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
-                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE
+                        || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
                     String stripped = dateStr.startsWith("%") ? dateStr.substring(1) : dateStr;
                     boolean hasTime = stripped.contains("T");
@@ -5783,7 +5956,8 @@ public final class PureCompiler {
             }
             case "hasSubsecond", "hasSubsecondWithAtLeastPrecision" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
-                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
+                if (src instanceof Literal lit && (lit.literalType() == Literal.LiteralType.DATE
+                        || lit.literalType() == Literal.LiteralType.TIMESTAMP)) {
                     String dateStr = (String) lit.value();
                     yield Literal.bool(dateStr.contains("."));
                 }
@@ -5814,7 +5988,8 @@ public final class PureCompiler {
                         pureType);
             }
 
-            // isEmpty: value->isEmpty() -> value IS NULL (scalars) or len(value) = 0 (lists)
+            // isEmpty: value->isEmpty() -> value IS NULL (scalars) or len(value) = 0
+            // (lists)
             case "isEmpty" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.source() instanceof ArrayLiteral) {
@@ -5822,7 +5997,8 @@ public final class PureCompiler {
                 }
                 yield new ComparisonExpression(src, ComparisonExpression.ComparisonOperator.IS_NULL, null);
             }
-            // isNotEmpty: value->isNotEmpty() -> value IS NOT NULL (scalars) or len(value) > 0 (lists)
+            // isNotEmpty: value->isNotEmpty() -> value IS NOT NULL (scalars) or len(value)
+            // > 0 (lists)
             case "isNotEmpty" -> {
                 Expression src = compileToSqlExpression(methodCall.source(), context);
                 if (methodCall.source() instanceof ArrayLiteral) {
@@ -5843,8 +6019,10 @@ public final class PureCompiler {
                 Expression low = compileToSqlExpression(args.get(0), context);
                 Expression high = compileToSqlExpression(args.get(1), context);
                 yield LogicalExpression.and(
-                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS, low),
-                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS, high));
+                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.GREATER_THAN_OR_EQUALS,
+                                low),
+                        new ComparisonExpression(value, ComparisonExpression.ComparisonOperator.LESS_THAN_OR_EQUALS,
+                                high));
             }
             case "xor" -> { // a->xor(b) -> (a AND NOT b) OR (NOT a AND b)
                 if (methodCall.arguments().isEmpty())
@@ -5882,7 +6060,8 @@ public final class PureCompiler {
             case "list" -> compileToSqlExpression(methodCall.source(), context);
 
             case "coalesce" -> {
-                // Pure's [] means "no value" (like SQL NULL), but our compiler emits DuckDB [] (empty array, NOT NULL).
+                // Pure's [] means "no value" (like SQL NULL), but our compiler emits DuckDB []
+                // (empty array, NOT NULL).
                 // COALESCE only skips NULL, so we must convert empty ArrayLiterals to NULL.
                 java.util.List<Expression> coalArgs = new java.util.ArrayList<>();
                 coalArgs.add(isEmptyArrayLiteral(methodCall.source())
@@ -5982,7 +6161,8 @@ public final class PureCompiler {
 
         Expression valueToCheck = compileToSqlExpression(methodCall.arguments().getFirst(), context);
 
-        // Type mismatch short-circuit: struct list vs primitive (or vice versa) -> always false
+        // Type mismatch short-circuit: struct list vs primitive (or vice versa) ->
+        // always false
         if (list instanceof ListLiteral ll && !ll.isEmpty()) {
             boolean listIsStruct = ll.elements().getFirst() instanceof StructLiteralExpression;
             boolean valueIsStruct = valueToCheck instanceof StructLiteralExpression;
@@ -6022,19 +6202,24 @@ public final class PureCompiler {
     }
 
     /**
-     * Checks if a list of compiled SQL expressions contains elements of truly incompatible types.
+     * Checks if a list of compiled SQL expressions contains elements of truly
+     * incompatible types.
      * Used to detect heterogeneous Pure lists that need JSON[] wrapping.
-     * Numeric types (INTEGER, BIGINT, DOUBLE, DECIMAL) are considered compatible since
+     * Numeric types (INTEGER, BIGINT, DOUBLE, DECIMAL) are considered compatible
+     * since
      * DuckDB natively promotes them.
      */
     private boolean hasMixedTypes(List<Expression> elements) {
-        if (elements.size() <= 1) return false;
+        if (elements.size() <= 1)
+            return false;
         GenericType firstType = elements.getFirst().type();
         for (int i = 1; i < elements.size(); i++) {
             GenericType t = elements.get(i).type();
             // Skip any/nil types — they can't participate in type comparison
-            if (isTypeComparisonNeutral(t) || isTypeComparisonNeutral(firstType)) continue;
-            if (!t.equals(firstType) && !areNumericCompatible(firstType, t) && !areDateCompatible(firstType, t)) return true;
+            if (isTypeComparisonNeutral(t) || isTypeComparisonNeutral(firstType))
+                continue;
+            if (!t.equals(firstType) && !areNumericCompatible(firstType, t) && !areDateCompatible(firstType, t))
+                return true;
         }
         return false;
     }
@@ -6090,15 +6275,18 @@ public final class PureCompiler {
     }
 
     /**
-     * Checks if two list expressions need JSON promotion for cross-type concatenation.
+     * Checks if two list expressions need JSON promotion for cross-type
+     * concatenation.
      * Returns true if both are ListLiterals with different element types.
      */
     private boolean needsCrossTypeConcatPromotion(Expression left, Expression right) {
         if (left instanceof ListLiteral ll && right instanceof ListLiteral rl) {
-            if (ll.isEmpty() || rl.isEmpty()) return false;
+            if (ll.isEmpty() || rl.isEmpty())
+                return false;
             GenericType leftType = ll.elements().getFirst().type();
             GenericType rightType = rl.elements().getFirst().type();
-            if (isTypeComparisonNeutral(leftType) || isTypeComparisonNeutral(rightType)) return false;
+            if (isTypeComparisonNeutral(leftType) || isTypeComparisonNeutral(rightType))
+                return false;
             return !leftType.equals(rightType) && !areNumericCompatible(leftType, rightType);
         }
         return false;
@@ -6146,9 +6334,10 @@ public final class PureCompiler {
     }
 
     /**
-     * Compiles exists(x | condition) on collections to len(list_filter(arr, x -> condition)) > 0
+     * Compiles exists(x | condition) on collections to len(list_filter(arr, x ->
+     * condition)) > 0
      * Pure: [1,2,3]->exists(x|$x > 2) = true
-     * SQL:  len(list_filter([1,2,3], x -> x > 2)) > 0  
+     * SQL: len(list_filter([1,2,3], x -> x > 2)) > 0
      */
     private Expression compileExistsCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
@@ -6176,7 +6365,8 @@ public final class PureCompiler {
      *
      * When the source is a struct list and the initial value is a different type
      * (e.g., string), DuckDB's list_reduce fails with a type mismatch error.
-     * In this case, we decompose into: list_reduce(list_transform(source, elem -> f(elem)), (acc, x) -> acc + x, init)
+     * In this case, we decompose into: list_reduce(list_transform(source, elem ->
+     * f(elem)), (acc, x) -> acc + x, init)
      */
     private Expression compileFoldCall(FunctionCall methodCall, CompilationContext context) {
         Expression source = compileToSqlExpression(methodCall.source(), context);
@@ -6208,7 +6398,8 @@ public final class PureCompiler {
             source = FunctionExpression.of("list", source);
         }
 
-        // Fix 1: Detect "list accumulation" pattern: fold({val, acc | acc->add(val)}, init)
+        // Fix 1: Detect "list accumulation" pattern: fold({val, acc | acc->add(val)},
+        // init)
         // When the fold lambda is just appending elements to a list accumulator,
         // compile as list_concat(initial, source) instead of list_reduce.
         if (isFoldListAccumulation(lambda, pureElemParam, pureAccParam)) {
@@ -6218,9 +6409,11 @@ public final class PureCompiler {
             return FunctionExpression.of("concatenate", init, source);
         }
 
-        // Check if source is a struct list that needs decomposition for DuckDB compatibility.
+        // Check if source is a struct list that needs decomposition for DuckDB
+        // compatibility.
         // DuckDB's list_reduce requires initial value type = list element type.
-        // When folding structs into a string, we decompose into list_transform + list_reduce.
+        // When folding structs into a string, we decompose into list_transform +
+        // list_reduce.
         String elemClassName = extractStructListClassName(methodCall.source());
         if (elemClassName != null && !(initialValue instanceof StructLiteralExpression)) {
             Expression lambdaBody = compileToSqlExpression(lambda.body(),
@@ -6230,7 +6423,8 @@ public final class PureCompiler {
             // Try to decompose the body: strip accumulator from left spine of ADD chain
             Expression elemTransform = stripAccumulatorFromBody(lambdaBody, pureAccParam);
             if (elemTransform != null) {
-                // Generate: list_reduce(list_transform(source, elem -> elemTransform), (acc, x) -> acc || x, init)
+                // Generate: list_reduce(list_transform(source, elem -> elemTransform), (acc, x)
+                // -> acc || x, init)
                 Expression transformedList = CollectionExpression.map(source, pureElemParam, elemTransform);
                 String freshX = "__x";
                 GenericType accType = initialValue.type();
@@ -6243,7 +6437,8 @@ public final class PureCompiler {
 
         // Fix 3: Generalize mixed-type fold decomposition for any list type.
         // When accumulator type differs from list element type, decompose into
-        // list_reduce(list_transform(source, elem -> f(elem)), (acc, x) -> acc OP x, init).
+        // list_reduce(list_transform(source, elem -> f(elem)), (acc, x) -> acc OP x,
+        // init).
         if (elemClassName == null) {
             Expression lambdaBody = compileToSqlExpression(lambda.body(),
                     context.withFoldParameters(pureElemParam, pureAccParam,
@@ -6260,10 +6455,13 @@ public final class PureCompiler {
             }
         }
 
-        // Fix 4: List-accumulator fold — wrap source elements to match accumulator type.
-        // When the initial value is a list (e.g., [-1, 0]) but source elements are scalar (e.g., INTEGER),
+        // Fix 4: List-accumulator fold — wrap source elements to match accumulator
+        // type.
+        // When the initial value is a list (e.g., [-1, 0]) but source elements are
+        // scalar (e.g., INTEGER),
         // DuckDB's list_reduce fails because INTEGER != INTEGER[].
-        // Solution: wrap each source element in a single-element list so both are INTEGER[],
+        // Solution: wrap each source element in a single-element list so both are
+        // INTEGER[],
         // then use a param override to unwrap element references during compilation.
         if (initialValue instanceof ListLiteral initList && !initList.isEmpty()) {
             // Wrap source: list_transform(source, __e -> list_value(__e))
@@ -6272,14 +6470,15 @@ public final class PureCompiler {
             Expression wrappedSource = CollectionExpression.map(source, wrapParam,
                     FunctionExpression.of("list", new ColumnReference("", wrapParam, wrapElemType)));
 
-            // Compile body with element param overridden to list_extract(param, 1) for unwrapping
+            // Compile body with element param overridden to list_extract(param, 1) for
+            // unwrapping
             GenericType elemListType = wrappedSource.type().elementType();
             Expression elemUnwrap = FunctionExpression.of("list_extract",
                     new ColumnReference("", pureElemParam, elemListType), Literal.integer(1));
             Expression lambdaBody = compileToSqlExpression(lambda.body(),
                     context.withFoldParameters(pureElemParam, pureAccParam,
                             source.type().elementType(), initialValue.type())
-                           .withParamOverride(pureElemParam, elemUnwrap));
+                            .withParamOverride(pureElemParam, elemUnwrap));
 
             return CollectionExpression.fold(wrappedSource, pureAccParam, pureElemParam, lambdaBody, initialValue);
         }
@@ -6296,44 +6495,55 @@ public final class PureCompiler {
 
     /**
      * Checks if an expression is known to return a list (not a scalar).
-     * Used to avoid double-wrapping in tail/init where scalars need [x] but list results don't.
+     * Used to avoid double-wrapping in tail/init where scalars need [x] but list
+     * results don't.
      */
     private boolean isListReturningExpression(Expression expr) {
         if (expr instanceof FunctionExpression func) {
             return switch (func.functionName().toLowerCase()) {
                 case "add", "list_prepend", "concatenate", "list_slice",
-                     "sort", "reverse", "removeDuplicates", "list_filter",
-                     "list_transform", "list", "list_resize", "flatten",
-                     "list_reduce" -> true;
+                        "sort", "reverse", "removeDuplicates", "list_filter",
+                        "list_transform", "list", "list_resize", "flatten",
+                        "list_reduce" ->
+                    true;
                 default -> false;
             };
         }
-        if (expr instanceof CollectionExpression) return true;
-        if (expr instanceof CaseExpression) return true; // CASE branches may return lists
+        if (expr instanceof CollectionExpression)
+            return true;
+        if (expr instanceof CaseExpression)
+            return true; // CASE branches may return lists
         return false;
     }
 
     /**
-     * Detects if the fold lambda body is a "list accumulation" pattern: acc->add(val).
+     * Detects if the fold lambda body is a "list accumulation" pattern:
+     * acc->add(val).
      * In the AST, this is a MethodCall with source=$acc, method="add", args=[$val].
      */
     private boolean isFoldListAccumulation(LambdaExpression lambda, String elemParam, String accParam) {
         PureExpression body = lambda.body();
-        if (!(body instanceof FunctionCall addCall)) return false;
+        if (!(body instanceof FunctionCall addCall))
+            return false;
         String shortName = addCall.functionName().contains("::")
                 ? addCall.functionName().substring(addCall.functionName().lastIndexOf("::") + 2)
                 : addCall.functionName();
-        if (!"add".equals(shortName)) return false;
+        if (!"add".equals(shortName))
+            return false;
         // Source must be the accumulator variable
-        if (!(addCall.source() instanceof VariableExpr accVar) || !accVar.name().equals(accParam)) return false;
+        if (!(addCall.source() instanceof VariableExpr accVar) || !accVar.name().equals(accParam))
+            return false;
         // Single argument must be the element variable
-        if (addCall.arguments().size() != 1) return false;
-        if (!(addCall.arguments().getFirst() instanceof VariableExpr elemVar) || !elemVar.name().equals(elemParam)) return false;
+        if (addCall.arguments().size() != 1)
+            return false;
+        if (!(addCall.arguments().getFirst() instanceof VariableExpr elemVar) || !elemVar.name().equals(elemParam))
+            return false;
         return true;
     }
 
     /**
-     * Strips CAST from an empty list expression to avoid type mismatch in list_concat.
+     * Strips CAST from an empty list expression to avoid type mismatch in
+     * list_concat.
      * CAST([] AS VARCHAR[]) -> [] (untyped, DuckDB infers from other operand)
      */
     private Expression stripEmptyListCast(Expression expr) {
@@ -6353,16 +6563,21 @@ public final class PureCompiler {
 
     /**
      * Checks if a fold source is a scalar value (not a list) that needs wrapping.
-     * Returns true for literals and other non-array expressions that aren't already lists.
+     * Returns true for literals and other non-array expressions that aren't already
+     * lists.
      */
     private boolean isScalarFoldSource(PureExpression pureSource, Expression compiledSource) {
         // Array literals are already lists
-        if (pureSource instanceof ArrayLiteral) return false;
+        if (pureSource instanceof ArrayLiteral)
+            return false;
         // Method calls that return lists (cast, range, etc.) are not scalar
-        if (pureSource instanceof FunctionCall) return false;
-        if (pureSource instanceof FunctionCall) return false;
+        if (pureSource instanceof FunctionCall)
+            return false;
+        if (pureSource instanceof FunctionCall)
+            return false;
         // Literal values (integers, strings) are scalar
-        if (pureSource instanceof LiteralExpr) return true;
+        if (pureSource instanceof LiteralExpr)
+            return true;
         // Variable references could be either — assume list for safety
         return false;
     }
@@ -6373,38 +6588,49 @@ public final class PureCompiler {
      * Used to optimize at(0) as a no-op for struct field access.
      */
     private boolean isScalarStructPropertyAccess(PureExpression source, CompilationContext context) {
-        if (!(source instanceof PropertyAccessExpression propAccess)) return false;
-        if (!(propAccess.source() instanceof VariableExpr var)) return false;
-        if (context == null || !context.isLambdaParameter(var.name())) return false;
+        if (!(source instanceof PropertyAccessExpression propAccess))
+            return false;
+        if (!(propAccess.source() instanceof VariableExpr var))
+            return false;
+        if (context == null || !context.isLambdaParameter(var.name()))
+            return false;
 
         String className = context.getLambdaParamClass(var.name());
-        if (className == null) return false;
+        if (className == null)
+            return false;
 
         var pureClass = findClass(className);
-        if (pureClass.isEmpty()) return false;
+        if (pureClass.isEmpty())
+            return false;
 
         var property = pureClass.get().findProperty(propAccess.propertyName());
         return property.isPresent() && property.get().multiplicity().isSingular();
     }
 
     /**
-     * Extracts the class name from a struct list source (ArrayLiteral of InstanceExpressions).
+     * Extracts the class name from a struct list source (ArrayLiteral of
+     * InstanceExpressions).
      * Returns null if the source is not a struct list.
      */
     private String extractStructListClassName(PureExpression source) {
-        if (!(source instanceof ArrayLiteral array)) return null;
-        if (array.elements().isEmpty()) return null;
-        if (!(array.elements().getFirst() instanceof InstanceExpression inst)) return null;
+        if (!(source instanceof ArrayLiteral array))
+            return null;
+        if (array.elements().isEmpty())
+            return null;
+        if (!(array.elements().getFirst() instanceof InstanceExpression inst))
+            return null;
         return inst.className();
     }
 
     /**
      * Strips the accumulator reference from the left spine of an ADD/CONCAT chain.
-     * For a body like: CONCAT([CONCAT([CONCAT([CONCAT([acc, '; ']), p.lastName]), ', ']), p.firstName])
-     * Returns:         CONCAT([CONCAT([CONCAT(['; ', p.lastName]), ', ']), p.firstName])
+     * For a body like: CONCAT([CONCAT([CONCAT([CONCAT([acc, '; ']), p.lastName]),
+     * ', ']), p.firstName])
+     * Returns: CONCAT([CONCAT([CONCAT(['; ', p.lastName]), ', ']), p.firstName])
      * (i.e., the element-only transform expression)
      *
-     * Handles both ArithmeticExpression (numeric fold) and ConcatExpression (string fold).
+     * Handles both ArithmeticExpression (numeric fold) and ConcatExpression (string
+     * fold).
      * Returns null if the accumulator cannot be found in the left spine.
      */
     private Expression stripAccumulatorFromBody(Expression body, String accParam) {
@@ -6674,7 +6900,8 @@ public final class PureCompiler {
 
         Expression correlation = ComparisonExpression.equals(
                 ColumnReference.of(targetAlias, innerColumn, targetMapping.table().getColumnType(innerColumn)),
-                ColumnReference.of(context.tableAlias(), outerColumn, context.mapping().table().getColumnType(outerColumn)));
+                ColumnReference.of(context.tableAlias(), outerColumn,
+                        context.mapping().table().getColumnType(outerColumn)));
 
         // Build the filter condition on the target property
         // The final segment should be a property access on the target class
@@ -6683,7 +6910,8 @@ public final class PureCompiler {
         String targetColumn = targetMapping.getColumnForProperty(targetProperty)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + targetProperty));
 
-        Expression left = ColumnReference.of(targetAlias, targetColumn, targetMapping.pureTypeForProperty(targetProperty));
+        Expression left = ColumnReference.of(targetAlias, targetColumn,
+                targetMapping.pureTypeForProperty(targetProperty));
         Expression right = compileLiteral((LiteralExpr) rightExpr);
 
         ComparisonExpression.ComparisonOperator sqlOp = switch (op) {
@@ -6728,7 +6956,8 @@ public final class PureCompiler {
 
         // Extract the variable name from the source (e.g., "x" from $x.col)
         // If the source is a complex expression (filter, method call, etc.),
-        // fall back to collection property access: list_transform(source, _x -> _x.prop)
+        // fall back to collection property access: list_transform(source, _x ->
+        // _x.prop)
         String varName;
         try {
             varName = extractVariableName(propAccess.source());
@@ -6747,7 +6976,8 @@ public final class PureCompiler {
 
             // Source is a collection — wrap in list_transform
             String syntheticParam = "_prop_x";
-            // Resolve property type from the source's element type (e.g., List<CO_Firm> → CO_Firm.legalName → STRING)
+            // Resolve property type from the source's element type (e.g., List<CO_Firm> →
+            // CO_Firm.legalName → STRING)
             GenericType elemType = compiledSource.type().elementType();
             GenericType propType = resolvePropertyFromClassType(propertyName, elemType);
             if (propType == null) {
@@ -6774,7 +7004,8 @@ public final class PureCompiler {
                     String columnName = context.mapping().getColumnForProperty(propertyName)
                             .orElseThrow(
                                     () -> new PureCompileException("No column mapping for property: " + propertyName));
-                    return ColumnReference.of(rowAlias, columnName, context.mapping().pureTypeForProperty(propertyName));
+                    return ColumnReference.of(rowAlias, columnName,
+                            context.mapping().pureTypeForProperty(propertyName));
                 }
 
                 // Check binding's source column types (for join/asOfJoin lambdas)
@@ -6799,7 +7030,8 @@ public final class PureCompiler {
                 return ColumnReference.of(rowAlias, fullPath, resolvePropertyType(propertyName, context));
             }
             // SCALAR binding: if value is a StructLiteralExpression, extract the field
-            if (binding.kind() == SymbolBinding.BindingKind.SCALAR && binding.value() instanceof StructLiteralExpression struct) {
+            if (binding.kind() == SymbolBinding.BindingKind.SCALAR
+                    && binding.value() instanceof StructLiteralExpression struct) {
                 Expression fieldValue = struct.fields().get(propertyName);
                 if (fieldValue != null) {
                     return fieldValue;
@@ -6810,7 +7042,8 @@ public final class PureCompiler {
                     "Cannot access property '" + propertyName + "' on " + binding.kind() + " variable: $" + varName);
         }
 
-        // Check if variable is a lambda parameter (from collection operations like map/filter/fold)
+        // Check if variable is a lambda parameter (from collection operations like
+        // map/filter/fold)
         // For struct elements, property access becomes struct field access: p.lastName
         if (context != null && context.lambdaParameters() != null && context.isLambdaParameter(varName)) {
             return ColumnReference.of(varName, fullPath, resolvePropertyType(propertyName, context));
@@ -6837,18 +7070,22 @@ public final class PureCompiler {
         String columnName = context.mapping().getColumnForProperty(propertyName)
                 .orElseThrow(() -> new PureCompileException("No column mapping for property: " + propertyName));
 
-        return ColumnReference.of(context.tableAlias(), columnName, context.mapping().pureTypeForProperty(propertyName));
+        return ColumnReference.of(context.tableAlias(), columnName,
+                context.mapping().pureTypeForProperty(propertyName));
     }
 
     /**
      * Resolves the GenericType for a property access.
      * Checks (in order): extendedColumns, mapping, class definition, lambda params.
      * Throws if ClassType lambda param class is not found in model.
-     * @throws IllegalStateException if type cannot be resolved — indicates missing type propagation upstream
+     * 
+     * @throws IllegalStateException if type cannot be resolved — indicates missing
+     *                               type propagation upstream
      */
     private GenericType resolvePropertyType(String propertyName, CompilationContext context) {
         if (context == null) {
-            throw new IllegalStateException("Cannot resolve type for property '" + propertyName + "': no compilation context");
+            throw new IllegalStateException(
+                    "Cannot resolve type for property '" + propertyName + "': no compilation context");
         }
         // 1. Extended columns (from TDS/extend/flatten/table chain)
         if (context.isExtendedColumn(propertyName)) {
@@ -6875,9 +7112,11 @@ public final class PureCompiler {
         // 4. Lambda param type (for struct iteration like p.lastName)
         {
             GenericType resolved = resolveFromLambdaParamClass(propertyName, context);
-            if (resolved != null) return resolved;
+            if (resolved != null)
+                return resolved;
         }
-        // 5. Lambda param is a ClassType but class not found — caller must provide class defs
+        // 5. Lambda param is a ClassType but class not found — caller must provide
+        // class defs
         if (context.lambdaParamTypes() != null) {
             for (var entry : context.lambdaParamTypes().entrySet()) {
                 if (entry.getValue() instanceof GenericType.ClassType ct) {
@@ -6901,14 +7140,16 @@ public final class PureCompiler {
     }
 
     /**
-     * Resolves property type from lambda parameter ClassType by looking up the Pure class.
+     * Resolves property type from lambda parameter ClassType by looking up the Pure
+     * class.
      */
     private GenericType resolveFromLambdaParamClass(String propertyName, CompilationContext context) {
         // Check all lambda parameter types for ClassType
         if (context.lambdaParamTypes() != null) {
             for (var entry : context.lambdaParamTypes().entrySet()) {
                 GenericType resolved = resolvePropertyFromClassType(propertyName, entry.getValue());
-                if (resolved != null) return resolved;
+                if (resolved != null)
+                    return resolved;
             }
         }
         return null;
@@ -7035,7 +7276,8 @@ public final class PureCompiler {
         return switch (literal.type()) {
             case STRING -> Literal.string((String) literal.value());
             case INTEGER -> {
-                // Preserve BigInteger for values exceeding Long range (e.g., 9223372036854775898)
+                // Preserve BigInteger for values exceeding Long range (e.g.,
+                // 9223372036854775898)
                 if (literal.value() instanceof java.math.BigInteger bi) {
                     yield new Literal(bi, Literal.LiteralType.INTEGER);
                 }
@@ -7173,9 +7415,11 @@ public final class PureCompiler {
         }
 
         /**
-         * Creates a new context with a typed lambda parameter. Every call site must provide a type.
+         * Creates a new context with a typed lambda parameter. Every call site must
+         * provide a type.
          */
-        public CompilationContext withLambdaParameter(String paramName, String alias, org.finos.legend.engine.plan.GenericType elementType) {
+        public CompilationContext withLambdaParameter(String paramName, String alias,
+                org.finos.legend.engine.plan.GenericType elementType) {
             var newParams = new java.util.HashMap<>(lambdaParameters);
             newParams.put(paramName, alias);
             var newTypes = new java.util.HashMap<>(lambdaParamTypes);
@@ -7186,7 +7430,9 @@ public final class PureCompiler {
 
         /**
          * Gets the type of a lambda parameter.
-         * @throws IllegalStateException if param not found — indicates missing type propagation
+         * 
+         * @throws IllegalStateException if param not found — indicates missing type
+         *                               propagation
          */
         public org.finos.legend.engine.plan.GenericType getLambdaParamType(String paramName) {
             org.finos.legend.engine.plan.GenericType type = lambdaParamTypes.get(paramName);
@@ -7214,8 +7460,8 @@ public final class PureCompiler {
          * Creates a new context with fold parameters (accumulator and element).
          */
         public CompilationContext withFoldParameters(String accParam, String elemParam,
-                                                       org.finos.legend.engine.plan.GenericType accType,
-                                                       org.finos.legend.engine.plan.GenericType elemType) {
+                org.finos.legend.engine.plan.GenericType accType,
+                org.finos.legend.engine.plan.GenericType elemType) {
             return withFoldParameters(accParam, elemParam, null, accType, elemType);
         }
 
@@ -7224,8 +7470,8 @@ public final class PureCompiler {
          * The class name enables at(0) optimization for scalar struct properties.
          */
         public CompilationContext withFoldParameters(String accParam, String elemParam, String elemClassName,
-                                                       org.finos.legend.engine.plan.GenericType accType,
-                                                       org.finos.legend.engine.plan.GenericType elemType) {
+                org.finos.legend.engine.plan.GenericType accType,
+                org.finos.legend.engine.plan.GenericType elemType) {
             var newParams = new java.util.HashMap<>(lambdaParameters);
             newParams.put(accParam, "");
             newParams.put(elemParam, elemClassName != null ? elemClassName : "");
@@ -7237,7 +7483,8 @@ public final class PureCompiler {
         }
 
         /**
-         * Gets the class name associated with a lambda parameter (e.g., the element class in fold).
+         * Gets the class name associated with a lambda parameter (e.g., the element
+         * class in fold).
          * Returns null if the parameter has no associated class.
          */
         public String getLambdaParamClass(String paramName) {
@@ -7253,7 +7500,8 @@ public final class PureCompiler {
             var newExtended = new java.util.HashMap<>(extendedColumns);
             newExtended.put(columnName, type);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, newExtended, relationSources, symbols, paramOverrides, lambdaParamTypes);
+                    inFilterContext, lambdaParameters, newExtended, relationSources, symbols, paramOverrides,
+                    lambdaParamTypes);
         }
 
         /**
@@ -7265,7 +7513,8 @@ public final class PureCompiler {
             var newOverrides = new java.util.HashMap<>(paramOverrides);
             newOverrides.put(paramName, expr);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, extendedColumns, relationSources, symbols, newOverrides, lambdaParamTypes);
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, symbols, newOverrides,
+                    lambdaParamTypes);
         }
 
         // ========== Symbol Table Methods (Phase 1 of Variable Binding) ==========
@@ -7273,11 +7522,13 @@ public final class PureCompiler {
         /**
          * Creates a new context with additional extended columns merged in.
          */
-        public CompilationContext withExtendedColumns(java.util.Map<String, org.finos.legend.engine.plan.GenericType> additionalColumns) {
+        public CompilationContext withExtendedColumns(
+                java.util.Map<String, org.finos.legend.engine.plan.GenericType> additionalColumns) {
             var merged = new java.util.HashMap<>(extendedColumns);
             merged.putAll(additionalColumns);
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, merged, relationSources, symbols, paramOverrides, lambdaParamTypes);
+                    inFilterContext, lambdaParameters, merged, relationSources, symbols, paramOverrides,
+                    lambdaParamTypes);
         }
 
         /**
@@ -7289,11 +7540,13 @@ public final class PureCompiler {
             newSymbols.put(paramName, SymbolBinding.row(paramName, alias));
             // Also update lambdaParameter for backward compatibility
             return new CompilationContext(paramName, alias, mapping, className,
-                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides, lambdaParamTypes);
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides,
+                    lambdaParamTypes);
         }
 
         /**
-         * Creates a new context with a ROW binding that carries source relation column types.
+         * Creates a new context with a ROW binding that carries source relation column
+         * types.
          * Used for join/asOfJoin lambdas where each parameter's source schema is known.
          */
         public CompilationContext withRowBinding(String paramName, String alias,
@@ -7301,7 +7554,8 @@ public final class PureCompiler {
             var newSymbols = new java.util.HashMap<>(symbols);
             newSymbols.put(paramName, SymbolBinding.row(paramName, alias, columnTypes));
             return new CompilationContext(paramName, alias, mapping, className,
-                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides, lambdaParamTypes);
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides,
+                    lambdaParamTypes);
         }
 
         /**
@@ -7313,7 +7567,8 @@ public final class PureCompiler {
             var newSymbols = new java.util.HashMap<>(symbols);
             newSymbols.put(paramName, SymbolBinding.relation(paramName, relation));
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides, lambdaParamTypes);
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides,
+                    lambdaParamTypes);
         }
 
         /**
@@ -7324,7 +7579,8 @@ public final class PureCompiler {
             var newSymbols = new java.util.HashMap<>(symbols);
             newSymbols.put(paramName, SymbolBinding.scalar(paramName, expr));
             return new CompilationContext(lambdaParameter, tableAlias, mapping, className,
-                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides, lambdaParamTypes);
+                    inFilterContext, lambdaParameters, extendedColumns, relationSources, newSymbols, paramOverrides,
+                    lambdaParamTypes);
         }
 
         /**
@@ -7367,7 +7623,9 @@ public final class PureCompiler {
 
         /**
          * Gets the type of an extended column.
-         * @throws IllegalStateException if column not found — indicates missing type propagation upstream
+         * 
+         * @throws IllegalStateException if column not found — indicates missing type
+         *                               propagation upstream
          */
         public org.finos.legend.engine.plan.GenericType getExtendedColumnType(String name) {
             org.finos.legend.engine.plan.GenericType type = extendedColumns.get(name);
@@ -7408,7 +7666,8 @@ public final class PureCompiler {
     private static final Set<String> SCALAR_METHODS = Set.of("at", "head", "first", "last");
 
     private static boolean isScalarMethod(String methodName) {
-        // Strip qualified package prefix if present (e.g., meta::pure::...::head -> head)
+        // Strip qualified package prefix if present (e.g., meta::pure::...::head ->
+        // head)
         int lastColon = methodName.lastIndexOf(':');
         String simpleName = lastColon >= 0 ? methodName.substring(lastColon + 1) : methodName;
         return SCALAR_METHODS.contains(simpleName);

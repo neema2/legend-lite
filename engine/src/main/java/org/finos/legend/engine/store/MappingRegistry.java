@@ -181,6 +181,19 @@ public final class MappingRegistry {
     }
 
     /**
+     * Finds a Join that connects two tables (by name, in either direction).
+     */
+    public Optional<Join> findJoinBetweenTables(String table1, String table2) {
+        for (Join join : joinsByName.values()) {
+            if ((join.leftTable().equals(table1) && join.rightTable().equals(table2))
+                    || (join.leftTable().equals(table2) && join.rightTable().equals(table1))) {
+                return Optional.of(join);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Clears all registered mappings.
      */
     public void clear() {
