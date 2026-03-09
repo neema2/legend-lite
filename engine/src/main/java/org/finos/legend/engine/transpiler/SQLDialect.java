@@ -159,4 +159,54 @@ public interface SQLDialect {
      * @return Unnest expression (e.g., DuckDB: "UNNEST(path)")
      */
     String renderUnnestExpression(String arrayPath);
+
+    // ==================== Scalar Function Rendering ====================
+
+    /**
+     * Render a list-contains check.
+     *
+     * @param listExpr The list/array expression
+     * @param elemExpr The element to find
+     * @return Dialect-specific contains expression (e.g., DuckDB:
+     *         "LIST_CONTAINS(list, elem)")
+     */
+    String renderListContains(String listExpr, String elemExpr);
+
+    /**
+     * Map a Pure type name to the SQL type name for CAST expressions.
+     *
+     * @param pureTypeName Pure type name (e.g., "String", "Integer", "Float")
+     * @return SQL type name (e.g., DuckDB: "VARCHAR", "BIGINT", "DOUBLE")
+     */
+    String sqlTypeName(String pureTypeName);
+
+    /**
+     * Render date arithmetic: date + amount * unit.
+     *
+     * @param dateExpr Compiled date expression
+     * @param amount   Compiled amount expression
+     * @param unit     SQL interval unit (e.g., "DAY", "MONTH", "YEAR")
+     * @return Dialect-specific date add (e.g., DuckDB: "(date + (INTERVAL '1' DAY *
+     *         amount))")
+     */
+    String renderDateAdd(String dateExpr, String amount, String unit);
+
+    /**
+     * Render starts-with check.
+     *
+     * @param str    String expression
+     * @param prefix Prefix expression
+     * @return Dialect-specific starts-with (e.g., DuckDB: "STARTS_WITH(str,
+     *         prefix)")
+     */
+    String renderStartsWith(String str, String prefix);
+
+    /**
+     * Render ends-with check.
+     *
+     * @param str    String expression
+     * @param suffix Suffix expression
+     * @return Dialect-specific ends-with (e.g., DuckDB: "str LIKE '%' || suffix")
+     */
+    String renderEndsWith(String str, String suffix);
 }

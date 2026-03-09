@@ -52,4 +52,38 @@ public final class SQLiteDialect implements SQLDialect {
     public String renderUnnestExpression(String arrayPath) {
         throw new UnsupportedOperationException("SQLite does not support UNNEST");
     }
+
+    @Override
+    public String renderListContains(String listExpr, String elemExpr) {
+        // SQLite: use IN or json_each for list membership
+        throw new UnsupportedOperationException("SQLite does not support list contains");
+    }
+
+    @Override
+    public String sqlTypeName(String pureTypeName) {
+        return switch (pureTypeName) {
+            case "String" -> "TEXT";
+            case "Integer" -> "INTEGER";
+            case "Float", "Decimal" -> "REAL";
+            case "Boolean" -> "INTEGER"; // SQLite has no boolean type
+            case "Date", "StrictDate", "DateTime" -> "TEXT"; // SQLite stores dates as text
+            default -> "TEXT";
+        };
+    }
+
+    @Override
+    public String renderDateAdd(String dateExpr, String amount, String unit) {
+        // SQLite uses datetime(date, '+N unit')
+        throw new UnsupportedOperationException("SQLite date arithmetic not yet implemented");
+    }
+
+    @Override
+    public String renderStartsWith(String str, String prefix) {
+        return str + " LIKE " + prefix + " || '%'";
+    }
+
+    @Override
+    public String renderEndsWith(String str, String suffix) {
+        return str + " LIKE '%' || " + suffix;
+    }
 }

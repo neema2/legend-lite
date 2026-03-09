@@ -245,6 +245,9 @@ public class QueryService {
         SQLDialect dialect = getDialect(connectionDef.databaseType());
         String sql = new SQLGenerator(dialect).generate(ir);
 
+        // Dual-run: compare new pipeline SQL with old pipeline SQL
+        tryNewPipeline(query, mappingRegistry, model, dialect, sql);
+
         System.out.println("Pure Query: " + query);
         System.out.println("Generated SQL: " + sql);
 

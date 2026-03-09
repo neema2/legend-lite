@@ -63,7 +63,39 @@ public final class DuckDBDialect implements SQLDialect {
 
     @Override
     public String renderUnnestExpression(String arrayPath) {
-        // DuckDB: UNNEST(path)
         return "UNNEST(" + arrayPath + ")";
+    }
+
+    @Override
+    public String renderListContains(String listExpr, String elemExpr) {
+        return "LIST_CONTAINS(" + listExpr + ", " + elemExpr + ")";
+    }
+
+    @Override
+    public String sqlTypeName(String pureTypeName) {
+        return switch (pureTypeName) {
+            case "String" -> "VARCHAR";
+            case "Integer" -> "BIGINT";
+            case "Float", "Decimal" -> "DOUBLE";
+            case "Boolean" -> "BOOLEAN";
+            case "Date", "StrictDate" -> "DATE";
+            case "DateTime" -> "TIMESTAMP";
+            default -> "VARCHAR";
+        };
+    }
+
+    @Override
+    public String renderDateAdd(String dateExpr, String amount, String unit) {
+        return "(" + dateExpr + " + (INTERVAL '1' " + unit + " * " + amount + "))";
+    }
+
+    @Override
+    public String renderStartsWith(String str, String prefix) {
+        return "STARTS_WITH(" + str + ", " + prefix + ")";
+    }
+
+    @Override
+    public String renderEndsWith(String str, String suffix) {
+        return str + " LIKE '%' || " + suffix;
     }
 }

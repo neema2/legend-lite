@@ -647,11 +647,7 @@ public class SqlCompiler {
 
     /**
      * Translates a Pure expression mapping string to SQL.
-     * Examples:
-     * [OrderDB] T_ORDERS.DATA->get('customerName', @String)
-     * → CAST(("t0"."DATA")->>'customerName' AS VARCHAR)
-     * [OrderDB] T_ORDERS.DATA->get('price', @Integer)
-     * → CAST(("t0"."DATA")->>'price' AS BIGINT)
+     * Uses dialect for JSON access and type names.
      */
     private String translateExpressionToSql(String expression, String columnName, String alias) {
         // Pattern: ->get('key', @Type) or ->get('key')
@@ -665,18 +661,13 @@ public class SqlCompiler {
 
             String qualifiedCol = "(" + dialect.quoteIdentifier(alias) + "."
                     + dialect.quoteIdentifier(columnName) + ")";
-            String jsonAccess = qualifiedCol + "->>" + dialect.quoteStringLiteral(key);
+            var jsonDialect = dialect.getJsonDialect();
+            String jsonAccess = jsonDialect != null
+                    ? jsonDialect.variantGet(qualifiedCol, dialect.quoteStringLiteral(key))
+                    : qualifiedCol + "->>" + dialect.quoteStringLiteral(key);
 
             if (pureType != null) {
-                String sqlType = switch (pureType) {
-                    case "String" -> "VARCHAR";
-                    case "Integer" -> "BIGINT";
-                    case "Float", "Decimal" -> "DOUBLE";
-                    case "Boolean" -> "BOOLEAN";
-                    case "Date", "StrictDate" -> "DATE";
-                    case "DateTime" -> "TIMESTAMP";
-                    default -> "VARCHAR";
-                };
+                String sqlType = dialect.sqlTypeName(pureType);
                 return "CAST((" + jsonAccess + ") AS " + sqlType + ")";
             }
             return jsonAccess;
@@ -1362,17 +1353,14 @@ public class SqlCompiler {
             case "divide" -> c.apply(params.get(0)) + " / " + c.apply(params.get(1));
             case "rem" -> c.apply(params.get(0)) + " % " + c.apply(params.get(1));
             // --- String ---
-            case "contains" -> "LIST_CONTAINS(" + c.apply(params.get(0))
-                    + ", " + c.apply(params.get(1)) + ")";
-            case "startsWith" -> "STARTS_WITH(" + c.apply(params.get(0))
-                    + ", " + c.apply(params.get(1)) + ")";
-            case "endsWith" -> c.apply(params.get(0))
-                    + " LIKE '%' || " + c.apply(params.get(1));
+            case "contains" -> dialect.renderListContains(c.apply(params.get(0)), c.apply(params.get(1)));
+            case "startsWith" -> dialect.renderStartsWith(c.apply(params.get(0)), c.apply(params.get(1)));
+            case "endsWith" -> dialect.renderEndsWith(c.apply(params.get(0)), c.apply(params.get(1)));
             case "toLower" -> "LOWER(" + c.apply(params.get(0)) + ")";
             case "toUpper" -> "UPPER(" + c.apply(params.get(0)) + ")";
             case "length" -> "LENGTH(" + c.apply(params.get(0)) + ")";
             case "trim" -> "TRIM(" + c.apply(params.get(0)) + ")";
-            case "toString" -> "CAST(" + c.apply(params.get(0)) + " AS VARCHAR)";
+            case "toString" -> "CAST(" + c.apply(params.get(0)) + " AS " + dialect.sqlTypeName("String") + ")";
             case "substring" -> {
                 String str = c.apply(params.get(0));
                 String start = c.apply(params.get(1));
@@ -1402,9 +1390,12 @@ public class SqlCompiler {
             case "log" -> "LOG(" + c.apply(params.get(0)) + ")";
             case "exp" -> "EXP(" + c.apply(params.get(0)) + ")";
             // --- Cast ---
-            case "toInteger", "parseInteger" -> "CAST(" + c.apply(params.get(0)) + " AS INTEGER)";
-            case "toFloat", "parseFloat" -> "CAST(" + c.apply(params.get(0)) + " AS DOUBLE)";
-            case "toDecimal", "parseDecimal" -> "CAST(" + c.apply(params.get(0)) + " AS DECIMAL)";
+            case "toInteger", "parseInteger" ->
+                "CAST(" + c.apply(params.get(0)) + " AS " + dialect.sqlTypeName("Integer") + ")";
+            case "toFloat", "parseFloat" ->
+                "CAST(" + c.apply(params.get(0)) + " AS " + dialect.sqlTypeName("Float") + ")";
+            case "toDecimal", "parseDecimal" ->
+                "CAST(" + c.apply(params.get(0)) + " AS " + dialect.sqlTypeName("Decimal") + ")";
             // --- If/Case ---
             case "if" -> {
                 String cond = c.apply(params.get(0));
@@ -1418,8 +1409,8 @@ public class SqlCompiler {
             case "in" -> {
                 String left = c.apply(params.get(0));
                 if (params.get(1) instanceof Collection coll) {
-                    String vals = coll.values().stream().map(c).collect(Collectors.joining(", "));
-                    yield "LIST_CONTAINS([" + vals + "], " + left + ")";
+                    yield dialect.renderListContains(dialect.renderArrayLiteral(
+                            coll.values().stream().map(c).collect(java.util.stream.Collectors.toList())), left);
                 }
                 yield left + " IN (" + c.apply(params.get(1)) + ")";
             }
@@ -1498,17 +1489,21 @@ public class SqlCompiler {
             case "rem" -> binaryOp(params, "%", rowParam, mapping);
 
             // --- String ---
-            case "contains" -> "LIST_CONTAINS(" + compileScalar(params.get(0), rowParam, mapping)
-                    + ", " + compileScalar(params.get(1), rowParam, mapping) + ")";
-            case "startsWith" -> "STARTS_WITH(" + compileScalar(params.get(0), rowParam, mapping)
-                    + ", " + compileScalar(params.get(1), rowParam, mapping) + ")";
-            case "endsWith" -> compileScalar(params.get(0), rowParam, mapping)
-                    + " LIKE '%' || " + compileScalar(params.get(1), rowParam, mapping);
+            case "contains" -> dialect.renderListContains(
+                    compileScalar(params.get(0), rowParam, mapping),
+                    compileScalar(params.get(1), rowParam, mapping));
+            case "startsWith" -> dialect.renderStartsWith(
+                    compileScalar(params.get(0), rowParam, mapping),
+                    compileScalar(params.get(1), rowParam, mapping));
+            case "endsWith" -> dialect.renderEndsWith(
+                    compileScalar(params.get(0), rowParam, mapping),
+                    compileScalar(params.get(1), rowParam, mapping));
             case "toLower" -> "LOWER(" + compileScalar(params.get(0), rowParam, mapping) + ")";
             case "toUpper" -> "UPPER(" + compileScalar(params.get(0), rowParam, mapping) + ")";
             case "length" -> "LENGTH(" + compileScalar(params.get(0), rowParam, mapping) + ")";
             case "trim" -> "TRIM(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "toString" -> "CAST(" + compileScalar(params.get(0), rowParam, mapping) + " AS VARCHAR)";
+            case "toString" -> "CAST(" + compileScalar(params.get(0), rowParam, mapping) + " AS "
+                    + dialect.sqlTypeName("String") + ")";
             case "substring" -> {
                 String str = compileScalar(params.get(0), rowParam, mapping);
                 String start = compileScalar(params.get(1), rowParam, mapping);
@@ -1547,11 +1542,11 @@ public class SqlCompiler {
 
             // --- Cast ---
             case "toInteger", "parseInteger" -> "CAST("
-                    + compileScalar(params.get(0), rowParam, mapping) + " AS INTEGER)";
+                    + compileScalar(params.get(0), rowParam, mapping) + " AS " + dialect.sqlTypeName("Integer") + ")";
             case "toFloat", "parseFloat" -> "CAST("
-                    + compileScalar(params.get(0), rowParam, mapping) + " AS DOUBLE)";
+                    + compileScalar(params.get(0), rowParam, mapping) + " AS " + dialect.sqlTypeName("Float") + ")";
             case "toDecimal", "parseDecimal" -> "CAST("
-                    + compileScalar(params.get(0), rowParam, mapping) + " AS DECIMAL)";
+                    + compileScalar(params.get(0), rowParam, mapping) + " AS " + dialect.sqlTypeName("Decimal") + ")";
 
             // --- If/Case ---
             case "if" -> {
@@ -1582,7 +1577,8 @@ public class SqlCompiler {
 
             // --- Date adjust ---
             case "adjust" -> {
-                // adjust(date, amount, DurationUnit.DAYS) → date + (INTERVAL '1' DAY * amount)
+                // adjust(date, amount, DurationUnit.DAYS) → dialect.renderDateAdd(date, amount,
+                // unit)
                 if (params.size() < 2) {
                     throw new PureCompileException(
                             "SqlCompiler: adjust() requires at least 2 parameters, got " + params.size());
@@ -1605,7 +1601,7 @@ public class SqlCompiler {
                         default -> ev.value();
                     };
                 }
-                yield "(" + dateExpr + " + (INTERVAL '1' " + unit + " * " + amount + "))";
+                yield dialect.renderDateAdd(dateExpr, amount, unit);
             }
 
             default -> throw new PureCompileException(
