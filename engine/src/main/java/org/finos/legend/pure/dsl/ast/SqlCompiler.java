@@ -1265,8 +1265,12 @@ public class SqlCompiler {
             case "not" -> "NOT (" + compileScalar(params.get(0), rowParam, mapping) + ")";
 
             // --- Arithmetic ---
-            case "plus" -> binaryOp(params, "+", rowParam, mapping);
-            case "minus" -> binaryOp(params, "-", rowParam, mapping);
+            case "plus" -> params.size() == 1
+                    ? compileScalar(params.get(0), rowParam, mapping) // unary +
+                    : binaryOp(params, "+", rowParam, mapping);
+            case "minus" -> params.size() == 1
+                    ? "(-" + compileScalar(params.get(0), rowParam, mapping) + ")" // unary -
+                    : binaryOp(params, "-", rowParam, mapping);
             case "times" -> binaryOp(params, "*", rowParam, mapping);
             case "divide" -> binaryOp(params, "/", rowParam, mapping);
             case "rem" -> binaryOp(params, "%", rowParam, mapping);
