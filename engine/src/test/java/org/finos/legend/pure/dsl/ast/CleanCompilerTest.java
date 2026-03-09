@@ -20,7 +20,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for CleanCompiler type resolution and PlanGenerator SQL output.
+ * Tests for CleanCompiler type resolution and SqlCompiler SQL output.
  *
  * <p>
  * Sets up a real MappingRegistry with a PERSON table so the compiler
@@ -49,7 +49,6 @@ class CleanCompilerTest {
                     PropertyMapping.column("age", "AGE"))));
 
     private final CleanCompiler compiler = new CleanCompiler(registry);
-    private final PlanGenerator planner = new PlanGenerator(DuckDBDialect.INSTANCE);
 
     // ========== Type Resolution ==========
 
@@ -138,7 +137,7 @@ class CleanCompilerTest {
     void filterGeneratesValidSql() {
         var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.AGE > 25)");
         var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
-        String sql = planner.generateSql(tvs);
+        String sql = compileSql(tvs);
 
         assertTrue(sql.contains("WHERE"), "Should have WHERE: " + sql);
         assertTrue(sql.contains("\"AGE\""), "Should reference AGE column: " + sql);
@@ -150,14 +149,21 @@ class CleanCompilerTest {
     void limitGeneratesSql() {
         var vs = parse("table('PersonDatabase.T_PERSON')->limit(10)");
         var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
-        String sql = planner.generateSql(tvs);
+        String sql = compileSql(tvs);
 
         assertTrue(sql.contains("LIMIT 10"), "Should have LIMIT 10: " + sql);
     }
 
-    // ========== Helper ==========
+    // ========== Helpers ==========
 
     private ValueSpecification parse(String pureQuery) {
         return org.finos.legend.pure.dsl.PureParser.parseClean(pureQuery);
+    }
+
+    private String compileSql(TypedValueSpec tvs) {
+        var sqlCompiler = new SqlCompiler(
+                new java.util.IdentityHashMap<>(), DuckDBDialect.INSTANCE, null);
+        SqlBuilder builder = sqlCompiler.compile(tvs.ast(), tvs.mapping());
+        return builder.toSql(DuckDBDialect.INSTANCE);
     }
 }

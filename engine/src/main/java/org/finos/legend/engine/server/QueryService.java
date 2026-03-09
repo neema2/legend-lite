@@ -20,7 +20,6 @@ import org.finos.legend.pure.dsl.PureCompiler;
 import org.finos.legend.pure.dsl.PureParser;
 import org.finos.legend.pure.dsl.TypeEnvironment;
 import org.finos.legend.pure.dsl.ast.CleanCompiler;
-import org.finos.legend.pure.dsl.ast.PlanGenerator;
 import org.finos.legend.pure.dsl.ast.SqlCompiler;
 import org.finos.legend.pure.dsl.ast.SqlBuilder;
 import org.finos.legend.pure.dsl.ast.TypedValueSpec;
@@ -431,13 +430,9 @@ public class QueryService {
     private static final java.util.concurrent.atomic.AtomicInteger MATCH_COUNT = new java.util.concurrent.atomic.AtomicInteger();
     private static final java.util.concurrent.atomic.AtomicInteger MISMATCH_COUNT = new java.util.concurrent.atomic.AtomicInteger();
     private static final java.util.concurrent.atomic.AtomicInteger ERROR_COUNT = new java.util.concurrent.atomic.AtomicInteger();
-    // SqlBuilder pipeline counters
-    private static final java.util.concurrent.atomic.AtomicInteger BLD_MATCH_COUNT = new java.util.concurrent.atomic.AtomicInteger();
-    private static final java.util.concurrent.atomic.AtomicInteger BLD_MISMATCH_COUNT = new java.util.concurrent.atomic.AtomicInteger();
-    private static final java.util.concurrent.atomic.AtomicInteger BLD_ERROR_COUNT = new java.util.concurrent.atomic.AtomicInteger();
 
     /**
-     * Runs the new pipeline (CleanCompiler + PlanGenerator) and compares
+     * Runs the new pipeline (CleanCompiler + SqlCompiler → SqlBuilder) and compares
      * its SQL output against the old pipeline's SQL.
      *
      * Non-invasive: catches all exceptions, never affects the old pipeline's
@@ -456,66 +451,27 @@ public class QueryService {
             CleanCompiler compiler = new CleanCompiler(mappingRegistry, model);
             TypedValueSpec tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
 
-            // Generate SQL with PlanGenerator
-            PlanGenerator planner = new PlanGenerator(dialect);
-            String newSql = planner.generateSql(tvs);
+            // Generate SQL with SqlCompiler → SqlBuilder
+            var sqlCompiler = new SqlCompiler(new java.util.IdentityHashMap<>(), dialect, model);
+            SqlBuilder builder = sqlCompiler.compile(tvs.ast(), tvs.mapping());
+            String newSql = builder.toSql(dialect);
 
-            // Compare PlanGenerator output
-            String oldNorm = normalizeSql(oldSql);
+            // Compare output
+            String oldNorm = normalizeSql(normalizeOldSqlQuirks(oldSql));
             String newNorm = normalizeSql(newSql);
 
             if (oldNorm.equals(newNorm)) {
                 MATCH_COUNT.incrementAndGet();
             } else {
-                int count = MISMATCH_COUNT.incrementAndGet();
-                if (count <= 20) {
-                    System.out.println("[DUAL-RUN MISMATCH] Query: " + query);
-                    System.out.println("  OLD SQL: " + oldSql);
-                    System.out.println("  NEW SQL: " + newSql);
-                }
-            }
-
-            // Also run SqlCompiler → SqlBuilder pipeline
-            trySqlBuilderPipeline(tvs, dialect, oldSql, query, model);
-        } catch (Throwable e) {
-            int count = ERROR_COUNT.incrementAndGet();
-            if (count <= 10) {
-                System.out.println("[DUAL-RUN ERROR] Query: " + query
-                        + " \u2192 " + e.getClass().getSimpleName() + ": " + e.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Runs the SqlCompiler \u2192 SqlBuilder pipeline and compares output.
-     * Non-invasive: catches all exceptions.
-     */
-    private void trySqlBuilderPipeline(TypedValueSpec tvs, SQLDialect dialect,
-            String oldSql, String query, PureModelBuilder model) {
-        try {
-            var sqlCompiler = new SqlCompiler(new java.util.IdentityHashMap<>(), dialect, model);
-            SqlBuilder builder = sqlCompiler.compile(tvs.ast(), tvs.mapping());
-            String builderSql = builder.toSql(dialect);
-
-            String oldNorm = normalizeSql(normalizeOldSqlQuirks(oldSql));
-            String bldNorm = normalizeSql(builderSql);
-
-            if (oldNorm.equals(bldNorm)) {
-                BLD_MATCH_COUNT.incrementAndGet();
-            } else {
-                int count = BLD_MISMATCH_COUNT.incrementAndGet();
-                if (count <= 20) {
-                    System.out.println("[SQLBUILDER MISMATCH] Query: " + query);
-                    System.out.println("  OLD SQL: " + oldSql);
-                    System.out.println("  BLD SQL: " + builderSql);
-                }
+                MISMATCH_COUNT.incrementAndGet();
+                System.out.println("[DUAL-RUN MISMATCH] Query: " + query);
+                System.out.println("  OLD SQL: " + oldSql);
+                System.out.println("  NEW SQL: " + newSql);
             }
         } catch (Throwable e) {
-            int count = BLD_ERROR_COUNT.incrementAndGet();
-            if (count <= 10) {
-                System.out.println("[SQLBUILDER ERROR] Query: " + query
-                        + " \u2192 " + e.getClass().getSimpleName() + ": " + e.getMessage());
-            }
+            ERROR_COUNT.incrementAndGet();
+            System.out.println("[DUAL-RUN ERROR] Query: " + query
+                    + " \u2192 " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 
@@ -601,9 +557,8 @@ public class QueryService {
 
     /** Returns dual-run parity statistics. */
     public static String getDualRunStats() {
-        return String.format("Dual-run: %d match, %d mismatch, %d error | SqlBuilder: %d match, %d mismatch, %d error",
-                MATCH_COUNT.get(), MISMATCH_COUNT.get(), ERROR_COUNT.get(),
-                BLD_MATCH_COUNT.get(), BLD_MISMATCH_COUNT.get(), BLD_ERROR_COUNT.get());
+        return String.format("Dual-run (SqlCompiler): %d match, %d mismatch, %d error",
+                MATCH_COUNT.get(), MISMATCH_COUNT.get(), ERROR_COUNT.get());
     }
 
     /** Resets dual-run counters. */
@@ -611,9 +566,6 @@ public class QueryService {
         MATCH_COUNT.set(0);
         MISMATCH_COUNT.set(0);
         ERROR_COUNT.set(0);
-        BLD_MATCH_COUNT.set(0);
-        BLD_MISMATCH_COUNT.set(0);
-        BLD_ERROR_COUNT.set(0);
     }
 
     // ==================== M2M graphFetch Execution ====================
