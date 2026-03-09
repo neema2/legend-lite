@@ -83,12 +83,17 @@ public class SqlCompiler {
 
     /**
      * Returns true if the AST represents a scalar expression (not a relation
-     * source).
+     * query). Walks the function chain to find the source — if it bottoms out
+     * at a table/TDS ClassInstance or getAll(), it's a relation.
      */
     private boolean isScalarAst(ValueSpecification vs) {
         if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
             vs = lf.body().getLast();
         }
+        return isScalarExpression(vs);
+    }
+
+    private boolean isScalarExpression(ValueSpecification vs) {
         // Literals are always scalar
         if (vs instanceof CInteger || vs instanceof CFloat || vs instanceof CDecimal
                 || vs instanceof CString || vs instanceof CBoolean
@@ -96,9 +101,14 @@ public class SqlCompiler {
                 || vs instanceof CStrictTime || vs instanceof CLatestDate) {
             return true;
         }
-        // A function not in the relation set is scalar (adjust, plus, etc.)
-        if (vs instanceof AppliedFunction af) {
-            return !(vs instanceof ClassInstance);
+        // ClassInstance (relation, tdsLiteral) → relation source
+        if (vs instanceof ClassInstance) {
+            return false;
+        }
+        // Walk function chains: adjust(date, ...) is scalar, but project(getAll(), ...)
+        // is relation
+        if (vs instanceof AppliedFunction af && !af.parameters().isEmpty()) {
+            return isScalarExpression(af.parameters().get(0));
         }
         return false;
     }
@@ -193,6 +203,14 @@ public class SqlCompiler {
             case "extend" -> compileExtend(af, mapping);
             case "join" -> compileJoin(af, mapping);
             case "from" -> compileFrom(af, mapping);
+            case "flatten" -> {
+                // flatten passes through to source — unnests in relational context
+                yield compileRelation(af.parameters().get(0), mapping);
+            }
+            case "pivot" -> {
+                // pivot not yet SQL-supported — compile source for now
+                yield compileRelation(af.parameters().get(0), mapping);
+            }
             default -> throw new PureCompileException(
                     "SqlCompiler: unsupported function '" + funcName + "'");
         };
@@ -1335,6 +1353,10 @@ public class SqlCompiler {
             // --- Date adjust ---
             case "adjust" -> {
                 // adjust(date, amount, DurationUnit.DAYS) → date + (INTERVAL '1' DAY * amount)
+                if (params.size() < 2) {
+                    throw new PureCompileException(
+                            "SqlCompiler: adjust() requires at least 2 parameters, got " + params.size());
+                }
                 String dateExpr = compileScalar(params.get(0), rowParam, mapping);
                 String amount = compileScalar(params.get(1), rowParam, mapping);
                 // Third param is an EnumValue like DurationUnit.DAYS
