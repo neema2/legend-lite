@@ -22,6 +22,8 @@ public final class DuckDBDialect implements SQLDialect {
 
     @Override
     public String quoteIdentifier(String identifier) {
+        if (identifier == null)
+            return "\"_unknown_\"";
         // DuckDB uses double quotes for identifiers
         // Escape any existing double quotes by doubling them
         return "\"" + identifier.replace("\"", "\"\"") + "\"";

@@ -382,6 +382,10 @@ public class SqlCompiler {
         if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
             return extractPropertyChain(lf.body().get(0));
         }
+        // ColSpec like ~three:x|$x.values.val → treat as column name
+        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
+            return List.of(cs.name());
+        }
         throw new PureCompileException(
                 "SqlCompiler: cannot extract property path from " + vs.getClass().getSimpleName());
     }
@@ -1718,6 +1722,8 @@ public class SqlCompiler {
             return cs.name();
         if (vs instanceof CString s)
             return s.value();
+        if (vs instanceof Variable v)
+            return v.name();
         throw new PureCompileException("Expected column name, got: " + vs.getClass().getSimpleName());
     }
 
