@@ -83,9 +83,9 @@ class PlanParityTest {
         MappingRegistry registry = model.getMappingRegistry();
         var vs = org.finos.legend.pure.dsl.PureParser.parseClean(query);
         var compiler = new CleanCompiler(registry, model);
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
-        var sqlCompiler = new SqlCompiler(compiler.types(), DuckDBDialect.INSTANCE, null);
-        var builder = sqlCompiler.compile(tvs);
+        var unit = compiler.compile(vs);
+        var planGenerator = new PlanGenerator(unit, DuckDBDialect.INSTANCE);
+        var builder = planGenerator.generate();
         return builder.toSql(DuckDBDialect.INSTANCE);
     }
 

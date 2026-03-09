@@ -20,7 +20,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for CleanCompiler type resolution and SqlCompiler SQL output.
+ * Tests for CleanCompiler type resolution and PlanGenerator SQL output.
  *
  * <p>
  * Sets up a real MappingRegistry with a PERSON table so the compiler
@@ -48,16 +48,16 @@ class CleanCompilerTest {
                     PropertyMapping.column("lastName", "LAST_NAME"),
                     PropertyMapping.column("age", "AGE"))));
 
-    private final CleanCompiler compiler = new CleanCompiler(registry);
+    private final CleanCompiler compiler = new CleanCompiler(registry, null);
 
     // ========== Type Resolution ==========
 
     @Test
     void tableAccessResolvesTableSchema() {
         var vs = parse("table('PersonDatabase.T_PERSON')");
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
+        var unit = compiler.compile(vs);
 
-        RelationType rt = tvs.resultType();
+        RelationType rt = unit.typeInfoFor(unit.root()).relationType();
         assertEquals(6, rt.size(), "Should have 6 columns");
         assertEquals(GenericType.Primitive.STRING, rt.requireColumn("FIRST_NAME"));
         assertEquals(GenericType.Primitive.STRING, rt.requireColumn("LAST_NAME"));
@@ -70,10 +70,10 @@ class CleanCompilerTest {
     @Test
     void filterPreservesSourceType() {
         var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.AGE > 25)");
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
+        var unit = compiler.compile(vs);
 
         // Filter preserves ALL columns from source
-        RelationType rt = tvs.resultType();
+        RelationType rt = unit.typeInfoFor(unit.root()).relationType();
         assertEquals(6, rt.size(), "Filter doesn't change column set");
         assertEquals(GenericType.Primitive.INTEGER, rt.requireColumn("AGE"));
         assertEquals(GenericType.Primitive.STRING, rt.requireColumn("FIRST_NAME"));
@@ -83,32 +83,32 @@ class CleanCompilerTest {
     void filterRejectsInvalidColumn() {
         var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.NONEXISTENT > 25)");
         assertThrows(PureCompileException.class,
-                () -> compiler.compile(vs, new CleanCompiler.CompilationContext()),
+                () -> compiler.compile(vs),
                 "Should reject reference to non-existent column");
     }
 
     @Test
     void sortValidatesColumns() {
         var vs = parse("table('PersonDatabase.T_PERSON')->sort(asc(~AGE))");
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
+        var unit = compiler.compile(vs);
 
-        assertEquals(6, tvs.resultType().size(), "Sort preserves columns");
+        assertEquals(6, unit.typeInfoFor(unit.root()).relationType().size(), "Sort preserves columns");
     }
 
     @Test
     void sortRejectsInvalidColumn() {
         var vs = parse("table('PersonDatabase.T_PERSON')->sort(asc(~NONEXISTENT))");
         assertThrows(PureCompileException.class,
-                () -> compiler.compile(vs, new CleanCompiler.CompilationContext()),
+                () -> compiler.compile(vs),
                 "Should reject sort on non-existent column");
     }
 
     @Test
     void renameChangesColumnName() {
         var vs = parse("table('PersonDatabase.T_PERSON')->rename(~FIRST_NAME, ~NAME)");
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
+        var unit = compiler.compile(vs);
 
-        RelationType rt = tvs.resultType();
+        RelationType rt = unit.typeInfoFor(unit.root()).relationType();
         assertFalse(rt.hasColumn("FIRST_NAME"), "Old column name should be gone");
         assertTrue(rt.hasColumn("NAME"), "New column name should exist");
         assertEquals(GenericType.Primitive.STRING, rt.requireColumn("NAME"));
@@ -117,16 +117,16 @@ class CleanCompilerTest {
     @Test
     void limitPreservesType() {
         var vs = parse("table('PersonDatabase.T_PERSON')->limit(10)");
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
-        assertEquals(6, tvs.resultType().size());
+        var unit = compiler.compile(vs);
+        assertEquals(6, unit.typeInfoFor(unit.root()).relationType().size());
     }
 
     @Test
     void chainedOperationsPreserveType() {
         var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.AGE > 18)->sort(asc(~FIRST_NAME))->limit(5)");
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
+        var unit = compiler.compile(vs);
 
-        RelationType rt = tvs.resultType();
+        RelationType rt = unit.typeInfoFor(unit.root()).relationType();
         assertEquals(6, rt.size(), "Chained ops preserve columns");
         assertEquals(GenericType.Primitive.INTEGER, rt.requireColumn("AGE"));
     }
@@ -136,8 +136,8 @@ class CleanCompilerTest {
     @Test
     void filterGeneratesValidSql() {
         var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.AGE > 25)");
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
-        String sql = compileSql(tvs);
+        var unit = compiler.compile(vs);
+        String sql = compileSql(unit);
 
         assertTrue(sql.contains("WHERE"), "Should have WHERE: " + sql);
         assertTrue(sql.contains("\"AGE\""), "Should reference AGE column: " + sql);
@@ -148,8 +148,8 @@ class CleanCompilerTest {
     @Test
     void limitGeneratesSql() {
         var vs = parse("table('PersonDatabase.T_PERSON')->limit(10)");
-        var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
-        String sql = compileSql(tvs);
+        var unit = compiler.compile(vs);
+        String sql = compileSql(unit);
 
         assertTrue(sql.contains("LIMIT 10"), "Should have LIMIT 10: " + sql);
     }
@@ -160,10 +160,9 @@ class CleanCompilerTest {
         return org.finos.legend.pure.dsl.PureParser.parseClean(pureQuery);
     }
 
-    private String compileSql(TypedValueSpec tvs) {
-        var sqlCompiler = new SqlCompiler(
-                new java.util.IdentityHashMap<>(), DuckDBDialect.INSTANCE, null);
-        SqlBuilder builder = sqlCompiler.compile(tvs);
+    private String compileSql(CompilationUnit unit) {
+        var planGenerator = new PlanGenerator(unit, DuckDBDialect.INSTANCE);
+        SqlBuilder builder = planGenerator.generate();
         return builder.toSql(DuckDBDialect.INSTANCE);
     }
 }

@@ -43,14 +43,6 @@ public class CleanCompiler {
         this.modelContext = modelContext;
     }
 
-    public CleanCompiler(MappingRegistry mappingRegistry) {
-        this(mappingRegistry, null);
-    }
-
-    public CleanCompiler() {
-        this(null, null);
-    }
-
     /** Returns the per-node type side table. */
     public java.util.IdentityHashMap<ValueSpecification, TypeInfo> types() {
         return types;
@@ -60,8 +52,8 @@ public class CleanCompiler {
      * Top-level compile: returns a {@link CompilationUnit} bundling the typed
      * result and per-node side table.
      */
-    public CompilationUnit compile(ValueSpecification vs, CompilationContext ctx) {
-        compileExpr(vs, ctx);
+    public CompilationUnit compile(ValueSpecification vs) {
+        compileExpr(vs, new CompilationContext());
         return new CompilationUnit(vs, types);
     }
 
@@ -114,17 +106,6 @@ public class CleanCompiler {
     private TypeInfo typed(ValueSpecification ast, RelationType relationType,
             RelationalMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
         var info = TypeInfo.of(relationType, mapping, associations);
-        types.put(ast, info);
-        return info;
-    }
-
-    /**
-     * Registers a struct-based TypeInfo in the side table.
-     * Propagates the structSource flag so PlanGenerator can route correctly.
-     */
-    private TypeInfo typedStruct(ValueSpecification ast, RelationType relationType,
-            java.util.Map<String, TypeInfo.AssociationTarget> associations) {
-        var info = new TypeInfo(relationType, null, associations, List.of(), List.of(), List.of(), true, null, null);
         types.put(ast, info);
         return info;
     }
@@ -1161,14 +1142,6 @@ public class CleanCompiler {
             return coll.values().stream().map(this::extractColumnName).toList();
         }
         return List.of(extractColumnName(vs));
-    }
-
-    /** Extracts items from a Collection or wraps a single value. */
-    private List<ValueSpecification> extractList(ValueSpecification vs) {
-        if (vs instanceof Collection coll) {
-            return coll.values();
-        }
-        return List.of(vs);
     }
 
     /** Extracts a list of strings from a Collection. */

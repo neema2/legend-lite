@@ -20,9 +20,9 @@ import org.finos.legend.pure.dsl.PureCompiler;
 import org.finos.legend.pure.dsl.PureParser;
 import org.finos.legend.pure.dsl.TypeEnvironment;
 import org.finos.legend.pure.dsl.ast.CleanCompiler;
-import org.finos.legend.pure.dsl.ast.SqlCompiler;
+import org.finos.legend.pure.dsl.ast.PlanGenerator;
 import org.finos.legend.pure.dsl.ast.SqlBuilder;
-import org.finos.legend.pure.dsl.ast.TypedValueSpec;
+
 import org.finos.legend.pure.dsl.ast.ValueSpecification;
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
@@ -435,7 +435,8 @@ public class QueryService {
     private static final java.util.concurrent.atomic.AtomicInteger ERROR_COUNT = new java.util.concurrent.atomic.AtomicInteger();
 
     /**
-     * Runs the new pipeline (CleanCompiler + SqlCompiler → SqlBuilder) and compares
+     * Runs the new pipeline (CleanCompiler + PlanGenerator → SqlBuilder) and
+     * compares
      * its SQL output against the old pipeline's SQL.
      *
      * Non-invasive: catches all exceptions, never affects the old pipeline's
@@ -452,11 +453,11 @@ public class QueryService {
 
             // Compile with new compiler (type resolution)
             CleanCompiler compiler = new CleanCompiler(mappingRegistry, model);
-            TypedValueSpec tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
+            var unit = compiler.compile(vs);
 
-            // Generate SQL with SqlCompiler → SqlBuilder
-            var sqlCompiler = new SqlCompiler(compiler.types(), dialect, model);
-            SqlBuilder builder = sqlCompiler.compile(tvs);
+            // Generate SQL with PlanGenerator → SqlBuilder
+            var planGenerator = new PlanGenerator(unit, dialect);
+            SqlBuilder builder = planGenerator.generate();
             String newSql = builder.toSql(dialect);
 
             // Compare output
@@ -560,7 +561,7 @@ public class QueryService {
 
     /** Returns dual-run parity statistics. */
     public static String getDualRunStats() {
-        return String.format("Dual-run (SqlCompiler): %d match, %d mismatch, %d error",
+        return String.format("Dual-run (PlanGenerator): %d match, %d mismatch, %d error",
                 MATCH_COUNT.get(), MISMATCH_COUNT.get(), ERROR_COUNT.get());
     }
 
