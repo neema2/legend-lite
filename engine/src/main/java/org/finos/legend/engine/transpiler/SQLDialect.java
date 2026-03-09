@@ -76,8 +76,10 @@ public interface SQLDialect {
             // Extract timezone suffix if present (e.g., +0000, -0500)
             String tz = "";
             int tzIdx = timePart.lastIndexOf('+');
-            if (tzIdx < 0) tzIdx = timePart.lastIndexOf('-');
-            // Only treat as timezone if it's after the time portion (not a negative sign in time)
+            if (tzIdx < 0)
+                tzIdx = timePart.lastIndexOf('-');
+            // Only treat as timezone if it's after the time portion (not a negative sign in
+            // time)
             if (tzIdx > 0 && tzIdx >= timePart.indexOf(':')) {
                 tz = timePart.substring(tzIdx);
                 timePart = timePart.substring(0, tzIdx);
@@ -126,4 +128,35 @@ public interface SQLDialect {
         String timeValue = pureTime.startsWith("%") ? pureTime.substring(1) : pureTime;
         return "TIME '" + timeValue + "'";
     }
+
+    // ==================== Struct / Array Rendering ====================
+
+    /**
+     * Render an inline struct literal from pre-rendered field name→value pairs.
+     * Field values are already rendered SQL expressions (e.g., quoted strings,
+     * numbers).
+     *
+     * @param fields Ordered map of field name → rendered SQL value
+     * @return Dialect-specific struct literal (e.g., DuckDB: {'name': 'ok', 'age':
+     *         30})
+     */
+    String renderStructLiteral(java.util.LinkedHashMap<String, String> fields);
+
+    /**
+     * Render an array literal from pre-rendered element values.
+     *
+     * @param elements List of rendered SQL expressions
+     * @return Dialect-specific array literal (e.g., DuckDB: [1, 2, 3])
+     */
+    String renderArrayLiteral(java.util.List<String> elements);
+
+    /**
+     * Render the SQL expression that unnests (flattens) an array into rows.
+     * SqlBuilder handles the JOIN structure (LEFT JOIN LATERAL);
+     * this method provides only the dialect-specific unnest expression.
+     *
+     * @param arrayPath SQL expression for the array to unnest
+     * @return Unnest expression (e.g., DuckDB: "UNNEST(path)")
+     */
+    String renderUnnestExpression(String arrayPath);
 }

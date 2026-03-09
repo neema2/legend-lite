@@ -35,6 +35,8 @@ public class CleanCompiler {
 
     private final MappingRegistry mappingRegistry;
     private final ModelContext modelContext;
+    /** Per-node type info, consumed by SqlCompiler. */
+    private final java.util.IdentityHashMap<ValueSpecification, TypeInfo> types = new java.util.IdentityHashMap<>();
 
     public CleanCompiler(MappingRegistry mappingRegistry, ModelContext modelContext) {
         this.mappingRegistry = mappingRegistry;
@@ -47,6 +49,11 @@ public class CleanCompiler {
 
     public CleanCompiler() {
         this(null, null);
+    }
+
+    /** Returns the per-node type side table. */
+    public java.util.IdentityHashMap<ValueSpecification, TypeInfo> types() {
+        return types;
     }
 
     /**
@@ -558,7 +565,52 @@ public class CleanCompiler {
         return switch (ci.type()) {
             case "relation" -> compileRelationAccessor(ci, ctx);
             case "tdsLiteral" -> compileTdsLiteral(ci, ctx);
+            case "instance" -> compileInstanceLiteral(ci);
             default -> TypedValueSpec.scalar(ci);
+        };
+    }
+
+    /**
+     * Compiles a struct literal ^ClassName(prop=val, ...) with proper type info.
+     * Builds a RelationType where each property becomes a typed column,
+     * so SqlCompiler can distinguish arrays (need UNNEST) from scalars.
+     */
+    private TypedValueSpec compileInstanceLiteral(ClassInstance ci) {
+        var data = (CleanAstBuilder.InstanceData) ci.value();
+        var columns = new LinkedHashMap<String, GenericType>();
+        for (var entry : data.properties().entrySet()) {
+            columns.put(entry.getKey(), inferStructPropertyType(entry.getValue()));
+        }
+        var rt = new RelationType(columns);
+        // Register in side table so SqlCompiler can look up struct type info
+        types.put(ci, TypeInfo.of(rt));
+        return new TypedValueSpec(ci, rt);
+    }
+
+    /**
+     * Infers the GenericType of a struct property value from its AST node.
+     */
+    private GenericType inferStructPropertyType(ValueSpecification vs) {
+        return switch (vs) {
+            case CString ignored -> GenericType.Primitive.STRING;
+            case CInteger ignored -> GenericType.Primitive.INTEGER;
+            case CFloat ignored -> GenericType.Primitive.FLOAT;
+            case CDecimal ignored -> GenericType.Primitive.DECIMAL;
+            case CBoolean ignored -> GenericType.Primitive.BOOLEAN;
+            case CDateTime ignored -> GenericType.Primitive.DATE_TIME;
+            case CStrictDate ignored -> GenericType.Primitive.STRICT_DATE;
+            case Collection coll -> {
+                // Array property — infer element type from first element
+                GenericType elemType = coll.values().isEmpty()
+                        ? GenericType.Primitive.ANY
+                        : inferStructPropertyType(coll.values().get(0));
+                yield GenericType.listOf(elemType);
+            }
+            case ClassInstance nested when "instance".equals(nested.type()) -> {
+                var nestedData = (CleanAstBuilder.InstanceData) nested.value();
+                yield new GenericType.ClassType(nestedData.className());
+            }
+            default -> GenericType.Primitive.ANY;
         };
     }
 

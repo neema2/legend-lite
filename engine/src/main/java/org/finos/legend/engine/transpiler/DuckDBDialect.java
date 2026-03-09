@@ -46,4 +46,24 @@ public final class DuckDBDialect implements SQLDialect {
     public JsonSqlDialect getJsonDialect() {
         return DuckDbJsonDialect.INSTANCE;
     }
+
+    @Override
+    public String renderStructLiteral(java.util.LinkedHashMap<String, String> fields) {
+        // DuckDB struct syntax: {'name': 'ok', 'age': 30}
+        return "{" + fields.entrySet().stream()
+                .map(e -> "'" + e.getKey() + "': " + e.getValue())
+                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+    }
+
+    @Override
+    public String renderArrayLiteral(java.util.List<String> elements) {
+        // DuckDB array syntax: [1, 2, 3]
+        return "[" + String.join(", ", elements) + "]";
+    }
+
+    @Override
+    public String renderUnnestExpression(String arrayPath) {
+        // DuckDB: UNNEST(path)
+        return "UNNEST(" + arrayPath + ")";
+    }
 }

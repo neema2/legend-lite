@@ -519,7 +519,8 @@ public class SqlBuilder {
         LEFT_SEMI("LEFT SEMI JOIN"),
         LEFT_ANTI("LEFT ANTI JOIN"),
         ASOF("ASOF JOIN"),
-        NATURAL("NATURAL JOIN");
+        NATURAL("NATURAL JOIN"),
+        LEFT_LATERAL("LEFT JOIN LATERAL");
 
         private final String sql;
 

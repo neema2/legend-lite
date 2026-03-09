@@ -452,7 +452,7 @@ public class QueryService {
             TypedValueSpec tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
 
             // Generate SQL with SqlCompiler → SqlBuilder
-            var sqlCompiler = new SqlCompiler(new java.util.IdentityHashMap<>(), dialect, model);
+            var sqlCompiler = new SqlCompiler(compiler.types(), dialect, model);
             SqlBuilder builder = sqlCompiler.compile(tvs);
             String newSql = builder.toSql(dialect);
 

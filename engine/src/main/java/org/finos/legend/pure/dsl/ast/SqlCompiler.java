@@ -1,5 +1,7 @@
 package org.finos.legend.pure.dsl.ast;
 
+import org.finos.legend.engine.plan.GenericType;
+import org.finos.legend.engine.plan.RelationType;
 import org.finos.legend.engine.store.Join;
 import org.finos.legend.engine.store.RelationalMapping;
 import org.finos.legend.engine.transpiler.SQLDialect;
@@ -121,12 +123,18 @@ public class SqlCompiler {
             case LambdaFunction lf -> {
                 if (lf.body().isEmpty())
                     throw new PureCompileException("SqlCompiler: empty lambda body");
+
                 yield compileRelation(lf.body().getLast(), mapping);
             }
-            case ClassInstance ci -> compileClassInstance(ci, mapping);
+            case
+
+                    ClassInstance ci ->
+
+                compileClassInstance(ci, mapping);
             default -> throw new PureCompileException(
                     "SqlCompiler: cannot compile: " + vs.getClass().getSimpleName());
         };
+
     }
 
     private SqlBuilder compileClassInstance(ClassInstance ci, RelationalMapping mapping) {
@@ -147,10 +155,70 @@ public class SqlCompiler {
                 org.finos.legend.pure.dsl.TdsLiteral tds = ci.value() instanceof org.finos.legend.pure.dsl.TdsLiteral t
                         ? t
                         : org.finos.legend.pure.dsl.TdsLiteral.parse((String) ci.value());
+
                 yield compileTdsLiteral(tds);
             }
+            case "instance" ->
+
+            {
+                var data = (CleanAstBuilder.InstanceData) ci.value();
+
+                yield compileStructLiteral(data);
+            }
+            default -> throw new PureCompileException("SqlCompiler: unsupported ClassInstance type: " + ci.type());
+
+        };
+    }
+
+    /**
+     * Compiles a struct literal ^ClassName(field=val, ...) to SQL VALUES.
+     * Renders the instance as a dialect-specific struct inside VALUES.
+     */
+    private SqlBuilder compileStructLiteral(CleanAstBuilder.InstanceData data) {
+        String structSql = renderStructValue(new ClassInstance("instance", data));
+
+        // Use lowercased simple class name as alias (e.g., "test::TypeForProjectTest" →
+        // "typeForProjectTest")
+        String className = data.className();
+        String simpleName = className.contains("::") ? className.substring(className.lastIndexOf("::") + 2) : className;
+        String alias = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
+
+        return new SqlBuilder()
+                .selectStar()
+                .fromValues(
+                        java.util.List.of(java.util.List.of(structSql)),
+                        "t",
+                        java.util.List.of(alias));
+    }
+
+    /**
+     * Recursively renders a ValueSpecification to a SQL struct/value literal.
+     * All syntax goes through dialect — no DuckDB-specific code here.
+     */
+    private String renderStructValue(ValueSpecification vs) {
+        return switch (vs) {
+            case CString cs -> dialect.quoteStringLiteral(cs.value());
+            case CInteger ci -> String.valueOf(ci.value());
+            case CFloat cf -> String.valueOf(cf.value());
+            case CBoolean cb -> dialect.formatBoolean(cb.value());
+            case CDateTime cdt -> dialect.formatDate("%" + cdt.value());
+            case CStrictDate csd -> dialect.formatDate("%" + csd.value());
+            case Collection coll -> {
+                java.util.List<String> elements = coll.values().stream()
+                        .map(this::renderStructValue)
+                        .toList();
+                yield dialect.renderArrayLiteral(elements);
+            }
+            case ClassInstance ci when "instance".equals(ci.type()) -> {
+                var data = (CleanAstBuilder.InstanceData) ci.value();
+                var fields = new java.util.LinkedHashMap<String, String>();
+                for (var entry : data.properties().entrySet()) {
+                    fields.put(entry.getKey(), renderStructValue(entry.getValue()));
+                }
+                yield dialect.renderStructLiteral(fields);
+            }
             default -> throw new PureCompileException(
-                    "SqlCompiler: unsupported ClassInstance type: " + ci.type());
+                    "SqlCompiler: cannot render struct value from " + vs.getClass().getSimpleName());
         };
     }
 
@@ -207,12 +275,14 @@ public class SqlCompiler {
                 // flatten passes through to source — unnests in relational context
                 yield compileRelation(af.parameters().get(0), mapping);
             }
-            case "pivot" -> {
+            case "pivot" ->
+
+            {
                 // pivot not yet SQL-supported — compile source for now
                 yield compileRelation(af.parameters().get(0), mapping);
             }
-            default -> throw new PureCompileException(
-                    "SqlCompiler: unsupported function '" + funcName + "'");
+            default -> throw new PureCompileException("SqlCompiler: unsupported function '" + funcName + "'");
+
         };
     }
 
@@ -274,6 +344,12 @@ public class SqlCompiler {
 
     private SqlBuilder compileProject(AppliedFunction af, RelationalMapping mapping) {
         List<ValueSpecification> params = af.parameters();
+
+        // Check if source is a struct literal — delegate to struct-specific project
+        ClassInstance structCi = findStructSource(params.get(0));
+        if (structCi != null) {
+            return compileStructProject(af, structCi);
+        }
 
         // Extract projection lambdas and aliases
         List<ValueSpecification> lambdaSpecs;
@@ -370,6 +446,152 @@ public class SqlCompiler {
         String filterClause = extractFilterClause(params.get(0), tableAlias, mapping);
         if (filterClause != null) {
             builder.addWhere(filterClause);
+        }
+
+        return builder;
+    }
+
+    /**
+     * Walks through lambda/function wrapping to find a struct ClassInstance source.
+     * Returns the ClassInstance node if found (for side-table lookup), null
+     * otherwise.
+     */
+    private ClassInstance findStructSource(ValueSpecification vs) {
+        return switch (vs) {
+            case ClassInstance ci when "instance".equals(ci.type()) -> ci;
+            case LambdaFunction lf when !lf.body().isEmpty() ->
+                findStructSource(lf.body().getLast());
+            default -> null;
+        };
+    }
+
+    /**
+     * Compiles project() when the source is a struct literal.
+     * Uses currentResultType (from CleanCompiler) to distinguish
+     * array properties (need UNNEST) from scalar properties.
+     *
+     * Example output:
+     * SELECT struct_src.alias.name AS "one", u0_elem.val AS "two"
+     * FROM (SELECT * FROM (VALUES ({...})) AS t(alias)) AS struct_src
+     * LEFT JOIN LATERAL (SELECT UNNEST(struct_src.alias.addresses)) AS u0(u0_elem)
+     * ON TRUE
+     */
+    private SqlBuilder compileStructProject(AppliedFunction af, ClassInstance structCi) {
+        CleanAstBuilder.InstanceData structData = (CleanAstBuilder.InstanceData) structCi.value();
+        List<ValueSpecification> params = af.parameters();
+
+        // Look up struct type info from CleanCompiler's side table
+        TypeInfo structTypeInfo = types.get(structCi);
+        RelationType structType = structTypeInfo != null ? structTypeInfo.relationType() : null;
+
+        // Build the struct source
+        SqlBuilder structSource = compileStructLiteral(structData);
+
+        // Extract class alias (lowercased simple name)
+        String className = structData.className();
+        String simpleName = className.contains("::") ? className.substring(className.lastIndexOf("::") + 2) : className;
+        String structAlias = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
+        String srcAlias = "struct_src";
+
+        // Extract projection ColSpecs
+        List<ValueSpecification> lambdaSpecs;
+        List<String> aliases;
+        if (params.get(1) instanceof ClassInstance ci && "colSpecArray".equals(ci.type())) {
+            ColSpecArray csa = (ColSpecArray) ci.value();
+            lambdaSpecs = new ArrayList<>();
+            aliases = new ArrayList<>();
+            for (ColSpec spec : csa.colSpecs()) {
+                if (spec.function1() != null) {
+                    lambdaSpecs.add(spec.function1());
+                } else {
+                    lambdaSpecs.add(new LambdaFunction(List.of(new Variable("x")),
+                            new AppliedProperty(spec.name(), List.of(new Variable("x")))));
+                }
+                aliases.add(spec.name());
+            }
+        } else if (params.get(1) instanceof Collection coll) {
+            lambdaSpecs = coll.values();
+            aliases = params.size() > 2 ? extractStringList(params.get(2)) : List.of();
+        } else {
+            lambdaSpecs = params.subList(1, params.size());
+            aliases = List.of();
+        }
+
+        // Track UNNEST joins needed for array properties
+        int unnestCounter = 0;
+
+        // Maps: array property name → (joinAlias, elemAlias)
+        var arrayAliases = new java.util.LinkedHashMap<String, String[]>();
+
+        SqlBuilder builder = new SqlBuilder();
+
+        for (int i = 0; i < lambdaSpecs.size(); i++) {
+            List<String> propPath = extractPropertyPath(lambdaSpecs.get(i));
+            String alias = i < aliases.size() ? aliases.get(i) : propPath.getLast();
+
+            if (propPath.size() == 1) {
+                // Scalar property: struct_src.alias.propName
+                String colExpr = srcAlias + "." + structAlias + "." + propPath.get(0);
+                builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
+            } else if (propPath.size() >= 2) {
+                // Array property path: e.g., [addresses, val]
+                // First segment is the array field, rest is element access
+                String arrayProp = propPath.get(0);
+
+                // Look up type from CleanCompiler's side table
+                GenericType propType = structType != null
+                        ? structType.getColumnType(arrayProp)
+                        : null;
+
+                if (propType != null && propType.isList()) {
+                    // Array property — need UNNEST
+                    String[] existingAliases = arrayAliases.get(arrayProp);
+                    String elemAlias;
+
+                    if (existingAliases == null) {
+                        // First time seeing this array — register for UNNEST join
+                        String joinAlias = "u" + unnestCounter;
+                        elemAlias = "u" + unnestCounter + "_elem";
+                        unnestCounter++;
+                        arrayAliases.put(arrayProp, new String[] { joinAlias, elemAlias });
+                    } else {
+                        elemAlias = existingAliases[1];
+                    }
+
+                    // Access sub-property on the unnested element
+                    String leafProp = propPath.get(propPath.size() - 1);
+                    String colExpr = elemAlias + "." + leafProp;
+                    builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
+                } else {
+                    // Nested scalar: struct_src.alias.prop1.prop2
+                    String colExpr = srcAlias + "." + structAlias + "."
+                            + String.join(".", propPath);
+                    builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
+                }
+            }
+        }
+
+        // FROM subquery wrapping the struct VALUES
+        builder.fromSubquery(structSource, srcAlias);
+
+        // Append UNNEST joins as structured LEFT_LATERAL JoinClauses
+        for (var entry : arrayAliases.entrySet()) {
+            String arrayProp = entry.getKey();
+            String[] als = entry.getValue();
+            String joinAlias = als[0];
+            String elemAlias = als[1];
+            String arrayPath = srcAlias + "." + structAlias + "." + arrayProp;
+
+            // Build subquery: SELECT UNNEST(path)
+            SqlBuilder unnestSubquery = new SqlBuilder()
+                    .addSelect(dialect.renderUnnestExpression(arrayPath), null);
+
+            // Compose alias as "u0(u0_elem)" for the compound alias syntax
+            String compoundAlias = joinAlias + "(" + elemAlias + ")";
+
+            builder.addJoin(new SqlBuilder.JoinClause(
+                    SqlBuilder.JoinType.LEFT_LATERAL, null, compoundAlias,
+                    unnestSubquery, "TRUE", null));
         }
 
         return builder;
