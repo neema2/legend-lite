@@ -1124,6 +1124,20 @@ public class CleanCompiler {
         }
         if (vs instanceof CString s)
             return s.value();
+        // Old-style lambda: {r | $r.colName} → extract property name
+        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
+            var body = lf.body().get(0);
+            if (body instanceof AppliedProperty ap) {
+                return ap.property();
+            }
+            // Lambda with function body: {r | $r.sal->sum()} — extract property from first
+            // arg
+            if (body instanceof AppliedFunction af && !af.parameters().isEmpty()) {
+                if (af.parameters().get(0) instanceof AppliedProperty ap) {
+                    return ap.property();
+                }
+            }
+        }
         throw new PureCompileException(
                 "Expected column name, got: " + vs.getClass().getSimpleName());
     }

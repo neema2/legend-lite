@@ -98,4 +98,61 @@ public final class DuckDBDialect implements SQLDialect {
     public String renderEndsWith(String str, String suffix) {
         return str + " LIKE '%' || " + suffix;
     }
+
+    @Override
+    public String renderFunction(String pureName, java.util.List<String> args) {
+        String sqlName = switch (pureName) {
+            // --- List ---
+            case "listExtract" -> "LIST_EXTRACT";
+            case "listSlice" -> "LIST_SLICE";
+            case "listLength" -> "LIST_LENGTH";
+            case "listConcat" -> "LIST_CONCAT";
+            case "listAppend" -> "LIST_APPEND";
+
+            // --- String ---
+            case "reverseString" -> "REVERSE";
+            case "splitPart" -> "SPLIT_PART";
+            case "joinStrings" -> "CONCAT_WS";
+            case "levenshteinDistance" -> "LEVENSHTEIN";
+            case "hash" -> "MD5";
+            case "encodeBase64" -> "BASE64";
+            case "decodeBase64" -> "FROM_BASE64";
+            case "format" -> "FORMAT";
+
+            // --- Date ---
+            case "dayOfWeek" -> "DAYOFWEEK";
+            case "dayOfYear" -> "DAYOFYEAR";
+            case "weekOfYear" -> "WEEKOFYEAR";
+            case "dateDiff" -> "DATE_DIFF";
+            case "makeDate" -> "MAKE_DATE";
+            case "timeBucket" -> "TIME_BUCKET";
+
+            // --- Bitwise ---
+            case "bitXor" -> "XOR";
+
+            // --- Aggregates / Statistics ---
+            case "median" -> "MEDIAN";
+            case "mode" -> "MODE";
+            case "stdDevSample" -> "STDDEV_SAMP";
+            case "stdDevPopulation" -> "STDDEV_POP";
+            case "varianceSample" -> "VAR_SAMP";
+            case "variancePopulation" -> "VAR_POP";
+            case "corr" -> "CORR";
+            case "covarSample" -> "COVAR_SAMP";
+            case "covarPopulation" -> "COVAR_POP";
+            case "percentileCont" -> "PERCENTILE_CONT";
+
+            // --- Analytical ---
+            case "maxBy" -> "MAX_BY";
+            case "minBy" -> "MIN_BY";
+
+            // --- Misc ---
+            case "generateGuid" -> "UUID";
+            case "typeOf" -> "TYPEOF";
+
+            // Standard SQL: pass through unchanged
+            default -> pureName;
+        };
+        return sqlName + "(" + String.join(", ", args) + ")";
+    }
 }

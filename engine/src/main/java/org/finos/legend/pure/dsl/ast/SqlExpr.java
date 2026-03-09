@@ -161,10 +161,10 @@ public sealed interface SqlExpr {
     record FunctionCall(String name, List<SqlExpr> args) implements SqlExpr {
         @Override
         public String toSql(SQLDialect dialect) {
-            String argList = args.stream()
+            var renderedArgs = args.stream()
                     .map(a -> a.toSql(dialect))
-                    .collect(Collectors.joining(", "));
-            return name + "(" + argList + ")";
+                    .collect(Collectors.toList());
+            return dialect.renderFunction(name, renderedArgs);
         }
     }
 

@@ -209,4 +209,19 @@ public interface SQLDialect {
      * @return Dialect-specific ends-with (e.g., DuckDB: "str LIKE '%' || suffix")
      */
     String renderEndsWith(String str, String suffix);
+
+    /**
+     * Render a function call. PlanGenerator uses Pure/abstract function names;
+     * this method maps them to dialect-specific SQL.
+     * Default: uppercase the name and use standard SQL call syntax: NAME(args).
+     *
+     * @param pureName Pure/abstract function name (e.g., "listExtract",
+     *                 "levenshteinDistance")
+     * @param args     Pre-rendered SQL argument expressions
+     * @return Dialect-specific function call SQL
+     */
+    default String renderFunction(String pureName, java.util.List<String> args) {
+        // Default: treat the name as a standard SQL function
+        return pureName + "(" + String.join(", ", args) + ")";
+    }
 }
