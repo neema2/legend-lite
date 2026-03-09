@@ -7,6 +7,7 @@ import org.finos.legend.engine.store.RelationalMapping;
 import org.finos.legend.engine.store.Table;
 import org.finos.legend.pure.dsl.ModelContext;
 import org.finos.legend.pure.dsl.PureCompileException;
+import org.finos.legend.pure.dsl.ast.TypedValueSpec.SourceKind;
 
 import java.util.*;
 
@@ -66,23 +67,27 @@ public class CleanCompiler {
             case LambdaFunction lf -> compileLambda(lf, ctx);
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
-            case PackageableElementPtr pe -> TypedValueSpec.scalar(pe);
-            case GenericTypeInstance gti -> TypedValueSpec.scalar(gti);
+            case PackageableElementPtr pe -> scalar(pe);
+            case GenericTypeInstance gti -> scalar(gti);
             case Collection coll -> compileCollection(coll, ctx);
             // Literals — scalar, no relation type
-            case CInteger i -> TypedValueSpec.scalar(i);
-            case CFloat f -> TypedValueSpec.scalar(f);
-            case CDecimal d -> TypedValueSpec.scalar(d);
-            case CString s -> TypedValueSpec.scalar(s);
-            case CBoolean b -> TypedValueSpec.scalar(b);
-            case CDateTime dt -> TypedValueSpec.scalar(dt);
-            case CStrictDate sd -> TypedValueSpec.scalar(sd);
-            case CStrictTime st -> TypedValueSpec.scalar(st);
-            case CLatestDate ld -> TypedValueSpec.scalar(ld);
-            case CByteArray ba -> TypedValueSpec.scalar(ba);
-            case EnumValue ev -> TypedValueSpec.scalar(ev);
-            case UnitInstance ui -> TypedValueSpec.scalar(ui);
+            case CInteger i -> scalar(i);
+            case CFloat f -> scalar(f);
+            case CDecimal d -> scalar(d);
+            case CString s -> scalar(s);
+            case CBoolean b -> scalar(b);
+            case CDateTime dt -> scalar(dt);
+            case CStrictDate sd -> scalar(sd);
+            case CStrictTime st -> scalar(st);
+            case CLatestDate ld -> scalar(ld);
+            case CByteArray ba -> scalar(ba);
+            case EnumValue ev -> scalar(ev);
+            case UnitInstance ui -> scalar(ui);
         };
+    }
+
+    private static TypedValueSpec scalar(ValueSpecification ast) {
+        return new TypedValueSpec(ast, RelationType.empty(), null, SourceKind.SCALAR);
     }
 
     // ========== Function Dispatch ==========
@@ -141,14 +146,14 @@ public class CleanCompiler {
                 if (mappingOpt.isPresent()) {
                     RelationalMapping mapping = mappingOpt.get();
                     RelationType relType = tableToRelationType(mapping.table());
-                    return new TypedValueSpec(af, relType, mapping);
+                    return new TypedValueSpec(af, relType, mapping, SourceKind.CLASS_ALL);
                 }
             }
         }
 
         Table table = resolveTable(tableRef);
         RelationType relType = tableToRelationType(table);
-        return new TypedValueSpec(af, relType);
+        return new TypedValueSpec(af, relType, null, SourceKind.RELATION);
     }
 
     /**
@@ -168,7 +173,7 @@ public class CleanCompiler {
             className = pe.fullPath().contains("::") ? pe.fullPath().substring(pe.fullPath().lastIndexOf("::") + 2)
                     : pe.fullPath();
         } else {
-            return TypedValueSpec.scalar(af);
+            return scalar(af);
         }
 
         if (mappingRegistry != null) {
@@ -176,11 +181,11 @@ public class CleanCompiler {
             if (mappingOpt.isPresent()) {
                 RelationalMapping mapping = mappingOpt.get();
                 RelationType relType = tableToRelationType(mapping.table());
-                return new TypedValueSpec(af, relType, mapping);
+                return new TypedValueSpec(af, relType, mapping, SourceKind.CLASS_ALL);
             }
         }
 
-        return TypedValueSpec.scalar(af);
+        return scalar(af);
     }
 
     // ========== Shape-Preserving Operations ==========
@@ -215,7 +220,7 @@ public class CleanCompiler {
             typeCheckExpression(lambda.body().get(0), lambdaCtx);
         }
 
-        return new TypedValueSpec(af, sourceType, source.mapping());
+        return new TypedValueSpec(af, sourceType, source.mapping(), source.sourceKind());
     }
 
     /** Compiles sort(source, sortSpecs). */
@@ -231,7 +236,7 @@ public class CleanCompiler {
         // Validate sort column names exist in source
         validateSortColumns(params.get(1), sourceType);
 
-        return new TypedValueSpec(af, sourceType, source.mapping());
+        return new TypedValueSpec(af, sourceType, source.mapping(), source.sourceKind());
     }
 
     private void validateSortColumns(ValueSpecification vs, RelationType sourceType) {
@@ -259,7 +264,7 @@ public class CleanCompiler {
         }
 
         TypedValueSpec source = compile(params.get(0), ctx);
-        return new TypedValueSpec(af, source.resultType(), source.mapping());
+        return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
     }
 
     /** Compiles drop(source, count). */
@@ -270,7 +275,7 @@ public class CleanCompiler {
         }
 
         TypedValueSpec source = compile(params.get(0), ctx);
-        return new TypedValueSpec(af, source.resultType(), source.mapping());
+        return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
     }
 
     /** Compiles slice(source, start, end). */
@@ -281,7 +286,7 @@ public class CleanCompiler {
         }
 
         TypedValueSpec source = compile(params.get(0), ctx);
-        return new TypedValueSpec(af, source.resultType(), source.mapping());
+        return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
     }
 
     /** Compiles first(source). */
@@ -291,7 +296,7 @@ public class CleanCompiler {
             throw new PureCompileException("first() requires a source");
         }
         TypedValueSpec source = compile(params.get(0), ctx);
-        return new TypedValueSpec(af, source.resultType(), source.mapping());
+        return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
     }
 
     /** Compiles distinct(source, columns?). */
@@ -305,10 +310,10 @@ public class CleanCompiler {
 
         if (params.size() > 1) {
             List<String> cols = extractColumnNames(params.get(1));
-            return new TypedValueSpec(af, source.resultType().onlyColumns(cols), source.mapping());
+            return new TypedValueSpec(af, source.resultType().onlyColumns(cols), source.mapping(), source.sourceKind());
         }
 
-        return new TypedValueSpec(af, source.resultType(), source.mapping());
+        return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
     }
 
     // ========== Shape-Changing Operations ==========
@@ -325,7 +330,7 @@ public class CleanCompiler {
         String newName = extractColumnName(params.get(2));
 
         RelationType newType = source.resultType().renameColumn(oldName, newName);
-        return new TypedValueSpec(af, newType, source.mapping());
+        return new TypedValueSpec(af, newType, source.mapping(), source.sourceKind());
     }
 
     /** Compiles concatenate(left, right). */
@@ -338,7 +343,7 @@ public class CleanCompiler {
         TypedValueSpec left = compile(params.get(0), ctx);
         compile(params.get(1), ctx);
 
-        return new TypedValueSpec(af, left.resultType(), left.mapping());
+        return new TypedValueSpec(af, left.resultType(), left.mapping(), left.sourceKind());
     }
 
     /**
@@ -403,7 +408,7 @@ public class CleanCompiler {
         }
 
         RelationType resultType = new RelationType(projectedColumns);
-        return new TypedValueSpec(af, resultType, mapping);
+        return new TypedValueSpec(af, resultType, mapping, source.sourceKind());
     }
 
     /**
@@ -430,7 +435,7 @@ public class CleanCompiler {
             selectedColumns.put(col, type);
         }
 
-        return new TypedValueSpec(af, new RelationType(selectedColumns), source.mapping());
+        return new TypedValueSpec(af, new RelationType(selectedColumns), source.mapping(), source.sourceKind());
     }
 
     /**
@@ -444,10 +449,32 @@ public class CleanCompiler {
         }
 
         TypedValueSpec source = compile(params.get(0), ctx);
+        RelationType sourceType = source.resultType();
 
-        // GroupBy produces a new RelationType — for now, pass through with empty
-        // (PlanGenerator will figure out the SQL from the AST)
-        return new TypedValueSpec(af, RelationType.empty(), source.mapping());
+        // Build output columns: group columns + aggregate columns
+        Map<String, GenericType> resultColumns = new LinkedHashMap<>();
+
+        // Group columns (param 1): ~col or [~col1, ~col2]
+        List<String> groupColNames = extractColumnNames(params.get(1));
+        for (String col : groupColNames) {
+            GenericType type = sourceType.columns().getOrDefault(col, GenericType.Primitive.STRING);
+            resultColumns.put(col, type);
+        }
+
+        // Aggregate columns (params 2+): ~alias:x|$x.prop:y|$y->sum()
+        for (int i = 2; i < params.size(); i++) {
+            String aggCol = extractNewColumnName(params.get(i));
+            if (aggCol != null) {
+                resultColumns.put(aggCol, GenericType.Primitive.NUMBER);
+            }
+        }
+
+        // Fallback: if no columns resolved, use source type so it's never empty
+        if (resultColumns.isEmpty()) {
+            return new TypedValueSpec(af, sourceType, source.mapping(), source.sourceKind());
+        }
+
+        return new TypedValueSpec(af, new RelationType(resultColumns), source.mapping(), source.sourceKind());
     }
 
     /**
@@ -461,7 +488,21 @@ public class CleanCompiler {
         }
 
         TypedValueSpec source = compile(params.get(0), ctx);
-        return new TypedValueSpec(af, RelationType.empty(), source.mapping());
+
+        // Build output columns from aggregate specs
+        Map<String, GenericType> resultColumns = new LinkedHashMap<>();
+        for (int i = 1; i < params.size(); i++) {
+            String aggCol = extractNewColumnName(params.get(i));
+            if (aggCol != null) {
+                resultColumns.put(aggCol, GenericType.Primitive.NUMBER);
+            }
+        }
+
+        if (resultColumns.isEmpty()) {
+            return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
+        }
+
+        return new TypedValueSpec(af, new RelationType(resultColumns), source.mapping(), source.sourceKind());
     }
 
     /**
@@ -487,7 +528,7 @@ public class CleanCompiler {
             }
         }
 
-        return new TypedValueSpec(af, new RelationType(newColumns), source.mapping());
+        return new TypedValueSpec(af, new RelationType(newColumns), source.mapping(), source.sourceKind());
     }
 
     /**
@@ -506,7 +547,7 @@ public class CleanCompiler {
         Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.resultType().columns());
         mergedColumns.putAll(right.resultType().columns());
 
-        return new TypedValueSpec(af, new RelationType(mergedColumns), left.mapping());
+        return new TypedValueSpec(af, new RelationType(mergedColumns), left.mapping(), left.sourceKind());
     }
 
     /** Compiles asOfJoin. */
@@ -514,7 +555,9 @@ public class CleanCompiler {
         return compileJoin(af, ctx); // Same type logic
     }
 
-    /** Compiles pivot. */
+    /**
+     * Compiles pivot — pass through source type (columns not known until runtime).
+     */
     private TypedValueSpec compilePivot(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         if (params.isEmpty()) {
@@ -522,7 +565,7 @@ public class CleanCompiler {
         }
 
         TypedValueSpec source = compile(params.get(0), ctx);
-        return new TypedValueSpec(af, RelationType.empty(), source.mapping());
+        return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
     }
 
     /**
@@ -537,7 +580,7 @@ public class CleanCompiler {
         }
 
         TypedValueSpec source = compile(params.get(0), ctx);
-        return new TypedValueSpec(af, source.resultType(), source.mapping());
+        return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
     }
 
     /**
@@ -550,13 +593,13 @@ public class CleanCompiler {
             try {
                 TypedValueSpec source = compile(af.parameters().get(0), ctx);
                 if (source.resultType() != null && !source.resultType().columns().isEmpty()) {
-                    return new TypedValueSpec(af, source.resultType(), source.mapping());
+                    return new TypedValueSpec(af, source.resultType(), source.mapping(), source.sourceKind());
                 }
             } catch (Exception ignored) {
                 // Not a relation source — treat as scalar
             }
         }
-        return TypedValueSpec.scalar(af);
+        return scalar(af);
     }
 
     // ========== ClassInstance (DSL containers) ==========
@@ -566,7 +609,7 @@ public class CleanCompiler {
             case "relation" -> compileRelationAccessor(ci, ctx);
             case "tdsLiteral" -> compileTdsLiteral(ci, ctx);
             case "instance" -> compileInstanceLiteral(ci);
-            default -> TypedValueSpec.scalar(ci);
+            default -> scalar(ci);
         };
     }
 
@@ -584,7 +627,7 @@ public class CleanCompiler {
         var rt = new RelationType(columns);
         // Register in side table so SqlCompiler can look up struct type info
         types.put(ci, TypeInfo.of(rt));
-        return new TypedValueSpec(ci, rt);
+        return new TypedValueSpec(ci, rt, null, SourceKind.CLASS_INSTANCE);
     }
 
     /**
@@ -617,7 +660,7 @@ public class CleanCompiler {
     private TypedValueSpec compileRelationAccessor(ClassInstance ci, CompilationContext ctx) {
         String tableRef = (String) ci.value();
         Table table = resolveTable(tableRef);
-        return new TypedValueSpec(ci, tableToRelationType(table));
+        return new TypedValueSpec(ci, tableToRelationType(table), null, SourceKind.RELATION);
     }
 
     private TypedValueSpec compileTdsLiteral(ClassInstance ci, CompilationContext ctx) {
@@ -628,7 +671,8 @@ public class CleanCompiler {
         for (var col : tds.columns()) {
             columns.put(col.name(), GenericType.Primitive.STRING);
         }
-        return new TypedValueSpec(new ClassInstance("tdsLiteral", tds), new RelationType(columns));
+        return new TypedValueSpec(new ClassInstance("tdsLiteral", tds), new RelationType(columns), null,
+                SourceKind.TDS_LITERAL);
     }
 
     /**
@@ -847,15 +891,15 @@ public class CleanCompiler {
         if (!lf.body().isEmpty()) {
             return compile(lf.body().get(0), ctx);
         }
-        return TypedValueSpec.scalar(lf);
+        return scalar(lf);
     }
 
     private TypedValueSpec compileVariable(Variable v, CompilationContext ctx) {
         RelationType varType = ctx.getRelationType(v.name());
         if (varType != null) {
-            return new TypedValueSpec(v, varType);
+            return new TypedValueSpec(v, varType, null, SourceKind.SCALAR);
         }
-        return TypedValueSpec.scalar(v);
+        return scalar(v);
     }
 
     private TypedValueSpec compileProperty(AppliedProperty ap, CompilationContext ctx) {
@@ -865,11 +909,11 @@ public class CleanCompiler {
                 relType.requireColumn(ap.property());
             }
         }
-        return TypedValueSpec.scalar(ap);
+        return scalar(ap);
     }
 
     private TypedValueSpec compileCollection(Collection coll, CompilationContext ctx) {
-        return TypedValueSpec.scalar(coll);
+        return scalar(coll);
     }
 
     // ========== Compilation Context ==========

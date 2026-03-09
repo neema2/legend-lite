@@ -38,10 +38,6 @@ public class SqlCompiler {
     private final ModelContext modelContext;
     private int tableAliasCounter = 0;
 
-    public SqlCompiler(IdentityHashMap<ValueSpecification, TypeInfo> types, SQLDialect dialect) {
-        this(types, dialect, null);
-    }
-
     public SqlCompiler(IdentityHashMap<ValueSpecification, TypeInfo> types, SQLDialect dialect,
             ModelContext modelContext) {
         this.types = types;
@@ -53,21 +49,27 @@ public class SqlCompiler {
         return "t" + tableAliasCounter++;
     }
 
-    /**
-     * Compiles a TypedValueSpec to a SqlBuilder.
-     * Uses resultType from CleanCompiler to route: scalar queries produce
-     * SELECT expr AS "value", relation queries produce full SELECT.
-     */
     public SqlBuilder compile(TypedValueSpec tvs) {
-        if (tvs.resultType().columns().isEmpty() && isScalarAst(tvs.ast())) {
-            return compileScalarQuery(tvs.ast(), tvs.mapping());
-        }
-        return compileRelation(tvs.ast(), tvs.mapping());
+        return switch (tvs.sourceKind()) {
+            case SCALAR -> compileScalarQuery(tvs.ast(), tvs.mapping());
+            case CLASS_INSTANCE -> {
+                // Struct literal: walk AST to find the ClassInstance node
+                ClassInstance ci = (ClassInstance) unwrapSource(tvs.ast());
+                yield compileStructProject(
+                        (AppliedFunction) tvs.ast(), ci);
+            }
+            case CLASS_ALL, TDS_LITERAL, RELATION ->
+                compileRelation(tvs.ast(), tvs.mapping());
+        };
     }
 
-    /** Backward-compatible entry point. */
-    public SqlBuilder compile(ValueSpecification ast, RelationalMapping mapping) {
-        return compileRelation(ast, mapping);
+    /** Unwraps lambda/function chain to find the source ValueSpecification. */
+    private ValueSpecification unwrapSource(ValueSpecification vs) {
+        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty())
+            return unwrapSource(lf.body().getLast());
+        if (vs instanceof AppliedFunction af && !af.parameters().isEmpty())
+            return unwrapSource(af.parameters().get(0));
+        return vs;
     }
 
     /**
@@ -79,40 +81,8 @@ public class SqlCompiler {
         if (ast instanceof LambdaFunction lf && !lf.body().isEmpty()) {
             body = lf.body().getLast();
         }
-        String scalar = compileScalar(body, null, mapping);
+        SqlExpr scalar = compileScalar(body, null, mapping);
         return new SqlBuilder().addSelect(scalar, dialect.quoteIdentifier("value"));
-    }
-
-    /**
-     * Returns true if the AST represents a scalar expression (not a relation
-     * query). Walks the function chain to find the source — if it bottoms out
-     * at a table/TDS ClassInstance or getAll(), it's a relation.
-     */
-    private boolean isScalarAst(ValueSpecification vs) {
-        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            vs = lf.body().getLast();
-        }
-        return isScalarExpression(vs);
-    }
-
-    private boolean isScalarExpression(ValueSpecification vs) {
-        // Literals are always scalar
-        if (vs instanceof CInteger || vs instanceof CFloat || vs instanceof CDecimal
-                || vs instanceof CString || vs instanceof CBoolean
-                || vs instanceof CDateTime || vs instanceof CStrictDate
-                || vs instanceof CStrictTime || vs instanceof CLatestDate) {
-            return true;
-        }
-        // ClassInstance (relation, tdsLiteral) → relation source
-        if (vs instanceof ClassInstance) {
-            return false;
-        }
-        // Walk function chains: adjust(date, ...) is scalar, but project(getAll(), ...)
-        // is relation
-        if (vs instanceof AppliedFunction af && !af.parameters().isEmpty()) {
-            return isScalarExpression(af.parameters().get(0));
-        }
-        return false;
     }
 
     // ========== Relation Compilation ==========
@@ -175,7 +145,7 @@ public class SqlCompiler {
      * Renders the instance as a dialect-specific struct inside VALUES.
      */
     private SqlBuilder compileStructLiteral(CleanAstBuilder.InstanceData data) {
-        String structSql = renderStructValue(new ClassInstance("instance", data));
+        SqlExpr structExpr = renderStructValue(new ClassInstance("instance", data));
 
         // Use lowercased simple class name as alias (e.g., "test::TypeForProjectTest" →
         // "typeForProjectTest")
@@ -186,36 +156,36 @@ public class SqlCompiler {
         return new SqlBuilder()
                 .selectStar()
                 .fromValues(
-                        java.util.List.of(java.util.List.of(structSql)),
+                        java.util.List.of(java.util.List.of(structExpr)),
                         "t",
                         java.util.List.of(alias));
     }
 
     /**
-     * Recursively renders a ValueSpecification to a SQL struct/value literal.
+     * Recursively renders a ValueSpecification to a SqlExpr struct/value literal.
      * All syntax goes through dialect — no DuckDB-specific code here.
      */
-    private String renderStructValue(ValueSpecification vs) {
+    private SqlExpr renderStructValue(ValueSpecification vs) {
         return switch (vs) {
-            case CString cs -> dialect.quoteStringLiteral(cs.value());
-            case CInteger ci -> String.valueOf(ci.value());
-            case CFloat cf -> String.valueOf(cf.value());
-            case CBoolean cb -> dialect.formatBoolean(cb.value());
-            case CDateTime cdt -> dialect.formatDate("%" + cdt.value());
-            case CStrictDate csd -> dialect.formatDate("%" + csd.value());
+            case CString cs -> new SqlExpr.StringLiteral(cs.value());
+            case CInteger ci -> new SqlExpr.Literal(String.valueOf(ci.value()));
+            case CFloat cf -> new SqlExpr.Literal(String.valueOf(cf.value()));
+            case CBoolean cb -> new SqlExpr.BoolLiteral(cb.value());
+            case CDateTime cdt -> new SqlExpr.TimestampLiteral(cdt.value());
+            case CStrictDate csd -> new SqlExpr.DateLiteral(csd.value());
             case Collection coll -> {
-                java.util.List<String> elements = coll.values().stream()
+                java.util.List<SqlExpr> elements = coll.values().stream()
                         .map(this::renderStructValue)
                         .toList();
-                yield dialect.renderArrayLiteral(elements);
+                yield new SqlExpr.ArrayLiteral(elements);
             }
             case ClassInstance ci when "instance".equals(ci.type()) -> {
                 var data = (CleanAstBuilder.InstanceData) ci.value();
-                var fields = new java.util.LinkedHashMap<String, String>();
+                var fields = new java.util.LinkedHashMap<String, SqlExpr>();
                 for (var entry : data.properties().entrySet()) {
                     fields.put(entry.getKey(), renderStructValue(entry.getValue()));
                 }
-                yield dialect.renderStructLiteral(fields);
+                yield new SqlExpr.StructLiteral(fields);
             }
             default -> throw new PureCompileException(
                     "SqlCompiler: cannot render struct value from " + vs.getClass().getSimpleName());
@@ -230,7 +200,7 @@ public class SqlCompiler {
         List<String> quotedCols = tds.columns().stream()
                 .map(c -> dialect.quoteIdentifier(c.name())).toList();
 
-        List<List<String>> rows = tds.rows().stream()
+        List<List<SqlExpr>> rows = tds.rows().stream()
                 .map(row -> row.stream().map(this::formatTdsValue).toList())
                 .toList();
 
@@ -239,15 +209,15 @@ public class SqlCompiler {
                 .fromValues(rows, dialect.quoteIdentifier("_tds"), quotedCols);
     }
 
-    /** Formats a typed TDS cell value for SQL. */
-    private String formatTdsValue(Object val) {
+    /** Formats a typed TDS cell value as SqlExpr. */
+    private SqlExpr formatTdsValue(Object val) {
         if (val == null)
-            return "NULL";
+            return new SqlExpr.NullLiteral();
         if (val instanceof Boolean b)
-            return b ? "TRUE" : "FALSE";
+            return new SqlExpr.BoolLiteral(b);
         if (val instanceof Number)
-            return val.toString();
-        return dialect.quoteStringLiteral(val.toString());
+            return new SqlExpr.Literal(val.toString());
+        return new SqlExpr.StringLiteral(val.toString());
     }
 
     private SqlBuilder compileFunction(AppliedFunction af, RelationalMapping mapping) {
@@ -327,13 +297,15 @@ public class SqlCompiler {
                 && !source.hasOrderBy() && source.getFromSubquery() == null
                 && source.getFromTable() != null) {
             // Use table-alias-prefixed scalar so all column refs get t0. prefix
-            String tableAlias = source.getFromAlias() != null ? unquote(source.getFromAlias()) : "t0";
-            String whereClause = compileScalar(lambda.body().get(0), paramName, mapping, tableAlias);
+            if (source.getFromAlias() == null)
+                throw new PureCompileException("SqlCompiler: source has no FROM alias for filter inlining");
+            String tableAlias = unquote(source.getFromAlias());
+            SqlExpr whereClause = compileScalar(lambda.body().get(0), paramName, mapping, tableAlias);
             source.addWhere(whereClause);
             return source;
         }
         // Subquery wrapping — columns resolve by name, no prefix needed
-        String whereClause = compileScalar(lambda.body().get(0), paramName, mapping);
+        SqlExpr whereClause = compileScalar(lambda.body().get(0), paramName, mapping);
         return new SqlBuilder()
                 .selectStar()
                 .fromSubquery(source, "filter_src")
@@ -345,13 +317,10 @@ public class SqlCompiler {
     private SqlBuilder compileProject(AppliedFunction af, RelationalMapping mapping) {
         List<ValueSpecification> params = af.parameters();
 
-        // Check if source is a struct literal — delegate to struct-specific project
-        ClassInstance structCi = findStructSource(params.get(0));
-        if (structCi != null) {
-            return compileStructProject(af, structCi);
-        }
+        // Step 1: Compile the source (getAll, filter, etc.)
+        SqlBuilder source = compileRelation(params.get(0), mapping);
 
-        // Extract projection lambdas and aliases
+        // Step 2: Extract projection lambdas and aliases
         List<ValueSpecification> lambdaSpecs;
         List<String> aliases;
         if (params.get(1) instanceof Collection coll) {
@@ -362,22 +331,42 @@ public class SqlCompiler {
             aliases = List.of();
         }
 
-        String tableAlias = nextTableAlias();
-        String tableName = resolveTableNameFromSource(params.get(0), mapping);
+        // Step 3: Determine table alias from source builder
+        if (source.getFromAlias() == null)
+            throw new PureCompileException("SqlCompiler: source has no FROM alias for project");
+        String tableAlias = unquote(source.getFromAlias());
 
-        SqlBuilder builder = new SqlBuilder();
+        // Step 4: Can we inline columns into source, or do we need a subquery?
+        boolean canInline = source.isSelectStar()
+                && !source.hasGroupBy()
+                && source.getFromSubquery() == null;
 
-        // Track association joins: assocProperty -> cached info
+        SqlBuilder builder;
+        if (canInline) {
+            // Replace SELECT * with explicit columns
+            source.clearSelect();
+            builder = source;
+        } else {
+            // Wrap source as subquery
+            tableAlias = "proj_src";
+            builder = new SqlBuilder().fromSubquery(source, tableAlias);
+        }
+
+        // Track association joins: assocProperty → cached info
         record AssocJoinInfo(String alias, RelationalMapping mapping, Join join) {
         }
         java.util.Map<String, AssocJoinInfo> assocJoins = new java.util.LinkedHashMap<>();
 
-        // Build column projections
+        // Step 5: Build SELECT columns
         for (int i = 0; i < lambdaSpecs.size(); i++) {
             List<String> propPath = extractPropertyPath(lambdaSpecs.get(i));
             String alias = i < aliases.size() ? aliases.get(i) : propPath.getLast();
 
-            if (propPath.size() > 1 && modelContext != null) {
+            if (propPath.size() > 1) {
+                if (modelContext == null)
+                    throw new PureCompileException(
+                            "SqlCompiler: association navigation requires modelContext for property '" + propPath.get(0)
+                                    + "'");
                 // Association navigation: e.g., ["items", "productName"]
                 String assocProp = propPath.get(0);
                 String leafProp = propPath.getLast();
@@ -387,44 +376,26 @@ public class SqlCompiler {
                 RelationalMapping targetMapping;
 
                 if (joinInfo == null) {
-                    // Discover target via ModelContext association lookup
-                    String sourceClassName = mapping.pureClass().name();
-                    var assocNav = modelContext.findAssociationByProperty(sourceClassName, assocProp);
-                    if (assocNav.isEmpty()) {
-                        throw new PureCompileException(
-                                "SqlCompiler: no association found for property '" + assocProp
-                                        + "' on class '" + sourceClassName + "'");
-                    }
-                    String targetClassName = assocNav.get().targetClassName();
-                    var targetMappingOpt = modelContext.findMapping(targetClassName);
-                    if (targetMappingOpt.isEmpty()) {
-                        throw new PureCompileException(
-                                "SqlCompiler: no mapping found for association target class '"
-                                        + targetClassName + "'");
-                    }
-                    targetMapping = targetMappingOpt.get();
+                    var assocResult = resolveAssociationTarget(assocProp, mapping);
+                    targetMapping = assocResult.mapping();
                     targetAlias = "j" + (assocJoins.size() + 1);
-                    Join assocJoin = assocNav.get().join();
-                    assocJoins.put(assocProp, new AssocJoinInfo(targetAlias, targetMapping, assocJoin));
+                    assocJoins.put(assocProp, new AssocJoinInfo(targetAlias, targetMapping, assocResult.join()));
                 } else {
                     targetAlias = joinInfo.alias();
                     targetMapping = joinInfo.mapping();
                 }
 
-                // Resolve column from target mapping
-                String colExpr = resolveColumnExpr(leafProp, targetMapping, targetAlias);
+                SqlExpr colExpr = resolveColumnExpr(leafProp, targetMapping, targetAlias);
                 builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
             } else {
                 // Simple single-hop property
                 String propertyName = propPath.getLast();
-                String colExpr = resolveColumnExpr(propertyName, mapping, tableAlias);
+                SqlExpr colExpr = resolveColumnExpr(propertyName, mapping, tableAlias);
                 builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
             }
         }
 
-        builder.from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier(tableAlias));
-
-        // Add LEFT OUTER JOINs for association projections
+        // Step 6: Add LEFT OUTER JOINs for association projections
         for (var entry : assocJoins.entrySet()) {
             AssocJoinInfo info = entry.getValue();
             Join join = info.join();
@@ -432,37 +403,16 @@ public class SqlCompiler {
                 String targetTableName = info.mapping().table().name();
                 String leftCol = join.getColumnForTable(mapping.table().name());
                 String rightCol = join.getColumnForTable(targetTableName);
-                String onCondition = dialect.quoteIdentifier(tableAlias) + "."
-                        + dialect.quoteIdentifier(leftCol) + " = "
-                        + dialect.quoteIdentifier(info.alias()) + "."
-                        + dialect.quoteIdentifier(rightCol);
+                SqlExpr onCondition = new SqlExpr.Binary(
+                        new SqlExpr.Column(tableAlias, leftCol), "=",
+                        new SqlExpr.Column(info.alias(), rightCol));
                 builder.addJoin(SqlBuilder.JoinType.LEFT,
                         dialect.quoteIdentifier(targetTableName),
                         dialect.quoteIdentifier(info.alias()), onCondition);
             }
         }
 
-        // Extract filter clause if source is a filter (flatten into WHERE)
-        String filterClause = extractFilterClause(params.get(0), tableAlias, mapping);
-        if (filterClause != null) {
-            builder.addWhere(filterClause);
-        }
-
         return builder;
-    }
-
-    /**
-     * Walks through lambda/function wrapping to find a struct ClassInstance source.
-     * Returns the ClassInstance node if found (for side-table lookup), null
-     * otherwise.
-     */
-    private ClassInstance findStructSource(ValueSpecification vs) {
-        return switch (vs) {
-            case ClassInstance ci when "instance".equals(ci.type()) -> ci;
-            case LambdaFunction lf when !lf.body().isEmpty() ->
-                findStructSource(lf.body().getLast());
-            default -> null;
-        };
     }
 
     /**
@@ -531,7 +481,8 @@ public class SqlCompiler {
 
             if (propPath.size() == 1) {
                 // Scalar property: struct_src.alias.propName
-                String colExpr = srcAlias + "." + structAlias + "." + propPath.get(0);
+                SqlExpr colExpr = new SqlExpr.FieldAccess(
+                        new SqlExpr.FieldAccess(new SqlExpr.ColumnRef(srcAlias), structAlias), propPath.get(0));
                 builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
             } else if (propPath.size() >= 2) {
                 // Array property path: e.g., [addresses, val]
@@ -560,13 +511,15 @@ public class SqlCompiler {
 
                     // Access sub-property on the unnested element
                     String leafProp = propPath.get(propPath.size() - 1);
-                    String colExpr = elemAlias + "." + leafProp;
+                    SqlExpr colExpr = new SqlExpr.Column(elemAlias, leafProp);
                     builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
                 } else {
                     // Nested scalar: struct_src.alias.prop1.prop2
-                    String colExpr = srcAlias + "." + structAlias + "."
-                            + String.join(".", propPath);
-                    builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
+                    SqlExpr base = new SqlExpr.FieldAccess(new SqlExpr.ColumnRef(srcAlias), structAlias);
+                    for (String seg : propPath) {
+                        base = new SqlExpr.FieldAccess(base, seg);
+                    }
+                    builder.addSelect(base, dialect.quoteIdentifier(alias));
                 }
             }
         }
@@ -580,18 +533,21 @@ public class SqlCompiler {
             String[] als = entry.getValue();
             String joinAlias = als[0];
             String elemAlias = als[1];
-            String arrayPath = srcAlias + "." + structAlias + "." + arrayProp;
 
             // Build subquery: SELECT UNNEST(path)
             SqlBuilder unnestSubquery = new SqlBuilder()
-                    .addSelect(dialect.renderUnnestExpression(arrayPath), null);
+                    .addSelect(new SqlExpr.Unnest(
+                            new SqlExpr.FieldAccess(
+                                    new SqlExpr.FieldAccess(new SqlExpr.ColumnRef(srcAlias), structAlias),
+                                    arrayProp)),
+                            null);
 
             // Compose alias as "u0(u0_elem)" for the compound alias syntax
             String compoundAlias = joinAlias + "(" + elemAlias + ")";
 
             builder.addJoin(new SqlBuilder.JoinClause(
                     SqlBuilder.JoinType.LEFT_LATERAL, null, compoundAlias,
-                    unnestSubquery, "TRUE", null));
+                    unnestSubquery, new SqlExpr.BoolLiteral(true), null));
         }
 
         return builder;
@@ -630,52 +586,28 @@ public class SqlCompiler {
     /**
      * Resolves a property to its column expression, handling expression mappings.
      */
-    private String resolveColumnExpr(String propertyName, RelationalMapping mapping, String alias) {
-        if (mapping != null && propertyName != null) {
-            var pmOpt = mapping.getPropertyMapping(propertyName);
-            if (pmOpt.isPresent() && pmOpt.get().hasExpression()) {
-                return translateExpressionToSql(pmOpt.get().expressionString(),
-                        pmOpt.get().columnName(), alias);
+    private SqlExpr resolveColumnExpr(String propertyName, RelationalMapping mapping, String alias) {
+        if (mapping == null)
+            throw new PureCompileException(
+                    "SqlCompiler: resolveColumnExpr requires mapping for property '" + propertyName + "'");
+        if (propertyName == null)
+            throw new PureCompileException("SqlCompiler: resolveColumnExpr requires non-null property name");
+        var pmOpt = mapping.getPropertyMapping(propertyName);
+        if (pmOpt.isPresent()) {
+            var pm = pmOpt.get();
+            var exprAccess = pm.expressionAccess();
+            if (exprAccess.isPresent()) {
+                var ea = exprAccess.get();
+                SqlExpr base = new SqlExpr.Column(alias, pm.columnName());
+                SqlExpr jsonAccess = new SqlExpr.JsonAccess(base, ea.jsonKey());
+                return ea.castType() != null
+                        ? new SqlExpr.Cast(jsonAccess, ea.castType())
+                        : jsonAccess;
             }
-            if (pmOpt.isPresent()) {
-                return dialect.quoteIdentifier(alias) + "."
-                        + dialect.quoteIdentifier(pmOpt.get().columnName());
-            }
+            return new SqlExpr.Column(alias, pm.columnName());
         }
-        return dialect.quoteIdentifier(alias) + "." + dialect.quoteIdentifier(propertyName);
-    }
-
-    /**
-     * Translates a Pure expression mapping string to SQL.
-     * Uses dialect for JSON access and type names.
-     */
-    private String translateExpressionToSql(String expression, String columnName, String alias) {
-        // Pattern: ->get('key', @Type) or ->get('key')
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("->get\\('(\\w+)'(?:,\\s*@(\\w+))?\\)")
-                .matcher(expression);
-
-        if (m.find()) {
-            String key = m.group(1);
-            String pureType = m.group(2); // may be null
-
-            String qualifiedCol = "(" + dialect.quoteIdentifier(alias) + "."
-                    + dialect.quoteIdentifier(columnName) + ")";
-            var jsonDialect = dialect.getJsonDialect();
-            String jsonAccess = jsonDialect != null
-                    ? jsonDialect.variantGet(qualifiedCol, dialect.quoteStringLiteral(key))
-                    : qualifiedCol + "->>" + dialect.quoteStringLiteral(key);
-
-            if (pureType != null) {
-                String sqlType = dialect.sqlTypeName(pureType);
-                return "CAST((" + jsonAccess + ") AS " + sqlType + ")";
-            }
-            return jsonAccess;
-        }
-
-        // Fallback: use expression as-is with qualified column
-        String qualifiedCol = dialect.quoteIdentifier(alias) + "." + dialect.quoteIdentifier(columnName);
-        return expression.replaceAll("\\[\\w+\\]\\s+\\w+\\.\\w+", qualifiedCol);
+        // No mapping for this property — use property name as column (unmapped/direct)
+        return new SqlExpr.Column(alias, propertyName);
     }
 
     /**
@@ -719,23 +651,6 @@ public class SqlCompiler {
      * Resolves the RelationalMapping for a relation expression by finding the
      * getAll class.
      */
-    private RelationalMapping resolveRelationMapping(ValueSpecification vs, RelationalMapping defaultMapping) {
-        if (modelContext == null)
-            return defaultMapping;
-        if (vs instanceof AppliedFunction af) {
-            String funcName = simpleName(af.function());
-            if ("getAll".equals(funcName) && !af.parameters().isEmpty()) {
-                String className = extractClassName(af.parameters().get(0));
-                var opt = modelContext.findMapping(className);
-                if (opt.isPresent())
-                    return opt.get();
-            }
-            if (!af.parameters().isEmpty()) {
-                return resolveRelationMapping(af.parameters().get(0), defaultMapping);
-            }
-        }
-        return defaultMapping;
-    }
 
     // ========== sort ==========
 
@@ -752,11 +667,11 @@ public class SqlCompiler {
                 dir = dirStr.value().toUpperCase();
             }
             sortCols = List.of(new SqlBuilder.OrderByColumn(
-                    dialect.quoteIdentifier(colStr.value()),
+                    new SqlExpr.ColumnRef(colStr.value()),
                     "ASC".equals(dir) ? SqlBuilder.SortDirection.ASC : SqlBuilder.SortDirection.DESC,
                     SqlBuilder.NullsPosition.DEFAULT));
         } else {
-            sortCols = parseSortSpecs(params.get(1), mapping);
+            sortCols = compileSortSpecs(params.get(1), mapping);
         }
 
         // Minimize wrapping: if source has no ORDER BY, add directly
@@ -777,20 +692,20 @@ public class SqlCompiler {
         return wrapper;
     }
 
-    private List<SqlBuilder.OrderByColumn> parseSortSpecs(ValueSpecification vs, RelationalMapping mapping) {
+    private List<SqlBuilder.OrderByColumn> compileSortSpecs(ValueSpecification vs, RelationalMapping mapping) {
         List<SqlBuilder.OrderByColumn> result = new ArrayList<>();
         List<ValueSpecification> specs = (vs instanceof Collection coll) ? coll.values() : List.of(vs);
         for (var spec : specs) {
-            result.add(parseSingleSortSpec(spec, mapping));
+            result.add(compileSingleSortSpec(spec, mapping));
         }
         return result;
     }
 
-    private SqlBuilder.OrderByColumn parseSingleSortSpec(ValueSpecification vs, RelationalMapping mapping) {
+    private SqlBuilder.OrderByColumn compileSingleSortSpec(ValueSpecification vs, RelationalMapping mapping) {
         if (vs instanceof ClassInstance ci && "sortInfo".equals(ci.type())) {
             if (ci.value() instanceof ColSpec cs) {
                 return new SqlBuilder.OrderByColumn(
-                        dialect.quoteIdentifier(cs.name()),
+                        new SqlExpr.ColumnRef(cs.name()),
                         SqlBuilder.SortDirection.ASC,
                         SqlBuilder.NullsPosition.DEFAULT);
             }
@@ -804,12 +719,12 @@ public class SqlCompiler {
                         ? SqlBuilder.SortDirection.ASC
                         : SqlBuilder.SortDirection.DESC;
                 return new SqlBuilder.OrderByColumn(
-                        dialect.quoteIdentifier(col), dir, SqlBuilder.NullsPosition.DEFAULT);
+                        new SqlExpr.ColumnRef(col), dir, SqlBuilder.NullsPosition.DEFAULT);
             }
         }
         if (vs instanceof CString s) {
             return new SqlBuilder.OrderByColumn(
-                    dialect.quoteIdentifier(s.value()),
+                    new SqlExpr.ColumnRef(s.value()),
                     SqlBuilder.SortDirection.ASC,
                     SqlBuilder.NullsPosition.DEFAULT);
         }
@@ -906,7 +821,7 @@ public class SqlCompiler {
 
         for (int i = 1; i < params.size(); i++) {
             for (String col : extractColumnNames(params.get(i))) {
-                builder.addSelect(dialect.quoteIdentifier(col), dialect.quoteIdentifier(col));
+                builder.addSelect(new SqlExpr.ColumnRef(col), dialect.quoteIdentifier(col));
             }
         }
         return builder;
@@ -925,7 +840,7 @@ public class SqlCompiler {
         SqlBuilder builder = new SqlBuilder().fromSubquery(source, "rename_src");
         builder.selectStar();
         builder.addStarExcept(dialect.quoteIdentifier(oldName));
-        builder.addSelect(dialect.quoteIdentifier(oldName), dialect.quoteIdentifier(newName));
+        builder.addSelect(new SqlExpr.ColumnRef(oldName), dialect.quoteIdentifier(newName));
         return builder;
     }
 
@@ -953,9 +868,9 @@ public class SqlCompiler {
             for (var spec : groupSpecs) {
                 String colName = extractPropertyOrColumnName(spec);
                 if (colName != null) {
-                    String quoted = dialect.quoteIdentifier(colName);
-                    builder.addSelect(quoted, null);
-                    builder.addGroupBy(quoted);
+                    SqlExpr colRef = new SqlExpr.ColumnRef(colName);
+                    builder.addSelect(colRef, null);
+                    builder.addGroupBy(colRef);
                 }
             }
 
@@ -978,7 +893,8 @@ public class SqlCompiler {
                             ? extractPropertyNameFromLambda(cs.function1())
                             : cs.name();
                     if (cs.function2() != null) {
-                        aggFunc = extractAggFunction(cs.function2());
+                        aggFunc = mapAggregateFunction(simpleName(
+                                ((AppliedFunction) cs.function2().body().get(0)).function()));
                     }
                 } else {
                     sourceCol = extractPropertyOrColumnName(aggSpec);
@@ -986,7 +902,7 @@ public class SqlCompiler {
                     alias = aliasIndex < aliases.size() ? aliases.get(aliasIndex) : sourceCol + "_agg";
                 }
 
-                String expr = aggFunc + "(" + dialect.quoteIdentifier(sourceCol) + ")";
+                SqlExpr expr = new SqlExpr.FunctionCall(aggFunc, List.of(new SqlExpr.ColumnRef(sourceCol)));
                 builder.addSelect(expr, dialect.quoteIdentifier(alias));
             }
         }
@@ -1021,31 +937,24 @@ public class SqlCompiler {
         }
 
         if (overSpec != null && windowColSpec != null) {
-            String windowFunc = extractWindowFunction(windowColSpec);
-            String overClause = generateOverClause(overSpec);
+            SqlExpr windowFunc = extractWindowFunction(windowColSpec);
+            SqlExpr.WindowSpec windowSpec = generateOverClause(overSpec);
             String alias = windowColSpec.name();
 
-            if (windowFunc.startsWith("WRAPPED:")) {
-                // Post-processor wrapping a window function
-                // e.g., WRAPPED:ROUND(CUME_DIST(), 2) → ROUND(CUME_DIST() OVER(...), 2)
-                String wrappedExpr = windowFunc.substring("WRAPPED:".length());
-                // Insert OVER clause after the inner window function's closing parens
-                // Find the inner window function (first "()" pattern) and insert OVER after it
-                int innerClose = wrappedExpr.indexOf("()");
-                if (innerClose >= 0) {
-                    String fullExpr = wrappedExpr.substring(0, innerClose + 2)
-                            + " OVER (" + overClause + ")"
-                            + wrappedExpr.substring(innerClose + 2);
-                    // Use addSelect with *, func expression as additional column
-                    SqlBuilder b = new SqlBuilder().selectStar().fromSubquery(source, "window_src");
-                    b.addWindowColumn(fullExpr, null, dialect.quoteIdentifier(alias));
-                    return b;
-                }
+            if (windowFunc instanceof SqlExpr.WrappedWindowFunction wwf) {
+                SqlExpr windowedInner = new SqlExpr.WindowFunction(wwf.innerWindowFunc(), windowSpec);
+                List<SqlExpr> wrapperArgs = new java.util.ArrayList<>();
+                wrapperArgs.add(windowedInner);
+                wrapperArgs.addAll(wwf.extraArgs());
+                SqlExpr wrappedExpr = new SqlExpr.FunctionCall(wwf.wrapperFunc(), wrapperArgs);
+                SqlBuilder b = new SqlBuilder().selectStar().fromSubquery(source, "window_src");
+                b.addWindowColumn(wrappedExpr, null, dialect.quoteIdentifier(alias));
+                return b;
             }
 
             return new SqlBuilder()
                     .selectStar()
-                    .addWindowColumn(windowFunc, overClause, dialect.quoteIdentifier(alias))
+                    .addWindowColumn(windowFunc, windowSpec, dialect.quoteIdentifier(alias))
                     .fromSubquery(source, "window_src");
         }
 
@@ -1053,11 +962,13 @@ public class SqlCompiler {
         // extend(~totalSalary:x|$x.salary:y|$y->plus())
         // Generates: SUM("salary") OVER ()
         if (windowColSpec != null && windowColSpec.function2() != null) {
-            String windowFunc = extractWindowFunction(windowColSpec);
+            SqlExpr windowFunc = extractWindowFunction(windowColSpec);
             String alias = windowColSpec.name();
             return new SqlBuilder()
                     .selectStar()
-                    .addWindowColumn(windowFunc, "", dialect.quoteIdentifier(alias))
+                    .addWindowColumn(windowFunc,
+                            new SqlExpr.WindowSpec(List.of(), List.of(), null),
+                            dialect.quoteIdentifier(alias))
                     .fromSubquery(source, "window_src");
         }
 
@@ -1077,10 +988,8 @@ public class SqlCompiler {
         }
 
         SqlBuilder left = compileRelation(params.get(0), mapping);
-        // Resolve right-side mapping independently (e.g., Address.all() needs Address
-        // mapping)
-        RelationalMapping rightMapping = resolveRelationMapping(params.get(1), mapping);
-        SqlBuilder right = compileRelation(params.get(1), rightMapping);
+        // TODO(Phase3): eliminate mapping param — each side reads from sidecar
+        SqlBuilder right = compileRelation(params.get(1), mapping);
 
         // Determine join type
         SqlBuilder.JoinType joinType = SqlBuilder.JoinType.INNER;
@@ -1096,7 +1005,7 @@ public class SqlCompiler {
         }
 
         // Build ON condition from lambda
-        String onCondition = null;
+        SqlExpr onCondition = null;
         if (conditionIdx >= 0 && conditionIdx < params.size()) {
             var condSpec = params.get(conditionIdx);
             if (condSpec instanceof LambdaFunction lf) {
@@ -1125,16 +1034,12 @@ public class SqlCompiler {
     }
 
     private SqlBuilder.JoinType extractJoinType(ValueSpecification vs) {
-        String typeName;
-        if (vs instanceof EnumValue ev) {
-            typeName = ev.value();
-        } else if (vs instanceof CString cs) {
-            typeName = cs.value();
-        } else if (vs instanceof AppliedProperty ap) {
-            typeName = ap.property();
-        } else {
-            typeName = vs.toString();
-        }
+        String typeName = switch (vs) {
+            case EnumValue ev -> ev.value();
+            case CString cs -> cs.value();
+            case AppliedProperty ap -> ap.property();
+            default -> "INNER"; // unknown VS type — default to INNER join
+        };
 
         return switch (typeName.toUpperCase().replace(" ", "_")) {
             case "INNER" -> SqlBuilder.JoinType.INNER;
@@ -1150,7 +1055,7 @@ public class SqlCompiler {
      * Compiles a join condition lambda where $l refers to left (t0) and $r refers
      * to right (t1).
      */
-    private String compileJoinCondition(ValueSpecification vs, String leftParam, String rightParam,
+    private SqlExpr compileJoinCondition(ValueSpecification vs, String leftParam, String rightParam,
             SqlBuilder left, SqlBuilder right) {
         return switch (vs) {
             case AppliedProperty ap -> {
@@ -1161,70 +1066,63 @@ public class SqlCompiler {
                     owner = v.name();
                 }
                 String colName = ap.property();
-                // Look up column alias from the source builder's select columns
-                String resolved = resolveJoinColumn(colName, owner, leftParam, rightParam, left, right);
-                yield resolved;
+
+                yield resolveJoinColumn(colName, owner, leftParam, rightParam, left, right);
             }
-            case AppliedFunction af -> {
+            case
+
+                    AppliedFunction af -> {
                 String funcName = simpleName(af.function());
                 var params = af.parameters();
                 yield switch (funcName) {
-                    case "equal" -> compileJoinCondition(params.get(0), leftParam, rightParam, left, right)
-                            + " = " + compileJoinCondition(params.get(1), leftParam, rightParam, left, right);
-                    case "greaterThan" -> compileJoinCondition(params.get(0), leftParam, rightParam, left, right)
-                            + " > " + compileJoinCondition(params.get(1), leftParam, rightParam, left, right);
-                    case "lessThan" -> compileJoinCondition(params.get(0), leftParam, rightParam, left, right)
-                            + " < " + compileJoinCondition(params.get(1), leftParam, rightParam, left, right);
-                    case "and" -> "(" + compileJoinCondition(params.get(0), leftParam, rightParam, left, right)
-                            + " AND " + compileJoinCondition(params.get(1), leftParam, rightParam, left, right) + ")";
-                    case "or" -> "(" + compileJoinCondition(params.get(0), leftParam, rightParam, left, right)
-                            + " OR " + compileJoinCondition(params.get(1), leftParam, rightParam, left, right) + ")";
-                    case "not" -> "NOT " + compileJoinCondition(params.get(0), leftParam, rightParam, left, right);
-                    default -> compileScalarFunction(af, leftParam, null);
+                    case "equal" -> new SqlExpr.Binary(
+                            compileJoinCondition(params.get(0), leftParam, rightParam, left, right), "=",
+                            compileJoinCondition(params.get(1), leftParam, rightParam, left, right));
+                    case "greaterThan" -> new SqlExpr.Binary(
+                            compileJoinCondition(params.get(0), leftParam, rightParam, left, right), ">",
+                            compileJoinCondition(params.get(1), leftParam, rightParam, left, right));
+                    case "lessThan" -> new SqlExpr.Binary(
+                            compileJoinCondition(params.get(0), leftParam, rightParam, left, right), "<",
+                            compileJoinCondition(params.get(1), leftParam, rightParam, left, right));
+                    case "and" -> new SqlExpr.And(List.of(
+                            compileJoinCondition(params.get(0), leftParam, rightParam, left, right),
+                            compileJoinCondition(params.get(1), leftParam, rightParam, left, right)));
+                    case "or" -> new SqlExpr.Or(List.of(
+                            compileJoinCondition(params.get(0), leftParam, rightParam, left, right),
+                            compileJoinCondition(params.get(1), leftParam, rightParam, left, right)));
+                    case "not" -> new SqlExpr.Not(
+                            compileJoinCondition(params.get(0), leftParam, rightParam, left, right));
+                    default -> compileScalarFunction(af, leftParam, null, null);
                 };
             }
-            case Variable v -> {
-                // Skip — the variable itself carries no SQL
-                yield "";
+            case
+                    Variable v -> {
+                yield new SqlExpr.ColumnRef("");
             }
-            case CString s -> dialect.quoteStringLiteral(s.value());
-            case CInteger i -> String.valueOf(i.value());
+            case
+                    CString s ->
+                new SqlExpr.StringLiteral(s.value());
+            case
+                    CInteger i ->
+                new SqlExpr.Literal(String.valueOf(i.value()));
+
             default -> compileScalar(vs, leftParam, null);
         };
+
     }
 
     /**
      * Resolves a column reference in a join condition.
      * Maps property name to the correct alias (t0 for left, t1 for right).
      */
-    private String resolveJoinColumn(String colName, String owner, String leftParam, String rightParam,
+    private SqlExpr resolveJoinColumn(String colName, String owner, String leftParam, String rightParam,
             SqlBuilder left, SqlBuilder right) {
-        // Determine which side this belongs to
-        String tableAlias;
-        SqlBuilder source;
         if (owner.equals(leftParam)) {
-            tableAlias = "left_src";
-            source = left;
+            return new SqlExpr.Column("left_src", colName);
         } else if (owner.equals(rightParam)) {
-            tableAlias = "right_src";
-            source = right;
-        } else {
-            // Default to quoted column name
-            return dialect.quoteIdentifier(colName);
+            return new SqlExpr.Column("right_src", colName);
         }
-
-        // Look up the column name in the source's select columns
-        // If the source has explicit SELECT columns, the alias is what matters
-        if (source.hasSelectColumns()) {
-            for (var sc : source.getSelectColumns()) {
-                String alias = sc.alias() != null ? unquote(sc.alias()) : null;
-                if (colName.equals(alias)) {
-                    return dialect.quoteIdentifier(tableAlias) + "." + dialect.quoteIdentifier(colName);
-                }
-            }
-        }
-
-        return dialect.quoteIdentifier(tableAlias) + "." + dialect.quoteIdentifier(colName);
+        return new SqlExpr.ColumnRef(colName);
     }
 
     private String unquote(String s) {
@@ -1243,53 +1141,23 @@ public class SqlCompiler {
 
     // ========== Scalar Expression Compilation ==========
 
-    String compileScalar(ValueSpecification vs, String rowParam, RelationalMapping mapping) {
-        return switch (vs) {
-            case AppliedProperty ap -> {
-                String colName = ap.property();
-                if (mapping != null) {
-                    var columnOpt = mapping.getColumnForProperty(colName);
-                    if (columnOpt.isPresent())
-                        colName = columnOpt.get();
-                }
-                yield dialect.quoteIdentifier(colName);
-            }
-            case AppliedFunction af -> compileScalarFunction(af, rowParam, mapping);
-            case CInteger i -> String.valueOf(i.value());
-            case CFloat f -> String.valueOf(f.value());
-            case CDecimal d -> String.valueOf(d.value());
-            case CString s -> dialect.quoteStringLiteral(s.value());
-            case CBoolean b -> dialect.formatBoolean(b.value());
-            case CDateTime dt -> dialect.formatTimestamp(dt.value());
-            case CStrictDate sd -> dialect.formatDate(sd.value());
-            case CStrictTime st -> dialect.formatTime(st.value());
-            case CLatestDate ld -> "CURRENT_DATE";
-            case Variable v -> {
-                if (v.name().equals(rowParam))
-                    yield "";
-                yield dialect.quoteIdentifier(v.name());
-            }
-            case ClassInstance ci -> {
-                if (ci.value() instanceof ColSpec cs)
-                    yield dialect.quoteIdentifier(cs.name());
-                throw new PureCompileException("SqlCompiler: unsupported ClassInstance: " + ci.type());
-            }
-            case EnumValue ev -> dialect.quoteStringLiteral(ev.value());
-            case Collection coll -> coll.values().stream()
-                    .map(v -> compileScalar(v, rowParam, mapping))
-                    .collect(Collectors.joining(", "));
-            default -> throw new PureCompileException(
-                    "SqlCompiler: unsupported scalar: " + vs.getClass().getSimpleName());
-        };
+    /**
+     * Compiles a scalar expression to SqlExpr. Delegates to 4-arg with null
+     * tableAlias.
+     */
+    SqlExpr compileScalar(ValueSpecification vs, String rowParam, RelationalMapping mapping) {
+        return compileScalar(vs, rowParam, mapping, null);
     }
 
-    /** 4-arg version: generates scalar with table alias prefix. */
-    String compileScalar(ValueSpecification vs, String rowParam, RelationalMapping mapping, String tableAlias) {
+    /**
+     * Canonical 4-arg version: compiles scalar with optional table alias prefix.
+     */
+    SqlExpr compileScalar(ValueSpecification vs, String rowParam, RelationalMapping mapping, String tableAlias) {
         return switch (vs) {
             case AppliedProperty ap -> {
                 // Check for association path: $p.addresses.street
-                if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty) {
-                    // Multi-hop: nested AppliedProperty = association navigation
+                if (tableAlias != null && !ap.parameters().isEmpty()
+                        && ap.parameters().get(0) instanceof AppliedProperty) {
                     List<String> path = extractPropertyChain(ap);
                     if (path.size() > 1 && modelContext != null) {
                         String assocProp = path.get(0);
@@ -1299,8 +1167,7 @@ public class SqlCompiler {
                         var pmOpt = assocResult.mapping().getPropertyMapping(leafProp);
                         if (pmOpt.isPresent())
                             targetCol = pmOpt.get().columnName();
-                        // Return the association-qualified column (EXISTS will be built by caller)
-                        yield "ASSOC:" + assocProp + ":" + targetCol;
+                        yield new SqlExpr.AssociationRef(assocProp, targetCol);
                     }
                 }
                 String colName = ap.property();
@@ -1309,283 +1176,159 @@ public class SqlCompiler {
                     if (columnOpt.isPresent())
                         colName = columnOpt.get();
                 }
-                yield dialect.quoteIdentifier(tableAlias) + "." + dialect.quoteIdentifier(colName);
+                yield tableAlias != null ? new SqlExpr.Column(tableAlias, colName) : new SqlExpr.ColumnRef(colName);
             }
-            case AppliedFunction af -> compileScalarFunctionWithAlias(af, rowParam, mapping, tableAlias);
+            case AppliedFunction af -> compileScalarFunction(af, rowParam, mapping, tableAlias);
+            case CInteger i -> new SqlExpr.Literal(String.valueOf(i.value()));
+            case CFloat f -> new SqlExpr.Literal(String.valueOf(f.value()));
+            case CDecimal d -> new SqlExpr.Literal(String.valueOf(d.value()));
+            case CString s -> new SqlExpr.StringLiteral(s.value());
+            case CBoolean b -> new SqlExpr.BoolLiteral(b.value());
+            case CDateTime dt -> new SqlExpr.TimestampLiteral(dt.value());
+            case CStrictDate sd -> new SqlExpr.DateLiteral(sd.value());
+            case CStrictTime st -> new SqlExpr.TimeLiteral(st.value());
+            case CLatestDate ld -> new SqlExpr.CurrentDate();
             case Variable v -> {
                 if (v.name().equals(rowParam))
-                    yield "";
-                yield dialect.quoteIdentifier(v.name());
+                    yield new SqlExpr.ColumnRef("");
+                yield new SqlExpr.ColumnRef(v.name());
             }
-            default -> compileScalar(vs, rowParam, mapping);
+            case ClassInstance ci -> {
+                if (ci.value() instanceof ColSpec cs)
+                    yield new SqlExpr.ColumnRef(cs.name());
+                throw new PureCompileException("SqlCompiler: unsupported ClassInstance: " + ci.type());
+            }
+            case EnumValue ev -> new SqlExpr.StringLiteral(ev.value());
+            case Collection coll -> {
+                var exprs = coll.values().stream()
+                        .map(v -> compileScalar(v, rowParam, mapping, tableAlias))
+                        .collect(Collectors.toList());
+                yield new SqlExpr.FunctionCall("", exprs);
+            }
+            default -> throw new PureCompileException(
+                    "SqlCompiler: unsupported scalar: " + vs.getClass().getSimpleName());
         };
     }
 
     /**
-     * Compiles any scalar function with table alias prefixed on all property
-     * accesses.
+     * Unified scalar function compilation. Handles all Pure functions → SqlExpr.
+     * When tableAlias is non-null, property accesses are prefixed with the alias
+     * and comparisons may produce EXISTS subqueries for association paths.
      */
-    private String compileScalarFunctionWithAlias(AppliedFunction af, String rowParam, RelationalMapping mapping,
+    private SqlExpr compileScalarFunction(AppliedFunction af, String rowParam, RelationalMapping mapping,
             String tableAlias) {
         String funcName = simpleName(af.function());
         List<ValueSpecification> params = af.parameters();
 
-        // Helper: recursively compile with alias
-        java.util.function.Function<ValueSpecification, String> c = v -> compileScalar(v, rowParam, mapping,
+        // Helper: recursively compile with same context
+        java.util.function.Function<ValueSpecification, SqlExpr> c = v -> compileScalar(v, rowParam, mapping,
                 tableAlias);
 
         return switch (funcName) {
-            // --- Comparison (may produce EXISTS for association paths) ---
+            // --- Comparison (may produce EXISTS for association paths when tableAlias set)
+            // ---
             case "equal" -> buildComparison(params, "=", c, mapping, tableAlias);
             case "greaterThan" -> buildComparison(params, ">", c, mapping, tableAlias);
             case "greaterThanEqual" -> buildComparison(params, ">=", c, mapping, tableAlias);
             case "lessThan" -> buildComparison(params, "<", c, mapping, tableAlias);
             case "lessThanEqual" -> buildComparison(params, "<=", c, mapping, tableAlias);
             case "notEqual" -> buildComparison(params, "<>", c, mapping, tableAlias);
-            // --- Logical ---
-            case "and" -> "(" + c.apply(params.get(0)) + " AND " + c.apply(params.get(1)) + ")";
-            case "or" -> "(" + c.apply(params.get(0)) + " OR " + c.apply(params.get(1)) + ")";
-            case "not" -> "NOT(" + c.apply(params.get(0)) + ")";
-            // --- Arithmetic ---
-            case "plus" -> c.apply(params.get(0)) + " + " + c.apply(params.get(1));
-            case "minus" -> c.apply(params.get(0)) + " - " + c.apply(params.get(1));
-            case "times" -> c.apply(params.get(0)) + " * " + c.apply(params.get(1));
-            case "divide" -> c.apply(params.get(0)) + " / " + c.apply(params.get(1));
-            case "rem" -> c.apply(params.get(0)) + " % " + c.apply(params.get(1));
-            // --- String ---
-            case "contains" -> dialect.renderListContains(c.apply(params.get(0)), c.apply(params.get(1)));
-            case "startsWith" -> dialect.renderStartsWith(c.apply(params.get(0)), c.apply(params.get(1)));
-            case "endsWith" -> dialect.renderEndsWith(c.apply(params.get(0)), c.apply(params.get(1)));
-            case "toLower" -> "LOWER(" + c.apply(params.get(0)) + ")";
-            case "toUpper" -> "UPPER(" + c.apply(params.get(0)) + ")";
-            case "length" -> "LENGTH(" + c.apply(params.get(0)) + ")";
-            case "trim" -> "TRIM(" + c.apply(params.get(0)) + ")";
-            case "toString" -> "CAST(" + c.apply(params.get(0)) + " AS " + dialect.sqlTypeName("String") + ")";
-            case "substring" -> {
-                String str = c.apply(params.get(0));
-                String start = c.apply(params.get(1));
-                if (params.size() > 2) {
-                    yield "SUBSTRING(" + str + ", " + start + ", " + c.apply(params.get(2)) + ")";
-                }
-                yield "SUBSTRING(" + str + ", " + start + ")";
-            }
-            case "indexOf" -> "POSITION(" + c.apply(params.get(1)) + " IN " + c.apply(params.get(0)) + ")";
-            case "replace" -> "REPLACE(" + c.apply(params.get(0)) + ", " + c.apply(params.get(1)) + ", "
-                    + c.apply(params.get(2)) + ")";
-            // --- Null checks ---
-            case "isEmpty" -> c.apply(params.get(0)) + " IS NULL";
-            case "isNotEmpty" -> c.apply(params.get(0)) + " IS NOT NULL";
-            // --- Math ---
-            case "abs" -> "ABS(" + c.apply(params.get(0)) + ")";
-            case "ceiling", "ceil" -> "CEIL(" + c.apply(params.get(0)) + ")";
-            case "floor" -> "FLOOR(" + c.apply(params.get(0)) + ")";
-            case "round" -> {
-                if (params.size() > 1) {
-                    yield "ROUND(" + c.apply(params.get(0)) + ", " + c.apply(params.get(1)) + ")";
-                }
-                yield "ROUND(" + c.apply(params.get(0)) + ")";
-            }
-            case "sqrt" -> "SQRT(" + c.apply(params.get(0)) + ")";
-            case "pow", "power" -> "POWER(" + c.apply(params.get(0)) + ", " + c.apply(params.get(1)) + ")";
-            case "log" -> "LOG(" + c.apply(params.get(0)) + ")";
-            case "exp" -> "EXP(" + c.apply(params.get(0)) + ")";
-            // --- Cast ---
-            case "toInteger", "parseInteger" ->
-                "CAST(" + c.apply(params.get(0)) + " AS " + dialect.sqlTypeName("Integer") + ")";
-            case "toFloat", "parseFloat" ->
-                "CAST(" + c.apply(params.get(0)) + " AS " + dialect.sqlTypeName("Float") + ")";
-            case "toDecimal", "parseDecimal" ->
-                "CAST(" + c.apply(params.get(0)) + " AS " + dialect.sqlTypeName("Decimal") + ")";
-            // --- If/Case ---
-            case "if" -> {
-                String cond = c.apply(params.get(0));
-                LambdaFunction thenLambda = (LambdaFunction) params.get(1);
-                LambdaFunction elseLambda = (LambdaFunction) params.get(2);
-                String thenVal = compileScalar(thenLambda.body().get(0), rowParam, mapping, tableAlias);
-                String elseVal = compileScalar(elseLambda.body().get(0), rowParam, mapping, tableAlias);
-                yield "CASE WHEN " + cond + " THEN " + thenVal + " ELSE " + elseVal + " END";
-            }
-            // --- In ---
-            case "in" -> {
-                String left = c.apply(params.get(0));
-                if (params.get(1) instanceof Collection coll) {
-                    yield dialect.renderListContains(dialect.renderArrayLiteral(
-                            coll.values().stream().map(c).collect(java.util.stream.Collectors.toList())), left);
-                }
-                yield left + " IN (" + c.apply(params.get(1)) + ")";
-            }
-            // --- Coalesce ---
-            case "coalesce" -> "COALESCE(" + params.stream().map(c).collect(Collectors.joining(", ")) + ")";
-            default -> throw new PureCompileException(
-                    "SqlCompiler: unsupported scalar function '" + funcName + "'");
-        };
-    }
-
-    /**
-     * Builds a comparison, generating EXISTS subquery for association paths.
-     */
-    private String buildComparison(List<ValueSpecification> params, String op,
-            java.util.function.Function<ValueSpecification, String> c,
-            RelationalMapping mapping, String tableAlias) {
-        String left = c.apply(params.get(0));
-        String right = c.apply(params.get(1));
-
-        if (left.startsWith("ASSOC:") && modelContext != null && mapping != null) {
-            String[] parts = left.split(":", 3);
-            String assocProp = parts[1];
-            String targetCol = parts[2];
-
-            var assocResult = resolveAssociationTarget(assocProp, mapping);
-            String subAlias = "sub" + (tableAliasCounter++);
-            String targetTableName = assocResult.mapping().table().name();
-            Join join = assocResult.join();
-
-            if (join != null) {
-                String leftJoinCol = join.getColumnForTable(mapping.table().name());
-                String rightJoinCol = join.getColumnForTable(targetTableName);
-
-                String correlation = dialect.quoteIdentifier(subAlias) + "."
-                        + dialect.quoteIdentifier(rightJoinCol) + " = "
-                        + dialect.quoteIdentifier(tableAlias) + "."
-                        + dialect.quoteIdentifier(leftJoinCol);
-                String filter = dialect.quoteIdentifier(subAlias) + "."
-                        + dialect.quoteIdentifier(targetCol) + " " + op + " " + right;
-                return "EXISTS (SELECT 1 FROM " + dialect.quoteIdentifier(targetTableName)
-                        + " AS " + dialect.quoteIdentifier(subAlias)
-                        + " WHERE (" + correlation + " AND " + filter + "))";
-            }
-        }
-
-        return left + " " + op + " " + right;
-    }
-
-    private String compileScalarFunction(AppliedFunction af, String rowParam, RelationalMapping mapping) {
-        String funcName = simpleName(af.function());
-        List<ValueSpecification> params = af.parameters();
-
-        return switch (funcName) {
-            // --- Comparison ---
-            case "equal" -> binaryOp(params, "=", rowParam, mapping);
-            case "greaterThan" -> binaryOp(params, ">", rowParam, mapping);
-            case "greaterThanEqual" -> binaryOp(params, ">=", rowParam, mapping);
-            case "lessThan" -> binaryOp(params, "<", rowParam, mapping);
-            case "lessThanEqual" -> binaryOp(params, "<=", rowParam, mapping);
-            case "notEqual" -> binaryOp(params, "<>", rowParam, mapping);
 
             // --- Logical ---
-            case "and" -> "(" + binaryOp(params, "AND", rowParam, mapping) + ")";
-            case "or" -> "(" + binaryOp(params, "OR", rowParam, mapping) + ")";
-            case "not" -> "NOT (" + compileScalar(params.get(0), rowParam, mapping) + ")";
+            case "and" -> new SqlExpr.And(List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "or" -> new SqlExpr.Or(List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "not" -> new SqlExpr.Not(c.apply(params.get(0)));
 
             // --- Arithmetic ---
             case "plus" -> params.size() == 1
-                    ? compileScalar(params.get(0), rowParam, mapping) // unary +
-                    : binaryOp(params, "+", rowParam, mapping);
+                    ? c.apply(params.get(0)) // unary +
+                    : new SqlExpr.Binary(c.apply(params.get(0)), "+", c.apply(params.get(1)));
             case "minus" -> params.size() == 1
-                    ? "(-" + compileScalar(params.get(0), rowParam, mapping) + ")" // unary -
-                    : binaryOp(params, "-", rowParam, mapping);
-            case "times" -> binaryOp(params, "*", rowParam, mapping);
-            case "divide" -> binaryOp(params, "/", rowParam, mapping);
-            case "rem" -> binaryOp(params, "%", rowParam, mapping);
+                    ? new SqlExpr.Unary("-", c.apply(params.get(0))) // unary -
+                    : new SqlExpr.Binary(c.apply(params.get(0)), "-", c.apply(params.get(1)));
+            case "times" -> new SqlExpr.Binary(c.apply(params.get(0)), "*", c.apply(params.get(1)));
+            case "divide" -> new SqlExpr.Binary(c.apply(params.get(0)), "/", c.apply(params.get(1)));
+            case "rem" -> new SqlExpr.Binary(c.apply(params.get(0)), "%", c.apply(params.get(1)));
 
             // --- String ---
-            case "contains" -> dialect.renderListContains(
-                    compileScalar(params.get(0), rowParam, mapping),
-                    compileScalar(params.get(1), rowParam, mapping));
-            case "startsWith" -> dialect.renderStartsWith(
-                    compileScalar(params.get(0), rowParam, mapping),
-                    compileScalar(params.get(1), rowParam, mapping));
-            case "endsWith" -> dialect.renderEndsWith(
-                    compileScalar(params.get(0), rowParam, mapping),
-                    compileScalar(params.get(1), rowParam, mapping));
-            case "toLower" -> "LOWER(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "toUpper" -> "UPPER(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "length" -> "LENGTH(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "trim" -> "TRIM(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "toString" -> "CAST(" + compileScalar(params.get(0), rowParam, mapping) + " AS "
-                    + dialect.sqlTypeName("String") + ")";
+            case "contains" -> new SqlExpr.ListContains(c.apply(params.get(0)), c.apply(params.get(1)));
+            case "startsWith" -> new SqlExpr.StartsWith(c.apply(params.get(0)), c.apply(params.get(1)));
+            case "endsWith" -> new SqlExpr.EndsWith(c.apply(params.get(0)), c.apply(params.get(1)));
+            case "toLower" -> new SqlExpr.FunctionCall("LOWER", List.of(c.apply(params.get(0))));
+            case "toUpper" -> new SqlExpr.FunctionCall("UPPER", List.of(c.apply(params.get(0))));
+            case "length" -> new SqlExpr.FunctionCall("LENGTH", List.of(c.apply(params.get(0))));
+            case "trim" -> new SqlExpr.FunctionCall("TRIM", List.of(c.apply(params.get(0))));
+            case "toString" -> new SqlExpr.Cast(c.apply(params.get(0)), "String");
             case "substring" -> {
-                String str = compileScalar(params.get(0), rowParam, mapping);
-                String start = compileScalar(params.get(1), rowParam, mapping);
                 if (params.size() > 2) {
-                    yield "SUBSTRING(" + str + ", " + start + ", "
-                            + compileScalar(params.get(2), rowParam, mapping) + ")";
+                    yield new SqlExpr.FunctionCall("SUBSTRING",
+                            List.of(c.apply(params.get(0)), c.apply(params.get(1)), c.apply(params.get(2))));
                 }
-                yield "SUBSTRING(" + str + ", " + start + ")";
+                yield new SqlExpr.FunctionCall("SUBSTRING",
+                        List.of(c.apply(params.get(0)), c.apply(params.get(1))));
             }
-            case "indexOf" -> "POSITION(" + compileScalar(params.get(1), rowParam, mapping)
-                    + " IN " + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "replace" -> "REPLACE(" + compileScalar(params.get(0), rowParam, mapping) + ", "
-                    + compileScalar(params.get(1), rowParam, mapping) + ", "
-                    + compileScalar(params.get(2), rowParam, mapping) + ")";
+            case "indexOf" -> new SqlExpr.StrPosition(c.apply(params.get(1)), c.apply(params.get(0)));
+            case "replace" -> new SqlExpr.FunctionCall("REPLACE",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1)), c.apply(params.get(2))));
 
             // --- Null checks ---
-            case "isEmpty" -> compileScalar(params.get(0), rowParam, mapping) + " IS NULL";
-            case "isNotEmpty" -> compileScalar(params.get(0), rowParam, mapping) + " IS NOT NULL";
+            case "isEmpty" -> new SqlExpr.IsNull(c.apply(params.get(0)));
+            case "isNotEmpty" -> new SqlExpr.IsNotNull(c.apply(params.get(0)));
 
             // --- Math ---
-            case "abs" -> "ABS(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "ceiling", "ceil" -> "CEIL(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "floor" -> "FLOOR(" + compileScalar(params.get(0), rowParam, mapping) + ")";
+            case "abs" -> new SqlExpr.FunctionCall("ABS", List.of(c.apply(params.get(0))));
+            case "ceiling", "ceil" -> new SqlExpr.FunctionCall("CEIL", List.of(c.apply(params.get(0))));
+            case "floor" -> new SqlExpr.FunctionCall("FLOOR", List.of(c.apply(params.get(0))));
             case "round" -> {
                 if (params.size() > 1) {
-                    yield "ROUND(" + compileScalar(params.get(0), rowParam, mapping) + ", "
-                            + compileScalar(params.get(1), rowParam, mapping) + ")";
+                    yield new SqlExpr.FunctionCall("ROUND",
+                            List.of(c.apply(params.get(0)), c.apply(params.get(1))));
                 }
-                yield "ROUND(" + compileScalar(params.get(0), rowParam, mapping) + ")";
+                yield new SqlExpr.FunctionCall("ROUND", List.of(c.apply(params.get(0))));
             }
-            case "sqrt" -> "SQRT(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "pow", "power" -> "POWER(" + compileScalar(params.get(0), rowParam, mapping) + ", "
-                    + compileScalar(params.get(1), rowParam, mapping) + ")";
-            case "log" -> "LOG(" + compileScalar(params.get(0), rowParam, mapping) + ")";
-            case "exp" -> "EXP(" + compileScalar(params.get(0), rowParam, mapping) + ")";
+            case "sqrt" -> new SqlExpr.FunctionCall("SQRT", List.of(c.apply(params.get(0))));
+            case "pow", "power" -> new SqlExpr.FunctionCall("POWER",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "log" -> new SqlExpr.FunctionCall("LOG", List.of(c.apply(params.get(0))));
+            case "exp" -> new SqlExpr.FunctionCall("EXP", List.of(c.apply(params.get(0))));
 
             // --- Cast ---
-            case "toInteger", "parseInteger" -> "CAST("
-                    + compileScalar(params.get(0), rowParam, mapping) + " AS " + dialect.sqlTypeName("Integer") + ")";
-            case "toFloat", "parseFloat" -> "CAST("
-                    + compileScalar(params.get(0), rowParam, mapping) + " AS " + dialect.sqlTypeName("Float") + ")";
-            case "toDecimal", "parseDecimal" -> "CAST("
-                    + compileScalar(params.get(0), rowParam, mapping) + " AS " + dialect.sqlTypeName("Decimal") + ")";
+            case "toInteger", "parseInteger" -> new SqlExpr.Cast(c.apply(params.get(0)), "Integer");
+            case "toFloat", "parseFloat" -> new SqlExpr.Cast(c.apply(params.get(0)), "Float");
+            case "toDecimal", "parseDecimal" -> new SqlExpr.Cast(c.apply(params.get(0)), "Decimal");
 
             // --- If/Case ---
             case "if" -> {
-                String cond = compileScalar(params.get(0), rowParam, mapping);
+                SqlExpr cond = c.apply(params.get(0));
                 LambdaFunction thenLambda = (LambdaFunction) params.get(1);
                 LambdaFunction elseLambda = (LambdaFunction) params.get(2);
-                String thenVal = compileScalar(thenLambda.body().get(0), rowParam, mapping);
-                String elseVal = compileScalar(elseLambda.body().get(0), rowParam, mapping);
-                yield "CASE WHEN " + cond + " THEN " + thenVal + " ELSE " + elseVal + " END";
+                SqlExpr thenVal = compileScalar(thenLambda.body().get(0), rowParam, mapping, tableAlias);
+                SqlExpr elseVal = compileScalar(elseLambda.body().get(0), rowParam, mapping, tableAlias);
+                yield new SqlExpr.CaseWhen(cond, thenVal, elseVal);
             }
 
             // --- In ---
             case "in" -> {
-                String left = compileScalar(params.get(0), rowParam, mapping);
+                SqlExpr left = c.apply(params.get(0));
                 if (params.get(1) instanceof Collection coll) {
-                    String vals = coll.values().stream()
-                            .map(v -> compileScalar(v, rowParam, mapping))
-                            .collect(Collectors.joining(", "));
-                    yield left + " IN (" + vals + ")";
+                    var vals = coll.values().stream().map(c).collect(Collectors.toList());
+                    yield new SqlExpr.In(left, vals);
                 }
-                yield left + " IN (" + compileScalar(params.get(1), rowParam, mapping) + ")";
+                yield new SqlExpr.In(left, List.of(c.apply(params.get(1))));
             }
 
             // --- Coalesce ---
-            case "coalesce" -> "COALESCE(" + params.stream()
-                    .map(v -> compileScalar(v, rowParam, mapping))
-                    .collect(Collectors.joining(", ")) + ")";
+            case "coalesce" -> new SqlExpr.FunctionCall("COALESCE",
+                    params.stream().map(c).collect(Collectors.toList()));
 
             // --- Date adjust ---
             case "adjust" -> {
-                // adjust(date, amount, DurationUnit.DAYS) → dialect.renderDateAdd(date, amount,
-                // unit)
                 if (params.size() < 2) {
                     throw new PureCompileException(
                             "SqlCompiler: adjust() requires at least 2 parameters, got " + params.size());
                 }
-                String dateExpr = compileScalar(params.get(0), rowParam, mapping);
-                String amount = compileScalar(params.get(1), rowParam, mapping);
-                // Third param is an EnumValue like DurationUnit.DAYS
+                SqlExpr dateExpr = c.apply(params.get(0));
+                SqlExpr amount = c.apply(params.get(1));
                 String unit = "DAY";
                 if (params.size() > 2 && params.get(2) instanceof EnumValue ev) {
                     unit = switch (ev.value()) {
@@ -1601,7 +1344,7 @@ public class SqlCompiler {
                         default -> ev.value();
                     };
                 }
-                yield dialect.renderDateAdd(dateExpr, amount, unit);
+                yield new SqlExpr.DateAdd(dateExpr, amount, unit);
             }
 
             default -> throw new PureCompileException(
@@ -1609,38 +1352,77 @@ public class SqlCompiler {
         };
     }
 
+    /**
+     * Builds a comparison, generating EXISTS subquery for association paths.
+     */
+    private SqlExpr buildComparison(List<ValueSpecification> params, String op,
+            java.util.function.Function<ValueSpecification, SqlExpr> c,
+            RelationalMapping mapping, String tableAlias) {
+        SqlExpr left = c.apply(params.get(0));
+        SqlExpr right = c.apply(params.get(1));
+
+        if (left instanceof SqlExpr.AssociationRef ar
+                && modelContext != null && mapping != null) {
+            String assocProp = ar.assocProp();
+            String targetCol = ar.targetCol();
+
+            var assocResult = resolveAssociationTarget(assocProp, mapping);
+            String subAlias = "sub" + (tableAliasCounter++);
+            String targetTableName = assocResult.mapping().table().name();
+            Join join = assocResult.join();
+
+            if (join != null) {
+                String leftJoinCol = join.getColumnForTable(mapping.table().name());
+                String rightJoinCol = join.getColumnForTable(targetTableName);
+
+                SqlExpr correlation = new SqlExpr.Binary(
+                        new SqlExpr.Column(subAlias, rightJoinCol),
+                        "=",
+                        new SqlExpr.Column(tableAlias, leftJoinCol));
+                SqlExpr filter = new SqlExpr.Binary(
+                        new SqlExpr.Column(subAlias, targetCol),
+                        op,
+                        right);
+
+                SqlBuilder subquery = new SqlBuilder()
+                        .addSelect(new SqlExpr.Literal("1"), null)
+                        .from(dialect.quoteIdentifier(targetTableName), dialect.quoteIdentifier(subAlias))
+                        .addWhere(new SqlExpr.And(List.of(correlation, filter)));
+                return new SqlExpr.Exists(subquery);
+            }
+        }
+
+        return new SqlExpr.Binary(left, op, right);
+    }
+
+    // compileScalarFunction (3-arg) DELETED — unified into 4-arg version above
+
     // ========== Window Function Helpers ==========
 
-    private String extractWindowFunction(ColSpec cs) {
+    private SqlExpr extractWindowFunction(ColSpec cs) {
         // Pattern 1: Aggregate window with function2 = aggregate lambda
-        // e.g., ~runningSum:{p,w,r|$r.salary}:y|$y->plus()
-        // function1 = {p,w,r|$r.salary} → column selector → extracts "salary"
-        // function2 = {y|$y->plus()} → aggregate → maps plus→SUM
         if (cs.function2() != null) {
-            String column = extractColumnFromWindowMapper(cs.function1());
+            String column = extractPropertyNameFromLambda(cs.function1());
             String aggFunc = extractAggFuncFromLambda(cs.function2());
             if (column != null && aggFunc != null) {
-                return aggFunc + "(" + dialect.quoteIdentifier(column) + ")";
+                return new SqlExpr.FunctionCall(aggFunc, List.of(new SqlExpr.ColumnRef(column)));
             }
         }
 
         // Pattern 2: Ranking/value function in function1
-        // e.g., ~cumeDist:{p,w,r|$p->cumulativeDistribution($w,$r)}
         if (cs.function1() != null) {
             var body = cs.function1().body();
             if (!body.isEmpty() && body.get(0) instanceof AppliedFunction af) {
                 String funcName = simpleName(af.function());
 
                 // Check for aggregate body WITH property access:
-                // {p,w,r|$p->sum($w,$r).salary}
                 if (body.get(0) instanceof AppliedProperty ap) {
-                    // Property access on a function call result
                     String propName = ap.property();
                     if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedFunction innerAf) {
                         String innerFunc = simpleName(innerAf.function());
                         String sqlAgg = mapAggregateFunction(innerFunc);
                         if (sqlAgg != null) {
-                            return sqlAgg + "(" + dialect.quoteIdentifier(propName) + ")";
+                            return new SqlExpr.FunctionCall(sqlAgg, List.of(new SqlExpr.ColumnRef(propName)));
                         }
                     }
                 }
@@ -1648,90 +1430,108 @@ public class SqlCompiler {
                 // Check for post-processor wrapping a window function:
                 // e.g., round(cumulativeDistribution($w,$r), 2) → ROUND(CUME_DIST() OVER(...),
                 // 2)
+                // We return FunctionCall(ROUND, [WindowFunction(CUME_DIST(), overSpec), arg2,
+                // ...])
+                // The caller provides the overSpec; we use a placeholder WindowSpec here
                 if (isPostProcessor(funcName) && !af.parameters().isEmpty()
                         && af.parameters().get(0) instanceof AppliedFunction innerAf) {
                     String innerFuncName = simpleName(innerAf.function());
-                    String innerWindowFunc = switch (innerFuncName) {
-                        case "cumulativeDistribution" -> "CUME_DIST()";
-                        case "percentRank" -> "PERCENT_RANK()";
-                        case "rank" -> "RANK()";
-                        case "denseRank" -> "DENSE_RANK()";
-                        case "rowNumber" -> "ROW_NUMBER()";
-                        default -> null;
-                    };
+                    SqlExpr innerWindowFunc = mapWindowFuncName(innerFuncName);
                     if (innerWindowFunc != null) {
-                        // Build the wrapper: ROUND(CUME_DIST() OVER(...), 2)
-                        // Return with WRAPPED: prefix so caller can split
-                        String args = "";
+                        List<SqlExpr> wrapperArgs = new java.util.ArrayList<>();
+                        // First arg is the inner window function — caller will wrap with OVER
+                        wrapperArgs.add(innerWindowFunc);
                         for (int i = 1; i < af.parameters().size(); i++) {
-                            args += ", " + compileScalar(af.parameters().get(i), "", null);
+                            wrapperArgs.add(compileScalar(af.parameters().get(i), "", null));
                         }
-                        return "WRAPPED:" + funcName.toUpperCase() + "(" + innerWindowFunc + args + ")";
+                        // Mark as a wrapped window function by returning a FunctionCall
+                        // whose first arg is the inner window function (a FunctionCall with no args)
+                        return new SqlExpr.WrappedWindowFunction(
+                                funcName.toUpperCase(), innerWindowFunc,
+                                wrapperArgs.subList(1, wrapperArgs.size()));
                     }
                 }
 
+                SqlExpr winFunc = mapWindowFuncName(funcName);
+                if (winFunc != null)
+                    return winFunc;
+
+                // Aggregate/value functions with arguments
+                SqlExpr arg = extractWindowFuncArgExpr(af);
                 return switch (funcName) {
-                    case "rowNumber" -> "ROW_NUMBER()";
-                    case "rank" -> "RANK()";
-                    case "denseRank" -> "DENSE_RANK()";
-                    case "cumulativeDistribution" -> "CUME_DIST()";
-                    case "percentRank" -> "PERCENT_RANK()";
-                    case "first", "firstValue" -> "FIRST_VALUE(" + extractWindowFuncArg(af) + ")";
-                    case "last", "lastValue" -> "LAST_VALUE(" + extractWindowFuncArg(af) + ")";
+                    case "first", "firstValue" -> new SqlExpr.FunctionCall("FIRST_VALUE", List.of(arg));
+                    case "last", "lastValue" -> new SqlExpr.FunctionCall("LAST_VALUE", List.of(arg));
                     case "ntile" -> {
                         if (af.parameters().size() > 1) {
-                            yield "NTILE(" + extractIntValue(af.parameters().get(1)) + ")";
+                            yield new SqlExpr.FunctionCall("NTILE",
+                                    List.of(new SqlExpr.Literal(
+                                            String.valueOf(extractIntValue(af.parameters().get(1))))));
                         }
-                        yield "NTILE(1)";
+                        yield new SqlExpr.FunctionCall("NTILE", List.of(new SqlExpr.Literal("1")));
                     }
-                    case "sum" -> "SUM(" + extractWindowFuncArg(af) + ")";
-                    case "average", "avg" -> "AVG(" + extractWindowFuncArg(af) + ")";
-                    case "count" -> "COUNT(" + extractWindowFuncArg(af) + ")";
-                    case "min" -> "MIN(" + extractWindowFuncArg(af) + ")";
-                    case "max" -> "MAX(" + extractWindowFuncArg(af) + ")";
-                    case "lag" -> "LAG(" + extractWindowFuncArg(af) + ")";
-                    case "lead" -> "LEAD(" + extractWindowFuncArg(af) + ")";
-                    default -> funcName.toUpperCase() + "()";
+                    case "sum" -> new SqlExpr.FunctionCall("SUM", List.of(arg));
+                    case "average", "avg" -> new SqlExpr.FunctionCall("AVG", List.of(arg));
+                    case "count" -> new SqlExpr.FunctionCall("COUNT", List.of(arg));
+                    case "min" -> new SqlExpr.FunctionCall("MIN", List.of(arg));
+                    case "max" -> new SqlExpr.FunctionCall("MAX", List.of(arg));
+                    case "lag" -> new SqlExpr.FunctionCall("LAG", List.of(arg));
+                    case "lead" -> new SqlExpr.FunctionCall("LEAD", List.of(arg));
+                    default -> new SqlExpr.FunctionCall(funcName.toUpperCase(), List.of());
                 };
             }
 
-            // Check for property access pattern: {p,w,r|$p->avg($w,$r).salary}
-            // or {p,w,r|$p->first($w,$r).salary}
+            // Property access pattern: {p,w,r|$p->avg($w,$r).salary}
             if (!body.isEmpty() && body.get(0) instanceof AppliedProperty ap) {
                 String propName = ap.property();
                 if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedFunction innerAf) {
                     String innerFunc = simpleName(innerAf.function());
-                    // Check if it's an aggregate
                     String sqlAgg = mapAggregateFunction(innerFunc);
                     if (sqlAgg != null) {
-                        return sqlAgg + "(" + dialect.quoteIdentifier(propName) + ")";
+                        return new SqlExpr.FunctionCall(sqlAgg, List.of(new SqlExpr.ColumnRef(propName)));
                     }
-                    // Check if it's a value function (first, last, lag, lead)
                     return switch (innerFunc) {
-                        case "first", "firstValue" -> "FIRST_VALUE(" + dialect.quoteIdentifier(propName) + ")";
-                        case "last", "lastValue" -> "LAST_VALUE(" + dialect.quoteIdentifier(propName) + ")";
-                        case "lag" -> "LAG(" + dialect.quoteIdentifier(propName) + ")";
-                        case "lead" -> "LEAD(" + dialect.quoteIdentifier(propName) + ")";
-                        default -> "ROW_NUMBER()";
+                        case "first", "firstValue" ->
+                            new SqlExpr.FunctionCall("FIRST_VALUE", List.of(new SqlExpr.ColumnRef(propName)));
+                        case "last", "lastValue" ->
+                            new SqlExpr.FunctionCall("LAST_VALUE", List.of(new SqlExpr.ColumnRef(propName)));
+                        case "lag" -> new SqlExpr.FunctionCall("LAG", List.of(new SqlExpr.ColumnRef(propName)));
+                        case "lead" -> new SqlExpr.FunctionCall("LEAD", List.of(new SqlExpr.ColumnRef(propName)));
+                        default -> throw new PureCompileException(
+                                "SqlCompiler: unsupported window function '" + innerFunc + "'");
                     };
                 }
             }
         }
-        return "ROW_NUMBER()";
+        throw new PureCompileException("SqlCompiler: cannot extract window function from lambda");
     }
 
     /**
-     * Returns true if the function is a post-processor that can wrap a window
-     * function.
+     * Maps Pure window function name to SQL FunctionCall (zero-arg ranking
+     * functions).
      */
-    private boolean isPostProcessor(String funcName) {
+    private SqlExpr mapWindowFuncName(String funcName) {
         return switch (funcName) {
-            case "round", "abs", "ceiling", "ceil", "floor", "toString" -> true;
-            default -> false;
+            case "rowNumber" -> new SqlExpr.FunctionCall("ROW_NUMBER", List.of());
+            case "rank" -> new SqlExpr.FunctionCall("RANK", List.of());
+            case "denseRank" -> new SqlExpr.FunctionCall("DENSE_RANK", List.of());
+            case "cumulativeDistribution" -> new SqlExpr.FunctionCall("CUME_DIST", List.of());
+            case "percentRank" -> new SqlExpr.FunctionCall("PERCENT_RANK", List.of());
+            default -> throw new PureCompileException(
+                    "SqlCompiler: unsupported window function '" + funcName + "'");
         };
     }
 
-    /** Maps Pure aggregate function name to SQL aggregate function. */
+    private SqlExpr extractWindowFuncArgExpr(AppliedFunction af) {
+        if (af.parameters().size() > 1) {
+            return new SqlExpr.ColumnRef(extractColumnNameFromParam(af.parameters().get(1)));
+        }
+        return new SqlExpr.Star();
+    }
+
+    /**
+     * Maps Pure aggregate function name to SQL aggregate function.
+     * Returns null for unmapped functions — callers should handle this gracefully.
+     */
     private String mapAggregateFunction(String funcName) {
         return switch (funcName) {
             case "plus", "sum" -> "SUM";
@@ -1741,19 +1541,11 @@ public class SqlCompiler {
             case "max" -> "MAX";
             case "stdDev", "stddev" -> "STDDEV";
             case "variance" -> "VARIANCE";
-            default -> null;
+            default -> {
+                System.err.println("[SqlCompiler] unmapped aggregate function: " + funcName);
+                yield null;
+            }
         };
-    }
-
-    /** Extracts column name from a window mapper lambda like {p,w,r|$r.salary}. */
-    private String extractColumnFromWindowMapper(LambdaFunction lf) {
-        if (lf == null || lf.body().isEmpty())
-            return null;
-        var body = lf.body().get(0);
-        if (body instanceof AppliedProperty ap) {
-            return ap.property();
-        }
-        return null;
     }
 
     /** Extracts SQL aggregate function name from a lambda like {y|$y->plus()}. */
@@ -1767,30 +1559,31 @@ public class SqlCompiler {
         return null;
     }
 
-    private String extractWindowFuncArg(AppliedFunction af) {
-        if (af.parameters().size() > 1) {
-            return dialect.quoteIdentifier(extractColumnNameFromParam(af.parameters().get(1)));
-        }
-        return "*";
+    private boolean isPostProcessor(String funcName) {
+        return switch (funcName) {
+            case "round", "floor", "ceil", "ceiling", "trunc", "truncate" -> true;
+            default -> false;
+        };
     }
 
-    private String generateOverClause(AppliedFunction overSpec) {
-        List<String> partitionCols = new ArrayList<>();
-        List<String> orderParts = new ArrayList<>();
+    private SqlExpr.WindowSpec generateOverClause(AppliedFunction overSpec) {
+        List<SqlExpr> partitionCols = new ArrayList<>();
+        List<SqlExpr> orderParts = new ArrayList<>();
         String frameClause = null;
 
         for (var p : overSpec.parameters()) {
             if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-                partitionCols.add(dialect.quoteIdentifier(cs.name()));
+                partitionCols.add(new SqlExpr.ColumnRef(cs.name()));
             } else if (p instanceof AppliedFunction paf) {
                 String funcName = simpleName(paf.function());
                 if ("asc".equals(funcName) || "ascending".equals(funcName)
                         || "desc".equals(funcName) || "descending".equals(funcName)) {
                     String col = extractColumnNameFromParam(paf.parameters().get(0));
                     String dir = ("asc".equals(funcName) || "ascending".equals(funcName)) ? "ASC" : "DESC";
-                    // Match old pipeline: DESC → NULLS FIRST, ASC → NULLS LAST
                     String nullOrder = "DESC".equals(dir) ? "NULLS FIRST" : "NULLS LAST";
-                    orderParts.add(dialect.quoteIdentifier(col) + " " + dir + " " + nullOrder);
+                    // OrderBy entry: rendered as "col" ASC NULLS LAST
+                    orderParts.add(new SqlExpr.Literal(
+                            dialect.quoteIdentifier(col) + " " + dir + " " + nullOrder));
                 } else if ("rows".equals(funcName)) {
                     frameClause = "ROWS BETWEEN " + formatFrameBound(paf.parameters(), true)
                             + " AND " + formatFrameBound(paf.parameters(), false);
@@ -1801,21 +1594,7 @@ public class SqlCompiler {
             }
         }
 
-        StringBuilder sb = new StringBuilder();
-        if (!partitionCols.isEmpty()) {
-            sb.append("PARTITION BY ").append(String.join(", ", partitionCols));
-        }
-        if (!orderParts.isEmpty()) {
-            if (!sb.isEmpty())
-                sb.append(" ");
-            sb.append("ORDER BY ").append(String.join(", ", orderParts));
-        }
-        if (frameClause != null) {
-            if (!sb.isEmpty())
-                sb.append(" ");
-            sb.append(frameClause);
-        }
-        return sb.toString();
+        return new SqlExpr.WindowSpec(partitionCols, orderParts, frameClause);
     }
 
     /** Formats a frame bound from the rows()/range() parameters. */
@@ -1854,23 +1633,8 @@ public class SqlCompiler {
 
     // ========== Aggregate Helpers ==========
 
-    private String extractAggFunction(LambdaFunction lambda) {
-        if (lambda.body().isEmpty())
-            return "SUM";
-        ValueSpecification body = lambda.body().get(0);
-        if (body instanceof AppliedFunction af) {
-            String funcName = simpleName(af.function());
-            return switch (funcName) {
-                case "sum", "plus" -> "SUM";
-                case "count" -> "COUNT";
-                case "average", "avg", "mean" -> "AVG";
-                case "min" -> "MIN";
-                case "max" -> "MAX";
-                default -> funcName.toUpperCase();
-            };
-        }
-        return "SUM";
-    }
+    // extractAggFunction DELETED — replaced by mapAggregateFunction + simpleName
+    // extraction at callsite
 
     private String extractPropertyOrColumnName(ValueSpecification vs) {
         if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
@@ -1889,41 +1653,9 @@ public class SqlCompiler {
         return null;
     }
 
-    // ========== Source Helpers ==========
-
-    private String resolveTableNameFromSource(ValueSpecification source, RelationalMapping mapping) {
-        if (mapping != null)
-            return mapping.table().name();
-        if (source instanceof AppliedFunction af) {
-            String funcName = simpleName(af.function());
-            if ("getAll".equals(funcName) && !af.parameters().isEmpty()) {
-                return extractClassName(af.parameters().get(0));
-            } else if (!af.parameters().isEmpty()) {
-                return resolveTableNameFromSource(af.parameters().get(0), mapping);
-            }
-        }
-        return "UNKNOWN";
-    }
-
-    private String extractFilterClause(ValueSpecification source, String tableAlias, RelationalMapping mapping) {
-        if (source instanceof AppliedFunction af) {
-            String funcName = simpleName(af.function());
-            if ("filter".equals(funcName) && af.parameters().size() >= 2) {
-                LambdaFunction lambda = (LambdaFunction) af.parameters().get(1);
-                String paramName = lambda.parameters().isEmpty() ? "x" : lambda.parameters().get(0).name();
-                return compileScalar(lambda.body().get(0), paramName, mapping, tableAlias);
-            }
-        }
-        return null;
-    }
-
     // ========== Utility Methods ==========
 
-    private String binaryOp(List<ValueSpecification> params, String op, String rowParam,
-            RelationalMapping mapping) {
-        return compileScalar(params.get(0), rowParam, mapping) + " " + op + " "
-                + compileScalar(params.get(1), rowParam, mapping);
-    }
+    // binaryOp DELETED — was thin wrapper, inlined into compileScalarFunction
 
     private long extractIntValue(ValueSpecification vs) {
         if (vs instanceof CInteger i)
@@ -1997,7 +1729,8 @@ public class SqlCompiler {
             int idx = fqn.lastIndexOf("::");
             return idx > 0 ? fqn.substring(idx + 2) : fqn;
         }
-        return "UNKNOWN";
+        throw new PureCompileException(
+                "SqlCompiler: expected PackageableElementPtr but got " + vs.getClass().getSimpleName());
     }
 
     private static String simpleName(String qualifiedName) {

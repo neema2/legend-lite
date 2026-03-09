@@ -3,7 +3,7 @@ package org.finos.legend.pure.dsl.ast;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.store.MappingRegistry;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
-import java.util.IdentityHashMap;
+
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
 import org.junit.jupiter.api.Test;
 
@@ -84,8 +84,8 @@ class PlanParityTest {
         var vs = org.finos.legend.pure.dsl.PureParser.parseClean(query);
         var compiler = new CleanCompiler(registry, model);
         var tvs = compiler.compile(vs, new CleanCompiler.CompilationContext());
-        var sqlCompiler = new SqlCompiler(new IdentityHashMap<>(), DuckDBDialect.INSTANCE);
-        var builder = sqlCompiler.compile(tvs.ast(), tvs.mapping());
+        var sqlCompiler = new SqlCompiler(compiler.types(), DuckDBDialect.INSTANCE, null);
+        var builder = sqlCompiler.compile(tvs);
         return builder.toSql(DuckDBDialect.INSTANCE);
     }
 

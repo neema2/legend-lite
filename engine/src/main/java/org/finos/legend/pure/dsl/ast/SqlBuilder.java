@@ -47,21 +47,21 @@ public class SqlBuilder {
     private final List<JoinClause> joins = new ArrayList<>();
 
     // ──── WHERE ────
-    private final List<String> whereConditions = new ArrayList<>();
+    private final List<SqlExpr> whereConditions = new ArrayList<>();
 
     // ──── GROUP BY ────
-    private final List<String> groupByColumns = new ArrayList<>();
+    private final List<SqlExpr> groupByColumns = new ArrayList<>();
     private boolean groupByAll = false;
 
     // ──── HAVING ────
-    private final List<String> havingConditions = new ArrayList<>();
+    private final List<SqlExpr> havingConditions = new ArrayList<>();
 
     // ──── WINDOW ────
     private final List<WindowColumn> windowColumns = new ArrayList<>();
     private final List<NamedWindow> namedWindows = new ArrayList<>();
 
     // ──── QUALIFY ────
-    private String qualifyCondition;
+    private SqlExpr qualifyCondition;
 
     // ──── ORDER BY ────
     private final List<OrderByColumn> orderByColumns = new ArrayList<>();
@@ -87,7 +87,7 @@ public class SqlBuilder {
     }
 
     // --- SELECT ---
-    public SqlBuilder addSelect(String expression, String alias) {
+    public SqlBuilder addSelect(SqlExpr expression, String alias) {
         selectColumns.add(new SelectColumn(expression, alias));
         return this;
     }
@@ -97,12 +97,19 @@ public class SqlBuilder {
         return this;
     }
 
+    /** Clears SELECT * so explicit columns can be added. */
+    public SqlBuilder clearSelect() {
+        this.selectStar = false;
+        this.selectColumns.clear();
+        return this;
+    }
+
     public SqlBuilder addStarExcept(String column) {
         starExcept.add(column);
         return this;
     }
 
-    public SqlBuilder addStarReplace(String expression, String alias) {
+    public SqlBuilder addStarReplace(SqlExpr expression, String alias) {
         starReplace.add(new SelectColumn(expression, alias));
         return this;
     }
@@ -136,7 +143,7 @@ public class SqlBuilder {
     }
 
     /** FROM (VALUES (...), (...)) AS alias(col1, col2) */
-    public SqlBuilder fromValues(List<List<String>> rows, String alias, List<String> columnNames) {
+    public SqlBuilder fromValues(List<List<SqlExpr>> rows, String alias, List<String> columnNames) {
         this.fromValues = new ValuesClause(rows, alias, columnNames);
         return this;
     }
@@ -147,19 +154,19 @@ public class SqlBuilder {
         return this;
     }
 
-    public SqlBuilder addJoin(JoinType type, String table, String alias, String onCondition) {
+    public SqlBuilder addJoin(JoinType type, String table, String alias, SqlExpr onCondition) {
         joins.add(new JoinClause(type, table, alias, null, onCondition, null));
         return this;
     }
 
     // --- WHERE ---
-    public SqlBuilder addWhere(String condition) {
+    public SqlBuilder addWhere(SqlExpr condition) {
         whereConditions.add(condition);
         return this;
     }
 
     // --- GROUP BY ---
-    public SqlBuilder addGroupBy(String column) {
+    public SqlBuilder addGroupBy(SqlExpr column) {
         groupByColumns.add(column);
         return this;
     }
@@ -170,35 +177,35 @@ public class SqlBuilder {
     }
 
     // --- HAVING ---
-    public SqlBuilder addHaving(String condition) {
+    public SqlBuilder addHaving(SqlExpr condition) {
         havingConditions.add(condition);
         return this;
     }
 
     // --- WINDOW ---
-    public SqlBuilder addWindowColumn(String function, String overClause, String alias) {
+    public SqlBuilder addWindowColumn(SqlExpr function, SqlExpr overClause, String alias) {
         windowColumns.add(new WindowColumn(function, overClause, alias));
         return this;
     }
 
-    public SqlBuilder addNamedWindow(String name, String spec) {
+    public SqlBuilder addNamedWindow(String name, SqlExpr spec) {
         namedWindows.add(new NamedWindow(name, spec));
         return this;
     }
 
     // --- QUALIFY ---
-    public SqlBuilder qualify(String condition) {
+    public SqlBuilder qualify(SqlExpr condition) {
         this.qualifyCondition = condition;
         return this;
     }
 
     // --- ORDER BY ---
-    public SqlBuilder addOrderBy(String expression, SortDirection direction) {
+    public SqlBuilder addOrderBy(SqlExpr expression, SortDirection direction) {
         orderByColumns.add(new OrderByColumn(expression, direction, NullsPosition.DEFAULT));
         return this;
     }
 
-    public SqlBuilder addOrderBy(String expression, SortDirection direction, NullsPosition nulls) {
+    public SqlBuilder addOrderBy(SqlExpr expression, SortDirection direction, NullsPosition nulls) {
         orderByColumns.add(new OrderByColumn(expression, direction, nulls));
         return this;
     }
@@ -323,9 +330,9 @@ public class SqlBuilder {
             // SELECT *, window_func() OVER (...) AS alias
             sql.append("*");
             for (var wc : windowColumns) {
-                sql.append(", ").append(wc.function());
+                sql.append(", ").append(wc.function().toSql(dialect));
                 if (wc.overClause() != null) {
-                    sql.append(" OVER (").append(wc.overClause()).append(")");
+                    sql.append(" OVER (").append(wc.overClause().toSql(dialect)).append(")");
                 }
                 sql.append(" AS ").append(wc.alias());
             }
@@ -339,7 +346,7 @@ public class SqlBuilder {
             if (!starReplace.isEmpty()) {
                 sql.append(" REPLACE (")
                         .append(starReplace.stream()
-                                .map(sc -> sc.expression() + " AS " + sc.alias())
+                                .map(sc -> sc.expression().toSql(dialect) + " AS " + sc.alias())
                                 .collect(Collectors.joining(", ")))
                         .append(")");
             }
@@ -348,15 +355,15 @@ public class SqlBuilder {
                 sql.append(", ");
                 sql.append(selectColumns.stream()
                         .map(sc -> sc.alias() != null
-                                ? sc.expression() + " AS " + sc.alias()
-                                : sc.expression())
+                                ? sc.expression().toSql(dialect) + " AS " + sc.alias()
+                                : sc.expression().toSql(dialect))
                         .collect(Collectors.joining(", ")));
             }
         } else if (!selectColumns.isEmpty()) {
             sql.append(selectColumns.stream()
                     .map(sc -> sc.alias() != null
-                            ? sc.expression() + " AS " + sc.alias()
-                            : sc.expression())
+                            ? sc.expression().toSql(dialect) + " AS " + sc.alias()
+                            : sc.expression().toSql(dialect))
                     .collect(Collectors.joining(", ")));
         } else {
             sql.append("*");
@@ -366,7 +373,7 @@ public class SqlBuilder {
         if (fromValues != null) {
             sql.append(" FROM (VALUES ");
             sql.append(fromValues.rows().stream()
-                    .map(row -> "(" + String.join(", ", row) + ")")
+                    .map(row -> "(" + row.stream().map(e -> e.toSql(dialect)).collect(Collectors.joining(", ")) + ")")
                     .collect(Collectors.joining(", ")));
             sql.append(") AS ").append(fromValues.alias());
             if (!fromValues.columnNames().isEmpty()) {
@@ -402,7 +409,7 @@ public class SqlBuilder {
                 sql.append(" AS ").append(join.alias());
             }
             if (join.onCondition() != null) {
-                sql.append(" ON ").append(join.onCondition());
+                sql.append(" ON ").append(join.onCondition().toSql(dialect));
             }
             if (join.usingColumns() != null && !join.usingColumns().isEmpty()) {
                 sql.append(" USING (")
@@ -413,32 +420,35 @@ public class SqlBuilder {
 
         // WHERE
         if (!whereConditions.isEmpty()) {
-            sql.append(" WHERE ").append(String.join(" AND ", whereConditions));
+            sql.append(" WHERE ").append(whereConditions.stream()
+                    .map(c -> c.toSql(dialect)).collect(Collectors.joining(" AND ")));
         }
 
         // GROUP BY
         if (groupByAll) {
             sql.append(" GROUP BY ALL");
         } else if (!groupByColumns.isEmpty()) {
-            sql.append(" GROUP BY ").append(String.join(", ", groupByColumns));
+            sql.append(" GROUP BY ").append(groupByColumns.stream()
+                    .map(c -> c.toSql(dialect)).collect(Collectors.joining(", ")));
         }
 
         // HAVING
         if (!havingConditions.isEmpty()) {
-            sql.append(" HAVING ").append(String.join(" AND ", havingConditions));
+            sql.append(" HAVING ").append(havingConditions.stream()
+                    .map(c -> c.toSql(dialect)).collect(Collectors.joining(" AND ")));
         }
 
         // WINDOW (named window specs)
         if (!namedWindows.isEmpty()) {
             sql.append(" WINDOW ")
                     .append(namedWindows.stream()
-                            .map(w -> w.name() + " AS (" + w.spec() + ")")
+                            .map(w -> w.name() + " AS (" + w.spec().toSql(dialect) + ")")
                             .collect(Collectors.joining(", ")));
         }
 
         // QUALIFY
         if (qualifyCondition != null) {
-            sql.append(" QUALIFY ").append(qualifyCondition);
+            sql.append(" QUALIFY ").append(qualifyCondition.toSql(dialect));
         }
 
         // ORDER BY
@@ -446,7 +456,7 @@ public class SqlBuilder {
             sql.append(" ORDER BY ")
                     .append(orderByColumns.stream()
                             .map(ob -> {
-                                StringBuilder obs = new StringBuilder(ob.expression());
+                                StringBuilder obs = new StringBuilder(ob.expression().toSql(dialect));
                                 if (ob.direction() != null) {
                                     obs.append(" ").append(ob.direction().name());
                                 }
@@ -492,7 +502,7 @@ public class SqlBuilder {
     // ========== Supporting Types ==========
 
     /** SELECT column: expression AS alias */
-    public record SelectColumn(String expression, String alias) {
+    public record SelectColumn(SqlExpr expression, String alias) {
     }
 
     /** Common Table Expression */
@@ -505,7 +515,7 @@ public class SqlBuilder {
             String table,
             String alias,
             SqlBuilder subquery,
-            String onCondition,
+            SqlExpr onCondition,
             List<String> usingColumns) {
     }
 
@@ -534,7 +544,7 @@ public class SqlBuilder {
     }
 
     /** ORDER BY column */
-    public record OrderByColumn(String expression, SortDirection direction, NullsPosition nulls) {
+    public record OrderByColumn(SqlExpr expression, SortDirection direction, NullsPosition nulls) {
     }
 
     public enum SortDirection {
@@ -546,15 +556,15 @@ public class SqlBuilder {
     }
 
     /** Window function column: FUNC() OVER (...) AS alias */
-    public record WindowColumn(String function, String overClause, String alias) {
+    public record WindowColumn(SqlExpr function, SqlExpr overClause, String alias) {
     }
 
     /** Named WINDOW clause */
-    public record NamedWindow(String name, String spec) {
+    public record NamedWindow(String name, SqlExpr spec) {
     }
 
     /** VALUES clause: FROM (VALUES (...), (...)) AS alias(col1, col2) */
-    public record ValuesClause(List<List<String>> rows, String alias, List<String> columnNames) {
+    public record ValuesClause(List<List<SqlExpr>> rows, String alias, List<String> columnNames) {
     }
 
     /** SET operation (UNION, INTERSECT, EXCEPT) */

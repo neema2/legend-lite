@@ -4,6 +4,8 @@ import java.util.Map;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Maps a Pure property to a relational column or expression.
@@ -93,6 +95,32 @@ public record PropertyMapping(
      */
     public Optional<String> getExpressionString() {
         return Optional.ofNullable(expressionString);
+    }
+
+    /**
+     * Pre-parsed expression access (e.g., ->get('price', @Integer)).
+     * Parsed at construction time so consumers don't need regex.
+     *
+     * @param jsonKey  The JSON key to access (e.g., "price")
+     * @param castType The Pure type to cast to (nullable, e.g., "Integer")
+     */
+    public record ExpressionAccess(String jsonKey, String castType) {
+    }
+
+    private static final Pattern GET_PATTERN = Pattern.compile("->get\\('(\\w+)'(?:,\\s*@(\\w+))?\\)");
+
+    /**
+     * Parses the expression string into a structured ExpressionAccess.
+     * Returns empty if no expression or if the pattern doesn't match.
+     */
+    public Optional<ExpressionAccess> expressionAccess() {
+        if (expressionString == null)
+            return Optional.empty();
+        Matcher m = GET_PATTERN.matcher(expressionString);
+        if (m.find()) {
+            return Optional.of(new ExpressionAccess(m.group(1), m.group(2)));
+        }
+        return Optional.empty();
     }
 
     @Override
