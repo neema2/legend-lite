@@ -1,7 +1,6 @@
 package org.finos.legend.pure.dsl.ast;
 
 import org.finos.legend.engine.server.QueryService;
-import org.finos.legend.engine.store.MappingRegistry;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
@@ -80,13 +79,12 @@ class PlanParityTest {
 
     private String getSqlBuilderSql(String query) {
         PureModelBuilder model = new PureModelBuilder().addSource(MODEL);
-        MappingRegistry registry = model.getMappingRegistry();
         var vs = org.finos.legend.pure.dsl.PureParser.parseClean(query);
-        var compiler = new CleanCompiler(registry, model);
+        var compiler = new CleanCompiler(model);
         var unit = compiler.compile(vs);
         var planGenerator = new PlanGenerator(unit, DuckDBDialect.INSTANCE);
-        var builder = planGenerator.generate();
-        return builder.toSql(DuckDBDialect.INSTANCE);
+        var plan = planGenerator.generate();
+        return plan.sql();
     }
 
     private void assertSqlParity(String label, String query) {

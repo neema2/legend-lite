@@ -2,6 +2,8 @@ package org.finos.legend.pure.dsl.ast;
 
 import org.finos.legend.engine.plan.GenericType;
 import org.finos.legend.engine.plan.RelationType;
+import org.finos.legend.engine.plan.SQLExecutionNode;
+import org.finos.legend.engine.plan.SingleExecutionPlan;
 import org.finos.legend.engine.store.Join;
 import org.finos.legend.engine.store.RelationalMapping;
 import org.finos.legend.engine.transpiler.SQLDialect;
@@ -41,15 +43,24 @@ public class PlanGenerator {
         this.dialect = dialect;
     }
 
-    public SqlBuilder generate() {
+    public SingleExecutionPlan generate() {
         ValueSpecification vs = unit.root();
         TypeInfo info = unit.types().get(vs);
 
+        SqlBuilder builder;
         if (info.isScalar()) {
-            return generateScalarQuery(vs);
+            builder = generateScalarQuery(vs);
+        } else {
+            builder = generateRelation(vs);
         }
 
-        return generateRelation(vs);
+        String sql = builder.toSql(dialect);
+        var sqlNode = new SQLExecutionNode(
+                sql,
+                info != null ? info.relationType() : null,
+                null // connectionRef resolved by QueryService at execution time
+        );
+        return new SingleExecutionPlan(sqlNode);
     }
 
     /**

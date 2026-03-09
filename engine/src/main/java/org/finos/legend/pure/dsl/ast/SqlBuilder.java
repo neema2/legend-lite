@@ -242,7 +242,7 @@ public class SqlBuilder {
         return this;
     }
 
-    // ========== Query Accessors (for SqlCompiler to inspect) ==========
+    // ========== Query Accessors (for PlanGenerator to inspect) ==========
 
     public boolean hasSelectColumns() {
         return !selectColumns.isEmpty();

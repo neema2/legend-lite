@@ -15,7 +15,7 @@ import java.util.IdentityHashMap;
  * mature compilers (rustc, rust-analyzer) for clean separation.
  *
  * <p>
- * Consumed by {@link SqlCompiler} which walks the AST and looks up type
+ * Consumed by {@link PlanGenerator} which walks the AST and looks up type
  * info as needed to generate SQL.
  *
  * @param ast     The unchanged parse tree (same object references)

@@ -48,7 +48,35 @@ class CleanCompilerTest {
                     PropertyMapping.column("lastName", "LAST_NAME"),
                     PropertyMapping.column("age", "AGE"))));
 
-    private final CleanCompiler compiler = new CleanCompiler(registry, null);
+    /** Minimal ModelContext wrapping the test registry. */
+    private static final org.finos.legend.pure.dsl.ModelContext testModel = new org.finos.legend.pure.dsl.ModelContext() {
+        public MappingRegistry getMappingRegistry() {
+            return registry;
+        }
+
+        public java.util.Optional<RelationalMapping> findMapping(String n) {
+            return registry.findByClassName(n);
+        }
+
+        public java.util.Optional<org.finos.legend.pure.m3.PureClass> findClass(String n) {
+            return java.util.Optional.empty();
+        }
+
+        public java.util.Optional<org.finos.legend.pure.dsl.ModelContext.AssociationNavigation> findAssociationByProperty(
+                String c, String p) {
+            return java.util.Optional.empty();
+        }
+
+        public java.util.Optional<org.finos.legend.engine.store.Join> findJoin(String n) {
+            return java.util.Optional.empty();
+        }
+
+        public java.util.Optional<org.finos.legend.engine.store.Table> findTable(String n) {
+            return java.util.Optional.empty();
+        }
+    };
+
+    private final CleanCompiler compiler = new CleanCompiler(testModel);
 
     // ========== Type Resolution ==========
 
@@ -162,7 +190,7 @@ class CleanCompilerTest {
 
     private String compileSql(CompilationUnit unit) {
         var planGenerator = new PlanGenerator(unit, DuckDBDialect.INSTANCE);
-        SqlBuilder builder = planGenerator.generate();
-        return builder.toSql(DuckDBDialect.INSTANCE);
+        var plan = planGenerator.generate();
+        return plan.sql();
     }
 }

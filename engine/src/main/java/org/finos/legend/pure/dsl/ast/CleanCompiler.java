@@ -38,9 +38,9 @@ public class CleanCompiler {
     /** Per-node type info, consumed by PlanGenerator. */
     private final java.util.IdentityHashMap<ValueSpecification, TypeInfo> types = new java.util.IdentityHashMap<>();
 
-    public CleanCompiler(MappingRegistry mappingRegistry, ModelContext modelContext) {
-        this.mappingRegistry = mappingRegistry;
+    public CleanCompiler(ModelContext modelContext) {
         this.modelContext = modelContext;
+        this.mappingRegistry = modelContext != null ? modelContext.getMappingRegistry() : null;
     }
 
     /** Returns the per-node type side table. */

@@ -452,13 +452,13 @@ public class QueryService {
             ValueSpecification vs = PureParser.parseClean(query);
 
             // Compile with new compiler (type resolution)
-            CleanCompiler compiler = new CleanCompiler(mappingRegistry, model);
+            CleanCompiler compiler = new CleanCompiler(model);
             var unit = compiler.compile(vs);
 
-            // Generate SQL with PlanGenerator → SqlBuilder
+            // Generate plan with PlanGenerator → SingleExecutionPlan
             var planGenerator = new PlanGenerator(unit, dialect);
-            SqlBuilder builder = planGenerator.generate();
-            String newSql = builder.toSql(dialect);
+            var plan = planGenerator.generate();
+            String newSql = plan.sql();
 
             // Compare output
             String oldNorm = normalizeSql(normalizeOldSqlQuirks(oldSql));

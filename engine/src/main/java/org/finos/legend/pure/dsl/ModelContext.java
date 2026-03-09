@@ -1,6 +1,7 @@
 package org.finos.legend.pure.dsl;
 
 import org.finos.legend.engine.store.Join;
+import org.finos.legend.engine.store.MappingRegistry;
 import org.finos.legend.engine.store.RelationalMapping;
 import org.finos.legend.engine.store.Table;
 import org.finos.legend.pure.m3.Association;
@@ -21,6 +22,15 @@ import java.util.Optional;
  * JOIN for explicit relational queries).
  */
 public interface ModelContext {
+
+    /**
+     * Returns the mapping registry for table/class lookups.
+     * 
+     * @return The mapping registry, or null if not available
+     */
+    default MappingRegistry getMappingRegistry() {
+        return null;
+    }
 
     /**
      * Finds a mapping for a class by name.
