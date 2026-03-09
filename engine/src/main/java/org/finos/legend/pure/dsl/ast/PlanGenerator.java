@@ -1260,6 +1260,249 @@ public class PlanGenerator {
                 yield new SqlExpr.DateAdd(dateExpr, amount, unit);
             }
 
+            // --- Trig ---
+            case "sin" -> new SqlExpr.FunctionCall("SIN", List.of(c.apply(params.get(0))));
+            case "cos" -> new SqlExpr.FunctionCall("COS", List.of(c.apply(params.get(0))));
+            case "tan" -> new SqlExpr.FunctionCall("TAN", List.of(c.apply(params.get(0))));
+            case "asin" -> new SqlExpr.FunctionCall("ASIN", List.of(c.apply(params.get(0))));
+            case "acos" -> new SqlExpr.FunctionCall("ACOS", List.of(c.apply(params.get(0))));
+            case "atan" -> new SqlExpr.FunctionCall("ATAN", List.of(c.apply(params.get(0))));
+            case "atan2" -> new SqlExpr.FunctionCall("ATAN2",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "toRadians" -> new SqlExpr.FunctionCall("RADIANS", List.of(c.apply(params.get(0))));
+            case "toDegrees" -> new SqlExpr.FunctionCall("DEGREES", List.of(c.apply(params.get(0))));
+            case "pi" -> new SqlExpr.FunctionCall("PI", List.of());
+
+            // --- More math ---
+            case "mod" -> new SqlExpr.Binary(c.apply(params.get(0)), "%", c.apply(params.get(1)));
+            case "log10" -> new SqlExpr.FunctionCall("LOG10", List.of(c.apply(params.get(0))));
+            case "sign" -> new SqlExpr.FunctionCall("SIGN", List.of(c.apply(params.get(0))));
+
+            // --- More string ---
+            case "reverseString" -> new SqlExpr.FunctionCall("REVERSE", List.of(c.apply(params.get(0))));
+            case "repeatString" -> new SqlExpr.FunctionCall("REPEAT",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "splitPart" -> new SqlExpr.FunctionCall("SPLIT_PART",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1)), c.apply(params.get(2))));
+            case "joinStrings" -> {
+                if (params.size() > 1) {
+                    yield new SqlExpr.FunctionCall("CONCAT_WS",
+                            params.stream().map(c).collect(Collectors.toList()));
+                }
+                yield new SqlExpr.FunctionCall("CONCAT", List.of(c.apply(params.get(0))));
+            }
+            case "find" -> new SqlExpr.StrPosition(c.apply(params.get(1)), c.apply(params.get(0)));
+            case "levenshteinDistance" -> new SqlExpr.FunctionCall("LEVENSHTEIN",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "ascii" -> new SqlExpr.FunctionCall("ASCII", List.of(c.apply(params.get(0))));
+            case "char" -> new SqlExpr.FunctionCall("CHR", List.of(c.apply(params.get(0))));
+            case "hash" -> new SqlExpr.FunctionCall("MD5", List.of(c.apply(params.get(0))));
+            case "lpad" -> new SqlExpr.FunctionCall("LPAD",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1)),
+                            params.size() > 2 ? c.apply(params.get(2)) : new SqlExpr.StringLiteral(" ")));
+            case "rpad" -> new SqlExpr.FunctionCall("RPAD",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1)),
+                            params.size() > 2 ? c.apply(params.get(2)) : new SqlExpr.StringLiteral(" ")));
+            case "encodeBase64" -> new SqlExpr.FunctionCall("BASE64",
+                    List.of(c.apply(params.get(0))));
+            case "decodeBase64" -> new SqlExpr.FunctionCall("FROM_BASE64",
+                    List.of(c.apply(params.get(0))));
+            case "parseDate" -> new SqlExpr.Cast(c.apply(params.get(0)), "Date");
+            case "parseBoolean" -> new SqlExpr.Cast(c.apply(params.get(0)), "Boolean");
+
+            // --- Date/time extraction ---
+            case "year" -> new SqlExpr.FunctionCall("YEAR", List.of(c.apply(params.get(0))));
+            case "monthNumber", "month" -> new SqlExpr.FunctionCall("MONTH",
+                    List.of(c.apply(params.get(0))));
+            case "dayOfMonth", "day" -> new SqlExpr.FunctionCall("DAY",
+                    List.of(c.apply(params.get(0))));
+            case "hour" -> new SqlExpr.FunctionCall("HOUR", List.of(c.apply(params.get(0))));
+            case "minute" -> new SqlExpr.FunctionCall("MINUTE", List.of(c.apply(params.get(0))));
+            case "second" -> new SqlExpr.FunctionCall("SECOND", List.of(c.apply(params.get(0))));
+            case "quarter" -> new SqlExpr.FunctionCall("QUARTER", List.of(c.apply(params.get(0))));
+            case "dayOfWeek" -> new SqlExpr.FunctionCall("DAYOFWEEK",
+                    List.of(c.apply(params.get(0))));
+            case "dayOfYear" -> new SqlExpr.FunctionCall("DAYOFYEAR",
+                    List.of(c.apply(params.get(0))));
+            case "weekOfYear" -> new SqlExpr.FunctionCall("WEEKOFYEAR",
+                    List.of(c.apply(params.get(0))));
+            case "datePart" -> new SqlExpr.Cast(c.apply(params.get(0)), "Date");
+            case "dateDiff" -> {
+                SqlExpr start = c.apply(params.get(0));
+                SqlExpr end = c.apply(params.get(1));
+                String dunit = "DAY";
+                if (params.size() > 2 && params.get(2) instanceof EnumValue ev) {
+                    dunit = switch (ev.value()) {
+                        case "DAYS" -> "DAY";
+                        case "HOURS" -> "HOUR";
+                        case "MINUTES" -> "MINUTE";
+                        case "SECONDS" -> "SECOND";
+                        case "MONTHS" -> "MONTH";
+                        case "YEARS" -> "YEAR";
+                        case "WEEKS" -> "WEEK";
+                        default -> ev.value();
+                    };
+                }
+                yield new SqlExpr.FunctionCall("DATE_DIFF",
+                        List.of(new SqlExpr.Literal("'" + dunit + "'"), start, end));
+            }
+            case "date" -> {
+                if (params.size() >= 3) {
+                    yield new SqlExpr.FunctionCall("MAKE_DATE",
+                            List.of(c.apply(params.get(0)), c.apply(params.get(1)),
+                                    c.apply(params.get(2))));
+                }
+                yield new SqlExpr.Cast(c.apply(params.get(0)), "Date");
+            }
+            case "timeBucket" -> new SqlExpr.FunctionCall("TIME_BUCKET",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "hasHour" -> new SqlExpr.FunctionCall("HOUR",
+                    List.of(c.apply(params.get(0))));
+            case "hasMinute" -> new SqlExpr.FunctionCall("MINUTE",
+                    List.of(c.apply(params.get(0))));
+            case "hasMonth" -> new SqlExpr.FunctionCall("MONTH",
+                    List.of(c.apply(params.get(0))));
+
+            // --- Date constants ---
+            case "now" -> new SqlExpr.FunctionCall("NOW", List.of());
+            case "today" -> new SqlExpr.FunctionCall("CURRENT_DATE", List.of());
+
+            // --- Date comparisons ---
+            case "isOnDay" -> buildComparison(params, "=", c, mapping, tableAlias);
+            case "isAfterDay" -> buildComparison(params, ">", c, mapping, tableAlias);
+            case "isBeforeDay" -> buildComparison(params, "<", c, mapping, tableAlias);
+            case "isOnOrAfterDay" -> buildComparison(params, ">=", c, mapping, tableAlias);
+            case "isOnOrBeforeDay" -> buildComparison(params, "<=", c, mapping, tableAlias);
+
+            // --- Bitwise ---
+            case "bitAnd" -> new SqlExpr.Binary(c.apply(params.get(0)), "&", c.apply(params.get(1)));
+            case "bitOr" -> new SqlExpr.Binary(c.apply(params.get(0)), "|", c.apply(params.get(1)));
+            case "bitXor" -> new SqlExpr.FunctionCall("XOR",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "bitNot" -> new SqlExpr.Unary("~", c.apply(params.get(0)));
+            case "bitShiftLeft" -> new SqlExpr.Binary(c.apply(params.get(0)), "<<",
+                    c.apply(params.get(1)));
+            case "bitShiftRight" -> new SqlExpr.Binary(c.apply(params.get(0)), ">>",
+                    c.apply(params.get(1)));
+            case "xor" -> new SqlExpr.FunctionCall("XOR",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+
+            // --- Collection/list ---
+            case "size", "count" -> new SqlExpr.FunctionCall("COUNT",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "at" -> new SqlExpr.FunctionCall("LIST_EXTRACT",
+                    List.of(c.apply(params.get(0)),
+                            new SqlExpr.Binary(c.apply(params.get(1)), "+",
+                                    new SqlExpr.Literal("1"))));
+            case "head", "first" -> new SqlExpr.FunctionCall("LIST_EXTRACT",
+                    List.of(c.apply(params.get(0)), new SqlExpr.Literal("1")));
+            case "last" -> new SqlExpr.FunctionCall("LIST_EXTRACT",
+                    List.of(c.apply(params.get(0)),
+                            new SqlExpr.FunctionCall("LIST_LENGTH",
+                                    List.of(c.apply(params.get(0))))));
+            case "tail" -> new SqlExpr.FunctionCall("LIST_SLICE",
+                    List.of(c.apply(params.get(0)), new SqlExpr.Literal("2"),
+                            new SqlExpr.FunctionCall("LIST_LENGTH",
+                                    List.of(c.apply(params.get(0))))));
+            case "init" -> new SqlExpr.FunctionCall("LIST_SLICE",
+                    List.of(c.apply(params.get(0)), new SqlExpr.Literal("1"),
+                            new SqlExpr.Binary(
+                                    new SqlExpr.FunctionCall("LIST_LENGTH",
+                                            List.of(c.apply(params.get(0)))),
+                                    "-", new SqlExpr.Literal("1"))));
+            case "add" -> {
+                if (params.size() > 2) {
+                    yield new SqlExpr.FunctionCall("LIST_APPEND",
+                            List.of(c.apply(params.get(0)), c.apply(params.get(2))));
+                }
+                yield new SqlExpr.FunctionCall("LIST_APPEND",
+                        List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            }
+            case "concatenate" -> new SqlExpr.FunctionCall("LIST_CONCAT",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "take" -> new SqlExpr.FunctionCall("LIST_SLICE",
+                    List.of(c.apply(params.get(0)), new SqlExpr.Literal("1"),
+                            c.apply(params.get(1))));
+            case "drop" -> new SqlExpr.FunctionCall("LIST_SLICE",
+                    List.of(c.apply(params.get(0)),
+                            new SqlExpr.Binary(c.apply(params.get(1)), "+",
+                                    new SqlExpr.Literal("1")),
+                            new SqlExpr.FunctionCall("LIST_LENGTH",
+                                    List.of(c.apply(params.get(0))))));
+            case "slice" -> new SqlExpr.FunctionCall("LIST_SLICE",
+                    List.of(c.apply(params.get(0)),
+                            new SqlExpr.Binary(c.apply(params.get(1)), "+",
+                                    new SqlExpr.Literal("1")),
+                            c.apply(params.get(2))));
+
+            // --- Aggregates (when used as scalar) ---
+            case "sum" -> new SqlExpr.FunctionCall("SUM",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "average", "mean" -> new SqlExpr.FunctionCall("AVG",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "min" -> new SqlExpr.FunctionCall("MIN",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "max" -> new SqlExpr.FunctionCall("MAX",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "greatest" -> new SqlExpr.FunctionCall("GREATEST",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "least" -> new SqlExpr.FunctionCall("LEAST",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "median" -> new SqlExpr.FunctionCall("MEDIAN",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "mode" -> new SqlExpr.FunctionCall("MODE",
+                    params.stream().map(c).collect(Collectors.toList()));
+
+            // --- Statistical aggregates ---
+            case "stdDev", "stdDevSample" -> new SqlExpr.FunctionCall("STDDEV_SAMP",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "stdDevPopulation" -> new SqlExpr.FunctionCall("STDDEV_POP",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "variance", "varianceSample" -> new SqlExpr.FunctionCall("VAR_SAMP",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "variancePopulation" -> new SqlExpr.FunctionCall("VAR_POP",
+                    params.stream().map(c).collect(Collectors.toList()));
+            case "corr" -> new SqlExpr.FunctionCall("CORR",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "covarSample" -> new SqlExpr.FunctionCall("COVAR_SAMP",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "covarPopulation" -> new SqlExpr.FunctionCall("COVAR_POP",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "percentile", "percentileCont" -> new SqlExpr.FunctionCall("PERCENTILE_CONT",
+                    params.stream().map(c).collect(Collectors.toList()));
+
+            // --- Analytical helpers ---
+            case "maxBy" -> new SqlExpr.FunctionCall("MAX_BY",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "minBy" -> new SqlExpr.FunctionCall("MIN_BY",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+
+            // --- Misc ---
+            case "generateGuid" -> new SqlExpr.FunctionCall("UUID", List.of());
+            case "between" -> new SqlExpr.Between(
+                    c.apply(params.get(0)), c.apply(params.get(1)), c.apply(params.get(2)));
+            case "eq" -> buildComparison(params, "=", c, mapping, tableAlias);
+            case "type" -> new SqlExpr.FunctionCall("TYPEOF", List.of(c.apply(params.get(0))));
+
+            // --- Pass-through for non-SQL functions ---
+            case "toOne", "toMany", "eval", "forAll", "exists",
+                    "list", "pair", "map" -> {
+                // These are Pure-level functions that should pass through the first arg
+                if (!params.isEmpty()) {
+                    yield c.apply(params.get(0));
+                }
+                yield new SqlExpr.Literal("NULL");
+            }
+
+            // --- Let binding ---
+            case "letAsLastStatement", "letFunction" -> {
+                // Let bindings: compile the value expression
+                if (params.size() >= 2) {
+                    yield c.apply(params.get(1));
+                }
+                yield c.apply(params.get(0));
+            }
+
             default -> throw new PureCompileException(
                     "PlanGenerator: unsupported scalar function '" + funcName + "'");
         };

@@ -1381,7 +1381,10 @@ public class CleanCompiler {
 
     private TypeInfo compileLambda(LambdaFunction lf, CompilationContext ctx) {
         if (!lf.body().isEmpty()) {
-            return compileExpr(lf.body().get(0), ctx);
+            TypeInfo bodyInfo = compileExpr(lf.body().get(0), ctx);
+            // Register the lambda node itself with the body's type info,
+            // so root-level lambdas (|'hello'->endsWith('lo')) are in the types map
+            return typed(lf, bodyInfo.relationType(), bodyInfo.mapping());
         }
         return scalar(lf);
     }
