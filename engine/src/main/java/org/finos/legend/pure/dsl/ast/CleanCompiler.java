@@ -920,7 +920,7 @@ public class CleanCompiler {
                 if (source.relationType() != null && !source.relationType().columns().isEmpty()) {
                     return typed(af, source.relationType(), source.mapping());
                 }
-            } catch (Exception ignored) {
+            } catch (PureCompileException ignored) {
                 // Not a relation source — treat as scalar
             }
         }
@@ -1103,10 +1103,7 @@ public class CleanCompiler {
     // ========== Extraction Utilities ==========
 
     static String simpleName(String qualifiedName) {
-        if (qualifiedName.contains("::")) {
-            return qualifiedName.substring(qualifiedName.lastIndexOf("::") + 2);
-        }
-        return qualifiedName;
+        return TypeInfo.simpleName(qualifiedName);
     }
 
     private LambdaFunction extractLambda(ValueSpecification vs) {

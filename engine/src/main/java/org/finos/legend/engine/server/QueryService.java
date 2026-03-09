@@ -21,7 +21,6 @@ import org.finos.legend.pure.dsl.PureParser;
 import org.finos.legend.pure.dsl.TypeEnvironment;
 import org.finos.legend.pure.dsl.ast.CleanCompiler;
 import org.finos.legend.pure.dsl.ast.PlanGenerator;
-import org.finos.legend.pure.dsl.ast.SqlBuilder;
 
 import org.finos.legend.pure.dsl.ast.ValueSpecification;
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;

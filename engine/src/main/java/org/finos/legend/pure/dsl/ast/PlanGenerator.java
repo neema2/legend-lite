@@ -250,11 +250,9 @@ public class PlanGenerator {
     // ========== getAll / table ==========
 
     private SqlBuilder generateGetAll(AppliedFunction af) {
-        var mapping = mappingFor(af);
-        String tableName;
-        if (mapping != null) {
-            tableName = mapping.table().name();
-        } else {
+        TypeInfo info = unit.typeInfoFor(af);
+        String tableName = info != null ? info.tableName() : null;
+        if (tableName == null) {
             tableName = extractClassName(af.parameters().get(0));
         }
         String alias = nextTableAlias();
@@ -264,11 +262,11 @@ public class PlanGenerator {
     }
 
     private SqlBuilder generateTableAccess(AppliedFunction af) {
-        var mapping = mappingFor(af);
-        String content = extractString(af.parameters().get(0));
-        String tableName = extractTableName(content);
-        if (mapping != null) {
-            tableName = mapping.table().name();
+        TypeInfo info = unit.typeInfoFor(af);
+        String tableName = info != null ? info.tableName() : null;
+        if (tableName == null) {
+            String content = extractString(af.parameters().get(0));
+            tableName = extractTableName(content);
         }
         return new SqlBuilder()
                 .selectStar()
@@ -384,7 +382,8 @@ public class PlanGenerator {
             Join join = joinInfo.join();
             if (join != null && mapping != null) {
                 String targetTableName = joinInfo.mapping().table().name();
-                String leftCol = join.getColumnForTable(mapping.table().name());
+                String srcTableName = mapping != null ? mapping.table().name() : null;
+                String leftCol = srcTableName != null ? join.getColumnForTable(srcTableName) : null;
                 String rightCol = join.getColumnForTable(targetTableName);
                 SqlExpr onCondition = new SqlExpr.Binary(
                         new SqlExpr.Column(tableAlias, leftCol), "=",
@@ -1285,9 +1284,10 @@ public class PlanGenerator {
                 String subAlias = "sub" + (tableAliasCounter++);
                 String targetTableName = assocTarget.targetMapping().table().name();
                 Join join = assocTarget.join();
+                String srcTableName = mapping != null ? mapping.table().name() : null;
 
-                if (join != null) {
-                    String leftJoinCol = join.getColumnForTable(mapping.table().name());
+                if (join != null && srcTableName != null) {
+                    String leftJoinCol = join.getColumnForTable(srcTableName);
                     String rightJoinCol = join.getColumnForTable(targetTableName);
 
                     SqlExpr correlation = new SqlExpr.Binary(
@@ -1354,6 +1354,6 @@ public class PlanGenerator {
     }
 
     private static String simpleName(String qualifiedName) {
-        return CleanCompiler.simpleName(qualifiedName);
+        return TypeInfo.simpleName(qualifiedName);
     }
 }
