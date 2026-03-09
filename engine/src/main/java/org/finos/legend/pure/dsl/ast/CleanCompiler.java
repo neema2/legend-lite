@@ -569,7 +569,14 @@ public class CleanCompiler {
     }
 
     private TypedValueSpec compileTdsLiteral(ClassInstance ci, CompilationContext ctx) {
-        return new TypedValueSpec(ci, RelationType.empty());
+        String raw = (String) ci.value();
+        org.finos.legend.pure.dsl.TdsLiteral tds = org.finos.legend.pure.dsl.TdsLiteral.parse(raw);
+        // Build RelationType from parsed column names
+        Map<String, GenericType> columns = new LinkedHashMap<>();
+        for (var col : tds.columns()) {
+            columns.put(col.name(), GenericType.Primitive.STRING);
+        }
+        return new TypedValueSpec(new ClassInstance("tdsLiteral", tds), new RelationType(columns));
     }
 
     /**

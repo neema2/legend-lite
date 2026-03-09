@@ -52,11 +52,55 @@ public class SqlCompiler {
     }
 
     /**
-     * Compiles a ValueSpecification AST to a SqlBuilder.
-     * Entry point — call {@link SqlBuilder#toSql(SQLDialect)} on the result.
+     * Compiles a TypedValueSpec to a SqlBuilder.
+     * Uses resultType from CleanCompiler to route: scalar queries produce
+     * SELECT expr AS "value", relation queries produce full SELECT.
      */
+    public SqlBuilder compile(TypedValueSpec tvs) {
+        if (tvs.resultType().columns().isEmpty() && isScalarAst(tvs.ast())) {
+            return compileScalarQuery(tvs.ast(), tvs.mapping());
+        }
+        return compileRelation(tvs.ast(), tvs.mapping());
+    }
+
+    /** Backward-compatible entry point. */
     public SqlBuilder compile(ValueSpecification ast, RelationalMapping mapping) {
         return compileRelation(ast, mapping);
+    }
+
+    /**
+     * Compiles a standalone scalar query → SELECT scalarExpr AS "value".
+     * Used for queries like |42, |'hello', |%2024-01-15->adjust(...), etc.
+     */
+    private SqlBuilder compileScalarQuery(ValueSpecification ast, RelationalMapping mapping) {
+        ValueSpecification body = ast;
+        if (ast instanceof LambdaFunction lf && !lf.body().isEmpty()) {
+            body = lf.body().getLast();
+        }
+        String scalar = compileScalar(body, null, mapping);
+        return new SqlBuilder().addSelect(scalar, dialect.quoteIdentifier("value"));
+    }
+
+    /**
+     * Returns true if the AST represents a scalar expression (not a relation
+     * source).
+     */
+    private boolean isScalarAst(ValueSpecification vs) {
+        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
+            vs = lf.body().getLast();
+        }
+        // Literals are always scalar
+        if (vs instanceof CInteger || vs instanceof CFloat || vs instanceof CDecimal
+                || vs instanceof CString || vs instanceof CBoolean
+                || vs instanceof CDateTime || vs instanceof CStrictDate
+                || vs instanceof CStrictTime || vs instanceof CLatestDate) {
+            return true;
+        }
+        // A function not in the relation set is scalar (adjust, plus, etc.)
+        if (vs instanceof AppliedFunction af) {
+            return !(vs instanceof ClassInstance);
+        }
+        return false;
     }
 
     // ========== Relation Compilation ==========
@@ -88,9 +132,44 @@ public class SqlCompiler {
                         .selectStar()
                         .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier(alias));
             }
+            case "tdsLiteral" -> {
+                // CleanCompiler stores parsed TdsLiteral; nested ASTs may still have raw String
+                org.finos.legend.pure.dsl.TdsLiteral tds = ci.value() instanceof org.finos.legend.pure.dsl.TdsLiteral t
+                        ? t
+                        : org.finos.legend.pure.dsl.TdsLiteral.parse((String) ci.value());
+                yield compileTdsLiteral(tds);
+            }
             default -> throw new PureCompileException(
                     "SqlCompiler: unsupported ClassInstance type: " + ci.type());
         };
+    }
+
+    /**
+     * Compiles a parsed TdsLiteral to VALUES SQL.
+     * Receives structured data from CleanCompiler — no string parsing here.
+     */
+    private SqlBuilder compileTdsLiteral(org.finos.legend.pure.dsl.TdsLiteral tds) {
+        List<String> quotedCols = tds.columns().stream()
+                .map(c -> dialect.quoteIdentifier(c.name())).toList();
+
+        List<List<String>> rows = tds.rows().stream()
+                .map(row -> row.stream().map(this::formatTdsValue).toList())
+                .toList();
+
+        return new SqlBuilder()
+                .selectStar()
+                .fromValues(rows, dialect.quoteIdentifier("_tds"), quotedCols);
+    }
+
+    /** Formats a typed TDS cell value for SQL. */
+    private String formatTdsValue(Object val) {
+        if (val == null)
+            return "NULL";
+        if (val instanceof Boolean b)
+            return b ? "TRUE" : "FALSE";
+        if (val instanceof Number)
+            return val.toString();
+        return dialect.quoteStringLiteral(val.toString());
     }
 
     private SqlBuilder compileFunction(AppliedFunction af, RelationalMapping mapping) {
@@ -1252,6 +1331,30 @@ public class SqlCompiler {
             case "coalesce" -> "COALESCE(" + params.stream()
                     .map(v -> compileScalar(v, rowParam, mapping))
                     .collect(Collectors.joining(", ")) + ")";
+
+            // --- Date adjust ---
+            case "adjust" -> {
+                // adjust(date, amount, DurationUnit.DAYS) → date + (INTERVAL '1' DAY * amount)
+                String dateExpr = compileScalar(params.get(0), rowParam, mapping);
+                String amount = compileScalar(params.get(1), rowParam, mapping);
+                // Third param is an EnumValue like DurationUnit.DAYS
+                String unit = "DAY";
+                if (params.size() > 2 && params.get(2) instanceof EnumValue ev) {
+                    unit = switch (ev.value()) {
+                        case "DAYS" -> "DAY";
+                        case "HOURS" -> "HOUR";
+                        case "MINUTES" -> "MINUTE";
+                        case "SECONDS" -> "SECOND";
+                        case "MILLISECONDS" -> "MILLISECOND";
+                        case "MICROSECONDS" -> "MICROSECOND";
+                        case "MONTHS" -> "MONTH";
+                        case "YEARS" -> "YEAR";
+                        case "WEEKS" -> "WEEK";
+                        default -> ev.value();
+                    };
+                }
+                yield "(" + dateExpr + " + (INTERVAL '1' " + unit + " * " + amount + "))";
+            }
 
             default -> throw new PureCompileException(
                     "SqlCompiler: unsupported scalar function '" + funcName + "'");

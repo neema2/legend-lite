@@ -163,7 +163,7 @@ class CleanCompilerTest {
     private String compileSql(TypedValueSpec tvs) {
         var sqlCompiler = new SqlCompiler(
                 new java.util.IdentityHashMap<>(), DuckDBDialect.INSTANCE, null);
-        SqlBuilder builder = sqlCompiler.compile(tvs.ast(), tvs.mapping());
+        SqlBuilder builder = sqlCompiler.compile(tvs);
         return builder.toSql(DuckDBDialect.INSTANCE);
     }
 }

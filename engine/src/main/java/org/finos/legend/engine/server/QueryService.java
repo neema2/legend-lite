@@ -453,7 +453,7 @@ public class QueryService {
 
             // Generate SQL with SqlCompiler → SqlBuilder
             var sqlCompiler = new SqlCompiler(new java.util.IdentityHashMap<>(), dialect, model);
-            SqlBuilder builder = sqlCompiler.compile(tvs.ast(), tvs.mapping());
+            SqlBuilder builder = sqlCompiler.compile(tvs);
             String newSql = builder.toSql(dialect);
 
             // Compare output
