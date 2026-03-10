@@ -569,10 +569,10 @@ public class CleanCompiler {
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
 
-        // Aggregate columns: handle both patterns
-        // Pattern 1 (new API): params[2+] are ColSpec instances
-        // Pattern 2 (legacy): params[2] is Collection[LambdaFunction], params[3] is
-        // Collection[alias strings]
+        // Aggregate columns: handle three patterns
+        // Pattern 1 (legacy): params[2] is Collection[LambdaFunction]
+        // Pattern 2 (new API, array): params[2] is ClassInstance(ColSpecArray)
+        // Pattern 3 (new API, single): params[2+] are individual ColSpec instances
         if (params.size() > 2 && params.get(2) instanceof Collection aggColl) {
             // Legacy pattern: unwrap Collection of agg lambdas
             for (int i = 0; i < aggColl.values().size(); i++) {
@@ -582,8 +582,19 @@ public class CleanCompiler {
                     colSpecs.add(aggInfo);
                 }
             }
+        } else if (params.size() > 2
+                && params.get(2) instanceof ClassInstance ci
+                && ci.value() instanceof ColSpecArray csa) {
+            // Relation API array: ~[total:x|$x.id, count:x|$x.id:y|$y->count()]
+            for (var cs : csa.colSpecs()) {
+                var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
+                if (aggInfo != null) {
+                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    colSpecs.add(aggInfo);
+                }
+            }
         } else {
-            // New API pattern: params[2+] are individual ColSpec instances
+            // New API single: params[2+] are individual ColSpec instances
             for (int i = 2; i < params.size(); i++) {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
@@ -1509,8 +1520,9 @@ public class CleanCompiler {
             // Extract source column from function1 lambda: x|$x.salary
             if (cs.function1() != null) {
                 sourceCol = extractPropertyNameFromLambda(cs.function1());
-                if (sourceCol == null)
+                if (sourceCol == null) {
                     sourceCol = alias;
+                }
             }
 
             // Extract aggregate function from function2 lambda: y|$y->sum()

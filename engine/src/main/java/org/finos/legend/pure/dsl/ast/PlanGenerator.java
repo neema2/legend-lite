@@ -203,7 +203,7 @@ public class PlanGenerator {
 
         return new SqlBuilder()
                 .selectStar()
-                .fromValues(rows, dialect.quoteIdentifier("_tds"), quotedCols);
+                .fromValues(rows, "_tds", quotedCols);
     }
 
     /** Formats a typed TDS cell value as SqlExpr. */
