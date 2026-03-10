@@ -72,7 +72,13 @@ public record TypeInfo(
     public record ProjectionSpec(
             List<String> propertyPath,
             String resolvedColumn,
-            String alias) {
+            String alias,
+            ValueSpecification computedExpr) {
+        /** Simple property projection (no computed expression). */
+        public ProjectionSpec(List<String> propertyPath, String resolvedColumn, String alias) {
+            this(propertyPath, resolvedColumn, alias, null);
+        }
+
         public boolean isAssociation() {
             return propertyPath.size() > 1;
         }

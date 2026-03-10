@@ -409,6 +409,11 @@ public class PlanGenerator {
 
                 SqlExpr colExpr = resolveColumnExpr(leafProp, targetMapping, targetAlias);
                 builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
+            } else if (proj.computedExpr() != null) {
+                // Computed expression: e.g., $e.eventDate->monthNumber()
+                // Compile the lambda body as a scalar expression
+                SqlExpr computed = generateScalar(proj.computedExpr(), null, mapping, tableAlias);
+                builder.addSelect(computed, dialect.quoteIdentifier(proj.alias()));
             } else {
                 // Simple single-hop property
                 SqlExpr colExpr = resolveColumnExpr(proj.property(), mapping, tableAlias);
@@ -1389,7 +1394,14 @@ public class PlanGenerator {
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
             case "ascii" -> new SqlExpr.FunctionCall("ASCII", List.of(c.apply(params.get(0))));
             case "char" -> new SqlExpr.FunctionCall("CHR", List.of(c.apply(params.get(0))));
-            case "hash" -> new SqlExpr.FunctionCall("hash", List.of(c.apply(params.get(0))));
+            case "hash" -> {
+                // Check for HashType enum (SHA256, MD5, etc.)
+                if (params.size() > 1 && params.get(1) instanceof PackageableElementPtr ptr
+                        && ptr.fullPath().contains("SHA256")) {
+                    yield new SqlExpr.FunctionCall("SHA256", List.of(c.apply(params.get(0))));
+                }
+                yield new SqlExpr.FunctionCall("hash", List.of(c.apply(params.get(0))));
+            }
             case "lpad" -> new SqlExpr.FunctionCall("LPAD",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1)),
                             params.size() > 2 ? c.apply(params.get(2)) : new SqlExpr.StringLiteral(" ")));
@@ -1413,11 +1425,33 @@ public class PlanGenerator {
             case "minute" -> new SqlExpr.FunctionCall("MINUTE", List.of(c.apply(params.get(0))));
             case "second" -> new SqlExpr.FunctionCall("SECOND", List.of(c.apply(params.get(0))));
             case "quarter" -> new SqlExpr.FunctionCall("QUARTER", List.of(c.apply(params.get(0))));
+            case "quarterNumber" -> new SqlExpr.Literal(
+                    "EXTRACT(QUARTER FROM " + c.apply(params.get(0)).toSql(dialect) + ")");
             case "dayOfWeek" -> new SqlExpr.FunctionCall("dayOfWeek",
                     List.of(c.apply(params.get(0))));
+            case "dayOfWeekNumber" -> new SqlExpr.Literal(
+                    "EXTRACT(ISODOW FROM " + c.apply(params.get(0)).toSql(dialect) + ")");
             case "dayOfYear" -> new SqlExpr.FunctionCall("dayOfYear",
                     List.of(c.apply(params.get(0))));
             case "weekOfYear" -> new SqlExpr.FunctionCall("weekOfYear",
+                    List.of(c.apply(params.get(0))));
+
+            // --- Date truncation ---
+            case "firstDayOfMonth" -> new SqlExpr.FunctionCall("DATE_TRUNC",
+                    List.of(new SqlExpr.StringLiteral("month"), c.apply(params.get(0))));
+            case "firstDayOfYear" -> new SqlExpr.FunctionCall("DATE_TRUNC",
+                    List.of(new SqlExpr.StringLiteral("year"), c.apply(params.get(0))));
+            case "firstDayOfQuarter" -> new SqlExpr.FunctionCall("DATE_TRUNC",
+                    List.of(new SqlExpr.StringLiteral("quarter"), c.apply(params.get(0))));
+            case "firstHourOfDay" -> new SqlExpr.FunctionCall("DATE_TRUNC",
+                    List.of(new SqlExpr.StringLiteral("day"), c.apply(params.get(0))));
+            case "firstMillisecondOfSecond" -> new SqlExpr.FunctionCall("DATE_TRUNC",
+                    List.of(new SqlExpr.StringLiteral("second"), c.apply(params.get(0))));
+
+            // --- Epoch conversion ---
+            case "fromEpochValue" -> new SqlExpr.FunctionCall("TO_TIMESTAMP",
+                    List.of(c.apply(params.get(0))));
+            case "toEpochValue" -> new SqlExpr.FunctionCall("EPOCH",
                     List.of(c.apply(params.get(0))));
             case "datePart" -> new SqlExpr.Cast(c.apply(params.get(0)), "Date");
             case "dateDiff" -> {
@@ -1468,17 +1502,26 @@ public class PlanGenerator {
             case "isOnOrBeforeDay" -> buildComparison(params, "<=", c, mapping, tableAlias);
 
             // --- Bitwise ---
-            case "bitAnd" -> new SqlExpr.Binary(c.apply(params.get(0)), "&", c.apply(params.get(1)));
-            case "bitOr" -> new SqlExpr.Binary(c.apply(params.get(0)), "|", c.apply(params.get(1)));
+            case "bitAnd" -> new SqlExpr.Binary(
+                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), "&",
+                    new SqlExpr.Cast(c.apply(params.get(1)), "Integer"));
+            case "bitOr" -> new SqlExpr.Binary(
+                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), "|",
+                    new SqlExpr.Cast(c.apply(params.get(1)), "Integer"));
             case "bitXor" -> new SqlExpr.FunctionCall("bitXor",
-                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
-            case "bitNot" -> new SqlExpr.Unary("~", c.apply(params.get(0)));
-            case "bitShiftLeft" -> new SqlExpr.Binary(c.apply(params.get(0)), "<<",
+                    List.of(new SqlExpr.Cast(c.apply(params.get(0)), "Integer"),
+                            new SqlExpr.Cast(c.apply(params.get(1)), "Integer")));
+            case "bitNot" -> new SqlExpr.Unary("~",
+                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"));
+            case "bitShiftLeft" -> new SqlExpr.Binary(
+                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), "<<",
                     c.apply(params.get(1)));
-            case "bitShiftRight" -> new SqlExpr.Binary(c.apply(params.get(0)), ">>",
+            case "bitShiftRight" -> new SqlExpr.Binary(
+                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), ">>",
                     c.apply(params.get(1)));
             case "xor" -> new SqlExpr.FunctionCall("bitXor",
-                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+                    List.of(new SqlExpr.Cast(c.apply(params.get(0)), "Integer"),
+                            new SqlExpr.Cast(c.apply(params.get(1)), "Integer")));
 
             // --- Collection/list ---
             case "size", "count" -> new SqlExpr.FunctionCall("COUNT",

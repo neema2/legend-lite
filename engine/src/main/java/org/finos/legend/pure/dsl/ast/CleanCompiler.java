@@ -463,6 +463,17 @@ public class CleanCompiler {
                     : propertyPath.getLast();
             String alias = i < aliases.size() ? aliases.get(i) : propertyName;
 
+            // Detect function-wrapped lambda bodies: e.g., $e.date->monthNumber()
+            // The lambda body is an AppliedFunction wrapping property access
+            ValueSpecification computedExpr = null;
+            if (lambdaSpec instanceof LambdaFunction lf && !lf.body().isEmpty()) {
+                ValueSpecification body = lf.body().get(0);
+                if (body instanceof AppliedFunction) {
+                    // Function wrapping a property — store body for scalar compilation
+                    computedExpr = body;
+                }
+            }
+
             // Resolve column via mapping
             String resolvedColumn = null;
             GenericType colType = GenericType.Primitive.STRING; // default
@@ -481,7 +492,7 @@ public class CleanCompiler {
 
             // Use full path if multi-hop, otherwise single property
             List<String> specPath = propertyPath.isEmpty() ? List.of(propertyName) : propertyPath;
-            projections.add(new TypeInfo.ProjectionSpec(specPath, resolvedColumn, alias));
+            projections.add(new TypeInfo.ProjectionSpec(specPath, resolvedColumn, alias, computedExpr));
         }
 
         RelationType resultType = new RelationType(projectedColumns);
