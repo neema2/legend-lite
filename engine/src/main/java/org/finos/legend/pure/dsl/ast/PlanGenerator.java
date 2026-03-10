@@ -1244,7 +1244,7 @@ public class PlanGenerator {
                     : new SqlExpr.Binary(c.apply(params.get(0)), "-", c.apply(params.get(1)));
             case "times" -> new SqlExpr.Binary(c.apply(params.get(0)), "*", c.apply(params.get(1)));
             case "divide" -> new SqlExpr.Binary(c.apply(params.get(0)), "/", c.apply(params.get(1)));
-            case "rem" -> new SqlExpr.Binary(c.apply(params.get(0)), "%", c.apply(params.get(1)));
+            case "rem" -> new SqlExpr.FunctionCall("MOD", List.of(c.apply(params.get(0)), c.apply(params.get(1))));
 
             // --- String ---
             case "contains" -> new SqlExpr.ListContains(c.apply(params.get(0)), c.apply(params.get(1)));
@@ -1407,7 +1407,7 @@ public class PlanGenerator {
             case "year" -> new SqlExpr.FunctionCall("YEAR", List.of(c.apply(params.get(0))));
             case "monthNumber", "month" -> new SqlExpr.FunctionCall("MONTH",
                     List.of(c.apply(params.get(0))));
-            case "dayOfMonth", "day" -> new SqlExpr.FunctionCall("DAY",
+            case "dayOfMonth", "day" -> new SqlExpr.FunctionCall("DAYOFMONTH",
                     List.of(c.apply(params.get(0))));
             case "hour" -> new SqlExpr.FunctionCall("HOUR", List.of(c.apply(params.get(0))));
             case "minute" -> new SqlExpr.FunctionCall("MINUTE", List.of(c.apply(params.get(0))));
