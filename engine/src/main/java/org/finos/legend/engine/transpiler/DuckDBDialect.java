@@ -229,12 +229,14 @@ public final class DuckDBDialect implements SQLDialect {
                 return "LIST_SORT(" + args.get(0) + ", " + args.get(1) + ")";
             case "listSortWithKey": {
                 // args: [list, direction, keyExpr]
-                // list_transform(LIST_SORT(list_transform(list, s -> {'k': keyExpr, 'v': s}), direction),
-                //   _sv -> STRUCT_EXTRACT(_sv, 'v'))
-                // Note: keyExpr is already rendered from the lambda body
                 return "list_transform(LIST_SORT(list_transform(" + args.get(0)
                         + ", s -> {'k': " + args.get(2) + ", 'v': s}), " + args.get(1)
                         + "), _sv -> STRUCT_EXTRACT(_sv, 'v'))";
+            }
+            case "listFind": {
+                // args: [list, filterPredicate]
+                // LIST_EXTRACT(list_filter(list, predicate), 1)
+                return "LIST_EXTRACT(list_filter(" + args.get(0) + ", " + args.get(1) + "), 1)";
             }
 
             // --- List aggregate functions using LIST_AGGR pattern ---

@@ -1638,7 +1638,14 @@ public class PlanGenerator {
                 }
                 yield new SqlExpr.FunctionCall("CONCAT", List.of(c.apply(params.get(0))));
             }
-            case "find" -> new SqlExpr.StrPosition(c.apply(params.get(1)), c.apply(params.get(0)));
+            case "find" -> {
+                if (firstArgIsList && params.size() > 1 && params.get(1) instanceof LambdaFunction lf) {
+                    // Collection find: LIST_EXTRACT(list_filter(list, lambda), 1)
+                    yield new SqlExpr.FunctionCall("listFind",
+                            List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+                }
+                yield new SqlExpr.StrPosition(c.apply(params.get(1)), c.apply(params.get(0)));
+            }
             case "levenshteinDistance" -> new SqlExpr.FunctionCall("levenshteinDistance",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
             case "ascii" -> new SqlExpr.FunctionCall("ASCII", List.of(c.apply(params.get(0))));
@@ -2055,12 +2062,20 @@ public class PlanGenerator {
             case "stdDevPopulation" -> new SqlExpr.FunctionCall(
                     firstArgIsList ? "listStdDevPopulation" : "stdDevPopulation",
                     params.stream().map(c).collect(Collectors.toList()));
-            case "variance", "varianceSample" -> new SqlExpr.FunctionCall(
-                    firstArgIsList ? "listVarianceSample" : "varianceSample",
-                    params.stream().map(c).collect(Collectors.toList()));
+            case "variance", "varianceSample" -> {
+                // variance(list, isSample) — isSample=true→var_samp, isSample=false→var_pop
+                if (params.size() > 1 && params.get(1) instanceof CBoolean cb && !cb.value()) {
+                    yield new SqlExpr.FunctionCall(
+                            firstArgIsList ? "listVariancePopulation" : "variancePopulation",
+                            List.of(c.apply(params.get(0))));
+                }
+                yield new SqlExpr.FunctionCall(
+                        firstArgIsList ? "listVarianceSample" : "varianceSample",
+                        List.of(c.apply(params.get(0))));
+            }
             case "variancePopulation" -> new SqlExpr.FunctionCall(
                     firstArgIsList ? "listVariancePopulation" : "variancePopulation",
-                    params.stream().map(c).collect(Collectors.toList()));
+                    List.of(c.apply(params.get(0))));
             case "corr" -> new SqlExpr.FunctionCall(
                     firstArgIsList ? "listCorr" : "corr",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
