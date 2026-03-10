@@ -217,6 +217,25 @@ public final class DuckDBDialect implements SQLDialect {
             case "wrapList":
                 // Wrap a single value in list brackets: [value]
                 return "[" + args.get(0) + "]";
+            case "bitShiftRightSafe": {
+                // args: [val, shift]
+                // CASE WHEN shift > 62 THEN CAST(1 AS BIGINT) << shift
+                //      ELSE val >> shift END
+                return "(CASE WHEN " + args.get(1) + " > 62 THEN CAST(1 AS BIGINT) << " + args.get(1)
+                        + " ELSE " + args.get(0) + " >> " + args.get(1) + " END)";
+            }
+            case "listSort":
+                // args: [list, direction]
+                return "LIST_SORT(" + args.get(0) + ", " + args.get(1) + ")";
+            case "listSortWithKey": {
+                // args: [list, direction, keyExpr]
+                // list_transform(LIST_SORT(list_transform(list, s -> {'k': keyExpr, 'v': s}), direction),
+                //   _sv -> STRUCT_EXTRACT(_sv, 'v'))
+                // Note: keyExpr is already rendered from the lambda body
+                return "list_transform(LIST_SORT(list_transform(" + args.get(0)
+                        + ", s -> {'k': " + args.get(2) + ", 'v': s}), " + args.get(1)
+                        + "), _sv -> STRUCT_EXTRACT(_sv, 'v'))";
+            }
 
             // --- List aggregate functions using LIST_AGGR pattern ---
             case "listMedian":

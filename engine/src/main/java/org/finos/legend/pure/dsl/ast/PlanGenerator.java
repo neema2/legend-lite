@@ -1922,9 +1922,14 @@ public class PlanGenerator {
             case "bitShiftLeft" -> new SqlExpr.Binary(
                     new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), "<<",
                     c.apply(params.get(1)));
-            case "bitShiftRight" -> new SqlExpr.Binary(
-                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), ">>",
-                    c.apply(params.get(1)));
+            case "bitShiftRight" -> {
+                // Old pipeline: CASE WHEN shift > 62 THEN CAST(1 AS BIGINT) << shift
+                //               ELSE CAST(val AS BIGINT) >> shift END
+                SqlExpr val = new SqlExpr.Cast(c.apply(params.get(0)), "Integer");
+                SqlExpr shift = c.apply(params.get(1));
+                yield new SqlExpr.FunctionCall("bitShiftRightSafe",
+                        List.of(val, shift));
+            }
             case "xor" -> {
                 // Boolean xor: (A AND NOT B) OR (NOT A AND B)
                 SqlExpr a = c.apply(params.get(0));
@@ -1984,11 +1989,24 @@ public class PlanGenerator {
                                     new SqlExpr.Literal("1")),
                             new SqlExpr.FunctionCall("listLength",
                                     List.of(c.apply(params.get(0))))));
-            case "slice" -> new SqlExpr.FunctionCall("listSlice",
-                    List.of(c.apply(params.get(0)),
-                            new SqlExpr.Binary(c.apply(params.get(1)), "+",
-                                    new SqlExpr.Literal("1")),
-                            c.apply(params.get(2))));
+            case "slice" -> {
+                SqlExpr list = c.apply(params.get(0));
+                SqlExpr start = c.apply(params.get(1));
+                SqlExpr end = c.apply(params.get(2));
+                // Pure slice is 0-based, DuckDB LIST_SLICE is 1-based
+                // Pre-compute for literal starts; negative→clamp to 1
+                if (params.get(1) instanceof CInteger ci) {
+                    long startVal = ci.value().longValue();
+                    long offset = Math.max(startVal + 1, 1);
+                    yield new SqlExpr.FunctionCall("listSlice",
+                            List.of(list, new SqlExpr.Literal(String.valueOf(offset)), end));
+                }
+                // Dynamic: max(start + 1, 1)
+                yield new SqlExpr.FunctionCall("listSlice",
+                        List.of(list,
+                                new SqlExpr.Binary(start, "+", new SqlExpr.Literal("1")),
+                                end));
+            }
 
             // --- Aggregates (list-context aware) ---
             case "sum" -> {
@@ -2066,7 +2084,7 @@ public class PlanGenerator {
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
 
             // --- Misc ---
-            case "generateGuid" -> new SqlExpr.FunctionCall("generateGuid", List.of());
+            case "generateGuid" -> new SqlExpr.FunctionCall("UUID", List.of());
             case "between" -> new SqlExpr.And(List.of(
                     new SqlExpr.Binary(c.apply(params.get(0)), ">=", c.apply(params.get(1))),
                     new SqlExpr.Binary(c.apply(params.get(0)), "<=", c.apply(params.get(2)))));
@@ -2078,13 +2096,54 @@ public class PlanGenerator {
                     "list", "pair", "map", "fold", "match", "zip",
                     "range", "cast", "toVariant", "letWithParam",
                     "filter", "groupBy", "select", "write",
-                    "compare", "sort", "comparator" -> {
+                    "compare", "comparator" -> {
                 // These are Pure-level functions that should pass through the first arg
                 if (!params.isEmpty()) {
                     yield c.apply(params.get(0));
                 }
                 throw new PureCompileException(
                         "PlanGenerator: pass-through function '" + funcName + "' has no parameters");
+            }
+            case "sort" -> {
+                if (firstArgIsList) {
+                    // Detect sort direction from compare lambda
+                    // sort({x,y|$y->compare($x)}) → DESC, sort({x,y|$x->compare($y)}) → ASC
+                    String direction = "ASC";
+                    if (params.size() > 1 && params.get(params.size() - 1) instanceof LambdaFunction compLf
+                            && compLf.parameters().size() == 2 && !compLf.body().isEmpty()) {
+                        // Check if compare lambda is $y->compare($x) (DESC)
+                        var body = compLf.body().get(0);
+                        if (body instanceof AppliedFunction af2
+                                && simpleName(af2.function()).equals("compare")
+                                && !af2.parameters().isEmpty()) {
+                            // If receiver is param[1] (y), it's DESC; if param[0] (x), it's ASC
+                            String firstParam = compLf.parameters().get(0).name();
+                            String secondParam = compLf.parameters().get(1).name();
+                            // Get the receiver of compare
+                            if (af2.parameters().get(0) instanceof Variable v) {
+                                if (v.name().equals(secondParam)) direction = "DESC";
+                            }
+                        }
+                    }
+                    // Check for key function: sort(keyFn, compareFn)
+                    if (params.size() > 2
+                            || (params.size() == 2 && params.get(1) instanceof LambdaFunction kf
+                                    && kf.parameters().size() == 1)) {
+                        // sort with key function → listSort with key
+                        yield new SqlExpr.FunctionCall("listSortWithKey",
+                                List.of(c.apply(params.get(0)),
+                                        new SqlExpr.StringLiteral(direction),
+                                        c.apply(params.get(1))));
+                    }
+                    yield new SqlExpr.FunctionCall("listSort",
+                            List.of(c.apply(params.get(0)),
+                                    new SqlExpr.StringLiteral(direction)));
+                }
+                // Relation sort — pass through (handled by generateSort)
+                if (!params.isEmpty()) {
+                    yield c.apply(params.get(0));
+                }
+                throw new PureCompileException("sort: no parameters");
             }
 
             // --- Let binding ---
