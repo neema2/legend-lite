@@ -992,12 +992,16 @@ public class CleanCompiler {
     private TypeInfo compileTdsLiteral(ClassInstance ci, CompilationContext ctx) {
         String raw = (String) ci.value();
         org.finos.legend.pure.dsl.TdsLiteral tds = org.finos.legend.pure.dsl.TdsLiteral.parse(raw);
-        // Build RelationType from parsed column names
+        // Build RelationType from parsed column names and types
         Map<String, GenericType> columns = new LinkedHashMap<>();
         for (var col : tds.columns()) {
             columns.put(col.name(), GenericType.Primitive.STRING);
         }
-        return typed(new ClassInstance("tdsLiteral", tds), new RelationType(columns), null);
+        // Register type on the ORIGINAL ci so callers can look it up
+        var info = typed(ci, new RelationType(columns), null);
+        // Also register a parsed-TDS ClassInstance for PlanGenerator
+        types.put(new ClassInstance("tdsLiteral", tds), info);
+        return info;
     }
 
     /**
