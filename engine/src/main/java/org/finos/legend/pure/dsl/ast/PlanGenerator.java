@@ -846,86 +846,85 @@ public class PlanGenerator {
         List<ValueSpecification> params = af.parameters();
         SqlBuilder source = generateRelation(params.get(0));
 
-        // Read pre-resolved window spec from sidecar
+        // Read pre-resolved window specs from sidecar
         TypeInfo info = unit.types().get(af);
-        if (info != null && info.windowSpec() != null) {
-            var ws = info.windowSpec();
-            String quotedAlias = dialect.quoteIdentifier(ws.alias());
+        if (info != null && !info.windowSpecs().isEmpty()) {
+            SqlBuilder b = new SqlBuilder().selectStar().fromSubquery(source, "window_src");
 
-            // Build partition/order SqlExprs from sidecar specs
-            List<SqlExpr> partitionCols = ws.partitionBy().stream()
-                    .map(c -> (SqlExpr) new SqlExpr.ColumnRef(c))
-                    .toList();
-            List<SqlExpr> orderParts = ws.orderBy().stream()
-                    .map(s -> {
-                        String dir = s.direction() == TypeInfo.SortDirection.ASC ? "ASC" : "DESC";
-                        String nullOrder = "DESC".equals(dir) ? "NULLS FIRST" : "NULLS LAST";
-                        return (SqlExpr) new SqlExpr.Literal(
-                                dialect.quoteIdentifier(s.column()) + " " + dir + " " + nullOrder);
-                    }).toList();
-            String frameClause = ws.frame() != null ? formatFrameSpec(ws.frame()) : null;
-            SqlExpr.WindowSpec windowSpec = new SqlExpr.WindowSpec(partitionCols, orderParts, frameClause);
+            for (var ws : info.windowSpecs()) {
+                String quotedAlias = dialect.quoteIdentifier(ws.alias());
 
-            // Map Pure function name to SQL
-            String sqlFunc = mapPureFuncToSql(ws.pureFunctionName());
+                // Build partition/order SqlExprs from sidecar specs
+                List<SqlExpr> partitionCols = ws.partitionBy().stream()
+                        .map(c -> (SqlExpr) new SqlExpr.ColumnRef(c))
+                        .toList();
+                List<SqlExpr> orderParts = ws.orderBy().stream()
+                        .map(s -> {
+                            String dir = s.direction() == TypeInfo.SortDirection.ASC ? "ASC" : "DESC";
+                            String nullOrder = "DESC".equals(dir) ? "NULLS FIRST" : "NULLS LAST";
+                            return (SqlExpr) new SqlExpr.Literal(
+                                    dialect.quoteIdentifier(s.column()) + " " + dir + " " + nullOrder);
+                        }).toList();
+                String frameClause = ws.frame() != null ? formatFrameSpec(ws.frame()) : null;
+                SqlExpr.WindowSpec windowSpec = new SqlExpr.WindowSpec(partitionCols, orderParts, frameClause);
 
-            // Build the window function SqlExpr
-            SqlExpr windowFunc;
-            if (ws.isNtile()) {
-                windowFunc = new SqlExpr.FunctionCall("NTILE",
-                        List.of(new SqlExpr.Literal(String.valueOf(ws.ntileArg()))));
-            } else if (ws.hasSourceColumn()) {
-                List<SqlExpr> args = new ArrayList<>();
-                // COUNT(*) uses literal, not column ref
-                if ("*".equals(ws.sourceColumn())) {
-                    args.add(new SqlExpr.Literal("*"));
-                } else {
-                    args.add(new SqlExpr.ColumnRef(ws.sourceColumn()));
-                }
-                // Add extra args: properly distinguish literals from column refs
-                for (String extra : ws.extraArgs()) {
-                    if (extra.startsWith("'")) {
-                        // String literal: pass through as-is (e.g. '' for separator)
-                        args.add(new SqlExpr.Literal(extra));
-                    } else {
-                        try {
-                            Double.parseDouble(extra);
-                            args.add(new SqlExpr.Literal(extra));
-                        } catch (NumberFormatException e) {
-                            args.add(new SqlExpr.ColumnRef(extra));
-                        }
+                // Map Pure function name to SQL
+                String sqlFunc = mapPureFuncToSql(ws.pureFunctionName());
+
+                // Build the window function SqlExpr
+                SqlExpr windowFunc = buildWindowFunc(ws, sqlFunc);
+
+                if (ws.isWrapped()) {
+                    String sqlWrapper = mapPureFuncToSql(ws.wrapperFuncName());
+                    SqlExpr windowedInner = new SqlExpr.WindowFunction(windowFunc, windowSpec);
+                    List<SqlExpr> wrapperArgs = new java.util.ArrayList<>();
+                    wrapperArgs.add(windowedInner);
+                    for (String arg : ws.wrapperArgs()) {
+                        wrapperArgs.add(new SqlExpr.Literal(arg));
                     }
+                    SqlExpr wrappedExpr = new SqlExpr.FunctionCall(sqlWrapper, wrapperArgs);
+                    b.addWindowColumn(wrappedExpr, null, quotedAlias);
+                } else {
+                    b.addWindowColumn(windowFunc, windowSpec, quotedAlias);
                 }
-                windowFunc = new SqlExpr.FunctionCall(sqlFunc, args);
-            } else {
-                windowFunc = new SqlExpr.FunctionCall(sqlFunc, List.of());
             }
-
-            if (ws.isWrapped()) {
-                // Wrapped: e.g. ROUND(CUME_DIST() OVER(...), 2)
-                String sqlWrapper = mapPureFuncToSql(ws.wrapperFuncName());
-                SqlExpr windowedInner = new SqlExpr.WindowFunction(windowFunc, windowSpec);
-                List<SqlExpr> wrapperArgs = new java.util.ArrayList<>();
-                wrapperArgs.add(windowedInner);
-                for (String arg : ws.wrapperArgs()) {
-                    wrapperArgs.add(new SqlExpr.Literal(arg));
-                }
-                SqlExpr wrappedExpr = new SqlExpr.FunctionCall(sqlWrapper, wrapperArgs);
-                SqlBuilder b = new SqlBuilder().selectStar().fromSubquery(source, "window_src");
-                b.addWindowColumn(wrappedExpr, null, quotedAlias);
-                return b;
-            }
-
-            return new SqlBuilder()
-                    .selectStar()
-                    .addWindowColumn(windowFunc, windowSpec, quotedAlias)
-                    .fromSubquery(source, "window_src");
+            return b;
         }
 
         // Simple extend (computed column) — placeholder
         return new SqlBuilder()
                 .selectStar()
                 .fromSubquery(source, "extend_src");
+    }
+
+    /** Builds the SqlExpr for a window function call from its spec. */
+    private SqlExpr buildWindowFunc(TypeInfo.WindowFunctionSpec ws, String sqlFunc) {
+        if (ws.isNtile()) {
+            return new SqlExpr.FunctionCall("NTILE",
+                    List.of(new SqlExpr.Literal(String.valueOf(ws.ntileArg()))));
+        }
+        if (ws.hasSourceColumn()) {
+            List<SqlExpr> args = new ArrayList<>();
+            if ("*".equals(ws.sourceColumn())) {
+                args.add(new SqlExpr.Literal("*"));
+            } else {
+                args.add(new SqlExpr.ColumnRef(ws.sourceColumn()));
+            }
+            for (String extra : ws.extraArgs()) {
+                if (extra.startsWith("'")) {
+                    args.add(new SqlExpr.Literal(extra));
+                } else {
+                    try {
+                        Double.parseDouble(extra);
+                        args.add(new SqlExpr.Literal(extra));
+                    } catch (NumberFormatException e) {
+                        args.add(new SqlExpr.ColumnRef(extra));
+                    }
+                }
+            }
+            return new SqlExpr.FunctionCall(sqlFunc, args);
+        }
+        return new SqlExpr.FunctionCall(sqlFunc, List.of());
     }
 
     /** Maps a Pure function name to SQL function name. */

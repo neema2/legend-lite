@@ -44,7 +44,7 @@ public record TypeInfo(
         List<ColumnSpec> columnSpecs,
         boolean structSource,
         String joinType,
-        WindowFunctionSpec windowSpec,
+        List<WindowFunctionSpec> windowSpecs,
         ValueSpecification inlinedBody) {
 
     /**
@@ -233,17 +233,17 @@ public record TypeInfo(
 
     /** Creates a TypeInfo for a scalar (non-relational) expression. */
     public static TypeInfo scalar() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, null, null);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null);
     }
 
     /** Creates a TypeInfo with type info but no mapping. */
     public static TypeInfo of(RelationType relationType) {
-        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, null, null);
+        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null);
     }
 
     /** Full constructor with both type and mapping. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping) {
-        return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, null, null);
+        return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null);
     }
 
     /** Full constructor with associations. */
@@ -255,7 +255,7 @@ public record TypeInfo(
 
     /** Constructor for struct-based sources. */
     public static TypeInfo structOf(RelationType relationType) {
-        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), true, null, null, null);
+        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), true, null, List.of(), null);
     }
 
     // ===== Derived checks — no SourceKind enum needed =====

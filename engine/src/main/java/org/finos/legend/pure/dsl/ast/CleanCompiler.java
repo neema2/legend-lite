@@ -264,7 +264,7 @@ public class CleanCompiler {
         List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
 
         var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
-                null, null);
+                List.of(), null);
         types.put(af, info);
         return info;
     }
@@ -499,12 +499,12 @@ public class CleanCompiler {
         // Propagate struct flag from source
         if (source.isStructSource()) {
             var info = new TypeInfo(resultType, null, associations, List.of(), projections, List.of(), true, null,
-                    null, null);
+                    List.of(), null);
             types.put(af, info);
             return info;
         }
         var info = new TypeInfo(resultType, mapping, associations, List.of(), projections, List.of(), false, null,
-                null, null);
+                List.of(), null);
         types.put(af, info);
         return info;
     }
@@ -539,7 +539,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(selectedColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, null, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null);
         types.put(af, info);
         return info;
     }
@@ -610,7 +610,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, null, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null);
         types.put(af, info);
         return info;
     }
@@ -666,20 +666,24 @@ public class CleanCompiler {
             }
         }
 
-        // Pre-resolve window function spec from ColSpec + over() params
+        // Pre-resolve window function specs from ColSpec/ColSpecArray + over() params
         AppliedFunction overSpec = null;
-        ColSpec windowColSpec = null;
+        List<ColSpec> windowColSpecs = new ArrayList<>();
         for (int i = 1; i < params.size(); i++) {
             var p = params.get(i);
             if (p instanceof AppliedFunction paf && "over".equals(simpleName(paf.function()))) {
                 overSpec = paf;
-            } else if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-                windowColSpec = cs;
+            } else if (p instanceof ClassInstance ci) {
+                if (ci.value() instanceof ColSpec cs) {
+                    windowColSpecs.add(cs);
+                } else if (ci.value() instanceof ColSpecArray csa) {
+                    windowColSpecs.addAll(csa.colSpecs());
+                }
             }
         }
 
-        TypeInfo.WindowFunctionSpec windowSpec = null;
-        if (windowColSpec != null) {
+        List<TypeInfo.WindowFunctionSpec> windowSpecs = new ArrayList<>();
+        if (!windowColSpecs.isEmpty()) {
             // Resolve partition/order/frame from over() if present
             List<String> partitionBy = new ArrayList<>();
             List<TypeInfo.SortSpec> orderBy = new ArrayList<>();
@@ -691,12 +695,17 @@ public class CleanCompiler {
                 frame = overResult.frame;
             }
 
-            String alias = windowColSpec.name();
-            windowSpec = resolveWindowFunc(windowColSpec, partitionBy, orderBy, frame, alias);
+            for (ColSpec cs : windowColSpecs) {
+                String alias = cs.name();
+                var ws = resolveWindowFunc(cs, partitionBy, orderBy, frame, alias);
+                if (ws != null)
+                    windowSpecs.add(ws);
+            }
         }
 
         var info = new TypeInfo(new RelationType(newColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, null, windowSpec, null);
+                Map.of(), List.of(), List.of(), List.of(), false, null,
+                windowSpecs, null);
         types.put(af, info);
         return info;
     }
@@ -1101,7 +1110,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(mergedColumns), left.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, joinType, null, null);
+                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null);
         types.put(af, info);
         return info;
     }
@@ -1226,7 +1235,7 @@ public class CleanCompiler {
         TypeInfo result = new TypeInfo(
                 bodyResult.relationType(), bodyResult.mapping(), bodyResult.associations(),
                 bodyResult.sortSpecs(), bodyResult.projections(), bodyResult.columnSpecs(),
-                bodyResult.structSource(), bodyResult.joinType(), bodyResult.windowSpec(),
+                bodyResult.structSource(), bodyResult.joinType(), bodyResult.windowSpecs(),
                 inlinedNode);
         types.put(af, result);
         return result;
