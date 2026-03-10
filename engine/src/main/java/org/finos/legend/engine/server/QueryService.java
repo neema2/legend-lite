@@ -480,15 +480,27 @@ public class QueryService {
         }
     }
 
-    /** Extracts the calling test method name from the stack trace. */
+    /**
+     * Extracts the calling test method name from the stack trace, skipping abstract
+     * classes.
+     */
     private static String callingTestName() {
+        String fallback = null;
         for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
             String cls = ste.getClassName();
             if (cls.endsWith("Test") || cls.contains("Test$") || cls.contains("Tests")) {
-                return cls.substring(cls.lastIndexOf('.') + 1) + "." + ste.getMethodName();
+                String simpleName = cls.substring(cls.lastIndexOf('.') + 1);
+                String result = simpleName + "." + ste.getMethodName();
+                // Skip abstract test classes — keep looking for the concrete one
+                if (simpleName.startsWith("Abstract")) {
+                    if (fallback == null)
+                        fallback = result;
+                    continue;
+                }
+                return result;
             }
         }
-        return "unknown";
+        return fallback != null ? fallback : "unknown";
     }
 
     /**
