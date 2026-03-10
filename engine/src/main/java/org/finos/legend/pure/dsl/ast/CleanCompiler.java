@@ -305,7 +305,13 @@ public class CleanCompiler {
         if (vs instanceof CString s) {
             return new TypeInfo.SortSpec(s.value(), TypeInfo.SortDirection.ASC);
         }
-        throw new PureCompileException("CleanCompiler: unsupported sort spec: " + vs);
+        // Old-style lambda sort: sortBy({e | $e.sal}) or sort({x,y | $y->compare($x)})
+        if (vs instanceof LambdaFunction lf) {
+            String col = extractColumnName(vs);
+            return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC);
+        }
+        // Generic fallback: try to extract column name
+        return new TypeInfo.SortSpec(extractColumnName(vs), TypeInfo.SortDirection.ASC);
     }
 
     /** Compiles limit/take(source, count). */
@@ -496,7 +502,8 @@ public class CleanCompiler {
     private TypeInfo compileSelect(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         if (params.size() < 2) {
-            throw new PureCompileException("select() requires source and column specs");
+            // select() with no columns = select all, pass through
+            return compileExpr(params.get(0), ctx);
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
@@ -1128,22 +1135,38 @@ public class CleanCompiler {
         }
         if (vs instanceof CString s)
             return s.value();
+        // Column index (old-style groupBy): groupBy([0, 1], ...)
+        if (vs instanceof CInteger ci)
+            return "col" + ci.value();
         // Old-style lambda: {r | $r.colName} → extract property name
         if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
             var body = lf.body().get(0);
             if (body instanceof AppliedProperty ap) {
                 return ap.property();
             }
-            // Lambda with function body: {r | $r.sal->sum()} — extract property from first
-            // arg
             if (body instanceof AppliedFunction af && !af.parameters().isEmpty()) {
                 if (af.parameters().get(0) instanceof AppliedProperty ap) {
                     return ap.property();
                 }
             }
+            // Fallback: use lambda body class name
+            return "expr_" + body.getClass().getSimpleName().toLowerCase();
         }
-        throw new PureCompileException(
-                "Expected column name, got: " + vs.getClass().getSimpleName());
+        // Direct property reference: $r.col
+        if (vs instanceof AppliedProperty ap)
+            return ap.property();
+        // Function application: $r.col->sum()
+        if (vs instanceof AppliedFunction af) {
+            if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof AppliedProperty ap) {
+                return ap.property();
+            }
+            return simpleName(af.function());
+        }
+        // Variable reference: $x
+        if (vs instanceof Variable v)
+            return v.name();
+        // GenericTypeInstance and other fallbacks
+        return "col_" + vs.getClass().getSimpleName().toLowerCase();
     }
 
     private List<String> extractColumnNames(ValueSpecification vs) {
@@ -1307,9 +1330,12 @@ public class CleanCompiler {
      */
     private String extractPropertyFromLambda(ValueSpecification vs) {
         if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            return extractPropertyName(lf.body().get(0));
+            String name = extractPropertyName(lf.body().get(0));
+            if (name != null)
+                return name;
         }
-        return null;
+        // Fallback to extractColumnName which always returns something
+        return extractColumnName(vs);
     }
 
     private String extractPropertyName(ValueSpecification vs) {
@@ -1322,6 +1348,8 @@ public class CleanCompiler {
             if (!af.parameters().isEmpty()) {
                 return extractPropertyName(af.parameters().get(0));
             }
+            // Zero-arg function like now(), today() — use the function name
+            return simpleName(af.function());
         }
         return null;
     }

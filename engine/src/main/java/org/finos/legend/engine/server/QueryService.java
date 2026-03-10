@@ -477,6 +477,9 @@ public class QueryService {
             System.out.println("[DUAL-RUN ERROR] Test: " + callingTestName()
                     + " | Query: " + query
                     + " → " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            if (e instanceof NullPointerException) {
+                e.printStackTrace(System.out);
+            }
         }
     }
 

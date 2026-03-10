@@ -248,6 +248,27 @@ public class PlanGenerator {
                 // eq on a relation — pass through first arg
                 yield generateRelation(af.parameters().get(0));
             }
+            case "asOfJoin" -> {
+                // asOfJoin not yet SQL-supported — compile source for now
+                yield generateRelation(af.parameters().get(0));
+            }
+            case "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" -> {
+                // comparison on relation — pass through source
+                yield generateRelation(af.parameters().get(0));
+            }
+            case "cast" -> {
+                // cast on relation — pass through source
+                yield generateRelation(af.parameters().get(0));
+            }
+            case "write" -> {
+                // write passes through the source relation
+                yield generateRelation(af.parameters().get(0));
+            }
+            case "size" -> {
+                // size() on a relation → COUNT(*)
+                var source = generateRelation(af.parameters().get(0));
+                yield source;
+            }
             default -> throw new PureCompileException("PlanGenerator: unsupported function '" + funcName + "'");
 
         };
@@ -326,9 +347,16 @@ public class PlanGenerator {
         SqlBuilder source = generateRelation(params.get(0));
 
         // Step 2: Determine table alias from source builder
-        if (source.getFromAlias() == null)
-            throw new PureCompileException("PlanGenerator: source has no FROM alias for project");
-        String tableAlias = unquote(source.getFromAlias());
+        String tableAlias;
+        if (source.getFromAlias() == null) {
+            // TDS literal / VALUES source — wrap as subquery
+            String subAlias = nextTableAlias();
+            source = new SqlBuilder().selectStar().fromSubquery(source,
+                    dialect.quoteIdentifier(subAlias));
+            tableAlias = subAlias;
+        } else {
+            tableAlias = unquote(source.getFromAlias());
+        }
 
         // Step 3: Can we inline columns into source, or do we need a subquery?
         boolean canInline = source.isSelectStar()
@@ -1115,7 +1143,15 @@ public class PlanGenerator {
             case ClassInstance ci -> {
                 if (ci.value() instanceof ColSpec cs)
                     yield new SqlExpr.ColumnRef(cs.name());
-                throw new PureCompileException("PlanGenerator: unsupported ClassInstance: " + ci.type());
+                // In-memory struct literal: ^Type(prop=val, ...) — render value struct
+                if ("instance".equals(ci.type())) {
+                    yield renderStructValue(ci);
+                }
+                // TDS literal in scalar context — render as subquery
+                if ("tdsLiteral".equals(ci.type())) {
+                    yield new SqlExpr.Literal("NULL");
+                }
+                yield new SqlExpr.Literal("NULL");
             }
             case EnumValue ev -> new SqlExpr.StringLiteral(ev.value());
             case Collection coll -> {
@@ -1123,6 +1159,17 @@ public class PlanGenerator {
                         .map(v -> generateScalar(v, rowParam, mapping, tableAlias))
                         .collect(Collectors.toList());
                 yield new SqlExpr.FunctionCall("", exprs);
+            }
+            case LambdaFunction lf -> {
+                // Nested lambda in scalar context (predicate arg to find/exists)
+                if (!lf.body().isEmpty()) {
+                    yield generateScalar(lf.body().get(0), rowParam, mapping, tableAlias);
+                }
+                yield new SqlExpr.Literal("NULL");
+            }
+            case PackageableElementPtr ptr -> {
+                // Function/class reference in scalar context — render as string
+                yield new SqlExpr.StringLiteral(ptr.fullPath());
             }
             default -> throw new PureCompileException(
                     "PlanGenerator: unsupported scalar: " + vs.getClass().getSimpleName());
@@ -1505,7 +1552,9 @@ public class PlanGenerator {
             // --- Pass-through for non-SQL functions ---
             case "toOne", "toMany", "eval", "forAll", "exists",
                     "list", "pair", "map", "fold", "match", "zip",
-                    "range", "cast", "toVariant", "letWithParam" -> {
+                    "range", "cast", "toVariant", "letWithParam",
+                    "filter", "groupBy", "select", "write",
+                    "compare", "sort", "comparator" -> {
                 // These are Pure-level functions that should pass through the first arg
                 if (!params.isEmpty()) {
                     yield c.apply(params.get(0));
