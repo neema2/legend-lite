@@ -142,18 +142,31 @@ public record TypeInfo(
             String alias,
             String wrapperFuncName,
             List<String> wrapperArgs,
-            int ntileArg) {
+            int ntileArg,
+            List<String> extraArgs) {
 
         /** Simple zero-arg window function (rowNumber, rank, etc). */
         public static WindowFunctionSpec ranking(String pureFunc, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
-            return new WindowFunctionSpec(pureFunc, null, partitionBy, orderBy, frame, alias, null, List.of(), 0);
+            return new WindowFunctionSpec(pureFunc, null, partitionBy, orderBy, frame, alias, null, List.of(), 0,
+                    List.of());
         }
 
         /** Aggregate window function (plus, average, count, etc). */
         public static WindowFunctionSpec aggregate(String pureFunc, String sourceCol, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
-            return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0);
+            return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0,
+                    List.of());
+        }
+
+        /**
+         * Multi-arg aggregate window function (corr, covar, percentile, nthValue,
+         * joinStrings).
+         */
+        public static WindowFunctionSpec aggregateMulti(String pureFunc, String sourceCol, String alias,
+                List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame, List<String> extraArgs) {
+            return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0,
+                    extraArgs);
         }
 
         /** Wrapped window function (e.g. round(cumulativeDistribution(), 2)). */
@@ -161,13 +174,14 @@ public record TypeInfo(
                 List<String> extraArgs, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
             return new WindowFunctionSpec(innerPureFunc, null, partitionBy, orderBy, frame, alias,
-                    wrapperPureFunc, extraArgs, 0);
+                    wrapperPureFunc, extraArgs, 0, List.of());
         }
 
         /** NTILE window function. */
         public static WindowFunctionSpec ntile(int buckets, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
-            return new WindowFunctionSpec("ntile", null, partitionBy, orderBy, frame, alias, null, List.of(), buckets);
+            return new WindowFunctionSpec("ntile", null, partitionBy, orderBy, frame, alias, null, List.of(), buckets,
+                    List.of());
         }
 
         public boolean isWrapped() {

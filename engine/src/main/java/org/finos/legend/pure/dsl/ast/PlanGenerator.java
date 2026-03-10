@@ -875,8 +875,18 @@ public class PlanGenerator {
                 windowFunc = new SqlExpr.FunctionCall("NTILE",
                         List.of(new SqlExpr.Literal(String.valueOf(ws.ntileArg()))));
             } else if (ws.hasSourceColumn()) {
-                windowFunc = new SqlExpr.FunctionCall(sqlFunc,
-                        List.of(new SqlExpr.ColumnRef(ws.sourceColumn())));
+                List<SqlExpr> args = new ArrayList<>();
+                args.add(new SqlExpr.ColumnRef(ws.sourceColumn()));
+                // Add extra args (column refs or literals for multi-arg window functions)
+                for (String extra : ws.extraArgs()) {
+                    try {
+                        Double.parseDouble(extra);
+                        args.add(new SqlExpr.Literal(extra));
+                    } catch (NumberFormatException e) {
+                        args.add(new SqlExpr.ColumnRef(extra));
+                    }
+                }
+                windowFunc = new SqlExpr.FunctionCall(sqlFunc, args);
             } else {
                 windowFunc = new SqlExpr.FunctionCall(sqlFunc, List.of());
             }
@@ -927,9 +937,10 @@ public class PlanGenerator {
             case "covarPopulation" -> "COVAR_POP";
             case "median" -> "MEDIAN";
             case "percentileCont" -> "QUANTILE_CONT";
-            case "percentileDisc" -> "QUANTILE_DISC";
+            case "percentile", "percentileDisc" -> "QUANTILE_DISC";
             case "joinStrings" -> "STRING_AGG";
             case "mode" -> "MODE";
+            case "corr" -> "CORR";
             // Ranking
             case "rowNumber" -> "ROW_NUMBER";
             case "rank" -> "RANK";
@@ -942,6 +953,7 @@ public class PlanGenerator {
             case "lag" -> "LAG";
             case "lead" -> "LEAD";
             case "ntile" -> "NTILE";
+            case "nthValue", "nth" -> "NTH_VALUE";
             // Math wrappers
             case "round" -> "ROUND";
             case "abs" -> "ABS";

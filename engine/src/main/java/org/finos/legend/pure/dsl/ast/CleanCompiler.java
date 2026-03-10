@@ -714,9 +714,44 @@ public class CleanCompiler {
         if (cs.function2() != null) {
             String column = extractPropertyNameFromLambda(cs.function1());
             String aggFunc = extractPureFuncName(cs.function2());
+            List<String> fn2ExtraArgs = extractFuncExtraArgs(cs.function2());
             if (column != null && aggFunc != null) {
+                if (!fn2ExtraArgs.isEmpty()) {
+                    return TypeInfo.WindowFunctionSpec.aggregateMulti(aggFunc, column, alias,
+                            partitionBy, orderBy, frame, fn2ExtraArgs);
+                }
                 return TypeInfo.WindowFunctionSpec.aggregate(aggFunc, column, alias,
                         partitionBy, orderBy, frame);
+            }
+            // rowMapper pattern: {p,w,r|rowMapper($r.valA, $r.valB)}:y|$y->corr()
+            if (column == null && aggFunc != null && cs.function1() != null) {
+                var body = cs.function1().body();
+                if (!body.isEmpty() && body.get(0) instanceof AppliedFunction rmAf) {
+                    String rmFunc = simpleName(rmAf.function());
+                    if (rmFunc.endsWith("rowMapper") || "rowMapper".equals(rmFunc)) {
+                        // Extract two columns from rowMapper params
+                        String col1 = null, col2 = null;
+                        if (rmAf.parameters().size() >= 1) {
+                            col1 = extractColumnName(rmAf.parameters().get(0));
+                        }
+                        if (rmAf.parameters().size() >= 2) {
+                            col2 = extractColumnName(rmAf.parameters().get(1));
+                        }
+                        if (col1 != null) {
+                            List<String> extra = col2 != null ? List.of(col2) : List.of();
+                            return TypeInfo.WindowFunctionSpec.aggregateMulti(aggFunc, col1, alias,
+                                    partitionBy, orderBy, frame, extra);
+                        }
+                    }
+                    // Non-rowMapper function in function1 body — extract source column
+                    String sourceCol = rmAf.parameters().size() > 0
+                            ? extractColumnName(rmAf.parameters().get(0))
+                            : null;
+                    if (sourceCol != null) {
+                        return TypeInfo.WindowFunctionSpec.aggregate(aggFunc, sourceCol, alias,
+                                partitionBy, orderBy, frame);
+                    }
+                }
             }
         }
 
@@ -769,6 +804,23 @@ public class CleanCompiler {
                 String propName = ap.property();
                 if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedFunction innerAf) {
                     String innerFunc = simpleName(innerAf.function());
+                    // Extract extra literal args (e.g., nth offset 2, joinStrings separator)
+                    List<String> innerExtras = new ArrayList<>();
+                    for (int ei = 1; ei < innerAf.parameters().size(); ei++) {
+                        var px = innerAf.parameters().get(ei);
+                        if (px instanceof CInteger ci) {
+                            innerExtras.add(String.valueOf(ci.value()));
+                        } else if (px instanceof CFloat cf) {
+                            innerExtras.add(String.valueOf(cf.value()));
+                        } else if (px instanceof CString cstr) {
+                            innerExtras.add("'" + cstr.value() + "'");
+                        }
+                        // Skip variable references ($p, $w, $r)
+                    }
+                    if (!innerExtras.isEmpty()) {
+                        return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, propName, alias,
+                                partitionBy, orderBy, frame, innerExtras);
+                    }
                     return TypeInfo.WindowFunctionSpec.aggregate(innerFunc, propName, alias,
                             partitionBy, orderBy, frame);
                 }
@@ -844,6 +896,38 @@ public class CleanCompiler {
             return simpleName(af.function());
         }
         return null;
+    }
+
+    /**
+     * Extracts extra literal/column args from aggregate lambda body.
+     * E.g., {y|$y->percentile(0.6, true, true)} → ["0.6", "true", "true"]
+     * {y|$y->joinStrings('')} → ["''"]
+     */
+    private List<String> extractFuncExtraArgs(LambdaFunction lf) {
+        List<String> extras = new ArrayList<>();
+        if (lf == null || lf.body().isEmpty())
+            return extras;
+        var body = lf.body().get(0);
+        if (body instanceof AppliedFunction af) {
+            // Params: [0] = $y (variable), [1+] = extra args
+            for (int i = 1; i < af.parameters().size(); i++) {
+                var p = af.parameters().get(i);
+                if (p instanceof CInteger ci) {
+                    extras.add(String.valueOf(ci.value()));
+                } else if (p instanceof CFloat cf) {
+                    extras.add(String.valueOf(cf.value()));
+                } else if (p instanceof CDecimal cd) {
+                    extras.add(cd.value().toPlainString());
+                } else if (p instanceof CString cs) {
+                    extras.add("'" + cs.value() + "'");
+                } else if (p instanceof CBoolean cb) {
+                    extras.add(String.valueOf(cb.value()));
+                } else if (p instanceof AppliedProperty ap) {
+                    extras.add(ap.property());
+                }
+            }
+        }
+        return extras;
     }
 
     /** Returns true for zero-arg ranking Pure functions. */
