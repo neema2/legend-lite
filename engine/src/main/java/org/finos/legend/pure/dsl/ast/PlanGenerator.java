@@ -1576,9 +1576,11 @@ public class PlanGenerator {
                     params.stream().map(c).collect(Collectors.toList()));
             case "average", "mean" -> new SqlExpr.FunctionCall("AVG",
                     params.stream().map(c).collect(Collectors.toList()));
-            case "min" -> new SqlExpr.FunctionCall("MIN",
+            case "min" -> new SqlExpr.FunctionCall(
+                    params.size() > 1 ? "LEAST" : "MIN",
                     params.stream().map(c).collect(Collectors.toList()));
-            case "max" -> new SqlExpr.FunctionCall("MAX",
+            case "max" -> new SqlExpr.FunctionCall(
+                    params.size() > 1 ? "GREATEST" : "MAX",
                     params.stream().map(c).collect(Collectors.toList()));
             case "greatest" -> new SqlExpr.FunctionCall("GREATEST",
                     params.stream().map(c).collect(Collectors.toList()));
