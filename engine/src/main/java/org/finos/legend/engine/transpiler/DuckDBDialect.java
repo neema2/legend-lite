@@ -103,10 +103,26 @@ public final class DuckDBDialect implements SQLDialect {
     public String renderFunction(String pureName, java.util.List<String> args) {
         // Special rendering: functions that don't follow name(args) pattern
         switch (pureName) {
+            // Date extraction → EXTRACT(X FROM y) form
+            case "year":
+                return "EXTRACT(YEAR FROM " + args.get(0) + ")";
+            case "month":
+                return "EXTRACT(MONTH FROM " + args.get(0) + ")";
+            case "dayOfMonth":
+                return "EXTRACT(DAY FROM " + args.get(0) + ")";
+            case "hour":
+                return "EXTRACT(HOUR FROM " + args.get(0) + ")";
+            case "minute":
+                return "EXTRACT(MINUTE FROM " + args.get(0) + ")";
+            case "second":
+                return "EXTRACT(SECOND FROM " + args.get(0) + ")";
+            case "quarter":
+                return "EXTRACT(QUARTER FROM " + args.get(0) + ")";
             case "quarterNumber":
                 return "EXTRACT(QUARTER FROM " + args.get(0) + ")";
             case "dayOfWeekNumber":
                 return "EXTRACT(ISODOW FROM " + args.get(0) + ")";
+            // Date truncation → DATE_TRUNC('unit', x) form
             case "firstDayOfMonth":
                 return "DATE_TRUNC('month', " + args.get(0) + ")";
             case "firstDayOfYear":
@@ -117,6 +133,12 @@ public final class DuckDBDialect implements SQLDialect {
                 return "DATE_TRUNC('day', " + args.get(0) + ")";
             case "firstMillisecondOfSecond":
                 return "DATE_TRUNC('second', " + args.get(0) + ")";
+            case "dayOfWeek":
+                return "EXTRACT(ISODOW FROM " + args.get(0) + ")";
+            case "dayOfYear":
+                return "EXTRACT(DOY FROM " + args.get(0) + ")";
+            case "weekOfYear":
+                return "EXTRACT(WEEK FROM " + args.get(0) + ")";
         }
 
         String sqlName = switch (pureName) {
@@ -142,9 +164,6 @@ public final class DuckDBDialect implements SQLDialect {
             case "roundHalfEven" -> "ROUND_EVEN";
 
             // --- Date ---
-            case "dayOfWeek" -> "DAYOFWEEK";
-            case "dayOfYear" -> "DAYOFYEAR";
-            case "weekOfYear" -> "WEEKOFYEAR";
             case "dateDiff" -> "DATE_DIFF";
             case "makeDate" -> "MAKE_DATE";
             case "timeBucket" -> "TIME_BUCKET";

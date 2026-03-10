@@ -1426,15 +1426,15 @@ public class PlanGenerator {
             case "parseBoolean" -> new SqlExpr.Cast(c.apply(params.get(0)), "Boolean");
 
             // --- Date/time extraction ---
-            case "year" -> new SqlExpr.FunctionCall("YEAR", List.of(c.apply(params.get(0))));
-            case "monthNumber", "month" -> new SqlExpr.FunctionCall("MONTH",
+            case "year" -> new SqlExpr.FunctionCall("year", List.of(c.apply(params.get(0))));
+            case "monthNumber", "month" -> new SqlExpr.FunctionCall("month",
                     List.of(c.apply(params.get(0))));
-            case "dayOfMonth", "day" -> new SqlExpr.FunctionCall("DAYOFMONTH",
+            case "dayOfMonth", "day" -> new SqlExpr.FunctionCall("dayOfMonth",
                     List.of(c.apply(params.get(0))));
-            case "hour" -> new SqlExpr.FunctionCall("HOUR", List.of(c.apply(params.get(0))));
-            case "minute" -> new SqlExpr.FunctionCall("MINUTE", List.of(c.apply(params.get(0))));
-            case "second" -> new SqlExpr.FunctionCall("SECOND", List.of(c.apply(params.get(0))));
-            case "quarter" -> new SqlExpr.FunctionCall("QUARTER", List.of(c.apply(params.get(0))));
+            case "hour" -> new SqlExpr.FunctionCall("hour", List.of(c.apply(params.get(0))));
+            case "minute" -> new SqlExpr.FunctionCall("minute", List.of(c.apply(params.get(0))));
+            case "second" -> new SqlExpr.FunctionCall("second", List.of(c.apply(params.get(0))));
+            case "quarter" -> new SqlExpr.FunctionCall("quarter", List.of(c.apply(params.get(0))));
             case "quarterNumber" -> new SqlExpr.FunctionCall("quarterNumber",
                     List.of(c.apply(params.get(0))));
             case "dayOfWeek" -> new SqlExpr.FunctionCall("dayOfWeek",
