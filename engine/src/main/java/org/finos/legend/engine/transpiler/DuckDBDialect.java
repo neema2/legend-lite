@@ -259,9 +259,9 @@ public final class DuckDBDialect implements SQLDialect {
             case "listCovarPopulation":
                 return "LIST_AGGR(" + args.get(0) + ", 'covar_pop')";
             case "listPercentileCont":
-                return "QUANTILE_CONT(" + args.get(0) + ", " + args.get(1) + ")";
+                return "LIST_AGGR(" + args.get(0) + ", 'quantile_cont', " + args.get(1) + ")";
             case "listPercentileDisc":
-                return "QUANTILE_DISC(" + args.get(0) + ", " + args.get(1) + ")";
+                return "LIST_AGGR(" + args.get(0) + ", 'quantile_disc', " + args.get(1) + ")";
             case "arrayToString":
                 return "COALESCE(ARRAY_TO_STRING(" + args.get(0) + ", " + args.get(1) + "), '')";
         }

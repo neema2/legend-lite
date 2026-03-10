@@ -2085,12 +2085,28 @@ public class PlanGenerator {
             case "covarPopulation" -> new SqlExpr.FunctionCall(
                     firstArgIsList ? "listCovarPopulation" : "covarPopulation",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
-            case "percentile", "percentileCont" -> new SqlExpr.FunctionCall(
-                    firstArgIsList ? "listPercentileCont" : "percentileCont",
-                    params.stream().map(c).collect(Collectors.toList()));
-            case "percentileDisc" -> new SqlExpr.FunctionCall(
-                    firstArgIsList ? "listPercentileDisc" : "percentileDisc",
-                    params.stream().map(c).collect(Collectors.toList()));
+            case "percentile", "percentileCont" -> {
+                SqlExpr list = c.apply(params.get(0));
+                SqlExpr p = c.apply(params.get(1));
+                // percentile(list, p, isSample, isDescending)
+                // If descending (4th param true), invert: (1 - p)
+                if (params.size() > 3 && params.get(3) instanceof CBoolean cb && cb.value()) {
+                    p = new SqlExpr.Binary(new SqlExpr.Literal("1"), "-", p);
+                }
+                yield new SqlExpr.FunctionCall(
+                        firstArgIsList ? "listPercentileCont" : "percentileCont",
+                        List.of(list, p));
+            }
+            case "percentileDisc" -> {
+                SqlExpr list = c.apply(params.get(0));
+                SqlExpr p = c.apply(params.get(1));
+                if (params.size() > 3 && params.get(3) instanceof CBoolean cb && cb.value()) {
+                    p = new SqlExpr.Binary(new SqlExpr.Literal("1"), "-", p);
+                }
+                yield new SqlExpr.FunctionCall(
+                        firstArgIsList ? "listPercentileDisc" : "percentileDisc",
+                        List.of(list, p));
+            }
 
             // --- Analytical helpers ---
             case "maxBy" -> new SqlExpr.FunctionCall("maxBy",
