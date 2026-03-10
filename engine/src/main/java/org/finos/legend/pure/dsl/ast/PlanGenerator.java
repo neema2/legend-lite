@@ -905,7 +905,18 @@ public class PlanGenerator {
             case "min" -> "MIN";
             case "max" -> "MAX";
             case "stdDev", "stddev" -> "STDDEV";
+            case "stdDevSample" -> "STDDEV_SAMP";
+            case "stdDevPopulation" -> "STDDEV_POP";
             case "variance" -> "VARIANCE";
+            case "varianceSample" -> "VAR_SAMP";
+            case "variancePopulation" -> "VAR_POP";
+            case "covarSample" -> "COVAR_SAMP";
+            case "covarPopulation" -> "COVAR_POP";
+            case "median" -> "MEDIAN";
+            case "percentileCont" -> "QUANTILE_DISC";
+            case "percentileDisc" -> "QUANTILE_DISC";
+            case "joinStrings" -> "STRING_AGG";
+            case "mode" -> "MODE";
             // Ranking
             case "rowNumber" -> "ROW_NUMBER";
             case "rank" -> "RANK";

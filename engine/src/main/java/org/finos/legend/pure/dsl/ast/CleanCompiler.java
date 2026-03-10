@@ -561,7 +561,7 @@ public class CleanCompiler {
         Map<String, GenericType> resultColumns = new LinkedHashMap<>();
         List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
 
-        // Group columns (param 1): ~col or [~col1, ~col2]
+        // Group columns (param 1): ~col or [~col1, ~col2] or [{r | $r.col}]
         List<String> groupColNames = extractColumnNames(params.get(1));
         for (String col : groupColNames) {
             GenericType type = sourceType.columns().getOrDefault(col, GenericType.Primitive.STRING);
@@ -569,12 +569,27 @@ public class CleanCompiler {
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
 
-        // Aggregate columns (params 2+): ~alias:x|$x.prop:y|$y->sum()
-        for (int i = 2; i < params.size(); i++) {
-            var aggInfo = extractAggSpec(params.get(i));
-            if (aggInfo != null) {
-                resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
-                colSpecs.add(aggInfo);
+        // Aggregate columns: handle both patterns
+        // Pattern 1 (new API): params[2+] are ColSpec instances
+        // Pattern 2 (legacy): params[2] is Collection[LambdaFunction], params[3] is
+        // Collection[alias strings]
+        if (params.size() > 2 && params.get(2) instanceof Collection aggColl) {
+            // Legacy pattern: unwrap Collection of agg lambdas
+            for (int i = 0; i < aggColl.values().size(); i++) {
+                var aggInfo = extractAggSpec(aggColl.values().get(i));
+                if (aggInfo != null) {
+                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    colSpecs.add(aggInfo);
+                }
+            }
+        } else {
+            // New API pattern: params[2+] are individual ColSpec instances
+            for (int i = 2; i < params.size(); i++) {
+                var aggInfo = extractAggSpec(params.get(i));
+                if (aggInfo != null) {
+                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    colSpecs.add(aggInfo);
+                }
             }
         }
 
@@ -1481,7 +1496,8 @@ public class CleanCompiler {
 
     /**
      * Extracts a full aggregate spec from a groupBy aggregate parameter.
-     * Handles both ColSpec (new relation API) and legacy lambda patterns.
+     * Handles ColSpec (new relation API), LambdaFunction (legacy), and agg()
+     * wrappers.
      * Returns a ColumnSpec with sourceCol, alias, and Pure aggregate function name.
      */
     private TypeInfo.ColumnSpec extractAggSpec(ValueSpecification vs) {
@@ -1507,6 +1523,50 @@ public class CleanCompiler {
 
             return TypeInfo.ColumnSpec.agg(sourceCol, alias, aggFunc);
         }
+
+        // Legacy lambda pattern: {r | $r.sal->stdDevSample()} or {r | $r.sal}
+        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
+            var body = lf.body().get(0);
+            if (body instanceof AppliedFunction bodyAf) {
+                // e.g., $r.sal->stdDevSample()
+                String aggFunc = simpleName(bodyAf.function());
+                // The first param of the agg function is the property access: $r.sal
+                String sourceCol = null;
+                if (!bodyAf.parameters().isEmpty()) {
+                    var inner = bodyAf.parameters().get(0);
+                    if (inner instanceof AppliedProperty ap) {
+                        sourceCol = ap.property();
+                    }
+                }
+                if (sourceCol != null) {
+                    return TypeInfo.ColumnSpec.agg(sourceCol, sourceCol + "_agg", aggFunc);
+                }
+            } else if (body instanceof AppliedProperty ap) {
+                // Simple property: {r | $r.sal} → default SUM
+                return TypeInfo.ColumnSpec.agg(ap.property(), ap.property() + "_agg", "plus");
+            }
+        }
+
+        // agg() wrapper: agg({r | $r.sal}, {y | $y->sum()})
+        if (vs instanceof AppliedFunction af && "agg".equals(simpleName(af.function()))) {
+            List<ValueSpecification> aggParams = af.parameters();
+            String sourceCol = null;
+            String aggFunc = "plus";
+            if (aggParams.size() > 0) {
+                sourceCol = extractPropertyNameFromLambda(aggParams.get(0));
+            }
+            if (aggParams.size() > 1 && aggParams.get(1) instanceof LambdaFunction lf2
+                    && !lf2.body().isEmpty()) {
+                var body2 = lf2.body().get(0);
+                if (body2 instanceof AppliedFunction af2) {
+                    aggFunc = simpleName(af2.function());
+                }
+            }
+            if (sourceCol != null) {
+                return TypeInfo.ColumnSpec.agg(sourceCol, sourceCol + "_agg", aggFunc);
+            }
+        }
+
         // Fallback: extract column name as best we can
         String colName = extractNewColumnName(vs);
         if (colName != null) {
