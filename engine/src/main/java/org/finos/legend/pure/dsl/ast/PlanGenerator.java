@@ -1617,13 +1617,32 @@ public class PlanGenerator {
             case "parseDate" -> new SqlExpr.Cast(c.apply(params.get(0)), "TimestampTZ");
             case "parseBoolean" -> new SqlExpr.Cast(c.apply(params.get(0)), "Boolean");
 
-            // --- Date/time extraction ---
-            case "year" -> new SqlExpr.FunctionCall("year", List.of(c.apply(params.get(0))));
-            case "monthNumber", "month" -> new SqlExpr.FunctionCall("month",
-                    List.of(c.apply(params.get(0))));
-            case "dayOfMonth", "day" -> new SqlExpr.FunctionCall("dayOfMonth",
-                    List.of(c.apply(params.get(0))));
-            case "hour" -> new SqlExpr.FunctionCall("hour", List.of(c.apply(params.get(0))));
+            // --- Date/time extraction: context-aware ---
+            // Literal dates → function form (YEAR(x)), column refs → EXTRACT form
+            case "year" -> {
+                var arg = params.get(0);
+                boolean isLiteral = unit.typeInfoFor(arg) != null && unit.typeInfoFor(arg).isDateType();
+                yield new SqlExpr.FunctionCall(
+                        isLiteral ? "year" : "extractYear", List.of(c.apply(arg)));
+            }
+            case "monthNumber", "month" -> {
+                var arg = params.get(0);
+                boolean isLiteral = unit.typeInfoFor(arg) != null && unit.typeInfoFor(arg).isDateType();
+                yield new SqlExpr.FunctionCall(
+                        isLiteral ? "month" : "extractMonth", List.of(c.apply(arg)));
+            }
+            case "dayOfMonth", "day" -> {
+                var arg = params.get(0);
+                boolean isLiteral = unit.typeInfoFor(arg) != null && unit.typeInfoFor(arg).isDateType();
+                yield new SqlExpr.FunctionCall(
+                        isLiteral ? "dayOfMonth" : "extractDay", List.of(c.apply(arg)));
+            }
+            case "hour" -> {
+                var arg = params.get(0);
+                boolean isLiteral = unit.typeInfoFor(arg) != null && unit.typeInfoFor(arg).isDateType();
+                yield new SqlExpr.FunctionCall(
+                        isLiteral ? "hour" : "extractHour", List.of(c.apply(arg)));
+            }
             case "minute" -> new SqlExpr.FunctionCall("minute", List.of(c.apply(params.get(0))));
             case "second" -> new SqlExpr.FunctionCall("second", List.of(c.apply(params.get(0))));
             case "quarter" -> new SqlExpr.FunctionCall("quarter", List.of(c.apply(params.get(0))));
@@ -1688,16 +1707,16 @@ public class PlanGenerator {
                     };
                 }
                 if ("WEEK".equals(dunit)) {
-                    // WEEKS: (DATE_DIFF('day', start, end) + DOW(start)) // 7
-                    yield new SqlExpr.Binary(
-                            new SqlExpr.Binary(
-                                    new SqlExpr.FunctionCall("dateDiff",
-                                            List.of(new SqlExpr.Literal("'day'"), start, end)),
-                                    "+",
-                                    new SqlExpr.Cast(
-                                            new SqlExpr.FunctionCall("dayOfWeekNumber", List.of(start)),
-                                            "Integer")),
-                            "//", new SqlExpr.Literal("7"));
+                    // WEEKS: (DATE_DIFF('day', start, end) + CAST(EXTRACT(DOW FROM start) AS INTEGER)) // 7
+                    // DOW returns 0-6 (Sunday=0), matching Pure's week boundary counting
+                    SqlExpr dayDiff = new SqlExpr.FunctionCall("dateDiff",
+                            List.of(new SqlExpr.Literal("'day'"), start, end));
+                    SqlExpr dow = new SqlExpr.FunctionCall("extractDow", List.of(start));
+                    // Use RawCast to produce "CAST(... AS INTEGER)" bypassing dialect type mapping
+                    SqlExpr castDow = new SqlExpr.RawCast(dow, "INTEGER");
+                    SqlExpr sum = new SqlExpr.Binary(dayDiff, "+", castDow);
+                    // Produce: (sum) // 7 — no outer parens around the whole expression
+                    yield new SqlExpr.IntegerDivide(sum, new SqlExpr.Literal("7"));
                 }
                 yield new SqlExpr.FunctionCall("dateDiff",
                         List.of(new SqlExpr.Literal("'" + dunit + "'"), start, end));
@@ -1747,8 +1766,19 @@ public class PlanGenerator {
                             new SqlExpr.StringLiteral("")));
                 }
             }
-            case "timeBucket" -> new SqlExpr.FunctionCall("timeBucket",
-                    params.stream().map(c).collect(Collectors.toList()));
+            case "timeBucket" -> {
+                // timeBucket(date, quantity, DurationUnit) → TIME_BUCKET(INTERVAL 'N unit',
+                // date)
+                SqlExpr dateExpr = c.apply(params.get(0));
+                SqlExpr quantityExpr = c.apply(params.get(1));
+                String tbUnit = "days";
+                if (params.size() > 2 && params.get(2) instanceof EnumValue ev) {
+                    tbUnit = ev.value().toLowerCase();
+                }
+                // Build the INTERVAL literal and use the special rendering
+                yield new SqlExpr.FunctionCall("timeBucket",
+                        List.of(quantityExpr, new SqlExpr.StringLiteral(tbUnit), dateExpr));
+            }
             case "hasHour" -> {
                 // Check date precision: hasHour is true for DateTime, false for StrictDate
                 if (params.get(0) instanceof CDateTime) {
@@ -1780,15 +1810,23 @@ public class PlanGenerator {
             }
 
             // --- Date constants ---
-            case "now" -> new SqlExpr.FunctionCall("NOW", List.of());
-            case "today" -> new SqlExpr.FunctionCall("CURRENT_DATE", List.of());
+            case "now" -> new SqlExpr.Literal("CURRENT_TIMESTAMP");
+            case "today" -> new SqlExpr.Literal("CURRENT_DATE");
 
-            // --- Date comparisons ---
-            case "isOnDay" -> buildComparison(params, "=", c, mapping, tableAlias);
-            case "isAfterDay" -> buildComparison(params, ">", c, mapping, tableAlias);
-            case "isBeforeDay" -> buildComparison(params, "<", c, mapping, tableAlias);
-            case "isOnOrAfterDay" -> buildComparison(params, ">=", c, mapping, tableAlias);
-            case "isOnOrBeforeDay" -> buildComparison(params, "<=", c, mapping, tableAlias);
+            // --- Date comparisons: wrap both sides in DATE_TRUNC('day', ...) ---
+            case "isOnDay", "isAfterDay", "isBeforeDay", "isOnOrAfterDay", "isOnOrBeforeDay" -> {
+                String dateOp = switch (funcName) {
+                    case "isOnDay" -> "=";
+                    case "isAfterDay" -> ">";
+                    case "isBeforeDay" -> "<";
+                    case "isOnOrAfterDay" -> ">=";
+                    case "isOnOrBeforeDay" -> "<=";
+                    default -> "=";
+                };
+                SqlExpr left = new SqlExpr.FunctionCall("dateTruncDay", List.of(c.apply(params.get(0))));
+                SqlExpr right = new SqlExpr.FunctionCall("dateTruncDay", List.of(c.apply(params.get(1))));
+                yield new SqlExpr.Grouped(new SqlExpr.Binary(left, dateOp, right));
+            }
 
             // --- Bitwise ---
             case "bitAnd" -> new SqlExpr.Binary(
@@ -1987,7 +2025,8 @@ public class PlanGenerator {
 
             // --- String format ---
             case "format" -> {
-                // Expand Collection args into separate PRINTF params
+                // Flatten Collection args (Pure passes format args as a list)
+                // Emit semantic FunctionCall — dialect handles %t/%f/%r conversion
                 SqlExpr fmtString = c.apply(params.get(0));
                 java.util.List<SqlExpr> fmtArgs = new java.util.ArrayList<>();
                 fmtArgs.add(fmtString);
@@ -2013,13 +2052,10 @@ public class PlanGenerator {
      * /** Checks if any param is a partial date (year-only or year-month
      * CStrictDate).
      */
+    /** Checks if any param is a CStrictDate (partial OR full) for date-to-date equality. */
     private boolean hasPartialDate(List<ValueSpecification> params) {
         for (var p : params) {
-            if (p instanceof CStrictDate sd) {
-                String v = sd.value();
-                if (v.matches("\\d{4}") || v.matches("\\d{4}-\\d{2}"))
-                    return true;
-            }
+            if (p instanceof CStrictDate) return true;
         }
         return false;
     }

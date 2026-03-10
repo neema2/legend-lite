@@ -218,6 +218,14 @@ public sealed interface GenericType
     }
 
     /**
+     * @return true if this type is a date (DATE, STRICT_DATE, DATE_TIME — not STRICT_TIME).
+     */
+    default boolean isDate() {
+        return this instanceof Primitive p &&
+                (p == Primitive.DATE || p == Primitive.STRICT_DATE || p == Primitive.DATE_TIME);
+    }
+
+    /**
      * @return true if this type is JSON-related.
      */
     default boolean isJson() {

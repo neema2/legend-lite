@@ -107,13 +107,13 @@ public final class DuckDBDialect implements SQLDialect {
         switch (pureName) {
             // Date extraction → EXTRACT(X FROM y) form
             case "year":
-                return "EXTRACT(YEAR FROM " + args.get(0) + ")";
+                return "YEAR(" + args.get(0) + ")";
             case "month":
-                return "EXTRACT(MONTH FROM " + args.get(0) + ")";
+                return "MONTH(" + args.get(0) + ")";
             case "dayOfMonth":
-                return "EXTRACT(DAY FROM " + args.get(0) + ")";
+                return "DAYOFMONTH(" + args.get(0) + ")";
             case "hour":
-                return "EXTRACT(HOUR FROM " + args.get(0) + ")";
+                return "HOUR(" + args.get(0) + ")";
             case "minute":
                 return "EXTRACT(MINUTE FROM " + args.get(0) + ")";
             case "second":
@@ -141,6 +141,30 @@ public final class DuckDBDialect implements SQLDialect {
                 return "EXTRACT(DOY FROM " + args.get(0) + ")";
             case "weekOfYear":
                 return "EXTRACT(WEEK FROM " + args.get(0) + ")";
+            case "extractDow":
+                return "EXTRACT(DOW FROM " + args.get(0) + ")";
+            case "dateTruncDay":
+                return "DATE_TRUNC('day', " + args.get(0) + ")";
+            case "encodeBase64":
+                return "TO_BASE64(CAST(" + args.get(0) + " AS BLOB))";
+            // EXTRACT form for column-based date extraction
+            case "extractYear":
+                return "EXTRACT(YEAR FROM " + args.get(0) + ")";
+            case "extractMonth":
+                return "EXTRACT(MONTH FROM " + args.get(0) + ")";
+            case "extractDay":
+                return "EXTRACT(DAY FROM " + args.get(0) + ")";
+            case "extractHour":
+                return "EXTRACT(HOUR FROM " + args.get(0) + ")";
+            case "timeBucket": {
+                // args: [quantity, unitString, dateExpr]
+                String qty = args.get(0);
+                String unit = args.get(1);
+                if (unit.startsWith("'") && unit.endsWith("'")) unit = unit.substring(1, unit.length() - 1);
+                return "TIME_BUCKET(INTERVAL '" + qty + " " + unit + "', " + args.get(2) + ")";
+            }
+            case "format":
+                return renderFormat(args);
 
             // --- List aggregate functions using LIST_AGGR pattern ---
             case "listMedian":
@@ -191,9 +215,7 @@ public final class DuckDBDialect implements SQLDialect {
             case "joinStrings" -> "STRING_AGG";
             case "levenshteinDistance" -> "LEVENSHTEIN";
             case "hash" -> "HASH";
-            case "encodeBase64" -> "BASE64";
             case "decodeBase64" -> "FROM_BASE64";
-            case "format" -> "PRINTF";
             case "indexOf" -> "LIST_POSITION";
 
             // --- Math ---
@@ -202,7 +224,6 @@ public final class DuckDBDialect implements SQLDialect {
             // --- Date ---
             case "dateDiff" -> "DATE_DIFF";
             case "makeDate" -> "MAKE_DATE";
-            case "timeBucket" -> "TIME_BUCKET";
             case "fromEpochValue" -> "TO_TIMESTAMP";
             case "toEpochValue" -> "EPOCH";
 
@@ -234,5 +255,134 @@ public final class DuckDBDialect implements SQLDialect {
             default -> pureName;
         };
         return sqlName + "(" + String.join(", ", args) + ")";
+    }
+
+    /** Strip surrounding single quotes from a rendered StringLiteral. */
+    private static String stripQuotes(String s) {
+        if (s.startsWith("'") && s.endsWith("'")) return s.substring(1, s.length() - 1);
+        return s;
+    }
+
+    /**
+     * DuckDB-specific rendering for Pure's format() function.
+     * Converts Pure format specifiers to DuckDB PRINTF:
+     * - %t{pattern} → %s + STRFTIME('duckdb_pattern', arg)
+     * - %f (no modifiers) → %g (minimal float repr)
+     * - %r → %s (generic repr)
+     * - %% → %%
+     */
+    private String renderFormat(java.util.List<String> args) {
+        if (args.isEmpty()) return "PRINTF()";
+        String fmtLiteral = args.get(0);
+        // Extract the actual format string from the SQL literal (strip quotes)
+        String fmt = stripQuotes(fmtLiteral);
+
+        StringBuilder newFmt = new StringBuilder();
+        java.util.List<String> sqlArgs = new java.util.ArrayList<>();
+        int argIdx = 1; // args[0] is the format string
+        int i = 0;
+        while (i < fmt.length()) {
+            if (fmt.charAt(i) == '%' && i + 1 < fmt.length()) {
+                char next = fmt.charAt(i + 1);
+                if (next == 't' && i + 2 < fmt.length() && fmt.charAt(i + 2) == '{') {
+                    int closeBrace = fmt.indexOf('}', i + 3);
+                    if (closeBrace > 0) {
+                        String duckdbPattern = convertDateFormat(fmt.substring(i + 3, closeBrace));
+                        newFmt.append("%s");
+                        if (argIdx < args.size()) {
+                            sqlArgs.add("STRFTIME('" + duckdbPattern + "', " + args.get(argIdx) + ")");
+                        }
+                        argIdx++;
+                        i = closeBrace + 1;
+                        continue;
+                    }
+                } else if (next == 'r') {
+                    newFmt.append("%s");
+                    if (argIdx < args.size()) sqlArgs.add(args.get(argIdx));
+                    argIdx++;
+                    i += 2;
+                    continue;
+                } else if (next == '%') {
+                    newFmt.append("%%");
+                    i += 2;
+                    continue;
+                } else {
+                    newFmt.append('%');
+                    i++;
+                    boolean hasModifiers = false;
+                    while (i < fmt.length() && "0123456789.-+# ".indexOf(fmt.charAt(i)) >= 0) {
+                        newFmt.append(fmt.charAt(i));
+                        hasModifiers = true;
+                        i++;
+                    }
+                    if (i < fmt.length()) {
+                        char spec = fmt.charAt(i);
+                        newFmt.append(!hasModifiers && spec == 'f' ? 'g' : spec);
+                        i++;
+                    }
+                    if (argIdx < args.size()) sqlArgs.add(args.get(argIdx));
+                    argIdx++;
+                    continue;
+                }
+            }
+            newFmt.append(fmt.charAt(i));
+            i++;
+        }
+        StringBuilder result = new StringBuilder("PRINTF('");
+        result.append(newFmt.toString().replace("'", "''"));
+        result.append("'");
+        for (String sa : sqlArgs) {
+            result.append(", ").append(sa);
+        }
+        result.append(")");
+        return result.toString();
+    }
+
+    /**
+     * Converts a Java/Pure date format pattern to DuckDB STRFTIME format.
+     * Examples:
+     *   yyyy-MM-dd → %Y-%m-%d
+     *   HH:mm:ss → %H:%M:%S
+     *   EEE → %a (abbreviated day name)
+     */
+    private static String convertDateFormat(String javaPattern) {
+        StringBuilder sb = new StringBuilder();
+        int i = 0;
+        while (i < javaPattern.length()) {
+            char c = javaPattern.charAt(i);
+            if (c == '"') { i++; continue; } // Skip quote chars
+            if (c == '\'') {
+                // Literal text in single quotes
+                i++;
+                while (i < javaPattern.length() && javaPattern.charAt(i) != '\'') {
+                    sb.append(javaPattern.charAt(i));
+                    i++;
+                }
+                if (i < javaPattern.length()) i++; // skip closing quote
+                continue;
+            }
+            // Count repeated pattern chars
+            int start = i;
+            while (i < javaPattern.length() && javaPattern.charAt(i) == c) i++;
+            int count = i - start;
+            switch (c) {
+                case 'y': sb.append(count <= 2 ? "%y" : "%Y"); break;
+                case 'M': sb.append(count >= 3 ? "%b" : "%m"); break;
+                case 'd': sb.append("%d"); break;
+                case 'H': sb.append("%H"); break;
+                case 'h': sb.append("%-I"); break; // 12-hour, no leading zero
+                case 'm': sb.append("%M"); break;
+                case 's': sb.append("%S"); break;
+                case 'S': sb.append("%g"); break; // milliseconds → DuckDB %g (fractional secs)
+                case 'a': sb.append("%p"); break; // AM/PM
+                case 'E': sb.append(count >= 4 ? "%A" : "%a"); break;
+                case 'Z': sb.append("%z00"); break; // timezone offset (+0000 format)
+                case 'X': sb.append("Z"); break; // ISO timezone (Z for UTC)
+                case 'z': sb.append("%Z"); break; // timezone name
+                case 'G': sb.append("AD"); break; // era
+                default: sb.append(c); break; // Pass through (T, -, :, etc.)
+            }
+        }
+        return sb.toString();
     }
 }

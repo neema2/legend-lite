@@ -290,6 +290,11 @@ public record TypeInfo(
         return scalarType != null && scalarType.isList();
     }
 
+    /** True if the scalar type is a date (StrictDate, DateTime, Date — not StrictTime). */
+    public boolean isDateType() {
+        return scalarType != null && scalarType.isDate();
+    }
+
     /** True if this node has pre-resolved association targets. */
     public boolean hasAssociations() {
         return associations != null && !associations.isEmpty();

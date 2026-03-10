@@ -126,6 +126,14 @@ public sealed interface SqlExpr {
         }
     }
 
+    /** Explicit parenthesization wrapper */
+    record Grouped(SqlExpr inner) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return "(" + inner.toSql(dialect) + ")";
+        }
+    }
+
     /** Unary prefix operator: op expr (e.g., NOT, -) */
     record Unary(String op, SqlExpr operand) implements SqlExpr {
         @Override
@@ -183,7 +191,21 @@ public sealed interface SqlExpr {
         }
     }
 
-    // ==================== Predicates ====================
+    /** Cast with raw SQL type name (bypasses dialect type mapping). */
+    record RawCast(SqlExpr expr, String sqlType) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return "CAST(" + expr.toSql(dialect) + " AS " + sqlType + ")";
+        }
+    }
+
+    /** Integer division: left // right — no outer parens around result. */
+    record IntegerDivide(SqlExpr left, SqlExpr right) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return left.toSql(dialect) + " // " + right.toSql(dialect);
+        }
+    }
 
     /** expr IS NULL */
     record IsNull(SqlExpr expr) implements SqlExpr {
