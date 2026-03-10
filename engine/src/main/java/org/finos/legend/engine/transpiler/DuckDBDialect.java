@@ -117,7 +117,7 @@ public final class DuckDBDialect implements SQLDialect {
             case "hash" -> "HASH";
             case "encodeBase64" -> "BASE64";
             case "decodeBase64" -> "FROM_BASE64";
-            case "format" -> "FORMAT";
+            case "format" -> "PRINTF";
 
             // --- Date ---
             case "dayOfWeek" -> "DAYOFWEEK";

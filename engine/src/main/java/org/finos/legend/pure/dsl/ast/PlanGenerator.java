@@ -1355,7 +1355,7 @@ public class PlanGenerator {
                         default -> ev.value();
                     };
                 }
-                yield new SqlExpr.DateAdd(dateExpr, amount, unit);
+                yield new SqlExpr.Cast(new SqlExpr.DateAdd(dateExpr, amount, unit), "Date");
             }
 
             // --- Trig ---
@@ -1374,7 +1374,8 @@ public class PlanGenerator {
             // --- More math ---
             case "mod" -> new SqlExpr.Binary(c.apply(params.get(0)), "%", c.apply(params.get(1)));
             case "log10" -> new SqlExpr.FunctionCall("LOG10", List.of(c.apply(params.get(0))));
-            case "sign" -> new SqlExpr.FunctionCall("SIGN", List.of(c.apply(params.get(0))));
+            case "sign" -> new SqlExpr.Cast(
+                    new SqlExpr.FunctionCall("SIGN", List.of(c.apply(params.get(0)))), "Integer");
 
             // --- More string ---
             case "reverseString" -> new SqlExpr.FunctionCall("reverseString", List.of(c.apply(params.get(0))));
