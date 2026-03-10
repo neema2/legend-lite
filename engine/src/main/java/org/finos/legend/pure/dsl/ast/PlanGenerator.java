@@ -1582,6 +1582,10 @@ public class PlanGenerator {
                 SqlExpr delim = c.apply(params.get(1));
                 // Pure 0-based index -> SQL 1-based: offset + 1
                 SqlExpr idx = new SqlExpr.Binary(c.apply(params.get(2)), "+", new SqlExpr.Literal("1"));
+                // Empty input -> NULL
+                if (params.get(0) instanceof Collection col && col.values().isEmpty()) {
+                    yield new SqlExpr.Literal("NULL");
+                }
                 yield new SqlExpr.CaseWhen(
                         new SqlExpr.Binary(delim, "=", new SqlExpr.StringLiteral("")),
                         str,
@@ -1590,14 +1594,18 @@ public class PlanGenerator {
             case "joinStrings" -> {
                 if (params.size() == 4) {
                     // joinStrings(list, prefix, separator, suffix)
-                    // → (prefix || COALESCE(ARRAY_TO_STRING(list, sep), '') || suffix)
                     yield new SqlExpr.FunctionCall("joinStringsWithPrefixSuffix",
                             List.of(c.apply(params.get(0)), c.apply(params.get(1)),
                                     c.apply(params.get(2)), c.apply(params.get(3))));
                 }
                 if (params.size() > 1) {
+                    SqlExpr listArg = c.apply(params.get(0));
+                    // If first arg is not a list, wrap in list brackets
+                    if (!firstArgIsList) {
+                        listArg = new SqlExpr.FunctionCall("wrapList", List.of(listArg));
+                    }
                     yield new SqlExpr.FunctionCall("arrayToString",
-                            params.stream().map(c).collect(Collectors.toList()));
+                            List.of(listArg, c.apply(params.get(1))));
                 }
                 yield new SqlExpr.FunctionCall("CONCAT", List.of(c.apply(params.get(0))));
             }
@@ -1906,20 +1914,28 @@ public class PlanGenerator {
                                     new SqlExpr.Literal("1"))));
             case "head", "first" -> new SqlExpr.FunctionCall("listExtract",
                     List.of(c.apply(params.get(0)), new SqlExpr.Literal("1")));
-            case "last" -> new SqlExpr.FunctionCall("listExtract",
-                    List.of(c.apply(params.get(0)),
-                            new SqlExpr.FunctionCall("listLength",
-                                    List.of(c.apply(params.get(0))))));
-            case "tail" -> new SqlExpr.FunctionCall("listSlice",
-                    List.of(c.apply(params.get(0)), new SqlExpr.Literal("2"),
-                            new SqlExpr.FunctionCall("listLength",
-                                    List.of(c.apply(params.get(0))))));
-            case "init" -> new SqlExpr.FunctionCall("listSlice",
-                    List.of(c.apply(params.get(0)), new SqlExpr.Literal("1"),
-                            new SqlExpr.Binary(
-                                    new SqlExpr.FunctionCall("listLength",
-                                            List.of(c.apply(params.get(0)))),
-                                    "-", new SqlExpr.Literal("1"))));
+            case "last" -> {
+                SqlExpr arg = c.apply(params.get(0));
+                yield new SqlExpr.FunctionCall("listExtract",
+                        List.of(arg,
+                                new SqlExpr.FunctionCall("listLength", List.of(arg))));
+            }
+            case "tail" -> {
+                SqlExpr listArg = firstArgIsList ? c.apply(params.get(0))
+                        : new SqlExpr.FunctionCall("wrapList", List.of(c.apply(params.get(0))));
+                yield new SqlExpr.FunctionCall("listSlice",
+                        List.of(listArg, new SqlExpr.Literal("2"),
+                                new SqlExpr.FunctionCall("listLength", List.of(listArg))));
+            }
+            case "init" -> {
+                SqlExpr listArg = firstArgIsList ? c.apply(params.get(0))
+                        : new SqlExpr.FunctionCall("wrapList", List.of(c.apply(params.get(0))));
+                yield new SqlExpr.FunctionCall("listSlice",
+                        List.of(listArg, new SqlExpr.Literal("1"),
+                                new SqlExpr.Binary(
+                                        new SqlExpr.FunctionCall("listLength", List.of(listArg)),
+                                        "-", new SqlExpr.Literal("1"))));
+            }
             case "add" -> {
                 if (params.size() > 2) {
                     yield new SqlExpr.FunctionCall("listAppend",

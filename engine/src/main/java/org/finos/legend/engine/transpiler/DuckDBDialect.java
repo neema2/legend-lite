@@ -214,6 +214,9 @@ public final class DuckDBDialect implements SQLDialect {
                 // (prefix || COALESCE(ARRAY_TO_STRING(list, sep), '') || suffix)
                 return "(" + args.get(1) + " || COALESCE(ARRAY_TO_STRING(" + args.get(0) + ", " + args.get(2) + "), '') || " + args.get(3) + ")";
             }
+            case "wrapList":
+                // Wrap a single value in list brackets: [value]
+                return "[" + args.get(0) + "]";
 
             // --- List aggregate functions using LIST_AGGR pattern ---
             case "listMedian":
