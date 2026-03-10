@@ -238,12 +238,14 @@ public record TypeInfo(
 
     /** Creates a TypeInfo with type info but no mapping. */
     public static TypeInfo of(RelationType relationType) {
-        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null);
+        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
+                null);
     }
 
     /** Full constructor with both type and mapping. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping) {
-        return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null);
+        return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
+                null);
     }
 
     /** Full constructor with associations. */
