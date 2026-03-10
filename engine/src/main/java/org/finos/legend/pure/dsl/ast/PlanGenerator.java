@@ -2124,7 +2124,7 @@ public class PlanGenerator {
 
             // --- Pass-through for non-SQL functions ---
             case "toOne", "toMany", "eval", "forAll", "exists",
-                    "list", "pair", "map", "fold", "match", "zip",
+                    "list", "pair", "map", "match", "zip",
                     "range", "cast", "toVariant", "letWithParam",
                     "filter", "groupBy", "select", "write",
                     "compare", "comparator" -> {
@@ -2134,6 +2134,32 @@ public class PlanGenerator {
                 }
                 throw new PureCompileException(
                         "PlanGenerator: pass-through function '" + funcName + "' has no parameters");
+            }
+            case "fold" -> {
+                // fold(list, {x,y|body}, init) → list_reduce(list, ((y,x)->body), init)
+                if (firstArgIsList && params.size() >= 3
+                        && params.get(1) instanceof LambdaFunction foldLf) {
+                    SqlExpr list = c.apply(params.get(0));
+                    SqlExpr init = c.apply(params.get(2));
+                    // Extract lambda params: x=element (1st), y=accumulator (2nd)
+                    String elemParam = foldLf.parameters().isEmpty() ? "x"
+                            : foldLf.parameters().get(0).name();
+                    String accParam = foldLf.parameters().size() < 2 ? "y"
+                            : foldLf.parameters().get(1).name();
+                    // Compile the lambda body
+                    SqlExpr body = !foldLf.body().isEmpty()
+                            ? c.apply(foldLf.body().get(0)) : new SqlExpr.Literal("NULL");
+                    yield new SqlExpr.FunctionCall("listReduce",
+                            List.of(list,
+                                    new SqlExpr.Literal(accParam),
+                                    new SqlExpr.Literal(elemParam),
+                                    body, init));
+                }
+                // Non-list fold: pass through
+                if (!params.isEmpty()) {
+                    yield c.apply(params.get(0));
+                }
+                throw new PureCompileException("fold: no parameters");
             }
             case "sort" -> {
                 if (firstArgIsList) {
