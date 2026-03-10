@@ -1264,12 +1264,25 @@ public class PlanGenerator {
         return switch (funcName) {
             // --- Comparison (may produce EXISTS for association paths when tableAlias set)
             // ---
-            case "equal" -> buildComparison(params, "=", c, mapping, tableAlias);
-            case "greaterThan" -> buildComparison(params, ">", c, mapping, tableAlias);
-            case "greaterThanEqual" -> buildComparison(params, ">=", c, mapping, tableAlias);
-            case "lessThan" -> buildComparison(params, "<", c, mapping, tableAlias);
-            case "lessThanEqual" -> buildComparison(params, "<=", c, mapping, tableAlias);
-            case "notEqual" -> buildComparison(params, "<>", c, mapping, tableAlias);
+            case "equal", "greaterThan", "greaterThanEqual",
+                    "lessThan", "lessThanEqual", "notEqual" -> {
+                String op = switch (funcName) {
+                    case "equal" -> "=";
+                    case "greaterThan" -> ">";
+                    case "greaterThanEqual" -> ">=";
+                    case "lessThan" -> "<";
+                    case "lessThanEqual" -> "<=";
+                    case "notEqual" -> "<>";
+                    default -> "=";
+                };
+                // Partial date comparisons: render as string comparison
+                if (hasPartialDate(params)) {
+                    SqlExpr left = renderForDateComparison(params.get(0), c);
+                    SqlExpr right = renderForDateComparison(params.get(1), c);
+                    yield new SqlExpr.Binary(left, op, right);
+                }
+                yield buildComparison(params, op, c, mapping, tableAlias);
+            }
 
             // --- Logical ---
             case "and" -> {
@@ -1516,8 +1529,12 @@ public class PlanGenerator {
                     // Full date: keep CAST to Date
                     yield new SqlExpr.Cast(adjusted, "Date");
                 }
-                // Timestamp: no CAST wrapping
-                yield adjusted;
+                // CDateTime (timestamp): no CAST wrapping
+                if (params.get(0) instanceof CDateTime) {
+                    yield adjusted;
+                }
+                // Column ref or other non-literal: keep CAST to Date
+                yield new SqlExpr.Cast(adjusted, "Date");
             }
 
             // --- Trig ---
@@ -1990,6 +2007,33 @@ public class PlanGenerator {
             default -> throw new PureCompileException(
                     "PlanGenerator: unsupported scalar function '" + funcName + "'");
         };
+    }
+
+    /**
+     * /** Checks if any param is a partial date (year-only or year-month
+     * CStrictDate).
+     */
+    private boolean hasPartialDate(List<ValueSpecification> params) {
+        for (var p : params) {
+            if (p instanceof CStrictDate sd) {
+                String v = sd.value();
+                if (v.matches("\\d{4}") || v.matches("\\d{4}-\\d{2}"))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Renders a param for date precision comparison: partial dates become string
+     * literals.
+     */
+    private SqlExpr renderForDateComparison(ValueSpecification vs,
+            java.util.function.Function<ValueSpecification, SqlExpr> c) {
+        if (vs instanceof CStrictDate sd) {
+            return new SqlExpr.StringLiteral(sd.value());
+        }
+        return c.apply(vs);
     }
 
     /**

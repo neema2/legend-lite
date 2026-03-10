@@ -158,7 +158,7 @@ public sealed interface SqlExpr {
     record Not(SqlExpr expr) implements SqlExpr {
         @Override
         public String toSql(SQLDialect dialect) {
-            return "NOT(" + expr.toSql(dialect) + ")";
+            return "NOT (" + expr.toSql(dialect) + ")";
         }
     }
 

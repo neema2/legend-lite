@@ -107,13 +107,13 @@ public final class DuckDBDialect implements SQLDialect {
         switch (pureName) {
             // Date extraction → EXTRACT(X FROM y) form
             case "year":
-                return "YEAR(" + args.get(0) + ")";
+                return "EXTRACT(YEAR FROM " + args.get(0) + ")";
             case "month":
-                return "MONTH(" + args.get(0) + ")";
+                return "EXTRACT(MONTH FROM " + args.get(0) + ")";
             case "dayOfMonth":
-                return "DAYOFMONTH(" + args.get(0) + ")";
+                return "EXTRACT(DAY FROM " + args.get(0) + ")";
             case "hour":
-                return "HOUR(" + args.get(0) + ")";
+                return "EXTRACT(HOUR FROM " + args.get(0) + ")";
             case "minute":
                 return "EXTRACT(MINUTE FROM " + args.get(0) + ")";
             case "second":
