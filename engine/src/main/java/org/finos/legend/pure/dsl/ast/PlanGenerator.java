@@ -563,9 +563,11 @@ public class PlanGenerator {
      * Resolves a property to its column expression, handling expression mappings.
      */
     private SqlExpr resolveColumnExpr(String propertyName, RelationalMapping mapping, String alias) {
-        if (mapping == null)
-            throw new PureCompileException(
-                    "PlanGenerator: resolveColumnExpr requires mapping for property '" + propertyName + "'");
+        if (mapping == null) {
+            // No mapping (TDS literal, bare relation) — use property name as column
+            // directly
+            return alias != null ? new SqlExpr.Column(alias, propertyName) : new SqlExpr.ColumnRef(propertyName);
+        }
         if (propertyName == null)
             throw new PureCompileException("PlanGenerator: resolveColumnExpr requires non-null property name");
         var pmOpt = mapping.getPropertyMapping(propertyName);
@@ -1147,11 +1149,8 @@ public class PlanGenerator {
                 if ("instance".equals(ci.type())) {
                     yield renderStructValue(ci);
                 }
-                // TDS literal in scalar context — render as subquery
-                if ("tdsLiteral".equals(ci.type())) {
-                    yield new SqlExpr.Literal("NULL");
-                }
-                yield new SqlExpr.Literal("NULL");
+                throw new PureCompileException(
+                        "PlanGenerator: unsupported ClassInstance in scalar: " + ci.type());
             }
             case EnumValue ev -> new SqlExpr.StringLiteral(ev.value());
             case Collection coll -> {
@@ -1165,7 +1164,8 @@ public class PlanGenerator {
                 if (!lf.body().isEmpty()) {
                     yield generateScalar(lf.body().get(0), rowParam, mapping, tableAlias);
                 }
-                yield new SqlExpr.Literal("NULL");
+                throw new PureCompileException(
+                        "PlanGenerator: empty lambda body in scalar context");
             }
             case PackageableElementPtr ptr -> {
                 // Function/class reference in scalar context — render as string
@@ -1277,12 +1277,22 @@ public class PlanGenerator {
 
             // --- If/Case ---
             case "if" -> {
-                SqlExpr cond = c.apply(params.get(0));
-                LambdaFunction thenLambda = (LambdaFunction) params.get(1);
-                LambdaFunction elseLambda = (LambdaFunction) params.get(2);
-                SqlExpr thenVal = generateScalar(thenLambda.body().get(0), rowParam, mapping, tableAlias);
-                SqlExpr elseVal = generateScalar(elseLambda.body().get(0), rowParam, mapping, tableAlias);
-                yield new SqlExpr.CaseWhen(cond, thenVal, elseVal);
+                if (params.size() >= 3) {
+                    // Standard if(cond, then, else)
+                    SqlExpr cond = c.apply(params.get(0));
+                    LambdaFunction thenLambda = (LambdaFunction) params.get(1);
+                    LambdaFunction elseLambda = (LambdaFunction) params.get(2);
+                    SqlExpr thenVal = generateScalar(thenLambda.body().get(0), rowParam, mapping, tableAlias);
+                    SqlExpr elseVal = generateScalar(elseLambda.body().get(0), rowParam, mapping, tableAlias);
+                    yield new SqlExpr.CaseWhen(cond, thenVal, elseVal);
+                }
+                // Multi-if: [pair(cond, val), ...] -> if(default) — 2 params
+                SqlExpr source = c.apply(params.get(0));
+                if (params.size() >= 2) {
+                    SqlExpr defaultVal = c.apply(params.get(1));
+                    yield new SqlExpr.FunctionCall("IF", List.of(source, defaultVal));
+                }
+                yield source;
             }
 
             // --- In ---
@@ -1559,19 +1569,23 @@ public class PlanGenerator {
                 if (!params.isEmpty()) {
                     yield c.apply(params.get(0));
                 }
-                yield new SqlExpr.Literal("NULL");
+                throw new PureCompileException(
+                        "PlanGenerator: pass-through function '" + funcName + "' has no parameters");
             }
 
             // --- Let binding ---
             case "letAsLastStatement", "letFunction" -> {
                 // Let bindings: compile the value expression
+                // Zero-param calls to letAsLastStatement are test-defined functions, not let
+                // bindings
                 if (params.size() >= 2) {
                     yield c.apply(params.get(1));
                 }
                 if (!params.isEmpty()) {
                     yield c.apply(params.get(0));
                 }
-                yield new SqlExpr.Literal("NULL");
+                throw new PureCompileException(
+                        "PlanGenerator: unsupported scalar function '" + funcName + "'");
             }
 
             // --- Block (multi-statement let bindings) ---
@@ -1580,7 +1594,8 @@ public class PlanGenerator {
                 if (!params.isEmpty()) {
                     yield c.apply(params.getLast());
                 }
-                yield new SqlExpr.Literal("NULL");
+                throw new PureCompileException(
+                        "PlanGenerator: block has no statements");
             }
 
             // --- String format ---

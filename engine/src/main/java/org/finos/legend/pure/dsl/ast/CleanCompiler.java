@@ -306,7 +306,7 @@ public class CleanCompiler {
             return new TypeInfo.SortSpec(s.value(), TypeInfo.SortDirection.ASC);
         }
         // Old-style lambda sort: sortBy({e | $e.sal}) or sort({x,y | $y->compare($x)})
-        if (vs instanceof LambdaFunction lf) {
+        if (vs instanceof LambdaFunction) {
             String col = extractColumnName(vs);
             return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC);
         }
@@ -503,7 +503,9 @@ public class CleanCompiler {
         List<ValueSpecification> params = af.parameters();
         if (params.size() < 2) {
             // select() with no columns = select all, pass through
-            return compileExpr(params.get(0), ctx);
+            TypeInfo source = compileExpr(params.get(0), ctx);
+            types.put(af, source);
+            return source;
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
@@ -1133,6 +1135,11 @@ public class CleanCompiler {
         if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
             return cs.name();
         }
+        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
+            // ColSpecArray in single-column context — use first ColSpec name
+            if (!csa.colSpecs().isEmpty())
+                return csa.colSpecs().get(0).name();
+        }
         if (vs instanceof CString s)
             return s.value();
         // Column index (old-style groupBy): groupBy([0, 1], ...)
@@ -1148,9 +1155,18 @@ public class CleanCompiler {
                 if (af.parameters().get(0) instanceof AppliedProperty ap) {
                     return ap.property();
                 }
+                // Receiver-style calls like $x.name->toLower() — recurse into first param
+                String nested = extractPropertyName(af.parameters().get(0));
+                if (nested != null)
+                    return nested;
             }
-            // Fallback: use lambda body class name
-            return "expr_" + body.getClass().getSimpleName().toLowerCase();
+            // Use the function name itself as last resort for lambdas
+            if (body instanceof AppliedFunction af2) {
+                return simpleName(af2.function());
+            }
+            // Lambda body we can't extract a property name from — throw
+            throw new PureCompileException(
+                    "extractColumnName: unrecognized lambda body: " + body.getClass().getSimpleName() + " → " + body);
         }
         // Direct property reference: $r.col
         if (vs instanceof AppliedProperty ap)
@@ -1165,8 +1181,12 @@ public class CleanCompiler {
         // Variable reference: $x
         if (vs instanceof Variable v)
             return v.name();
-        // GenericTypeInstance and other fallbacks
-        return "col_" + vs.getClass().getSimpleName().toLowerCase();
+        // Type annotation: GenericTypeInstance(Integer) in project specs
+        if (vs instanceof GenericTypeInstance gti)
+            return gti.fullPath();
+        // No fallback — throw so we can fix the root cause
+        throw new PureCompileException(
+                "extractColumnName: unrecognized VS type: " + vs.getClass().getSimpleName() + " → " + vs);
     }
 
     private List<String> extractColumnNames(ValueSpecification vs) {
