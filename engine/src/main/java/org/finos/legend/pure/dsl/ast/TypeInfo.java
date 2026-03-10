@@ -295,6 +295,12 @@ public record TypeInfo(
         return scalarType != null && scalarType.isDate();
     }
 
+    /** True if this is a List with mixed element types (element type is ANY). */
+    public boolean isMixedList() {
+        return scalarType != null && scalarType.isList()
+                && scalarType.elementType() == GenericType.Primitive.ANY;
+    }
+
     /** True if this node has pre-resolved association targets. */
     public boolean hasAssociations() {
         return associations != null && !associations.isEmpty();

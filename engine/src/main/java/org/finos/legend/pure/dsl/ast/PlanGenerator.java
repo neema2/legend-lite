@@ -166,7 +166,14 @@ public class PlanGenerator {
         return switch (vs) {
             case CString cs -> new SqlExpr.StringLiteral(cs.value());
             case CInteger ci -> new SqlExpr.Literal(String.valueOf(ci.value()));
-            case CFloat cf -> new SqlExpr.Literal(String.valueOf(cf.value()));
+            case CFloat cf -> {
+                String s = String.valueOf(cf.value());
+                if (s.contains("E") || s.contains("e")) {
+                    s = java.math.BigDecimal.valueOf(cf.value()).toPlainString();
+                    if (!s.contains(".")) s += ".0";
+                }
+                yield new SqlExpr.Literal(s);
+            }
             case CBoolean cb -> new SqlExpr.BoolLiteral(cb.value());
             case CDateTime cdt -> new SqlExpr.TimestampLiteral(cdt.value());
             case CStrictDate csd -> new SqlExpr.DateLiteral(csd.value());
@@ -1197,7 +1204,14 @@ public class PlanGenerator {
                 yield generateScalarFunction(af, rowParam, mapping, tableAlias);
             }
             case CInteger i -> new SqlExpr.Literal(String.valueOf(i.value()));
-            case CFloat f -> new SqlExpr.Literal(String.valueOf(f.value()));
+            case CFloat f -> {
+                String s = String.valueOf(f.value());
+                if (s.contains("E") || s.contains("e")) {
+                    s = java.math.BigDecimal.valueOf(f.value()).toPlainString();
+                    if (!s.contains(".")) s += ".0";
+                }
+                yield new SqlExpr.Literal(s);
+            }
             case CDecimal d -> new SqlExpr.Literal(String.valueOf(d.value()));
             case CString s -> new SqlExpr.StringLiteral(s.value());
             case CBoolean b -> new SqlExpr.BoolLiteral(b.value());
@@ -1337,6 +1351,21 @@ public class PlanGenerator {
             // --- String ---
             case "contains" -> {
                 if (firstArgIsList) {
+                    // Check if list has mixed types (List<ANY>) — needs TO_JSON wrapping
+                    TypeInfo listInfo = unit.typeInfoFor(params.get(0));
+                    if (listInfo != null && listInfo.isMixedList()
+                            && params.get(0) instanceof Collection coll
+                            && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
+                        // Wrap each element and search value in toJson
+                        var wrappedElems = coll.values().stream()
+                                .map(v -> (SqlExpr) new SqlExpr.FunctionCall("TO_JSON",
+                                        List.of(c.apply(v))))
+                                .collect(Collectors.toList());
+                        SqlExpr wrappedList = new SqlExpr.ArrayLiteral(wrappedElems);
+                        SqlExpr wrappedSearch = new SqlExpr.FunctionCall("TO_JSON",
+                                List.of(c.apply(params.get(1))));
+                        yield new SqlExpr.ListContains(wrappedList, wrappedSearch);
+                    }
                     yield new SqlExpr.ListContains(c.apply(params.get(0)), c.apply(params.get(1)));
                 }
                 // String contains: STRPOS(str, substr) > 0
