@@ -862,6 +862,11 @@ public class CleanCompiler {
                         return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, propName, alias,
                                 partitionBy, orderBy, frame, innerExtras);
                     }
+                    // LAG/LEAD always need offset=1
+                    if ("lag".equals(innerFunc) || "lead".equals(innerFunc)) {
+                        return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, propName, alias,
+                                partitionBy, orderBy, frame, List.of("1"));
+                    }
                     return TypeInfo.WindowFunctionSpec.aggregate(innerFunc, propName, alias,
                             partitionBy, orderBy, frame);
                 }
