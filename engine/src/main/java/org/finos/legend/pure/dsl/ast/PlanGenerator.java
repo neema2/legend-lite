@@ -1366,20 +1366,37 @@ public class PlanGenerator {
             }
             case "substring" -> {
                 // Pure is 0-based, SQL is 1-based
-                SqlExpr offset = new SqlExpr.Binary(c.apply(params.get(1)), "+", new SqlExpr.Literal("1"));
+                SqlExpr start = c.apply(params.get(1));
+                SqlExpr offset = new SqlExpr.Binary(start, "+", new SqlExpr.Literal("1"));
                 if (params.size() > 2) {
+                    // Pure substring(str, start, end) → SQL SUBSTRING(str, start+1, end-start)
+                    SqlExpr end = c.apply(params.get(2));
+                    SqlExpr length = new SqlExpr.Binary(end, "-", start);
                     yield new SqlExpr.FunctionCall("SUBSTRING",
-                            List.of(c.apply(params.get(0)), offset, c.apply(params.get(2))));
+                            List.of(c.apply(params.get(0)), offset, length));
                 }
                 yield new SqlExpr.FunctionCall("SUBSTRING",
                         List.of(c.apply(params.get(0)), offset));
             }
             case "indexOf" -> {
                 if (firstArgIsList) {
-                    yield new SqlExpr.FunctionCall("indexOf",
-                            List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+                    // Pure is 0-based, LIST_POSITION is 1-based → subtract 1
+                    yield new SqlExpr.Binary(
+                            new SqlExpr.FunctionCall("indexOf",
+                                    List.of(c.apply(params.get(0)), c.apply(params.get(1)))),
+                            "-", new SqlExpr.Literal("1"));
                 }
-                // String indexOf: (INSTR(str, substr) - 1)
+                // String indexOf with optional fromIndex
+                if (params.size() > 2) {
+                    // indexOf(str, search, fromIndex) →
+                    // ((fromIndex + INSTR(SUBSTRING(str, fromIndex+1), search)) - 1)
+                    SqlExpr str = c.apply(params.get(0));
+                    SqlExpr search = c.apply(params.get(1));
+                    SqlExpr fromIdx = c.apply(params.get(2));
+                    yield new SqlExpr.FunctionCall("indexOfFrom",
+                            List.of(str, search, fromIdx));
+                }
+                // Simple string indexOf: (INSTR(str, substr) - 1)
                 yield new SqlExpr.Binary(
                         new SqlExpr.FunctionCall("INSTR", List.of(c.apply(params.get(0)), c.apply(params.get(1)))),
                         "-", new SqlExpr.Literal("1"));
@@ -1571,6 +1588,13 @@ public class PlanGenerator {
                         new SqlExpr.FunctionCall("splitPart", List.of(str, delim, idx)));
             }
             case "joinStrings" -> {
+                if (params.size() == 4) {
+                    // joinStrings(list, prefix, separator, suffix)
+                    // → (prefix || COALESCE(ARRAY_TO_STRING(list, sep), '') || suffix)
+                    yield new SqlExpr.FunctionCall("joinStringsWithPrefixSuffix",
+                            List.of(c.apply(params.get(0)), c.apply(params.get(1)),
+                                    c.apply(params.get(2)), c.apply(params.get(3))));
+                }
                 if (params.size() > 1) {
                     yield new SqlExpr.FunctionCall("arrayToString",
                             params.stream().map(c).collect(Collectors.toList()));
@@ -1583,10 +1607,17 @@ public class PlanGenerator {
             case "ascii" -> new SqlExpr.FunctionCall("ASCII", List.of(c.apply(params.get(0))));
             case "char" -> new SqlExpr.FunctionCall("CHR", List.of(c.apply(params.get(0))));
             case "hash" -> {
-                // Check for HashType enum (SHA256, MD5, etc.)
-                if (params.size() > 1 && params.get(1) instanceof PackageableElementPtr ptr
-                        && ptr.fullPath().contains("SHA256")) {
-                    yield new SqlExpr.FunctionCall("SHA256", List.of(c.apply(params.get(0))));
+                // Dispatch on HashType enum: MD5, SHA256, etc.
+                if (params.size() > 1 && params.get(1) instanceof EnumValue ev) {
+                    String hashAlgo = ev.value().toUpperCase();
+                    yield new SqlExpr.FunctionCall(hashAlgo, List.of(c.apply(params.get(0))));
+                }
+                if (params.size() > 1 && params.get(1) instanceof PackageableElementPtr ptr) {
+                    String path = ptr.fullPath();
+                    if (path.contains("SHA256"))
+                        yield new SqlExpr.FunctionCall("SHA256", List.of(c.apply(params.get(0))));
+                    if (path.contains("MD5"))
+                        yield new SqlExpr.FunctionCall("MD5", List.of(c.apply(params.get(0))));
                 }
                 yield new SqlExpr.FunctionCall("hash", List.of(c.apply(params.get(0))));
             }
@@ -1594,21 +1625,20 @@ public class PlanGenerator {
                 SqlExpr str = c.apply(params.get(0));
                 SqlExpr len = c.apply(params.get(1));
                 SqlExpr fill = params.size() > 2 ? c.apply(params.get(2)) : new SqlExpr.StringLiteral(" ");
-                SqlExpr lenCast = new SqlExpr.Cast(len, "Integer");
-                yield new SqlExpr.CaseWhen(
-                        new SqlExpr.Binary(new SqlExpr.FunctionCall("LENGTH", List.of(str)), ">=", len),
-                        new SqlExpr.FunctionCall("LEFT", List.of(str, len)),
-                        new SqlExpr.FunctionCall("LPAD", List.of(str, lenCast, fill)));
+                SqlExpr lenCast = new SqlExpr.RawCast(len, "INTEGER");
+                // CASE WHEN LENGTH(str) >= len THEN LEFT(str, len)
+                //      WHEN LENGTH(fill) = 0 THEN str
+                //      ELSE LPAD(str, CAST(len AS INTEGER), fill) END
+                yield new SqlExpr.FunctionCall("lpadSafe",
+                        List.of(str, len, lenCast, fill));
             }
             case "rpad" -> {
                 SqlExpr str = c.apply(params.get(0));
                 SqlExpr len = c.apply(params.get(1));
                 SqlExpr fill = params.size() > 2 ? c.apply(params.get(2)) : new SqlExpr.StringLiteral(" ");
-                SqlExpr lenCast = new SqlExpr.Cast(len, "Integer");
-                yield new SqlExpr.CaseWhen(
-                        new SqlExpr.Binary(new SqlExpr.FunctionCall("LENGTH", List.of(str)), ">=", len),
-                        new SqlExpr.FunctionCall("LEFT", List.of(str, len)),
-                        new SqlExpr.FunctionCall("RPAD", List.of(str, lenCast, fill)));
+                SqlExpr lenCast = new SqlExpr.RawCast(len, "INTEGER");
+                yield new SqlExpr.FunctionCall("rpadSafe",
+                        List.of(str, len, lenCast, fill));
             }
             case "encodeBase64" -> new SqlExpr.FunctionCall("encodeBase64",
                     List.of(c.apply(params.get(0))));

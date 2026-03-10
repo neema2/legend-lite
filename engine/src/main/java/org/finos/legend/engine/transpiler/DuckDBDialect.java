@@ -178,6 +178,42 @@ public final class DuckDBDialect implements SQLDialect {
                 return "CAST(TIME_BUCKET(" + toFunc + "(" + qty + "), " + date +
                         ", CAST(" + origin + " AS TIMESTAMP)) AS " + castType + ")";
             }
+            case "lpadSafe": {
+                // args: [str, len, lenCastInt, fill]
+                // CASE WHEN LENGTH(str) >= len THEN LEFT(str, len)
+                //      WHEN LENGTH(fill) = 0 THEN str
+                //      ELSE LPAD(str, CAST(len AS INTEGER), fill) END
+                return "CASE WHEN LENGTH(" + args.get(0) + ") >= " + args.get(1)
+                        + " THEN LEFT(" + args.get(0) + ", " + args.get(1) + ")"
+                        + " WHEN LENGTH(" + args.get(3) + ") = 0 THEN " + args.get(0)
+                        + " ELSE LPAD(" + args.get(0) + ", " + args.get(2) + ", " + args.get(3) + ") END";
+            }
+            case "rpadSafe": {
+                // Same pattern for RPAD
+                return "CASE WHEN LENGTH(" + args.get(0) + ") >= " + args.get(1)
+                        + " THEN LEFT(" + args.get(0) + ", " + args.get(1) + ")"
+                        + " WHEN LENGTH(" + args.get(3) + ") = 0 THEN " + args.get(0)
+                        + " ELSE RPAD(" + args.get(0) + ", " + args.get(2) + ", " + args.get(3) + ") END";
+            }
+            case "decodeBase64": {
+                // Old pipeline: CAST(FROM_BASE64(RPAD(RTRIM(input, '='),
+                //   CAST((CAST(((LENGTH(RTRIM(input, '=')) + 3) / 4) AS BIGINT) * 4) AS INTEGER), '=')) AS VARCHAR)
+                String input = args.get(0);
+                String rtrim = "RTRIM(" + input + ", '=')";
+                String lenRtrim = "LENGTH(" + rtrim + ")";
+                String padLen = "CAST((CAST(((" + lenRtrim + " + 3) / 4) AS BIGINT) * 4) AS INTEGER)";
+                return "CAST(FROM_BASE64(RPAD(" + rtrim + ", " + padLen + ", '=')) AS VARCHAR)";
+            }
+            case "indexOfFrom": {
+                // args: [str, search, fromIndex]
+                // ((fromIndex + INSTR(SUBSTRING(str, (fromIndex + 1)), search)) - 1)
+                return "((" + args.get(2) + " + INSTR(SUBSTRING(" + args.get(0) + ", (" + args.get(2) + " + 1)), " + args.get(1) + ")) - 1)";
+            }
+            case "joinStringsWithPrefixSuffix": {
+                // args: [list, prefix, separator, suffix]
+                // (prefix || COALESCE(ARRAY_TO_STRING(list, sep), '') || suffix)
+                return "(" + args.get(1) + " || COALESCE(ARRAY_TO_STRING(" + args.get(0) + ", " + args.get(2) + "), '') || " + args.get(3) + ")";
+            }
 
             // --- List aggregate functions using LIST_AGGR pattern ---
             case "listMedian":
