@@ -47,6 +47,12 @@ public class PlanGenerator {
         ValueSpecification vs = unit.root();
         TypeInfo info = unit.types().get(vs);
 
+        // If root was inlined (user function), process the expanded body
+        if (info != null && info.inlinedBody() != null) {
+            vs = info.inlinedBody();
+            info = unit.types().get(vs);
+        }
+
         SqlBuilder builder;
         if (info.isScalar()) {
             builder = generateScalarQuery(vs);
@@ -1127,7 +1133,19 @@ public class PlanGenerator {
                 }
                 yield tableAlias != null ? new SqlExpr.Column(tableAlias, colName) : new SqlExpr.ColumnRef(colName);
             }
-            case AppliedFunction af -> generateScalarFunction(af, rowParam, mapping, tableAlias);
+            case AppliedFunction af -> {
+                // Check for inlined user function — process expanded body
+                TypeInfo afInfo = unit.types().get(af);
+                if (afInfo != null && afInfo.inlinedBody() != null) {
+                    TypeInfo bodyInfo = unit.types().get(afInfo.inlinedBody());
+                    if (bodyInfo != null && !bodyInfo.isScalar()) {
+                        throw new PureCompileException(
+                                "Inlined function '" + af.function() + "' returns a relation in scalar context");
+                    }
+                    yield generateScalar(afInfo.inlinedBody(), rowParam, mapping, tableAlias);
+                }
+                yield generateScalarFunction(af, rowParam, mapping, tableAlias);
+            }
             case CInteger i -> new SqlExpr.Literal(String.valueOf(i.value()));
             case CFloat f -> new SqlExpr.Literal(String.valueOf(f.value()));
             case CDecimal d -> new SqlExpr.Literal(String.valueOf(d.value()));

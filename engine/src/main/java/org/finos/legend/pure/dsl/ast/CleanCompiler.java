@@ -7,6 +7,8 @@ import org.finos.legend.engine.store.RelationalMapping;
 import org.finos.legend.engine.store.Table;
 import org.finos.legend.pure.dsl.ModelContext;
 import org.finos.legend.pure.dsl.PureCompileException;
+import org.finos.legend.pure.dsl.PureFunctionRegistry;
+import org.finos.legend.pure.dsl.PureParser;
 
 import java.util.*;
 
@@ -262,7 +264,7 @@ public class CleanCompiler {
         List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
 
         var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
-                null);
+                null, null);
         types.put(af, info);
         return info;
     }
@@ -389,7 +391,8 @@ public class CleanCompiler {
 
         RelationType newType = source.relationType().renameColumn(oldName, newName);
         List<TypeInfo.ColumnSpec> colSpecs = List.of(TypeInfo.ColumnSpec.renamed(oldName, newName));
-        var info = new TypeInfo(newType, source.mapping(), Map.of(), List.of(), List.of(), colSpecs, false, null, null);
+        var info = new TypeInfo(newType, source.mapping(), Map.of(), List.of(), List.of(), colSpecs, false, null, null,
+                null);
         types.put(af, info);
         return info;
     }
@@ -485,12 +488,12 @@ public class CleanCompiler {
         // Propagate struct flag from source
         if (source.isStructSource()) {
             var info = new TypeInfo(resultType, null, associations, List.of(), projections, List.of(), true, null,
-                    null);
+                    null, null);
             types.put(af, info);
             return info;
         }
         var info = new TypeInfo(resultType, mapping, associations, List.of(), projections, List.of(), false, null,
-                null);
+                null, null);
         types.put(af, info);
         return info;
     }
@@ -525,7 +528,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(selectedColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, null, null);
         types.put(af, info);
         return info;
     }
@@ -570,7 +573,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, null, null);
         types.put(af, info);
         return info;
     }
@@ -656,7 +659,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(newColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, null, windowSpec);
+                Map.of(), List.of(), List.of(), List.of(), false, null, windowSpec, null);
         types.put(af, info);
         return info;
     }
@@ -868,7 +871,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(mergedColumns), left.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, joinType, null);
+                Map.of(), List.of(), List.of(), List.of(), false, joinType, null, null);
         types.put(af, info);
         return info;
     }
@@ -920,8 +923,24 @@ public class CleanCompiler {
     /**
      * Handles unknown/scalar functions — compiles the source (if it's a relation)
      * and propagates its type.
+     *
+     * Also checks the PureFunctionRegistry for user-defined functions.
+     * If found, inlines the function body by substituting parameters with
+     * argument source text, re-parsing, and compiling the result.
      */
+    private static final PureFunctionRegistry functionRegistry = PureFunctionRegistry.withBuiltins();
+
     private TypeInfo compilePassThrough(AppliedFunction af, CompilationContext ctx) {
+        String funcName = af.function();
+        String simple = simpleName(funcName);
+
+        // === Tier 2: User-defined function inlining ===
+        var fn = functionRegistry.getFunction(funcName)
+                .or(() -> functionRegistry.getFunction(simple));
+        if (fn.isPresent()) {
+            return inlineUserFunction(af, fn.get(), ctx);
+        }
+
         // Try to compile the first param as a relation source
         if (!af.parameters().isEmpty()) {
             try {
@@ -934,6 +953,53 @@ public class CleanCompiler {
             }
         }
         return scalar(af);
+    }
+
+    /**
+     * Inlines a user-defined Pure function by:
+     * 1. Substituting $param with argument source text
+     * 2. Re-parsing the expanded body into new AST
+     * 3. Compiling the inlined AST recursively
+     */
+    private TypeInfo inlineUserFunction(AppliedFunction af,
+            PureFunctionRegistry.FunctionEntry entry, CompilationContext ctx) {
+        String body = entry.bodySource();
+        List<String> paramNames = entry.paramNames();
+
+        // Substitute parameters with argument source text
+        if (af.hasReceiver() && af.sourceText() != null) {
+            // Arrow call: $param0 = sourceText, $param1.. = argTexts
+            if (!paramNames.isEmpty()) {
+                body = body.replace("$" + paramNames.get(0), af.sourceText());
+            }
+            for (int i = 1; i < paramNames.size() && i <= af.argTexts().size(); i++) {
+                String argText = af.argTexts().get(i - 1);
+                if (argText != null && !argText.isEmpty()) {
+                    body = body.replace("$" + paramNames.get(i), argText);
+                }
+            }
+        } else {
+            // Standalone call: all params from argTexts
+            for (int i = 0; i < paramNames.size() && i < af.argTexts().size(); i++) {
+                String argText = af.argTexts().get(i);
+                if (argText != null && !argText.isEmpty()) {
+                    body = body.replace("$" + paramNames.get(i), argText);
+                }
+            }
+        }
+
+        // Re-parse inlined body into new AST and compile
+        ValueSpecification inlinedNode = PureParser.parseClean(body);
+        TypeInfo bodyResult = compileExpr(inlinedNode, ctx);
+        // Store inlined body in TypeInfo — PlanGenerator processes it instead of the
+        // original call
+        TypeInfo result = new TypeInfo(
+                bodyResult.relationType(), bodyResult.mapping(), bodyResult.associations(),
+                bodyResult.sortSpecs(), bodyResult.projections(), bodyResult.columnSpecs(),
+                bodyResult.structSource(), bodyResult.joinType(), bodyResult.windowSpec(),
+                inlinedNode);
+        types.put(af, result);
+        return result;
     }
 
     // ========== ClassInstance (DSL containers) ==========
@@ -1049,6 +1115,14 @@ public class CleanCompiler {
                 }
             }
             case AppliedFunction af -> {
+                // Check for user-defined function inlining
+                String funcName = af.function();
+                String simple = simpleName(funcName);
+                var fn = functionRegistry.getFunction(funcName)
+                        .or(() -> functionRegistry.getFunction(simple));
+                if (fn.isPresent()) {
+                    inlineUserFunction(af, fn.get(), ctx);
+                }
                 for (var param : af.parameters()) {
                     typeCheckExpression(param, ctx);
                 }
