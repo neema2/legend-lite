@@ -714,8 +714,17 @@ public class CleanCompiler {
         if (cs.function2() != null) {
             String column = extractPropertyNameFromLambda(cs.function1());
             String aggFunc = extractPureFuncName(cs.function2());
-            List<String> fn2ExtraArgs = extractFuncExtraArgs(cs.function2());
             if (column != null && aggFunc != null) {
+                // Special handling for percentile: boolean args control function name
+                if ("percentile".equals(aggFunc) || "percentileCont".equals(aggFunc)
+                        || "percentileDisc".equals(aggFunc)) {
+                    var percentileResult = resolvePercentileArgs(cs.function2(), aggFunc);
+                    return TypeInfo.WindowFunctionSpec.aggregateMulti(percentileResult.funcName,
+                            column, alias, partitionBy, orderBy, frame,
+                            List.of(String.valueOf(percentileResult.value)));
+                }
+                // General: extract non-boolean extra args from function2
+                List<String> fn2ExtraArgs = extractFuncExtraArgs(cs.function2());
                 if (!fn2ExtraArgs.isEmpty()) {
                     return TypeInfo.WindowFunctionSpec.aggregateMulti(aggFunc, column, alias,
                             partitionBy, orderBy, frame, fn2ExtraArgs);
@@ -781,20 +790,52 @@ public class CleanCompiler {
                             partitionBy, orderBy, frame);
                 }
 
-                // NTILE
+                // NTILE: bucket arg may be at various positions
                 if ("ntile".equals(funcName)) {
-                    int buckets = af.parameters().size() > 1
-                            ? (int) extractIntLiteral(af.parameters().get(1))
-                            : 1;
+                    int buckets = 1;
+                    for (int pi = 0; pi < af.parameters().size(); pi++) {
+                        var p = af.parameters().get(pi);
+                        if (p instanceof CInteger ci) {
+                            buckets = ci.value().intValue();
+                            break;
+                        }
+                    }
                     return TypeInfo.WindowFunctionSpec.ntile(buckets, alias,
                             partitionBy, orderBy, frame);
                 }
 
-                // Aggregate/value functions with arguments: sum($w.salary), lag($w.col)
+                // LAG/LEAD: always pass offset 1
+                if ("lag".equals(funcName) || "lead".equals(funcName)) {
+                    String sourceCol = extractColumnNameDeep(af);
+                    return TypeInfo.WindowFunctionSpec.aggregateMulti(funcName, sourceCol, alias,
+                            partitionBy, orderBy, frame, List.of("1"));
+                }
+
+                // COUNT: use * instead of column name
+                if ("count".equals(funcName) || "size".equals(funcName)) {
+                    return TypeInfo.WindowFunctionSpec.aggregate("count", "*", alias,
+                            partitionBy, orderBy, frame);
+                }
+
+                // NTH_VALUE: extract offset arg
+                if ("nth".equals(funcName) || "nthValue".equals(funcName)) {
+                    String sourceCol = extractColumnNameDeep(af);
+                    int offset = 1;
+                    for (int pi = 0; pi < af.parameters().size(); pi++) {
+                        var p = af.parameters().get(pi);
+                        if (p instanceof CInteger ci) {
+                            offset = ci.value().intValue();
+                            break;
+                        }
+                    }
+                    return TypeInfo.WindowFunctionSpec.aggregateMulti(funcName, sourceCol, alias,
+                            partitionBy, orderBy, frame, List.of(String.valueOf(offset)));
+                }
+
+                // Aggregate/value functions with arguments: sum($w.salary)
                 String sourceCol = af.parameters().size() > 1
                         ? extractColumnName(af.parameters().get(1))
                         : null;
-                // Store the Pure function name as-is
                 return TypeInfo.WindowFunctionSpec.aggregate(funcName, sourceCol, alias,
                         partitionBy, orderBy, frame);
             }
@@ -918,16 +959,79 @@ public class CleanCompiler {
                     extras.add(String.valueOf(cf.value()));
                 } else if (p instanceof CDecimal cd) {
                     extras.add(cd.value().toPlainString());
-                } else if (p instanceof CString cs) {
-                    extras.add("'" + cs.value() + "'");
-                } else if (p instanceof CBoolean cb) {
-                    extras.add(String.valueOf(cb.value()));
+                } else if (p instanceof CString cstr2) {
+                    extras.add("'" + cstr2.value() + "'");
                 } else if (p instanceof AppliedProperty ap) {
                     extras.add(ap.property());
                 }
             }
         }
         return extras;
+    }
+
+    /**
+     * Result of resolving percentile boolean args to function name + numeric value.
+     */
+    private record PercentileResult(String funcName, double value) {
+    }
+
+    /**
+     * Resolves percentile function args: percentile(0.6, ascending, continuous).
+     * Boolean arg2: ascending — if false, value becomes 1.0 - value.
+     * Boolean arg3: continuous — if false, function is DISC; if true, CONT.
+     * Matches old pipeline AstAdapter lines 1126-1143.
+     */
+    private PercentileResult resolvePercentileArgs(LambdaFunction lf, String baseFuncName) {
+        String funcName = "percentileCont"; // default: continuous
+        double value = 0.5;
+
+        if (lf != null && !lf.body().isEmpty() && lf.body().get(0) instanceof AppliedFunction af) {
+            // Extract percentile value (arg1, after $y variable at index 0)
+            if (af.parameters().size() > 1) {
+                var valParam = af.parameters().get(1);
+                if (valParam instanceof CFloat cf)
+                    value = cf.value();
+                else if (valParam instanceof CDecimal cd)
+                    value = cd.value().doubleValue();
+                else if (valParam instanceof CInteger ci)
+                    value = ci.value().doubleValue();
+            }
+            // arg2: ascending (index 2)
+            if (af.parameters().size() > 2 && af.parameters().get(2) instanceof CBoolean ascBool) {
+                if (!ascBool.value()) {
+                    value = 1.0 - value;
+                }
+            }
+            // arg3: continuous (index 3)
+            if (af.parameters().size() > 3 && af.parameters().get(3) instanceof CBoolean contBool) {
+                if (!contBool.value()) {
+                    funcName = "percentileDisc";
+                }
+            }
+        }
+        // If base function already specifies disc
+        if ("percentileDisc".equals(baseFuncName)) {
+            funcName = "percentileDisc";
+        }
+        return new PercentileResult(funcName, value);
+    }
+
+    /**
+     * Extracts source column from a window function call like lag($p, $w, $r).
+     * Scans params for AppliedProperty, skipping Variable refs ($p, $w, $r).
+     */
+    private String extractColumnNameDeep(AppliedFunction af) {
+        for (var p : af.parameters()) {
+            if (p instanceof AppliedProperty ap)
+                return ap.property();
+        }
+        // Fallback to first non-variable param
+        for (var p : af.parameters()) {
+            String col = extractColumnName(p);
+            if (col != null)
+                return col;
+        }
+        return null;
     }
 
     /** Returns true for zero-arg ranking Pure functions. */

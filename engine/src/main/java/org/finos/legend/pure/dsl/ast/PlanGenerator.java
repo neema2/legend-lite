@@ -876,14 +876,24 @@ public class PlanGenerator {
                         List.of(new SqlExpr.Literal(String.valueOf(ws.ntileArg()))));
             } else if (ws.hasSourceColumn()) {
                 List<SqlExpr> args = new ArrayList<>();
-                args.add(new SqlExpr.ColumnRef(ws.sourceColumn()));
-                // Add extra args (column refs or literals for multi-arg window functions)
+                // COUNT(*) uses literal, not column ref
+                if ("*".equals(ws.sourceColumn())) {
+                    args.add(new SqlExpr.Literal("*"));
+                } else {
+                    args.add(new SqlExpr.ColumnRef(ws.sourceColumn()));
+                }
+                // Add extra args: properly distinguish literals from column refs
                 for (String extra : ws.extraArgs()) {
-                    try {
-                        Double.parseDouble(extra);
+                    if (extra.startsWith("'")) {
+                        // String literal: pass through as-is (e.g. '' for separator)
                         args.add(new SqlExpr.Literal(extra));
-                    } catch (NumberFormatException e) {
-                        args.add(new SqlExpr.ColumnRef(extra));
+                    } else {
+                        try {
+                            Double.parseDouble(extra);
+                            args.add(new SqlExpr.Literal(extra));
+                        } catch (NumberFormatException e) {
+                            args.add(new SqlExpr.ColumnRef(extra));
+                        }
                     }
                 }
                 windowFunc = new SqlExpr.FunctionCall(sqlFunc, args);
