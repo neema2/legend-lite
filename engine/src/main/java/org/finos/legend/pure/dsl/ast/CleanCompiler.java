@@ -1524,22 +1524,39 @@ public class CleanCompiler {
             return TypeInfo.ColumnSpec.agg(sourceCol, alias, aggFunc);
         }
 
-        // Legacy lambda pattern: {r | $r.sal->stdDevSample()} or {r | $r.sal}
+        // Legacy lambda pattern: {r | $r.sal->stdDevSample()} or {r |
+        // $r.sal->covarSample($r.years)}
         if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
             var body = lf.body().get(0);
             if (body instanceof AppliedFunction bodyAf) {
-                // e.g., $r.sal->stdDevSample()
                 String aggFunc = simpleName(bodyAf.function());
-                // The first param of the agg function is the property access: $r.sal
                 String sourceCol = null;
+                List<String> extraArgs = new ArrayList<>();
+
+                // First param is the source property: $r.sal
                 if (!bodyAf.parameters().isEmpty()) {
                     var inner = bodyAf.parameters().get(0);
                     if (inner instanceof AppliedProperty ap) {
                         sourceCol = ap.property();
                     }
                 }
+                // Extra params: column refs or literals (e.g., $r.years or 0.5)
+                for (int k = 1; k < bodyAf.parameters().size(); k++) {
+                    var extra = bodyAf.parameters().get(k);
+                    if (extra instanceof AppliedProperty ap) {
+                        extraArgs.add(ap.property()); // column ref
+                    } else if (extra instanceof CInteger ci) {
+                        extraArgs.add(String.valueOf(ci.value()));
+                    } else if (extra instanceof CFloat cf) {
+                        extraArgs.add(String.valueOf(cf.value()));
+                    } else if (extra instanceof CDecimal cd) {
+                        extraArgs.add(cd.value().toPlainString());
+                    } else if (extra instanceof CString cs) {
+                        extraArgs.add("'" + cs.value() + "'");
+                    }
+                }
                 if (sourceCol != null) {
-                    return TypeInfo.ColumnSpec.agg(sourceCol, sourceCol + "_agg", aggFunc);
+                    return TypeInfo.ColumnSpec.aggMulti(sourceCol, sourceCol + "_agg", aggFunc, extraArgs);
                 }
             } else if (body instanceof AppliedProperty ap) {
                 // Simple property: {r | $r.sal} → default SUM

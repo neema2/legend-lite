@@ -96,20 +96,25 @@ public record TypeInfo(
      * Pre-resolved column reference for select/rename/groupBy.
      * Populated by CleanCompiler, consumed by PlanGenerator.
      */
-    public record ColumnSpec(String columnName, String alias, String aggFunction) {
+    public record ColumnSpec(String columnName, String alias, String aggFunction, List<String> extraArgs) {
         /** Simple column reference (select). */
         public static ColumnSpec col(String name) {
-            return new ColumnSpec(name, null, null);
+            return new ColumnSpec(name, null, null, List.of());
         }
 
         /** Renamed column. */
         public static ColumnSpec renamed(String oldName, String newName) {
-            return new ColumnSpec(oldName, newName, null);
+            return new ColumnSpec(oldName, newName, null, List.of());
         }
 
-        /** Aggregate column. */
+        /** Aggregate column (single-arg). */
         public static ColumnSpec agg(String sourceCol, String alias, String func) {
-            return new ColumnSpec(sourceCol, alias, func);
+            return new ColumnSpec(sourceCol, alias, func, List.of());
+        }
+
+        /** Aggregate column (multi-arg, e.g. CORR(x, y), QUANTILE_CONT(x, 0.5)). */
+        public static ColumnSpec aggMulti(String sourceCol, String alias, String func, List<String> extraArgs) {
+            return new ColumnSpec(sourceCol, alias, func, extraArgs);
         }
 
         /** True if this is an aggregate spec. */

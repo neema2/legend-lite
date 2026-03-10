@@ -812,7 +812,20 @@ public class PlanGenerator {
                 String aggFunc = mapPureFuncToSql(cs.aggFunction());
                 if (aggFunc == null)
                     aggFunc = "SUM";
-                SqlExpr expr = new SqlExpr.FunctionCall(aggFunc, List.of(new SqlExpr.ColumnRef(cs.columnName())));
+                List<SqlExpr> args = new ArrayList<>();
+                args.add(new SqlExpr.ColumnRef(cs.columnName()));
+                // Add extra args (column refs or literals for multi-arg aggregates)
+                for (String extra : cs.extraArgs()) {
+                    try {
+                        // Try as numeric literal
+                        Double.parseDouble(extra);
+                        args.add(new SqlExpr.Literal(extra));
+                    } catch (NumberFormatException e) {
+                        // Treat as column ref
+                        args.add(new SqlExpr.ColumnRef(extra));
+                    }
+                }
+                SqlExpr expr = new SqlExpr.FunctionCall(aggFunc, args);
                 builder.addSelect(expr, dialect.quoteIdentifier(cs.alias()));
             }
         }
@@ -913,7 +926,7 @@ public class PlanGenerator {
             case "covarSample" -> "COVAR_SAMP";
             case "covarPopulation" -> "COVAR_POP";
             case "median" -> "MEDIAN";
-            case "percentileCont" -> "QUANTILE_DISC";
+            case "percentileCont" -> "QUANTILE_CONT";
             case "percentileDisc" -> "QUANTILE_DISC";
             case "joinStrings" -> "STRING_AGG";
             case "mode" -> "MODE";
