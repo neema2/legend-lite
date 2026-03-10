@@ -232,14 +232,20 @@ public class PlanGenerator {
             case "extend" -> generateExtend(af);
             case "join" -> generateJoin(af);
             case "from" -> generateFrom(af);
-            case "flatten" -> {
-                // flatten passes through to source — unnests in relational context
+            case "flatten", "toString", "toVariant" -> {
+                // pass through to source
                 yield generateRelation(af.parameters().get(0));
             }
-            case "pivot" ->
-
-            {
+            case "sortBy" -> {
+                // Old-style sortBy — pass through source for now
+                yield generateRelation(af.parameters().get(0));
+            }
+            case "pivot" -> {
                 // pivot not yet SQL-supported — compile source for now
+                yield generateRelation(af.parameters().get(0));
+            }
+            case "eq" -> {
+                // eq on a relation — pass through first arg
                 yield generateRelation(af.parameters().get(0));
             }
             default -> throw new PureCompileException("PlanGenerator: unsupported function '" + funcName + "'");
@@ -1499,7 +1505,7 @@ public class PlanGenerator {
             // --- Pass-through for non-SQL functions ---
             case "toOne", "toMany", "eval", "forAll", "exists",
                     "list", "pair", "map", "fold", "match", "zip",
-                    "range", "cast" -> {
+                    "range", "cast", "toVariant", "letWithParam" -> {
                 // These are Pure-level functions that should pass through the first arg
                 if (!params.isEmpty()) {
                     yield c.apply(params.get(0));

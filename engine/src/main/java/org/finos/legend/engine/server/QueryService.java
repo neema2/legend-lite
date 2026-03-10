@@ -467,15 +467,28 @@ public class QueryService {
                 MATCH_COUNT.incrementAndGet();
             } else {
                 MISMATCH_COUNT.incrementAndGet();
-                System.out.println("[DUAL-RUN MISMATCH] Query: " + query);
+                System.out.println("[DUAL-RUN MISMATCH] Test: " + callingTestName()
+                        + " | Query: " + query);
                 System.out.println("  OLD SQL: " + oldSql);
                 System.out.println("  NEW SQL: " + newSql);
             }
         } catch (Throwable e) {
             ERROR_COUNT.incrementAndGet();
-            System.out.println("[DUAL-RUN ERROR] Query: " + query
-                    + " \u2192 " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            System.out.println("[DUAL-RUN ERROR] Test: " + callingTestName()
+                    + " | Query: " + query
+                    + " → " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
+    }
+
+    /** Extracts the calling test method name from the stack trace. */
+    private static String callingTestName() {
+        for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
+            String cls = ste.getClassName();
+            if (cls.endsWith("Test") || cls.contains("Test$") || cls.contains("Tests")) {
+                return cls.substring(cls.lastIndexOf('.') + 1) + "." + ste.getMethodName();
+            }
+        }
+        return "unknown";
     }
 
     /**
