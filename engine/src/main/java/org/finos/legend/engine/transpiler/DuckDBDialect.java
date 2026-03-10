@@ -76,10 +76,12 @@ public final class DuckDBDialect implements SQLDialect {
         return switch (pureTypeName) {
             case "String" -> "VARCHAR";
             case "Integer" -> "BIGINT";
-            case "Float", "Decimal" -> "DOUBLE";
+            case "Float", "Double" -> "DOUBLE";
+            case "Decimal" -> "DECIMAL";
             case "Boolean" -> "BOOLEAN";
             case "Date", "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
+            case "TimestampTZ" -> "TIMESTAMPTZ";
             default -> "VARCHAR";
         };
     }
@@ -96,7 +98,7 @@ public final class DuckDBDialect implements SQLDialect {
 
     @Override
     public String renderEndsWith(String str, String suffix) {
-        return str + " LIKE '%' || " + suffix;
+        return "ENDS_WITH(" + str + ", " + suffix + ")";
     }
 
     @Override
@@ -105,13 +107,13 @@ public final class DuckDBDialect implements SQLDialect {
         switch (pureName) {
             // Date extraction → EXTRACT(X FROM y) form
             case "year":
-                return "EXTRACT(YEAR FROM " + args.get(0) + ")";
+                return "YEAR(" + args.get(0) + ")";
             case "month":
-                return "EXTRACT(MONTH FROM " + args.get(0) + ")";
+                return "MONTH(" + args.get(0) + ")";
             case "dayOfMonth":
-                return "EXTRACT(DAY FROM " + args.get(0) + ")";
+                return "DAYOFMONTH(" + args.get(0) + ")";
             case "hour":
-                return "EXTRACT(HOUR FROM " + args.get(0) + ")";
+                return "HOUR(" + args.get(0) + ")";
             case "minute":
                 return "EXTRACT(MINUTE FROM " + args.get(0) + ")";
             case "second":
@@ -139,26 +141,60 @@ public final class DuckDBDialect implements SQLDialect {
                 return "EXTRACT(DOY FROM " + args.get(0) + ")";
             case "weekOfYear":
                 return "EXTRACT(WEEK FROM " + args.get(0) + ")";
+
+            // --- List aggregate functions using LIST_AGGR pattern ---
+            case "listMedian":
+                return "LIST_AGGR(" + args.get(0) + ", 'median')";
+            case "listMode":
+                return "LIST_AGGR(" + args.get(0) + ", 'mode')";
+            case "listStdDevSample":
+                return "LIST_AGGR(" + args.get(0) + ", 'stddev_samp')";
+            case "listStdDevPopulation":
+                return "LIST_AGGR(" + args.get(0) + ", 'stddev_pop')";
+            case "listVarianceSample":
+                return "LIST_AGGR(" + args.get(0) + ", 'var_samp')";
+            case "listVariancePopulation":
+                return "LIST_AGGR(" + args.get(0) + ", 'var_pop')";
+            case "listCorr":
+                return "LIST_AGGR(" + args.get(0) + ", 'corr')";
+            case "listCovarSample":
+                return "LIST_AGGR(" + args.get(0) + ", 'covar_samp')";
+            case "listCovarPopulation":
+                return "LIST_AGGR(" + args.get(0) + ", 'covar_pop')";
+            case "listPercentileCont":
+                return "QUANTILE_CONT(" + args.get(0) + ", " + args.get(1) + ")";
+            case "listPercentileDisc":
+                return "QUANTILE_DISC(" + args.get(0) + ", " + args.get(1) + ")";
+            case "arrayToString":
+                return "COALESCE(ARRAY_TO_STRING(" + args.get(0) + ", " + args.get(1) + "), '')";
         }
 
         String sqlName = switch (pureName) {
             // --- List ---
             case "listExtract" -> "LIST_EXTRACT";
             case "listSlice" -> "LIST_SLICE";
-            case "listLength" -> "LIST_LENGTH";
+            case "listLength" -> "LEN";
             case "listConcat" -> "LIST_CONCAT";
             case "listAppend" -> "LIST_APPEND";
+
+            // --- List aggregate functions ---
+            case "listSum" -> "LIST_SUM";
+            case "listAvg" -> "LIST_AVG";
+            case "listMin" -> "LIST_MIN";
+            case "listMax" -> "LIST_MAX";
+            case "listBoolAnd" -> "LIST_BOOL_AND";
+            case "listBoolOr" -> "LIST_BOOL_OR";
 
             // --- String ---
             case "reverseString" -> "REVERSE";
             case "splitPart" -> "SPLIT_PART";
-            case "joinStrings" -> "CONCAT_WS";
+            case "joinStrings" -> "STRING_AGG";
             case "levenshteinDistance" -> "LEVENSHTEIN";
             case "hash" -> "HASH";
             case "encodeBase64" -> "BASE64";
             case "decodeBase64" -> "FROM_BASE64";
             case "format" -> "PRINTF";
-            case "indexOf" -> "INSTR";
+            case "indexOf" -> "LIST_POSITION";
 
             // --- Math ---
             case "roundHalfEven" -> "ROUND_EVEN";
@@ -184,10 +220,11 @@ public final class DuckDBDialect implements SQLDialect {
             case "covarSample" -> "COVAR_SAMP";
             case "covarPopulation" -> "COVAR_POP";
             case "percentileCont" -> "PERCENTILE_CONT";
+            case "percentileDisc" -> "PERCENTILE_DISC";
 
             // --- Analytical ---
-            case "maxBy" -> "MAX_BY";
-            case "minBy" -> "MIN_BY";
+            case "maxBy" -> "ARG_MAX";
+            case "minBy" -> "ARG_MIN";
 
             // --- Misc ---
             case "generateGuid" -> "UUID";

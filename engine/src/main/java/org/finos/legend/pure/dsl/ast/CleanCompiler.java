@@ -73,16 +73,16 @@ public class CleanCompiler {
             case PackageableElementPtr pe -> scalar(pe);
             case GenericTypeInstance gti -> scalar(gti);
             case Collection coll -> compileCollection(coll, ctx);
-            // Literals — scalar, no relation type
-            case CInteger i -> scalar(i);
-            case CFloat f -> scalar(f);
-            case CDecimal d -> scalar(d);
-            case CString s -> scalar(s);
-            case CBoolean b -> scalar(b);
-            case CDateTime dt -> scalar(dt);
-            case CStrictDate sd -> scalar(sd);
-            case CStrictTime st -> scalar(st);
-            case CLatestDate ld -> scalar(ld);
+            // Literals — scalar with known type
+            case CInteger i -> scalarTyped(i, GenericType.Primitive.INTEGER);
+            case CFloat f -> scalarTyped(f, GenericType.Primitive.FLOAT);
+            case CDecimal d -> scalarTyped(d, GenericType.Primitive.DECIMAL);
+            case CString s -> scalarTyped(s, GenericType.Primitive.STRING);
+            case CBoolean b -> scalarTyped(b, GenericType.Primitive.BOOLEAN);
+            case CDateTime dt -> scalarTyped(dt, GenericType.Primitive.DATE_TIME);
+            case CStrictDate sd -> scalarTyped(sd, GenericType.Primitive.STRICT_DATE);
+            case CStrictTime st -> scalarTyped(st, GenericType.Primitive.STRICT_TIME);
+            case CLatestDate ld -> scalarTyped(ld, GenericType.Primitive.DATE_TIME);
             case CByteArray ba -> scalar(ba);
             case EnumValue ev -> scalar(ev);
             case UnitInstance ui -> scalar(ui);
@@ -91,6 +91,13 @@ public class CleanCompiler {
 
     private TypeInfo scalar(ValueSpecification ast) {
         return typed(ast, RelationType.empty(), null);
+    }
+
+    /** Registers a scalar TypeInfo with a known GenericType. */
+    private TypeInfo scalarTyped(ValueSpecification ast, GenericType type) {
+        var info = TypeInfo.scalarOf(type);
+        types.put(ast, info);
+        return info;
     }
 
     /**
@@ -264,7 +271,7 @@ public class CleanCompiler {
         List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
 
         var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
-                List.of(), null);
+                List.of(), null, null);
         types.put(af, info);
         return info;
     }
@@ -391,8 +398,8 @@ public class CleanCompiler {
 
         RelationType newType = source.relationType().renameColumn(oldName, newName);
         List<TypeInfo.ColumnSpec> colSpecs = List.of(TypeInfo.ColumnSpec.renamed(oldName, newName));
-        var info = new TypeInfo(newType, source.mapping(), Map.of(), List.of(), List.of(), colSpecs, false, null, null,
-                null);
+        var info = new TypeInfo(newType, source.mapping(), Map.of(), List.of(), List.of(), colSpecs, false, null,
+                null, null, null);
         types.put(af, info);
         return info;
     }
@@ -499,12 +506,12 @@ public class CleanCompiler {
         // Propagate struct flag from source
         if (source.isStructSource()) {
             var info = new TypeInfo(resultType, null, associations, List.of(), projections, List.of(), true, null,
-                    List.of(), null);
+                    List.of(), null, null);
             types.put(af, info);
             return info;
         }
         var info = new TypeInfo(resultType, mapping, associations, List.of(), projections, List.of(), false, null,
-                List.of(), null);
+                List.of(), null, null);
         types.put(af, info);
         return info;
     }
@@ -539,7 +546,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(selectedColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null);
         types.put(af, info);
         return info;
     }
@@ -610,7 +617,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null);
         types.put(af, info);
         return info;
     }
@@ -666,24 +673,20 @@ public class CleanCompiler {
             }
         }
 
-        // Pre-resolve window function specs from ColSpec/ColSpecArray + over() params
+        // Pre-resolve window function spec from ColSpec + over() params
         AppliedFunction overSpec = null;
-        List<ColSpec> windowColSpecs = new ArrayList<>();
+        ColSpec windowColSpec = null;
         for (int i = 1; i < params.size(); i++) {
             var p = params.get(i);
             if (p instanceof AppliedFunction paf && "over".equals(simpleName(paf.function()))) {
                 overSpec = paf;
-            } else if (p instanceof ClassInstance ci) {
-                if (ci.value() instanceof ColSpec cs) {
-                    windowColSpecs.add(cs);
-                } else if (ci.value() instanceof ColSpecArray csa) {
-                    windowColSpecs.addAll(csa.colSpecs());
-                }
+            } else if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
+                windowColSpec = cs;
             }
         }
 
-        List<TypeInfo.WindowFunctionSpec> windowSpecs = new ArrayList<>();
-        if (!windowColSpecs.isEmpty()) {
+        TypeInfo.WindowFunctionSpec windowSpec = null;
+        if (windowColSpec != null) {
             // Resolve partition/order/frame from over() if present
             List<String> partitionBy = new ArrayList<>();
             List<TypeInfo.SortSpec> orderBy = new ArrayList<>();
@@ -695,17 +698,13 @@ public class CleanCompiler {
                 frame = overResult.frame;
             }
 
-            for (ColSpec cs : windowColSpecs) {
-                String alias = cs.name();
-                var ws = resolveWindowFunc(cs, partitionBy, orderBy, frame, alias);
-                if (ws != null)
-                    windowSpecs.add(ws);
-            }
+            String alias = windowColSpec.name();
+            windowSpec = resolveWindowFunc(windowColSpec, partitionBy, orderBy, frame, alias);
         }
 
         var info = new TypeInfo(new RelationType(newColumns), source.mapping(),
                 Map.of(), List.of(), List.of(), List.of(), false, null,
-                windowSpecs, null);
+                windowSpec != null ? List.of(windowSpec) : List.of(), null, null);
         types.put(af, info);
         return info;
     }
@@ -899,14 +898,18 @@ public class CleanCompiler {
         for (var p : overSpec.parameters()) {
             if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
                 partitionBy.add(cs.name());
+            } else if (p instanceof Collection coll) {
+                // Collection of sort specs: [~o->ascending(), ~i->ascending()]
+                for (var elem : coll.values()) {
+                    var sortSpec = tryResolveSortSpec(elem);
+                    if (sortSpec != null)
+                        orderBy.add(sortSpec);
+                }
             } else if (p instanceof AppliedFunction paf) {
                 String funcName = simpleName(paf.function());
-                if ("asc".equals(funcName) || "ascending".equals(funcName)) {
-                    String col = extractColumnName(paf.parameters().get(0));
-                    orderBy.add(new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC));
-                } else if ("desc".equals(funcName) || "descending".equals(funcName)) {
-                    String col = extractColumnName(paf.parameters().get(0));
-                    orderBy.add(new TypeInfo.SortSpec(col, TypeInfo.SortDirection.DESC));
+                var sortSpec = tryResolveSortSpec(p);
+                if (sortSpec != null) {
+                    orderBy.add(sortSpec);
                 } else if ("rows".equals(funcName) || "range".equals(funcName) || "_range".equals(funcName)) {
                     String frameType = funcName.startsWith("_") ? funcName.substring(1) : funcName;
                     TypeInfo.FrameBound start = resolveFrameBoundPure(paf.parameters(), true);
@@ -917,6 +920,21 @@ public class CleanCompiler {
         }
 
         return new OverClauseResult(partitionBy, orderBy, frame);
+    }
+
+    /** Try to resolve a single ascending/descending sort spec from an AST node. */
+    private TypeInfo.SortSpec tryResolveSortSpec(ValueSpecification vs) {
+        if (vs instanceof AppliedFunction af) {
+            String funcName = simpleName(af.function());
+            if ("asc".equals(funcName) || "ascending".equals(funcName)) {
+                String col = extractColumnName(af.parameters().get(0));
+                return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC);
+            } else if ("desc".equals(funcName) || "descending".equals(funcName)) {
+                String col = extractColumnName(af.parameters().get(0));
+                return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.DESC);
+            }
+        }
+        return null;
     }
 
     /** Resolves a frame bound into a structured FrameBound (no SQL text). */
@@ -1110,7 +1128,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(mergedColumns), left.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null);
+                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null, null);
         types.put(af, info);
         return info;
     }
@@ -1236,7 +1254,7 @@ public class CleanCompiler {
                 bodyResult.relationType(), bodyResult.mapping(), bodyResult.associations(),
                 bodyResult.sortSpecs(), bodyResult.projections(), bodyResult.columnSpecs(),
                 bodyResult.structSource(), bodyResult.joinType(), bodyResult.windowSpecs(),
-                inlinedNode);
+                inlinedNode, bodyResult.scalarType());
         types.put(af, result);
         return result;
     }
@@ -1850,7 +1868,54 @@ public class CleanCompiler {
     }
 
     private TypeInfo compileCollection(Collection coll, CompilationContext ctx) {
-        return scalar(coll);
+        // Compile each element so they're in the side table
+        for (var v : coll.values()) {
+            compileExpr(v, ctx);
+        }
+        GenericType elementType = unifyElementType(coll.values());
+        return scalarTyped(coll, GenericType.listOf(elementType));
+    }
+
+    /**
+     * Infers GenericType from a ValueSpecification AST node.
+     * Used for type unification in collections.
+     */
+    private GenericType typeOf(ValueSpecification vs) {
+        // Check side table first (for compiled sub-expressions)
+        TypeInfo info = types.get(vs);
+        if (info != null && info.scalarType() != null)
+            return info.scalarType();
+        // Fall back to pattern matching on literal types
+        return switch (vs) {
+            case CInteger i -> GenericType.Primitive.INTEGER;
+            case CFloat f -> GenericType.Primitive.FLOAT;
+            case CDecimal d -> GenericType.Primitive.DECIMAL;
+            case CString s -> GenericType.Primitive.STRING;
+            case CBoolean b -> GenericType.Primitive.BOOLEAN;
+            case CDateTime dt -> GenericType.Primitive.DATE_TIME;
+            case CStrictDate sd -> GenericType.Primitive.STRICT_DATE;
+            case CStrictTime st -> GenericType.Primitive.STRICT_TIME;
+            case CLatestDate ld -> GenericType.Primitive.DATE_TIME;
+            case Collection c -> GenericType.listOf(unifyElementType(c.values()));
+            default -> GenericType.Primitive.ANY;
+        };
+    }
+
+    /**
+     * Finds the common supertype for a list of expressions.
+     * All numeric → NUMBER, all temporal → DATE, mixed → ANY.
+     */
+    private GenericType unifyElementType(java.util.List<ValueSpecification> values) {
+        if (values.isEmpty())
+            return GenericType.Primitive.ANY;
+        var elementTypes = values.stream().map(this::typeOf).distinct().toList();
+        if (elementTypes.size() == 1)
+            return elementTypes.getFirst();
+        if (elementTypes.stream().allMatch(GenericType::isNumeric))
+            return GenericType.Primitive.NUMBER;
+        if (elementTypes.stream().allMatch(GenericType::isTemporal))
+            return GenericType.Primitive.DATE;
+        return GenericType.Primitive.ANY;
     }
 
     // ========== Compilation Context ==========

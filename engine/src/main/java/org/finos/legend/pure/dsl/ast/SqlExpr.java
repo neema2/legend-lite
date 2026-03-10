@@ -115,7 +115,14 @@ public sealed interface SqlExpr {
     record Binary(SqlExpr left, String op, SqlExpr right) implements SqlExpr {
         @Override
         public String toSql(SQLDialect dialect) {
-            return left.toSql(dialect) + " " + op + " " + right.toSql(dialect);
+            String sql = left.toSql(dialect) + " " + op + " " + right.toSql(dialect);
+            // Arithmetic and string concat ops get parenthesized; comparison/logical ops
+            // don't
+            return switch (op) {
+                case "+", "-", "*", "/", "||", "//", "<<", ">>", "&", "|", "^" ->
+                    "(" + sql + ")";
+                default -> sql;
+            };
         }
     }
 

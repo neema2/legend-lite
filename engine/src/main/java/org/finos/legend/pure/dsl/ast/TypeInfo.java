@@ -1,5 +1,6 @@
 package org.finos.legend.pure.dsl.ast;
 
+import org.finos.legend.engine.plan.GenericType;
 import org.finos.legend.engine.plan.RelationType;
 import org.finos.legend.engine.store.Join;
 import org.finos.legend.engine.store.RelationalMapping;
@@ -45,7 +46,8 @@ public record TypeInfo(
         boolean structSource,
         String joinType,
         List<WindowFunctionSpec> windowSpecs,
-        ValueSpecification inlinedBody) {
+        ValueSpecification inlinedBody,
+        GenericType scalarType) {
 
     /**
      * Pre-resolved association navigation target.
@@ -233,31 +235,37 @@ public record TypeInfo(
 
     /** Creates a TypeInfo for a scalar (non-relational) expression. */
     public static TypeInfo scalar() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null);
+    }
+
+    /** Creates a TypeInfo for a scalar with a known type. */
+    public static TypeInfo scalarOf(GenericType type) {
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type);
     }
 
     /** Creates a TypeInfo with type info but no mapping. */
     public static TypeInfo of(RelationType relationType) {
         return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null);
+                null, null);
     }
 
     /** Full constructor with both type and mapping. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping) {
         return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null);
+                null, null);
     }
 
     /** Full constructor with associations. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping,
             Map<String, AssociationTarget> associations) {
         return new TypeInfo(relationType, mapping, associations, List.of(), List.of(), List.of(), false, null, null,
-                null);
+                null, null);
     }
 
     /** Constructor for struct-based sources. */
     public static TypeInfo structOf(RelationType relationType) {
-        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), true, null, List.of(), null);
+        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), true, null, List.of(), null,
+                null);
     }
 
     // ===== Derived checks — no SourceKind enum needed =====
@@ -275,6 +283,11 @@ public record TypeInfo(
     /** True if this is a scalar expression (no columns). */
     public boolean isScalar() {
         return relationType == null || relationType.columns().isEmpty();
+    }
+
+    /** True if the scalar type is a list/collection. */
+    public boolean isList() {
+        return scalarType != null && scalarType.isList();
     }
 
     /** True if this node has pre-resolved association targets. */
