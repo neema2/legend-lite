@@ -165,6 +165,19 @@ public final class DuckDBDialect implements SQLDialect {
             }
             case "format":
                 return renderFormat(args);
+            case "timeBucketScalar": {
+                // args: [quantity, unit, dateExpr, castType]
+                String qty = args.get(0);
+                String tbUnit = args.get(1);
+                if (tbUnit.startsWith("'") && tbUnit.endsWith("'")) tbUnit = tbUnit.substring(1, tbUnit.length() - 1);
+                String date = args.get(2);
+                String castType = args.get(3);
+                if (castType.startsWith("'") && castType.endsWith("'")) castType = castType.substring(1, castType.length() - 1);
+                String toFunc = tbUnit.equals("weeks") ? "TO_WEEKS" : "TO_DAYS";
+                String origin = tbUnit.equals("weeks") ? "'1969-12-29'" : "'1970-01-01'";
+                return "CAST(TIME_BUCKET(" + toFunc + "(" + qty + "), " + date +
+                        ", CAST(" + origin + " AS TIMESTAMP)) AS " + castType + ")";
+            }
 
             // --- List aggregate functions using LIST_AGGR pattern ---
             case "listMedian":

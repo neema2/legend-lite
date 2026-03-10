@@ -1767,15 +1767,27 @@ public class PlanGenerator {
                 }
             }
             case "timeBucket" -> {
-                // timeBucket(date, quantity, DurationUnit) → TIME_BUCKET(INTERVAL 'N unit',
-                // date)
-                SqlExpr dateExpr = c.apply(params.get(0));
+                // timeBucket(date, quantity, DurationUnit)
+                // Context-aware: literal dates use TO_DAYS+origin+CAST, column refs use INTERVAL
+                var dateParam = params.get(0);
+                SqlExpr dateExpr = c.apply(dateParam);
                 SqlExpr quantityExpr = c.apply(params.get(1));
                 String tbUnit = "days";
                 if (params.size() > 2 && params.get(2) instanceof EnumValue ev) {
                     tbUnit = ev.value().toLowerCase();
                 }
-                // Build the INTERVAL literal and use the special rendering
+                TypeInfo dateTypeInfo = unit.typeInfoFor(dateParam);
+                if (dateTypeInfo != null && dateTypeInfo.isDateType()) {
+                    // Literal date path: TO_DAYS/TO_WEEKS + origin + CAST
+                    // Pass type info so dialect can render correctly
+                    String castType = (dateTypeInfo.scalarType() != null
+                            && dateTypeInfo.scalarType() == GenericType.Primitive.DATE_TIME)
+                            ? "TIMESTAMP_NS" : "DATE";
+                    yield new SqlExpr.FunctionCall("timeBucketScalar",
+                            List.of(quantityExpr, new SqlExpr.StringLiteral(tbUnit),
+                                    dateExpr, new SqlExpr.StringLiteral(castType)));
+                }
+                // Column ref path: INTERVAL syntax
                 yield new SqlExpr.FunctionCall("timeBucket",
                         List.of(quantityExpr, new SqlExpr.StringLiteral(tbUnit), dateExpr));
             }
@@ -1930,9 +1942,11 @@ public class PlanGenerator {
                     yield new SqlExpr.FunctionCall("listMax", List.of(c.apply(params.get(0))));
                 yield c.apply(params.get(0)); // scalar identity
             }
-            case "greatest" -> new SqlExpr.FunctionCall("GREATEST",
+            case "greatest" -> new SqlExpr.FunctionCall(
+                    firstArgIsList ? "listMax" : "GREATEST",
                     params.stream().map(c).collect(Collectors.toList()));
-            case "least" -> new SqlExpr.FunctionCall("LEAST",
+            case "least" -> new SqlExpr.FunctionCall(
+                    firstArgIsList ? "listMin" : "LEAST",
                     params.stream().map(c).collect(Collectors.toList()));
             case "median" -> new SqlExpr.FunctionCall(
                     firstArgIsList ? "listMedian" : "median",
