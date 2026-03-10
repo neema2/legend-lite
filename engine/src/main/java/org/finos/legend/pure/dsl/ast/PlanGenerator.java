@@ -1175,7 +1175,7 @@ public class PlanGenerator {
                 var exprs = coll.values().stream()
                         .map(v -> generateScalar(v, rowParam, mapping, tableAlias))
                         .collect(Collectors.toList());
-                yield new SqlExpr.FunctionCall("", exprs);
+                yield new SqlExpr.ArrayLiteral(exprs);
             }
             case LambdaFunction lf -> {
                 // Nested lambda in scalar context (predicate arg to find/exists)

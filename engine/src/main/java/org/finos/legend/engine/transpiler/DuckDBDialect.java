@@ -114,7 +114,7 @@ public final class DuckDBDialect implements SQLDialect {
             case "splitPart" -> "SPLIT_PART";
             case "joinStrings" -> "CONCAT_WS";
             case "levenshteinDistance" -> "LEVENSHTEIN";
-            case "hash" -> "MD5";
+            case "hash" -> "HASH";
             case "encodeBase64" -> "BASE64";
             case "decodeBase64" -> "FROM_BASE64";
             case "format" -> "FORMAT";

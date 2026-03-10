@@ -272,7 +272,7 @@ public sealed interface SqlExpr {
         public String toSql(SQLDialect dialect) {
             var jsonDialect = dialect.getJsonDialect();
             if (jsonDialect != null) {
-                return jsonDialect.variantGet(expr.toSql(dialect), dialect.quoteStringLiteral(key));
+                return jsonDialect.variantGet(expr.toSql(dialect), key);
             }
             return expr.toSql(dialect) + "->>" + dialect.quoteStringLiteral(key);
         }
