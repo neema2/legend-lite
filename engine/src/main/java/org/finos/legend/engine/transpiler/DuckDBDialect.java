@@ -101,6 +101,24 @@ public final class DuckDBDialect implements SQLDialect {
 
     @Override
     public String renderFunction(String pureName, java.util.List<String> args) {
+        // Special rendering: functions that don't follow name(args) pattern
+        switch (pureName) {
+            case "quarterNumber":
+                return "EXTRACT(QUARTER FROM " + args.get(0) + ")";
+            case "dayOfWeekNumber":
+                return "EXTRACT(ISODOW FROM " + args.get(0) + ")";
+            case "firstDayOfMonth":
+                return "DATE_TRUNC('month', " + args.get(0) + ")";
+            case "firstDayOfYear":
+                return "DATE_TRUNC('year', " + args.get(0) + ")";
+            case "firstDayOfQuarter":
+                return "DATE_TRUNC('quarter', " + args.get(0) + ")";
+            case "firstHourOfDay":
+                return "DATE_TRUNC('day', " + args.get(0) + ")";
+            case "firstMillisecondOfSecond":
+                return "DATE_TRUNC('second', " + args.get(0) + ")";
+        }
+
         String sqlName = switch (pureName) {
             // --- List ---
             case "listExtract" -> "LIST_EXTRACT";
@@ -118,6 +136,10 @@ public final class DuckDBDialect implements SQLDialect {
             case "encodeBase64" -> "BASE64";
             case "decodeBase64" -> "FROM_BASE64";
             case "format" -> "PRINTF";
+            case "indexOf" -> "INSTR";
+
+            // --- Math ---
+            case "roundHalfEven" -> "ROUND_EVEN";
 
             // --- Date ---
             case "dayOfWeek" -> "DAYOFWEEK";
@@ -126,6 +148,8 @@ public final class DuckDBDialect implements SQLDialect {
             case "dateDiff" -> "DATE_DIFF";
             case "makeDate" -> "MAKE_DATE";
             case "timeBucket" -> "TIME_BUCKET";
+            case "fromEpochValue" -> "TO_TIMESTAMP";
+            case "toEpochValue" -> "EPOCH";
 
             // --- Bitwise ---
             case "bitXor" -> "XOR";

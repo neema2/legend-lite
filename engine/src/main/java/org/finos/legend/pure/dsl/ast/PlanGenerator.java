@@ -1268,7 +1268,8 @@ public class PlanGenerator {
                 yield new SqlExpr.FunctionCall("SUBSTRING",
                         List.of(c.apply(params.get(0)), c.apply(params.get(1))));
             }
-            case "indexOf" -> new SqlExpr.StrPosition(c.apply(params.get(1)), c.apply(params.get(0)));
+            case "indexOf" -> new SqlExpr.FunctionCall("indexOf",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
             case "replace" -> new SqlExpr.FunctionCall("REPLACE",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1)), c.apply(params.get(2))));
 
@@ -1290,8 +1291,16 @@ public class PlanGenerator {
             case "sqrt" -> new SqlExpr.FunctionCall("SQRT", List.of(c.apply(params.get(0))));
             case "pow", "power" -> new SqlExpr.FunctionCall("POWER",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
-            case "log" -> new SqlExpr.FunctionCall("LOG", List.of(c.apply(params.get(0))));
+            case "log" -> new SqlExpr.FunctionCall(params.size() > 1 ? "LOG" : "LN",
+                    params.stream().map(c).collect(Collectors.toList()));
             case "exp" -> new SqlExpr.FunctionCall("EXP", List.of(c.apply(params.get(0))));
+            case "roundHalfEven" -> {
+                if (params.size() > 1) {
+                    yield new SqlExpr.FunctionCall("roundHalfEven",
+                            List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+                }
+                yield new SqlExpr.FunctionCall("roundHalfEven", List.of(c.apply(params.get(0))));
+            }
 
             // --- Cast ---
             case "toInteger", "parseInteger" -> new SqlExpr.Cast(c.apply(params.get(0)), "Integer");
@@ -1426,33 +1435,33 @@ public class PlanGenerator {
             case "minute" -> new SqlExpr.FunctionCall("MINUTE", List.of(c.apply(params.get(0))));
             case "second" -> new SqlExpr.FunctionCall("SECOND", List.of(c.apply(params.get(0))));
             case "quarter" -> new SqlExpr.FunctionCall("QUARTER", List.of(c.apply(params.get(0))));
-            case "quarterNumber" -> new SqlExpr.Literal(
-                    "EXTRACT(QUARTER FROM " + c.apply(params.get(0)).toSql(dialect) + ")");
+            case "quarterNumber" -> new SqlExpr.FunctionCall("quarterNumber",
+                    List.of(c.apply(params.get(0))));
             case "dayOfWeek" -> new SqlExpr.FunctionCall("dayOfWeek",
                     List.of(c.apply(params.get(0))));
-            case "dayOfWeekNumber" -> new SqlExpr.Literal(
-                    "EXTRACT(ISODOW FROM " + c.apply(params.get(0)).toSql(dialect) + ")");
+            case "dayOfWeekNumber" -> new SqlExpr.FunctionCall("dayOfWeekNumber",
+                    List.of(c.apply(params.get(0))));
             case "dayOfYear" -> new SqlExpr.FunctionCall("dayOfYear",
                     List.of(c.apply(params.get(0))));
             case "weekOfYear" -> new SqlExpr.FunctionCall("weekOfYear",
                     List.of(c.apply(params.get(0))));
 
             // --- Date truncation ---
-            case "firstDayOfMonth" -> new SqlExpr.FunctionCall("DATE_TRUNC",
-                    List.of(new SqlExpr.StringLiteral("month"), c.apply(params.get(0))));
-            case "firstDayOfYear" -> new SqlExpr.FunctionCall("DATE_TRUNC",
-                    List.of(new SqlExpr.StringLiteral("year"), c.apply(params.get(0))));
-            case "firstDayOfQuarter" -> new SqlExpr.FunctionCall("DATE_TRUNC",
-                    List.of(new SqlExpr.StringLiteral("quarter"), c.apply(params.get(0))));
-            case "firstHourOfDay" -> new SqlExpr.FunctionCall("DATE_TRUNC",
-                    List.of(new SqlExpr.StringLiteral("day"), c.apply(params.get(0))));
-            case "firstMillisecondOfSecond" -> new SqlExpr.FunctionCall("DATE_TRUNC",
-                    List.of(new SqlExpr.StringLiteral("second"), c.apply(params.get(0))));
+            case "firstDayOfMonth" -> new SqlExpr.FunctionCall("firstDayOfMonth",
+                    List.of(c.apply(params.get(0))));
+            case "firstDayOfYear" -> new SqlExpr.FunctionCall("firstDayOfYear",
+                    List.of(c.apply(params.get(0))));
+            case "firstDayOfQuarter" -> new SqlExpr.FunctionCall("firstDayOfQuarter",
+                    List.of(c.apply(params.get(0))));
+            case "firstHourOfDay" -> new SqlExpr.FunctionCall("firstHourOfDay",
+                    List.of(c.apply(params.get(0))));
+            case "firstMillisecondOfSecond" -> new SqlExpr.FunctionCall("firstMillisecondOfSecond",
+                    List.of(c.apply(params.get(0))));
 
             // --- Epoch conversion ---
-            case "fromEpochValue" -> new SqlExpr.FunctionCall("TO_TIMESTAMP",
+            case "fromEpochValue" -> new SqlExpr.FunctionCall("fromEpochValue",
                     List.of(c.apply(params.get(0))));
-            case "toEpochValue" -> new SqlExpr.FunctionCall("EPOCH",
+            case "toEpochValue" -> new SqlExpr.FunctionCall("toEpochValue",
                     List.of(c.apply(params.get(0))));
             case "datePart" -> new SqlExpr.Cast(c.apply(params.get(0)), "Date");
             case "dateDiff" -> {
