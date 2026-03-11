@@ -555,7 +555,8 @@ public class QueryService {
             if (wrap.matches()) {
                 String inner = wrap.group(1);
                 String trailing = wrap.group(2).trim();
-                if (isBalancedParens(inner)) {
+                // Skip unwrap when alias has column defs, e.g. AS _tds("name", "age")
+                if (isBalancedParens(inner) && !trailing.startsWith("(")) {
                     normalized = inner + (trailing.isEmpty() ? "" : " " + trailing);
                 }
             }
