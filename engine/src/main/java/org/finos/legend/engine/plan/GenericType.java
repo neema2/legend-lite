@@ -179,7 +179,25 @@ public sealed interface GenericType
      * Only use for known primitive type names. For property types, use fromType(Type) instead.
      */
     static GenericType fromTypeName(String name) {
-        return Primitive.fromTypeName(name);
+        // Handle qualified names: strip package prefix for primitive check
+        String simpleName = name.contains("::") ? name.substring(name.lastIndexOf("::") + 2) : name;
+        return switch (simpleName) {
+            case "Integer" -> Primitive.INTEGER;
+            case "Float" -> Primitive.FLOAT;
+            case "Decimal" -> Primitive.DECIMAL;
+            case "Number" -> Primitive.NUMBER;
+            case "String" -> Primitive.STRING;
+            case "Boolean" -> Primitive.BOOLEAN;
+            case "Date" -> Primitive.DATE;
+            case "StrictDate" -> Primitive.STRICT_DATE;
+            case "DateTime" -> Primitive.DATE_TIME;
+            case "StrictTime" -> Primitive.STRICT_TIME;
+            case "Variant" -> Primitive.JSON;
+            case "Any" -> Primitive.ANY;
+            case "Nil" -> Primitive.NIL;
+            // Non-primitive types (Relation, classes, enums) → ClassType
+            default -> new ClassType(name);
+        };
     }
 
     /**

@@ -273,6 +273,14 @@ public sealed interface SqlExpr {
         }
     }
 
+    /** Scalar subquery: (SELECT ... ) — used when a full query appears as an expression. */
+    record Subquery(SqlBuilder query) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return "(" + query.toSql(dialect) + ")";
+        }
+    }
+
     // ==================== CASE ====================
 
     /** CASE WHEN condition THEN thenExpr ELSE elseExpr END */

@@ -156,6 +156,51 @@ public class CleanCompiler {
             case "forAll", "exists" -> compileCollectionPredicate(af, ctx);
             case "block" -> compileBlock(af, ctx);
             case "letFunction" -> compileLet(af, ctx);
+            // --- Type functions (cast, toMany, toOne, toVariant, to) ---
+            case "cast", "toMany", "toOne", "toVariant", "to" -> compileTypeFunction(af, ctx);
+            // --- Size (returns Integer scalar for both relations and lists) ---
+            case "size" -> compileSize(af, ctx);
+            // --- Collection / scalar functions (type-propagating) ---
+            case "add", "at", "head", "tail", "init", "range",
+                 "in", "length", "indexOf",
+                 "reverse", "removeDuplicates",
+                 "last", "isEmpty", "isNotEmpty",
+                 "contains", "startsWith", "endsWith",
+                 "toLower", "toUpper", "trim", "replace",
+                 "parseInteger", "parseFloat", "parseDecimal",
+                 "parseBoolean", "parseDate",
+                 "toString", "substring",
+                 // --- Math ---
+                 "abs", "ceiling", "floor", "round", "sign",
+                 "sqrt", "pow", "exp", "log", "log10",
+                 "mod", "rem", "divide",
+                 "bitAnd", "bitOr", "bitXor", "bitShiftLeft", "bitShiftRight",
+                 "plus", "minus", "times",
+                 "toDecimal", "toDegrees", "toRadians", "pi",
+                 // --- String ---
+                 "ascii", "char", "lpad", "rpad", "splitPart",
+                 "reverseString", "format", "joinStrings",
+                 "encodeBase64", "decodeBase64",
+                 "hash", "levenshteinDistance",
+                 // --- Date/Time ---
+                 "date", "dateDiff", "datePart", "adjust", "timeBucket",
+                 "year", "monthNumber", "dayOfMonth",
+                 "hour", "hasHour", "hasMinute", "hasMonth",
+                 // --- Comparison / Boolean ---
+                 "equal", "greaterThan", "lessThan", "between",
+                 "compare", "not", "and", "or", "xor",
+                 "greatest", "least", "coalesce",
+                 // --- Aggregation ---
+                 "sum", "average", "mean", "median", "mode",
+                 "min", "max", "minBy", "maxBy",
+                 "stdDevSample", "variance", "varianceSample",
+                 "variancePopulation", "covarPopulation",
+                 "percentile", "percentileCont", "corr",
+                 // --- Misc ---
+                 "pair", "list", "eval", "match",
+                 "type", "generateGuid" -> compileTypePropagating(af, ctx);
+            // --- Conditional ---
+            case "if" -> compileIf(af, ctx);
             // --- Scalar (pass-through — PlanGenerator handles SQL) ---
             default -> compilePassThrough(af, ctx);
         };
@@ -245,10 +290,17 @@ public class CleanCompiler {
         CompilationContext lambdaCtx = ctx;
         if (!lambda.parameters().isEmpty()) {
             String paramName = lambda.parameters().get(0).name();
-            lambdaCtx = ctx.withRelationType(paramName, sourceType);
-            // Propagate mapping for property→column resolution
-            if (source.mapping() != null) {
-                lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
+            if (sourceType != null) {
+                // Relational filter: bind param to relation columns
+                lambdaCtx = ctx.withRelationType(paramName, sourceType);
+                if (source.mapping() != null) {
+                    lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
+                }
+            } else {
+                // Collection filter: bind param as lambda variable with element type
+                GenericType elemType = source.scalarType() != null && source.scalarType().isList()
+                        ? source.scalarType().elementType() : source.scalarType();
+                lambdaCtx = ctx.withLambdaParam(paramName, elemType);
             }
         }
 
@@ -1251,6 +1303,139 @@ public class CleanCompiler {
         return scalar(af);
     }
 
+    /** Compiles size(source) — always returns Integer scalar, for both relations and lists. */
+    private TypeInfo compileSize(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        // Compile source so its TypeInfo is available to PlanGenerator
+        for (var p : params) {
+            try { compileExpr(p, ctx); }
+            catch (PureCompileException ignored) { }
+        }
+        TypeInfo info = TypeInfo.scalarOf(GenericType.Primitive.INTEGER);
+        types.put(af, info);
+        return info;
+    }
+
+    /** Compiles type conversion functions: cast, toMany, toOne, toVariant, to. */
+    private TypeInfo compileTypeFunction(AppliedFunction af, CompilationContext ctx) {
+        String func = simpleName(af.function());
+        List<ValueSpecification> params = af.parameters();
+
+        // Compile all params (source + @Type arg)
+        for (var p : params) {
+            compileExpr(p, ctx);
+        }
+
+        // Resolve target type from @Type argument (GenericTypeInstance)
+        GenericType targetType = null;
+        for (var p : params) {
+            if (p instanceof GenericTypeInstance gti) {
+                targetType = GenericType.fromTypeName(simpleName(gti.fullPath()));
+                break;
+            }
+        }
+
+        return switch (func) {
+            case "toMany" -> {
+                // toMany always produces a list of the target type
+                GenericType listType = targetType != null
+                        ? GenericType.listOf(targetType)
+                        : GenericType.listOf(GenericType.Primitive.ANY);
+                TypeInfo info = TypeInfo.scalarOf(listType);
+                types.put(af, info);
+                yield info;
+            }
+            case "cast" -> {
+                // cast preserves source shape: if source is relational, propagate relation type
+                TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
+                if (sourceInfo != null && sourceInfo.relationType() != null) {
+                    // Relational cast: propagate source relation type through
+                    types.put(af, sourceInfo);
+                    yield sourceInfo;
+                }
+                // Scalar cast: if source is list, result is list of target type
+                if (sourceInfo != null && sourceInfo.isList() && targetType != null) {
+                    TypeInfo info = TypeInfo.scalarOf(GenericType.listOf(targetType));
+                    types.put(af, info);
+                    yield info;
+                }
+                if (targetType != null) {
+                    TypeInfo info = TypeInfo.scalarOf(targetType);
+                    types.put(af, info);
+                    yield info;
+                }
+                yield scalar(af);
+            }
+            case "toOne" -> {
+                // toOne extracts single value — if source has list type, return element type
+                TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
+                if (sourceInfo != null && sourceInfo.scalarType() != null
+                        && sourceInfo.scalarType().isList()
+                        && sourceInfo.scalarType().elementType() != null) {
+                    TypeInfo info = TypeInfo.scalarOf(sourceInfo.scalarType().elementType());
+                    types.put(af, info);
+                    yield info;
+                }
+                yield scalar(af);
+            }
+            case "to" -> {
+                // to(@Type) — variant conversion, produces target type
+                if (targetType != null) {
+                    TypeInfo info = TypeInfo.scalarOf(targetType);
+                    types.put(af, info);
+                    yield info;
+                }
+                yield scalar(af);
+            }
+            case "toVariant" -> {
+                // toVariant produces a variant (pass through source type for list detection)
+                TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
+                if (sourceInfo != null && sourceInfo.scalarType() != null) {
+                    types.put(af, sourceInfo);
+                    yield sourceInfo;
+                }
+                yield scalar(af);
+            }
+            default -> scalar(af);
+        };
+    }
+
+    /** Compiles functions that propagate type from their first param. */
+    private TypeInfo compileTypePropagating(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            try { compileExpr(p, ctx); }
+            catch (PureCompileException ignored) { }
+        }
+        // Propagate scalarType from source (first param)
+        if (!params.isEmpty()) {
+            TypeInfo sourceInfo = types.get(params.get(0));
+            if (sourceInfo != null && sourceInfo.scalarType() != null) {
+                types.put(af, TypeInfo.scalarOf(sourceInfo.scalarType()));
+                return TypeInfo.scalarOf(sourceInfo.scalarType());
+            }
+        }
+        return scalar(af);
+    }
+
+    /** Compiles if(condition, then-lambda, else-lambda). */
+    private TypeInfo compileIf(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            try { compileExpr(p, ctx); }
+            catch (PureCompileException ignored) { }
+        }
+        // Result type from then-branch (2nd param)
+        if (params.size() >= 2) {
+            TypeInfo thenInfo = types.get(params.get(1));
+            if (thenInfo != null && thenInfo.scalarType() != null) {
+                types.put(af, thenInfo);
+                return thenInfo;
+            }
+        }
+        return scalar(af);
+    }
+
     /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
     private TypeInfo compileBlock(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> stmts = af.parameters();
@@ -1303,7 +1488,7 @@ public class CleanCompiler {
         String funcName = af.function();
         String simple = simpleName(funcName);
 
-        // === Tier 2: User-defined function inlining ===
+        // === User-defined function inlining ===
         var fn = functionRegistry.getFunction(funcName)
                 .or(() -> functionRegistry.getFunction(simple));
         if (fn.isPresent()) {
@@ -1322,6 +1507,13 @@ public class CleanCompiler {
                 if (source.relationType() != null && !source.relationType().columns().isEmpty()) {
                     return typed(af, source.relationType(), source.mapping());
                 }
+                // Propagate scalar type from source even for unknown functions
+                if (source.scalarType() != null) {
+                    System.err.println("[COMPILER] Unhandled function '" + simple
+                            + "' — propagating source type (add to dispatch!)");
+                    types.put(af, TypeInfo.scalarOf(source.scalarType()));
+                    return TypeInfo.scalarOf(source.scalarType());
+                }
             } catch (PureCompileException ignored) {
                 // Not a relation source — still compile remaining params
                 for (int i = 1; i < af.parameters().size(); i++) {
@@ -1330,6 +1522,8 @@ public class CleanCompiler {
                 }
             }
         }
+        System.err.println("[COMPILER] Unhandled function '" + simple
+                + "' — returning scalar (add to dispatch!)");
         return scalar(af);
     }
 

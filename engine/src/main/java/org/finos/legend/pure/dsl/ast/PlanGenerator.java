@@ -1977,8 +1977,24 @@ public class PlanGenerator {
             }
 
             // --- Collection/list ---
-            case "size", "count" -> new SqlExpr.FunctionCall("COUNT",
-                    params.stream().map(c).collect(Collectors.toList()));
+            case "size", "count" -> {
+                // Dispatch based on source type
+                if (!params.isEmpty()) {
+                    TypeInfo sourceInfo = unit.types().get(params.get(0));
+                    if (sourceInfo != null && sourceInfo.relationType() != null) {
+                        // Relational size: (SELECT COUNT('*') FROM (subquery) AS subq)
+                        SqlBuilder source = generateRelation(params.get(0));
+                        SqlBuilder countQuery = new SqlBuilder()
+                                .addSelect(new SqlExpr.FunctionCall("COUNT",
+                                        List.of(new SqlExpr.StringLiteral("*"))), null)
+                                .fromSubquery(source, "subq");
+                        yield new SqlExpr.Subquery(countQuery);
+                    }
+                }
+                // List size: inline COUNT
+                yield new SqlExpr.FunctionCall("COUNT",
+                        params.stream().map(c).collect(Collectors.toList()));
+            }
             case "at" -> new SqlExpr.FunctionCall("listExtract",
                     List.of(c.apply(params.get(0)),
                             new SqlExpr.Binary(c.apply(params.get(1)), "+",
@@ -2155,7 +2171,7 @@ public class PlanGenerator {
             // --- Pass-through for non-SQL functions ---
             case "toOne", "toMany", "eval", "forAll", "exists",
                     "list", "pair", "map", "match",
-                    "range", "cast", "toVariant", "letWithParam",
+                    "range", "cast", "to", "toVariant", "letWithParam",
                     "filter", "groupBy", "select", "write",
                     "compare", "comparator" -> {
                 // These are Pure-level functions that should pass through the first arg
@@ -2166,10 +2182,14 @@ public class PlanGenerator {
                         "PlanGenerator: pass-through function '" + funcName + "' has no parameters");
             }
             case "fold" -> {
-                // fold(list, {x,y|body}, init) → list_reduce(list, ((y,x)->body), init)
-                if (firstArgIsList && params.size() >= 3
+                // fold(source, {x,y|body}, init) → list_reduce(source, ((y,x)->body), init)
+                if (params.size() >= 3
                         && params.get(1) instanceof LambdaFunction foldLf) {
                     SqlExpr list = c.apply(params.get(0));
+                    // Wrap single values in LIST_VALUE for DuckDB list_reduce
+                    if (!firstArgIsList) {
+                        list = new SqlExpr.FunctionCall("wrapList", List.of(list));
+                    }
                     SqlExpr init = c.apply(params.get(2));
                     // Extract lambda params: x=element (1st), y=accumulator (2nd)
                     String elemParam = foldLf.parameters().isEmpty() ? "x"
@@ -2185,7 +2205,7 @@ public class PlanGenerator {
                     yield new SqlExpr.FunctionCall("listReduce",
                             List.of(list, lambda, init));
                 }
-                // Non-list fold: pass through
+                // Non-fold (< 3 params): pass through
                 if (!params.isEmpty()) {
                     yield c.apply(params.get(0));
                 }
