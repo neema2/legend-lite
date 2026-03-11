@@ -693,6 +693,7 @@ public class CleanCompiler {
     /**
      * Compiles aggregate(source, aggSpecs).
      * Full-table aggregation (no group columns).
+     * Populates columnSpecs in the sidecar so PlanGenerator can build aggregate SQL.
      */
     private TypeInfo compileAggregate(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -702,12 +703,36 @@ public class CleanCompiler {
 
         TypeInfo source = compileExpr(params.get(0), ctx);
 
-        // Build output columns from aggregate specs
+        // Build output columns from aggregate specs (same pattern as groupBy, no group cols)
         Map<String, GenericType> resultColumns = new LinkedHashMap<>();
-        for (int i = 1; i < params.size(); i++) {
-            String aggCol = extractNewColumnName(params.get(i));
-            if (aggCol != null) {
-                resultColumns.put(aggCol, GenericType.Primitive.NUMBER);
+        List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
+
+        // Handle three patterns: Collection, ColSpecArray, or individual params
+        if (params.size() > 1 && params.get(1) instanceof Collection aggColl) {
+            for (var v : aggColl.values()) {
+                var aggInfo = extractAggSpec(v);
+                if (aggInfo != null) {
+                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    colSpecs.add(aggInfo);
+                }
+            }
+        } else if (params.size() > 1
+                && params.get(1) instanceof ClassInstance ci
+                && ci.value() instanceof ColSpecArray csa) {
+            for (var cs : csa.colSpecs()) {
+                var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
+                if (aggInfo != null) {
+                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    colSpecs.add(aggInfo);
+                }
+            }
+        } else {
+            for (int i = 1; i < params.size(); i++) {
+                var aggInfo = extractAggSpec(params.get(i));
+                if (aggInfo != null) {
+                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    colSpecs.add(aggInfo);
+                }
             }
         }
 
@@ -715,7 +740,10 @@ public class CleanCompiler {
             return typed(af, source.relationType(), source.mapping());
         }
 
-        return typed(af, new RelationType(resultColumns), source.mapping());
+        var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false);
+        types.put(af, info);
+        return info;
     }
 
     /**
@@ -2052,22 +2080,61 @@ public class CleanCompiler {
             String sourceCol = alias; // default: column name is the alias
             String aggFunc = "plus"; // default Pure agg function
 
-            // Extract source column from function1 lambda: x|$x.salary
+            // Extract source column(s) from function1 lambda: x|$x.salary or x|rowMapper($x.qty, $x.wt)
+            List<String> extraArgsFromFunc1 = new ArrayList<>();
             if (cs.function1() != null) {
-                sourceCol = extractPropertyNameFromLambda(cs.function1());
-                if (sourceCol == null) {
-                    sourceCol = alias;
+                // Check for rowMapper pattern: function1 body is rowMapper($x.col1, $x.col2)
+                if (!cs.function1().body().isEmpty()
+                        && cs.function1().body().get(0) instanceof AppliedFunction rmAf) {
+                    String rmFunc = simpleName(rmAf.function());
+                    if (rmFunc.endsWith("rowMapper") || "rowMapper".equals(rmFunc)) {
+                        // Extract two columns from rowMapper params
+                        for (var p : rmAf.parameters()) {
+                            if (p instanceof AppliedProperty ap) {
+                                if (sourceCol.equals(alias)) {
+                                    sourceCol = ap.property();
+                                } else {
+                                    extraArgsFromFunc1.add(ap.property());
+                                }
+                            }
+                        }
+                    } else {
+                        sourceCol = extractPropertyNameFromLambda(cs.function1());
+                        if (sourceCol == null) sourceCol = alias;
+                    }
+                } else {
+                    sourceCol = extractPropertyNameFromLambda(cs.function1());
+                    if (sourceCol == null) sourceCol = alias;
                 }
             }
 
-            // Extract aggregate function from function2 lambda: y|$y->sum()
+            // Extract aggregate function + extra args from function2 lambda: y|$y->joinStrings(':')
+            List<String> allExtraArgs = new ArrayList<>(extraArgsFromFunc1);
             if (cs.function2() != null && !cs.function2().body().isEmpty()) {
                 var body = cs.function2().body().get(0);
                 if (body instanceof AppliedFunction bodyAf) {
                     aggFunc = simpleName(bodyAf.function());
+                    // Extract extra params (separator for joinStrings, etc.)
+                    for (int k = 1; k < bodyAf.parameters().size(); k++) {
+                        var extra = bodyAf.parameters().get(k);
+                        if (extra instanceof AppliedProperty ap) {
+                            allExtraArgs.add(ap.property());
+                        } else if (extra instanceof CInteger ci2) {
+                            allExtraArgs.add(String.valueOf(ci2.value()));
+                        } else if (extra instanceof CFloat cf) {
+                            allExtraArgs.add(String.valueOf(cf.value()));
+                        } else if (extra instanceof CDecimal cd) {
+                            allExtraArgs.add(cd.value().toPlainString());
+                        } else if (extra instanceof CString cs2) {
+                            allExtraArgs.add("'" + cs2.value() + "'");
+                        }
+                    }
                 }
             }
 
+            if (!allExtraArgs.isEmpty()) {
+                return TypeInfo.ColumnSpec.aggMulti(sourceCol, alias, aggFunc, allExtraArgs);
+            }
             return TypeInfo.ColumnSpec.agg(sourceCol, alias, aggFunc);
         }
 

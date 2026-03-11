@@ -787,17 +787,7 @@ public class PlanGenerator {
                 String aggFunc = mapPureFuncToSql(cs.aggFunction());
                 if (aggFunc == null)
                     throw new PureCompileException("PlanGenerator: unknown aggregate function '" + cs.aggFunction() + "'");
-                List<SqlExpr> args = new ArrayList<>();
-                args.add(new SqlExpr.ColumnRef(cs.columnName()));
-                // Add extra args (column refs or literals for multi-arg aggregates)
-                for (String extra : cs.extraArgs()) {
-                    if (isNumericLiteral(extra)) {
-                        args.add(new SqlExpr.Literal(extra));
-                    } else {
-                        args.add(new SqlExpr.ColumnRef(extra));
-                    }
-                }
-                SqlExpr expr = new SqlExpr.FunctionCall(aggFunc, args);
+                SqlExpr expr = buildAggExpr(aggFunc, cs);
                 builder.addSelect(expr, dialect.quoteIdentifier(cs.alias()));
             }
         }
@@ -805,11 +795,64 @@ public class PlanGenerator {
         return builder;
     }
 
-    // ========== aggregate ==========
+    /**
+     * Builds the SQL expression for an aggregate column.
+     * Handles compound patterns like wavg and hashCode that need
+     * multi-function SQL expansion instead of a simple function call.
+     */
+    private SqlExpr buildAggExpr(String aggFunc, TypeInfo.ColumnSpec cs) {
+        SqlExpr col = new SqlExpr.ColumnRef(cs.columnName());
+
+        // wavg: SUM(col * weight) / SUM(weight)
+        if ("wavg".equals(aggFunc)) {
+            if (cs.extraArgs().isEmpty()) {
+                throw new PureCompileException("wavg requires a weight column");
+            }
+            SqlExpr weight = new SqlExpr.ColumnRef(cs.extraArgs().get(0));
+            SqlExpr product = new SqlExpr.Binary(col, "*", weight);
+            SqlExpr sumProduct = new SqlExpr.FunctionCall("SUM", List.of(product));
+            SqlExpr sumWeight = new SqlExpr.FunctionCall("SUM", List.of(weight));
+            return new SqlExpr.Binary(sumProduct, "/", sumWeight);
+        }
+
+        // hashCode: HASH(LIST(col))
+        if ("hashCode".equals(aggFunc)) {
+            SqlExpr listExpr = new SqlExpr.FunctionCall("LIST", List.of(col));
+            return new SqlExpr.FunctionCall("HASH", List.of(listExpr));
+        }
+
+        // Standard: FUNC(col, extraArgs...)
+        List<SqlExpr> args = new ArrayList<>();
+        args.add(col);
+        for (String extra : cs.extraArgs()) {
+            if (isNumericLiteral(extra)) {
+                args.add(new SqlExpr.Literal(extra));
+            } else if (extra.startsWith("'") && extra.endsWith("'")) {
+                args.add(new SqlExpr.Literal(extra));
+            } else {
+                args.add(new SqlExpr.ColumnRef(extra));
+            }
+        }
+        return new SqlExpr.FunctionCall(aggFunc, args);
+    }
 
     private SqlBuilder generateAggregate(AppliedFunction af) {
-        // Same as groupBy but with no group columns
-        return generateGroupBy(af);
+        List<ValueSpecification> params = af.parameters();
+        SqlBuilder source = generateRelation(params.get(0));
+
+        SqlBuilder builder = new SqlBuilder()
+                .fromSubquery(source, "agg_src");
+
+        TypeInfo info = unit.types().get(af);
+        for (var cs : info.columnSpecs()) {
+            String aggFunc = mapPureFuncToSql(cs.aggFunction());
+            if (aggFunc == null)
+                throw new PureCompileException("PlanGenerator: unknown aggregate function '" + cs.aggFunction() + "'");
+            SqlExpr expr = buildAggExpr(aggFunc, cs);
+            builder.addSelect(expr, dialect.quoteIdentifier(cs.alias()));
+        }
+
+        return builder;
     }
 
     // ========== extend (window functions) ==========
@@ -840,14 +883,16 @@ public class PlanGenerator {
                 String frameClause = ws.frame() != null ? formatFrameSpec(ws.frame()) : null;
                 SqlExpr.WindowSpec windowSpec = new SqlExpr.WindowSpec(partitionCols, orderParts, frameClause);
 
-                // Map Pure function name to SQL
+                // Map Pure function name to SQL (fall back to uppercase for non-aggregate window fns)
                 String sqlFunc = mapPureFuncToSql(ws.pureFunctionName());
+                if (sqlFunc == null) sqlFunc = ws.pureFunctionName().toUpperCase();
 
                 // Build the window function SqlExpr
                 SqlExpr windowFunc = buildWindowFunc(ws, sqlFunc);
 
                 if (ws.isWrapped()) {
                     String sqlWrapper = mapPureFuncToSql(ws.wrapperFuncName());
+                    if (sqlWrapper == null) sqlWrapper = ws.wrapperFuncName().toUpperCase();
                     SqlExpr windowedInner = new SqlExpr.WindowFunction(windowFunc, windowSpec);
                     List<SqlExpr> wrapperArgs = new java.util.ArrayList<>();
                     wrapperArgs.add(windowedInner);
@@ -918,6 +963,10 @@ public class PlanGenerator {
             case "joinStrings" -> "joinStrings";
             case "mode" -> "mode";
             case "corr" -> "corr";
+            case "maxBy" -> "maxBy";
+            case "minBy" -> "minBy";
+            case "wavg" -> "wavg";
+            case "hashCode" -> "hashCode";
             // Ranking (standard SQL names)
             case "rowNumber" -> "ROW_NUMBER";
             case "rank" -> "RANK";
@@ -937,7 +986,7 @@ public class PlanGenerator {
             case "ceil" -> "CEIL";
             case "floor" -> "FLOOR";
             case "truncate" -> "TRUNCATE";
-            default -> pureFuncName.toUpperCase();
+            default -> null;
         };
     }
 
