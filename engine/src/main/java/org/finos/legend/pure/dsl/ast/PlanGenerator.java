@@ -312,7 +312,7 @@ public class PlanGenerator {
         }
         // Subquery wrapping — columns resolve by name, no prefix needed
         SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, mapping);
-        String filterAlias = source.hasGroupBy() ? "grp" : "src";
+        String filterAlias = source.hasGroupBy() ? "grp" : "ext";
         return new SqlBuilder()
                 .selectStar()
                 .fromSubquery(source, filterAlias)
@@ -991,15 +991,13 @@ public class PlanGenerator {
                             : cs.function1().parameters().get(0).name();
                     SqlExpr computed = generateScalar(
                             cs.function1().body().get(0), lambdaParam, null, null);
-                    SqlBuilder b = new SqlBuilder().selectStar().fromSubquery(source, "extend_src");
-                    b.addSelect(computed, dialect.quoteIdentifier(alias));
-                    return b;
+                    // Add the computed column directly to the source — no extra wrapping
+                    source.addSelect(computed, dialect.quoteIdentifier(alias));
+                    return source;
                 }
             }
         }
-        return new SqlBuilder()
-                .selectStar()
-                .fromSubquery(source, "extend_src");
+        return source;
     }
 
     /** Builds the SqlExpr for a window function call from its spec. */
@@ -1248,8 +1246,10 @@ public class PlanGenerator {
                         colName = columnOpt.get();
                 }
                 // Struct field access in lambda: $f.legalName → f.legalName
+                // Only when owner is NOT the relational row param (relational row accesses → column ref)
                 if (tableAlias == null && !ap.parameters().isEmpty()
-                        && ap.parameters().get(0) instanceof Variable owner) {
+                        && ap.parameters().get(0) instanceof Variable owner
+                        && (rowParam == null || !owner.name().equals(rowParam))) {
                     yield new SqlExpr.FieldAccess(new SqlExpr.Identifier(owner.name()), colName);
                 }
                 yield tableAlias != null ? new SqlExpr.Column(tableAlias, colName) : new SqlExpr.ColumnRef(colName);
