@@ -1247,6 +1247,11 @@ public class PlanGenerator {
                     if (columnOpt.isPresent())
                         colName = columnOpt.get();
                 }
+                // Struct field access in lambda: $f.legalName → f.legalName
+                if (tableAlias == null && !ap.parameters().isEmpty()
+                        && ap.parameters().get(0) instanceof Variable owner) {
+                    yield new SqlExpr.FieldAccess(new SqlExpr.Identifier(owner.name()), colName);
+                }
                 yield tableAlias != null ? new SqlExpr.Column(tableAlias, colName) : new SqlExpr.ColumnRef(colName);
             }
             case AppliedFunction af -> {
@@ -2245,8 +2250,40 @@ public class PlanGenerator {
             case "eq" -> buildComparison(params, "=", c, mapping, tableAlias);
             case "type" -> new SqlExpr.FunctionCall("typeOf", List.of(c.apply(params.get(0))));
 
+            // --- forAll / exists ---
+            case "forAll" -> {
+                // forAll(list, {e|pred}) → COALESCE(listBoolAnd(listTransform(list, e -> pred)), TRUE)
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction lf) {
+                    SqlExpr list = c.apply(params.get(0));
+                    String elemParam = lf.parameters().get(0).name();
+                    SqlExpr predBody = !lf.body().isEmpty()
+                            ? c.apply(lf.body().get(0)) : new SqlExpr.Literal("TRUE");
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), predBody);
+                    SqlExpr transformed = new SqlExpr.FunctionCall("listTransform", List.of(list, lambda));
+                    SqlExpr boolAnd = new SqlExpr.FunctionCall("listBoolAnd", List.of(transformed));
+                    yield new SqlExpr.FunctionCall("COALESCE", List.of(boolAnd, new SqlExpr.Literal("TRUE")));
+                }
+                if (!params.isEmpty()) yield c.apply(params.get(0));
+                throw new PureCompileException("forAll: requires list and predicate lambda");
+            }
+            case "exists" -> {
+                // exists(list, {f|pred}) → listLength(listFilter(list, f -> pred)) > 0
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction lf) {
+                    SqlExpr list = c.apply(params.get(0));
+                    String elemParam = lf.parameters().get(0).name();
+                    SqlExpr predBody = !lf.body().isEmpty()
+                            ? c.apply(lf.body().get(0)) : new SqlExpr.Literal("TRUE");
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), predBody);
+                    SqlExpr filtered = new SqlExpr.FunctionCall("listFilter", List.of(list, lambda));
+                    SqlExpr len = new SqlExpr.FunctionCall("listLength", List.of(filtered));
+                    yield new SqlExpr.Binary(len, ">", new SqlExpr.Literal("0"));
+                }
+                if (!params.isEmpty()) yield c.apply(params.get(0));
+                throw new PureCompileException("exists: requires list and predicate lambda");
+            }
+
             // --- Pass-through for non-SQL functions ---
-            case "toOne", "toMany", "eval", "forAll", "exists",
+            case "toOne", "toMany", "eval",
                     "list", "pair", "match",
                     "cast", "to", "toVariant", "letWithParam",
                     "filter", "groupBy", "select", "write",

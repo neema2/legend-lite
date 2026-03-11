@@ -295,6 +295,7 @@ public final class DuckDBDialect implements SQLDialect {
             case "listConcat" -> "LIST_CONCAT";
             case "listAppend" -> "LIST_APPEND";
             case "listReverse" -> "LIST_REVERSE";
+            case "listFilter" -> "list_filter";
 
             // --- List aggregate functions ---
             case "listSum" -> "LIST_SUM";
