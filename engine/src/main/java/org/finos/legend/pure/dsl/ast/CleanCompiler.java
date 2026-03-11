@@ -154,6 +154,8 @@ public class CleanCompiler {
             case "find" -> compileFind(af, ctx);
             case "zip" -> compileZip(af, ctx);
             case "forAll", "exists" -> compileCollectionPredicate(af, ctx);
+            case "block" -> compileBlock(af, ctx);
+            case "letFunction" -> compileLet(af, ctx);
             // --- Scalar (pass-through — PlanGenerator handles SQL) ---
             default -> compilePassThrough(af, ctx);
         };
@@ -1249,6 +1251,54 @@ public class CleanCompiler {
         return scalar(af);
     }
 
+    /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
+    private TypeInfo compileBlock(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> stmts = af.parameters();
+        if (stmts.isEmpty()) return scalar(af);
+
+        CompilationContext blockCtx = ctx;
+        // Process all statements; for let stmts, enrich context with binding
+        for (int i = 0; i < stmts.size() - 1; i++) {
+            var stmt = stmts.get(i);
+            if (stmt instanceof AppliedFunction letAf
+                    && (simpleName(letAf.function()).equals("letFunction")
+                            || simpleName(letAf.function()).equals("letAsLastStatement"))
+                    && letAf.parameters().size() >= 2
+                    && letAf.parameters().get(0) instanceof CString varName) {
+                // let x = valueExpr → store binding in context
+                ValueSpecification valueExpr = letAf.parameters().get(1);
+                compileExpr(valueExpr, blockCtx); // compile value for type info
+                blockCtx = blockCtx.withLetBinding(varName.value(), valueExpr);
+            } else {
+                compileExpr(stmt, blockCtx);
+            }
+        }
+        // Compile the final (result) expression with enriched context
+        ValueSpecification lastStmt = stmts.getLast();
+        TypeInfo result = compileExpr(lastStmt, blockCtx);
+        // Set inlinedBody on the block node → PlanGenerator transparently skips
+        // through block to the result expression (same pattern as user function inlining)
+        TypeInfo blockInfo = new TypeInfo(
+                result.relationType(), result.mapping(), result.associations(),
+                result.sortSpecs(), result.projections(), result.columnSpecs(),
+                result.structSource(), result.joinType(), result.windowSpecs(),
+                lastStmt, result.scalarType(), result.lambdaParam());
+        types.put(af, blockInfo);
+        return blockInfo;
+    }
+
+    /** Compiles letFunction('x', valueExpr) — standalone let. */
+    private TypeInfo compileLet(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        if (params.size() >= 2) {
+            return compileExpr(params.get(1), ctx);
+        }
+        if (!params.isEmpty()) {
+            return compileExpr(params.get(0), ctx);
+        }
+        return scalar(af);
+    }
+
     private TypeInfo compilePassThrough(AppliedFunction af, CompilationContext ctx) {
         String funcName = af.function();
         String simple = simpleName(funcName);
@@ -1937,6 +1987,20 @@ public class CleanCompiler {
         if (varType != null) {
             return typed(v, varType, null);
         }
+        // Let binding → inline the bound expression via inlinedBody
+        // PlanGenerator already handles inlinedBody at both relational and scalar levels
+        ValueSpecification letValue = ctx.getLetBinding(v.name());
+        if (letValue != null) {
+            TypeInfo letInfo = compileExpr(letValue, ctx);
+            // Create a TypeInfo with the compiled type info AND inlinedBody pointing to the bound value
+            TypeInfo inlined = new TypeInfo(
+                    letInfo.relationType(), letInfo.mapping(), letInfo.associations(),
+                    letInfo.sortSpecs(), letInfo.projections(), letInfo.columnSpecs(),
+                    letInfo.structSource(), letInfo.joinType(), letInfo.windowSpecs(),
+                    letValue, letInfo.scalarType(), letInfo.lambdaParam());
+            types.put(v, inlined);
+            return inlined;
+        }
         // Lambda parameter — mark in side table with declared type
         GenericType lambdaType = ctx.getLambdaParamType(v.name());
         if (lambdaType != null) {
@@ -2022,28 +2086,35 @@ public class CleanCompiler {
     public record CompilationContext(
             Map<String, RelationType> relationTypes,
             Map<String, RelationalMapping> mappings,
-            Map<String, GenericType> lambdaParams) {
+            Map<String, GenericType> lambdaParams,
+            Map<String, ValueSpecification> letBindings) {
 
         public CompilationContext() {
-            this(Map.of(), Map.of(), Map.of());
+            this(Map.of(), Map.of(), Map.of(), Map.of());
         }
 
         public CompilationContext withRelationType(String paramName, RelationType type) {
             var newTypes = new HashMap<>(relationTypes);
             newTypes.put(paramName, type);
-            return new CompilationContext(Map.copyOf(newTypes), mappings, lambdaParams);
+            return new CompilationContext(Map.copyOf(newTypes), mappings, lambdaParams, letBindings);
         }
 
         public CompilationContext withMapping(String paramName, RelationalMapping mapping) {
             var newMappings = new HashMap<>(mappings);
             newMappings.put(paramName, mapping);
-            return new CompilationContext(relationTypes, Map.copyOf(newMappings), lambdaParams);
+            return new CompilationContext(relationTypes, Map.copyOf(newMappings), lambdaParams, letBindings);
         }
 
         public CompilationContext withLambdaParam(String name, GenericType type) {
             var m = new HashMap<>(lambdaParams);
             m.put(name, type); // type may be null for untyped params (e.g., forAll(e|...))
-            return new CompilationContext(relationTypes, mappings, Collections.unmodifiableMap(m));
+            return new CompilationContext(relationTypes, mappings, Collections.unmodifiableMap(m), letBindings);
+        }
+
+        public CompilationContext withLetBinding(String name, ValueSpecification value) {
+            var m = new HashMap<>(letBindings);
+            m.put(name, value);
+            return new CompilationContext(relationTypes, mappings, lambdaParams, Map.copyOf(m));
         }
 
         public boolean isLambdaParam(String name) {
@@ -2052,6 +2123,10 @@ public class CleanCompiler {
 
         public GenericType getLambdaParamType(String name) {
             return lambdaParams.get(name);
+        }
+
+        public ValueSpecification getLetBinding(String name) {
+            return letBindings.get(name);
         }
 
         public RelationType getRelationType(String name) {

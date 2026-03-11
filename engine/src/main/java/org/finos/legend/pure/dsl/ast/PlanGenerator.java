@@ -85,6 +85,11 @@ public class PlanGenerator {
     // ========== Relation Compilation ==========
 
     private SqlBuilder generateRelation(ValueSpecification vs) {
+        // Compiler-driven inlining: follow inlinedBody pointers (let bindings, blocks, user functions)
+        TypeInfo info = unit.types().get(vs);
+        if (info != null && info.inlinedBody() != null) {
+            return generateRelation(info.inlinedBody());
+        }
         return switch (vs) {
             case AppliedFunction af -> generateFunction(af);
             case LambdaFunction lf -> {
@@ -1161,6 +1166,11 @@ public class PlanGenerator {
      * Canonical 4-arg version: compiles scalar with optional table alias prefix.
      */
     SqlExpr generateScalar(ValueSpecification vs, String rowParam, RelationalMapping mapping, String tableAlias) {
+        // Compiler-driven inlining: follow inlinedBody pointers (let bindings, blocks, user functions)
+        TypeInfo vsInfo = unit.types().get(vs);
+        if (vsInfo != null && vsInfo.inlinedBody() != null) {
+            return generateScalar(vsInfo.inlinedBody(), rowParam, mapping, tableAlias);
+        }
         return switch (vs) {
             case AppliedProperty ap -> {
                 // Check for association path: $p.addresses.street
