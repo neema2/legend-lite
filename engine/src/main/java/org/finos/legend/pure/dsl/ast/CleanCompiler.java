@@ -1901,10 +1901,19 @@ public class CleanCompiler {
     // ========== Other AST Nodes ==========
 
     private TypeInfo compileLambda(LambdaFunction lf, CompilationContext ctx) {
-        // Scope lambda params — works for ALL lambdas (scalar and relational)
+        // Scope lambda params with their declared types
         CompilationContext lambdaCtx = ctx;
         for (var p : lf.parameters()) {
-            lambdaCtx = lambdaCtx.withLambdaParam(p.name());
+            GenericType paramType = null;
+            if (p.typeName() != null) {
+                try {
+                    paramType = GenericType.Primitive.fromTypeName(p.typeName());
+                } catch (IllegalArgumentException e) {
+                    // Non-primitive type (class, enum) — store as ClassType
+                    paramType = new GenericType.ClassType(p.typeName());
+                }
+            }
+            lambdaCtx = lambdaCtx.withLambdaParam(p.name(), paramType);
         }
         if (!lf.body().isEmpty()) {
             TypeInfo bodyInfo = compileExpr(lf.body().get(0), lambdaCtx);
@@ -1918,7 +1927,13 @@ public class CleanCompiler {
         if (varType != null) {
             return typed(v, varType, null);
         }
-        // Lambda parameter — mark in side table for PlanGenerator
+        // Lambda parameter — mark in side table with declared type
+        GenericType lambdaType = ctx.getLambdaParamType(v.name());
+        if (lambdaType != null) {
+            var info = TypeInfo.lambdaParamOf(lambdaType);
+            types.put(v, info);
+            return info;
+        }
         if (ctx.isLambdaParam(v.name())) {
             var info = TypeInfo.lambdaParamMarker();
             types.put(v, info);
@@ -1997,10 +2012,10 @@ public class CleanCompiler {
     public record CompilationContext(
             Map<String, RelationType> relationTypes,
             Map<String, RelationalMapping> mappings,
-            Set<String> lambdaParams) {
+            Map<String, GenericType> lambdaParams) {
 
         public CompilationContext() {
-            this(Map.of(), Map.of(), Set.of());
+            this(Map.of(), Map.of(), Map.of());
         }
 
         public CompilationContext withRelationType(String paramName, RelationType type) {
@@ -2015,14 +2030,18 @@ public class CleanCompiler {
             return new CompilationContext(relationTypes, Map.copyOf(newMappings), lambdaParams);
         }
 
-        public CompilationContext withLambdaParam(String name) {
-            var s = new HashSet<>(lambdaParams);
-            s.add(name);
-            return new CompilationContext(relationTypes, mappings, Set.copyOf(s));
+        public CompilationContext withLambdaParam(String name, GenericType type) {
+            var m = new HashMap<>(lambdaParams);
+            m.put(name, type); // type may be null for untyped params (e.g., forAll(e|...))
+            return new CompilationContext(relationTypes, mappings, Collections.unmodifiableMap(m));
         }
 
         public boolean isLambdaParam(String name) {
-            return lambdaParams.contains(name);
+            return lambdaParams.containsKey(name);
+        }
+
+        public GenericType getLambdaParamType(String name) {
+            return lambdaParams.get(name);
         }
 
         public RelationType getRelationType(String name) {

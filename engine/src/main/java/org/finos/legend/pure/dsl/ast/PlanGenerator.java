@@ -1328,7 +1328,19 @@ public class PlanGenerator {
                 if (params.size() == 1)
                     yield c.apply(params.get(0)); // unary +
                 // String concat: use || operator
-                if (params.get(0) instanceof CString || params.get(1) instanceof CString) {
+                // Check literal strings, or typed lambda params (from compiler side-table)
+                boolean isStringConcat = params.get(0) instanceof CString || params.get(1) instanceof CString;
+                if (!isStringConcat) {
+                    // Check TypeInfo for string type (e.g., lambda param x: String[1])
+                    for (var p : params) {
+                        TypeInfo pti = unit.types().get(p);
+                        if (pti != null && pti.scalarType() == GenericType.Primitive.STRING) {
+                            isStringConcat = true;
+                            break;
+                        }
+                    }
+                }
+                if (isStringConcat) {
                     yield new SqlExpr.Binary(c.apply(params.get(0)), "||", c.apply(params.get(1)));
                 }
                 yield new SqlExpr.Binary(c.apply(params.get(0)), "+", c.apply(params.get(1)));

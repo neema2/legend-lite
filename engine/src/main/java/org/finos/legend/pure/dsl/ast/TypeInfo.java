@@ -244,7 +244,12 @@ public record TypeInfo(
         return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, false);
     }
 
-    /** Creates a TypeInfo marking a lambda parameter variable. */
+    /** Creates a TypeInfo marking a lambda parameter variable with its declared type. */
+    public static TypeInfo lambdaParamOf(GenericType type) {
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, true);
+    }
+
+    /** Creates a TypeInfo marking a lambda parameter variable (untyped). */
     public static TypeInfo lambdaParamMarker() {
         return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, true);
     }
