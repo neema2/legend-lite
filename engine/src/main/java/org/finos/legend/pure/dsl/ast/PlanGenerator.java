@@ -2144,7 +2144,7 @@ public class PlanGenerator {
 
             // --- Pass-through for non-SQL functions ---
             case "toOne", "toMany", "eval", "forAll", "exists",
-                    "list", "pair", "map", "match", "zip",
+                    "list", "pair", "map", "match",
                     "range", "cast", "toVariant", "letWithParam",
                     "filter", "groupBy", "select", "write",
                     "compare", "comparator" -> {
@@ -2180,6 +2180,17 @@ public class PlanGenerator {
                     yield c.apply(params.get(0));
                 }
                 throw new PureCompileException("fold: no parameters");
+            }
+            case "zip" -> {
+                // zip(list1, list2) → list of pairs
+                if (params.size() >= 2) {
+                    yield new SqlExpr.FunctionCall("listZip",
+                            List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+                }
+                if (!params.isEmpty()) {
+                    yield c.apply(params.get(0));
+                }
+                throw new PureCompileException("zip: no parameters");
             }
             case "sort" -> {
                 if (firstArgIsList) {

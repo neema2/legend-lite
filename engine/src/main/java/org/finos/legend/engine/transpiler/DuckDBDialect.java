@@ -239,6 +239,16 @@ public final class DuckDBDialect implements SQLDialect {
                 // LIST_EXTRACT(list_filter(list, predicate), 1)
                 return "LIST_EXTRACT(list_filter(" + args.get(0) + ", " + args.get(1) + "), 1)";
             }
+            case "listZip": {
+                // args: [list1, list2]
+                // list_transform(GENERATE_SERIES(1, LEAST(LEN(a), LEN(b))),
+                //   _zip_i -> {'first': LIST_EXTRACT(a, _zip_i), 'second': LIST_EXTRACT(b, _zip_i)})
+                String a = args.get(0);
+                String b = args.get(1);
+                return "list_transform(GENERATE_SERIES(1, LEAST(LEN(" + a + "), LEN(" + b + "))), "
+                        + "_zip_i -> {'first': LIST_EXTRACT(" + a + ", _zip_i), "
+                        + "'second': LIST_EXTRACT(" + b + ", _zip_i)})";
+            }
             case "listReduce": {
                 // args: [list, lambda, init]
                 // LambdaExpr renders itself as ((acc, elem) -> body)

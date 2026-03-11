@@ -153,6 +153,7 @@ public class CleanCompiler {
             case "map" -> compileMap(af, ctx);
             case "find" -> compileFind(af, ctx);
             case "zip" -> compileZip(af, ctx);
+            case "forAll", "exists" -> compileCollectionPredicate(af, ctx);
             // --- Scalar (pass-through — PlanGenerator handles SQL) ---
             default -> compilePassThrough(af, ctx);
         };
@@ -1232,6 +1233,15 @@ public class CleanCompiler {
 
     /** Compiles zip(list1, list2). */
     private TypeInfo compileZip(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            compileExpr(p, ctx);
+        }
+        return scalar(af);
+    }
+
+    /** Compiles forAll(list, {e|predicate}) and exists(list, {e|predicate}). */
+    private TypeInfo compileCollectionPredicate(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
             compileExpr(p, ctx);
