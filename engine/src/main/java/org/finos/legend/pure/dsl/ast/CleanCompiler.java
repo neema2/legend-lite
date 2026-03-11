@@ -162,9 +162,10 @@ public class CleanCompiler {
             case "size" -> compileSize(af, ctx);
             // --- Collection / scalar functions (type-propagating) ---
             case "range" -> compileRange(af, ctx);
-            case "add", "at", "head", "tail", "init",
+            // List-producing functions: always return a list
+            case "tail", "init", "reverse", "removeDuplicates", "add" -> compileListProducing(af, ctx);
+            case "at", "head",
                  "in", "length", "indexOf",
-                 "reverse", "removeDuplicates",
                  "last", "isEmpty", "isNotEmpty",
                  "contains", "startsWith", "endsWith",
                  "toLower", "toUpper", "trim", "replace",
@@ -1316,6 +1317,29 @@ public class CleanCompiler {
             compileExpr(p, ctx);
         }
         return scalar(af);
+    }
+
+    /** Compiles list-producing functions (tail, init, reverse, etc.) — always returns a list. */
+    private TypeInfo compileListProducing(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            compileExpr(p, ctx);
+        }
+        // Determine element type from source
+        GenericType elemType = GenericType.Primitive.ANY;
+        if (!params.isEmpty()) {
+            TypeInfo sourceInfo = types.get(params.get(0));
+            if (sourceInfo != null && sourceInfo.scalarType() != null) {
+                // If source is already a list, use its element type
+                if (sourceInfo.scalarType().isList() && sourceInfo.scalarType().elementType() != null) {
+                    elemType = sourceInfo.scalarType().elementType();
+                } else {
+                    // Source is a single value — treat as element type
+                    elemType = sourceInfo.scalarType();
+                }
+            }
+        }
+        return scalarTyped(af, GenericType.listOf(elemType));
     }
 
     /** Compiles range(n) — produces a List&lt;Integer&gt;. */
