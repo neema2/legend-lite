@@ -2143,19 +2143,30 @@ public class PlanGenerator {
             case "percentile", "percentileCont" -> {
                 SqlExpr list = c.apply(params.get(0));
                 SqlExpr p = c.apply(params.get(1));
-                // percentile(list, p, isSample, isDescending)
-                // If descending (4th param true), invert: (1 - p)
-                if (params.size() > 3 && params.get(3) instanceof CBoolean cb && cb.value()) {
+                // percentile(value, ascending, continuous)
+                // param[2]: ascending — when false, invert p to (1 - p)
+                boolean ascending = true;
+                boolean continuous = true;
+                if (params.size() > 2 && params.get(2) instanceof CBoolean cb) {
+                    ascending = cb.value();
+                }
+                // param[3]: continuous — when false, use percentileDisc
+                if (params.size() > 3 && params.get(3) instanceof CBoolean cb) {
+                    continuous = cb.value();
+                }
+                if (!ascending) {
                     p = new SqlExpr.Binary(new SqlExpr.Literal("1"), "-", p);
                 }
-                yield new SqlExpr.FunctionCall(
-                        firstArgIsList ? "listPercentileCont" : "percentileCont",
-                        List.of(list, p));
+                String pctFunc = continuous
+                        ? (firstArgIsList ? "listPercentileCont" : "percentileCont")
+                        : (firstArgIsList ? "listPercentileDisc" : "percentileDisc");
+                yield new SqlExpr.FunctionCall(pctFunc, List.of(list, p));
             }
             case "percentileDisc" -> {
                 SqlExpr list = c.apply(params.get(0));
                 SqlExpr p = c.apply(params.get(1));
-                if (params.size() > 3 && params.get(3) instanceof CBoolean cb && cb.value()) {
+                // param[2]: ascending — when false, invert p
+                if (params.size() > 2 && params.get(2) instanceof CBoolean cb && !cb.value()) {
                     p = new SqlExpr.Binary(new SqlExpr.Literal("1"), "-", p);
                 }
                 yield new SqlExpr.FunctionCall(
@@ -2179,8 +2190,8 @@ public class PlanGenerator {
 
             // --- Pass-through for non-SQL functions ---
             case "toOne", "toMany", "eval", "forAll", "exists",
-                    "list", "pair", "map", "match",
-                    "range", "cast", "to", "toVariant", "letWithParam",
+                    "list", "pair", "match",
+                    "cast", "to", "toVariant", "letWithParam",
                     "filter", "groupBy", "select", "write",
                     "compare", "comparator" -> {
                 // These are Pure-level functions that should pass through the first arg
@@ -2189,6 +2200,28 @@ public class PlanGenerator {
                 }
                 throw new PureCompileException(
                         "PlanGenerator: pass-through function '" + funcName + "' has no parameters");
+            }
+            case "range" -> {
+                // range(n) → RANGE(n) — produces a list of integers [0..n-1]
+                yield new SqlExpr.FunctionCall("RANGE",
+                        List.of(c.apply(params.get(0))));
+            }
+            case "map" -> {
+                // map(list, {x|body}) → list_transform(list, x -> body)
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction mapLf) {
+                    SqlExpr list = c.apply(params.get(0));
+                    String elemParam = mapLf.parameters().isEmpty() ? "x"
+                            : mapLf.parameters().get(0).name();
+                    SqlExpr body = !mapLf.body().isEmpty()
+                            ? c.apply(mapLf.body().get(0)) : new SqlExpr.Literal("NULL");
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), body);
+                    yield new SqlExpr.FunctionCall("list_transform", List.of(list, lambda));
+                }
+                // Non-lambda map: pass through source
+                if (!params.isEmpty()) {
+                    yield c.apply(params.get(0));
+                }
+                throw new PureCompileException("map: no parameters");
             }
             case "fold" -> {
                 // fold(source, {x,y|body}, init) → list_reduce(source, ((y,x)->body), init)

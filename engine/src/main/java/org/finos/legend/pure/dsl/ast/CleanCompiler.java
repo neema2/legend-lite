@@ -161,7 +161,8 @@ public class CleanCompiler {
             // --- Size (returns Integer scalar for both relations and lists) ---
             case "size" -> compileSize(af, ctx);
             // --- Collection / scalar functions (type-propagating) ---
-            case "add", "at", "head", "tail", "init", "range",
+            case "range" -> compileRange(af, ctx);
+            case "add", "at", "head", "tail", "init",
                  "in", "length", "indexOf",
                  "reverse", "removeDuplicates",
                  "last", "isEmpty", "isNotEmpty",
@@ -1317,11 +1318,36 @@ public class CleanCompiler {
         return scalar(af);
     }
 
+    /** Compiles range(n) — produces a List&lt;Integer&gt;. */
+    private TypeInfo compileRange(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            compileExpr(p, ctx);
+        }
+        return scalarTyped(af, GenericType.listOf(GenericType.Primitive.INTEGER));
+    }
+
     /** Compiles map(source, {x|body}). */
     private TypeInfo compileMap(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
             compileExpr(p, ctx);
+        }
+        // map(list, lambda) produces a list — propagate list type from source
+        if (!params.isEmpty()) {
+            TypeInfo sourceInfo = types.get(params.get(0));
+            if (sourceInfo != null && sourceInfo.isList()) {
+                // Infer element type from lambda body if possible
+                GenericType elemType = GenericType.Primitive.ANY;
+                if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf
+                        && !lf.body().isEmpty()) {
+                    TypeInfo bodyInfo = types.get(lf.body().get(0));
+                    if (bodyInfo != null && bodyInfo.scalarType() != null) {
+                        elemType = bodyInfo.scalarType();
+                    }
+                }
+                return scalarTyped(af, GenericType.listOf(elemType));
+            }
         }
         return scalar(af);
     }
