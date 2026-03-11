@@ -306,9 +306,10 @@ public class PlanGenerator {
         }
         // Subquery wrapping — columns resolve by name, no prefix needed
         SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, mapping);
+        String filterAlias = source.hasGroupBy() ? "grp" : "src";
         return new SqlBuilder()
                 .selectStar()
-                .fromSubquery(source, "src")
+                .fromSubquery(source, filterAlias)
                 .addWhere(whereClause);
     }
 
@@ -757,6 +758,19 @@ public class PlanGenerator {
             if (allMatch) {
                 return source;
             }
+        }
+
+        // If source is a simple star-select (no WHERE/GROUP/ORDER/LIMIT/window),
+        // inline column projections directly instead of wrapping in a subquery
+        if (source.isSelectStar() && !source.hasSelectColumns()
+                && !source.hasWhere() && !source.hasGroupBy()
+                && !source.hasOrderBy() && !source.hasLimit()
+                && !source.hasWindowColumns()) {
+            source.clearSelect();
+            for (var cs : info.columnSpecs()) {
+                source.addSelect(new SqlExpr.ColumnRef(cs.columnName()), dialect.quoteIdentifier(cs.columnName()));
+            }
+            return source;
         }
 
         SqlBuilder builder = new SqlBuilder()
