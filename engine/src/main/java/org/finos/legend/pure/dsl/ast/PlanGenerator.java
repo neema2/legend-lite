@@ -712,7 +712,21 @@ public class PlanGenerator {
     private SqlBuilder generateDistinct(AppliedFunction af) {
         List<ValueSpecification> params = af.parameters();
         SqlBuilder source = generateRelation(params.get(0));
-        // Inline DISTINCT into source when no conflicting clauses
+
+        // Check if distinct specifies particular columns
+        TypeInfo info = unit.types().get(af);
+        if (info != null && !info.columnSpecs().isEmpty()) {
+            // Project specific columns: SELECT DISTINCT "col1", "col2" FROM (source) AS distinct_src
+            SqlBuilder builder = new SqlBuilder()
+                    .distinct()
+                    .fromSubquery(source, "distinct_src");
+            for (var cs : info.columnSpecs()) {
+                builder.addSelect(new SqlExpr.ColumnRef(cs.columnName()), null);
+            }
+            return builder;
+        }
+
+        // No explicit columns — inline DISTINCT into source when possible
         if (!source.hasGroupBy() && !source.hasOrderBy() && !source.hasLimit()) {
             source.distinct();
             return source;

@@ -445,7 +445,14 @@ public class CleanCompiler {
 
         if (params.size() > 1) {
             List<String> cols = extractColumnNames(params.get(1));
-            return typed(af, source.relationType().onlyColumns(cols), source.mapping());
+            List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
+            for (String c : cols) {
+                colSpecs.add(TypeInfo.ColumnSpec.col(c));
+            }
+            var info = new TypeInfo(source.relationType().onlyColumns(cols), source.mapping(),
+                    Map.of(), List.of(), List.of(), colSpecs, false, null, null, null, null, false);
+            types.put(af, info);
+            return info;
         }
 
         return typed(af, source.relationType(), source.mapping());
