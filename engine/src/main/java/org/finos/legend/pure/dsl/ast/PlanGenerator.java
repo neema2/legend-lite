@@ -743,10 +743,25 @@ public class PlanGenerator {
         List<ValueSpecification> params = af.parameters();
         SqlBuilder source = generateRelation(params.get(0));
 
+        TypeInfo info = unit.types().get(af);
+        // select() with no column specs = select all, pass through source directly
+        if (info.columnSpecs().isEmpty()) {
+            return source;
+        }
+        // If selecting all columns from source, also pass through
+        TypeInfo sourceInfo = unit.types().get(params.get(0));
+        if (sourceInfo != null && sourceInfo.relationType() != null
+                && info.columnSpecs().size() == sourceInfo.relationType().columns().size()) {
+            boolean allMatch = info.columnSpecs().stream()
+                    .allMatch(cs -> sourceInfo.relationType().columns().containsKey(cs.columnName()));
+            if (allMatch) {
+                return source;
+            }
+        }
+
         SqlBuilder builder = new SqlBuilder()
                 .fromSubquery(source, "subq");
 
-        TypeInfo info = unit.types().get(af);
         for (var cs : info.columnSpecs()) {
             builder.addSelect(new SqlExpr.ColumnRef(cs.columnName()), dialect.quoteIdentifier(cs.columnName()));
         }
