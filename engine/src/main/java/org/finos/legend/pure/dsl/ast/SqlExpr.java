@@ -55,8 +55,14 @@ public sealed interface SqlExpr {
     record LambdaExpr(List<String> params, SqlExpr body) implements SqlExpr {
         @Override
         public String toSql(SQLDialect dialect) {
+            String bodyStr = body.toSql(dialect);
+            if (params.size() == 1) {
+                // Single-param: s -> body (DuckDB list_filter/list_transform style)
+                return params.get(0) + " -> " + bodyStr;
+            }
+            // Multi-param: ((y, x) -> body) (DuckDB list_reduce style)
             String paramList = String.join(", ", params);
-            return "((" + paramList + ") -> " + body.toSql(dialect) + ")";
+            return "((" + paramList + ") -> " + bodyStr + ")";
         }
     }
 

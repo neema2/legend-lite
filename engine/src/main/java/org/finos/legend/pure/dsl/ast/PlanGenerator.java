@@ -1644,9 +1644,13 @@ public class PlanGenerator {
             }
             case "find" -> {
                 if (firstArgIsList && params.size() > 1 && params.get(1) instanceof LambdaFunction lf) {
-                    // Collection find: LIST_EXTRACT(list_filter(list, lambda), 1)
+                    // Collection find: LIST_EXTRACT(list_filter(list, (s) -> predicate), 1)
+                    String paramName = lf.parameters().isEmpty() ? "s" : lf.parameters().get(0).name();
+                    SqlExpr body = !lf.body().isEmpty()
+                            ? c.apply(lf.body().get(0)) : new SqlExpr.Literal("NULL");
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(paramName), body);
                     yield new SqlExpr.FunctionCall("listFind",
-                            List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+                            List.of(c.apply(params.get(0)), lambda));
                 }
                 yield new SqlExpr.StrPosition(c.apply(params.get(1)), c.apply(params.get(0)));
             }
@@ -2191,10 +2195,16 @@ public class PlanGenerator {
                             || (params.size() == 2 && params.get(1) instanceof LambdaFunction kf
                                     && kf.parameters().size() == 1)) {
                         // sort with key function → listSort with key
+                        LambdaFunction keyLf = (LambdaFunction) params.get(1);
+                        String keyParam = keyLf.parameters().get(0).name();
+                        SqlExpr keyBody = !keyLf.body().isEmpty()
+                                ? c.apply(keyLf.body().get(0)) : new SqlExpr.Literal("NULL");
+                        // Pass: list, direction, paramName, keyBody
                         yield new SqlExpr.FunctionCall("listSortWithKey",
                                 List.of(c.apply(params.get(0)),
                                         new SqlExpr.StringLiteral(direction),
-                                        c.apply(params.get(1))));
+                                        new SqlExpr.Identifier(keyParam),
+                                        keyBody));
                     }
                     yield new SqlExpr.FunctionCall("listSort",
                             List.of(c.apply(params.get(0)),

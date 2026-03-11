@@ -228,9 +228,10 @@ public final class DuckDBDialect implements SQLDialect {
                 // args: [list, direction]
                 return "LIST_SORT(" + args.get(0) + ", " + args.get(1) + ")";
             case "listSortWithKey": {
-                // args: [list, direction, keyExpr]
+                // args: [list, direction, paramName, keyBody]
+                String p = args.get(2); // Identifier renders as raw name
                 return "list_transform(LIST_SORT(list_transform(" + args.get(0)
-                        + ", s -> {'k': " + args.get(2) + ", 'v': s}), " + args.get(1)
+                        + ", " + p + " -> {'k': " + args.get(3) + ", 'v': " + p + "}), " + args.get(1)
                         + "), _sv -> STRUCT_EXTRACT(_sv, 'v'))";
             }
             case "listFind": {

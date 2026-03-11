@@ -272,7 +272,15 @@ public class CleanCompiler {
         TypeInfo source = compileExpr(params.get(0), ctx);
         RelationType sourceType = source.relationType();
 
-        // Pre-resolve sort specs into normalized (column, direction) pairs
+        // List sort with lambdas: compile all params so lambda bodies get walked
+        if (sourceType == null || sourceType.columns().isEmpty()) {
+            for (int i = 1; i < params.size(); i++) {
+                compileExpr(params.get(i), ctx);
+            }
+            return scalar(af);
+        }
+
+        // Relational sort: resolve sort specs
         List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
 
         var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
