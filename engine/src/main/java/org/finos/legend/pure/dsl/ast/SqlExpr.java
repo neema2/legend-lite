@@ -43,6 +43,23 @@ public sealed interface SqlExpr {
         }
     }
 
+    /** Raw unquoted identifier — used for lambda parameter references. */
+    record Identifier(String name) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return name;
+        }
+    }
+
+    /** First-class lambda expression: ((p1, p2) -> body). */
+    record LambdaExpr(List<String> params, SqlExpr body) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            String paramList = String.join(", ", params);
+            return "((" + paramList + ") -> " + body.toSql(dialect) + ")";
+        }
+    }
+
     // ==================== Literals ====================
 
     /** Numeric literal (rendered as-is). */

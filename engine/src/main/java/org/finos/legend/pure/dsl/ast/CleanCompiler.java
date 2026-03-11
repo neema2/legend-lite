@@ -148,6 +148,11 @@ public class CleanCompiler {
             case "asOfJoin" -> compileAsOfJoin(af, ctx);
             case "pivot" -> compilePivot(af, ctx);
             case "from" -> compileFrom(af, ctx);
+            // --- Scalar collection functions with lambdas ---
+            case "fold" -> compileFold(af, ctx);
+            case "map" -> compileMap(af, ctx);
+            case "find" -> compileFind(af, ctx);
+            case "zip" -> compileZip(af, ctx);
             // --- Scalar (pass-through — PlanGenerator handles SQL) ---
             default -> compilePassThrough(af, ctx);
         };
@@ -271,7 +276,7 @@ public class CleanCompiler {
         List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
 
         var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
-                List.of(), null, null);
+                List.of(), null, null, false);
         types.put(af, info);
         return info;
     }
@@ -399,7 +404,7 @@ public class CleanCompiler {
         RelationType newType = source.relationType().renameColumn(oldName, newName);
         List<TypeInfo.ColumnSpec> colSpecs = List.of(TypeInfo.ColumnSpec.renamed(oldName, newName));
         var info = new TypeInfo(newType, source.mapping(), Map.of(), List.of(), List.of(), colSpecs, false, null,
-                null, null, null);
+                null, null, null, false);
         types.put(af, info);
         return info;
     }
@@ -506,12 +511,12 @@ public class CleanCompiler {
         // Propagate struct flag from source
         if (source.isStructSource()) {
             var info = new TypeInfo(resultType, null, associations, List.of(), projections, List.of(), true, null,
-                    List.of(), null, null);
+                    List.of(), null, null, false);
             types.put(af, info);
             return info;
         }
         var info = new TypeInfo(resultType, mapping, associations, List.of(), projections, List.of(), false, null,
-                List.of(), null, null);
+                List.of(), null, null, false);
         types.put(af, info);
         return info;
     }
@@ -546,7 +551,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(selectedColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false);
         types.put(af, info);
         return info;
     }
@@ -617,7 +622,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false);
         types.put(af, info);
         return info;
     }
@@ -704,7 +709,7 @@ public class CleanCompiler {
 
         var info = new TypeInfo(new RelationType(newColumns), source.mapping(),
                 Map.of(), List.of(), List.of(), List.of(), false, null,
-                windowSpec != null ? List.of(windowSpec) : List.of(), null, null);
+                windowSpec != null ? List.of(windowSpec) : List.of(), null, null, false);
         types.put(af, info);
         return info;
     }
@@ -1128,7 +1133,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(mergedColumns), left.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null, null);
+                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null, null, false);
         types.put(af, info);
         return info;
     }
@@ -1187,6 +1192,45 @@ public class CleanCompiler {
      */
     private static final PureFunctionRegistry functionRegistry = PureFunctionRegistry.withBuiltins();
 
+    // ========== Scalar Collection Functions with Lambdas ==========
+
+    /** Compiles fold(list, {x,y|body}, init). */
+    private TypeInfo compileFold(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        // Compile all params — lambda bodies get walked via compileLambda
+        for (var p : params) {
+            compileExpr(p, ctx);
+        }
+        return scalar(af);
+    }
+
+    /** Compiles map(source, {x|body}). */
+    private TypeInfo compileMap(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            compileExpr(p, ctx);
+        }
+        return scalar(af);
+    }
+
+    /** Compiles find(source, {x|predicate}). */
+    private TypeInfo compileFind(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            compileExpr(p, ctx);
+        }
+        return scalar(af);
+    }
+
+    /** Compiles zip(list1, list2). */
+    private TypeInfo compileZip(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            compileExpr(p, ctx);
+        }
+        return scalar(af);
+    }
+
     private TypeInfo compilePassThrough(AppliedFunction af, CompilationContext ctx) {
         String funcName = af.function();
         String simple = simpleName(funcName);
@@ -1202,11 +1246,20 @@ public class CleanCompiler {
         if (!af.parameters().isEmpty()) {
             try {
                 TypeInfo source = compileExpr(af.parameters().get(0), ctx);
+                // Compile remaining params so lambda variables get scoped
+                for (int i = 1; i < af.parameters().size(); i++) {
+                    try { compileExpr(af.parameters().get(i), ctx); }
+                    catch (PureCompileException ignored) { }
+                }
                 if (source.relationType() != null && !source.relationType().columns().isEmpty()) {
                     return typed(af, source.relationType(), source.mapping());
                 }
             } catch (PureCompileException ignored) {
-                // Not a relation source — treat as scalar
+                // Not a relation source — still compile remaining params
+                for (int i = 1; i < af.parameters().size(); i++) {
+                    try { compileExpr(af.parameters().get(i), ctx); }
+                    catch (PureCompileException ignored2) { }
+                }
             }
         }
         return scalar(af);
@@ -1254,7 +1307,7 @@ public class CleanCompiler {
                 bodyResult.relationType(), bodyResult.mapping(), bodyResult.associations(),
                 bodyResult.sortSpecs(), bodyResult.projections(), bodyResult.columnSpecs(),
                 bodyResult.structSource(), bodyResult.joinType(), bodyResult.windowSpecs(),
-                inlinedNode, bodyResult.scalarType());
+                inlinedNode, bodyResult.scalarType(), false);
         types.put(af, result);
         return result;
     }
@@ -1840,10 +1893,13 @@ public class CleanCompiler {
     // ========== Other AST Nodes ==========
 
     private TypeInfo compileLambda(LambdaFunction lf, CompilationContext ctx) {
+        // Scope lambda params — works for ALL lambdas (scalar and relational)
+        CompilationContext lambdaCtx = ctx;
+        for (var p : lf.parameters()) {
+            lambdaCtx = lambdaCtx.withLambdaParam(p.name());
+        }
         if (!lf.body().isEmpty()) {
-            TypeInfo bodyInfo = compileExpr(lf.body().get(0), ctx);
-            // Register the lambda node itself with the body's type info,
-            // so root-level lambdas (|'hello'->endsWith('lo')) are in the types map
+            TypeInfo bodyInfo = compileExpr(lf.body().get(0), lambdaCtx);
             return typed(lf, bodyInfo.relationType(), bodyInfo.mapping());
         }
         return scalar(lf);
@@ -1853,6 +1909,12 @@ public class CleanCompiler {
         RelationType varType = ctx.getRelationType(v.name());
         if (varType != null) {
             return typed(v, varType, null);
+        }
+        // Lambda parameter — mark in side table for PlanGenerator
+        if (ctx.isLambdaParam(v.name())) {
+            var info = TypeInfo.lambdaParamMarker();
+            types.put(v, info);
+            return info;
         }
         return scalar(v);
     }
@@ -1926,22 +1988,33 @@ public class CleanCompiler {
      */
     public record CompilationContext(
             Map<String, RelationType> relationTypes,
-            Map<String, RelationalMapping> mappings) {
+            Map<String, RelationalMapping> mappings,
+            Set<String> lambdaParams) {
 
         public CompilationContext() {
-            this(Map.of(), Map.of());
+            this(Map.of(), Map.of(), Set.of());
         }
 
         public CompilationContext withRelationType(String paramName, RelationType type) {
             var newTypes = new HashMap<>(relationTypes);
             newTypes.put(paramName, type);
-            return new CompilationContext(Map.copyOf(newTypes), mappings);
+            return new CompilationContext(Map.copyOf(newTypes), mappings, lambdaParams);
         }
 
         public CompilationContext withMapping(String paramName, RelationalMapping mapping) {
             var newMappings = new HashMap<>(mappings);
             newMappings.put(paramName, mapping);
-            return new CompilationContext(relationTypes, Map.copyOf(newMappings));
+            return new CompilationContext(relationTypes, Map.copyOf(newMappings), lambdaParams);
+        }
+
+        public CompilationContext withLambdaParam(String name) {
+            var s = new HashSet<>(lambdaParams);
+            s.add(name);
+            return new CompilationContext(relationTypes, mappings, Set.copyOf(s));
+        }
+
+        public boolean isLambdaParam(String name) {
+            return lambdaParams.contains(name);
         }
 
         public RelationType getRelationType(String name) {

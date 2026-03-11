@@ -239,16 +239,9 @@ public final class DuckDBDialect implements SQLDialect {
                 return "LIST_EXTRACT(list_filter(" + args.get(0) + ", " + args.get(1) + "), 1)";
             }
             case "listReduce": {
-                // args: [list, accParam, elemParam, body, init]
-                // list_reduce(list, ((accParam, elemParam) -> body), init)
-                String acc = args.get(1);
-                String elem = args.get(2);
-                // Body has quoted refs ("x", "y") — strip to raw identifiers
-                String body = args.get(3)
-                        .replace("\"" + acc + "\"", acc)
-                        .replace("\"" + elem + "\"", elem);
-                return "list_reduce(" + args.get(0) + ", ((" + acc + ", " + elem
-                        + ") -> " + body + "), " + args.get(4) + ")";
+                // args: [list, lambda, init]
+                // LambdaExpr renders itself as ((acc, elem) -> body)
+                return "list_reduce(" + args.get(0) + ", " + args.get(1) + ", " + args.get(2) + ")";
             }
 
             // --- List aggregate functions using LIST_AGGR pattern ---

@@ -47,7 +47,8 @@ public record TypeInfo(
         String joinType,
         List<WindowFunctionSpec> windowSpecs,
         ValueSpecification inlinedBody,
-        GenericType scalarType) {
+        GenericType scalarType,
+        boolean lambdaParam) {
 
     /**
      * Pre-resolved association navigation target.
@@ -235,37 +236,42 @@ public record TypeInfo(
 
     /** Creates a TypeInfo for a scalar (non-relational) expression. */
     public static TypeInfo scalar() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, false);
     }
 
     /** Creates a TypeInfo for a scalar with a known type. */
     public static TypeInfo scalarOf(GenericType type) {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, false);
+    }
+
+    /** Creates a TypeInfo marking a lambda parameter variable. */
+    public static TypeInfo lambdaParamMarker() {
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, true);
     }
 
     /** Creates a TypeInfo with type info but no mapping. */
     public static TypeInfo of(RelationType relationType) {
         return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null);
+                null, null, false);
     }
 
     /** Full constructor with both type and mapping. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping) {
         return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null);
+                null, null, false);
     }
 
     /** Full constructor with associations. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping,
             Map<String, AssociationTarget> associations) {
         return new TypeInfo(relationType, mapping, associations, List.of(), List.of(), List.of(), false, null, null,
-                null, null);
+                null, null, false);
     }
 
     /** Constructor for struct-based sources. */
     public static TypeInfo structOf(RelationType relationType) {
         return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), true, null, List.of(), null,
-                null);
+                null, false);
     }
 
     // ===== Derived checks — no SourceKind enum needed =====

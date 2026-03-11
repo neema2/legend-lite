@@ -1222,6 +1222,10 @@ public class PlanGenerator {
             case Variable v -> {
                 if (v.name().equals(rowParam))
                     yield new SqlExpr.ColumnRef("");
+                // Lambda param → raw unquoted identifier (from compiler side-table)
+                TypeInfo vti = unit.types().get(v);
+                if (vti != null && vti.lambdaParam())
+                    yield new SqlExpr.Identifier(v.name());
                 yield new SqlExpr.ColumnRef(v.name());
             }
             case ClassInstance ci -> {
@@ -2146,14 +2150,14 @@ public class PlanGenerator {
                             : foldLf.parameters().get(0).name();
                     String accParam = foldLf.parameters().size() < 2 ? "y"
                             : foldLf.parameters().get(1).name();
-                    // Compile the lambda body
+                    // Compile body — Variables are now Identifier (unquoted) via compiler
                     SqlExpr body = !foldLf.body().isEmpty()
                             ? c.apply(foldLf.body().get(0)) : new SqlExpr.Literal("NULL");
+                    // Emit LambdaExpr: ((acc, elem) -> body)
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(
+                            List.of(accParam, elemParam), body);
                     yield new SqlExpr.FunctionCall("listReduce",
-                            List.of(list,
-                                    new SqlExpr.Literal(accParam),
-                                    new SqlExpr.Literal(elemParam),
-                                    body, init));
+                            List.of(list, lambda, init));
                 }
                 // Non-list fold: pass through
                 if (!params.isEmpty()) {
