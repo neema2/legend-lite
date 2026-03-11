@@ -98,11 +98,7 @@ public class PlanGenerator {
 
                 yield generateRelation(lf.body().getLast());
             }
-            case
-
-                    ClassInstance ci ->
-
-                generateClassInstance(ci);
+            case ClassInstance ci -> generateClassInstance(ci);
             default -> throw new PureCompileException(
                     "PlanGenerator: cannot compile: " + vs.getClass().getSimpleName());
         };
@@ -250,45 +246,12 @@ public class PlanGenerator {
             case "extend" -> generateExtend(af);
             case "join" -> generateJoin(af);
             case "from" -> generateFrom(af);
-            case "flatten", "toString", "toVariant" -> {
-                // pass through to source
-                yield generateRelation(af.parameters().get(0));
-            }
-            case "sortBy" -> {
-                // Old-style sortBy — pass through source for now
-                yield generateRelation(af.parameters().get(0));
-            }
-            case "pivot" -> {
-                // pivot not yet SQL-supported — compile source for now
-                yield generateRelation(af.parameters().get(0));
-            }
-            case "eq" -> {
-                // eq on a relation — pass through first arg
-                yield generateRelation(af.parameters().get(0));
-            }
-            case "asOfJoin" -> {
-                // asOfJoin not yet SQL-supported — compile source for now
-                yield generateRelation(af.parameters().get(0));
-            }
-            case "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" -> {
-                // comparison on relation — pass through source
-                yield generateRelation(af.parameters().get(0));
-            }
-            case "cast" -> {
-                // cast on relation — pass through source
-                yield generateRelation(af.parameters().get(0));
-            }
-            case "write" -> {
-                // write passes through the source relation
-                yield generateRelation(af.parameters().get(0));
-            }
-            case "size" -> {
-                // size() on a relation → COUNT(*)
-                var source = generateRelation(af.parameters().get(0));
-                yield source;
-            }
+            // --- Pass-through: source-preserving relational functions ---
+            case "flatten", "toString", "toVariant", "sortBy",
+                 "pivot", "eq", "asOfJoin", "cast", "write", "size",
+                 "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" ->
+                generateRelation(af.parameters().get(0));
             default -> throw new PureCompileException("PlanGenerator: unsupported function '" + funcName + "'");
-
         };
     }
 
@@ -786,7 +749,7 @@ public class PlanGenerator {
         String oldName = renameSpec.columnName();
         String newName = renameSpec.alias();
 
-        // Build SELECT using DuckDB EXCLUDE + rename pattern
+        // Build SELECT using EXCLUDE + rename pattern (EXCLUDE rendered by SqlBuilder via dialect)
         SqlBuilder builder = new SqlBuilder().fromSubquery(source, "rename_src");
         builder.selectStar();
         builder.addStarExcept(dialect.quoteIdentifier(oldName));
@@ -823,17 +786,14 @@ public class PlanGenerator {
                 // Aggregate column
                 String aggFunc = mapPureFuncToSql(cs.aggFunction());
                 if (aggFunc == null)
-                    aggFunc = "SUM";
+                    throw new PureCompileException("PlanGenerator: unknown aggregate function '" + cs.aggFunction() + "'");
                 List<SqlExpr> args = new ArrayList<>();
                 args.add(new SqlExpr.ColumnRef(cs.columnName()));
                 // Add extra args (column refs or literals for multi-arg aggregates)
                 for (String extra : cs.extraArgs()) {
-                    try {
-                        // Try as numeric literal
-                        Double.parseDouble(extra);
+                    if (isNumericLiteral(extra)) {
                         args.add(new SqlExpr.Literal(extra));
-                    } catch (NumberFormatException e) {
-                        // Treat as column ref
+                    } else {
                         args.add(new SqlExpr.ColumnRef(extra));
                     }
                 }
@@ -923,15 +883,10 @@ public class PlanGenerator {
                 args.add(new SqlExpr.ColumnRef(ws.sourceColumn()));
             }
             for (String extra : ws.extraArgs()) {
-                if (extra.startsWith("'")) {
+                if (extra.startsWith("'") || isNumericLiteral(extra)) {
                     args.add(new SqlExpr.Literal(extra));
                 } else {
-                    try {
-                        Double.parseDouble(extra);
-                        args.add(new SqlExpr.Literal(extra));
-                    } catch (NumberFormatException e) {
-                        args.add(new SqlExpr.ColumnRef(extra));
-                    }
+                    args.add(new SqlExpr.ColumnRef(extra));
                 }
             }
             return new SqlExpr.FunctionCall(sqlFunc, args);
@@ -942,40 +897,41 @@ public class PlanGenerator {
     /** Maps a Pure function name to SQL function name. */
     private String mapPureFuncToSql(String pureFuncName) {
         return switch (pureFuncName) {
-            // Aggregates
+            // Aggregates (standard SQL names)
             case "plus", "sum" -> "SUM";
             case "average", "avg", "mean" -> "AVG";
             case "count", "size" -> "COUNT";
             case "min" -> "MIN";
             case "max" -> "MAX";
-            case "stdDev", "stddev" -> "STDDEV";
-            case "stdDevSample" -> "STDDEV_SAMP";
-            case "stdDevPopulation" -> "STDDEV_POP";
-            case "variance" -> "VARIANCE";
-            case "varianceSample" -> "VAR_SAMP";
-            case "variancePopulation" -> "VAR_POP";
-            case "covarSample" -> "COVAR_SAMP";
-            case "covarPopulation" -> "COVAR_POP";
-            case "median" -> "MEDIAN";
-            case "percentileCont" -> "QUANTILE_CONT";
-            case "percentile", "percentileDisc" -> "QUANTILE_DISC";
-            case "joinStrings" -> "STRING_AGG";
-            case "mode" -> "MODE";
-            case "corr" -> "CORR";
-            // Ranking
+            // Aggregates (semantic names → dialect renders)
+            case "stdDev", "stddev" -> "stdDev";
+            case "stdDevSample" -> "stdDevSample";
+            case "stdDevPopulation" -> "stdDevPopulation";
+            case "variance" -> "variance";
+            case "varianceSample" -> "varianceSample";
+            case "variancePopulation" -> "variancePopulation";
+            case "covarSample" -> "covarSample";
+            case "covarPopulation" -> "covarPopulation";
+            case "median" -> "median";
+            case "percentileCont" -> "percentileCont";
+            case "percentile", "percentileDisc" -> "percentileDisc";
+            case "joinStrings" -> "joinStrings";
+            case "mode" -> "mode";
+            case "corr" -> "corr";
+            // Ranking (standard SQL names)
             case "rowNumber" -> "ROW_NUMBER";
             case "rank" -> "RANK";
             case "denseRank" -> "DENSE_RANK";
             case "percentRank" -> "PERCENT_RANK";
             case "cumulativeDistribution" -> "CUME_DIST";
-            // Value functions
+            // Value functions (standard SQL names)
             case "first", "firstValue" -> "FIRST_VALUE";
             case "last", "lastValue" -> "LAST_VALUE";
             case "lag" -> "LAG";
             case "lead" -> "LEAD";
             case "ntile" -> "NTILE";
             case "nthValue", "nth" -> "NTH_VALUE";
-            // Math wrappers
+            // Math wrappers (standard SQL names)
             case "round" -> "ROUND";
             case "abs" -> "ABS";
             case "ceil" -> "CEIL";
@@ -1049,14 +1005,16 @@ public class PlanGenerator {
         }
 
         // Wrap left in a base builder, add right as a JOIN subquery
+        String leftAlias = dialect.quoteIdentifier("left_src");
+        String rightAlias = dialect.quoteIdentifier("right_src");
         SqlBuilder result = new SqlBuilder()
                 .selectStar()
-                .fromSubquery(left, "\"left_src\"");
+                .fromSubquery(left, leftAlias);
 
         result.addJoin(new SqlBuilder.JoinClause(
                 joinType,
                 null, // no table name — using subquery
-                "\"right_src\"", // right alias
+                rightAlias,
                 right, // right as subquery
                 onCondition,
                 null)); // no USING
@@ -1082,9 +1040,7 @@ public class PlanGenerator {
 
                 yield resolveJoinColumn(colName, owner, leftParam, rightParam, left, right);
             }
-            case
-
-                    AppliedFunction af -> {
+            case AppliedFunction af -> {
                 String funcName = simpleName(af.function());
                 var params = af.parameters();
                 yield switch (funcName) {
@@ -1108,20 +1064,11 @@ public class PlanGenerator {
                     default -> generateScalarFunction(af, leftParam, null, null);
                 };
             }
-            case
-                    Variable v -> {
-                yield new SqlExpr.ColumnRef("");
-            }
-            case
-                    CString s ->
-                new SqlExpr.StringLiteral(s.value());
-            case
-                    CInteger i ->
-                new SqlExpr.Literal(String.valueOf(i.value()));
-
+            case Variable v -> new SqlExpr.ColumnRef(v.name());
+            case CString s -> new SqlExpr.StringLiteral(s.value());
+            case CInteger i -> new SqlExpr.Literal(String.valueOf(i.value()));
             default -> generateScalar(vs, leftParam, null);
         };
-
     }
 
     /**
@@ -1384,19 +1331,19 @@ public class PlanGenerator {
                             && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
                         // Wrap each element and search value in toJson
                         var wrappedElems = coll.values().stream()
-                                .map(v -> (SqlExpr) new SqlExpr.FunctionCall("TO_JSON",
+                                .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson",
                                         List.of(c.apply(v))))
                                 .collect(Collectors.toList());
                         SqlExpr wrappedList = new SqlExpr.ArrayLiteral(wrappedElems);
-                        SqlExpr wrappedSearch = new SqlExpr.FunctionCall("TO_JSON",
+                        SqlExpr wrappedSearch = new SqlExpr.FunctionCall("toJson",
                                 List.of(c.apply(params.get(1))));
                         yield new SqlExpr.ListContains(wrappedList, wrappedSearch);
                     }
                     yield new SqlExpr.ListContains(c.apply(params.get(0)), c.apply(params.get(1)));
                 }
-                // String contains: STRPOS(str, substr) > 0
+                // String contains: strPos(str, substr) > 0
                 yield new SqlExpr.Binary(
-                        new SqlExpr.FunctionCall("STRPOS", List.of(c.apply(params.get(0)), c.apply(params.get(1)))),
+                        new SqlExpr.FunctionCall("strPos", List.of(c.apply(params.get(0)), c.apply(params.get(1)))),
                         ">", new SqlExpr.Literal("0"));
             }
             case "startsWith" -> new SqlExpr.StartsWith(c.apply(params.get(0)), c.apply(params.get(1)));
@@ -1451,9 +1398,9 @@ public class PlanGenerator {
                     yield new SqlExpr.FunctionCall("indexOfFrom",
                             List.of(str, search, fromIdx));
                 }
-                // Simple string indexOf: (INSTR(str, substr) - 1)
+                // Simple string indexOf: (instr(str, substr) - 1)
                 yield new SqlExpr.Binary(
-                        new SqlExpr.FunctionCall("INSTR", List.of(c.apply(params.get(0)), c.apply(params.get(1)))),
+                        new SqlExpr.FunctionCall("instr", List.of(c.apply(params.get(0)), c.apply(params.get(1)))),
                         "-", new SqlExpr.Literal("1"));
             }
             case "replace" -> new SqlExpr.FunctionCall("REPLACE",
@@ -1463,7 +1410,7 @@ public class PlanGenerator {
             case "isEmpty" -> {
                 if (firstArgIsList) {
                     yield new SqlExpr.Binary(
-                            new SqlExpr.FunctionCall("LEN", List.of(c.apply(params.get(0)))),
+                            new SqlExpr.FunctionCall("listLength", List.of(c.apply(params.get(0)))),
                             "=", new SqlExpr.Literal("0"));
                 }
                 yield new SqlExpr.IsNull(c.apply(params.get(0)));
@@ -1471,7 +1418,7 @@ public class PlanGenerator {
             case "isNotEmpty" -> {
                 if (firstArgIsList) {
                     yield new SqlExpr.Binary(
-                            new SqlExpr.FunctionCall("LEN", List.of(c.apply(params.get(0)))),
+                            new SqlExpr.FunctionCall("listLength", List.of(c.apply(params.get(0)))),
                             ">", new SqlExpr.Literal("0"));
                 }
                 yield new SqlExpr.IsNotNull(c.apply(params.get(0)));
@@ -1511,7 +1458,7 @@ public class PlanGenerator {
             case "toInteger", "parseInteger" -> new SqlExpr.Cast(c.apply(params.get(0)), "Integer");
             case "toFloat", "parseFloat" -> new SqlExpr.Cast(c.apply(params.get(0)), "Float");
             case "toDecimal", "parseDecimal" -> new SqlExpr.Cast(
-                    new SqlExpr.FunctionCall("REGEXP_REPLACE",
+                    new SqlExpr.FunctionCall("regexpReplace",
                             List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("[dD]$"),
                                     new SqlExpr.StringLiteral(""))),
                     "Decimal");
@@ -1588,13 +1535,13 @@ public class PlanGenerator {
                 if (params.get(0) instanceof CStrictDate sd) {
                     String raw = sd.value();
                     if (raw.matches("\\d{4}")) {
-                        // Year-only: wrap in STRFTIME('%Y', CAST(adjusted AS DATE))
-                        yield new SqlExpr.FunctionCall("STRFTIME", List.of(
+                        // Year-only: wrap in strftime('%Y', CAST(adjusted AS DATE))
+                        yield new SqlExpr.FunctionCall("strftime", List.of(
                                 new SqlExpr.Cast(adjusted, "Date"),
                                 new SqlExpr.StringLiteral("%Y")));
                     } else if (raw.matches("\\d{4}-\\d{2}")) {
-                        // Year-month: wrap in STRFTIME('%Y-%m', CAST(adjusted AS DATE))
-                        yield new SqlExpr.FunctionCall("STRFTIME", List.of(
+                        // Year-month: wrap in strftime('%Y-%m', CAST(adjusted AS DATE))
+                        yield new SqlExpr.FunctionCall("strftime", List.of(
                                 new SqlExpr.Cast(adjusted, "Date"),
                                 new SqlExpr.StringLiteral("%Y-%m")));
                     }
@@ -1784,15 +1731,15 @@ public class PlanGenerator {
                 if (params.get(0) instanceof CStrictDate sd) {
                     String raw = sd.value();
                     if (raw.matches("\\d{4}")) {
-                        yield new SqlExpr.FunctionCall("STRFTIME",
+                        yield new SqlExpr.FunctionCall("strftime",
                                 List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("%Y")));
                     } else if (raw.matches("\\d{4}-\\d{2}")) {
-                        yield new SqlExpr.FunctionCall("STRFTIME",
+                        yield new SqlExpr.FunctionCall("strftime",
                                 List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("%Y-%m")));
                     }
                 }
-                yield new SqlExpr.FunctionCall("DATE_TRUNC",
-                        List.of(new SqlExpr.StringLiteral("day"), c.apply(params.get(0))));
+                yield new SqlExpr.FunctionCall("dateTruncDay",
+                        List.of(c.apply(params.get(0))));
             }
             case "dateDiff" -> {
                 SqlExpr start = c.apply(params.get(0));
@@ -1828,43 +1775,42 @@ public class PlanGenerator {
             case "date" -> {
                 SqlExpr year = c.apply(params.get(0));
                 if (params.size() == 1) {
-                    // Year only: STRFTIME(MAKE_DATE(year,1,1), '%Y')
-                    yield new SqlExpr.FunctionCall("STRFTIME", List.of(
+                    // Year only: strftime(makeDate(year,1,1), '%Y')
+                    yield new SqlExpr.FunctionCall("strftime", List.of(
                             new SqlExpr.FunctionCall("makeDate", List.of(year,
                                     new SqlExpr.Literal("1"), new SqlExpr.Literal("1"))),
                             new SqlExpr.StringLiteral("%Y")));
                 } else if (params.size() == 2) {
-                    // Year-month: STRFTIME(MAKE_DATE(year,month,1), '%Y-%m')
-                    yield new SqlExpr.FunctionCall("STRFTIME", List.of(
+                    // Year-month: strftime(makeDate(year,month,1), '%Y-%m')
+                    yield new SqlExpr.FunctionCall("strftime", List.of(
                             new SqlExpr.FunctionCall("makeDate", List.of(year,
                                     c.apply(params.get(1)), new SqlExpr.Literal("1"))),
                             new SqlExpr.StringLiteral("%Y-%m")));
                 } else if (params.size() == 3) {
-                    // Full date: MAKE_DATE(year,month,day)
+                    // Full date: makeDate(year,month,day)
                     yield new SqlExpr.FunctionCall("makeDate",
                             List.of(year, c.apply(params.get(1)), c.apply(params.get(2))));
                 } else if (params.size() == 4) {
-                    // To hour: STRFTIME(MAKE_TIMESTAMP(y,m,d,h,0,0), '%Y-%m-%dT%H')
-                    yield new SqlExpr.FunctionCall("STRFTIME", List.of(
-                            new SqlExpr.FunctionCall("MAKE_TIMESTAMP", List.of(
+                    // To hour: strftime(makeTimestamp(y,m,d,h,0,0), '%Y-%m-%dT%H')
+                    yield new SqlExpr.FunctionCall("strftime", List.of(
+                            new SqlExpr.FunctionCall("makeTimestamp", List.of(
                                     year, c.apply(params.get(1)), c.apply(params.get(2)),
                                     c.apply(params.get(3)), new SqlExpr.Literal("0"), new SqlExpr.Literal("0"))),
                             new SqlExpr.StringLiteral("%Y-%m-%dT%H")));
                 } else if (params.size() == 5) {
-                    // To minute: STRFTIME(MAKE_TIMESTAMP(y,m,d,h,min,0), '%Y-%m-%dT%H:%M')
-                    yield new SqlExpr.FunctionCall("STRFTIME", List.of(
-                            new SqlExpr.FunctionCall("MAKE_TIMESTAMP", List.of(
+                    // To minute: strftime(makeTimestamp(y,m,d,h,min,0), '%Y-%m-%dT%H:%M')
+                    yield new SqlExpr.FunctionCall("strftime", List.of(
+                            new SqlExpr.FunctionCall("makeTimestamp", List.of(
                                     year, c.apply(params.get(1)), c.apply(params.get(2)),
                                     c.apply(params.get(3)), c.apply(params.get(4)), new SqlExpr.Literal("0"))),
                             new SqlExpr.StringLiteral("%Y-%m-%dT%H:%M")));
                 } else {
-                    // To second: REGEXP_REPLACE(STRFTIME(MAKE_TIMESTAMP(y,m,d,h,min,sec), ...),
-                    // '0{1,5}$', '')
-                    SqlExpr makeTs = new SqlExpr.FunctionCall("MAKE_TIMESTAMP", List.of(
+                    // To second: regexpReplace(strftime(makeTimestamp(y,m,d,h,min,sec), ...), '0{1,5}$', '')
+                    SqlExpr makeTs = new SqlExpr.FunctionCall("makeTimestamp", List.of(
                             year, c.apply(params.get(1)), c.apply(params.get(2)),
                             c.apply(params.get(3)), c.apply(params.get(4)), c.apply(params.get(5))));
-                    yield new SqlExpr.FunctionCall("REGEXP_REPLACE", List.of(
-                            new SqlExpr.FunctionCall("STRFTIME", List.of(
+                    yield new SqlExpr.FunctionCall("regexpReplace", List.of(
+                            new SqlExpr.FunctionCall("strftime", List.of(
                                     makeTs, new SqlExpr.StringLiteral("%Y-%m-%dT%H:%M:%S.%f"))),
                             new SqlExpr.StringLiteral("0{1,5}$"),
                             new SqlExpr.StringLiteral("")));
@@ -1925,7 +1871,7 @@ public class PlanGenerator {
                 yield new SqlExpr.FunctionCall("MONTH", List.of(c.apply(params.get(0))));
             }
 
-            // --- Date constants ---
+            // --- Date constants (SQL keywords, not functions — no parens) ---
             case "now" -> new SqlExpr.Literal("CURRENT_TIMESTAMP");
             case "today" -> new SqlExpr.Literal("CURRENT_DATE");
 
@@ -2161,7 +2107,7 @@ public class PlanGenerator {
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
 
             // --- Misc ---
-            case "generateGuid" -> new SqlExpr.FunctionCall("UUID", List.of());
+            case "generateGuid" -> new SqlExpr.FunctionCall("generateGuid", List.of());
             case "between" -> new SqlExpr.And(List.of(
                     new SqlExpr.Binary(c.apply(params.get(0)), ">=", c.apply(params.get(1))),
                     new SqlExpr.Binary(c.apply(params.get(0)), "<=", c.apply(params.get(2)))));
@@ -2186,7 +2132,7 @@ public class PlanGenerator {
                 if (params.size() >= 3
                         && params.get(1) instanceof LambdaFunction foldLf) {
                     SqlExpr list = c.apply(params.get(0));
-                    // Wrap single values in LIST_VALUE for DuckDB list_reduce
+                    // Wrap single values in list for list_reduce
                     if (!firstArgIsList) {
                         list = new SqlExpr.FunctionCall("wrapList", List.of(list));
                     }
@@ -2235,7 +2181,6 @@ public class PlanGenerator {
                                 && simpleName(af2.function()).equals("compare")
                                 && !af2.parameters().isEmpty()) {
                             // If receiver is param[1] (y), it's DESC; if param[0] (x), it's ASC
-                            String firstParam = compLf.parameters().get(0).name();
                             String secondParam = compLf.parameters().get(1).name();
                             // Get the receiver of compare
                             if (af2.parameters().get(0) instanceof Variable v) {
@@ -2320,10 +2265,6 @@ public class PlanGenerator {
         };
     }
 
-    /**
-     * /** Checks if any param is a partial date (year-only or year-month
-     * CStrictDate).
-     */
     /** Checks if any param is a CStrictDate (partial OR full) for date-to-date equality. */
     private boolean hasPartialDate(List<ValueSpecification> params) {
         for (var p : params) {
@@ -2440,5 +2381,12 @@ public class PlanGenerator {
 
     private static String simpleName(String qualifiedName) {
         return TypeInfo.simpleName(qualifiedName);
+    }
+
+    /** Checks if a string looks like a numeric literal (avoids try/catch for type detection). */
+    private static boolean isNumericLiteral(String s) {
+        if (s == null || s.isEmpty()) return false;
+        char first = s.charAt(0);
+        return (first >= '0' && first <= '9') || first == '-' || first == '.';
     }
 }

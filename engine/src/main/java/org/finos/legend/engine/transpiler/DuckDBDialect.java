@@ -320,17 +320,19 @@ public final class DuckDBDialect implements SQLDialect {
             case "bitXor" -> "XOR";
 
             // --- Aggregates / Statistics ---
+            case "stdDev" -> "STDDEV";
             case "median" -> "MEDIAN";
             case "mode" -> "MODE";
             case "stdDevSample" -> "STDDEV_SAMP";
             case "stdDevPopulation" -> "STDDEV_POP";
+            case "variance" -> "VARIANCE";
             case "varianceSample" -> "VAR_SAMP";
             case "variancePopulation" -> "VAR_POP";
             case "corr" -> "CORR";
             case "covarSample" -> "COVAR_SAMP";
             case "covarPopulation" -> "COVAR_POP";
-            case "percentileCont" -> "PERCENTILE_CONT";
-            case "percentileDisc" -> "PERCENTILE_DISC";
+            case "percentileCont" -> "QUANTILE_CONT";
+            case "percentileDisc" -> "QUANTILE_DISC";
 
             // --- Analytical ---
             case "maxBy" -> "ARG_MAX";
@@ -339,6 +341,14 @@ public final class DuckDBDialect implements SQLDialect {
             // --- Misc ---
             case "generateGuid" -> "UUID";
             case "typeOf" -> "TYPEOF";
+
+            // --- Functions moved from PlanGenerator hardcoding ---
+            case "toJson" -> "TO_JSON";
+            case "strPos" -> "STRPOS";
+            case "instr" -> "INSTR";
+            case "regexpReplace" -> "REGEXP_REPLACE";
+            case "strftime" -> "STRFTIME";
+            case "makeTimestamp" -> "MAKE_TIMESTAMP";
 
             // Standard SQL: pass through unchanged
             default -> pureName;

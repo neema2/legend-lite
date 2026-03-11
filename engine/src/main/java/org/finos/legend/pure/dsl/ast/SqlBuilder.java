@@ -339,9 +339,7 @@ public class SqlBuilder {
         } else if (selectStar) {
             sql.append("*");
             if (!starExcept.isEmpty()) {
-                sql.append(" EXCLUDE(")
-                        .append(String.join(", ", starExcept))
-                        .append(")");
+                sql.append(dialect.renderStarExcept(starExcept));
             }
             if (!starReplace.isEmpty()) {
                 sql.append(" REPLACE (")

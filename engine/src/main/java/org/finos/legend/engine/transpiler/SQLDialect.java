@@ -224,4 +224,15 @@ public interface SQLDialect {
         // Default: treat the name as a standard SQL function
         return pureName + "(" + String.join(", ", args) + ")";
     }
+
+    /**
+     * Render the SELECT * EXCLUDE/EXCEPT clause for excluding columns from star.
+     * DuckDB uses EXCLUDE, PostgreSQL uses EXCEPT.
+     *
+     * @param columns Pre-rendered column names to exclude
+     * @return Dialect-specific clause (e.g., " EXCLUDE(col1, col2)")
+     */
+    default String renderStarExcept(java.util.List<String> columns) {
+        return " EXCLUDE(" + String.join(", ", columns) + ")";
+    }
 }
