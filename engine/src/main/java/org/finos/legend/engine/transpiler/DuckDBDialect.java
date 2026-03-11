@@ -344,6 +344,38 @@ public final class DuckDBDialect implements SQLDialect {
             case "maxBy" -> "ARG_MAX";
             case "minBy" -> "ARG_MIN";
 
+            // --- Standard SQL aggregates (semantic name → SQL name) ---
+            case "sum" -> "SUM";
+            case "avg" -> "AVG";
+            case "count" -> "COUNT";
+            case "min" -> "MIN";
+            case "max" -> "MAX";
+
+            // --- Ranking (semantic name → SQL name) ---
+            case "rowNumber" -> "ROW_NUMBER";
+            case "rank" -> "RANK";
+            case "denseRank" -> "DENSE_RANK";
+            case "percentRank" -> "PERCENT_RANK";
+            case "cumulativeDistribution" -> "CUME_DIST";
+
+            // --- Value functions (semantic name → SQL name) ---
+            case "firstValue" -> "FIRST_VALUE";
+            case "lastValue" -> "LAST_VALUE";
+            case "lag" -> "LAG";
+            case "lead" -> "LEAD";
+            case "ntile" -> "NTILE";
+            case "nthValue" -> "NTH_VALUE";
+
+            // --- Math (semantic name → SQL name) ---
+            case "round" -> "ROUND";
+            case "abs" -> "ABS";
+            case "ceil" -> "CEIL";
+            case "floor" -> "FLOOR";
+            case "truncate" -> "TRUNCATE";
+
+            // --- List transform ---
+            case "listTransform" -> "list_transform";
+
             // --- Misc ---
             case "generateGuid" -> "UUID";
             case "typeOf" -> "TYPEOF";

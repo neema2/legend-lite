@@ -329,12 +329,36 @@ public class CleanCompiler {
         TypeInfo source = compileExpr(params.get(0), ctx);
         RelationType sourceType = source.relationType();
 
-        // List sort with lambdas: compile all params so lambda bodies get walked
+        // List sort with lambdas: detect compare lambda direction
         if (sourceType == null || sourceType.columns().isEmpty()) {
             for (int i = 1; i < params.size(); i++) {
                 compileExpr(params.get(i), ctx);
             }
-            return scalar(af);
+            // Detect direction from compare lambda: {x,y|$y->compare($x)} = DESC
+            TypeInfo.SortDirection direction = TypeInfo.SortDirection.ASC;
+            if (params.size() > 1) {
+                // The compare lambda is always the last lambda with 2 params
+                var lastParam = params.get(params.size() - 1);
+                if (lastParam instanceof LambdaFunction compLf
+                        && compLf.parameters().size() == 2 && !compLf.body().isEmpty()) {
+                    var body = compLf.body().get(0);
+                    if (body instanceof AppliedFunction af2
+                            && simpleName(af2.function()).equals("compare")
+                            && !af2.parameters().isEmpty()) {
+                        String secondParam = compLf.parameters().get(1).name();
+                        if (af2.parameters().get(0) instanceof Variable v
+                                && v.name().equals(secondParam)) {
+                            direction = TypeInfo.SortDirection.DESC;
+                        }
+                    }
+                }
+            }
+            // Store direction as a SortSpec with null column (list sort, not relational)
+            var info = new TypeInfo(null, null, Map.of(),
+                    List.of(new TypeInfo.SortSpec(null, direction)),
+                    List.of(), List.of(), false, null, List.of(), null, null, false, null);
+            types.put(af, info);
+            return info;
         }
 
         // Relational sort: resolve sort specs
@@ -351,7 +375,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
-                List.of(), null, null, false);
+                List.of(), null, null, false, null);
         types.put(af, info);
         return info;
     }
@@ -395,12 +419,28 @@ public class CleanCompiler {
             return new TypeInfo.SortSpec(s.value(), TypeInfo.SortDirection.ASC);
         }
         // Old-style lambda sort: sortBy({e | $e.sal}) or sort({x,y | $y->compare($x)})
-        if (vs instanceof LambdaFunction) {
-            String col = extractColumnName(vs);
+        if (vs instanceof LambdaFunction lf) {
+            // 2-param compare lambda: detect direction
+            if (lf.parameters().size() == 2 && !lf.body().isEmpty()) {
+                var body = lf.body().get(0);
+                if (body instanceof AppliedFunction af2
+                        && simpleName(af2.function()).equals("compare")
+                        && !af2.parameters().isEmpty()) {
+                    String secondParam = lf.parameters().get(1).name();
+                    TypeInfo.SortDirection dir = TypeInfo.SortDirection.ASC;
+                    if (af2.parameters().get(0) instanceof Variable v
+                            && v.name().equals(secondParam)) {
+                        dir = TypeInfo.SortDirection.DESC;
+                    }
+                    String col = extractColumnName(lf);
+                    return new TypeInfo.SortSpec(col, dir);
+                }
+            }
+            // 1-param key function: sortBy({e | $e.sal})
+            String col = extractColumnName(lf);
             return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC);
         }
-        // Generic fallback: try to extract column name
-        return new TypeInfo.SortSpec(extractColumnName(vs), TypeInfo.SortDirection.ASC);
+        throw new PureCompileException("Unsupported sort spec type: " + vs.getClass().getSimpleName());
     }
 
     /** Compiles limit/take(source, count). */
@@ -462,7 +502,7 @@ public class CleanCompiler {
                 colSpecs.add(TypeInfo.ColumnSpec.col(c));
             }
             var info = new TypeInfo(source.relationType().onlyColumns(cols), source.mapping(),
-                    Map.of(), List.of(), List.of(), colSpecs, false, null, null, null, null, false);
+                    Map.of(), List.of(), List.of(), colSpecs, false, null, null, null, null, false, null);
             types.put(af, info);
             return info;
         }
@@ -486,7 +526,7 @@ public class CleanCompiler {
         RelationType newType = source.relationType().renameColumn(oldName, newName);
         List<TypeInfo.ColumnSpec> colSpecs = List.of(TypeInfo.ColumnSpec.renamed(oldName, newName));
         var info = new TypeInfo(newType, source.mapping(), Map.of(), List.of(), List.of(), colSpecs, false, null,
-                null, null, null, false);
+                null, null, null, false, null);
         types.put(af, info);
         return info;
     }
@@ -593,12 +633,12 @@ public class CleanCompiler {
         // Propagate struct flag from source
         if (source.isStructSource()) {
             var info = new TypeInfo(resultType, null, associations, List.of(), projections, List.of(), true, null,
-                    List.of(), null, null, false);
+                    List.of(), null, null, false, null);
             types.put(af, info);
             return info;
         }
         var info = new TypeInfo(resultType, mapping, associations, List.of(), projections, List.of(), false, null,
-                List.of(), null, null, false);
+                List.of(), null, null, false, null);
         types.put(af, info);
         return info;
     }
@@ -633,7 +673,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(selectedColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null);
         types.put(af, info);
         return info;
     }
@@ -719,7 +759,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null);
         types.put(af, info);
         return info;
     }
@@ -775,7 +815,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null);
         types.put(af, info);
         return info;
     }
@@ -851,7 +891,7 @@ public class CleanCompiler {
 
         var info = new TypeInfo(new RelationType(newColumns), source.mapping(),
                 Map.of(), List.of(), List.of(), List.of(), false, null,
-                windowSpec != null ? List.of(windowSpec) : List.of(), null, null, false);
+                windowSpec != null ? List.of(windowSpec) : List.of(), null, null, false, null);
         types.put(af, info);
         return info;
     }
@@ -1274,10 +1314,49 @@ public class CleanCompiler {
             joinType = extractJoinTypeName(params.get(2));
         }
 
+        // Walk the condition lambda and tag each AppliedProperty with its join-side alias
+        int conditionIdx = params.size() >= 4 ? 3 : 2;
+        if (conditionIdx < params.size() && params.get(conditionIdx) instanceof LambdaFunction lf) {
+            String leftParam = lf.parameters().size() > 0 ? lf.parameters().get(0).name() : "l";
+            String rightParam = lf.parameters().size() > 1 ? lf.parameters().get(1).name() : "r";
+            if (!lf.body().isEmpty()) {
+                tagJoinConditionProperties(lf.body().get(0), leftParam, rightParam);
+            }
+        }
+
         var info = new TypeInfo(new RelationType(mergedColumns), left.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null, null, false);
+                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null, null, false, null);
         types.put(af, info);
         return info;
+    }
+
+    /**
+     * Recursively tags each AppliedProperty in a join condition with its join-side alias.
+     * PlanGenerator reads columnAlias from the side table instead of AST-walking.
+     */
+    private void tagJoinConditionProperties(ValueSpecification vs, String leftParam, String rightParam) {
+        switch (vs) {
+            case AppliedProperty ap -> {
+                if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
+                    if (v.name().equals(leftParam)) {
+                        types.put(ap, TypeInfo.withAlias("left_src"));
+                    } else if (v.name().equals(rightParam)) {
+                        types.put(ap, TypeInfo.withAlias("right_src"));
+                    }
+                }
+            }
+            case AppliedFunction afn -> {
+                for (var p : afn.parameters()) {
+                    tagJoinConditionProperties(p, leftParam, rightParam);
+                }
+            }
+            case LambdaFunction lf -> {
+                for (var body : lf.body()) {
+                    tagJoinConditionProperties(body, leftParam, rightParam);
+                }
+            }
+            default -> { /* literals, variables — no tagging needed */ }
+        }
     }
 
     /** Extracts join type name from EnumValue, CString, or AppliedProperty. */
@@ -1594,7 +1673,7 @@ public class CleanCompiler {
                 result.relationType(), result.mapping(), result.associations(),
                 result.sortSpecs(), result.projections(), result.columnSpecs(),
                 result.structSource(), result.joinType(), result.windowSpecs(),
-                lastStmt, result.scalarType(), result.lambdaParam());
+                lastStmt, result.scalarType(), result.lambdaParam(), result.columnAlias());
         types.put(af, blockInfo);
         return blockInfo;
     }
@@ -1696,7 +1775,7 @@ public class CleanCompiler {
                 bodyResult.relationType(), bodyResult.mapping(), bodyResult.associations(),
                 bodyResult.sortSpecs(), bodyResult.projections(), bodyResult.columnSpecs(),
                 bodyResult.structSource(), bodyResult.joinType(), bodyResult.windowSpecs(),
-                inlinedNode, bodyResult.scalarType(), false);
+                inlinedNode, bodyResult.scalarType(), false, bodyResult.columnAlias());
         types.put(af, result);
         return result;
     }
@@ -2426,7 +2505,7 @@ public class CleanCompiler {
                     letInfo.relationType(), letInfo.mapping(), letInfo.associations(),
                     letInfo.sortSpecs(), letInfo.projections(), letInfo.columnSpecs(),
                     letInfo.structSource(), letInfo.joinType(), letInfo.windowSpecs(),
-                    letValue, letInfo.scalarType(), letInfo.lambdaParam());
+                    letValue, letInfo.scalarType(), letInfo.lambdaParam(), letInfo.columnAlias());
             types.put(v, inlined);
             return inlined;
         }

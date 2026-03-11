@@ -48,7 +48,9 @@ public record TypeInfo(
         List<WindowFunctionSpec> windowSpecs,
         ValueSpecification inlinedBody,
         GenericType scalarType,
-        boolean lambdaParam) {
+        boolean lambdaParam,
+        /** Table alias prefix for property accesses (e.g. "left_src" in join conditions). */
+        String columnAlias) {
 
     /**
      * Pre-resolved association navigation target.
@@ -236,47 +238,53 @@ public record TypeInfo(
 
     /** Creates a TypeInfo for a scalar (non-relational) expression. */
     public static TypeInfo scalar() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, false);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, false, null);
     }
 
     /** Creates a TypeInfo for a scalar with a known type. */
     public static TypeInfo scalarOf(GenericType type) {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, false);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, false, null);
     }
 
     /** Creates a TypeInfo marking a lambda parameter variable with its declared type. */
     public static TypeInfo lambdaParamOf(GenericType type) {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, true);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, true, null);
     }
 
     /** Creates a TypeInfo marking a lambda parameter variable (untyped). */
     public static TypeInfo lambdaParamMarker() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, true);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, true, null);
     }
 
     /** Creates a TypeInfo with type info but no mapping. */
     public static TypeInfo of(RelationType relationType) {
         return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null, false);
+                null, null, false, null);
     }
 
     /** Full constructor with both type and mapping. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping) {
         return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null, false);
+                null, null, false, null);
     }
 
     /** Full constructor with associations. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping,
             Map<String, AssociationTarget> associations) {
         return new TypeInfo(relationType, mapping, associations, List.of(), List.of(), List.of(), false, null, null,
-                null, null, false);
+                null, null, false, null);
     }
 
     /** Constructor for struct-based sources. */
     public static TypeInfo structOf(RelationType relationType) {
         return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), true, null, List.of(), null,
-                null, false);
+                null, false, null);
+    }
+
+    /** Creates a TypeInfo tagging a property access with a specific join-side alias. */
+    public static TypeInfo withAlias(String columnAlias) {
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null,
+                null, false, columnAlias);
     }
 
     // ===== Derived checks — no SourceKind enum needed =====

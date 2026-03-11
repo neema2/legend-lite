@@ -261,7 +261,7 @@ public class PlanGenerator {
         TypeInfo info = unit.typeInfoFor(af);
         String tableName = info != null ? info.tableName() : null;
         if (tableName == null) {
-            tableName = extractClassName(af.parameters().get(0));
+            throw new PureCompileException("getAll: tableName not resolved in sidecar for " + af.function());
         }
         String alias = nextTableAlias();
         return new SqlBuilder()
@@ -272,9 +272,15 @@ public class PlanGenerator {
     private SqlBuilder generateTableAccess(AppliedFunction af) {
         TypeInfo info = unit.typeInfoFor(af);
         String tableName = info != null ? info.tableName() : null;
+        // table('myTable') — tableName comes from the string parameter, not from a mapping
+        if (tableName == null && !af.parameters().isEmpty()
+                && af.parameters().get(0) instanceof CString s) {
+            String content = s.value();
+            int dotIdx = content.lastIndexOf('.');
+            tableName = dotIdx > 0 ? content.substring(dotIdx + 1) : content;
+        }
         if (tableName == null) {
-            String content = extractString(af.parameters().get(0));
-            tableName = extractTableName(content);
+            throw new PureCompileException("tableAccess: tableName not resolved for " + af.function());
         }
         return new SqlBuilder()
                 .selectStar()
@@ -1021,16 +1027,16 @@ public class PlanGenerator {
         return new SqlExpr.FunctionCall(sqlFunc, List.of());
     }
 
-    /** Maps a Pure function name to SQL function name. */
+    /** Maps a Pure function name to a semantic function name for SQL generation.
+     *  Dialect layer takes care of rendering semantic names to SQL syntax. */
     private String mapPureFuncToSql(String pureFuncName) {
         return switch (pureFuncName) {
-            // Aggregates (standard SQL names)
-            case "plus", "sum" -> "SUM";
-            case "average", "avg", "mean" -> "AVG";
-            case "count", "size" -> "COUNT";
-            case "min" -> "MIN";
-            case "max" -> "MAX";
-            // Aggregates (semantic names → dialect renders)
+            // Aggregates
+            case "plus", "sum" -> "sum";
+            case "average", "avg", "mean" -> "avg";
+            case "count", "size" -> "count";
+            case "min" -> "min";
+            case "max" -> "max";
             case "stdDev", "stddev" -> "stdDev";
             case "stdDevSample" -> "stdDevSample";
             case "stdDevPopulation" -> "stdDevPopulation";
@@ -1049,25 +1055,25 @@ public class PlanGenerator {
             case "minBy" -> "minBy";
             case "wavg" -> "wavg";
             case "hashCode" -> "hashCode";
-            // Ranking (standard SQL names)
-            case "rowNumber" -> "ROW_NUMBER";
-            case "rank" -> "RANK";
-            case "denseRank" -> "DENSE_RANK";
-            case "percentRank" -> "PERCENT_RANK";
-            case "cumulativeDistribution" -> "CUME_DIST";
-            // Value functions (standard SQL names)
-            case "first", "firstValue" -> "FIRST_VALUE";
-            case "last", "lastValue" -> "LAST_VALUE";
-            case "lag" -> "LAG";
-            case "lead" -> "LEAD";
-            case "ntile" -> "NTILE";
-            case "nthValue", "nth" -> "NTH_VALUE";
-            // Math wrappers (standard SQL names)
-            case "round" -> "ROUND";
-            case "abs" -> "ABS";
-            case "ceil" -> "CEIL";
-            case "floor" -> "FLOOR";
-            case "truncate" -> "TRUNCATE";
+            // Ranking
+            case "rowNumber" -> "rowNumber";
+            case "rank" -> "rank";
+            case "denseRank" -> "denseRank";
+            case "percentRank" -> "percentRank";
+            case "cumulativeDistribution" -> "cumulativeDistribution";
+            // Value functions
+            case "first", "firstValue" -> "firstValue";
+            case "last", "lastValue" -> "lastValue";
+            case "lag" -> "lag";
+            case "lead" -> "lead";
+            case "ntile" -> "ntile";
+            case "nthValue", "nth" -> "nthValue";
+            // Math wrappers
+            case "round" -> "round";
+            case "abs" -> "abs";
+            case "ceil" -> "ceil";
+            case "floor" -> "floor";
+            case "truncate" -> "truncate";
             default -> null;
         };
     }
@@ -1123,19 +1129,14 @@ public class PlanGenerator {
             conditionIdx = -1; // cross join, no condition
         }
 
-        // Build ON condition from lambda
+        // Build ON condition from lambda — properties pre-tagged by CleanCompiler
         SqlExpr onCondition = null;
         if (conditionIdx >= 0 && conditionIdx < params.size()) {
             var condSpec = params.get(conditionIdx);
             if (condSpec instanceof LambdaFunction lf) {
-                String leftParam = lf.parameters().size() > 0 ? lf.parameters().get(0).name() : "l";
-                String rightParam = lf.parameters().size() > 1 ? lf.parameters().get(1).name() : "r";
-                onCondition = generateJoinCondition(lf.body().get(0), leftParam, rightParam,
-                        left, right);
+                onCondition = generateScalar(lf.body().get(0), null, null);
             }
         }
-
-        // Wrap left in a base builder, add right as a JOIN subquery
         String leftAlias = dialect.quoteIdentifier("left_src");
         String rightAlias = dialect.quoteIdentifier("right_src");
         SqlBuilder result = new SqlBuilder()
@@ -1153,68 +1154,7 @@ public class PlanGenerator {
         return result;
     }
 
-    /**
-     * Compiles a join condition lambda where $l refers to left (t0) and $r refers
-     * to right (t1).
-     */
-    private SqlExpr generateJoinCondition(ValueSpecification vs, String leftParam, String rightParam,
-            SqlBuilder left, SqlBuilder right) {
-        return switch (vs) {
-            case AppliedProperty ap -> {
-                // Property access — determine if from left or right
-                String owner = "";
-                if (ap.parameters() != null && !ap.parameters().isEmpty()
-                        && ap.parameters().get(0) instanceof Variable v) {
-                    owner = v.name();
-                }
-                String colName = ap.property();
-
-                yield resolveJoinColumn(colName, owner, leftParam, rightParam, left, right);
-            }
-            case AppliedFunction af -> {
-                String funcName = simpleName(af.function());
-                var params = af.parameters();
-                yield switch (funcName) {
-                    case "equal" -> new SqlExpr.Binary(
-                            generateJoinCondition(params.get(0), leftParam, rightParam, left, right), "=",
-                            generateJoinCondition(params.get(1), leftParam, rightParam, left, right));
-                    case "greaterThan" -> new SqlExpr.Binary(
-                            generateJoinCondition(params.get(0), leftParam, rightParam, left, right), ">",
-                            generateJoinCondition(params.get(1), leftParam, rightParam, left, right));
-                    case "lessThan" -> new SqlExpr.Binary(
-                            generateJoinCondition(params.get(0), leftParam, rightParam, left, right), "<",
-                            generateJoinCondition(params.get(1), leftParam, rightParam, left, right));
-                    case "and" -> new SqlExpr.And(List.of(
-                            generateJoinCondition(params.get(0), leftParam, rightParam, left, right),
-                            generateJoinCondition(params.get(1), leftParam, rightParam, left, right)));
-                    case "or" -> new SqlExpr.Or(List.of(
-                            generateJoinCondition(params.get(0), leftParam, rightParam, left, right),
-                            generateJoinCondition(params.get(1), leftParam, rightParam, left, right)));
-                    case "not" -> new SqlExpr.Not(
-                            generateJoinCondition(params.get(0), leftParam, rightParam, left, right));
-                    default -> generateScalarFunction(af, leftParam, null, null);
-                };
-            }
-            case Variable v -> new SqlExpr.ColumnRef(v.name());
-            case CString s -> new SqlExpr.StringLiteral(s.value());
-            case CInteger i -> new SqlExpr.Literal(String.valueOf(i.value()));
-            default -> generateScalar(vs, leftParam, null);
-        };
-    }
-
-    /**
-     * Resolves a column reference in a join condition.
-     * Maps property name to the correct alias (t0 for left, t1 for right).
-     */
-    private SqlExpr resolveJoinColumn(String colName, String owner, String leftParam, String rightParam,
-            SqlBuilder left, SqlBuilder right) {
-        if (owner.equals(leftParam)) {
-            return new SqlExpr.Column("left_src", colName);
-        } else if (owner.equals(rightParam)) {
-            return new SqlExpr.Column("right_src", colName);
-        }
-        return new SqlExpr.ColumnRef(colName);
-    }
+    // (generateJoinCondition and resolveJoinColumn — DELETED: replaced by sidecar-based columnAlias)
 
     private String unquote(String s) {
         if (s != null && s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
@@ -1251,6 +1191,11 @@ public class PlanGenerator {
         }
         return switch (vs) {
             case AppliedProperty ap -> {
+                // Join condition: CleanCompiler tagged this with columnAlias ("left_src" or "right_src")
+                TypeInfo apInfo = unit.types().get(ap);
+                if (apInfo != null && apInfo.columnAlias() != null) {
+                    yield new SqlExpr.Column(apInfo.columnAlias(), ap.property());
+                }
                 // Check for association path: $p.addresses.street
                 if (tableAlias != null && !ap.parameters().isEmpty()
                         && ap.parameters().get(0) instanceof AppliedProperty) {
@@ -2327,7 +2272,7 @@ public class PlanGenerator {
                     SqlExpr body = !mapLf.body().isEmpty()
                             ? c.apply(mapLf.body().get(0)) : new SqlExpr.Literal("NULL");
                     SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), body);
-                    yield new SqlExpr.FunctionCall("list_transform", List.of(list, lambda));
+                    yield new SqlExpr.FunctionCall("listTransform", List.of(list, lambda));
                 }
                 // Non-lambda map: pass through source
                 if (!params.isEmpty()) {
@@ -2378,24 +2323,11 @@ public class PlanGenerator {
             }
             case "sort" -> {
                 if (firstArgIsList) {
-                    // Detect sort direction from compare lambda
-                    // sort({x,y|$y->compare($x)}) → DESC, sort({x,y|$x->compare($y)}) → ASC
-                    String direction = "ASC";
-                    if (params.size() > 1 && params.get(params.size() - 1) instanceof LambdaFunction compLf
-                            && compLf.parameters().size() == 2 && !compLf.body().isEmpty()) {
-                        // Check if compare lambda is $y->compare($x) (DESC)
-                        var body = compLf.body().get(0);
-                        if (body instanceof AppliedFunction af2
-                                && simpleName(af2.function()).equals("compare")
-                                && !af2.parameters().isEmpty()) {
-                            // If receiver is param[1] (y), it's DESC; if param[0] (x), it's ASC
-                            String secondParam = compLf.parameters().get(1).name();
-                            // Get the receiver of compare
-                            if (af2.parameters().get(0) instanceof Variable v) {
-                                if (v.name().equals(secondParam)) direction = "DESC";
-                            }
-                        }
-                    }
+                    // Read pre-resolved sort direction from sidecar (CleanCompiler detected compare lambda)
+                    TypeInfo sortInfo = unit.types().get(af);
+                    String direction = (sortInfo != null && sortInfo.hasSortSpecs()
+                            && sortInfo.sortSpecs().get(0).direction() == TypeInfo.SortDirection.DESC)
+                            ? "DESC" : "ASC";
                     // Check for key function: sort(keyFn, compareFn)
                     if (params.size() > 2
                             || (params.size() == 2 && params.get(1) instanceof LambdaFunction kf
@@ -2566,26 +2498,6 @@ public class PlanGenerator {
         throw new PureCompileException("Expected integer, got: " + vs.getClass().getSimpleName());
     }
 
-    private String extractString(ValueSpecification vs) {
-        if (vs instanceof CString s)
-            return s.value();
-        throw new PureCompileException("Expected string, got: " + vs.getClass().getSimpleName());
-    }
-
-    private String extractTableName(String content) {
-        int dotIdx = content.lastIndexOf('.');
-        return dotIdx > 0 ? content.substring(dotIdx + 1) : content;
-    }
-
-    private String extractClassName(ValueSpecification vs) {
-        if (vs instanceof PackageableElementPtr pep) {
-            String fqn = pep.fullPath();
-            int idx = fqn.lastIndexOf("::");
-            return idx > 0 ? fqn.substring(idx + 2) : fqn;
-        }
-        throw new PureCompileException(
-                "PlanGenerator: expected PackageableElementPtr but got " + vs.getClass().getSimpleName());
-    }
 
     private static String simpleName(String qualifiedName) {
         return TypeInfo.simpleName(qualifiedName);
