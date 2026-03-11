@@ -1999,16 +1999,16 @@ public class PlanGenerator {
 
             // --- Bitwise ---
             case "bitAnd" -> new SqlExpr.Binary(
-                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), "&",
-                    new SqlExpr.Cast(c.apply(params.get(1)), "Integer"));
+                    c.apply(params.get(0)), "&",
+                    c.apply(params.get(1)));
             case "bitOr" -> new SqlExpr.Binary(
-                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), "|",
-                    new SqlExpr.Cast(c.apply(params.get(1)), "Integer"));
+                    c.apply(params.get(0)), "|",
+                    c.apply(params.get(1)));
             case "bitXor" -> new SqlExpr.FunctionCall("bitXor",
-                    List.of(new SqlExpr.Cast(c.apply(params.get(0)), "Integer"),
-                            new SqlExpr.Cast(c.apply(params.get(1)), "Integer")));
+                    List.of(c.apply(params.get(0)),
+                            c.apply(params.get(1))));
             case "bitNot" -> new SqlExpr.Unary("~",
-                    new SqlExpr.Cast(c.apply(params.get(0)), "Integer"));
+                    c.apply(params.get(0)));
             case "bitShiftLeft" -> new SqlExpr.Binary(
                     new SqlExpr.Cast(c.apply(params.get(0)), "Integer"), "<<",
                     c.apply(params.get(1)));
