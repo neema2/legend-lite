@@ -586,6 +586,10 @@ public class QueryService {
         // We leave this difference — it only affects 1 query (if() filter)
         // and the new pipeline's qualified form is strictly better.
 
+        // 4. Normalize quoted lambda params in zip: "_zip_i" → _zip_i
+        // Old pipeline quotes the generated zip lambda param when nested.
+        normalized = normalized.replace("\"_zip_i\"", "_zip_i");
+
         return normalized;
     }
 
