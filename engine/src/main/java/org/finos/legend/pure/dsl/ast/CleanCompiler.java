@@ -657,9 +657,24 @@ public class CleanCompiler {
         // Pattern 3 (new API, single): params[2+] are individual ColSpec instances
         if (params.size() > 2 && params.get(2) instanceof Collection aggColl) {
             // Legacy pattern: unwrap Collection of agg lambdas
+            // Alias names come from params[3] (CString collection): ['dept', 'medianSal']
+            // First N aliases are for group cols, rest for agg cols
+            List<String> aliasNames = new ArrayList<>();
+            if (params.size() > 3 && params.get(3) instanceof Collection aliasColl) {
+                for (var v : aliasColl.values()) {
+                    if (v instanceof CString cs) aliasNames.add(cs.value());
+                }
+            }
             for (int i = 0; i < aggColl.values().size(); i++) {
                 var aggInfo = extractAggSpec(aggColl.values().get(i));
                 if (aggInfo != null) {
+                    // Override alias from params[3] if available
+                    int aliasIdx = groupColNames.size() + i;
+                    if (aliasIdx < aliasNames.size()) {
+                        aggInfo = new TypeInfo.ColumnSpec(
+                                aggInfo.columnName(), aliasNames.get(aliasIdx),
+                                aggInfo.aggFunction(), aggInfo.extraArgs());
+                    }
                     resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
                     colSpecs.add(aggInfo);
                 }
@@ -2121,19 +2136,46 @@ public class CleanCompiler {
                 var body = cs.function2().body().get(0);
                 if (body instanceof AppliedFunction bodyAf) {
                     aggFunc = simpleName(bodyAf.function());
-                    // Extract extra params (separator for joinStrings, etc.)
-                    for (int k = 1; k < bodyAf.parameters().size(); k++) {
-                        var extra = bodyAf.parameters().get(k);
-                        if (extra instanceof AppliedProperty ap) {
-                            allExtraArgs.add(ap.property());
-                        } else if (extra instanceof CInteger ci2) {
-                            allExtraArgs.add(String.valueOf(ci2.value()));
-                        } else if (extra instanceof CFloat cf) {
-                            allExtraArgs.add(String.valueOf(cf.value()));
-                        } else if (extra instanceof CDecimal cd) {
-                            allExtraArgs.add(cd.value().toPlainString());
-                        } else if (extra instanceof CString cs2) {
-                            allExtraArgs.add("'" + cs2.value() + "'");
+
+                    // Special handling for percentile(value, ascending, continuous)
+                    if ("percentile".equals(aggFunc)) {
+                        boolean ascending = true;
+                        boolean continuous = true; // default: percentileCont
+                        double pValue = 0.5;
+                        var pParams = bodyAf.parameters();
+                        // param[0] is $y (receiver), param[1] is value, param[2] is ascending, param[3] is continuous
+                        if (pParams.size() > 1) {
+                            if (pParams.get(1) instanceof CFloat cf) pValue = cf.value();
+                            else if (pParams.get(1) instanceof CDecimal cd) pValue = cd.value().doubleValue();
+                        }
+                        if (pParams.size() > 2 && pParams.get(2) instanceof CBoolean cb) {
+                            ascending = cb.value();
+                        }
+                        if (pParams.size() > 3 && pParams.get(3) instanceof CBoolean cb) {
+                            continuous = cb.value();
+                        }
+                        aggFunc = continuous ? "percentileCont" : "percentileDisc";
+                        double effectiveValue = ascending ? pValue : (1.0 - pValue);
+                        // Format without trailing zeros
+                        String valStr = effectiveValue == (long) effectiveValue
+                                ? String.valueOf((long) effectiveValue)
+                                : String.valueOf(effectiveValue);
+                        allExtraArgs.add(valStr);
+                    } else {
+                        // Extract extra params (separator for joinStrings, etc.)
+                        for (int k = 1; k < bodyAf.parameters().size(); k++) {
+                            var extra = bodyAf.parameters().get(k);
+                            if (extra instanceof AppliedProperty ap) {
+                                allExtraArgs.add(ap.property());
+                            } else if (extra instanceof CInteger ci2) {
+                                allExtraArgs.add(String.valueOf(ci2.value()));
+                            } else if (extra instanceof CFloat cf) {
+                                allExtraArgs.add(String.valueOf(cf.value()));
+                            } else if (extra instanceof CDecimal cd) {
+                                allExtraArgs.add(cd.value().toPlainString());
+                            } else if (extra instanceof CString cs2) {
+                                allExtraArgs.add("'" + cs2.value() + "'");
+                            }
                         }
                     }
                 }

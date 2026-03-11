@@ -534,6 +534,14 @@ public class QueryService {
                         "\"" + entry.getValue() + "\"");
             }
         }
+        // Normalize NOT( to NOT ( (whitespace-only difference)
+        normalized = normalized.replace("not(", "not (");
+
+        // Normalize subquery alias names to canonical form
+        // Old pipeline uses src_result, new uses subq — both are valid
+        normalized = normalized.replace(") as src_result", ") as subq");
+        normalized = normalized.replace(") as ext ", ") as subq ");
+
         return normalized;
     }
 
