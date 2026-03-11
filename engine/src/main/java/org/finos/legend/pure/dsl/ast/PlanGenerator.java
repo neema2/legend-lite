@@ -569,6 +569,29 @@ public class PlanGenerator {
                         ? new SqlExpr.Cast(jsonAccess, ea.castType())
                         : jsonAccess;
             }
+            // Enum mapping: generate CASE WHEN translation
+            if (pm.hasEnumMapping()) {
+                SqlExpr colExpr = alias != null
+                        ? new SqlExpr.Column(alias, pm.columnName())
+                        : new SqlExpr.ColumnRef(pm.columnName());
+                var branches = new java.util.ArrayList<SqlExpr.SearchedCase.WhenBranch>();
+                for (var entry : pm.enumMapping().entrySet()) {
+                    String enumValue = entry.getKey();
+                    java.util.List<Object> sourceValues = entry.getValue();
+                    java.util.List<SqlExpr> conditions = sourceValues.stream()
+                            .map(sv -> (SqlExpr) new SqlExpr.Binary(colExpr, "=",
+                                    new SqlExpr.StringLiteral(sv.toString())))
+                            .toList();
+                    SqlExpr condition = conditions.get(0);
+                    for (int i = 1; i < conditions.size(); i++) {
+                        condition = new SqlExpr.Grouped(
+                                new SqlExpr.Binary(condition, "OR", conditions.get(i)));
+                    }
+                    branches.add(new SqlExpr.SearchedCase.WhenBranch(
+                            condition, new SqlExpr.StringLiteral(enumValue)));
+                }
+                return new SqlExpr.SearchedCase(branches, new SqlExpr.NullLiteral());
+            }
             return new SqlExpr.Column(alias, pm.columnName());
         }
         // No mapping for this property — use property name as column (unmapped/direct)
@@ -1233,6 +1256,32 @@ public class PlanGenerator {
                 }
                 String colName = ap.property();
                 if (mapping != null) {
+                    // Check for enum mapping first
+                    var pmOpt = mapping.getPropertyMapping(colName);
+                    if (pmOpt.isPresent() && pmOpt.get().hasEnumMapping()) {
+                        var pm = pmOpt.get();
+                        String dbCol = pm.columnName();
+                        SqlExpr colExpr = tableAlias != null
+                                ? new SqlExpr.Column(tableAlias, dbCol)
+                                : new SqlExpr.ColumnRef(dbCol);
+                        // Build CASE WHEN branches from enum value mappings
+                        var branches = new java.util.ArrayList<SqlExpr.SearchedCase.WhenBranch>();
+                        for (var entry : pm.enumMapping().entrySet()) {
+                            String enumValue = entry.getKey();
+                            List<Object> sourceValues = entry.getValue();
+                            // Build OR condition for multiple source values
+                            List<SqlExpr> conditions = sourceValues.stream()
+                                    .map(sv -> (SqlExpr) new SqlExpr.Binary(colExpr, "=",
+                                            new SqlExpr.StringLiteral(sv.toString())))
+                                    .toList();
+                            SqlExpr condition = conditions.size() == 1
+                                    ? conditions.get(0)
+                                    : new SqlExpr.Or(conditions);
+                            branches.add(new SqlExpr.SearchedCase.WhenBranch(
+                                    condition, new SqlExpr.StringLiteral(enumValue)));
+                        }
+                        yield new SqlExpr.SearchedCase(branches, new SqlExpr.NullLiteral());
+                    }
                     var columnOpt = mapping.getColumnForProperty(colName);
                     if (columnOpt.isPresent())
                         colName = columnOpt.get();

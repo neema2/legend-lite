@@ -292,6 +292,24 @@ public sealed interface SqlExpr {
         }
     }
 
+    /** Multi-branch searched CASE: CASE WHEN c1 THEN r1 WHEN c2 THEN r2 ... ELSE elseExpr END */
+    record SearchedCase(List<WhenBranch> branches, SqlExpr elseExpr) implements SqlExpr {
+        public record WhenBranch(SqlExpr condition, SqlExpr result) {}
+        @Override
+        public String toSql(SQLDialect dialect) {
+            StringBuilder sb = new StringBuilder("CASE");
+            for (var branch : branches) {
+                sb.append(" WHEN ").append(branch.condition.toSql(dialect))
+                  .append(" THEN ").append(branch.result.toSql(dialect));
+            }
+            if (elseExpr != null) {
+                sb.append(" ELSE ").append(elseExpr.toSql(dialect));
+            }
+            sb.append(" END");
+            return sb.toString();
+        }
+    }
+
     // ==================== Dialect-specific (delegated) ====================
 
     /** Dialect-rendered list containment check. */
