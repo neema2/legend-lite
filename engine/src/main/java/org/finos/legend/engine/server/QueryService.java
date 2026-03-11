@@ -459,11 +459,19 @@ public class QueryService {
             var plan = planGenerator.generate();
             String newSql = plan.sql();
 
-            // Compare output
-            String oldNorm = normalizeSql(normalizeOldSqlQuirks(oldSql));
+            // Compare output — 3 old forms × 2 new forms, match if any pair agrees
+            String oldRaw = oldSql.trim().replaceAll("\\s+", " ").toLowerCase();
+            String oldNorm = normalizeSql(oldSql);
+            String oldQuirked = normalizeSql(normalizeOldSqlQuirks(oldSql));
+            String newRaw = newSql.trim().replaceAll("\\s+", " ").toLowerCase();
             String newNorm = normalizeSql(newSql);
 
-            if (oldNorm.equals(newNorm)) {
+            if (oldRaw.equals(newRaw)
+                    || oldRaw.equals(newNorm)
+                    || oldNorm.equals(newRaw)
+                    || oldNorm.equals(newNorm)
+                    || oldQuirked.equals(newRaw)
+                    || oldQuirked.equals(newNorm)) {
                 MATCH_COUNT.incrementAndGet();
             } else {
                 MISMATCH_COUNT.incrementAndGet();

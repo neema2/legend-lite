@@ -232,7 +232,7 @@ public class PlanGenerator {
             case "table", "tableReference" -> generateTableAccess(af);
             case "filter" -> generateFilter(af);
             case "project" -> generateProject(af);
-            case "sort" -> generateSort(af);
+            case "sort", "sortBy" -> generateSort(af);
             case "limit", "take" -> generateLimit(af);
             case "drop" -> generateDrop(af);
             case "slice" -> generateSlice(af);
@@ -247,7 +247,7 @@ public class PlanGenerator {
             case "join" -> generateJoin(af);
             case "from" -> generateFrom(af);
             // --- Pass-through: source-preserving relational functions ---
-            case "flatten", "toString", "toVariant", "sortBy",
+            case "flatten", "toString", "toVariant",
                  "pivot", "eq", "asOfJoin", "cast", "write", "size",
                  "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" ->
                 generateRelation(af.parameters().get(0));
@@ -974,7 +974,23 @@ public class PlanGenerator {
             return b;
         }
 
-        // Simple extend (computed column) — placeholder
+        // Simple extend (computed column): extract ColSpec lambda and compile as scalar
+        for (int i = 1; i < params.size(); i++) {
+            if (params.get(i) instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
+                String alias = cs.name();
+                if (cs.function1() != null) {
+                    // Compile the lambda body as a scalar expression
+                    // Use null mapping (TDS columns use direct column names)
+                    String lambdaParam = cs.function1().parameters().isEmpty() ? null
+                            : cs.function1().parameters().get(0).name();
+                    SqlExpr computed = generateScalar(
+                            cs.function1().body().get(0), lambdaParam, null, null);
+                    SqlBuilder b = new SqlBuilder().selectStar().fromSubquery(source, "extend_src");
+                    b.addSelect(computed, dialect.quoteIdentifier(alias));
+                    return b;
+                }
+            }
+        }
         return new SqlBuilder()
                 .selectStar()
                 .fromSubquery(source, "extend_src");
@@ -2257,6 +2273,17 @@ public class PlanGenerator {
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
             case "minBy" -> new SqlExpr.FunctionCall("minBy",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+
+            // --- Variant/JSON access ---
+            case "get" -> {
+                // get(variant, key) → variant->'key' (JSON arrow access)
+                yield new SqlExpr.FunctionCall("jsonGet",
+                        List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            }
+
+            // --- List/array operations ---
+            case "reverse" -> new SqlExpr.FunctionCall("listReverse",
+                    List.of(c.apply(params.get(0))));
 
             // --- Misc ---
             case "generateGuid" -> new SqlExpr.FunctionCall("generateGuid", List.of());

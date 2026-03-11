@@ -340,6 +340,16 @@ public class CleanCompiler {
         // Relational sort: resolve sort specs
         List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
 
+        // Handle direction override in 3rd param: sort('col', 'DESC') or sortBy({e | $e.col}, 'desc')
+        if (params.size() > 2 && params.get(2) instanceof CString dirStr) {
+            String dir = dirStr.value().toUpperCase();
+            if ("DESC".equals(dir) || "DESCENDING".equals(dir)) {
+                sortSpecs = sortSpecs.stream()
+                        .map(s -> new TypeInfo.SortSpec(s.column(), TypeInfo.SortDirection.DESC))
+                        .toList();
+            }
+        }
+
         var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
                 List.of(), null, null, false);
         types.put(af, info);
@@ -805,8 +815,14 @@ public class CleanCompiler {
             }
         }
 
+        // Structural fact: scalar extend has no over() and no function2 (aggregate lambda).
+        // Window extend always has either over() (partition/order spec) or function2 (aggregate).
+        boolean isScalarExtend = windowColSpec != null
+                && overSpec == null
+                && windowColSpec.function2() == null;
+
         TypeInfo.WindowFunctionSpec windowSpec = null;
-        if (windowColSpec != null) {
+        if (windowColSpec != null && !isScalarExtend) {
             // Resolve partition/order/frame from over() if present
             List<String> partitionBy = new ArrayList<>();
             List<TypeInfo.SortSpec> orderBy = new ArrayList<>();
@@ -820,6 +836,17 @@ public class CleanCompiler {
 
             String alias = windowColSpec.name();
             windowSpec = resolveWindowFunc(windowColSpec, partitionBy, orderBy, frame, alias);
+        }
+
+        // For scalar extends, type-check the lambda body so property accesses
+        // get typed from the source RelationType (needed for string concat detection etc.)
+        if (isScalarExtend && windowColSpec.function1() != null && sourceType != null) {
+            LambdaFunction lambda = windowColSpec.function1();
+            if (!lambda.parameters().isEmpty() && !lambda.body().isEmpty()) {
+                String paramName = lambda.parameters().get(0).name();
+                CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceType);
+                typeCheckExpression(lambda.body().get(0), lambdaCtx);
+            }
         }
 
         var info = new TypeInfo(new RelationType(newColumns), source.mapping(),
@@ -1741,14 +1768,44 @@ public class CleanCompiler {
         org.finos.legend.pure.dsl.TdsLiteral tds = org.finos.legend.pure.dsl.TdsLiteral.parse(raw);
         // Build RelationType from parsed column names and types
         Map<String, GenericType> columns = new LinkedHashMap<>();
-        for (var col : tds.columns()) {
-            columns.put(col.name(), GenericType.Primitive.STRING);
+        for (int i = 0; i < tds.columns().size(); i++) {
+            var col = tds.columns().get(i);
+            GenericType colType = mapTdsColumnType(col.type());
+            // If no type annotation, infer from first non-null data value
+            if (colType == null && !tds.rows().isEmpty()) {
+                for (var row : tds.rows()) {
+                    if (i < row.size() && row.get(i) != null) {
+                        Object val = row.get(i);
+                        if (val instanceof Long) colType = GenericType.Primitive.INTEGER;
+                        else if (val instanceof Double) colType = GenericType.Primitive.FLOAT;
+                        else if (val instanceof Boolean) colType = GenericType.Primitive.BOOLEAN;
+                        else colType = GenericType.Primitive.STRING;
+                        break;
+                    }
+                }
+            }
+            columns.put(col.name(), colType != null ? colType : GenericType.Primitive.STRING);
         }
         // Register type on the ORIGINAL ci so callers can look it up
         var info = typed(ci, new RelationType(columns), null);
         // Also register a parsed-TDS ClassInstance for PlanGenerator
         types.put(new ClassInstance("tdsLiteral", tds), info);
         return info;
+    }
+
+    /** Maps a TDS type annotation string to a GenericType. */
+    private static GenericType mapTdsColumnType(String typeStr) {
+        if (typeStr == null) return null;
+        return switch (typeStr) {
+            case "Integer" -> GenericType.Primitive.INTEGER;
+            case "Float", "Number" -> GenericType.Primitive.FLOAT;
+            case "Decimal" -> GenericType.Primitive.DECIMAL;
+            case "Boolean" -> GenericType.Primitive.BOOLEAN;
+            case "String" -> GenericType.Primitive.STRING;
+            case "Date", "StrictDate" -> GenericType.Primitive.STRICT_DATE;
+            case "DateTime" -> GenericType.Primitive.DATE_TIME;
+            default -> GenericType.Primitive.STRING;
+        };
     }
 
     /**
@@ -1783,6 +1840,11 @@ public class CleanCompiler {
                             // No mapping — check column name directly
                             relType.requireColumn(ap.property());
                         }
+                        // Resolve column type and store in side table
+                        GenericType colType = relType.columns().get(ap.property());
+                        if (colType != null) {
+                            types.put(ap, TypeInfo.scalarOf(colType));
+                        }
                     }
                 }
             }
@@ -1797,6 +1859,13 @@ public class CleanCompiler {
                 }
                 for (var param : af.parameters()) {
                     typeCheckExpression(param, ctx);
+                }
+                // Propagate inner type through pass-through functions (toOne, toMany, etc.)
+                if (("toOne".equals(simple) || "toMany".equals(simple)) && !af.parameters().isEmpty()) {
+                    TypeInfo innerType = types.get(af.parameters().get(0));
+                    if (innerType != null && innerType.scalarType() != null) {
+                        types.put(af, TypeInfo.scalarOf(innerType.scalarType()));
+                    }
                 }
             }
             case LambdaFunction lf -> {
@@ -2381,6 +2450,11 @@ public class CleanCompiler {
             RelationType relType = ctx.getRelationType(v.name());
             if (relType != null) {
                 relType.requireColumn(ap.property());
+                // Resolve the column's type from the RelationType
+                GenericType colType = relType.columns().get(ap.property());
+                if (colType != null) {
+                    return scalarTyped(ap, colType);
+                }
             }
         }
         return scalar(ap);

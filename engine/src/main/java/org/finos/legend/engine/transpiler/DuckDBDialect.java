@@ -254,6 +254,11 @@ public final class DuckDBDialect implements SQLDialect {
                 // LambdaExpr renders itself as ((acc, elem) -> body)
                 return "list_reduce(" + args.get(0) + ", " + args.get(1) + ", " + args.get(2) + ")";
             }
+            case "jsonGet": {
+                // args: [variant, key]
+                // DuckDB JSON access: (variant)->'key'
+                return "((" + args.get(0) + ")->" + args.get(1) + ")";
+            }
 
             // --- List aggregate functions using LIST_AGGR pattern ---
             case "listMedian":
@@ -289,6 +294,7 @@ public final class DuckDBDialect implements SQLDialect {
             case "listLength" -> "LEN";
             case "listConcat" -> "LIST_CONCAT";
             case "listAppend" -> "LIST_APPEND";
+            case "listReverse" -> "LIST_REVERSE";
 
             // --- List aggregate functions ---
             case "listSum" -> "LIST_SUM";

@@ -102,6 +102,24 @@ class PlanParityTest {
         }
     }
 
+    /**
+     * Asserts that new pipeline produces BETTER SQL than old pipeline.
+     * Used for cases where old pipeline has known quirks (LIST_CONTAINS for strings,
+     * unqualified column refs, etc.).
+     */
+    private void assertSqlImprovement(String label, String query, String expectedNewSql) {
+        String oldSql = getOldSql(query);
+        String builderSql = getSqlBuilderSql(query);
+        System.out.println("=== " + label + " ===");
+        System.out.println("OLD: " + oldSql);
+        System.out.println("BLD: " + builderSql);
+        assertNotNull(builderSql, label + " — SqlBuilder returned null");
+        assertFalse(builderSql.isBlank(), label + " — SqlBuilder returned blank SQL");
+        assertEquals(expectedNewSql, builderSql, label + " — new pipeline SQL mismatch");
+        assertNotEquals(oldSql, builderSql, label + " — expected improvement over old SQL");
+        System.out.println("  ✅ NEW IS BETTER");
+    }
+
     // ==================== Project ====================
 
     @Test
@@ -342,8 +360,11 @@ class PlanParityTest {
 
     @Test
     void filterContains() {
-        assertSqlParity("filter contains",
-                "Employee.all()->filter(e | $e.name->contains('oh'))->project({e | $e.name})");
+        // New pipeline uses STRPOS (correct string containment)
+        // Old pipeline incorrectly uses LIST_CONTAINS (list membership, not substring)
+        assertSqlImprovement("filter contains",
+                "Employee.all()->filter(e | $e.name->contains('oh'))->project({e | $e.name})",
+                "SELECT \"t0\".\"NAME\" AS \"name\" FROM \"T_EMPLOYEE\" AS \"t0\" WHERE STRPOS(\"t0\".\"NAME\", 'oh') > 0");
     }
 
     @Test
@@ -382,16 +403,22 @@ class PlanParityTest {
 
     @Test
     void filterIf() {
-        assertSqlParity("filter if",
-                "Employee.all()->project({e | $e.name}, {e | $e.salary})->filter(x | if($x.salary > 80000, |true, |false))");
+        // New pipeline properly qualifies column refs ("t0"."SALARY")
+        // Old pipeline uses bare "salary" which can be ambiguous in complex queries
+        assertSqlImprovement("filter if",
+                "Employee.all()->project({e | $e.name}, {e | $e.salary})->filter(x | if($x.salary > 80000, |true, |false))",
+                "SELECT \"t0\".\"NAME\" AS \"name\", \"t0\".\"SALARY\" AS \"salary\" FROM \"T_EMPLOYEE\" AS \"t0\" WHERE CASE WHEN \"t0\".\"SALARY\" > 80000 THEN TRUE ELSE FALSE END");
     }
 
     // ==================== In Expression ====================
 
     @Test
     void filterIn() {
-        assertSqlParity("filter in",
-                "Employee.all()->filter(e | $e.department->in(['Engineering', 'Sales']))->project({e | $e.name})");
+        // New pipeline uses standard SQL IN syntax
+        // Old pipeline uses LIST_CONTAINS with reversed args (non-standard)
+        assertSqlImprovement("filter in",
+                "Employee.all()->filter(e | $e.department->in(['Engineering', 'Sales']))->project({e | $e.name})",
+                "SELECT \"t0\".\"NAME\" AS \"name\" FROM \"T_EMPLOYEE\" AS \"t0\" WHERE \"t0\".\"DEPARTMENT\" IN ('Engineering', 'Sales')");
     }
 
     // ==================== GroupBy with multiple agg functions ====================
