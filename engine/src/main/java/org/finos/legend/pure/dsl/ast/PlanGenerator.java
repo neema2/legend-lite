@@ -308,7 +308,7 @@ public class PlanGenerator {
         SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, mapping);
         return new SqlBuilder()
                 .selectStar()
-                .fromSubquery(source, "filter_src")
+                .fromSubquery(source, "src")
                 .addWhere(whereClause);
     }
 
