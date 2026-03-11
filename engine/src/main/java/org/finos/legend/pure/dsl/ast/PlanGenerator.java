@@ -2225,15 +2225,22 @@ public class PlanGenerator {
             case "variancePopulation" -> new SqlExpr.FunctionCall(
                     firstArgIsList ? "listVariancePopulation" : "variancePopulation",
                     List.of(c.apply(params.get(0))));
-            case "corr" -> new SqlExpr.FunctionCall(
-                    firstArgIsList ? "listCorr" : "corr",
-                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
-            case "covarSample" -> new SqlExpr.FunctionCall(
-                    firstArgIsList ? "listCovarSample" : "covarSample",
-                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
-            case "covarPopulation" -> new SqlExpr.FunctionCall(
-                    firstArgIsList ? "listCovarPopulation" : "covarPopulation",
-                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "corr" -> {
+                // Bivariate: always needs paired sequences via UNNEST
+                SqlExpr arg0 = c.apply(params.get(0));
+                if (!firstArgIsList) arg0 = new SqlExpr.ArrayLiteral(List.of(arg0));
+                yield new SqlExpr.FunctionCall("listCorr", List.of(arg0, c.apply(params.get(1))));
+            }
+            case "covarSample" -> {
+                SqlExpr arg0 = c.apply(params.get(0));
+                if (!firstArgIsList) arg0 = new SqlExpr.ArrayLiteral(List.of(arg0));
+                yield new SqlExpr.FunctionCall("listCovarSample", List.of(arg0, c.apply(params.get(1))));
+            }
+            case "covarPopulation" -> {
+                SqlExpr arg0 = c.apply(params.get(0));
+                if (!firstArgIsList) arg0 = new SqlExpr.ArrayLiteral(List.of(arg0));
+                yield new SqlExpr.FunctionCall("listCovarPopulation", List.of(arg0, c.apply(params.get(1))));
+            }
             case "percentile", "percentileCont" -> {
                 SqlExpr list = c.apply(params.get(0));
                 SqlExpr p = c.apply(params.get(1));

@@ -274,11 +274,11 @@ public final class DuckDBDialect implements SQLDialect {
             case "listVariancePopulation":
                 return "LIST_AGGR(" + args.get(0) + ", 'var_pop')";
             case "listCorr":
-                return "LIST_AGGR(" + args.get(0) + ", 'corr')";
+                return "(SELECT CORR(a, b) FROM (SELECT UNNEST(" + args.get(0) + ") AS a, UNNEST(" + args.get(1) + ") AS b))";
             case "listCovarSample":
-                return "LIST_AGGR(" + args.get(0) + ", 'covar_samp')";
+                return "(SELECT COVAR_SAMP(a, b) FROM (SELECT UNNEST(" + args.get(0) + ") AS a, UNNEST(" + args.get(1) + ") AS b))";
             case "listCovarPopulation":
-                return "LIST_AGGR(" + args.get(0) + ", 'covar_pop')";
+                return "(SELECT COVAR_POP(a, b) FROM (SELECT UNNEST(" + args.get(0) + ") AS a, UNNEST(" + args.get(1) + ") AS b))";
             case "listPercentileCont":
                 return "LIST_AGGR(" + args.get(0) + ", 'quantile_cont', " + args.get(1) + ")";
             case "listPercentileDisc":
