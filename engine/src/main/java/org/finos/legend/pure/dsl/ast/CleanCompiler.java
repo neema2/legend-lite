@@ -1829,15 +1829,25 @@ public class CleanCompiler {
     /** Return type for functions whose result type differs from their source type. */
     private static GenericType knownReturnType(String funcName) {
         return switch (funcName) {
+            // Integer-producing functions
             case "length", "indexOf", "size", "count", "ascii",
-                 "parseInteger" -> GenericType.Primitive.INTEGER;
-            case "parseFloat", "parseDecimal", "toDecimal" -> GenericType.Primitive.FLOAT;
+                 "parseInteger", "toInteger",
+                 "ceiling", "floor", "round", "mod", "rem", "sign",
+                 "levenshteinDistance" -> GenericType.Primitive.INTEGER;
+            // Float-producing functions
+            case "toFloat", "parseFloat" -> GenericType.Primitive.FLOAT;
+            // Decimal-producing functions
+            case "toDecimal", "parseDecimal" -> GenericType.Primitive.DECIMAL;
+            // String-producing functions
             case "toString", "toLower", "toUpper", "trim", "format",
                  "joinStrings", "replace", "lpad", "rpad", "splitPart",
                  "reverseString", "encodeBase64", "decodeBase64", "char",
                  "hash" -> GenericType.Primitive.STRING;
+            // Boolean-producing functions
             case "contains", "in", "startsWith", "endsWith",
                  "isEmpty", "isNotEmpty", "parseBoolean" -> GenericType.Primitive.BOOLEAN;
+            // Number-producing (propagate numeric but don't narrow)
+            case "toDegrees", "toRadians" -> GenericType.Primitive.FLOAT;
             default -> null; // propagate source type
         };
     }

@@ -1595,14 +1595,25 @@ public class PlanGenerator {
             }
 
             // --- Cast ---
-            case "toInteger", "parseInteger" -> new SqlExpr.Cast(c.apply(params.get(0)), "Integer");
-            case "toFloat", "parseFloat" -> new SqlExpr.Cast(c.apply(params.get(0)), "Float");
-            case "toDecimal" -> new SqlExpr.Cast(c.apply(params.get(0)), "Decimal");
-            case "parseDecimal" -> new SqlExpr.Cast(
-                    new SqlExpr.FunctionCall("regexpReplace",
-                            List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("[dD]$"),
-                                    new SqlExpr.StringLiteral(""))),
-                    "Decimal");
+            case "toInteger", "parseInteger", "toFloat", "parseFloat", "toDecimal" -> {
+                // Read target type from compiler's TypeInfo — compiler is the source of truth
+                TypeInfo castInfo = unit.types().get(af);
+                String castType = (castInfo != null && castInfo.scalarType() != null)
+                        ? castInfo.scalarType().typeName() : funcName.contains("Int") ? "Integer"
+                        : funcName.contains("Float") ? "Float" : "Decimal";
+                yield new SqlExpr.Cast(c.apply(params.get(0)), castType);
+            }
+            case "parseDecimal" -> {
+                // parseDecimal: strip d/D suffix then CAST — read type from TypeInfo
+                TypeInfo castInfo = unit.types().get(af);
+                String castType = (castInfo != null && castInfo.scalarType() != null)
+                        ? castInfo.scalarType().typeName() : "Decimal";
+                yield new SqlExpr.Cast(
+                        new SqlExpr.FunctionCall("regexpReplace",
+                                List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("[dD]$"),
+                                        new SqlExpr.StringLiteral(""))),
+                        castType);
+            }
 
             // --- If/Case ---
             case "if" -> {
