@@ -2592,7 +2592,7 @@ public class PlanGenerator {
             // --- Pass-through for non-SQL functions ---
             case "toOne", "eval",
                     "list", "pair", "match",
-                    "cast", "letWithParam",
+                    "letWithParam",
                     "groupBy", "select", "write",
                     "compare", "comparator" -> {
                 // These are Pure-level functions that should pass through the first arg
@@ -2601,6 +2601,25 @@ public class PlanGenerator {
                 }
                 throw new PureCompileException(
                         "PlanGenerator: pass-through function '" + funcName + "' has no parameters");
+            }
+            case "cast" -> {
+                if (!params.isEmpty()) {
+                    SqlExpr source = c.apply(params.get(0));
+                    // Check compiler type info for typed list cast: cast(@Integer) on a list
+                    TypeInfo castInfo = unit.typeInfoFor(af);
+                    if (castInfo != null && castInfo.scalarType() != null
+                            && castInfo.scalarType().isList()) {
+                        GenericType elemType = castInfo.scalarType().elementType();
+                        if (elemType != null && elemType != GenericType.Primitive.ANY) {
+                            String sqlType = dialect.sqlTypeName(elemType.typeName());
+                            yield new SqlExpr.Literal(
+                                    "CAST(" + source.toSql(dialect) + " AS " + sqlType + "[])");
+                        }
+                    }
+                    yield source;
+                }
+                throw new PureCompileException(
+                        "PlanGenerator: pass-through function 'cast' has no parameters");
             }
             case "range" -> {
                 // range(n) → RANGE(n) — produces a list of integers [0..n-1]
