@@ -2507,38 +2507,61 @@ public class CleanCompiler {
     private TypeInfo.ColumnSpec extractAggSpec(ValueSpecification vs) {
         if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
             String alias = cs.name();
-            String sourceCol = alias; // default: column name is the alias
-            String aggFunc = "plus"; // default Pure agg function
+            String sourceCol = null;
+            String aggFunc = null;
 
-            // Extract source column(s) from function1 lambda: x|$x.salary or x|rowMapper($x.qty, $x.wt)
+            // Extract source column(s) from function1 lambda
             List<String> extraArgsFromFunc1 = new ArrayList<>();
-            if (cs.function1() != null) {
-                // Check for rowMapper pattern: function1 body is rowMapper($x.col1, $x.col2)
-                if (!cs.function1().body().isEmpty()
-                        && cs.function1().body().get(0) instanceof AppliedFunction rmAf) {
-                    String rmFunc = simpleName(rmAf.function());
-                    if (rmFunc.endsWith("rowMapper") || "rowMapper".equals(rmFunc)) {
-                        // Extract two columns from rowMapper params
-                        for (var p : rmAf.parameters()) {
+            if (cs.function1() != null && !cs.function1().body().isEmpty()) {
+                var f1Body = cs.function1().body().get(0);
+
+                if (f1Body instanceof AppliedFunction f1Af) {
+                    String f1Func = simpleName(f1Af.function());
+
+                    if (f1Func.endsWith("rowMapper") || "rowMapper".equals(f1Func)) {
+                        // rowMapper($x.col1, $x.col2) — extract two columns
+                        for (var p : f1Af.parameters()) {
                             if (p instanceof AppliedProperty ap) {
-                                if (sourceCol.equals(alias)) {
+                                if (sourceCol == null) {
                                     sourceCol = ap.property();
                                 } else {
                                     extraArgsFromFunc1.add(ap.property());
                                 }
                             }
                         }
+                    } else if (cs.function2() == null) {
+                        // Single-function aggregate: x|$x.name->joinStrings(',')
+                        // The outermost function IS the aggregate
+                        aggFunc = f1Func;
+                        if (!f1Af.parameters().isEmpty()
+                                && f1Af.parameters().get(0) instanceof AppliedProperty ap) {
+                            sourceCol = ap.property();
+                        }
+                        // Extract extra args (separator for joinStrings, etc.)
+                        for (int k = 1; k < f1Af.parameters().size(); k++) {
+                            var extra = f1Af.parameters().get(k);
+                            if (extra instanceof CString cs2) {
+                                extraArgsFromFunc1.add("'" + cs2.value() + "'");
+                            } else if (extra instanceof CInteger ci2) {
+                                extraArgsFromFunc1.add(String.valueOf(ci2.value()));
+                            } else if (extra instanceof CFloat cf) {
+                                extraArgsFromFunc1.add(String.valueOf(cf.value()));
+                            }
+                        }
                     } else {
+                        // Has function2 — function1 is just value extraction
                         sourceCol = extractPropertyNameFromLambda(cs.function1());
-                        if (sourceCol == null) sourceCol = alias;
                     }
-                } else {
-                    sourceCol = extractPropertyNameFromLambda(cs.function1());
-                    if (sourceCol == null) sourceCol = alias;
+                } else if (f1Body instanceof AppliedProperty ap) {
+                    // Simple property: x|$x.salary
+                    sourceCol = ap.property();
                 }
             }
 
-            // Extract aggregate function + extra args from function2 lambda: y|$y->joinStrings(':')
+            // If sourceCol still null, fall back to alias (e.g., ~[total:x|$x.id] with no explicit column)
+            if (sourceCol == null) sourceCol = alias;
+
+            // Extract aggregate function from function2 lambda: y|$y->sum()
             List<String> allExtraArgs = new ArrayList<>(extraArgsFromFunc1);
             if (cs.function2() != null && !cs.function2().body().isEmpty()) {
                 var body = cs.function2().body().get(0);
@@ -2548,23 +2571,17 @@ public class CleanCompiler {
                     // Special handling for percentile(value, ascending, continuous)
                     if ("percentile".equals(aggFunc)) {
                         boolean ascending = true;
-                        boolean continuous = true; // default: percentileCont
+                        boolean continuous = true;
                         double pValue = 0.5;
                         var pParams = bodyAf.parameters();
-                        // param[0] is $y (receiver), param[1] is value, param[2] is ascending, param[3] is continuous
                         if (pParams.size() > 1) {
                             if (pParams.get(1) instanceof CFloat cf) pValue = cf.value();
                             else if (pParams.get(1) instanceof CDecimal cd) pValue = cd.value().doubleValue();
                         }
-                        if (pParams.size() > 2 && pParams.get(2) instanceof CBoolean cb) {
-                            ascending = cb.value();
-                        }
-                        if (pParams.size() > 3 && pParams.get(3) instanceof CBoolean cb) {
-                            continuous = cb.value();
-                        }
+                        if (pParams.size() > 2 && pParams.get(2) instanceof CBoolean cb) ascending = cb.value();
+                        if (pParams.size() > 3 && pParams.get(3) instanceof CBoolean cb) continuous = cb.value();
                         aggFunc = continuous ? "percentileCont" : "percentileDisc";
                         double effectiveValue = ascending ? pValue : (1.0 - pValue);
-                        // Format without trailing zeros
                         String valStr = effectiveValue == (long) effectiveValue
                                 ? String.valueOf((long) effectiveValue)
                                 : String.valueOf(effectiveValue);
@@ -2588,6 +2605,9 @@ public class CleanCompiler {
                     }
                 }
             }
+
+            // aggFunc must be set by now — either from function1 or function2
+            if (aggFunc == null) aggFunc = "plus"; // only for simple ~[total:x|$x.id] with no agg function
 
             if (!allExtraArgs.isEmpty()) {
                 return TypeInfo.ColumnSpec.aggMulti(sourceCol, alias, aggFunc, allExtraArgs);
