@@ -313,6 +313,30 @@ public final class DuckDBDialect implements SQLDialect {
                 }
                 return "DATE_DIFF(" + String.join(", ", args) + ")";
             }
+            case "listMinMaxBy": {
+                // args: [list1, list2, aggFunc]
+                // (SELECT ARG_MIN(a, b) FROM (SELECT UNNEST(list1) AS a, UNNEST(list2) AS b))
+                String l1 = args.get(0);
+                String l2 = args.get(1);
+                String agg = args.get(2); // "minBy" or "maxBy"
+                String sqlAgg = agg.equals("minBy") ? "ARG_MIN" : "ARG_MAX";
+                return "(SELECT " + sqlAgg + "(a, b) FROM (SELECT UNNEST(" + l1 + ") AS a, UNNEST(" + l2 + ") AS b))";
+            }
+            case "listMinMaxByTopK": {
+                // args: [list1, list2, limit, orderDir]
+                // (SELECT LIST(sub.a) FROM (SELECT a FROM
+                //   (SELECT UNNEST(l1) AS a, UNNEST(l2) AS b,
+                //    UNNEST(generate_series(0, len(l1)-1)) AS rn)
+                //   ORDER BY b orderDir, rn ASC LIMIT k) sub)
+                String l1 = args.get(0);
+                String l2 = args.get(1);
+                String limit = args.get(2);
+                String dir = args.get(3);
+                return "(SELECT LIST(sub.a) FROM (SELECT a FROM "
+                        + "(SELECT UNNEST(" + l1 + ") AS a, UNNEST(" + l2 + ") AS b, "
+                        + "UNNEST(generate_series(0, len(" + l1 + ")-1)) AS rn) "
+                        + "ORDER BY b " + dir + ", rn ASC LIMIT " + limit + ") sub)";
+            }
         }
 
         String sqlName = switch (pureName) {
@@ -369,6 +393,8 @@ public final class DuckDBDialect implements SQLDialect {
             case "percentileDisc" -> "QUANTILE_DISC";
 
             // --- Analytical ---
+            // Direct minBy/maxBy mapping for aggregate context (groupBy);
+            // scalar list context uses listMinMaxBy/listMinMaxByTopK above.
             case "maxBy" -> "ARG_MAX";
             case "minBy" -> "ARG_MIN";
 

@@ -2411,11 +2411,28 @@ public class PlanGenerator {
                         List.of(list, p));
             }
 
-            // --- Analytical helpers ---
-            case "maxBy" -> new SqlExpr.FunctionCall("maxBy",
-                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
-            case "minBy" -> new SqlExpr.FunctionCall("minBy",
-                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            // --- Analytical helpers: minBy/maxBy → UNNEST subquery decomposition ---
+            case "maxBy", "minBy" -> {
+                String aggFunc = funcName.equals("maxBy") ? "maxBy" : "minBy";
+                SqlExpr list1 = c.apply(params.get(0));
+                SqlExpr list2 = c.apply(params.get(1));
+
+                if (params.size() >= 3) {
+                    // TopK form: (SELECT LIST(sub.a) FROM (SELECT a FROM
+                    //   (SELECT UNNEST(l1) AS a, UNNEST(l2) AS b,
+                    //    UNNEST(generate_series(0, len(l1)-1)) AS rn)
+                    //   ORDER BY b ASC/DESC, rn ASC LIMIT k) sub)
+                    SqlExpr limit = c.apply(params.get(2));
+                    String orderDir = funcName.equals("minBy") ? "ASC" : "DESC";
+                    // Build as raw SQL since SqlBuilder doesn't model nested subqueries easily
+                    yield new SqlExpr.FunctionCall("listMinMaxByTopK",
+                            List.of(list1, list2, limit, new SqlExpr.Literal(orderDir)));
+                } else {
+                    // Simple form: (SELECT ARG_MIN/MAX(a, b) FROM (SELECT UNNEST(l1) AS a, UNNEST(l2) AS b))
+                    yield new SqlExpr.FunctionCall("listMinMaxBy",
+                            List.of(list1, list2, new SqlExpr.Literal(aggFunc)));
+                }
+            }
 
             // --- Variant access (compiler resolves access pattern) ---
             case "get" -> {
