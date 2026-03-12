@@ -2452,6 +2452,22 @@ public class PlanGenerator {
                 throw new PureCompileException("exists: requires list and predicate lambda");
             }
 
+            // --- Scalar list operations (used in variant array chains) ---
+            case "filter" -> {
+                // filter(list, {t|pred}) → list_filter(list, t -> pred)
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction lf) {
+                    SqlExpr list = c.apply(params.get(0));
+                    String elemParam = lf.parameters().get(0).name();
+                    SqlExpr predBody = !lf.body().isEmpty()
+                            ? c.apply(lf.body().get(0)) : new SqlExpr.Literal("TRUE");
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), predBody);
+                    yield new SqlExpr.FunctionCall("listFilter", List.of(list, lambda));
+                }
+                // Relational filter pass-through (no lambda — handled in relational path)
+                if (!params.isEmpty()) yield c.apply(params.get(0));
+                throw new PureCompileException("filter: requires list and predicate lambda");
+            }
+
             // --- Variant conversion functions ---
             case "toMany" -> {
                 SqlExpr source = c.apply(params.get(0));
@@ -2473,7 +2489,7 @@ public class PlanGenerator {
             case "toOne", "eval",
                     "list", "pair", "match",
                     "cast", "letWithParam",
-                    "filter", "groupBy", "select", "write",
+                    "groupBy", "select", "write",
                     "compare", "comparator" -> {
                 // These are Pure-level functions that should pass through the first arg
                 if (!params.isEmpty()) {

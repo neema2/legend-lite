@@ -598,6 +598,11 @@ public class QueryService {
                 .matcher(normalized)
                 .replaceAll("date '$1'");
 
+        // 6. Normalize toVariant() rendering: old uses CAST(... AS VARCHAR) AS "col",
+        // new uses CAST(... AS JSON) AS "col". Both are semantically identical in DuckDB.
+        // Match only aliased CAST results (CAST(... AS VARCHAR) AS) which is the toVariant pattern.
+        normalized = normalized.replace(" as varchar) as ", " as json) as ");
+
         return normalized;
     }
 

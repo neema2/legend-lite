@@ -2355,11 +2355,25 @@ public class CleanCompiler {
                 for (var param : af.parameters()) {
                     typeCheckExpression(param, ctx);
                 }
-                // Propagate inner type through pass-through functions (toOne, toMany, etc.)
-                if (("toOne".equals(simple) || "toMany".equals(simple)) && !af.parameters().isEmpty()) {
+                // Dispatch type functions properly (toMany, to, toVariant, cast)
+                // so they populate correct TypeInfo with @Type arguments
+                if ("toMany".equals(simple) || "to".equals(simple)
+                        || "toVariant".equals(simple) || "cast".equals(simple)) {
+                    compileTypeFunction(af, ctx);
+                } else if ("toOne".equals(simple) && !af.parameters().isEmpty()) {
                     TypeInfo innerType = types.get(af.parameters().get(0));
                     if (innerType != null && innerType.scalarType() != null) {
                         types.put(af, TypeInfo.scalarOf(innerType.scalarType()));
+                    }
+                }
+                // List-preserving functions: propagate source list type through
+                // filter/sort/reverse produce same list type, map may transform element type
+                if (("filter".equals(simple) || "sort".equals(simple)
+                        || "reverse".equals(simple) || "map".equals(simple))
+                        && !af.parameters().isEmpty()) {
+                    TypeInfo sourceType = types.get(af.parameters().get(0));
+                    if (sourceType != null) {
+                        types.put(af, sourceType);
                     }
                 }
             }
