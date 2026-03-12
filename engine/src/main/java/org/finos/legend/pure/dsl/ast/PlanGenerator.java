@@ -166,7 +166,14 @@ public class PlanGenerator {
     private SqlExpr renderStructValue(ValueSpecification vs) {
         return switch (vs) {
             case CString cs -> new SqlExpr.StringLiteral(cs.value());
-            case CInteger ci -> new SqlExpr.Literal(String.valueOf(ci.value()));
+            case CInteger ci -> {
+                // Check compiler type annotation for precision
+                TypeInfo tiInt = unit.typeInfoFor(ci);
+                if (tiInt != null && tiInt.scalarType() == GenericType.Primitive.INT128) {
+                    yield new SqlExpr.Literal(ci.value() + "::HUGEINT");
+                }
+                yield new SqlExpr.Literal(String.valueOf(ci.value()));
+            }
             case CFloat cf -> {
                 String s = String.valueOf(cf.value());
                 if (s.contains("E") || s.contains("e")) {
@@ -1365,7 +1372,14 @@ public class PlanGenerator {
                 }
                 yield generateScalarFunction(af, rowParam, mapping, tableAlias);
             }
-            case CInteger i -> new SqlExpr.Literal(String.valueOf(i.value()));
+            case CInteger i -> {
+                // Check compiler type annotation for precision
+                TypeInfo tiInt = unit.typeInfoFor(i);
+                if (tiInt != null && tiInt.scalarType() == GenericType.Primitive.INT128) {
+                    yield new SqlExpr.Literal(i.value() + "::HUGEINT");
+                }
+                yield new SqlExpr.Literal(String.valueOf(i.value()));
+            }
             case CFloat f -> {
                 String s = String.valueOf(f.value());
                 if (s.contains("E") || s.contains("e")) {
@@ -1374,7 +1388,15 @@ public class PlanGenerator {
                 }
                 yield new SqlExpr.Literal(s);
             }
-            case CDecimal d -> new SqlExpr.Literal(String.valueOf(d.value()));
+            case CDecimal d -> {
+                // Check compiler type annotation for precision
+                TypeInfo tiDec = unit.typeInfoFor(d);
+                if (tiDec != null && tiDec.scalarType() instanceof GenericType.PrecisionDecimal pd) {
+                    yield new SqlExpr.Literal(d.value().toPlainString()
+                            + "::DECIMAL(" + pd.precision() + "," + pd.scale() + ")");
+                }
+                yield new SqlExpr.Literal(d.value().toPlainString());
+            }
             case CString s -> new SqlExpr.StringLiteral(s.value());
             case CBoolean b -> new SqlExpr.BoolLiteral(b.value());
             case CDateTime dt -> new SqlExpr.TimestampLiteral(dt.value());
@@ -1405,6 +1427,14 @@ public class PlanGenerator {
                 var exprs = coll.values().stream()
                         .map(v -> generateScalar(v, rowParam, mapping, tableAlias))
                         .collect(Collectors.toList());
+                // Mixed-type lists need TO_JSON wrapping for DuckDB variant handling
+                TypeInfo collInfo = unit.typeInfoFor(coll);
+                if (collInfo != null && collInfo.isMixedList()
+                        && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
+                    exprs = exprs.stream()
+                            .map(e -> (SqlExpr) new SqlExpr.FunctionCall("toJson", List.of(e)))
+                            .collect(Collectors.toList());
+                }
                 yield new SqlExpr.ArrayLiteral(exprs);
             }
             case LambdaFunction lf -> {
@@ -1737,6 +1767,18 @@ public class PlanGenerator {
             case "in" -> {
                 SqlExpr left = c.apply(params.get(0));
                 if (params.get(1) instanceof Collection coll) {
+                    // Check if this is a mixed-type list — needs TO_JSON wrapping
+                    TypeInfo listInfo = unit.typeInfoFor(params.get(1));
+                    if (listInfo != null && listInfo.isMixedList()
+                            && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
+                        var wrappedElems = coll.values().stream()
+                                .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson",
+                                        List.of(c.apply(v))))
+                                .collect(Collectors.toList());
+                        SqlExpr wrappedList = new SqlExpr.ArrayLiteral(wrappedElems);
+                        SqlExpr wrappedSearch = new SqlExpr.FunctionCall("toJson", List.of(left));
+                        yield new SqlExpr.ListContains(wrappedList, wrappedSearch);
+                    }
                     var vals = coll.values().stream().map(c).collect(Collectors.toList());
                     yield new SqlExpr.In(left, vals);
                 }
@@ -2260,6 +2302,19 @@ public class PlanGenerator {
                         right = new SqlExpr.FunctionCall("wrapList", List.of(right));
                     }
                 }
+
+                // Cross-list mixed-type: [1,2,3].concatenate(['a','b'])
+                // Each list is homogeneous but they have different element types → need TO_JSON
+                TypeInfo leftInfo = unit.typeInfoFor(params.get(0));
+                TypeInfo rightInfo2 = unit.typeInfoFor(params.get(1));
+                if (leftInfo != null && rightInfo2 != null
+                        && leftInfo.scalarType() != null && rightInfo2.scalarType() != null
+                        && !leftInfo.scalarType().equals(rightInfo2.scalarType())) {
+                    // Re-render with TO_JSON wrapping
+                    left = wrapCollectionInToJson(params.get(0), c);
+                    right = wrapCollectionInToJson(params.get(1), c);
+                }
+
                 yield new SqlExpr.FunctionCall("listConcat", List.of(left, right));
             }
             case "take" -> new SqlExpr.FunctionCall("listSlice",
@@ -2813,5 +2868,21 @@ public class PlanGenerator {
         if (s == null || s.isEmpty()) return false;
         char first = s.charAt(0);
         return (first >= '0' && first <= '9') || first == '-' || first == '.';
+    }
+
+    /**
+     * Wraps a collection's elements in toJson() for mixed-type list operations.
+     * Used by concatenate when two lists have different element types.
+     */
+    private SqlExpr wrapCollectionInToJson(ValueSpecification vs,
+                                            java.util.function.Function<ValueSpecification, SqlExpr> c) {
+        if (vs instanceof Collection coll) {
+            var wrapped = coll.values().stream()
+                    .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson", List.of(c.apply(v))))
+                    .collect(java.util.stream.Collectors.toList());
+            return new SqlExpr.ArrayLiteral(wrapped);
+        }
+        // Non-collection: wrap the entire expression in toJson
+        return new SqlExpr.FunctionCall("toJson", List.of(c.apply(vs)));
     }
 }

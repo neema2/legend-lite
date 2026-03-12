@@ -74,9 +74,9 @@ public class CleanCompiler {
             case GenericTypeInstance gti -> scalar(gti);
             case Collection coll -> compileCollection(coll, ctx);
             // Literals — scalar with known type
-            case CInteger i -> scalarTyped(i, GenericType.Primitive.INTEGER);
+            case CInteger i -> scalarTyped(i, classifyInteger(i));
             case CFloat f -> scalarTyped(f, GenericType.Primitive.FLOAT);
-            case CDecimal d -> scalarTyped(d, GenericType.Primitive.DECIMAL);
+            case CDecimal d -> scalarTyped(d, classifyDecimal(d));
             case CString s -> scalarTyped(s, GenericType.Primitive.STRING);
             case CBoolean b -> scalarTyped(b, GenericType.Primitive.BOOLEAN);
             case CDateTime dt -> scalarTyped(dt, GenericType.Primitive.DATE_TIME);
@@ -3205,5 +3205,38 @@ public class CleanCompiler {
         public RelationalMapping getMapping(String name) {
             return mappings.get(name);
         }
+    }
+
+    // ========== Literal Type Classification ==========
+
+    /**
+     * Classifies a CInteger to the appropriate precision type.
+     * INTEGER for values in [-2^31, 2^31-1] (INT32 range).
+     * INT64 for values that fit in 64-bit but exceed INT32 range.
+     * INT128 for BigInteger values exceeding INT64 range.
+     */
+    private static GenericType classifyInteger(CInteger ci) {
+        if (ci.value() instanceof java.math.BigInteger) {
+            return GenericType.Primitive.INT128;
+        }
+        long v = ci.value().longValue();
+        if (v > Integer.MAX_VALUE || v < Integer.MIN_VALUE) {
+            return GenericType.Primitive.INT128;
+        }
+        return GenericType.Primitive.INTEGER;
+    }
+
+    /**
+     * Classifies a CDecimal to the appropriate precision type.
+     * PrecisionDecimal(18,0) for integer-valued decimals (no fractional part)
+     * to preserve DECIMAL type in SQL instead of being coerced to INTEGER.
+     * DECIMAL for decimals with fractional parts.
+     */
+    private static GenericType classifyDecimal(CDecimal d) {
+        String plain = d.value().toPlainString();
+        if (!plain.contains(".")) {
+            return new GenericType.PrecisionDecimal(18, 0);
+        }
+        return GenericType.Primitive.DECIMAL;
     }
 }

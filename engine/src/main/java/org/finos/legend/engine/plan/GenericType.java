@@ -12,7 +12,8 @@ import java.util.Objects;
  */
 public sealed interface GenericType
         permits GenericType.Primitive, GenericType.Parameterized,
-                GenericType.ClassType, GenericType.EnumType {
+                GenericType.ClassType, GenericType.EnumType,
+                GenericType.PrecisionDecimal {
 
     String typeName();
 
@@ -23,8 +24,10 @@ public sealed interface GenericType
      *   ANY
      *   ├── NUMBER
      *   │   ├── INTEGER
+     *   │   │   ├── INT64
+     *   │   │   └── INT128
      *   │   ├── FLOAT
-     *   │   └── DECIMAL
+     *   │   └── DECIMAL  (see also PrecisionDecimal for parameterized form)
      *   ├── STRING
      *   ├── BOOLEAN
      *   ├── DATE
@@ -37,7 +40,7 @@ public sealed interface GenericType
     enum Primitive implements GenericType {
         ANY,
         NIL,
-        NUMBER, INTEGER, FLOAT, DECIMAL,
+        NUMBER, INTEGER, INT64, INT128, FLOAT, DECIMAL,
         STRING,
         BOOLEAN,
         DATE, STRICT_DATE, DATE_TIME, STRICT_TIME,
@@ -49,7 +52,7 @@ public sealed interface GenericType
                 case ANY -> "Any";
                 case NIL -> "Nil";
                 case NUMBER -> "Number";
-                case INTEGER -> "Integer";
+                case INTEGER, INT64, INT128 -> "Integer";
                 case FLOAT -> "Float";
                 case DECIMAL -> "Decimal";
                 case STRING -> "String";
@@ -71,13 +74,15 @@ public sealed interface GenericType
             if (other == ANY) return true;         // everything is subtype of ANY
             return switch (this) {
                 case INTEGER, FLOAT, DECIMAL -> other == NUMBER;
+                case INT64, INT128 -> other == INTEGER || other == NUMBER;
                 case STRICT_DATE, DATE_TIME -> other == DATE;
                 default -> false;
             };
         }
 
         public boolean isNumeric() {
-            return this == INTEGER || this == FLOAT || this == DECIMAL || this == NUMBER;
+            return this == INTEGER || this == INT64 || this == INT128
+                    || this == FLOAT || this == DECIMAL || this == NUMBER;
         }
 
         public boolean isTemporal() {
@@ -87,6 +92,11 @@ public sealed interface GenericType
         /**
          * Maps a Pure type name string to the corresponding Primitive.
          */
+        /** True if this is an integer type (INTEGER, INT64, or INT128). */
+        public boolean isInteger() {
+            return this == INTEGER || this == INT64 || this == INT128;
+        }
+
         public static Primitive fromTypeName(String name) {
             // Handle qualified names: meta::pure::metamodel::variant::Variant -> Variant
             String simpleName = name.contains("::") ? name.substring(name.lastIndexOf("::") + 2) : name;
@@ -164,6 +174,18 @@ public sealed interface GenericType
         }
     }
 
+    /**
+     * Decimal type with explicit precision and scale: DECIMAL(18, 0).
+     * Subtype of DECIMAL and NUMBER in the type hierarchy.
+     * Used when the compiler knows the exact precision (e.g., integer-valued decimals).
+     */
+    record PrecisionDecimal(int precision, int scale) implements GenericType {
+        @Override
+        public String typeName() {
+            return "Decimal";
+        }
+    }
+
     // ========== Factory methods ==========
 
     static GenericType listOf(GenericType elementType) {
@@ -225,7 +247,8 @@ public sealed interface GenericType
      * @return true if this type is numeric.
      */
     default boolean isNumeric() {
-        return this instanceof Primitive p && p.isNumeric();
+        return (this instanceof Primitive p && p.isNumeric())
+                || this instanceof PrecisionDecimal;
     }
 
     /**

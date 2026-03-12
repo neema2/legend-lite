@@ -1921,9 +1921,14 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
      * This is the single point where Pure types are converted to SQL types.
      */
     private static String pureTypeToSql(GenericType type) {
+        if (type instanceof GenericType.PrecisionDecimal pd) {
+            return "DECIMAL(" + pd.precision() + "," + pd.scale() + ")";
+        }
         if (type instanceof GenericType.Primitive p) {
             return switch (p) {
                 case INTEGER -> "BIGINT";
+                case INT64 -> "BIGINT";
+                case INT128 -> "HUGEINT";
                 case FLOAT, NUMBER -> "DOUBLE";
                 case DECIMAL -> "DECIMAL";
                 case STRING -> "VARCHAR";
