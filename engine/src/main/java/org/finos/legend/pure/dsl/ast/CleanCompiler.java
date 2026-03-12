@@ -539,9 +539,28 @@ public class CleanCompiler {
         }
 
         TypeInfo left = compileExpr(params.get(0), ctx);
-        compileExpr(params.get(1), ctx);
+        TypeInfo right = compileExpr(params.get(1), ctx);
 
-        return typed(af, left.relationType(), left.mapping());
+        // Validate column alignment — compiler guards correctness, doesn't silently fix
+        RelationType leftType = left.relationType();
+        RelationType rightType = right.relationType();
+        if (leftType != null && rightType != null) {
+            var leftCols = leftType.columns();
+            var rightCols = rightType.columns();
+            if (leftCols.size() != rightCols.size()) {
+                throw new PureCompileException(
+                        "concatenate(): column count mismatch — left has " + leftCols.size()
+                                + " columns, right has " + rightCols.size());
+            }
+            for (String colName : leftCols.keySet()) {
+                if (!rightCols.containsKey(colName)) {
+                    throw new PureCompileException(
+                            "concatenate(): column '" + colName + "' exists in left but not in right");
+                }
+            }
+        }
+
+        return typed(af, leftType, left.mapping());
     }
 
     /**
