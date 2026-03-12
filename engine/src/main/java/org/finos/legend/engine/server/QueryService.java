@@ -549,6 +549,15 @@ public class QueryService {
         // Old pipeline uses src_result, new uses subq — both are valid
         normalized = normalized.replace(") as src_result", ") as subq");
         normalized = normalized.replace(") as ext ", ") as subq ");
+        // Handle ext at end of string (no trailing space)
+        if (normalized.endsWith(") as ext")) {
+            normalized = normalized.substring(0, normalized.length() - 7) + ") as subq";
+        }
+        // Also normalize "src" alias used by old pipeline for filter wrapping
+        normalized = normalized.replace(") as src ", ") as subq ");
+        if (normalized.endsWith(") as src")) {
+            normalized = normalized.substring(0, normalized.length() - 7) + ") as subq";
+        }
 
         return normalized;
     }
