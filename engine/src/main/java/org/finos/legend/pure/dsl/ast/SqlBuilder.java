@@ -73,6 +73,9 @@ public class SqlBuilder {
     // ──── SET OPERATIONS ────
     private SetOperation setOperation;
 
+    // ──── PIVOT ────
+    private PivotClause pivotClause;
+
     // ========== Builder Methods ==========
 
     // --- CTE ---
@@ -242,6 +245,12 @@ public class SqlBuilder {
         return this;
     }
 
+    // --- PIVOT ---
+    public SqlBuilder pivot(PivotClause clause) {
+        this.pivotClause = clause;
+        return this;
+    }
+
     // ========== Query Accessors (for PlanGenerator to inspect) ==========
 
     public boolean hasSelectColumns() {
@@ -302,6 +311,10 @@ public class SqlBuilder {
      * GROUP BY → HAVING → WINDOW → QUALIFY → ORDER BY → LIMIT → OFFSET
      */
     public String toSql(SQLDialect dialect) {
+        // PIVOT mode — completely different syntax from SELECT
+        if (pivotClause != null) {
+            return renderPivot(dialect);
+        }
         StringBuilder sql = new StringBuilder();
 
         // WITH
@@ -571,5 +584,86 @@ public class SqlBuilder {
 
     public enum SetOpType {
         UNION, INTERSECT, EXCEPT
+    }
+
+    /** PIVOT clause: PIVOT (source) ON col USING AGG(val) AS alias */
+    public record PivotClause(
+            List<String> pivotColumns,
+            List<PivotAggregate> aggregates
+    ) {}
+
+    /** Aggregate spec for PIVOT: AGG(expr) AS alias */
+    public record PivotAggregate(
+            String aggFunction,    // e.g., "SUM"
+            String valueColumn,    // column name, or null if expression
+            String valueExpression, // raw SQL expression, or null if column
+            String alias           // output alias suffix
+    ) {}
+
+    /**
+     * Renders PIVOT SQL: PIVOT (source) ON col USING AGG(val) AS alias
+     */
+    private String renderPivot(SQLDialect dialect) {
+        StringBuilder sb = new StringBuilder();
+
+        // Render the source
+        String sourceSql;
+        if (fromSubquery != null) {
+            sourceSql = fromSubquery.toSql(dialect);
+        } else if (fromValues != null) {
+            // Inline VALUES source
+            StringBuilder vs = new StringBuilder("SELECT * FROM (VALUES ");
+            vs.append(fromValues.rows().stream()
+                    .map(row -> "(" + row.stream().map(e -> e.toSql(dialect)).collect(Collectors.joining(", ")) + ")")
+                    .collect(Collectors.joining(", ")));
+            vs.append(") AS ").append(fromValues.alias());
+            if (!fromValues.columnNames().isEmpty()) {
+                vs.append("(").append(String.join(", ", fromValues.columnNames())).append(")");
+            }
+            sourceSql = vs.toString();
+        } else if (fromTable != null) {
+            sourceSql = "SELECT * FROM " + fromTable;
+        } else {
+            throw new IllegalStateException("PIVOT requires a source");
+        }
+
+        List<String> pivotCols = pivotClause.pivotColumns();
+        if (pivotCols.size() > 1) {
+            // Multi-column pivot: concatenate columns with '__|__'
+            String excludeList = pivotCols.stream()
+                    .map(dialect::quoteIdentifier)
+                    .collect(Collectors.joining(", "));
+            String concatExpr = pivotCols.stream()
+                    .map(dialect::quoteIdentifier)
+                    .reduce((a, b) -> a + " || '__|__' || " + b)
+                    .orElse("");
+            sourceSql = "SELECT * EXCLUDE(" + excludeList + "), " + concatExpr
+                    + " AS \"_pivot_key\" FROM (" + sourceSql + ") AS _pivot_src";
+            sb.append("PIVOT (").append(sourceSql).append(") ON \"_pivot_key\"");
+        } else {
+            sb.append("PIVOT (").append(sourceSql).append(") ON ");
+            sb.append(dialect.quoteIdentifier(pivotCols.get(0)));
+        }
+
+        // USING clause
+        sb.append(" USING ");
+        boolean first = true;
+        for (var agg : pivotClause.aggregates()) {
+            if (!first) sb.append(", ");
+            first = false;
+            sb.append(agg.aggFunction().toUpperCase());
+            sb.append("(");
+            if (agg.valueColumn() != null) {
+                sb.append(dialect.quoteIdentifier(agg.valueColumn()));
+            } else if (agg.valueExpression() != null) {
+                sb.append(agg.valueExpression());
+            } else {
+                sb.append("1");
+            }
+            sb.append(") AS ");
+            sb.append(dialect.quoteIdentifier("_|__" + agg.alias()));
+        }
+
+        return sb.toString();
     }
 }

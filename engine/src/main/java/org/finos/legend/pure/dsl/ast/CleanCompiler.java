@@ -356,7 +356,7 @@ public class CleanCompiler {
             // Store direction as a SortSpec with null column (list sort, not relational)
             var info = new TypeInfo(null, null, Map.of(),
                     List.of(new TypeInfo.SortSpec(null, direction)),
-                    List.of(), List.of(), false, null, List.of(), null, null, false, null);
+                    List.of(), List.of(), false, null, List.of(), null, null, false, null, null);
             types.put(af, info);
             return info;
         }
@@ -375,7 +375,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
-                List.of(), null, null, false, null);
+                List.of(), null, null, false, null, null);
         types.put(af, info);
         return info;
     }
@@ -502,7 +502,7 @@ public class CleanCompiler {
                 colSpecs.add(TypeInfo.ColumnSpec.col(c));
             }
             var info = new TypeInfo(source.relationType().onlyColumns(cols), source.mapping(),
-                    Map.of(), List.of(), List.of(), colSpecs, false, null, null, null, null, false, null);
+                    Map.of(), List.of(), List.of(), colSpecs, false, null, null, null, null, false, null, null);
             types.put(af, info);
             return info;
         }
@@ -526,7 +526,7 @@ public class CleanCompiler {
         RelationType newType = source.relationType().renameColumn(oldName, newName);
         List<TypeInfo.ColumnSpec> colSpecs = List.of(TypeInfo.ColumnSpec.renamed(oldName, newName));
         var info = new TypeInfo(newType, source.mapping(), Map.of(), List.of(), List.of(), colSpecs, false, null,
-                null, null, null, false, null);
+                null, null, null, false, null, null);
         types.put(af, info);
         return info;
     }
@@ -633,12 +633,12 @@ public class CleanCompiler {
         // Propagate struct flag from source
         if (source.isStructSource()) {
             var info = new TypeInfo(resultType, null, associations, List.of(), projections, List.of(), true, null,
-                    List.of(), null, null, false, null);
+                    List.of(), null, null, false, null, null);
             types.put(af, info);
             return info;
         }
         var info = new TypeInfo(resultType, mapping, associations, List.of(), projections, List.of(), false, null,
-                List.of(), null, null, false, null);
+                List.of(), null, null, false, null, null);
         types.put(af, info);
         return info;
     }
@@ -673,7 +673,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(selectedColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null, null);
         types.put(af, info);
         return info;
     }
@@ -759,7 +759,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null, null);
         types.put(af, info);
         return info;
     }
@@ -815,7 +815,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null);
+                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null, null);
         types.put(af, info);
         return info;
     }
@@ -891,7 +891,7 @@ public class CleanCompiler {
 
         var info = new TypeInfo(new RelationType(newColumns), source.mapping(),
                 Map.of(), List.of(), List.of(), List.of(), false, null,
-                windowSpec != null ? List.of(windowSpec) : List.of(), null, null, false, null);
+                windowSpec != null ? List.of(windowSpec) : List.of(), null, null, false, null, null);
         types.put(af, info);
         return info;
     }
@@ -1325,7 +1325,7 @@ public class CleanCompiler {
         }
 
         var info = new TypeInfo(new RelationType(mergedColumns), left.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null, null, false, null);
+                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null, null, false, null, null);
         types.put(af, info);
         return info;
     }
@@ -1376,7 +1376,8 @@ public class CleanCompiler {
     }
 
     /**
-     * Compiles pivot — pass through source type (columns not known until runtime).
+     * Compiles pivot — extracts pivot columns and aggregate specs into TypeInfo.PivotSpec.
+     * Pure: relation->pivot(~[pivotCols], ~[aggName : x | $x.col : y | $y->sum()])
      */
     private TypeInfo compilePivot(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -1385,7 +1386,73 @@ public class CleanCompiler {
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
-        return typed(af, source.relationType(), source.mapping());
+
+        // Extract pivot columns from params[1]: ClassInstance(ColSpecArray)
+        List<String> pivotColumns = new java.util.ArrayList<>();
+        if (params.size() > 1 && params.get(1) instanceof ClassInstance ci) {
+            if (ci.value() instanceof ColSpecArray csa) {
+                for (ColSpec cs : csa.colSpecs()) {
+                    pivotColumns.add(cs.name());
+                }
+            } else if (ci.value() instanceof ColSpec cs) {
+                pivotColumns.add(cs.name());
+            }
+        }
+
+        // Extract aggregate specs from params[2]: ClassInstance(ColSpecArray)
+        List<TypeInfo.PivotAggSpec> aggregates = new java.util.ArrayList<>();
+        if (params.size() > 2 && params.get(2) instanceof ClassInstance ci) {
+            List<ColSpec> aggSpecs;
+            if (ci.value() instanceof ColSpecArray csa) {
+                aggSpecs = csa.colSpecs();
+            } else if (ci.value() instanceof ColSpec cs) {
+                aggSpecs = List.of(cs);
+            } else {
+                throw new PureCompileException("pivot(): unsupported aggregate spec: " + ci.value());
+            }
+
+            for (ColSpec cs : aggSpecs) {
+                String alias = cs.name();
+                String aggFunction = "SUM";
+                String valueColumn = null;
+                ValueSpecification valueExpr = null;
+
+                // function2 = aggregate function: y | $y->sum()
+                if (cs.function2() != null && !cs.function2().body().isEmpty()) {
+                    ValueSpecification aggBody = cs.function2().body().get(0);
+                    if (aggBody instanceof AppliedFunction aggFn) {
+                        aggFunction = switch (simpleName(aggFn.function())) {
+                            case "plus", "sum" -> "SUM";
+                            case "count" -> "COUNT";
+                            case "average", "mean" -> "AVG";
+                            case "min" -> "MIN";
+                            case "max" -> "MAX";
+                            default -> simpleName(aggFn.function()).toUpperCase();
+                        };
+                    }
+                }
+
+                // function1 = value extraction: x | $x.col or x | $x.a * $x.b
+                if (cs.function1() != null && !cs.function1().body().isEmpty()) {
+                    ValueSpecification body = cs.function1().body().get(0);
+                    if (body instanceof AppliedProperty ap) {
+                        valueColumn = ap.property();
+                    } else {
+                        // Complex expression — store AST for PlanGenerator to compile
+                        valueExpr = body;
+                    }
+                }
+
+                aggregates.add(new TypeInfo.PivotAggSpec(alias, aggFunction, valueColumn, valueExpr));
+            }
+        }
+
+        var pivotSpec = new TypeInfo.PivotSpec(pivotColumns, aggregates);
+        var info = new TypeInfo(source.relationType(), source.mapping(),
+                Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
+                null, null, false, null, pivotSpec);
+        types.put(af, info);
+        return info;
     }
 
     /**
@@ -1673,7 +1740,7 @@ public class CleanCompiler {
                 result.relationType(), result.mapping(), result.associations(),
                 result.sortSpecs(), result.projections(), result.columnSpecs(),
                 result.structSource(), result.joinType(), result.windowSpecs(),
-                lastStmt, result.scalarType(), result.lambdaParam(), result.columnAlias());
+                lastStmt, result.scalarType(), result.lambdaParam(), result.columnAlias(), null);
         types.put(af, blockInfo);
         return blockInfo;
     }
@@ -1775,7 +1842,7 @@ public class CleanCompiler {
                 bodyResult.relationType(), bodyResult.mapping(), bodyResult.associations(),
                 bodyResult.sortSpecs(), bodyResult.projections(), bodyResult.columnSpecs(),
                 bodyResult.structSource(), bodyResult.joinType(), bodyResult.windowSpecs(),
-                inlinedNode, bodyResult.scalarType(), false, bodyResult.columnAlias());
+                inlinedNode, bodyResult.scalarType(), false, bodyResult.columnAlias(), null);
         types.put(af, result);
         return result;
     }
@@ -2505,7 +2572,7 @@ public class CleanCompiler {
                     letInfo.relationType(), letInfo.mapping(), letInfo.associations(),
                     letInfo.sortSpecs(), letInfo.projections(), letInfo.columnSpecs(),
                     letInfo.structSource(), letInfo.joinType(), letInfo.windowSpecs(),
-                    letValue, letInfo.scalarType(), letInfo.lambdaParam(), letInfo.columnAlias());
+                    letValue, letInfo.scalarType(), letInfo.lambdaParam(), letInfo.columnAlias(), null);
             types.put(v, inlined);
             return inlined;
         }

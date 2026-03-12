@@ -246,9 +246,10 @@ public class PlanGenerator {
             case "extend" -> generateExtend(af);
             case "join" -> generateJoin(af);
             case "from" -> generateFrom(af);
+            case "pivot" -> generatePivot(af);
             // --- Pass-through: source-preserving relational functions ---
             case "flatten", "toString", "toVariant",
-                 "pivot", "eq", "asOfJoin", "cast", "write", "size",
+                 "eq", "asOfJoin", "cast", "write", "size",
                  "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" ->
                 generateRelation(af.parameters().get(0));
             default -> throw new PureCompileException("PlanGenerator: unsupported function '" + funcName + "'");
@@ -1166,6 +1167,37 @@ public class PlanGenerator {
     private SqlBuilder generateFrom(AppliedFunction af) {
         // from() is a runtime binding — pass through source
         return generateRelation(af.parameters().get(0));
+    }
+
+    // ========== pivot ==========
+    /**
+     * Generates PIVOT SQL from TypeInfo sidecar (all metadata extracted by CleanCompiler).
+     * SQL: PIVOT (source) ON pivotCol USING AGG(valueCol) AS "_|__alias"
+     */
+    private SqlBuilder generatePivot(AppliedFunction af) {
+        SqlBuilder source = generateRelation(af.parameters().get(0));
+
+        TypeInfo info = unit.typeInfoFor(af);
+        if (info == null || info.pivotSpec() == null) {
+            throw new PureCompileException("pivot(): missing PivotSpec in TypeInfo sidecar");
+        }
+        TypeInfo.PivotSpec spec = info.pivotSpec();
+
+        // Convert compiler PivotAggSpecs to SqlBuilder PivotAggregates
+        List<SqlBuilder.PivotAggregate> aggregates = new java.util.ArrayList<>();
+        for (var agg : spec.aggregates()) {
+            String valueExprSql = null;
+            if (agg.valueExpr() != null) {
+                // Complex expression — compile to SQL here
+                SqlExpr expr = generateScalar(agg.valueExpr(), null, null, null);
+                valueExprSql = expr.toSql(dialect);
+            }
+            aggregates.add(new SqlBuilder.PivotAggregate(
+                    agg.aggFunction(), agg.valueColumn(), valueExprSql, agg.alias()));
+        }
+
+        source.pivot(new SqlBuilder.PivotClause(spec.pivotColumns(), aggregates));
+        return source;
     }
 
     // ========== Scalar Expression Compilation ==========

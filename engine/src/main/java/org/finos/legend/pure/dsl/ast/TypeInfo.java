@@ -50,7 +50,9 @@ public record TypeInfo(
         GenericType scalarType,
         boolean lambdaParam,
         /** Table alias prefix for property accesses (e.g. "left_src" in join conditions). */
-        String columnAlias) {
+        String columnAlias,
+        /** Pre-resolved pivot specification. */
+        PivotSpec pivotSpec) {
 
     /**
      * Pre-resolved association navigation target.
@@ -236,55 +238,78 @@ public record TypeInfo(
         ASC, DESC
     }
 
+    /**
+     * Pre-resolved pivot specification.
+     * Computed by CleanCompiler from pivot() AST params.
+     */
+    public record PivotSpec(
+            List<String> pivotColumns,
+            List<PivotAggSpec> aggregates) {
+    }
+
+    /**
+     * Single aggregate in a pivot: AGG(valueCol) AS alias.
+     * @param alias       Output column alias suffix
+     * @param aggFunction Aggregate function name (SUM, COUNT, etc.)
+     * @param valueColumn Column to aggregate (null if expression)
+     * @param valueExpr   Pre-compiled expression AST (null if simple column)
+     */
+    public record PivotAggSpec(
+            String alias,
+            String aggFunction,
+            String valueColumn,
+            ValueSpecification valueExpr) {
+    }
+
     /** Creates a TypeInfo for a scalar (non-relational) expression. */
     public static TypeInfo scalar() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, false, null);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, false, null, null);
     }
 
     /** Creates a TypeInfo for a scalar with a known type. */
     public static TypeInfo scalarOf(GenericType type) {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, false, null);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, false, null, null);
     }
 
     /** Creates a TypeInfo marking a lambda parameter variable with its declared type. */
     public static TypeInfo lambdaParamOf(GenericType type) {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, true, null);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, true, null, null);
     }
 
     /** Creates a TypeInfo marking a lambda parameter variable (untyped). */
     public static TypeInfo lambdaParamMarker() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, true, null);
+        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, true, null, null);
     }
 
     /** Creates a TypeInfo with type info but no mapping. */
     public static TypeInfo of(RelationType relationType) {
         return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null, false, null);
+                null, null, false, null, null);
     }
 
     /** Full constructor with both type and mapping. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping) {
         return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null, false, null);
+                null, null, false, null, null);
     }
 
     /** Full constructor with associations. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping,
             Map<String, AssociationTarget> associations) {
         return new TypeInfo(relationType, mapping, associations, List.of(), List.of(), List.of(), false, null, null,
-                null, null, false, null);
+                null, null, false, null, null);
     }
 
     /** Constructor for struct-based sources. */
     public static TypeInfo structOf(RelationType relationType) {
         return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), true, null, List.of(), null,
-                null, false, null);
+                null, false, null, null);
     }
 
     /** Creates a TypeInfo tagging a property access with a specific join-side alias. */
     public static TypeInfo withAlias(String columnAlias) {
         return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null,
-                null, false, columnAlias);
+                null, false, columnAlias, null);
     }
 
     // ===== Derived checks — no SourceKind enum needed =====
