@@ -81,7 +81,9 @@ public final class DuckDBDialect implements SQLDialect {
             case "Boolean" -> "BOOLEAN";
             case "Date", "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
+            case "TimestampNS" -> "TIMESTAMP_NS";
             case "TimestampTZ" -> "TIMESTAMPTZ";
+            case "JSON" -> "JSON";
             default -> "VARCHAR";
         };
     }
@@ -166,34 +168,42 @@ public final class DuckDBDialect implements SQLDialect {
             case "format":
                 return renderFormat(args);
             case "timeBucketScalar": {
-                // args: [quantity, unit, dateExpr, castType]
+                // args: [quantity, unit, dateExpr, castType (Pure type name)]
                 String qty = args.get(0);
                 String tbUnit = args.get(1);
                 if (tbUnit.startsWith("'") && tbUnit.endsWith("'")) tbUnit = tbUnit.substring(1, tbUnit.length() - 1);
                 String date = args.get(2);
                 String castType = args.get(3);
                 if (castType.startsWith("'") && castType.endsWith("'")) castType = castType.substring(1, castType.length() - 1);
+                castType = sqlTypeName(castType); // Map Pure type name → SQL type
                 String toFunc = tbUnit.equals("weeks") ? "TO_WEEKS" : "TO_DAYS";
                 String origin = tbUnit.equals("weeks") ? "'1969-12-29'" : "'1970-01-01'";
                 return "CAST(TIME_BUCKET(" + toFunc + "(" + qty + "), " + date +
                         ", CAST(" + origin + " AS TIMESTAMP)) AS " + castType + ")";
             }
             case "lpadSafe": {
-                // args: [str, len, lenCastInt, fill]
+                // args: [str, len, fill]
+                // DuckDB LPAD requires INTEGER, not BIGINT — handle cast here
                 // CASE WHEN LENGTH(str) >= len THEN LEFT(str, len)
                 //      WHEN LENGTH(fill) = 0 THEN str
                 //      ELSE LPAD(str, CAST(len AS INTEGER), fill) END
-                return "CASE WHEN LENGTH(" + args.get(0) + ") >= " + args.get(1)
-                        + " THEN LEFT(" + args.get(0) + ", " + args.get(1) + ")"
-                        + " WHEN LENGTH(" + args.get(3) + ") = 0 THEN " + args.get(0)
-                        + " ELSE LPAD(" + args.get(0) + ", " + args.get(2) + ", " + args.get(3) + ") END";
+                String str = args.get(0);
+                String len = args.get(1);
+                String fill = args.get(2);
+                return "CASE WHEN LENGTH(" + str + ") >= " + len
+                        + " THEN LEFT(" + str + ", " + len + ")"
+                        + " WHEN LENGTH(" + fill + ") = 0 THEN " + str
+                        + " ELSE LPAD(" + str + ", CAST(" + len + " AS INTEGER), " + fill + ") END";
             }
             case "rpadSafe": {
-                // Same pattern for RPAD
-                return "CASE WHEN LENGTH(" + args.get(0) + ") >= " + args.get(1)
-                        + " THEN LEFT(" + args.get(0) + ", " + args.get(1) + ")"
-                        + " WHEN LENGTH(" + args.get(3) + ") = 0 THEN " + args.get(0)
-                        + " ELSE RPAD(" + args.get(0) + ", " + args.get(2) + ", " + args.get(3) + ") END";
+                // args: [str, len, fill] — same pattern for RPAD
+                String str = args.get(0);
+                String len = args.get(1);
+                String fill = args.get(2);
+                return "CASE WHEN LENGTH(" + str + ") >= " + len
+                        + " THEN LEFT(" + str + ", " + len + ")"
+                        + " WHEN LENGTH(" + fill + ") = 0 THEN " + str
+                        + " ELSE RPAD(" + str + ", CAST(" + len + " AS INTEGER), " + fill + ") END";
             }
             case "decodeBase64": {
                 // Old pipeline: CAST(FROM_BASE64(RPAD(RTRIM(input, '='),
@@ -225,8 +235,11 @@ public final class DuckDBDialect implements SQLDialect {
                         + " ELSE " + args.get(0) + " >> " + args.get(1) + " END)";
             }
             case "listSort":
-                // args: [list, direction]
-                return "LIST_SORT(" + args.get(0) + ", " + args.get(1) + ")";
+                // args: [list] or [list, direction]
+                if (args.size() > 1) {
+                    return "LIST_SORT(" + args.get(0) + ", " + args.get(1) + ")";
+                }
+                return "LIST_SORT(" + args.get(0) + ")";
             case "listSortWithKey": {
                 // args: [list, direction, paramName, keyBody]
                 String p = args.get(2); // Identifier renders as raw name
@@ -285,6 +298,21 @@ public final class DuckDBDialect implements SQLDialect {
                 return "LIST_AGGR(" + args.get(0) + ", 'quantile_disc', " + args.get(1) + ")";
             case "arrayToString":
                 return "COALESCE(ARRAY_TO_STRING(" + args.get(0) + ", " + args.get(1) + "), '')";
+            case "dateDiff": {
+                // args: [unit, start, end]
+                String unit = args.get(0);
+                // Strip quotes from unit literal (e.g., 'WEEK' -> WEEK)
+                if (unit.startsWith("'") && unit.endsWith("'")) unit = unit.substring(1, unit.length() - 1);
+                if ("WEEK".equalsIgnoreCase(unit)) {
+                    // DuckDB has no native WEEK diff — decompose:
+                    // (DATE_DIFF('day', start, end) + CAST(EXTRACT(DOW FROM start) AS INTEGER)) // 7
+                    String start = args.get(1);
+                    String end = args.get(2);
+                    return "(DATE_DIFF('day', " + start + ", " + end
+                            + ") + CAST(EXTRACT(DOW FROM " + start + ") AS INTEGER)) // 7";
+                }
+                return "DATE_DIFF(" + String.join(", ", args) + ")";
+            }
         }
 
         String sqlName = switch (pureName) {
@@ -318,7 +346,6 @@ public final class DuckDBDialect implements SQLDialect {
             case "roundHalfEven" -> "ROUND_EVEN";
 
             // --- Date ---
-            case "dateDiff" -> "DATE_DIFF";
             case "makeDate" -> "MAKE_DATE";
             case "fromEpochValue" -> "TO_TIMESTAMP";
             case "toEpochValue" -> "EPOCH";

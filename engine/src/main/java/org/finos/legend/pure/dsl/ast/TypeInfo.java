@@ -52,7 +52,9 @@ public record TypeInfo(
         /** Table alias prefix for property accesses (e.g. "left_src" in join conditions). */
         String columnAlias,
         /** Pre-resolved pivot specification. */
-        PivotSpec pivotSpec) {
+        PivotSpec pivotSpec,
+        /** Pre-resolved variant access annotation (for get() calls). */
+        VariantAccess variantAccess) {
 
     /**
      * Pre-resolved association navigation target.
@@ -62,6 +64,18 @@ public record TypeInfo(
             RelationalMapping targetMapping,
             Join join,
             boolean isToMany) {
+    }
+
+    /**
+     * Pre-resolved variant access pattern.
+     * Computed by CleanCompiler from get() argument types.
+     * PlanGenerator reads this — never inspects AST node types.
+     */
+    public sealed interface VariantAccess {
+        /** Array index access: get(source, 0) → source[0] */
+        record IndexAccess(int index) implements VariantAccess {}
+        /** Field name access: get(source, "key") → source->>'key' */
+        record FieldAccess(String key) implements VariantAccess {}
     }
 
     /**
@@ -338,6 +352,7 @@ public record TypeInfo(
         private boolean lambdaParam;
         private String columnAlias;
         private PivotSpec pivotSpec;
+        private VariantAccess variantAccess;
 
         private Builder() {}
 
@@ -356,6 +371,7 @@ public record TypeInfo(
             this.lambdaParam = src.lambdaParam();
             this.columnAlias = src.columnAlias();
             this.pivotSpec = src.pivotSpec();
+            this.variantAccess = src.variantAccess();
         }
 
         public Builder relationType(RelationType v) { this.relationType = v; return this; }
@@ -372,11 +388,12 @@ public record TypeInfo(
         public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
         public Builder columnAlias(String v) { this.columnAlias = v; return this; }
         public Builder pivotSpec(PivotSpec v) { this.pivotSpec = v; return this; }
+        public Builder variantAccess(VariantAccess v) { this.variantAccess = v; return this; }
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
                     columnSpecs, structSource, joinType, windowSpecs, inlinedBody, scalarType,
-                    lambdaParam, columnAlias, pivotSpec);
+                    lambdaParam, columnAlias, pivotSpec, variantAccess);
         }
     }
 

@@ -583,10 +583,10 @@ public class PlanGenerator {
             if (exprAccess.isPresent()) {
                 var ea = exprAccess.get();
                 SqlExpr base = new SqlExpr.Column(alias, pm.columnName());
-                SqlExpr jsonAccess = new SqlExpr.JsonAccess(base, ea.jsonKey());
+                SqlExpr variantAccess = new SqlExpr.VariantTextExtract(base, ea.jsonKey());
                 return ea.castType() != null
-                        ? new SqlExpr.Cast(jsonAccess, ea.castType())
-                        : jsonAccess;
+                        ? new SqlExpr.Cast(variantAccess, ea.castType())
+                        : variantAccess;
             }
             // Enum mapping: generate CASE WHEN translation
             if (pm.hasEnumMapping()) {
@@ -1484,7 +1484,8 @@ public class PlanGenerator {
                     if (listInfo != null && listInfo.isMixedList()
                             && params.get(0) instanceof Collection coll
                             && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
-                        // Wrap each element and search value in toJson
+                        // Mixed-type list: wrap elements in toJson for comparable representation
+                        // "toJson" is a semantic name — dialect maps it (DuckDB: TO_JSON)
                         var wrappedElems = coll.values().stream()
                                 .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson",
                                         List.of(c.apply(v))))
@@ -1615,8 +1616,11 @@ public class PlanGenerator {
                 // Read target type from compiler's TypeInfo — compiler is the source of truth
                 TypeInfo castInfo = unit.types().get(af);
                 String castType = (castInfo != null && castInfo.scalarType() != null)
-                        ? castInfo.scalarType().typeName() : funcName.contains("Int") ? "Integer"
-                        : funcName.contains("Float") ? "Float" : "Decimal";
+                        ? castInfo.scalarType().typeName() : switch (funcName) {
+                            case "toInteger", "parseInteger" -> "Integer";
+                            case "toFloat", "parseFloat" -> "Float";
+                            default -> "Decimal";
+                        };
                 yield new SqlExpr.Cast(c.apply(params.get(0)), castType);
             }
             case "parseDecimal" -> {
@@ -1849,20 +1853,15 @@ public class PlanGenerator {
                 SqlExpr str = c.apply(params.get(0));
                 SqlExpr len = c.apply(params.get(1));
                 SqlExpr fill = params.size() > 2 ? c.apply(params.get(2)) : new SqlExpr.StringLiteral(" ");
-                SqlExpr lenCast = new SqlExpr.RawCast(len, "INTEGER");
-                // CASE WHEN LENGTH(str) >= len THEN LEFT(str, len)
-                //      WHEN LENGTH(fill) = 0 THEN str
-                //      ELSE LPAD(str, CAST(len AS INTEGER), fill) END
                 yield new SqlExpr.FunctionCall("lpadSafe",
-                        List.of(str, len, lenCast, fill));
+                        List.of(str, len, fill));
             }
             case "rpad" -> {
                 SqlExpr str = c.apply(params.get(0));
                 SqlExpr len = c.apply(params.get(1));
                 SqlExpr fill = params.size() > 2 ? c.apply(params.get(2)) : new SqlExpr.StringLiteral(" ");
-                SqlExpr lenCast = new SqlExpr.RawCast(len, "INTEGER");
                 yield new SqlExpr.FunctionCall("rpadSafe",
-                        List.of(str, len, lenCast, fill));
+                        List.of(str, len, fill));
             }
             case "encodeBase64" -> new SqlExpr.FunctionCall("encodeBase64",
                     List.of(c.apply(params.get(0))));
@@ -1960,18 +1959,6 @@ public class PlanGenerator {
                         default -> ev.value();
                     };
                 }
-                if ("WEEK".equals(dunit)) {
-                    // WEEKS: (DATE_DIFF('day', start, end) + CAST(EXTRACT(DOW FROM start) AS INTEGER)) // 7
-                    // DOW returns 0-6 (Sunday=0), matching Pure's week boundary counting
-                    SqlExpr dayDiff = new SqlExpr.FunctionCall("dateDiff",
-                            List.of(new SqlExpr.Literal("'day'"), start, end));
-                    SqlExpr dow = new SqlExpr.FunctionCall("extractDow", List.of(start));
-                    // Use RawCast to produce "CAST(... AS INTEGER)" bypassing dialect type mapping
-                    SqlExpr castDow = new SqlExpr.RawCast(dow, "INTEGER");
-                    SqlExpr sum = new SqlExpr.Binary(dayDiff, "+", castDow);
-                    // Produce: (sum) // 7 — no outer parens around the whole expression
-                    yield new SqlExpr.IntegerDivide(sum, new SqlExpr.Literal("7"));
-                }
                 yield new SqlExpr.FunctionCall("dateDiff",
                         List.of(new SqlExpr.Literal("'" + dunit + "'"), start, end));
             }
@@ -2035,7 +2022,7 @@ public class PlanGenerator {
                     // Pass type info so dialect can render correctly
                     String castType = (dateTypeInfo.scalarType() != null
                             && dateTypeInfo.scalarType() == GenericType.Primitive.DATE_TIME)
-                            ? "TIMESTAMP_NS" : "DATE";
+                            ? "TimestampNS" : "Date";
                     yield new SqlExpr.FunctionCall("timeBucketScalar",
                             List.of(quantityExpr, new SqlExpr.StringLiteral(tbUnit),
                                     dateExpr, new SqlExpr.StringLiteral(castType)));
@@ -2380,32 +2367,27 @@ public class PlanGenerator {
             case "minBy" -> new SqlExpr.FunctionCall("minBy",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
 
-            // --- Variant access ---
+            // --- Variant access (compiler resolves access pattern) ---
             case "get" -> {
-                // get(source, key) or get(source, key, @Type)
                 SqlExpr source = c.apply(params.get(0));
-                ValueSpecification keyVs = params.get(1);
                 TypeInfo info = unit.types().get(af);
                 String targetSqlType = info != null ? info.variantScalarSqlType(dialect) : null;
+                TypeInfo.VariantAccess access = info != null ? info.variantAccess() : null;
 
-                // Integer key → array index access
-                if (keyVs instanceof CInteger ci) {
-                    SqlExpr access = new SqlExpr.VariantIndex(source, (int) ci.value());
+                if (access instanceof TypeInfo.VariantAccess.IndexAccess ia) {
+                    SqlExpr indexExpr = new SqlExpr.VariantIndex(source, ia.index());
                     yield targetSqlType != null
-                            ? new SqlExpr.VariantScalarCast(access, targetSqlType) : access;
+                            ? new SqlExpr.VariantScalarCast(indexExpr, targetSqlType) : indexExpr;
                 }
-
-                // String key
-                if (keyVs instanceof CString cs) {
+                if (access instanceof TypeInfo.VariantAccess.FieldAccess fa) {
                     if (targetSqlType != null) {
                         yield new SqlExpr.VariantScalarCast(
-                                new SqlExpr.VariantTextAccess(source, cs.value()), targetSqlType);
+                                new SqlExpr.VariantTextAccess(source, fa.key()), targetSqlType);
                     }
-                    yield new SqlExpr.VariantAccess(source, cs.value());
+                    yield new SqlExpr.VariantAccess(source, fa.key());
                 }
-
-                // Dynamic key
-                yield new SqlExpr.VariantAccess(source, c.apply(keyVs).toSql(dialect));
+                // Compiler should always provide access pattern
+                throw new IllegalStateException("get() missing VariantAccess annotation from compiler");
             }
 
             // --- List/array operations ---
@@ -2585,9 +2567,13 @@ public class PlanGenerator {
                                         new SqlExpr.Identifier(keyParam),
                                         keyBody));
                     }
+                    if ("DESC".equals(direction)) {
+                        yield new SqlExpr.FunctionCall("listSort",
+                                List.of(c.apply(params.get(0)),
+                                        new SqlExpr.StringLiteral(direction)));
+                    }
                     yield new SqlExpr.FunctionCall("listSort",
-                            List.of(c.apply(params.get(0)),
-                                    new SqlExpr.StringLiteral(direction)));
+                            List.of(c.apply(params.get(0))));
                 }
                 // Relation sort — pass through (handled by generateSort)
                 if (!params.isEmpty()) {

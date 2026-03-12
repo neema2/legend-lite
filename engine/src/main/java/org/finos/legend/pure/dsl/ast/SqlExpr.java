@@ -214,13 +214,6 @@ public sealed interface SqlExpr {
         }
     }
 
-    /** Cast with raw SQL type name (bypasses dialect type mapping). */
-    record RawCast(SqlExpr expr, String sqlType) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "CAST(" + expr.toSql(dialect) + " AS " + sqlType + ")";
-        }
-    }
 
     /** Integer division: left // right — no outer parens around result. */
     record IntegerDivide(SqlExpr left, SqlExpr right) implements SqlExpr {
@@ -344,15 +337,11 @@ public sealed interface SqlExpr {
         }
     }
 
-    /** Dialect-rendered JSON text access. */
-    record JsonAccess(SqlExpr expr, String key) implements SqlExpr {
+    /** Dialect-rendered Variant text extraction (returns string value, not Variant). */
+    record VariantTextExtract(SqlExpr expr, String key) implements SqlExpr {
         @Override
         public String toSql(SQLDialect dialect) {
-            var jsonDialect = dialect.getJsonDialect();
-            if (jsonDialect != null) {
-                return jsonDialect.variantGet(expr.toSql(dialect), key);
-            }
-            return expr.toSql(dialect) + "->>" + dialect.quoteStringLiteral(key);
+            return dialect.renderVariantTextAccess(expr.toSql(dialect), key);
         }
     }
 

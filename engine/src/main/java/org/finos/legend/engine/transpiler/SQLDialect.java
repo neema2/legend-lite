@@ -250,9 +250,9 @@ public interface SQLDialect {
         return "((" + expr + ")->" + quoteStringLiteral(key) + ")";
     }
 
-    /** Access a Variant array element by index (returns Variant). DuckDB: (expr)->idx */
+    /** Access a Variant array element by index (returns Variant). DuckDB: (expr)[idx] */
     default String renderVariantIndex(String expr, int index) {
-        return "((" + expr + ")->" + index + ")";
+        return "(" + expr + ")[" + index + "]";
     }
 
     /** Extract text value from Variant by key (returns string). DuckDB: (expr)->>'key' */

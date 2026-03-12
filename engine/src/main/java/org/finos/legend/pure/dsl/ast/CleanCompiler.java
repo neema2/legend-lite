@@ -158,6 +158,8 @@ public class CleanCompiler {
             case "letFunction" -> compileLet(af, ctx);
             // --- Type functions (cast, toMany, toOne, toVariant, to) ---
             case "cast", "toMany", "toOne", "toVariant", "to" -> compileTypeFunction(af, ctx);
+            // --- Variant access (compiler resolves index vs field) ---
+            case "get" -> compileGet(af, ctx);
             // --- Size (returns Integer scalar for both relations and lists) ---
             case "size" -> compileSize(af, ctx);
             // --- Collection / scalar functions (type-propagating) ---
@@ -324,8 +326,8 @@ public class CleanCompiler {
     /** Compiles sort(source, sortSpecs). */
     private TypeInfo compileSort(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            throw new PureCompileException("sort() requires source and sort specs");
+        if (params.isEmpty()) {
+            throw new PureCompileException("sort() requires source");
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
@@ -988,6 +990,23 @@ public class CleanCompiler {
                 String paramName = lambda.parameters().get(0).name();
                 CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceType);
                 typeCheckExpression(lambda.body().get(0), lambdaCtx);
+            }
+        }
+
+        // Also type-check ColSpecArray lambda bodies (multi-column extend)
+        for (int i = 1; i < params.size(); i++) {
+            if (params.get(i) instanceof ClassInstance ci
+                    && ci.value() instanceof ColSpecArray csa && sourceType != null) {
+                for (ColSpec cs : csa.colSpecs()) {
+                    if (cs.function1() != null) {
+                        LambdaFunction lambda = cs.function1();
+                        if (!lambda.parameters().isEmpty() && !lambda.body().isEmpty()) {
+                            String paramName = lambda.parameters().get(0).name();
+                            CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceType);
+                            typeCheckExpression(lambda.body().get(0), lambdaCtx);
+                        }
+                    }
+                }
             }
         }
 
@@ -1935,6 +1954,40 @@ public class CleanCompiler {
         };
     }
 
+    /** Compiles variant get(source, key) — resolves access pattern (index vs field). */
+    private TypeInfo compileGet(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        // NOTE: params are already compiled by the caller (compileExpr dispatch
+        // or typeCheckExpression). We only resolve the access annotation here.
+
+        // Resolve access pattern from key argument
+        TypeInfo.VariantAccess access = null;
+        if (params.size() > 1) {
+            ValueSpecification keyVs = params.get(1);
+            if (keyVs instanceof CInteger ci) {
+                access = new TypeInfo.VariantAccess.IndexAccess(ci.value().intValue());
+            } else if (keyVs instanceof CString cs) {
+                access = new TypeInfo.VariantAccess.FieldAccess(cs.value());
+            }
+        }
+
+        // Resolve target type from @Type annotation (3rd param)
+        GenericType targetType = null;
+        for (var p : params) {
+            if (p instanceof GenericTypeInstance gti) {
+                targetType = GenericType.fromTypeName(simpleName(gti.fullPath()));
+                break;
+            }
+        }
+
+        var builder = TypeInfo.builder();
+        if (targetType != null) builder.scalarType(targetType);
+        if (access != null) builder.variantAccess(access);
+        TypeInfo info = builder.build();
+        types.put(af, info);
+        return info;
+    }
+
     /** Compiles functions that propagate type from their first param. */
     private TypeInfo compileTypePropagating(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -2360,6 +2413,8 @@ public class CleanCompiler {
                 if ("toMany".equals(simple) || "to".equals(simple)
                         || "toVariant".equals(simple) || "cast".equals(simple)) {
                     compileTypeFunction(af, ctx);
+                } else if ("get".equals(simple)) {
+                    compileGet(af, ctx);
                 } else if ("toOne".equals(simple) && !af.parameters().isEmpty()) {
                     TypeInfo innerType = types.get(af.parameters().get(0));
                     if (innerType != null && innerType.scalarType() != null) {
