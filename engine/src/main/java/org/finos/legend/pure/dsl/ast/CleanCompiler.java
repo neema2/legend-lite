@@ -354,9 +354,8 @@ public class CleanCompiler {
                 }
             }
             // Store direction as a SortSpec with null column (list sort, not relational)
-            var info = new TypeInfo(null, null, Map.of(),
-                    List.of(new TypeInfo.SortSpec(null, direction)),
-                    List.of(), List.of(), false, null, List.of(), null, null, false, null, null);
+            var info = TypeInfo.builder()
+                    .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction))).build();
             types.put(af, info);
             return info;
         }
@@ -374,8 +373,8 @@ public class CleanCompiler {
             }
         }
 
-        var info = new TypeInfo(sourceType, source.mapping(), Map.of(), sortSpecs, List.of(), List.of(), false, null,
-                List.of(), null, null, false, null, null);
+        var info = TypeInfo.builder().relationType(sourceType).mapping(source.mapping())
+                .sortSpecs(sortSpecs).build();
         types.put(af, info);
         return info;
     }
@@ -501,8 +500,8 @@ public class CleanCompiler {
             for (String c : cols) {
                 colSpecs.add(TypeInfo.ColumnSpec.col(c));
             }
-            var info = new TypeInfo(source.relationType().onlyColumns(cols), source.mapping(),
-                    Map.of(), List.of(), List.of(), colSpecs, false, null, null, null, null, false, null, null);
+            var info = TypeInfo.builder().relationType(source.relationType().onlyColumns(cols))
+                    .mapping(source.mapping()).columnSpecs(colSpecs).build();
             types.put(af, info);
             return info;
         }
@@ -525,8 +524,8 @@ public class CleanCompiler {
 
         RelationType newType = source.relationType().renameColumn(oldName, newName);
         List<TypeInfo.ColumnSpec> colSpecs = List.of(TypeInfo.ColumnSpec.renamed(oldName, newName));
-        var info = new TypeInfo(newType, source.mapping(), Map.of(), List.of(), List.of(), colSpecs, false, null,
-                null, null, null, false, null, null);
+        var info = TypeInfo.builder().relationType(newType).mapping(source.mapping())
+                .columnSpecs(colSpecs).build();
         types.put(af, info);
         return info;
     }
@@ -632,13 +631,13 @@ public class CleanCompiler {
         RelationType resultType = new RelationType(projectedColumns);
         // Propagate struct flag from source
         if (source.isStructSource()) {
-            var info = new TypeInfo(resultType, null, associations, List.of(), projections, List.of(), true, null,
-                    List.of(), null, null, false, null, null);
+            var info = TypeInfo.builder().relationType(resultType).associations(associations)
+                    .projections(projections).structSource(true).build();
             types.put(af, info);
             return info;
         }
-        var info = new TypeInfo(resultType, mapping, associations, List.of(), projections, List.of(), false, null,
-                List.of(), null, null, false, null, null);
+        var info = TypeInfo.builder().relationType(resultType).mapping(mapping)
+                .associations(associations).projections(projections).build();
         types.put(af, info);
         return info;
     }
@@ -672,8 +671,8 @@ public class CleanCompiler {
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
 
-        var info = new TypeInfo(new RelationType(selectedColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null, null);
+        var info = TypeInfo.builder().relationType(new RelationType(selectedColumns))
+                .mapping(source.mapping()).columnSpecs(colSpecs).build();
         types.put(af, info);
         return info;
     }
@@ -758,8 +757,8 @@ public class CleanCompiler {
             return typed(af, sourceType, source.mapping());
         }
 
-        var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null, null);
+        var info = TypeInfo.builder().relationType(new RelationType(resultColumns))
+                .mapping(source.mapping()).columnSpecs(colSpecs).build();
         types.put(af, info);
         return info;
     }
@@ -814,8 +813,8 @@ public class CleanCompiler {
             return typed(af, source.relationType(), source.mapping());
         }
 
-        var info = new TypeInfo(new RelationType(resultColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), colSpecs, false, null, List.of(), null, null, false, null, null);
+        var info = TypeInfo.builder().relationType(new RelationType(resultColumns))
+                .mapping(source.mapping()).columnSpecs(colSpecs).build();
         types.put(af, info);
         return info;
     }
@@ -889,9 +888,9 @@ public class CleanCompiler {
             }
         }
 
-        var info = new TypeInfo(new RelationType(newColumns), source.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, null,
-                windowSpec != null ? List.of(windowSpec) : List.of(), null, null, false, null, null);
+        var info = TypeInfo.builder().relationType(new RelationType(newColumns))
+                .mapping(source.mapping())
+                .windowSpecs(windowSpec != null ? List.of(windowSpec) : List.of()).build();
         types.put(af, info);
         return info;
     }
@@ -1324,8 +1323,8 @@ public class CleanCompiler {
             }
         }
 
-        var info = new TypeInfo(new RelationType(mergedColumns), left.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, joinType, List.of(), null, null, false, null, null);
+        var info = TypeInfo.builder().relationType(new RelationType(mergedColumns))
+                .mapping(left.mapping()).joinType(joinType).build();
         types.put(af, info);
         return info;
     }
@@ -1448,9 +1447,8 @@ public class CleanCompiler {
         }
 
         var pivotSpec = new TypeInfo.PivotSpec(pivotColumns, aggregates);
-        var info = new TypeInfo(source.relationType(), source.mapping(),
-                Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null, false, null, pivotSpec);
+        var info = TypeInfo.builder().relationType(source.relationType())
+                .mapping(source.mapping()).pivotSpec(pivotSpec).build();
         types.put(af, info);
         return info;
     }
@@ -1736,11 +1734,7 @@ public class CleanCompiler {
         TypeInfo result = compileExpr(lastStmt, blockCtx);
         // Set inlinedBody on the block node → PlanGenerator transparently skips
         // through block to the result expression (same pattern as user function inlining)
-        TypeInfo blockInfo = new TypeInfo(
-                result.relationType(), result.mapping(), result.associations(),
-                result.sortSpecs(), result.projections(), result.columnSpecs(),
-                result.structSource(), result.joinType(), result.windowSpecs(),
-                lastStmt, result.scalarType(), result.lambdaParam(), result.columnAlias(), null);
+        TypeInfo blockInfo = TypeInfo.from(result).inlinedBody(lastStmt).build();
         types.put(af, blockInfo);
         return blockInfo;
     }
@@ -1838,11 +1832,7 @@ public class CleanCompiler {
         TypeInfo bodyResult = compileExpr(inlinedNode, ctx);
         // Store inlined body in TypeInfo — PlanGenerator processes it instead of the
         // original call
-        TypeInfo result = new TypeInfo(
-                bodyResult.relationType(), bodyResult.mapping(), bodyResult.associations(),
-                bodyResult.sortSpecs(), bodyResult.projections(), bodyResult.columnSpecs(),
-                bodyResult.structSource(), bodyResult.joinType(), bodyResult.windowSpecs(),
-                inlinedNode, bodyResult.scalarType(), false, bodyResult.columnAlias(), null);
+        TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(inlinedNode).lambdaParam(false).build();
         types.put(af, result);
         return result;
     }
@@ -2568,11 +2558,7 @@ public class CleanCompiler {
         if (letValue != null) {
             TypeInfo letInfo = compileExpr(letValue, ctx);
             // Create a TypeInfo with the compiled type info AND inlinedBody pointing to the bound value
-            TypeInfo inlined = new TypeInfo(
-                    letInfo.relationType(), letInfo.mapping(), letInfo.associations(),
-                    letInfo.sortSpecs(), letInfo.projections(), letInfo.columnSpecs(),
-                    letInfo.structSource(), letInfo.joinType(), letInfo.windowSpecs(),
-                    letValue, letInfo.scalarType(), letInfo.lambdaParam(), letInfo.columnAlias(), null);
+            TypeInfo inlined = TypeInfo.from(letInfo).inlinedBody(letValue).build();
             types.put(v, inlined);
             return inlined;
         }

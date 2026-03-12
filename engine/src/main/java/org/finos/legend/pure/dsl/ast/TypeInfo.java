@@ -263,53 +263,121 @@ public record TypeInfo(
 
     /** Creates a TypeInfo for a scalar (non-relational) expression. */
     public static TypeInfo scalar() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, false, null, null);
+        return builder().build();
     }
 
     /** Creates a TypeInfo for a scalar with a known type. */
     public static TypeInfo scalarOf(GenericType type) {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, false, null, null);
+        return builder().scalarType(type).build();
     }
 
-    /** Creates a TypeInfo marking a lambda parameter variable with its declared type. */
+    /** Creates a TypeInfo marking a lambda parameter variable with a declared type. */
     public static TypeInfo lambdaParamOf(GenericType type) {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, type, true, null, null);
+        return builder().scalarType(type).lambdaParam(true).build();
     }
 
     /** Creates a TypeInfo marking a lambda parameter variable (untyped). */
     public static TypeInfo lambdaParamMarker() {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null, null, true, null, null);
+        return builder().lambdaParam(true).build();
     }
 
     /** Creates a TypeInfo with type info but no mapping. */
     public static TypeInfo of(RelationType relationType) {
-        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null, false, null, null);
+        return builder().relationType(relationType).build();
     }
 
     /** Full constructor with both type and mapping. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping) {
-        return new TypeInfo(relationType, mapping, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(),
-                null, null, false, null, null);
+        return builder().relationType(relationType).mapping(mapping).build();
     }
 
     /** Full constructor with associations. */
     public static TypeInfo of(RelationType relationType, RelationalMapping mapping,
             Map<String, AssociationTarget> associations) {
-        return new TypeInfo(relationType, mapping, associations, List.of(), List.of(), List.of(), false, null, null,
-                null, null, false, null, null);
+        return builder().relationType(relationType).mapping(mapping).associations(associations).build();
     }
 
     /** Constructor for struct-based sources. */
     public static TypeInfo structOf(RelationType relationType) {
-        return new TypeInfo(relationType, null, Map.of(), List.of(), List.of(), List.of(), true, null, List.of(), null,
-                null, false, null, null);
+        return builder().relationType(relationType).structSource(true).build();
     }
 
     /** Creates a TypeInfo tagging a property access with a specific join-side alias. */
     public static TypeInfo withAlias(String columnAlias) {
-        return new TypeInfo(null, null, Map.of(), List.of(), List.of(), List.of(), false, null, List.of(), null,
-                null, false, columnAlias, null);
+        return builder().columnAlias(columnAlias).build();
+    }
+
+    // ===== Builder =====
+
+    /** Creates a fresh builder with all defaults (nulls, empty lists, false booleans). */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /** Creates a builder pre-populated from an existing TypeInfo (clone-with-override). */
+    public static Builder from(TypeInfo source) {
+        return new Builder(source);
+    }
+
+    /**
+     * Mutable builder for TypeInfo. All fields default to null/empty/false.
+     * Adding a new field to the record only requires updating this class.
+     */
+    public static final class Builder {
+        private RelationType relationType;
+        private RelationalMapping mapping;
+        private Map<String, AssociationTarget> associations = Map.of();
+        private List<SortSpec> sortSpecs = List.of();
+        private List<ProjectionSpec> projections = List.of();
+        private List<ColumnSpec> columnSpecs = List.of();
+        private boolean structSource;
+        private String joinType;
+        private List<WindowFunctionSpec> windowSpecs = List.of();
+        private ValueSpecification inlinedBody;
+        private GenericType scalarType;
+        private boolean lambdaParam;
+        private String columnAlias;
+        private PivotSpec pivotSpec;
+
+        private Builder() {}
+
+        private Builder(TypeInfo src) {
+            this.relationType = src.relationType();
+            this.mapping = src.mapping();
+            this.associations = src.associations();
+            this.sortSpecs = src.sortSpecs();
+            this.projections = src.projections();
+            this.columnSpecs = src.columnSpecs();
+            this.structSource = src.structSource();
+            this.joinType = src.joinType();
+            this.windowSpecs = src.windowSpecs();
+            this.inlinedBody = src.inlinedBody();
+            this.scalarType = src.scalarType();
+            this.lambdaParam = src.lambdaParam();
+            this.columnAlias = src.columnAlias();
+            this.pivotSpec = src.pivotSpec();
+        }
+
+        public Builder relationType(RelationType v) { this.relationType = v; return this; }
+        public Builder mapping(RelationalMapping v) { this.mapping = v; return this; }
+        public Builder associations(Map<String, AssociationTarget> v) { this.associations = v; return this; }
+        public Builder sortSpecs(List<SortSpec> v) { this.sortSpecs = v; return this; }
+        public Builder projections(List<ProjectionSpec> v) { this.projections = v; return this; }
+        public Builder columnSpecs(List<ColumnSpec> v) { this.columnSpecs = v; return this; }
+        public Builder structSource(boolean v) { this.structSource = v; return this; }
+        public Builder joinType(String v) { this.joinType = v; return this; }
+        public Builder windowSpecs(List<WindowFunctionSpec> v) { this.windowSpecs = v; return this; }
+        public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
+        public Builder scalarType(GenericType v) { this.scalarType = v; return this; }
+        public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
+        public Builder columnAlias(String v) { this.columnAlias = v; return this; }
+        public Builder pivotSpec(PivotSpec v) { this.pivotSpec = v; return this; }
+
+        public TypeInfo build() {
+            return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
+                    columnSpecs, structSource, joinType, windowSpecs, inlinedBody, scalarType,
+                    lambdaParam, columnAlias, pivotSpec);
+        }
     }
 
     // ===== Derived checks — no SourceKind enum needed =====
