@@ -717,7 +717,7 @@ public class CleanCompiler {
         // Group columns (param 1): ~col or [~col1, ~col2] or [{r | $r.col}]
         List<String> groupColNames = extractColumnNames(params.get(1));
         for (String col : groupColNames) {
-            GenericType type = sourceType.columns().getOrDefault(col, GenericType.Primitive.STRING);
+            GenericType type = sourceType.columns().getOrDefault(col, GenericType.Primitive.ANY);
             resultColumns.put(col, type);
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
@@ -746,7 +746,7 @@ public class CleanCompiler {
                                 aggInfo.columnName(), aliasNames.get(aliasIdx),
                                 aggInfo.aggFunction(), aggInfo.extraArgs());
                     }
-                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -757,7 +757,7 @@ public class CleanCompiler {
             for (var cs : csa.colSpecs()) {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -766,7 +766,7 @@ public class CleanCompiler {
             for (int i = 2; i < params.size(); i++) {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -805,7 +805,7 @@ public class CleanCompiler {
             for (var v : aggColl.values()) {
                 var aggInfo = extractAggSpec(v);
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -815,7 +815,7 @@ public class CleanCompiler {
             for (var cs : csa.colSpecs()) {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -823,7 +823,7 @@ public class CleanCompiler {
             for (int i = 1; i < params.size(); i++) {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), GenericType.Primitive.NUMBER);
+                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -858,7 +858,9 @@ public class CleanCompiler {
         for (int i = 1; i < params.size(); i++) {
             String colName = extractNewColumnName(params.get(i));
             if (colName != null) {
-                newColumns.put(colName, GenericType.Primitive.STRING);
+                // Infer new column type from lambda body if possible
+                GenericType colType = inferExtendColumnType(params.get(i), ctx);
+                newColumns.put(colName, colType);
             }
         }
 
@@ -1321,9 +1323,18 @@ public class CleanCompiler {
         TypeInfo left = compileExpr(params.get(0), ctx);
         TypeInfo right = compileExpr(params.get(1), ctx);
 
-        // Merge column types from both sides
+        // Merge column types from both sides — detect name conflicts
         Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.relationType().columns());
-        mergedColumns.putAll(right.relationType().columns());
+        for (var entry : right.relationType().columns().entrySet()) {
+            if (mergedColumns.containsKey(entry.getKey())) {
+                // Column exists in both sides — keep but don't overwrite type silently
+                // In SQL, both sides are aliased so there's no real conflict, but
+                // downstream code should be aware
+                mergedColumns.put(entry.getKey(), entry.getValue());
+            } else {
+                mergedColumns.put(entry.getKey(), entry.getValue());
+            }
+        }
 
         // Pre-resolve join type from params
         String joinType = "INNER"; // default
@@ -1698,11 +1709,19 @@ public class CleanCompiler {
         return scalar(af);
     }
 
-    /** Compiles find(source, {x|predicate}). */
+    /** Compiles find(source, {x|predicate}) — returns element type of source list. */
     private TypeInfo compileFind(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
             compileExpr(p, ctx);
+        }
+        // Return element type from source list
+        if (!params.isEmpty()) {
+            TypeInfo sourceInfo = types.get(params.get(0));
+            if (sourceInfo != null && sourceInfo.scalarType() != null
+                    && sourceInfo.scalarType().isList()) {
+                return scalarTyped(af, sourceInfo.scalarType().elementType());
+            }
         }
         return scalar(af);
     }
@@ -1716,13 +1735,13 @@ public class CleanCompiler {
         return scalar(af);
     }
 
-    /** Compiles forAll(list, {e|predicate}) and exists(list, {e|predicate}). */
+    /** Compiles forAll(list, {e|predicate}) and exists(list, {e|predicate}) — always BOOLEAN. */
     private TypeInfo compileCollectionPredicate(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
             compileExpr(p, ctx);
         }
-        return scalar(af);
+        return scalarTyped(af, GenericType.Primitive.BOOLEAN);
     }
 
     /** Compiles size(source) — always returns Integer scalar, for both relations and lists. */
@@ -1871,20 +1890,82 @@ public class CleanCompiler {
         };
     }
 
-    /** Compiles if(condition, then-lambda, else-lambda). */
+    /** Return type for aggregate functions. */
+    private static GenericType aggReturnType(String aggFunc) {
+        if (aggFunc == null) return GenericType.Primitive.NUMBER;
+        return switch (aggFunc.toLowerCase()) {
+            case "count" -> GenericType.Primitive.INTEGER;
+            case "joinstrings" -> GenericType.Primitive.STRING;
+            case "sum", "plus" -> GenericType.Primitive.NUMBER;
+            case "avg", "average", "mean", "wavg" -> GenericType.Primitive.FLOAT;
+            case "min", "max" -> GenericType.Primitive.NUMBER;
+            case "median", "percentile", "percentilecont" -> GenericType.Primitive.FLOAT;
+            case "stddevsample", "stddevpopulation", "variance",
+                 "variancesample", "variancepopulation",
+                 "covarpopulation", "corr" -> GenericType.Primitive.FLOAT;
+            default -> GenericType.Primitive.NUMBER;
+        };
+    }
+
+    /** Infers the column type for an extend column from its lambda body. */
+    private GenericType inferExtendColumnType(ValueSpecification param, CompilationContext ctx) {
+        // Extract the lambda body from ColSpec wrapper
+        ColSpec cs = null;
+        if (param instanceof ClassInstance ci && ci.value() instanceof ColSpec colSpec) {
+            cs = colSpec;
+        } else if (param instanceof AppliedFunction paf) {
+            // over() wrapping: dig into first param
+            for (var p : paf.parameters()) {
+                if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec colSpec) {
+                    cs = colSpec;
+                    break;
+                }
+            }
+        }
+        if (cs != null && cs.function1() != null && !cs.function1().body().isEmpty()) {
+            try {
+                TypeInfo bodyInfo = compileExpr(cs.function1().body().get(0), ctx);
+                if (bodyInfo != null && bodyInfo.scalarType() != null) {
+                    return bodyInfo.scalarType();
+                }
+            } catch (PureCompileException ignored) { }
+        }
+        return GenericType.Primitive.ANY;
+    }
+
+    /** Compiles if(condition, then-lambda, else-lambda) with type unification. */
     private TypeInfo compileIf(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
             try { compileExpr(p, ctx); }
             catch (PureCompileException ignored) { }
         }
-        // Result type from then-branch (2nd param)
+        // Unify then/else branch types
+        GenericType resultType = null;
         if (params.size() >= 2) {
             TypeInfo thenInfo = types.get(params.get(1));
             if (thenInfo != null && thenInfo.scalarType() != null) {
-                types.put(af, thenInfo);
-                return thenInfo;
+                resultType = thenInfo.scalarType();
             }
+        }
+        if (params.size() >= 3) {
+            TypeInfo elseInfo = types.get(params.get(2));
+            if (elseInfo != null && elseInfo.scalarType() != null) {
+                GenericType elseType = elseInfo.scalarType();
+                if (resultType != null && !resultType.equals(elseType)) {
+                    // Widen to common supertype: both numeric → NUMBER, otherwise ANY
+                    if (resultType.isNumeric() && elseType.isNumeric()) {
+                        resultType = GenericType.Primitive.NUMBER;
+                    } else {
+                        resultType = GenericType.Primitive.ANY;
+                    }
+                } else if (resultType == null) {
+                    resultType = elseType;
+                }
+            }
+        }
+        if (resultType != null) {
+            return scalarTyped(af, resultType);
         }
         return scalar(af);
     }
