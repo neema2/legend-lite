@@ -2433,10 +2433,20 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testLetInstancePropertyAccess() throws SQLException {
                 // let person = ^Person(firstName='John', lastName='Doe'); $person.firstName
+                var laPersonClass = new org.finos.legend.pure.m3.PureClass(
+                                "meta::pure::functions::lang::tests::model", "LA_Person", java.util.List.of(
+                                                new org.finos.legend.pure.m3.Property("firstName",
+                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
+                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1)),
+                                                new org.finos.legend.pure.m3.Property("lastName",
+                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
+                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1))));
+                var typeEnv = org.finos.legend.pure.dsl.TypeEnvironment.of(java.util.Map.of(
+                                "meta::pure::functions::lang::tests::model::LA_Person", laPersonClass));
                 Result result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|let person = ^meta::pure::functions::lang::tests::model::LA_Person(firstName='John', lastName='Doe'); $person.firstName;",
-                                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+                                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, typeEnv);
                 assertTrue(result instanceof ScalarResult);
                 assertEquals("John", ((ScalarResult) result).value());
         }

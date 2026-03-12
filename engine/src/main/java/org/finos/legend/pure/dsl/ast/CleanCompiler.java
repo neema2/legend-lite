@@ -185,6 +185,7 @@ public class CleanCompiler {
                  "encodeBase64", "decodeBase64",
                  "hash", "levenshteinDistance",
                  // --- Date/Time ---
+                 "now", "today",
                  "date", "dateDiff", "datePart", "adjust", "timeBucket",
                  "year", "monthNumber", "dayOfMonth",
                  "hour", "hasHour", "hasMinute", "hasMonth",
@@ -594,9 +595,19 @@ public class CleanCompiler {
             // Pattern 1: project(source, [lambdas], ['aliases'])
             lambdaSpecs = coll.values();
             aliases = params.size() > 2 ? extractStringList(params.get(2)) : List.of();
+        } else if (params.get(1) instanceof ClassInstance ci
+                && ci.value() instanceof ColSpecArray csa) {
+            // Pattern 3: project(source, ~[alias1:x|$x.prop, alias2:x|$x.prop])
+            // Unwrap ColSpecArray into individual ColSpec ClassInstances
+            lambdaSpecs = new ArrayList<>();
+            aliases = new ArrayList<>();
+            for (var cs : csa.colSpecs()) {
+                lambdaSpecs.add(new ClassInstance("colSpec", cs));
+                aliases.add(cs.name());
+            }
         } else {
-            // Pattern 2: project(source, lambda1, lambda2, ...)
-            // All params after source are lambda specs, no explicit aliases
+            // Pattern 2: project(source, ~col1, ~col2, ...)
+            // Individual ColSpec params — aliases extracted inline in loop
             lambdaSpecs = params.subList(1, params.size());
             aliases = List.of();
         }
@@ -610,11 +621,17 @@ public class CleanCompiler {
         for (int i = 0; i < lambdaSpecs.size(); i++) {
             ValueSpecification lambdaSpec = lambdaSpecs.get(i);
 
-            // Extract full property path from lambda
+            // Extract full property path from lambda body (for type lookup in source)
             List<String> propertyPath = extractPropertyPathFromLambda(lambdaSpec);
             String propertyName = propertyPath.isEmpty() ? extractPropertyFromLambda(lambdaSpec)
                     : propertyPath.getLast();
-            String alias = i < aliases.size() ? aliases.get(i) : propertyName;
+            // Alias is the output column name — ColSpec.name() is authoritative for Relation API
+            String alias;
+            if (lambdaSpec instanceof ClassInstance ci2 && ci2.value() instanceof ColSpec cs2) {
+                alias = cs2.name(); // e.g., "id1" from id1:x|$x.id
+            } else {
+                alias = i < aliases.size() ? aliases.get(i) : propertyName;
+            }
 
             // Detect function-wrapped lambda bodies: e.g., $e.date->monthNumber()
             // The lambda body is an AppliedFunction wrapping property access
@@ -627,18 +644,75 @@ public class CleanCompiler {
                 }
             }
 
-            // Resolve column via mapping
+            // Resolve column via mapping — no fallback, throw on unknown
             String resolvedColumn = null;
-            GenericType colType = GenericType.Primitive.STRING; // default
+            GenericType colType = null;
             if (mapping != null && propertyName != null) {
                 var columnOpt = mapping.getColumnForProperty(propertyName);
                 if (columnOpt.isPresent()) {
                     resolvedColumn = columnOpt.get();
-                    colType = sourceType.columns().getOrDefault(resolvedColumn, colType);
+                    colType = sourceType.columns().get(resolvedColumn);
                 }
             } else if (propertyName != null && sourceType.columns().containsKey(propertyName)) {
                 resolvedColumn = propertyName;
                 colType = sourceType.columns().get(propertyName);
+            }
+            // Computed expression (e.g. $e.date->monthNumber()) — infer type from body
+            if (colType == null && computedExpr != null) {
+                try {
+                    CompilationContext exprCtx = ctx;
+                    if (lambdaSpec instanceof LambdaFunction lf2
+                            && !lf2.parameters().isEmpty() && sourceType != null) {
+                        exprCtx = ctx.withRelationType(lf2.parameters().get(0).name(), sourceType);
+                    }
+                    TypeInfo exprInfo = compileExpr(computedExpr, exprCtx);
+                    if (exprInfo != null && exprInfo.scalarType() != null) {
+                        colType = exprInfo.scalarType();
+                    }
+                } catch (PureCompileException ignored) { }
+            }
+            // Multi-hop property path: resolve type through association chain
+            // e.g., $p.addresses.street → resolve 'addresses' association → look up 'street' in target
+            if (colType == null && propertyPath.size() > 1 && associations != null) {
+                String assocProp = propertyPath.get(0);
+                var assocTarget = associations.get(assocProp);
+                if (assocTarget != null) {
+                    var targetMapping = assocTarget.targetMapping();
+                    // Resolve column name for the property
+                    var targetColOpt = targetMapping.getColumnForProperty(propertyName);
+                    if (targetColOpt.isPresent()) {
+                        resolvedColumn = targetColOpt.get();
+                    }
+                    // Get type from Pure class definition (authoritative)
+                    try {
+                        colType = targetMapping.pureTypeForProperty(propertyName);
+                    } catch (IllegalArgumentException ignored) { }
+                }
+            }
+            // Struct multi-hop: resolve nested property via model context
+            // e.g., $x.addresses.val where addresses is List<StructAddress>
+            if (colType == null && propertyPath.size() > 1 && modelContext != null) {
+                String parentProp = propertyPath.get(0);
+                GenericType parentType = sourceType.columns().get(parentProp);
+                if (parentType != null) {
+                    // Unwrap List<ClassType> → ClassType
+                    GenericType elemType = parentType.elementType();
+                    if (elemType instanceof GenericType.ClassType ct) {
+                        var classOpt = modelContext.findClass(ct.qualifiedName());
+                        if (classOpt.isPresent()) {
+                            var propOpt = classOpt.get().findProperty(propertyName);
+                            if (propOpt.isPresent()) {
+                                colType = GenericType.fromType(propOpt.get().genericType());
+                            }
+                        }
+                    }
+                }
+            }
+            if (colType == null) {
+                throw new PureCompileException(
+                        "project(): cannot resolve type for column '" + propertyName
+                                + "'. Not found in source columns " + sourceType.columns().keySet()
+                                + (mapping != null ? " or mapping" : ""));
             }
 
             projectedColumns.put(alias, colType);
@@ -684,10 +758,12 @@ public class CleanCompiler {
         Map<String, GenericType> selectedColumns = new LinkedHashMap<>();
         List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
         for (String col : columnNames) {
-            GenericType type = source.relationType().columns().containsKey(col)
-                    ? source.relationType().columns().get(col)
-                    : GenericType.Primitive.STRING;
-            selectedColumns.put(col, type);
+            if (!source.relationType().columns().containsKey(col)) {
+                throw new PureCompileException(
+                        "select(): column '" + col + "' not found in source. Available: "
+                                + source.relationType().columns().keySet());
+            }
+            selectedColumns.put(col, source.relationType().columns().get(col));
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
 
@@ -717,7 +793,12 @@ public class CleanCompiler {
         // Group columns (param 1): ~col or [~col1, ~col2] or [{r | $r.col}]
         List<String> groupColNames = extractColumnNames(params.get(1));
         for (String col : groupColNames) {
-            GenericType type = sourceType.columns().getOrDefault(col, GenericType.Primitive.ANY);
+            if (!sourceType.columns().containsKey(col)) {
+                throw new PureCompileException(
+                        "groupBy(): group column '" + col + "' not found in source. Available: "
+                                + sourceType.columns().keySet());
+            }
+            GenericType type = sourceType.columns().get(col);
             resultColumns.put(col, type);
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
@@ -1732,7 +1813,20 @@ public class CleanCompiler {
         for (var p : params) {
             compileExpr(p, ctx);
         }
-        return scalar(af);
+        // zip(list1, list2) → List<Pair<A,B>>
+        GenericType elemA = GenericType.Primitive.ANY;
+        GenericType elemB = GenericType.Primitive.ANY;
+        if (params.size() >= 2) {
+            TypeInfo aInfo = types.get(params.get(0));
+            TypeInfo bInfo = types.get(params.get(1));
+            if (aInfo != null && aInfo.scalarType() != null && aInfo.scalarType().isList()) {
+                elemA = aInfo.scalarType().elementType();
+            }
+            if (bInfo != null && bInfo.scalarType() != null && bInfo.scalarType().isList()) {
+                elemB = bInfo.scalarType().elementType();
+            }
+        }
+        return scalarTyped(af, GenericType.listOf(GenericType.pairOf(elemA, elemB)));
     }
 
     /** Compiles forAll(list, {e|predicate}) and exists(list, {e|predicate}) — always BOOLEAN. */
@@ -1886,6 +1980,9 @@ public class CleanCompiler {
                  "isEmpty", "isNotEmpty", "parseBoolean" -> GenericType.Primitive.BOOLEAN;
             // Number-producing (propagate numeric but don't narrow)
             case "toDegrees", "toRadians" -> GenericType.Primitive.FLOAT;
+            // DateTime / Date standalone functions
+            case "now" -> GenericType.Primitive.DATE_TIME;
+            case "today" -> GenericType.Primitive.STRICT_DATE;
             default -> null; // propagate source type
         };
     }
@@ -2119,9 +2216,34 @@ public class CleanCompiler {
     private TypeInfo compileInstanceLiteral(ClassInstance ci) {
         var data = (CleanAstBuilder.InstanceData) ci.value();
         var columns = new LinkedHashMap<String, GenericType>();
-        for (var entry : data.properties().entrySet()) {
-            columns.put(entry.getKey(), inferStructPropertyType(entry.getValue()));
+
+        // Use the model context class definition as authoritative source for property types
+        org.finos.legend.pure.m3.PureClass pureClass = null;
+        if (modelContext != null) {
+            pureClass = modelContext.findClass(data.className()).orElse(null);
         }
+        if (pureClass == null) {
+            throw new PureCompileException(
+                    "Struct literal: class '" + data.className() + "' not found in model context");
+        }
+
+        for (var entry : data.properties().entrySet()) {
+            String propName = entry.getKey();
+            var propOpt = pureClass.findProperty(propName);
+            if (propOpt.isEmpty()) {
+                throw new PureCompileException(
+                        "Struct literal: property '" + propName + "' not found in class '"
+                                + data.className() + "'");
+            }
+            var prop = propOpt.get();
+            GenericType propType = GenericType.fromType(prop.genericType());
+            // Wrap in List if multiplicity is [*]
+            if (prop.isCollection()) {
+                propType = GenericType.listOf(propType);
+            }
+            columns.put(propName, propType);
+        }
+
         var rt = new RelationType(columns);
         // Tag as struct source so PlanGenerator knows without AST walking
         var info = TypeInfo.structOf(rt);
@@ -2537,8 +2659,20 @@ public class CleanCompiler {
                 return extractPropertyChain(ap);
             }
         }
-        // ColSpec
+        // ColSpec — extract property from lambda body if present, cs.name() is the alias
         if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
+            if (cs.function1() != null && !cs.function1().body().isEmpty()) {
+                ValueSpecification body = cs.function1().body().get(0);
+                if (body instanceof AppliedProperty ap) {
+                    return extractPropertyChain(ap);
+                }
+                // Function wrapping (e.g. $x.date->monthNumber()) — extract from first param
+                if (body instanceof AppliedFunction af2 && !af2.parameters().isEmpty()) {
+                    if (af2.parameters().get(0) instanceof AppliedProperty ap) {
+                        return extractPropertyChain(ap);
+                    }
+                }
+            }
             return List.of(cs.name());
         }
         // Fallback: single property
