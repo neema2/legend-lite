@@ -638,11 +638,21 @@ public class CleanCompiler {
             // Detect function-wrapped lambda bodies: e.g., $e.date->monthNumber()
             // The lambda body is an AppliedFunction wrapping property access
             ValueSpecification computedExpr = null;
+            LambdaFunction computedLambda = null;
             if (lambdaSpec instanceof LambdaFunction lf && !lf.body().isEmpty()) {
                 ValueSpecification body = lf.body().get(0);
                 if (body instanceof AppliedFunction) {
                     // Function wrapping a property — store body for scalar compilation
                     computedExpr = body;
+                    computedLambda = lf;
+                }
+            } else if (lambdaSpec instanceof ClassInstance ci2b
+                    && ci2b.value() instanceof ColSpec cs2b
+                    && cs2b.function1() != null && !cs2b.function1().body().isEmpty()) {
+                ValueSpecification body = cs2b.function1().body().get(0);
+                if (body instanceof AppliedFunction) {
+                    computedExpr = body;
+                    computedLambda = cs2b.function1();
                 }
             }
 
@@ -663,9 +673,9 @@ public class CleanCompiler {
             if (colType == null && computedExpr != null) {
                 try {
                     CompilationContext exprCtx = ctx;
-                    if (lambdaSpec instanceof LambdaFunction lf2
-                            && !lf2.parameters().isEmpty() && sourceType != null) {
-                        exprCtx = ctx.withRelationType(lf2.parameters().get(0).name(), sourceType);
+                    if (computedLambda != null
+                            && !computedLambda.parameters().isEmpty() && sourceType != null) {
+                        exprCtx = ctx.withRelationType(computedLambda.parameters().get(0).name(), sourceType);
                     }
                     TypeInfo exprInfo = compileExpr(computedExpr, exprCtx);
                     if (exprInfo != null && exprInfo.scalarType() != null) {

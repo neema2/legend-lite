@@ -578,6 +578,15 @@ public class QueryService {
             }
         } while (!normalized.equals(prev));
 
+        // 1b. Unwrap nested "select * from (...) as alias" inside FROM clauses
+        // Old pipeline: FROM (SELECT * FROM (...values...) AS _tds(...)) AS src_result
+        // New pipeline: FROM (...values...) AS _tds(...)
+        // Pattern: replace "select * from (X) as _tds" with "X as _tds" (preserving _tds)
+        normalized = java.util.regex.Pattern
+                .compile("select \\* from \\((select \\* from \\(values .+?\\) as _tds\\([^)]+\\))\\) as \\w+")
+                .matcher(normalized)
+                .replaceAll("$1");
+
         // 2. Remove LIMIT 2147483647 (MAX_INT hack for "no limit" in drop()).
         normalized = normalized.replace("limit 2147483647 ", "");
 
