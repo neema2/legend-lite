@@ -1487,7 +1487,39 @@ public class CleanCompiler {
         for (var p : params) {
             compileExpr(p, ctx);
         }
+        // Detect fold+add pattern: fold(source, {val,acc|$acc->add($val)}, init)
+        // Desugar to concatenate(init, source) so PlanGenerator emits LIST_CONCAT
+        if (params.size() >= 3 && params.get(1) instanceof LambdaFunction lf) {
+            if (isFoldAddPattern(lf)) {
+                // Build synthetic: concatenate(init, source)
+                var concat = new AppliedFunction("concatenate",
+                        List.of(params.get(2), params.get(0)));
+                compileExpr(concat, ctx);
+                // Point fold node to the synthetic concatenate via inlinedBody
+                var info = TypeInfo.from(types.get(concat)).inlinedBody(concat).build();
+                types.put(af, info);
+                return info;
+            }
+        }
         return scalar(af);
+    }
+
+    /** Checks if a fold lambda body is the add pattern: $acc->add($val) */
+    private static boolean isFoldAddPattern(LambdaFunction lf) {
+        if (lf.parameters().size() < 2 || lf.body().isEmpty()) return false;
+        String elemParam = lf.parameters().get(0).name();
+        String accParam = lf.parameters().get(1).name();
+        // Body must be: add(acc, val) — an AppliedFunction named "add"
+        if (lf.body().get(0) instanceof AppliedFunction bodyAf
+                && TypeInfo.simpleName(bodyAf.function()).equals("add")
+                && bodyAf.parameters().size() == 2) {
+            // First param of add is the accumulator, second is the element
+            var addSource = bodyAf.parameters().get(0);
+            var addElem = bodyAf.parameters().get(1);
+            return addSource instanceof Variable accVar && accVar.name().equals(accParam)
+                    && addElem instanceof Variable elemVar && elemVar.name().equals(elemParam);
+        }
+        return false;
     }
 
     /** Compiles list-producing functions (tail, init, reverse, etc.) — always returns a list. */
@@ -1678,6 +1710,11 @@ public class CleanCompiler {
             try { compileExpr(p, ctx); }
             catch (PureCompileException ignored) { }
         }
+        // Check if the function has a known return type that differs from its source
+        GenericType returnType = knownReturnType(simpleName(af.function()));
+        if (returnType != null) {
+            return scalarTyped(af, returnType);
+        }
         // Propagate scalarType from source (first param)
         if (!params.isEmpty()) {
             TypeInfo sourceInfo = types.get(params.get(0));
@@ -1687,6 +1724,22 @@ public class CleanCompiler {
             }
         }
         return scalar(af);
+    }
+
+    /** Return type for functions whose result type differs from their source type. */
+    private static GenericType knownReturnType(String funcName) {
+        return switch (funcName) {
+            case "length", "indexOf", "size", "count", "ascii",
+                 "parseInteger" -> GenericType.Primitive.INTEGER;
+            case "parseFloat", "parseDecimal", "toDecimal" -> GenericType.Primitive.FLOAT;
+            case "toString", "toLower", "toUpper", "trim", "format",
+                 "joinStrings", "replace", "lpad", "rpad", "splitPart",
+                 "reverseString", "encodeBase64", "decodeBase64", "char",
+                 "hash" -> GenericType.Primitive.STRING;
+            case "contains", "in", "startsWith", "endsWith",
+                 "isEmpty", "isNotEmpty", "parseBoolean" -> GenericType.Primitive.BOOLEAN;
+            default -> null; // propagate source type
+        };
     }
 
     /** Compiles if(condition, then-lambda, else-lambda). */

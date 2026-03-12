@@ -2075,8 +2075,20 @@ public class PlanGenerator {
                                 .fromSubquery(source, "subq");
                         yield new SqlExpr.Subquery(countQuery);
                     }
+                    // List/array size: use LEN (not aggregate COUNT)
+                    if (sourceInfo != null && sourceInfo.scalarType() != null
+                            && sourceInfo.scalarType().isList()) {
+                        yield new SqlExpr.FunctionCall("listLength",
+                                List.of(c.apply(params.get(0))));
+                    }
+                    // Lambda param size (fold accumulator etc.) — also use LEN
+                    if (sourceInfo != null && sourceInfo.lambdaParam()
+                            && sourceInfo.relationType() == null) {
+                        yield new SqlExpr.FunctionCall("listLength",
+                                List.of(c.apply(params.get(0))));
+                    }
                 }
-                // List size: inline COUNT
+                // Scalar/fallback: inline COUNT
                 yield new SqlExpr.FunctionCall("COUNT",
                         params.stream().map(c).collect(Collectors.toList()));
             }
@@ -2116,8 +2128,24 @@ public class PlanGenerator {
                 yield new SqlExpr.FunctionCall("listAppend",
                         List.of(c.apply(params.get(0)), c.apply(params.get(1))));
             }
-            case "concatenate" -> new SqlExpr.FunctionCall("listConcat",
-                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "concatenate" -> {
+                // LIST_CONCAT requires list arguments — wrap scalars
+                SqlExpr left = c.apply(params.get(0));
+                SqlExpr right = c.apply(params.get(1));
+                if (!firstArgIsList) {
+                    left = new SqlExpr.FunctionCall("wrapList", List.of(left));
+                }
+                // Check if second arg is a scalar (not a list/collection)
+                if (!(params.get(1) instanceof org.finos.legend.pure.dsl.ast.Collection)) {
+                    TypeInfo rightInfo = unit.types().get(params.get(1));
+                    boolean rightIsList = params.get(1) instanceof org.finos.legend.pure.dsl.ast.Collection
+                            || (rightInfo != null && rightInfo.scalarType() != null && rightInfo.scalarType().isList());
+                    if (!rightIsList) {
+                        right = new SqlExpr.FunctionCall("wrapList", List.of(right));
+                    }
+                }
+                yield new SqlExpr.FunctionCall("listConcat", List.of(left, right));
+            }
             case "take" -> new SqlExpr.FunctionCall("listSlice",
                     List.of(c.apply(params.get(0)), new SqlExpr.Literal("1"),
                             c.apply(params.get(1))));
@@ -2350,7 +2378,8 @@ public class PlanGenerator {
                 throw new PureCompileException("map: no parameters");
             }
             case "fold" -> {
-                // fold(source, {x,y|body}, init) → list_reduce(source, ((y,x)->body), init)
+                // fold(source, {elem,acc|body}, init) → list_reduce(source, ((acc,elem)->body), init)
+                // Note: fold+add is handled by compiler desugar (inlinedBody → concatenate)
                 if (params.size() >= 3
                         && params.get(1) instanceof LambdaFunction foldLf) {
                     SqlExpr list = c.apply(params.get(0));
@@ -2364,7 +2393,7 @@ public class PlanGenerator {
                             : foldLf.parameters().get(0).name();
                     String accParam = foldLf.parameters().size() < 2 ? "y"
                             : foldLf.parameters().get(1).name();
-                    // Compile body — Variables are now Identifier (unquoted) via compiler
+                    // Compile body
                     SqlExpr body = !foldLf.body().isEmpty()
                             ? c.apply(foldLf.body().get(0)) : new SqlExpr.Literal("NULL");
                     // Emit LambdaExpr: ((acc, elem) -> body)
