@@ -1571,7 +1571,8 @@ public class PlanGenerator {
                     new SqlExpr.FunctionCall("FLOOR", List.of(c.apply(params.get(0)))), "Integer");
             case "round" -> {
                 if (params.size() > 1) {
-                    yield new SqlExpr.FunctionCall("ROUND",
+                    // Pure round() uses banker's rounding (round half to even)
+                    yield new SqlExpr.FunctionCall("roundHalfEven",
                             List.of(c.apply(params.get(0)), c.apply(params.get(1))));
                 }
                 yield new SqlExpr.Cast(
@@ -1596,7 +1597,8 @@ public class PlanGenerator {
             // --- Cast ---
             case "toInteger", "parseInteger" -> new SqlExpr.Cast(c.apply(params.get(0)), "Integer");
             case "toFloat", "parseFloat" -> new SqlExpr.Cast(c.apply(params.get(0)), "Float");
-            case "toDecimal", "parseDecimal" -> new SqlExpr.Cast(
+            case "toDecimal" -> new SqlExpr.Cast(c.apply(params.get(0)), "Decimal");
+            case "parseDecimal" -> new SqlExpr.Cast(
                     new SqlExpr.FunctionCall("regexpReplace",
                             List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("[dD]$"),
                                     new SqlExpr.StringLiteral(""))),
@@ -1613,13 +1615,41 @@ public class PlanGenerator {
                     SqlExpr elseVal = generateScalar(elseLambda.body().get(0), rowParam, mapping, tableAlias);
                     yield new SqlExpr.CaseWhen(cond, thenVal, elseVal);
                 }
-                // Multi-if: [pair(cond, val), ...] -> if(default) — 2 params
-                SqlExpr source = c.apply(params.get(0));
-                if (params.size() >= 2) {
-                    SqlExpr defaultVal = c.apply(params.get(1));
-                    yield new SqlExpr.FunctionCall("IF", List.of(source, defaultVal));
+                // Multi-if: [pair(cond, val), ...] -> if(default) — compile to CASE WHEN
+                // params[0] is Collection of pairs, params[1] is else lambda
+                if (params.size() >= 2 && params.get(0) instanceof Collection pairsColl) {
+                    List<SqlExpr.SearchedCase.WhenBranch> branches = new ArrayList<>();
+                    for (var pairExpr : pairsColl.values()) {
+                        if (pairExpr instanceof AppliedFunction pairAf
+                                && pairAf.parameters().size() >= 2) {
+                            // pair(|condition, |value) — both are lambdas
+                            var condParam = pairAf.parameters().get(0);
+                            var valParam = pairAf.parameters().get(1);
+                            SqlExpr condExpr;
+                            if (condParam instanceof LambdaFunction condLf && !condLf.body().isEmpty()) {
+                                condExpr = generateScalar(condLf.body().get(0), rowParam, mapping, tableAlias);
+                            } else {
+                                condExpr = c.apply(condParam);
+                            }
+                            SqlExpr valExpr;
+                            if (valParam instanceof LambdaFunction valLf && !valLf.body().isEmpty()) {
+                                valExpr = generateScalar(valLf.body().get(0), rowParam, mapping, tableAlias);
+                            } else {
+                                valExpr = c.apply(valParam);
+                            }
+                            branches.add(new SqlExpr.SearchedCase.WhenBranch(condExpr, valExpr));
+                        }
+                    }
+                    // else value from params[1] (lambda)
+                    SqlExpr elseExpr;
+                    if (params.get(1) instanceof LambdaFunction elseLf && !elseLf.body().isEmpty()) {
+                        elseExpr = generateScalar(elseLf.body().get(0), rowParam, mapping, tableAlias);
+                    } else {
+                        elseExpr = c.apply(params.get(1));
+                    }
+                    yield new SqlExpr.SearchedCase(branches, elseExpr);
                 }
-                yield source;
+                yield c.apply(params.get(0));
             }
 
             // --- In ---
@@ -1709,7 +1739,14 @@ public class PlanGenerator {
             case "pi" -> new SqlExpr.FunctionCall("PI", List.of());
 
             // --- More math ---
-            case "mod" -> new SqlExpr.Binary(c.apply(params.get(0)), "%", c.apply(params.get(1)));
+            case "mod" -> {
+                // Pure mod always returns non-negative: MOD((MOD(x, n) + n), n)
+                SqlExpr x = c.apply(params.get(0));
+                SqlExpr n = c.apply(params.get(1));
+                SqlExpr innerMod = new SqlExpr.FunctionCall("MOD", List.of(x, n));
+                SqlExpr adjusted = new SqlExpr.Binary(innerMod, "+", n);
+                yield new SqlExpr.FunctionCall("MOD", List.of(adjusted, n));
+            }
             case "log10" -> new SqlExpr.FunctionCall("LOG10", List.of(c.apply(params.get(0))));
             case "sign" -> new SqlExpr.Cast(
                     new SqlExpr.FunctionCall("SIGN", List.of(c.apply(params.get(0)))), "Integer");
@@ -2122,8 +2159,23 @@ public class PlanGenerator {
             }
             case "add" -> {
                 if (params.size() > 2) {
-                    yield new SqlExpr.FunctionCall("listAppend",
-                            List.of(c.apply(params.get(0)), c.apply(params.get(2))));
+                    // add(list, offset, value) — splice: insert value at offset position
+                    SqlExpr list = c.apply(params.get(0));
+                    SqlExpr offset = c.apply(params.get(1));
+                    SqlExpr value = c.apply(params.get(2));
+                    // LIST_CONCAT(LIST_CONCAT(LIST_SLICE(list, 1, offset), LIST_VALUE(value)),
+                    //             LIST_SLICE(list, offset+1, LENGTH(list)))
+                    SqlExpr leftSlice = new SqlExpr.FunctionCall("listSlice",
+                            List.of(list, new SqlExpr.Literal("1"), offset));
+                    SqlExpr wrapped = new SqlExpr.FunctionCall("LIST_VALUE", List.of(value));
+                    SqlExpr leftConcat = new SqlExpr.FunctionCall("listConcat",
+                            List.of(leftSlice, wrapped));
+                    SqlExpr rightStart = new SqlExpr.Binary(offset, "+", new SqlExpr.Literal("1"));
+                    SqlExpr listLen = new SqlExpr.FunctionCall("LENGTH", List.of(list));
+                    SqlExpr rightSlice = new SqlExpr.FunctionCall("listSlice",
+                            List.of(list, rightStart, listLen));
+                    yield new SqlExpr.FunctionCall("listConcat",
+                            List.of(leftConcat, rightSlice));
                 }
                 yield new SqlExpr.FunctionCall("listAppend",
                         List.of(c.apply(params.get(0)), c.apply(params.get(1))));
@@ -2201,12 +2253,22 @@ public class PlanGenerator {
                     yield new SqlExpr.FunctionCall("listMax", List.of(c.apply(params.get(0))));
                 yield c.apply(params.get(0)); // scalar identity
             }
-            case "greatest" -> new SqlExpr.FunctionCall(
-                    firstArgIsList ? "listMax" : "GREATEST",
-                    params.stream().map(c).collect(Collectors.toList()));
-            case "least" -> new SqlExpr.FunctionCall(
-                    firstArgIsList ? "listMin" : "LEAST",
-                    params.stream().map(c).collect(Collectors.toList()));
+            case "greatest" -> {
+                if (firstArgIsList) yield new SqlExpr.FunctionCall("listMax",
+                        params.stream().map(c).collect(Collectors.toList()));
+                // Single scalar: greatest(x) = x (identity)
+                if (params.size() == 1) yield c.apply(params.get(0));
+                yield new SqlExpr.FunctionCall("GREATEST",
+                        params.stream().map(c).collect(Collectors.toList()));
+            }
+            case "least" -> {
+                if (firstArgIsList) yield new SqlExpr.FunctionCall("listMin",
+                        params.stream().map(c).collect(Collectors.toList()));
+                // Single scalar: least(x) = x (identity)
+                if (params.size() == 1) yield c.apply(params.get(0));
+                yield new SqlExpr.FunctionCall("LEAST",
+                        params.stream().map(c).collect(Collectors.toList()));
+            }
             case "median" -> new SqlExpr.FunctionCall(
                     firstArgIsList ? "listMedian" : "median",
                     params.stream().map(c).collect(Collectors.toList()));
