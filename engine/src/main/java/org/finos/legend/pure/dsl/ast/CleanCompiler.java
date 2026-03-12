@@ -199,8 +199,9 @@ public class CleanCompiler {
                  "variancePopulation", "covarPopulation",
                  "percentile", "percentileCont", "corr",
                  // --- Misc ---
-                 "pair", "list", "eval", "match",
+                 "pair", "list", "eval",
                  "type", "generateGuid" -> compileTypePropagating(af, ctx);
+            case "match" -> compileMatch(af, ctx);
             // --- Conditional ---
             case "if" -> compileIf(af, ctx);
             // --- Scalar (pass-through — PlanGenerator handles SQL) ---
@@ -1521,6 +1522,105 @@ public class CleanCompiler {
         }
         return false;
     }
+
+    /** Compiles match(input, [branches], extraParams...) — static type dispatch. */
+    private TypeInfo compileMatch(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        // Compile all params first
+        for (var p : params) {
+            try { compileExpr(p, ctx); }
+            catch (PureCompileException ignored) { }
+        }
+        if (params.size() < 2) return scalar(af);
+
+        // Determine input type name
+        String inputTypeName = inferTypeName(params.get(0));
+        if (inputTypeName == null) return scalar(af);
+
+        // Extract branches from Collection (params[1])
+        List<LambdaFunction> branches;
+        if (params.get(1) instanceof Collection coll) {
+            branches = coll.values().stream()
+                    .filter(v -> v instanceof LambdaFunction)
+                    .map(v -> (LambdaFunction) v)
+                    .toList();
+        } else if (params.get(1) instanceof LambdaFunction lf) {
+            branches = List.of(lf);
+        } else {
+            return scalar(af);
+        }
+
+        // Determine if input is a collection (affects multiplicity matching)
+        boolean inputIsMany = (params.get(0) instanceof Collection coll && coll.values().size() != 1)
+                || (types.get(params.get(0)) != null && types.get(params.get(0)).isList());
+
+        // Find matching branch by type + multiplicity
+        for (var branch : branches) {
+            if (branch.parameters().isEmpty()) continue;
+            Variable branchParam = branch.parameters().get(0);
+            if (branchParam.typeName() == null) continue;
+            String branchType = TypeInfo.simpleName(branchParam.typeName());
+            if (branchType.equals(inputTypeName)
+                    || branchType.equals("Any")
+                    || inputTypeName.equals("Any")) {
+                // Check multiplicity compatibility
+                String mult = branchParam.multiplicity();
+                boolean branchAcceptsMany = mult == null || mult.equals("*")
+                        || mult.equals("0") || mult.contains("..");
+                if (inputIsMany && !branchAcceptsMany) continue;
+                // Match found — compile the body with params bound as let bindings
+                // so that variable references get substituted with actual values
+                CompilationContext matchCtx = ctx;
+                // Bind match param → input value as let binding
+                matchCtx = matchCtx.withLetBinding(branchParam.name(), params.get(0));
+                // If there's an extra param (params[2]), bind it similarly
+                if (branch.parameters().size() > 1 && params.size() > 2) {
+                    Variable extraParam = branch.parameters().get(1);
+                    matchCtx = matchCtx.withLetBinding(extraParam.name(), params.get(2));
+                }
+                if (!branch.body().isEmpty()) {
+                    ValueSpecification body = branch.body().get(0);
+                    TypeInfo bodyInfo = compileExpr(body, matchCtx);
+                    // Set inlinedBody so PlanGenerator follows the resolved expression
+                    var info = TypeInfo.from(bodyInfo).inlinedBody(body).build();
+                    types.put(af, info);
+                    return info;
+                }
+            }
+        }
+        return scalar(af);
+    }
+
+    /** Infers the simple type name from an AST node. */
+    private String inferTypeName(ValueSpecification vs) {
+        if (vs instanceof CString) return "String";
+        if (vs instanceof CInteger) return "Integer";
+        if (vs instanceof CFloat) return "Float";
+        if (vs instanceof CDecimal) return "Decimal";
+        if (vs instanceof CBoolean) return "Boolean";
+        if (vs instanceof CStrictDate) return "StrictDate";
+        if (vs instanceof CDateTime) return "DateTime";
+        if (vs instanceof Collection coll) {
+            // Infer from first element, or fall through to side table
+            if (!coll.values().isEmpty()) {
+                return inferTypeName(coll.values().get(0));
+            }
+        }
+        // Check side table
+        TypeInfo info = types.get(vs);
+        if (info != null && info.scalarType() != null) {
+            GenericType st = info.scalarType();
+            // For list types (e.g. from cast), use the element type
+            if (st.isList() && st.elementType() != null) st = st.elementType();
+            if (st == GenericType.Primitive.STRING) return "String";
+            if (st == GenericType.Primitive.INTEGER) return "Integer";
+            if (st == GenericType.Primitive.FLOAT) return "Float";
+            if (st == GenericType.Primitive.BOOLEAN) return "Boolean";
+        }
+        return null;
+    }
+
+
 
     /** Compiles list-producing functions (tail, init, reverse, etc.) — always returns a list. */
     private TypeInfo compileListProducing(AppliedFunction af, CompilationContext ctx) {
