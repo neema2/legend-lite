@@ -444,4 +444,26 @@ public record TypeInfo(
         int idx = qualifiedName.lastIndexOf("::");
         return idx >= 0 ? qualifiedName.substring(idx + 2) : qualifiedName;
     }
+    /**
+     * For variant typed extraction: returns the SQL type name if the compiler
+     * resolved a concrete target type (e.g., "BIGINT" for @Integer), or null if untyped.
+     * Used by PlanGenerator for get(@Type), to(@Type).
+     */
+    public String variantScalarSqlType(org.finos.legend.engine.transpiler.SQLDialect dialect) {
+        if (scalarType == null) return null;
+        if (scalarType == GenericType.Primitive.ANY || scalarType == GenericType.Primitive.JSON) return null;
+        return dialect.sqlTypeName(scalarType.typeName());
+    }
+
+    /**
+     * For variant array cast: returns the element SQL type name if the compiler
+     * resolved a list target type (e.g., "BIGINT" for toMany(@Integer)), or null.
+     * Used by PlanGenerator for toMany(@Type).
+     */
+    public String variantArrayElementSqlType(org.finos.legend.engine.transpiler.SQLDialect dialect) {
+        if (scalarType == null || !scalarType.isList()) return null;
+        GenericType elemType = scalarType.elementType();
+        if (elemType == null || elemType == GenericType.Primitive.ANY) return null;
+        return dialect.sqlTypeName(elemType.typeName());
+    }
 }

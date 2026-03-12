@@ -117,7 +117,8 @@ public record TdsLiteral(
                         /* not num */ }
                 // Strip surrounding quotes
                 if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
-                        return value.substring(1, value.length() - 1);
+                        // Standard CSV: doubled quotes "" inside are unescaped to "
+                        return value.substring(1, value.length() - 1).replace("\"\"", "\"");
                 }
                 if (value.length() >= 2 && value.startsWith("'") && value.endsWith("'")) {
                         return value.substring(1, value.length() - 1);

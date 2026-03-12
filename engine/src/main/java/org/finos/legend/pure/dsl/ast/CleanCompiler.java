@@ -2251,32 +2251,6 @@ public class CleanCompiler {
         return info;
     }
 
-    /**
-     * Infers the GenericType of a struct property value from its AST node.
-     */
-    private GenericType inferStructPropertyType(ValueSpecification vs) {
-        return switch (vs) {
-            case CString ignored -> GenericType.Primitive.STRING;
-            case CInteger ignored -> GenericType.Primitive.INTEGER;
-            case CFloat ignored -> GenericType.Primitive.FLOAT;
-            case CDecimal ignored -> GenericType.Primitive.DECIMAL;
-            case CBoolean ignored -> GenericType.Primitive.BOOLEAN;
-            case CDateTime ignored -> GenericType.Primitive.DATE_TIME;
-            case CStrictDate ignored -> GenericType.Primitive.STRICT_DATE;
-            case Collection coll -> {
-                // Array property — infer element type from first element
-                GenericType elemType = coll.values().isEmpty()
-                        ? GenericType.Primitive.ANY
-                        : inferStructPropertyType(coll.values().get(0));
-                yield GenericType.listOf(elemType);
-            }
-            case ClassInstance nested when "instance".equals(nested.type()) -> {
-                var nestedData = (CleanAstBuilder.InstanceData) nested.value();
-                yield new GenericType.ClassType(nestedData.className());
-            }
-            default -> GenericType.Primitive.ANY;
-        };
-    }
 
     private TypeInfo compileRelationAccessor(ClassInstance ci, CompilationContext ctx) {
         String tableRef = (String) ci.value();

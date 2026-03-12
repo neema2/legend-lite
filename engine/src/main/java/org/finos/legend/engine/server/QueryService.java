@@ -590,6 +590,14 @@ public class QueryService {
         // Old pipeline quotes the generated zip lambda param when nested.
         normalized = normalized.replace("\"_zip_i\"", "_zip_i");
 
+        // 5. Normalize date string literals to DATE-prefixed literals.
+        // Old pipeline uses string comparison for date-vs-date: '2014-01-01' = '2014-01-01'
+        // New pipeline correctly uses DATE '2014-01-01' = DATE '2014-01-01'
+        normalized = java.util.regex.Pattern
+                .compile("'(\\d{4}-\\d{2}-\\d{2})'")
+                .matcher(normalized)
+                .replaceAll("date '$1'");
+
         return normalized;
     }
 

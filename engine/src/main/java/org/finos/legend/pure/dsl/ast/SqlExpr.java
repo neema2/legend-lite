@@ -479,4 +479,64 @@ public sealed interface SqlExpr {
                     elements.stream().map(e -> e.toSql(dialect)).collect(Collectors.toList()));
         }
     }
+
+    // ==================== Variant Expressions ====================
+    // PlanGenerator emits these using Variant semantics.
+    // Each dialect decides the physical representation (DuckDB: JSON, Snowflake: VARIANT).
+
+    /** Mark a literal value as Variant type. DuckDB: expr::JSON */
+    record VariantLiteral(SqlExpr expr) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderVariantLiteral(expr.toSql(dialect));
+        }
+    }
+
+    /** Access a Variant field by key (returns Variant). DuckDB: (expr)->'key' */
+    record VariantAccess(SqlExpr expr, String key) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderVariantAccess(expr.toSql(dialect), key);
+        }
+    }
+
+    /** Access a Variant array element by index (returns Variant). DuckDB: (expr)->index */
+    record VariantIndex(SqlExpr expr, int index) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderVariantIndex(expr.toSql(dialect), index);
+        }
+    }
+
+    /** Extract text value from Variant by key (returns string). DuckDB: (expr)->>'key' */
+    record VariantTextAccess(SqlExpr expr, String key) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderVariantTextAccess(expr.toSql(dialect), key);
+        }
+    }
+
+    /** Convert a value to Variant type. DuckDB: CAST(expr AS JSON) */
+    record ToVariant(SqlExpr expr) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderToVariant(expr.toSql(dialect));
+        }
+    }
+
+    /** Cast Variant to a typed array. DuckDB: CAST(expr AS BIGINT[]) */
+    record VariantArrayCast(SqlExpr expr, String sqlType) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderVariantArrayCast(expr.toSql(dialect), sqlType);
+        }
+    }
+
+    /** Cast Variant to a scalar type. DuckDB: CAST(expr AS BIGINT) */
+    record VariantScalarCast(SqlExpr expr, String sqlType) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderVariantScalarCast(expr.toSql(dialect), sqlType);
+        }
+    }
 }

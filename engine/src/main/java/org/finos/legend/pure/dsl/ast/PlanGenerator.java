@@ -205,8 +205,20 @@ public class PlanGenerator {
         List<String> quotedCols = tds.columns().stream()
                 .map(c -> dialect.quoteIdentifier(c.name())).toList();
 
+        var columns = tds.columns();
         List<List<SqlExpr>> rows = tds.rows().stream()
-                .map(row -> row.stream().map(this::formatTdsValue).toList())
+                .map(row -> {
+                    List<SqlExpr> cells = new java.util.ArrayList<>();
+                    for (int i = 0; i < row.size(); i++) {
+                        SqlExpr cell = formatTdsValue(row.get(i));
+                        // Variant columns need dialect-specific variant literal wrapping
+                        if (i < columns.size() && columns.get(i).isVariant()) {
+                            cell = new SqlExpr.VariantLiteral(cell);
+                        }
+                        cells.add(cell);
+                    }
+                    return cells;
+                })
                 .toList();
 
         return new SqlBuilder()
@@ -790,10 +802,11 @@ public class PlanGenerator {
             }
         }
 
-        // If source is a simple star-select (no WHERE/GROUP/ORDER/LIMIT/window),
-        // inline column projections directly instead of wrapping in a subquery
+        // If source is a simple star-select (no GROUP/ORDER/LIMIT/window),
+        // inline column projections directly instead of wrapping in a subquery.
+        // WHERE is safe — SELECT cols FROM table WHERE cond is valid SQL.
         if (source.isSelectStar() && !source.hasSelectColumns()
-                && !source.hasWhere() && !source.hasGroupBy()
+                && !source.hasGroupBy()
                 && !source.hasOrderBy() && !source.hasLimit()
                 && !source.hasWindowColumns()) {
             source.clearSelect();
@@ -981,21 +994,24 @@ public class PlanGenerator {
             return b;
         }
 
-        // Simple extend (computed column): extract ColSpec lambda and compile as scalar
+        // Simple extend (computed column): extract ColSpec lambda(s) and compile as scalar
+        List<ColSpec> colSpecs = new java.util.ArrayList<>();
         for (int i = 1; i < params.size(); i++) {
-            if (params.get(i) instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-                String alias = cs.name();
-                if (cs.function1() != null) {
-                    // Compile the lambda body as a scalar expression
-                    // Use null mapping (TDS columns use direct column names)
-                    String lambdaParam = cs.function1().parameters().isEmpty() ? null
-                            : cs.function1().parameters().get(0).name();
-                    SqlExpr computed = generateScalar(
-                            cs.function1().body().get(0), lambdaParam, null, null);
-                    // Add the computed column directly to the source — no extra wrapping
-                    source.addSelect(computed, dialect.quoteIdentifier(alias));
-                    return source;
+            if (params.get(i) instanceof ClassInstance ci) {
+                if (ci.value() instanceof ColSpec cs) {
+                    colSpecs.add(cs);
+                } else if (ci.value() instanceof ColSpecArray csa) {
+                    colSpecs.addAll(csa.colSpecs());
                 }
+            }
+        }
+        for (ColSpec cs : colSpecs) {
+            if (cs.function1() != null) {
+                String lambdaParam = cs.function1().parameters().isEmpty() ? null
+                        : cs.function1().parameters().get(0).name();
+                SqlExpr computed = generateScalar(
+                        cs.function1().body().get(0), lambdaParam, null, null);
+                source.addSelect(computed, dialect.quoteIdentifier(cs.name()));
             }
         }
         return source;
@@ -2364,11 +2380,32 @@ public class PlanGenerator {
             case "minBy" -> new SqlExpr.FunctionCall("minBy",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
 
-            // --- Variant/JSON access ---
+            // --- Variant access ---
             case "get" -> {
-                // get(variant, key) → variant->'key' (JSON arrow access)
-                yield new SqlExpr.FunctionCall("jsonGet",
-                        List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+                // get(source, key) or get(source, key, @Type)
+                SqlExpr source = c.apply(params.get(0));
+                ValueSpecification keyVs = params.get(1);
+                TypeInfo info = unit.types().get(af);
+                String targetSqlType = info != null ? info.variantScalarSqlType(dialect) : null;
+
+                // Integer key → array index access
+                if (keyVs instanceof CInteger ci) {
+                    SqlExpr access = new SqlExpr.VariantIndex(source, (int) ci.value());
+                    yield targetSqlType != null
+                            ? new SqlExpr.VariantScalarCast(access, targetSqlType) : access;
+                }
+
+                // String key
+                if (keyVs instanceof CString cs) {
+                    if (targetSqlType != null) {
+                        yield new SqlExpr.VariantScalarCast(
+                                new SqlExpr.VariantTextAccess(source, cs.value()), targetSqlType);
+                    }
+                    yield new SqlExpr.VariantAccess(source, cs.value());
+                }
+
+                // Dynamic key
+                yield new SqlExpr.VariantAccess(source, c.apply(keyVs).toSql(dialect));
             }
 
             // --- List/array operations ---
@@ -2415,10 +2452,27 @@ public class PlanGenerator {
                 throw new PureCompileException("exists: requires list and predicate lambda");
             }
 
+            // --- Variant conversion functions ---
+            case "toMany" -> {
+                SqlExpr source = c.apply(params.get(0));
+                TypeInfo info = unit.types().get(af);
+                String elemType = info != null ? info.variantArrayElementSqlType(dialect) : null;
+                yield elemType != null ? new SqlExpr.VariantArrayCast(source, elemType) : source;
+            }
+            case "toVariant" -> {
+                yield new SqlExpr.ToVariant(c.apply(params.get(0)));
+            }
+            case "to" -> {
+                SqlExpr source = c.apply(params.get(0));
+                TypeInfo info = unit.types().get(af);
+                String sqlType = info != null ? info.variantScalarSqlType(dialect) : null;
+                yield sqlType != null ? new SqlExpr.VariantScalarCast(source, sqlType) : source;
+            }
+
             // --- Pass-through for non-SQL functions ---
-            case "toOne", "toMany", "eval",
+            case "toOne", "eval",
                     "list", "pair", "match",
-                    "cast", "to", "toVariant", "letWithParam",
+                    "cast", "letWithParam",
                     "filter", "groupBy", "select", "write",
                     "compare", "comparator" -> {
                 // These are Pure-level functions that should pass through the first arg
@@ -2576,17 +2630,28 @@ public class PlanGenerator {
         };
     }
 
-    /** Checks if any param is a CStrictDate (partial OR full) for date-to-date equality. */
+    /** Checks if any param is an actual partial date (year-only or year-month, not full YYYY-MM-DD). */
     private boolean hasPartialDate(List<ValueSpecification> params) {
         for (var p : params) {
-            if (p instanceof CStrictDate) return true;
+            if (p instanceof CStrictDate sd && isPartialDate(sd.value())) return true;
         }
         return false;
     }
 
+    /** True if the date string is partial (year-only or year-month, not full YYYY-MM-DD). */
+    private static boolean isPartialDate(String dateValue) {
+        // Full date: YYYY-MM-DD (exactly 2 dashes)
+        // Partial: YYYY (0 dashes) or YYYY-MM (1 dash)
+        long dashes = dateValue.chars().filter(ch -> ch == '-').count();
+        return dashes < 2;
+    }
+
     /**
-     * Renders a param for date precision comparison: partial dates become string
-     * literals.
+     * Renders a param for precision-aware date comparison.
+     * Called ONLY when hasPartialDate() is true (some side is partial).
+     * In that context, ALL CStrictDate values must become string literals
+     * so the comparison is string-vs-string (preserving Pure date precision).
+     * Full-date-vs-full-date comparisons skip this path entirely.
      */
     private SqlExpr renderForDateComparison(ValueSpecification vs,
             java.util.function.Function<ValueSpecification, SqlExpr> c) {

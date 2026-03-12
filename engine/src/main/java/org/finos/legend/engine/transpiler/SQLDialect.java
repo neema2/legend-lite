@@ -235,4 +235,43 @@ public interface SQLDialect {
     default String renderStarExcept(java.util.List<String> columns) {
         return " EXCLUDE(" + String.join(", ", columns) + ")";
     }
+
+    // ==================== Variant Rendering ====================
+    // Default implementations use DuckDB JSON semantics.
+    // Future dialects (Snowflake, Databricks, DuckDB 1.5) override with native VARIANT.
+
+    /** Mark a literal value as Variant. DuckDB: expr::JSON */
+    default String renderVariantLiteral(String expr) {
+        return expr + "::JSON";
+    }
+
+    /** Access a Variant field by key (returns Variant). DuckDB: (expr)->'key' */
+    default String renderVariantAccess(String expr, String key) {
+        return "((" + expr + ")->" + quoteStringLiteral(key) + ")";
+    }
+
+    /** Access a Variant array element by index (returns Variant). DuckDB: (expr)->idx */
+    default String renderVariantIndex(String expr, int index) {
+        return "((" + expr + ")->" + index + ")";
+    }
+
+    /** Extract text value from Variant by key (returns string). DuckDB: (expr)->>'key' */
+    default String renderVariantTextAccess(String expr, String key) {
+        return "((" + expr + ")->>" + quoteStringLiteral(key) + ")";
+    }
+
+    /** Convert a value to Variant. DuckDB: CAST(expr AS JSON) */
+    default String renderToVariant(String expr) {
+        return "CAST(" + expr + " AS JSON)";
+    }
+
+    /** Cast Variant to a typed array. DuckDB: CAST(expr AS type[]) */
+    default String renderVariantArrayCast(String expr, String sqlType) {
+        return "CAST(" + expr + " AS " + sqlType + "[])";
+    }
+
+    /** Cast Variant to a scalar type. DuckDB: CAST(expr AS type) */
+    default String renderVariantScalarCast(String expr, String sqlType) {
+        return "CAST(" + expr + " AS " + sqlType + ")";
+    }
 }
