@@ -259,9 +259,10 @@ public class PlanGenerator {
             case "join" -> generateJoin(af);
             case "from" -> generateFrom(af);
             case "pivot" -> generatePivot(af);
+            case "asOfJoin" -> generateAsOfJoin(af);
             // --- Pass-through: source-preserving relational functions ---
             case "flatten", "toString", "toVariant",
-                 "eq", "asOfJoin", "cast", "write", "size",
+                 "eq", "cast", "write", "size",
                  "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" ->
                 generateRelation(af.parameters().get(0));
             default -> throw new PureCompileException("PlanGenerator: unsupported function '" + funcName + "'");
@@ -1165,6 +1166,55 @@ public class PlanGenerator {
                 right, // right as subquery
                 onCondition,
                 null)); // no USING
+
+        return result;
+    }
+
+    private SqlBuilder generateAsOfJoin(AppliedFunction af) {
+        List<ValueSpecification> params = af.parameters();
+        // asOfJoin(left, right, matchCondition [, keyCondition])
+        if (params.size() < 3) {
+            throw new PureCompileException("PlanGenerator: asOfJoin() requires left, right, and match condition");
+        }
+
+        SqlBuilder left = generateRelation(params.get(0));
+        SqlBuilder right = generateRelation(params.get(1));
+
+        // Match condition: {t, q | $t.time > $q.time}
+        SqlExpr matchCondition = null;
+        if (params.get(2) instanceof LambdaFunction lf && !lf.body().isEmpty()) {
+            matchCondition = generateScalar(lf.body().get(0), null, null);
+        }
+
+        // Optional key condition: {t, q | $t.symbol == $q.symbol}
+        SqlExpr keyCondition = null;
+        if (params.size() >= 4 && params.get(3) instanceof LambdaFunction lf && !lf.body().isEmpty()) {
+            keyCondition = generateScalar(lf.body().get(0), null, null);
+        }
+
+        // Build ON clause: key AND match (key first if present)
+        SqlExpr onCondition;
+        if (keyCondition != null && matchCondition != null) {
+            onCondition = new SqlExpr.And(List.of(keyCondition, matchCondition));
+        } else if (matchCondition != null) {
+            onCondition = matchCondition;
+        } else {
+            throw new PureCompileException("asOfJoin: match condition required");
+        }
+
+        String leftAlias = dialect.quoteIdentifier("left_src");
+        String rightAlias = dialect.quoteIdentifier("right_src");
+        SqlBuilder result = new SqlBuilder()
+                .selectStar()
+                .fromSubquery(left, leftAlias);
+
+        result.addJoin(new SqlBuilder.JoinClause(
+                SqlBuilder.JoinType.ASOF_LEFT,
+                null,
+                rightAlias,
+                right,
+                onCondition,
+                null));
 
         return result;
     }

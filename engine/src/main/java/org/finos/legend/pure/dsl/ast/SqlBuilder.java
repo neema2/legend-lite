@@ -540,6 +540,7 @@ public class SqlBuilder {
         LEFT_SEMI("LEFT SEMI JOIN"),
         LEFT_ANTI("LEFT ANTI JOIN"),
         ASOF("ASOF JOIN"),
+        ASOF_LEFT("ASOF LEFT JOIN"),
         NATURAL("NATURAL JOIN"),
         LEFT_LATERAL("LEFT JOIN LATERAL");
 

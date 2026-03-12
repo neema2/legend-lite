@@ -1500,9 +1500,42 @@ public class CleanCompiler {
         return typeName.toUpperCase().replace(" ", "_");
     }
 
-    /** Compiles asOfJoin. */
+    /** Compiles asOfJoin — tags BOTH match and key condition lambdas. */
     private TypeInfo compileAsOfJoin(AppliedFunction af, CompilationContext ctx) {
-        return compileJoin(af, ctx); // Same type logic
+        List<ValueSpecification> params = af.parameters();
+        if (params.size() < 3) {
+            throw new PureCompileException("asOfJoin() requires left, right, and match condition");
+        }
+
+        TypeInfo left = compileExpr(params.get(0), ctx);
+        TypeInfo right = compileExpr(params.get(1), ctx);
+
+        // Merge columns from both sides
+        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.relationType().columns());
+        mergedColumns.putAll(right.relationType().columns());
+
+        // Tag match condition lambda (params[2])
+        if (params.get(2) instanceof LambdaFunction matchLf) {
+            String leftParam = matchLf.parameters().size() > 0 ? matchLf.parameters().get(0).name() : "l";
+            String rightParam = matchLf.parameters().size() > 1 ? matchLf.parameters().get(1).name() : "r";
+            if (!matchLf.body().isEmpty()) {
+                tagJoinConditionProperties(matchLf.body().get(0), leftParam, rightParam);
+            }
+        }
+
+        // Tag key condition lambda (params[3]) if present
+        if (params.size() >= 4 && params.get(3) instanceof LambdaFunction keyLf) {
+            String leftParam = keyLf.parameters().size() > 0 ? keyLf.parameters().get(0).name() : "l";
+            String rightParam = keyLf.parameters().size() > 1 ? keyLf.parameters().get(1).name() : "r";
+            if (!keyLf.body().isEmpty()) {
+                tagJoinConditionProperties(keyLf.body().get(0), leftParam, rightParam);
+            }
+        }
+
+        var info = TypeInfo.builder().relationType(new RelationType(mergedColumns))
+                .mapping(left.mapping()).build();
+        types.put(af, info);
+        return info;
     }
 
     /**
