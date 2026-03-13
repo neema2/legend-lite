@@ -88,4 +88,46 @@ public final class SQLiteDialect implements SQLDialect {
     public String renderEndsWith(String str, String suffix) {
         return str + " LIKE '%' || " + suffix;
     }
+
+    @Override
+    public String renderStarExcept(java.util.List<String> columns) {
+        throw new UnsupportedOperationException("SQLite does not support SELECT * EXCLUDE/EXCEPT");
+    }
+
+    // ==================== Variant (not supported) ====================
+
+    @Override
+    public String renderVariantLiteral(String expr) {
+        throw new UnsupportedOperationException("SQLite does not support Variant types");
+    }
+
+    @Override
+    public String renderVariantAccess(String expr, String key) {
+        throw new UnsupportedOperationException("SQLite does not support Variant types");
+    }
+
+    @Override
+    public String renderVariantIndex(String expr, int index) {
+        throw new UnsupportedOperationException("SQLite does not support Variant types");
+    }
+
+    @Override
+    public String renderVariantTextAccess(String expr, String key) {
+        throw new UnsupportedOperationException("SQLite does not support Variant types");
+    }
+
+    @Override
+    public String renderToVariant(String expr) {
+        throw new UnsupportedOperationException("SQLite does not support Variant types");
+    }
+
+    @Override
+    public String renderVariantArrayCast(String expr, String sqlType) {
+        throw new UnsupportedOperationException("SQLite does not support Variant types");
+    }
+
+    @Override
+    public String renderVariantScalarCast(String expr, String sqlType) {
+        throw new UnsupportedOperationException("SQLite does not support Variant types");
+    }
 }

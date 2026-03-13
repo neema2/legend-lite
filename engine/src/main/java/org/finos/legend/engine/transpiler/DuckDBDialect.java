@@ -47,6 +47,60 @@ public final class DuckDBDialect implements SQLDialect {
         return DuckDbJsonDialect.INSTANCE;
     }
 
+    // ==================== Star Exclude ====================
+
+    @Override
+    public String renderStarExcept(java.util.List<String> columns) {
+        return " EXCLUDE(" + String.join(", ", columns) + ")";
+    }
+
+    // ==================== Variant (JSON-based) ====================
+
+    @Override
+    public String renderVariantLiteral(String expr) {
+        return expr + "::JSON";
+    }
+
+    @Override
+    public String renderVariantAccess(String expr, String key) {
+        if (isSimpleIdentifier(expr)) {
+            return "(" + expr + "->" + quoteStringLiteral(key) + ")";
+        }
+        return "((" + expr + ")->" + quoteStringLiteral(key) + ")";
+    }
+
+    @Override
+    public String renderVariantIndex(String expr, int index) {
+        return "(" + expr + ")[" + index + "]";
+    }
+
+    @Override
+    public String renderVariantTextAccess(String expr, String key) {
+        if (isSimpleIdentifier(expr)) {
+            return "(" + expr + "->>" + quoteStringLiteral(key) + ")";
+        }
+        return "((" + expr + ")->>" + quoteStringLiteral(key) + ")";
+    }
+
+    @Override
+    public String renderToVariant(String expr) {
+        return "CAST(" + expr + " AS JSON)";
+    }
+
+    @Override
+    public String renderVariantArrayCast(String expr, String sqlType) {
+        return "CAST(" + expr + " AS " + sqlType + "[])";
+    }
+
+    @Override
+    public String renderVariantScalarCast(String expr, String sqlType) {
+        return "CAST(" + expr + " AS " + sqlType + ")";
+    }
+
+    private static boolean isSimpleIdentifier(String expr) {
+        return expr.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
+    }
+
     @Override
     public String renderStructLiteral(java.util.LinkedHashMap<String, String> fields) {
         // DuckDB struct syntax: {'name': 'ok', 'age': 30}

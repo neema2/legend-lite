@@ -96,7 +96,7 @@ public interface SQLDialect {
         }
 
         // Handle partial dates - Pure supports YYYY and YYYY-MM formats
-        // DuckDB requires full YYYY-MM-DD, so default missing parts
+        // Standard SQL DATE literals require full YYYY-MM-DD
         String[] parts = dateValue.split("-");
         if (parts.length == 1) {
             // Year only: 2012 -> 2012-01-01
@@ -133,12 +133,10 @@ public interface SQLDialect {
 
     /**
      * Render an inline struct literal from pre-rendered field name→value pairs.
-     * Field values are already rendered SQL expressions (e.g., quoted strings,
-     * numbers).
+     * Field values are already rendered SQL expressions (e.g., quoted strings, numbers).
      *
      * @param fields Ordered map of field name → rendered SQL value
-     * @return Dialect-specific struct literal (e.g., DuckDB: {'name': 'ok', 'age':
-     *         30})
+     * @return Dialect-specific struct literal
      */
     String renderStructLiteral(java.util.LinkedHashMap<String, String> fields);
 
@@ -146,7 +144,7 @@ public interface SQLDialect {
      * Render an array literal from pre-rendered element values.
      *
      * @param elements List of rendered SQL expressions
-     * @return Dialect-specific array literal (e.g., DuckDB: [1, 2, 3])
+     * @return Dialect-specific array literal
      */
     String renderArrayLiteral(java.util.List<String> elements);
 
@@ -156,7 +154,7 @@ public interface SQLDialect {
      * this method provides only the dialect-specific unnest expression.
      *
      * @param arrayPath SQL expression for the array to unnest
-     * @return Unnest expression (e.g., DuckDB: "UNNEST(path)")
+     * @return Dialect-specific unnest expression
      */
     String renderUnnestExpression(String arrayPath);
 
@@ -167,8 +165,7 @@ public interface SQLDialect {
      *
      * @param listExpr The list/array expression
      * @param elemExpr The element to find
-     * @return Dialect-specific contains expression (e.g., DuckDB:
-     *         "LIST_CONTAINS(list, elem)")
+     * @return Dialect-specific contains expression
      */
     String renderListContains(String listExpr, String elemExpr);
 
@@ -176,7 +173,7 @@ public interface SQLDialect {
      * Map a Pure type name to the SQL type name for CAST expressions.
      *
      * @param pureTypeName Pure type name (e.g., "String", "Integer", "Float")
-     * @return SQL type name (e.g., DuckDB: "VARCHAR", "BIGINT", "DOUBLE")
+     * @return SQL type name (e.g., "VARCHAR", "BIGINT", "DOUBLE")
      */
     String sqlTypeName(String pureTypeName);
 
@@ -186,8 +183,7 @@ public interface SQLDialect {
      * @param dateExpr Compiled date expression
      * @param amount   Compiled amount expression
      * @param unit     SQL interval unit (e.g., "DAY", "MONTH", "YEAR")
-     * @return Dialect-specific date add (e.g., DuckDB: "(date + (INTERVAL '1' DAY *
-     *         amount))")
+     * @return Dialect-specific date add expression
      */
     String renderDateAdd(String dateExpr, String amount, String unit);
 
@@ -196,8 +192,7 @@ public interface SQLDialect {
      *
      * @param str    String expression
      * @param prefix Prefix expression
-     * @return Dialect-specific starts-with (e.g., DuckDB: "STARTS_WITH(str,
-     *         prefix)")
+     * @return Dialect-specific starts-with expression
      */
     String renderStartsWith(String str, String prefix);
 
@@ -206,7 +201,7 @@ public interface SQLDialect {
      *
      * @param str    String expression
      * @param suffix Suffix expression
-     * @return Dialect-specific ends-with (e.g., DuckDB: "str LIKE '%' || suffix")
+     * @return Dialect-specific ends-with expression
      */
     String renderEndsWith(String str, String suffix);
 
@@ -227,73 +222,42 @@ public interface SQLDialect {
 
     /**
      * Render the SELECT * EXCLUDE/EXCEPT clause for excluding columns from star.
-     * DuckDB uses EXCLUDE, PostgreSQL uses EXCEPT.
+     * Dialect-specific: e.g., EXCLUDE(...) or EXCEPT(...).
      *
      * @param columns Pre-rendered column names to exclude
-     * @return Dialect-specific clause (e.g., " EXCLUDE(col1, col2)")
+     * @return Dialect-specific clause
      */
-    default String renderStarExcept(java.util.List<String> columns) {
-        return " EXCLUDE(" + String.join(", ", columns) + ")";
-    }
+    String renderStarExcept(java.util.List<String> columns);
 
     // ==================== Variant Rendering ====================
-    // Default implementations use DuckDB JSON semantics.
-    // Future dialects (Snowflake, Databricks, DuckDB 1.5) override with native VARIANT.
+    // No defaults — each dialect must implement its own Variant semantics.
 
-    /** Mark a literal value as Variant. DuckDB: expr::JSON */
-    default String renderVariantLiteral(String expr) {
-        return expr + "::JSON";
-    }
+    /** Mark a literal value as Variant. */
+    String renderVariantLiteral(String expr);
 
-    /** Access a Variant field by key (returns Variant). DuckDB: (expr)->'key' */
-    default String renderVariantAccess(String expr, String key) {
-        // Simple identifiers (lambda params) skip inner parens: (i->'key')
-        // Complex expressions get inner parens: (("PAYLOAD")->'key')
-        if (isSimpleIdentifier(expr)) {
-            return "(" + expr + "->" + quoteStringLiteral(key) + ")";
-        }
-        return "((" + expr + ")->" + quoteStringLiteral(key) + ")";
-    }
+    /** Access a Variant field by key (returns Variant). */
+    String renderVariantAccess(String expr, String key);
 
-    /** Access a Variant array element by index (returns Variant). DuckDB: (expr)[idx] */
-    default String renderVariantIndex(String expr, int index) {
-        return "(" + expr + ")[" + index + "]";
-    }
+    /** Access a Variant array element by index (returns Variant). */
+    String renderVariantIndex(String expr, int index);
 
-    /** Extract text value from Variant by key (returns string). DuckDB: (expr)->>'key' */
-    default String renderVariantTextAccess(String expr, String key) {
-        if (isSimpleIdentifier(expr)) {
-            return "(" + expr + "->>" + quoteStringLiteral(key) + ")";
-        }
-        return "((" + expr + ")->>" + quoteStringLiteral(key) + ")";
-    }
+    /** Extract text value from Variant by key (returns string). */
+    String renderVariantTextAccess(String expr, String key);
 
-    /**
-     * Check if expr is a simple unquoted identifier (e.g. a lambda parameter).
-     * Matches the old pipeline's DuckDBJsonDialect.isSimpleIdentifier logic.
-     */
-    private static boolean isSimpleIdentifier(String expr) {
-        return expr.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
-    }
+    /** Convert a value to Variant. */
+    String renderToVariant(String expr);
 
-    /** Convert a value to Variant. DuckDB: CAST(expr AS JSON) */
-    default String renderToVariant(String expr) {
-        return "CAST(" + expr + " AS JSON)";
-    }
+    /** Cast Variant to a typed array. */
+    String renderVariantArrayCast(String expr, String sqlType);
 
-    /** Cast Variant to a typed array. DuckDB: CAST(expr AS type[]) */
-    default String renderVariantArrayCast(String expr, String sqlType) {
-        return "CAST(" + expr + " AS " + sqlType + "[])";
-    }
-
-    /** Cast Variant to a scalar type. DuckDB: CAST(expr AS type) */
-    default String renderVariantScalarCast(String expr, String sqlType) {
-        return "CAST(" + expr + " AS " + sqlType + ")";
-    }
+    /** Cast Variant to a scalar type. */
+    String renderVariantScalarCast(String expr, String sqlType);
 
     /**
      * Render an interval unit literal for date diff functions.
-     * DuckDB: 'DAY', PostgreSQL: 'day', etc.
+     *
+     * @param unit The interval unit (e.g., "DAY", "MONTH")
+     * @return Dialect-specific interval unit expression
      */
     default String renderIntervalUnit(String unit) {
         return "'" + unit + "'";
