@@ -2496,7 +2496,7 @@ public class CleanCompiler {
         return switch (ci.type()) {
             case "relation" -> compileRelationAccessor(ci, ctx);
             case "tdsLiteral" -> compileTdsLiteral(ci, ctx);
-            case "instance" -> compileInstanceLiteral(ci);
+            case "instance" -> compileInstanceLiteral(ci, ctx);
             default -> scalar(ci);
         };
     }
@@ -2506,7 +2506,7 @@ public class CleanCompiler {
      * Builds a RelationType where each property becomes a typed column,
      * so PlanGenerator can distinguish arrays (need UNNEST) from scalars.
      */
-    private TypeInfo compileInstanceLiteral(ClassInstance ci) {
+    private TypeInfo compileInstanceLiteral(ClassInstance ci, CompilationContext ctx) {
         var data = (CleanAstBuilder.InstanceData) ci.value();
         var columns = new LinkedHashMap<String, GenericType>();
 
@@ -2535,6 +2535,8 @@ public class CleanCompiler {
                 propType = GenericType.listOf(propType);
             }
             columns.put(propName, propType);
+            // Compile the property value expression so Variables etc. are in the side table
+            compileExpr(entry.getValue(), ctx);
         }
 
         var rt = new RelationType(columns);
@@ -3302,6 +3304,22 @@ public class CleanCompiler {
                     }
                 }
             }
+            // Let-bound variable → resolve inlinedBody to instance ClassInstance
+            TypeInfo vInfo = types.get(v);
+            if (vInfo == null) {
+                vInfo = compileExpr(v, ctx);
+            }
+            if (vInfo != null && vInfo.inlinedBody() instanceof ClassInstance ci
+                    && "instance".equals(ci.type())) {
+                return inlineStructExtract(ap, ci, ctx);
+            }
+        }
+        // .prop directly on instance literal: ^Person(firstName='John').firstName
+        if (!ap.parameters().isEmpty()
+                && ap.parameters().get(0) instanceof ClassInstance ci
+                && "instance".equals(ci.type())) {
+            compileExpr(ci, ctx);
+            return inlineStructExtract(ap, ci, ctx);
         }
         // .prop on a list-producing function is sugar for ->map(_x | _x.prop)
         // Desugar by building a synthetic map node and pointing via inlinedBody
@@ -3320,6 +3338,20 @@ public class CleanCompiler {
             }
         }
         return scalar(ap);
+    }
+
+    /**
+     * Synthesizes structExtract(instance, 'field') for .property on instance literals.
+     * PlanGenerator handles structExtract → STRUCT_EXTRACT(struct, 'field').
+     */
+    private TypeInfo inlineStructExtract(AppliedProperty ap, ClassInstance ci,
+            CompilationContext ctx) {
+        var extractNode = new AppliedFunction("structExtract",
+                List.of(ci, new CString(ap.property())));
+        var info = TypeInfo.builder().scalarType(GenericType.Primitive.ANY)
+                .inlinedBody(extractNode).build();
+        types.put(ap, info);
+        return info;
     }
 
     private TypeInfo compileCollection(Collection coll, CompilationContext ctx) {

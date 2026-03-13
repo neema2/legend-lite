@@ -165,21 +165,6 @@ public class PlanGenerator {
      */
     private SqlExpr renderStructValue(ValueSpecification vs) {
         return switch (vs) {
-            case CString cs -> new SqlExpr.StringLiteral(cs.value());
-            case CInteger ci -> {
-                // Check compiler type annotation for precision
-                TypeInfo tiInt = unit.typeInfoFor(ci);
-                if (tiInt != null && tiInt.scalarType() == GenericType.Primitive.INT128) {
-                    yield new SqlExpr.Cast(new SqlExpr.NumericLiteral(ci.value()), "Int128");
-                }
-                yield new SqlExpr.NumericLiteral(ci.value());
-            }
-            case CFloat cf -> {
-                yield new SqlExpr.DecimalLiteral(java.math.BigDecimal.valueOf(cf.value()));
-            }
-            case CBoolean cb -> new SqlExpr.BoolLiteral(cb.value());
-            case CDateTime cdt -> new SqlExpr.TimestampLiteral(cdt.value());
-            case CStrictDate csd -> new SqlExpr.DateLiteral(csd.value());
             case Collection coll -> {
                 java.util.List<SqlExpr> elements = coll.values().stream()
                         .map(this::renderStructValue)
@@ -194,8 +179,8 @@ public class PlanGenerator {
                 }
                 yield new SqlExpr.StructLiteral(fields);
             }
-            default -> throw new PureCompileException(
-                    "PlanGenerator: cannot render struct value from " + vs.getClass().getSimpleName());
+            // All other values (literals, variables, function calls) → delegate to generateScalar
+            default -> generateScalar(vs, null, null);
         };
     }
 
@@ -1531,6 +1516,12 @@ public class PlanGenerator {
         boolean firstArgIsList = !params.isEmpty() && isListArg(params.get(0));
 
         return switch (funcName) {
+            // --- Struct field access (synthesized by Compiler for .property on instance literals) ---
+            case "structExtract" -> {
+                SqlExpr struct = generateScalar(params.get(0), rowParam, mapping, tableAlias);
+                String field = ((CString) params.get(1)).value();
+                yield new SqlExpr.FieldAccess(struct, field);
+            }
             // --- Comparison (may produce EXISTS for association paths when tableAlias set)
             // ---
             case "equal", "greaterThan", "greaterThanEqual",
