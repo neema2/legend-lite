@@ -230,7 +230,7 @@ public record TypeInfo(
      * A single frame bound: unbounded, currentRow, or offset (positive = following,
      * negative = preceding).
      */
-    public record FrameBound(FrameBoundType type, long offset) {
+    public record FrameBound(FrameBoundType type, double offset) {
         public static FrameBound unbounded() {
             return new FrameBound(FrameBoundType.UNBOUNDED, 0);
         }
@@ -240,6 +240,10 @@ public record TypeInfo(
         }
 
         public static FrameBound offset(long n) {
+            return new FrameBound(FrameBoundType.OFFSET, n);
+        }
+
+        public static FrameBound offset(double n) {
             return new FrameBound(FrameBoundType.OFFSET, n);
         }
     }

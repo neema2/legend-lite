@@ -1321,14 +1321,22 @@ public class CleanCompiler {
         }
         if (param instanceof AppliedFunction af && "minus".equals(simpleName(af.function()))) {
             if (!af.parameters().isEmpty()) {
-                long v = extractIntLiteral(af.parameters().get(af.parameters().size() - 1));
+                double v = extractNumericLiteral(af.parameters().get(af.parameters().size() - 1));
                 return TypeInfo.FrameBound.offset(-v); // negative = preceding
             }
         }
-        long v = extractIntLiteral(param);
+        double v = extractNumericLiteral(param);
         if (v == 0)
             return TypeInfo.FrameBound.currentRow();
         return TypeInfo.FrameBound.offset(v); // positive = following, negative = preceding
+    }
+
+    /** Extracts a numeric literal as double (supports CInteger, CFloat, CDecimal). */
+    private double extractNumericLiteral(ValueSpecification vs) {
+        if (vs instanceof CInteger ci) return ci.value().doubleValue();
+        if (vs instanceof CFloat cf) return cf.value();
+        if (vs instanceof CDecimal cd) return cd.value().doubleValue();
+        throw new PureCompileException("Expected numeric literal in frame bound, got: " + vs.getClass().getSimpleName());
     }
 
     /**
@@ -1463,17 +1471,9 @@ public class CleanCompiler {
             return String.valueOf(cf.value());
         if (vs instanceof CString cs)
             return cs.value();
-        return "0";
+        throw new PureCompileException("Expected literal value, got: " + vs.getClass().getSimpleName());
     }
 
-    /** Extracts an integer literal value. */
-    private long extractIntLiteral(ValueSpecification vs) {
-        if (vs instanceof CInteger ci)
-            return ci.value().longValue();
-        if (vs instanceof CFloat cf)
-            return (long) cf.value();
-        return 0;
-    }
 
     /**
      * Compiles join(left, right, joinType, condition).

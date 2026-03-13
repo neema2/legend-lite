@@ -401,9 +401,9 @@ public class PlanGenerator {
         }
 
         // Step 3: Can we inline columns into source, or do we need a subquery?
+        // We can inline as long as source is a simple SELECT * (no GROUP BY, no existing WHERE, etc.)
         boolean canInline = source.isSelectStar()
-                && !source.hasGroupBy()
-                && source.getFromSubquery() == null;
+                && !source.hasGroupBy();
 
         SqlBuilder builder;
         if (canInline) {
@@ -1137,14 +1137,21 @@ public class PlanGenerator {
             case UNBOUNDED -> isStart ? "UNBOUNDED PRECEDING" : "UNBOUNDED FOLLOWING";
             case CURRENT_ROW -> "CURRENT ROW";
             case OFFSET -> {
-                long v = bound.offset();
+                double v = bound.offset();
                 if (v < 0)
-                    yield Math.abs(v) + " PRECEDING";
+                    yield formatOffset(Math.abs(v)) + " PRECEDING";
                 if (v > 0)
-                    yield v + " FOLLOWING";
+                    yield formatOffset(v) + " FOLLOWING";
                 yield "CURRENT ROW";
             }
         };
+    }
+
+    /** Formats a frame offset: integer if whole, decimal otherwise. */
+    private static String formatOffset(double v) {
+        if (v == Math.floor(v) && !Double.isInfinite(v))
+            return String.valueOf((long) v);
+        return java.math.BigDecimal.valueOf(v).stripTrailingZeros().toPlainString();
     }
 
     // ========== join ==========
