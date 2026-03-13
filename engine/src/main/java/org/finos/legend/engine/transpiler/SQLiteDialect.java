@@ -61,13 +61,15 @@ public final class SQLiteDialect implements SQLDialect {
 
     @Override
     public String sqlTypeName(String pureTypeName) {
+        if (pureTypeName.contains("(")) return pureTypeName.toUpperCase();
         return switch (pureTypeName) {
             case "String" -> "TEXT";
             case "Integer" -> "INTEGER";
             case "Float", "Decimal" -> "REAL";
             case "Boolean" -> "INTEGER"; // SQLite has no boolean type
             case "Date", "StrictDate", "DateTime" -> "TEXT"; // SQLite stores dates as text
-            default -> "TEXT";
+            default -> throw new IllegalArgumentException(
+                    "SQLite: unmapped Pure type name '" + pureTypeName + "' in sqlTypeName");
         };
     }
 

@@ -68,11 +68,19 @@ public sealed interface SqlExpr {
 
     // ==================== Literals ====================
 
-    /** Numeric literal (rendered as-is). */
-    record Literal(String value) implements SqlExpr {
+    /** Numeric literal — takes an actual Number, renders via toString(). */
+    record NumericLiteral(Number value) implements SqlExpr {
         @Override
         public String toSql(SQLDialect dialect) {
-            return value;
+            return value.toString();
+        }
+    }
+
+    /** Decimal literal — renders BigDecimal with toPlainString() (no scientific notation). */
+    record DecimalLiteral(java.math.BigDecimal value) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return value.toPlainString();
         }
     }
 
@@ -89,6 +97,30 @@ public sealed interface SqlExpr {
         @Override
         public String toSql(SQLDialect dialect) {
             return "CURRENT_DATE";
+        }
+    }
+
+    /** CURRENT_TIMESTAMP. */
+    record CurrentTimestamp() implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return "CURRENT_TIMESTAMP";
+        }
+    }
+
+    /** Interval unit literal — dialect-routed (e.g., 'DAY' in DuckDB). */
+    record IntervalLiteral(String unit) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderIntervalUnit(unit);
+        }
+    }
+
+    /** ORDER BY term: column + direction + null ordering. Used in window specs. */
+    record OrderByTerm(SqlExpr column, String direction, String nullOrder) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return column.toSql(dialect) + " " + direction + " " + nullOrder;
         }
     }
 

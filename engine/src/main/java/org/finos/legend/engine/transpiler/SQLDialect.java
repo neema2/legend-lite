@@ -290,4 +290,12 @@ public interface SQLDialect {
     default String renderVariantScalarCast(String expr, String sqlType) {
         return "CAST(" + expr + " AS " + sqlType + ")";
     }
+
+    /**
+     * Render an interval unit literal for date diff functions.
+     * DuckDB: 'DAY', PostgreSQL: 'day', etc.
+     */
+    default String renderIntervalUnit(String unit) {
+        return "'" + unit + "'";
+    }
 }

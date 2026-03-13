@@ -622,6 +622,14 @@ public class QueryService {
         normalized = normalized.replace(" as varchar) as ", " as json) as ");
         normalized = normalized.replace(" as varchar))", " as json))");
 
+        // 7. Normalize DuckDB :: cast shorthand to CAST(x AS type).
+        // Old pipeline uses x::HUGEINT or x::DECIMAL(18,0),
+        // new pipeline uses CAST(x AS HUGEINT) / CAST(x AS DECIMAL(18,0)).
+        normalized = java.util.regex.Pattern
+                .compile("(\\d+)::(\\w+(?:\\([^)]+\\))?)")
+                .matcher(normalized)
+                .replaceAll("cast($1 as $2)");
+
         return normalized;
     }
 

@@ -73,6 +73,8 @@ public final class DuckDBDialect implements SQLDialect {
 
     @Override
     public String sqlTypeName(String pureTypeName) {
+        // Parameterized types (e.g., "Decimal(18,0)") pass through as-is
+        if (pureTypeName.contains("(")) return pureTypeName.toUpperCase();
         return switch (pureTypeName) {
             case "String" -> "VARCHAR";
             case "Integer" -> "BIGINT";
@@ -84,7 +86,9 @@ public final class DuckDBDialect implements SQLDialect {
             case "TimestampNS" -> "TIMESTAMP_NS";
             case "TimestampTZ" -> "TIMESTAMPTZ";
             case "JSON" -> "JSON";
-            default -> "VARCHAR";
+            case "Int128" -> "HUGEINT";
+            default -> throw new IllegalArgumentException(
+                    "DuckDB: unmapped Pure type name '" + pureTypeName + "' in sqlTypeName");
         };
     }
 
