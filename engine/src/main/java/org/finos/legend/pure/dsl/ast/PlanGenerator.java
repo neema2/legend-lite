@@ -175,7 +175,15 @@ public class PlanGenerator {
                 var data = (CleanAstBuilder.InstanceData) ci.value();
                 var fields = new java.util.LinkedHashMap<String, SqlExpr>();
                 for (var entry : data.properties().entrySet()) {
-                    fields.put(entry.getKey(), renderStructValue(entry.getValue()));
+                    SqlExpr rendered = renderStructValue(entry.getValue());
+                    // If the compiler tagged this value as a list (to-many [*] property)
+                    // but the AST is a single element, wrap it in an array literal.
+                    TypeInfo valInfo = unit.types().get(entry.getValue());
+                    if (valInfo != null && valInfo.isList()
+                            && !(entry.getValue() instanceof Collection)) {
+                        rendered = new SqlExpr.ArrayLiteral(java.util.List.of(rendered));
+                    }
+                    fields.put(entry.getKey(), rendered);
                 }
                 yield new SqlExpr.StructLiteral(fields);
             }

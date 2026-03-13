@@ -2203,8 +2203,15 @@ public class CleanCompiler {
         if (!params.isEmpty()) {
             TypeInfo sourceInfo = types.get(params.get(0));
             if (sourceInfo != null && sourceInfo.scalarType() != null) {
-                types.put(af, TypeInfo.scalarOf(sourceInfo.scalarType()));
-                return TypeInfo.scalarOf(sourceInfo.scalarType());
+                GenericType propType = sourceInfo.scalarType();
+                // at/head/last extract a single element from a list → unwrap element type
+                String fn = simpleName(af.function());
+                if (("at".equals(fn) || "head".equals(fn) || "last".equals(fn))
+                        && propType.isList() && propType.elementType() != null) {
+                    propType = propType.elementType();
+                }
+                types.put(af, TypeInfo.scalarOf(propType));
+                return TypeInfo.scalarOf(propType);
             }
         }
         return scalar(af);
@@ -2380,8 +2387,16 @@ public class CleanCompiler {
         // eval(lambda, args) — compile lambda body and store as inlinedBody
         if (params.size() >= 2 && params.get(0) instanceof LambdaFunction lf) {
             if (!lf.body().isEmpty()) {
+                // Bind each lambda param to its corresponding arg value
+                CompilationContext evalCtx = ctx;
+                List<Variable> lambdaParams = lf.parameters();
+                List<ValueSpecification> args = params.subList(1, params.size());
+                for (int i = 0; i < lambdaParams.size() && i < args.size(); i++) {
+                    compileExpr(args.get(i), ctx);
+                    evalCtx = evalCtx.withLetBinding(lambdaParams.get(i).name(), args.get(i));
+                }
                 ValueSpecification body = lf.body().get(0);
-                TypeInfo bodyResult = compileExpr(body, ctx);
+                TypeInfo bodyResult = compileExpr(body, evalCtx);
                 TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(body).build();
                 types.put(af, result);
                 return result;
@@ -2559,6 +2574,15 @@ public class CleanCompiler {
             columns.put(propName, propType);
             // Compile the property value expression so Variables etc. are in the side table
             compileExpr(entry.getValue(), ctx);
+            // If property is to-many [*] but value is a single element (not a Collection),
+            // tag the value's TypeInfo with list scalarType so PlanGenerator wraps it in [].
+            if (prop.isCollection() && !(entry.getValue() instanceof Collection)) {
+                var valInfo = types.get(entry.getValue());
+                if (valInfo != null) {
+                    types.put(entry.getValue(),
+                            TypeInfo.from(valInfo).scalarType(propType).build());
+                }
+            }
         }
 
         var rt = new RelationType(columns);
@@ -3355,6 +3379,16 @@ public class CleanCompiler {
                 TypeInfo mapInfo = compileExpr(mapNode, ctx);
                 // Point original property node → synthetic map via inlinedBody
                 var info = TypeInfo.from(mapInfo).inlinedBody(mapNode).build();
+                types.put(ap, info);
+                return info;
+            }
+            // .prop on a ClassType result (e.g., at(1) returning a single struct)
+            // → synthesize structExtract(ownerFn, 'prop')
+            if (ownerInfo != null && ownerInfo.scalarType() instanceof GenericType.ClassType) {
+                var extractNode = new AppliedFunction("structExtract",
+                        List.of(ownerFn, new CString(ap.property())));
+                var info = TypeInfo.builder().scalarType(GenericType.Primitive.ANY)
+                        .inlinedBody(extractNode).build();
                 types.put(ap, info);
                 return info;
             }
