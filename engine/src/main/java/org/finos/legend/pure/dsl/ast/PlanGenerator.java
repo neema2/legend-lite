@@ -2385,8 +2385,10 @@ public class PlanGenerator {
                             c.apply(params.get(1))));
             case "drop" -> new SqlExpr.FunctionCall("listSlice",
                     List.of(c.apply(params.get(0)),
-                            new SqlExpr.Binary(c.apply(params.get(1)), "+",
-                                    new SqlExpr.NumericLiteral(1)),
+                            new SqlExpr.FunctionCall("greatest", List.of(
+                                    new SqlExpr.Binary(c.apply(params.get(1)), "+",
+                                            new SqlExpr.NumericLiteral(1)),
+                                    new SqlExpr.NumericLiteral(1))),
                             new SqlExpr.FunctionCall("listLength",
                                     List.of(c.apply(params.get(0))))));
             case "slice" -> {
