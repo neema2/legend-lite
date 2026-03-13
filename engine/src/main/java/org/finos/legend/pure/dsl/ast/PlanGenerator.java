@@ -263,9 +263,10 @@ public class PlanGenerator {
             case "pivot" -> generatePivot(af);
             case "asOfJoin" -> generateAsOfJoin(af);
             case "flatten" -> generateFlatten(af);
+            case "write" -> generateWrite(af);
             // --- Pass-through: source-preserving relational functions ---
             case "toString", "toVariant",
-                 "eq", "cast", "write", "size",
+                 "eq", "cast", "size",
                  "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" ->
                 generateRelation(af.parameters().get(0));
             default -> throw new PureCompileException("PlanGenerator: unsupported function '" + funcName + "'");
@@ -305,6 +306,22 @@ public class PlanGenerator {
     }
 
     // ========== flatten ==========
+
+    /**
+     * Generates UNNEST for flatten(~col).
+     * Reads the column name from compiler's TypeInfo (columnSpecs).
+     * Produces: SELECT * EXCLUDE("col"), UNNEST(CAST("col" AS JSON[])) AS "col" FROM (source) AS t
+     */
+
+    // ========== write ==========
+
+    private SqlBuilder generateWrite(AppliedFunction af) {
+        SqlBuilder source = generateRelation(af.parameters().get(0));
+        return new SqlBuilder()
+                .addSelect(new SqlExpr.FunctionCall("COUNT",
+                        List.of(new SqlExpr.Star())), dialect.quoteIdentifier("value"))
+                .fromSubquery(source, "src");
+    }
 
     /**
      * Generates UNNEST for flatten(~col).

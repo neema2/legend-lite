@@ -163,6 +163,7 @@ public class CleanCompiler {
             case "get" -> compileGet(af, ctx);
             // --- Size (returns Integer scalar for both relations and lists) ---
             case "size" -> compileSize(af, ctx);
+            case "write" -> compileWrite(af, ctx);
             // --- Collection / scalar functions (type-propagating) ---
             case "range" -> compileRange(af, ctx);
             // List-producing functions: always return a list
@@ -2047,6 +2048,18 @@ public class CleanCompiler {
             catch (PureCompileException ignored) { }
         }
         TypeInfo info = TypeInfo.scalarOf(GenericType.Primitive.INTEGER);
+        types.put(af, info);
+        return info;
+    }
+
+    /** write() returns a single-row relation with one Integer column ("value"). */
+    private TypeInfo compileWrite(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        for (var p : params) {
+            try { compileExpr(p, ctx); }
+            catch (PureCompileException ignored) { }
+        }
+        TypeInfo info = TypeInfo.of(RelationType.ofSingle("value", GenericType.Primitive.INTEGER));
         types.put(af, info);
         return info;
     }
