@@ -607,7 +607,7 @@ public class SqlBuilder {
     private String renderPivot(SQLDialect dialect) {
         StringBuilder sb = new StringBuilder();
 
-        // Render the source
+        // Render the source — pivot source is always the fromSubquery or fromValues
         String sourceSql;
         if (fromSubquery != null) {
             sourceSql = fromSubquery.toSql(dialect);

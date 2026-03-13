@@ -1299,9 +1299,11 @@ public class PlanGenerator {
             aggregates.add(new SqlBuilder.PivotAggregate(
                     agg.aggFunction(), agg.valueColumn(), valueExprSql, agg.alias()));
         }
-
-        source.pivot(new SqlBuilder.PivotClause(spec.pivotColumns(), aggregates));
-        return source;
+        // Build pivot on a fresh builder — source becomes fromSubquery so
+        // renderPivot serializes the full source chain (WHERE, SELECT, etc.)
+        SqlBuilder pivotBuilder = new SqlBuilder().fromSubquery(source, null);
+        pivotBuilder.pivot(new SqlBuilder.PivotClause(spec.pivotColumns(), aggregates));
+        return pivotBuilder;
     }
 
     // ========== Scalar Expression Compilation ==========
