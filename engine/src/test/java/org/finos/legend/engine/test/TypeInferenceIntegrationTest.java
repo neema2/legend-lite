@@ -2425,9 +2425,20 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 Result result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f2')]->meta::pure::functions::collection::contains(3)",
-                                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+                                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
                 assertTrue(result instanceof ScalarResult);
                 assertEquals(false, ((ScalarResult) result).value());
+        }
+
+        @Test
+        void testContainsStructReturnsTrue() throws SQLException {
+                // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->contains(^Firm(legalName='f1')) = true
+                Result result = queryService.execute(
+                                getCompletePureModelWithRuntime(),
+                                "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f2')]->meta::pure::functions::collection::contains(^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'))",
+                                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
+                assertTrue(result instanceof ScalarResult);
+                assertEquals(true, ((ScalarResult) result).value());
         }
 
         @Test
@@ -2807,10 +2818,18 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                                 new org.finos.legend.pure.m3.Property("lastName",
                                                                 org.finos.legend.pure.m3.PrimitiveType.STRING,
                                                                 new org.finos.legend.pure.m3.Multiplicity(1, 1))));
+                var classWithoutEqualityClass = new org.finos.legend.pure.m3.PureClass(
+                                "meta::pure::functions::collection::tests::contains", "ClassWithoutEquality",
+                                java.util.List.of(
+                                                new org.finos.legend.pure.m3.Property("name",
+                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
+                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1))));
                 return org.finos.legend.pure.dsl.TypeEnvironment.of(java.util.Map.of(
                                 "meta::pure::functions::collection::tests::model::CO_Person", coPersonClass,
                                 "meta::pure::functions::collection::tests::model::CO_Firm", coFirmClass,
-                                "meta::pure::functions::collection::tests::map::model::M_Person", mPersonClass));
+                                "meta::pure::functions::collection::tests::map::model::M_Person", mPersonClass,
+                                "meta::pure::functions::collection::tests::contains::ClassWithoutEquality",
+                                classWithoutEqualityClass));
         }
 
         // ==================== TypeEnvironment / multiplicity tests
@@ -3611,7 +3630,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 Result result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|[^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f1'), ^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f2')]->meta::pure::functions::collection::contains(^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f1'), comparator(a: meta::pure::functions::collection::tests::contains::ClassWithoutEquality[1], b: meta::pure::functions::collection::tests::contains::ClassWithoutEquality[1]): Boolean[1]\n       {\n         $a.name == $b.name\n       })",
-                                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED);
+                                "test::TestRuntime", connection, QueryService.ResultMode.BUFFERED, commonClassDefs());
                 assertTrue(result instanceof ScalarResult);
                 assertEquals(true, ((ScalarResult) result).value());
         }

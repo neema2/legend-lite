@@ -2192,8 +2192,7 @@ public class CleanCompiler {
     private TypeInfo compileTypePropagating(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
-            try { compileExpr(p, ctx); }
-            catch (PureCompileException ignored) { }
+            compileExpr(p, ctx);
         }
         // Check if the function has a known return type that differs from its source
         GenericType returnType = knownReturnType(simpleName(af.function()));
@@ -2510,9 +2509,32 @@ public class CleanCompiler {
         var data = (CleanAstBuilder.InstanceData) ci.value();
         var columns = new LinkedHashMap<String, GenericType>();
 
-        // Use the model context class definition as authoritative source for property types
+        // Built-in Pure standard library types (no model context needed)
+        String simpleName = data.className().contains("::")
+                ? data.className().substring(data.className().lastIndexOf("::") + 2)
+                : data.className();
+
         org.finos.legend.pure.m3.PureClass pureClass = null;
-        if (modelContext != null) {
+
+        if ("Pair".equals(simpleName) && data.typeArguments().size() == 2) {
+            // Pair<A, B> → built-in with properties first:A, second:B
+            var firstType = GenericType.fromTypeName(data.typeArguments().get(0));
+            var secondType = GenericType.fromTypeName(data.typeArguments().get(1));
+            pureClass = new org.finos.legend.pure.m3.PureClass(
+                    data.className().contains("::")
+                            ? data.className().substring(0, data.className().lastIndexOf("::"))
+                            : "",
+                    "Pair", java.util.List.of(
+                            new org.finos.legend.pure.m3.Property("first",
+                                    org.finos.legend.pure.m3.PrimitiveType.fromName(firstType.typeName()),
+                                    new org.finos.legend.pure.m3.Multiplicity(1, 1)),
+                            new org.finos.legend.pure.m3.Property("second",
+                                    org.finos.legend.pure.m3.PrimitiveType.fromName(secondType.typeName()),
+                                    new org.finos.legend.pure.m3.Multiplicity(1, 1))));
+        }
+
+        // Fall back to model context for user-defined classes
+        if (pureClass == null && modelContext != null) {
             pureClass = modelContext.findClass(data.className()).orElse(null);
         }
         if (pureClass == null) {

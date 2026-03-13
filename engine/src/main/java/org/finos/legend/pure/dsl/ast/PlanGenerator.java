@@ -1630,8 +1630,26 @@ public class PlanGenerator {
             // --- String ---
             case "contains" -> {
                 if (firstArgIsList) {
-                    // Check if list has mixed types (List<ANY>) — needs TO_JSON wrapping
+                    // Type-mismatch short-circuit: struct list can never contain a primitive
+                    // (e.g., [^Firm(...), ^Firm(...)]->contains(3) → FALSE)
+                    // DuckDB rejects LIST_CONTAINS with mismatched types, so we must constant-fold.
                     TypeInfo listInfo = unit.typeInfoFor(params.get(0));
+                    TypeInfo searchInfo = unit.typeInfoFor(params.get(1));
+                    if (listInfo != null && searchInfo != null
+                            && listInfo.scalarType() != null && searchInfo.scalarType() != null) {
+                        GenericType listElemType = listInfo.scalarType().elementType();
+                        GenericType searchType = searchInfo.scalarType();
+                        if (listElemType instanceof GenericType.ClassType
+                                && searchType.isPrimitive()) {
+                            yield new SqlExpr.BoolLiteral(false);
+                        }
+                        if (listElemType != null && listElemType.isPrimitive()
+                                && searchType instanceof GenericType.ClassType) {
+                            yield new SqlExpr.BoolLiteral(false);
+                        }
+                    }
+
+                    // Check if list has mixed types (List<ANY>) — needs TO_JSON wrapping
                     if (listInfo != null && listInfo.isMixedList()
                             && params.get(0) instanceof Collection coll
                             && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {

@@ -720,6 +720,14 @@ public class CleanAstBuilder extends PureParserBaseVisitor<ValueSpecification> {
     public ValueSpecification visitExpressionInstance(PureParser.ExpressionInstanceContext ctx) {
         String className = getQualifiedNameText(ctx.qualifiedName());
 
+        // Capture generic type arguments: ^Pair<String, String>(...)
+        List<String> typeArgs = List.of();
+        if (ctx.typeArguments() != null && ctx.typeArguments().type() != null) {
+            typeArgs = ctx.typeArguments().type().stream()
+                    .map(t -> t.getText())
+                    .collect(java.util.stream.Collectors.toList());
+        }
+
         // Collect property assignments
         Map<String, ValueSpecification> properties = new LinkedHashMap<>();
         if (ctx.expressionInstanceParserPropertyAssignment() != null) {
@@ -734,7 +742,7 @@ public class CleanAstBuilder extends PureParserBaseVisitor<ValueSpecification> {
         }
 
         return new ClassInstance("instance",
-                new InstanceData(className, properties));
+                new InstanceData(className, properties, typeArgs));
     }
 
     /**
@@ -742,7 +750,11 @@ public class CleanAstBuilder extends PureParserBaseVisitor<ValueSpecification> {
      */
     public record InstanceData(
             String className,
-            Map<String, ValueSpecification> properties) {
+            Map<String, ValueSpecification> properties,
+            List<String> typeArguments) {
+        public InstanceData(String className, Map<String, ValueSpecification> properties) {
+            this(className, properties, List.of());
+        }
     }
 
     // ========================================
