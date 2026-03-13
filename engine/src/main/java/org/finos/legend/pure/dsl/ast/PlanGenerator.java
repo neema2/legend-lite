@@ -1040,6 +1040,10 @@ public class PlanGenerator {
                 }
             }
         }
+        // Pivot source can't have selects appended (toSql bypasses them) — wrap first
+        if (source.hasPivot()) {
+            source = new SqlBuilder().selectStar().fromSubquery(source, "extend_src");
+        }
         for (ColSpec cs : colSpecs) {
             if (cs.function1() != null) {
                 String lambdaParam = cs.function1().parameters().isEmpty() ? null

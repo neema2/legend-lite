@@ -281,6 +281,10 @@ public class SqlBuilder {
         return !windowColumns.isEmpty();
     }
 
+    public boolean hasPivot() {
+        return pivotClause != null;
+    }
+
     public boolean isSelectStar() {
         return selectStar;
     }
