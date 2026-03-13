@@ -1076,8 +1076,9 @@ public class CleanCompiler {
                             typeCheckExpression(lambda.body().get(0), lambdaCtx);
                         }
                     }
-                    // Resolve window spec if this ColSpec has function2 (aggregate lambda)
-                    if (cs.function2() != null) {
+                    // Resolve window spec if this ColSpec has function2 (aggregate) or
+                    // if there's an overSpec (non-aggregate window fns like LEAD/FIRST_VALUE)
+                    if (cs.function2() != null || overSpec != null) {
                         // Use the same overSpec (partition/order) for all columns in the array
                         List<String> partBy = new ArrayList<>();
                         List<TypeInfo.SortSpec> ordBy = new ArrayList<>();
