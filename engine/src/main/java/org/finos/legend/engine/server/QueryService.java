@@ -630,6 +630,13 @@ public class QueryService {
                 .matcher(normalized)
                 .replaceAll("cast($1 as $2)");
 
+        // 8. Normalize LIST_VALUE(x) → [x] — both create a single-element list in DuckDB.
+        // Old pipeline uses LIST_VALUE(), new pipeline uses array literal syntax.
+        normalized = java.util.regex.Pattern
+                .compile("list_value\\(([^()]+)\\)")
+                .matcher(normalized)
+                .replaceAll("[$1]");
+
         return normalized;
     }
 

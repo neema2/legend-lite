@@ -1474,6 +1474,7 @@ public class PlanGenerator {
                 // Mixed-type lists need TO_JSON wrapping for DuckDB variant handling
                 TypeInfo collInfo = unit.typeInfoFor(coll);
                 if (collInfo != null && collInfo.isMixedList()
+                        && !coll.values().isEmpty()
                         && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
                     exprs = exprs.stream()
                             .map(e -> (SqlExpr) new SqlExpr.FunctionCall("toJson", List.of(e)))
@@ -2399,9 +2400,11 @@ public class PlanGenerator {
                 }
 
                 // Cross-list mixed-type: [1,2,3].concatenate(['a','b'])
-                // Each list is homogeneous but they have different element types → need TO_JSON
-                // But skip when either side is empty collection (fold+add desugar with Nil/Any —
-                // empty list is polymorphically compatible with any type)
+                // Each list is homogeneous individually but they have different element types
+                // Wrap individual *elements* in TO_JSON so LIST_CONCAT gets JSON[] on both sides
+                // Only works for Collection nodes (literal arrays) — non-Collection args (e.g.
+                // cast() expressions from fold identity) are left as-is to avoid wrapping the
+                // entire array in TO_JSON which would break LIST_CONCAT (needs arrays, not JSON)
                 TypeInfo leftInfo = unit.typeInfoFor(params.get(0));
                 TypeInfo rightInfo2 = unit.typeInfoFor(params.get(1));
                 boolean leftEmpty = params.get(0) instanceof org.finos.legend.pure.dsl.ast.Collection lc
@@ -2411,10 +2414,14 @@ public class PlanGenerator {
                 if (!leftEmpty && !rightEmpty
                         && leftInfo != null && rightInfo2 != null
                         && leftInfo.scalarType() != null && rightInfo2.scalarType() != null
-                        && !leftInfo.scalarType().equals(rightInfo2.scalarType())) {
-                    // Re-render with TO_JSON wrapping
-                    left = wrapCollectionInToJson(params.get(0), c);
-                    right = wrapCollectionInToJson(params.get(1), c);
+                        && !leftInfo.scalarType().equals(rightInfo2.scalarType())
+                        && params.get(0) instanceof org.finos.legend.pure.dsl.ast.Collection
+                        && params.get(1) instanceof org.finos.legend.pure.dsl.ast.Collection) {
+                    // Both are literal collections with different element types — wrap elements
+                    left = wrapCollectionElementsInToJson(
+                            (org.finos.legend.pure.dsl.ast.Collection) params.get(0), c);
+                    right = wrapCollectionElementsInToJson(
+                            (org.finos.legend.pure.dsl.ast.Collection) params.get(1), c);
                 }
 
                 yield new SqlExpr.FunctionCall("listConcat", List.of(left, right));
@@ -3015,20 +3022,17 @@ public class PlanGenerator {
         }
         return new SqlExpr.ColumnRef(s);
     }
-
     /**
-     * Wraps a collection's elements in toJson() for mixed-type list operations.
-     * Used by concatenate when two lists have different element types.
+     * Wraps individual elements of a Collection in toJson() for cross-type LIST_CONCAT.
+     * Only handles literal Collections — non-Collection args should be left as-is
+     * (wrapping entire arrays in TO_JSON breaks LIST_CONCAT which needs array args).
+     * TODO: Replace with DuckDB 1.5 VARIANT type support.
      */
-    private SqlExpr wrapCollectionInToJson(ValueSpecification vs,
-                                            java.util.function.Function<ValueSpecification, SqlExpr> c) {
-        if (vs instanceof Collection coll) {
-            var wrapped = coll.values().stream()
-                    .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson", List.of(c.apply(v))))
-                    .collect(java.util.stream.Collectors.toList());
-            return new SqlExpr.ArrayLiteral(wrapped);
-        }
-        // Non-collection: wrap the entire expression in toJson
-        return new SqlExpr.FunctionCall("toJson", List.of(c.apply(vs)));
+    private SqlExpr wrapCollectionElementsInToJson(Collection coll,
+                                                    java.util.function.Function<ValueSpecification, SqlExpr> c) {
+        var wrapped = coll.values().stream()
+                .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson", List.of(c.apply(v))))
+                .collect(java.util.stream.Collectors.toList());
+        return new SqlExpr.ArrayLiteral(wrapped);
     }
 }
