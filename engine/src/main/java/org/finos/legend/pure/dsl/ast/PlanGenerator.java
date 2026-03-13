@@ -2428,7 +2428,9 @@ public class PlanGenerator {
             }
             case "take" -> new SqlExpr.FunctionCall("listSlice",
                     List.of(c.apply(params.get(0)), new SqlExpr.NumericLiteral(1),
-                            c.apply(params.get(1))));
+                            new SqlExpr.FunctionCall("greatest", List.of(
+                                    c.apply(params.get(1)),
+                                    new SqlExpr.NumericLiteral(0)))));
             case "drop" -> new SqlExpr.FunctionCall("listSlice",
                     List.of(c.apply(params.get(0)),
                             new SqlExpr.FunctionCall("greatest", List.of(
