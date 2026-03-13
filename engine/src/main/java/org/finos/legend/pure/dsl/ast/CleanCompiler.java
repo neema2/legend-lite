@@ -203,8 +203,9 @@ public class CleanCompiler {
                  "variancePopulation", "covarPopulation",
                  "percentile", "percentileCont", "corr",
                  // --- Misc ---
-                 "pair", "list", "eval",
+                 "pair", "list",
                  "type", "generateGuid" -> compileTypePropagating(af, ctx);
+            case "eval" -> compileEval(af, ctx);
             case "match" -> compileMatch(af, ctx);
             // --- Conditional ---
             case "if" -> compileIf(af, ctx);
@@ -2314,6 +2315,46 @@ public class CleanCompiler {
         TypeInfo blockInfo = TypeInfo.from(result).inlinedBody(lastStmt).build();
         types.put(af, blockInfo);
         return blockInfo;
+    }
+
+    /**
+     * Compiles eval() using the inlinedBody sidecar pattern.
+     * eval(functionRef, arg) → creates AppliedFunction(funcName, [arg]),
+     * compiles it, and stores as inlinedBody so PlanGenerator processes the
+     * resolved function instead of the original eval call.
+     */
+    private TypeInfo compileEval(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        // eval(functionRef, args...) — rewrite to normal function call
+        if (params.size() >= 2 && params.get(0) instanceof PackageableElementPtr ptr) {
+            String fullPath = ptr.fullPath();
+            String lastSegment = fullPath.contains("::")
+                    ? fullPath.substring(fullPath.lastIndexOf("::") + 2)
+                    : fullPath;
+            String funcName = lastSegment.contains("_")
+                    ? lastSegment.substring(0, lastSegment.indexOf('_'))
+                    : lastSegment;
+            // Create resolved function node and compile it
+            List<ValueSpecification> evalArgs = params.subList(1, params.size());
+            AppliedFunction resolved = new AppliedFunction(funcName, evalArgs);
+            TypeInfo bodyResult = compileFunction(resolved, ctx);
+            // Store as inlinedBody — PlanGenerator follows this pointer
+            TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(resolved).build();
+            types.put(af, result);
+            return result;
+        }
+        // eval(lambda, args) — compile lambda body and store as inlinedBody
+        if (params.size() >= 2 && params.get(0) instanceof LambdaFunction lf) {
+            if (!lf.body().isEmpty()) {
+                ValueSpecification body = lf.body().get(0);
+                TypeInfo bodyResult = compileExpr(body, ctx);
+                TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(body).build();
+                types.put(af, result);
+                return result;
+            }
+        }
+        // Fallback: type-propagating
+        return compileTypePropagating(af, ctx);
     }
 
     /** Compiles letFunction('x', valueExpr) — standalone let. */
