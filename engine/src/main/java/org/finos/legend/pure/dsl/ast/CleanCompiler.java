@@ -1661,6 +1661,7 @@ public class CleanCompiler {
                 }
 
                 // function1 = value extraction: x | $x.col or x | $x.a * $x.b
+                String lambdaParam = null;
                 if (cs.function1() != null && !cs.function1().body().isEmpty()) {
                     ValueSpecification body = cs.function1().body().get(0);
                     if (body instanceof AppliedProperty ap) {
@@ -1668,10 +1669,14 @@ public class CleanCompiler {
                     } else {
                         // Complex expression — store AST for PlanGenerator to compile
                         valueExpr = body;
+                        // Store lambda param name so PlanGenerator can identify row accesses
+                        if (!cs.function1().parameters().isEmpty()) {
+                            lambdaParam = cs.function1().parameters().get(0).name();
+                        }
                     }
                 }
 
-                aggregates.add(new TypeInfo.PivotAggSpec(alias, aggFunction, valueColumn, valueExpr));
+                aggregates.add(new TypeInfo.PivotAggSpec(alias, aggFunction, valueColumn, valueExpr, lambdaParam));
             }
         }
 

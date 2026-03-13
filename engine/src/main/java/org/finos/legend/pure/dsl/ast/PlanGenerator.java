@@ -1291,8 +1291,9 @@ public class PlanGenerator {
         for (var agg : spec.aggregates()) {
             String valueExprSql = null;
             if (agg.valueExpr() != null) {
-                // Complex expression — compile to SQL here
-                SqlExpr expr = generateScalar(agg.valueExpr(), null, null, null);
+                // Complex expression — compile to SQL with lambda param as rowParam
+                // so property accesses render as column refs, not struct field access
+                SqlExpr expr = generateScalar(agg.valueExpr(), agg.lambdaParam(), null, null);
                 valueExprSql = expr.toSql(dialect);
             }
             aggregates.add(new SqlBuilder.PivotAggregate(

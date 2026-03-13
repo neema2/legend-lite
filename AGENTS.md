@@ -57,3 +57,4 @@ Parser → Compiler → PlanGenerator → Dialect → Execute
 4. **Adding normalizations instead of fixing root cause** — fix the actual generation
 5. **Adding fallbacks/defaults** — fail loudly; fix the Compiler instead
 6. **Fixing fallbacks by changing the default** — if you find a fallback/default branch being hit, do NOT change what it defaults to. Instead: (a) make it throw, (b) find why the Compiler produced null/missing TypeInfo, (c) fix the Compiler. The fallback existing at all is the bug.
+7. **Taking the "simplest" approach over the correct one** — never extract information from AST in PlanGenerator just because it's easier. If PlanGenerator needs a piece of information (e.g., a lambda parameter name, a resolved type), **add it to the TypeInfo/sidecar record in the Compiler**. The correct approach always respects the side-table invariant: Compiler resolves and stores, PlanGenerator reads and renders.

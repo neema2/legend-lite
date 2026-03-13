@@ -271,12 +271,16 @@ public record TypeInfo(
      * @param aggFunction Aggregate function name (SUM, COUNT, etc.)
      * @param valueColumn Column to aggregate (null if expression)
      * @param valueExpr   Pre-compiled expression AST (null if simple column)
+     * @param lambdaParam Lambda parameter name for valueExpr (null if simple column).
+     *                    PlanGenerator passes this as rowParam so property accesses
+     *                    render as column refs, not struct field access.
      */
     public record PivotAggSpec(
             String alias,
             String aggFunction,
             String valueColumn,
-            ValueSpecification valueExpr) {
+            ValueSpecification valueExpr,
+            String lambdaParam) {
     }
 
     /** Creates a TypeInfo for a scalar (non-relational) expression. */
