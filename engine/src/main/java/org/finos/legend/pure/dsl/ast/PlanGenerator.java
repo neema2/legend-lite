@@ -2416,11 +2416,12 @@ public class PlanGenerator {
                     yield new SqlExpr.FunctionCall("listSlice",
                             List.of(list, new SqlExpr.NumericLiteral(offset), end));
                 }
-                // Dynamic: max(start + 1, 1)
+                // Dynamic: max(start + 1, 1) — clamp to 1 for negative starts
+                SqlExpr startPlus1 = new SqlExpr.Binary(start, "+", new SqlExpr.NumericLiteral(1));
+                SqlExpr clampedStart = new SqlExpr.FunctionCall("GREATEST",
+                        List.of(startPlus1, new SqlExpr.NumericLiteral(1)));
                 yield new SqlExpr.FunctionCall("listSlice",
-                        List.of(list,
-                                new SqlExpr.Binary(start, "+", new SqlExpr.NumericLiteral(1)),
-                                end));
+                        List.of(list, clampedStart, end));
             }
 
             // --- Aggregates (list-context aware) ---
