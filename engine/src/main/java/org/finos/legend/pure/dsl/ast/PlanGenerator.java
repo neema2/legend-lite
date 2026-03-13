@@ -351,9 +351,9 @@ public class PlanGenerator {
         String paramName = lambda.parameters().isEmpty() ? "x" : lambda.parameters().get(0).name();
 
         // Minimize wrapping: if source has a direct FROM table (not a subquery),
-        // we can inline the WHERE clause regardless of whether it's SELECT * or
-        // explicit columns
-        if (!source.hasWhere() && !source.hasGroupBy()
+        // we can inline the WHERE clause. Multiple filters on the same source
+        // are merged into AND conditions in a single WHERE clause.
+        if (!source.hasGroupBy()
                 && !source.hasOrderBy() && source.getFromSubquery() == null
                 && source.getFromTable() != null) {
             // Use table-alias-prefixed scalar so all column refs get t0. prefix
@@ -361,6 +361,15 @@ public class PlanGenerator {
                 throw new PureCompileException("PlanGenerator: source has no FROM alias for filter inlining");
             String tableAlias = unquote(source.getFromAlias());
             SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, mapping, tableAlias);
+            source.addWhere(whereClause);
+            return source;
+        }
+        // Merge consecutive filters: if source is SELECT * FROM subquery with
+        // existing WHERE but no GROUP BY/ORDER BY, just AND the new condition
+        if (source.isSelectStar() && source.hasWhere()
+                && !source.hasGroupBy() && !source.hasOrderBy()
+                && !source.hasWindowColumns()) {
+            SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, mapping);
             source.addWhere(whereClause);
             return source;
         }
