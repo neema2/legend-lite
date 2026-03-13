@@ -247,6 +247,11 @@ public interface SQLDialect {
 
     /** Access a Variant field by key (returns Variant). DuckDB: (expr)->'key' */
     default String renderVariantAccess(String expr, String key) {
+        // Simple identifiers (lambda params) skip inner parens: (i->'key')
+        // Complex expressions get inner parens: (("PAYLOAD")->'key')
+        if (isSimpleIdentifier(expr)) {
+            return "(" + expr + "->" + quoteStringLiteral(key) + ")";
+        }
         return "((" + expr + ")->" + quoteStringLiteral(key) + ")";
     }
 
@@ -257,7 +262,18 @@ public interface SQLDialect {
 
     /** Extract text value from Variant by key (returns string). DuckDB: (expr)->>'key' */
     default String renderVariantTextAccess(String expr, String key) {
+        if (isSimpleIdentifier(expr)) {
+            return "(" + expr + "->>" + quoteStringLiteral(key) + ")";
+        }
         return "((" + expr + ")->>" + quoteStringLiteral(key) + ")";
+    }
+
+    /**
+     * Check if expr is a simple unquoted identifier (e.g. a lambda parameter).
+     * Matches the old pipeline's DuckDBJsonDialect.isSimpleIdentifier logic.
+     */
+    private static boolean isSimpleIdentifier(String expr) {
+        return expr.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
     }
 
     /** Convert a value to Variant. DuckDB: CAST(expr AS JSON) */

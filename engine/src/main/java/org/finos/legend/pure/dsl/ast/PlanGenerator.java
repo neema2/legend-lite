@@ -267,8 +267,9 @@ public class PlanGenerator {
             case "from" -> generateFrom(af);
             case "pivot" -> generatePivot(af);
             case "asOfJoin" -> generateAsOfJoin(af);
+            case "flatten" -> generateFlatten(af);
             // --- Pass-through: source-preserving relational functions ---
-            case "flatten", "toString", "toVariant",
+            case "toString", "toVariant",
                  "eq", "cast", "write", "size",
                  "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" ->
                 generateRelation(af.parameters().get(0));
@@ -306,6 +307,43 @@ public class PlanGenerator {
         return new SqlBuilder()
                 .selectStar()
                 .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier("t0"));
+    }
+
+    // ========== flatten ==========
+
+    /**
+     * Generates UNNEST for flatten(~col).
+     * Reads the column name from compiler's TypeInfo (columnSpecs).
+     * Produces: SELECT * EXCLUDE("col"), UNNEST(CAST("col" AS JSON[])) AS "col" FROM (source) AS t
+     */
+    private SqlBuilder generateFlatten(AppliedFunction af) {
+        List<ValueSpecification> params = af.parameters();
+        SqlBuilder source = generateRelation(params.get(0));
+
+        // Read column name from compiler's TypeInfo — not raw AST
+        TypeInfo info = unit.typeInfoFor(af);
+        if (info == null || info.columnSpecs().isEmpty()) {
+            // No flatten column resolved — pass through
+            return source;
+        }
+        String colName = info.columnSpecs().get(0).columnName();
+        String quotedCol = dialect.quoteIdentifier(colName);
+
+        // Build UNNEST layer: SELECT * EXCLUDE("col"), UNNEST(CAST("col" AS JSON[])) AS "col"
+        //                      FROM (source) AS t
+        SqlBuilder unnestLayer = new SqlBuilder()
+                .selectStar()
+                .addStarExcept(quotedCol)
+                .addSelect(
+                    new SqlExpr.Unnest(new SqlExpr.VariantArrayCast(
+                        new SqlExpr.ColumnRef(colName), "JSON")),
+                    quotedCol)
+                .fromSubquery(source, "t");
+
+        // Wrap in opaque subquery so downstream extend creates a separate layer
+        return new SqlBuilder()
+                .selectStar()
+                .fromSubquery(unnestLayer, "window_src");
     }
 
     // ========== filter ==========
@@ -1535,6 +1573,27 @@ public class PlanGenerator {
                 if (isStringConcat) {
                     yield new SqlExpr.Binary(c.apply(params.get(0)), "||", c.apply(params.get(1)));
                 }
+                // Numeric addition: only valid when compiler confirms numeric types
+                boolean isNumeric = false;
+                for (var p : params) {
+                    TypeInfo pti = unit.types().get(p);
+                    if (pti != null && pti.scalarType() != null && pti.scalarType().isNumeric()) {
+                        isNumeric = true;
+                        break;
+                    }
+                    // Literal numeric types are always arithmetic
+                    if (p instanceof CInteger || p instanceof CFloat || p instanceof CDecimal) {
+                        isNumeric = true;
+                        break;
+                    }
+                }
+                if (!isNumeric) {
+                    throw new PureCompileException(
+                            "plus(): cannot determine type — compiler must tag operands. "
+                            + "Params: " + params.stream()
+                                .map(p -> p.getClass().getSimpleName() + ":" + unit.types().get(p))
+                                .toList());
+                }
                 yield new SqlExpr.Binary(c.apply(params.get(0)), "+", c.apply(params.get(1)));
             }
             case "minus" -> {
@@ -2231,14 +2290,20 @@ public class PlanGenerator {
                                 List.of(c.apply(params.get(0))));
                     }
                 }
-                // Scalar/fallback: inline COUNT
-                yield new SqlExpr.FunctionCall("COUNT",
-                        params.stream().map(c).collect(Collectors.toList()));
+                // No fallback — compiler must type the source. Fix CleanCompiler if this fires.
+                throw new PureCompileException(
+                        "PlanGenerator: size() source has no TypeInfo. Compiler bug — fix CleanCompiler.");
             }
-            case "at" -> new SqlExpr.FunctionCall("listExtract",
+            case "at" -> {
+                // at(0) on a scalar (e.g., struct field p.lastName) is identity — skip LIST_EXTRACT
+                if (!firstArgIsList) {
+                    yield c.apply(params.get(0));
+                }
+                yield new SqlExpr.FunctionCall("listExtract",
                     List.of(c.apply(params.get(0)),
                             new SqlExpr.Binary(c.apply(params.get(1)), "+",
                                     new SqlExpr.Literal("1"))));
+            }
             case "head", "first" -> new SqlExpr.FunctionCall("listExtract",
                     List.of(c.apply(params.get(0)), new SqlExpr.Literal("1")));
             case "last" -> {
@@ -2305,9 +2370,16 @@ public class PlanGenerator {
 
                 // Cross-list mixed-type: [1,2,3].concatenate(['a','b'])
                 // Each list is homogeneous but they have different element types → need TO_JSON
+                // But skip when either side is empty collection (fold+add desugar with Nil/Any —
+                // empty list is polymorphically compatible with any type)
                 TypeInfo leftInfo = unit.typeInfoFor(params.get(0));
                 TypeInfo rightInfo2 = unit.typeInfoFor(params.get(1));
-                if (leftInfo != null && rightInfo2 != null
+                boolean leftEmpty = params.get(0) instanceof org.finos.legend.pure.dsl.ast.Collection lc
+                        && lc.values().isEmpty();
+                boolean rightEmpty = params.get(1) instanceof org.finos.legend.pure.dsl.ast.Collection rc
+                        && rc.values().isEmpty();
+                if (!leftEmpty && !rightEmpty
+                        && leftInfo != null && rightInfo2 != null
                         && leftInfo.scalarType() != null && rightInfo2.scalarType() != null
                         && !leftInfo.scalarType().equals(rightInfo2.scalarType())) {
                     // Re-render with TO_JSON wrapping
@@ -2630,6 +2702,11 @@ public class PlanGenerator {
                 // map(list, {x|body}) → list_transform(list, x -> body)
                 if (params.size() >= 2 && params.get(1) instanceof LambdaFunction mapLf) {
                     SqlExpr list = c.apply(params.get(0));
+                    // If source is a variant (JSON), wrap in CAST(AS JSON[]) for array iteration
+                    TypeInfo sourceInfo = unit.types().get(params.get(0));
+                    if (sourceInfo != null && sourceInfo.scalarType() == GenericType.Primitive.JSON) {
+                        list = new SqlExpr.VariantArrayCast(list, dialect.sqlTypeName("JSON"));
+                    }
                     String elemParam = mapLf.parameters().isEmpty() ? "x"
                             : mapLf.parameters().get(0).name();
                     SqlExpr body = !mapLf.body().isEmpty()

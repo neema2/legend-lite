@@ -56,3 +56,4 @@ Parser → Compiler → PlanGenerator → Dialect → Execute
 3. **Moving dialect logic into PlanGen** — put it in the Dialect, always
 4. **Adding normalizations instead of fixing root cause** — fix the actual generation
 5. **Adding fallbacks/defaults** — fail loudly; fix the Compiler instead
+6. **Fixing fallbacks by changing the default** — if you find a fallback/default branch being hit, do NOT change what it defaults to. Instead: (a) make it throw, (b) find why the Compiler produced null/missing TypeInfo, (c) fix the Compiler. The fallback existing at all is the bug.

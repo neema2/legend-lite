@@ -147,6 +147,7 @@ public class CleanCompiler {
             case "join" -> compileJoin(af, ctx);
             case "asOfJoin" -> compileAsOfJoin(af, ctx);
             case "pivot" -> compilePivot(af, ctx);
+            case "flatten" -> compileFlatten(af, ctx);
             case "from" -> compileFrom(af, ctx);
             // --- Scalar collection functions with lambdas ---
             case "fold" -> compileFold(af, ctx);
@@ -319,6 +320,14 @@ public class CleanCompiler {
         var associations = resolveAssociationsInBody(
                 lambda.body().isEmpty() ? List.of() : lambda.body(),
                 source.mapping());
+
+        // For collection filters, propagate the source's scalar type
+        // (filter on a list returns a list of the same type)
+        if (sourceType == null && source.scalarType() != null) {
+            var info = TypeInfo.scalarOf(source.scalarType());
+            types.put(af, info);
+            return info;
+        }
 
         return typed(af, sourceType, source.mapping(), associations);
     }
@@ -783,6 +792,52 @@ public class CleanCompiler {
                 .mapping(source.mapping()).columnSpecs(colSpecs).build();
         types.put(af, info);
         return info;
+    }
+
+    /**
+     * Compiles flatten(source, ~col).
+     * Output RelationType mirrors source but the flattened column changes type
+     * from list/JSON to its element type. Column name stored in columnSpecs
+     * for PlanGenerator to generate UNNEST.
+     */
+    private TypeInfo compileFlatten(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        TypeInfo source = compileExpr(params.get(0), ctx);
+
+        // Extract column name from second param: ClassInstance(ColSpec)
+        String colName = null;
+        if (params.size() >= 2) {
+            List<String> names = extractColumnNames(params.get(1));
+            if (!names.isEmpty()) {
+                colName = names.get(0);
+            }
+        }
+        if (colName == null) {
+            // No column specified — pass through source type
+            types.put(af, source);
+            return source;
+        }
+
+        RelationType sourceType = source.relationType();
+        if (sourceType != null && !sourceType.columns().containsKey(colName)) {
+            throw new PureCompileException(
+                    "flatten(): column '" + colName + "' not found in source. Available: "
+                            + sourceType.columns().keySet());
+        }
+
+        // Compute output RelationType: same as source, but flattened column
+        // changes from list/JSON to element type (JSON for variant arrays)
+        Map<String, GenericType> resultColumns = new LinkedHashMap<>(
+                sourceType != null ? sourceType.columns() : Map.of());
+        resultColumns.put(colName, GenericType.Primitive.JSON);
+
+        var flattenInfo = TypeInfo.builder()
+                .relationType(new RelationType(resultColumns))
+                .mapping(source.mapping())
+                .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
+                .build();
+        types.put(af, flattenInfo);
+        return flattenInfo;
     }
 
     /**
@@ -1657,13 +1712,15 @@ public class CleanCompiler {
     /** Compiles fold(list, {x,y|body}, init). */
     private TypeInfo compileFold(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        // Compile all params — lambda bodies get walked via compileLambda
-        for (var p : params) {
-            compileExpr(p, ctx);
-        }
-        // Detect fold+add pattern: fold(source, {val,acc|$acc->add($val)}, init)
-        // Desugar to concatenate(init, source) so PlanGenerator emits LIST_CONCAT
-        if (params.size() >= 3 && params.get(1) instanceof LambdaFunction lf) {
+        if (params.size() < 3) return scalar(af);
+
+        // 1. Compile source and init
+        TypeInfo sourceInfo = compileExpr(params.get(0), ctx);
+        compileExpr(params.get(2), ctx);
+
+        // 2. Register fold lambda params: {elem, acc | body}
+        if (params.get(1) instanceof LambdaFunction lf) {
+            // Detect fold+add pattern before full lambda compilation
             if (isFoldAddPattern(lf)) {
                 // Build synthetic: concatenate(init, source)
                 var concat = new AppliedFunction("concatenate",
@@ -1673,6 +1730,33 @@ public class CleanCompiler {
                 var info = TypeInfo.from(types.get(concat)).inlinedBody(concat).build();
                 types.put(af, info);
                 return info;
+            }
+
+            // Determine element type from source
+            GenericType elemType = GenericType.Primitive.ANY;
+            if (sourceInfo != null && sourceInfo.isList()
+                    && sourceInfo.scalarType().elementType() != null) {
+                elemType = sourceInfo.scalarType().elementType();
+            }
+
+            // Register both lambda params
+            CompilationContext lambdaCtx = ctx;
+            if (lf.parameters().size() >= 1) {
+                String elemParam = lf.parameters().get(0).name();
+                lambdaCtx = lambdaCtx.withLambdaParam(elemParam, elemType);
+            }
+            if (lf.parameters().size() >= 2) {
+                String accParam = lf.parameters().get(1).name();
+                // Accumulator type comes from the init value
+                TypeInfo initInfo = types.get(params.get(2));
+                GenericType accType = initInfo != null && initInfo.scalarType() != null
+                        ? initInfo.scalarType() : GenericType.Primitive.ANY;
+                lambdaCtx = lambdaCtx.withLambdaParam(accParam, accType);
+            }
+
+            // Compile body with params in scope
+            if (!lf.body().isEmpty()) {
+                compileExpr(lf.body().get(0), lambdaCtx);
             }
         }
         return scalar(af);
@@ -1830,24 +1914,50 @@ public class CleanCompiler {
     /** Compiles map(source, {x|body}). */
     private TypeInfo compileMap(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            compileExpr(p, ctx);
+        if (params.isEmpty()) return scalar(af);
+
+        // 1. Compile source
+        TypeInfo sourceInfo = compileExpr(params.get(0), ctx);
+
+        // 2. Determine element type for the lambda param
+        GenericType elemType = GenericType.Primitive.ANY;
+        boolean isVariantArray = false;
+        if (sourceInfo != null && sourceInfo.isList()
+                && sourceInfo.scalarType().elementType() != null) {
+            elemType = sourceInfo.scalarType().elementType();
+        } else if (sourceInfo != null
+                && sourceInfo.scalarType() == GenericType.Primitive.JSON) {
+            // Variant array iteration: map on JSON treats source as JSON[]
+            elemType = GenericType.Primitive.JSON;
+            isVariantArray = true;
         }
-        // map(list, lambda) produces a list — propagate list type from source
-        if (!params.isEmpty()) {
-            TypeInfo sourceInfo = types.get(params.get(0));
-            if (sourceInfo != null && sourceInfo.isList()) {
-                // Infer element type from lambda body if possible
-                GenericType elemType = GenericType.Primitive.ANY;
-                if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf
-                        && !lf.body().isEmpty()) {
-                    TypeInfo bodyInfo = types.get(lf.body().get(0));
-                    if (bodyInfo != null && bodyInfo.scalarType() != null) {
-                        elemType = bodyInfo.scalarType();
-                    }
-                }
-                return scalarTyped(af, GenericType.listOf(elemType));
+
+        // 3. Register lambda param and compile body with proper context
+        if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf) {
+            CompilationContext lambdaCtx = ctx;
+            if (!lf.parameters().isEmpty()) {
+                String paramName = lf.parameters().get(0).name();
+                lambdaCtx = ctx.withLambdaParam(paramName, elemType);
             }
+            // Compile the lambda body with the param in scope
+            if (!lf.body().isEmpty()) {
+                compileExpr(lf.body().get(0), lambdaCtx);
+            }
+        }
+
+        // 4. Infer result type
+        GenericType resultElemType = GenericType.Primitive.ANY;
+        if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf
+                && !lf.body().isEmpty()) {
+            TypeInfo bodyInfo = types.get(lf.body().get(0));
+            if (bodyInfo != null && bodyInfo.scalarType() != null) {
+                resultElemType = bodyInfo.scalarType();
+            }
+        }
+
+        if (sourceInfo != null && (sourceInfo.isList() || isVariantArray)) {
+            var result = scalarTyped(af, GenericType.listOf(resultElemType));
+            return result;
         }
         return scalar(af);
     }
@@ -2000,8 +2110,13 @@ public class CleanCompiler {
     /** Compiles variant get(source, key) — resolves access pattern (index vs field). */
     private TypeInfo compileGet(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        // NOTE: params are already compiled by the caller (compileExpr dispatch
-        // or typeCheckExpression). We only resolve the access annotation here.
+        // Compile params that don't already have TypeInfo (avoid overwriting lambda param info)
+        for (var p : params) {
+            if (types.get(p) == null) {
+                try { compileExpr(p, ctx); }
+                catch (PureCompileException ignored) { }
+            }
+        }
 
         // Resolve access pattern from key argument
         TypeInfo.VariantAccess access = null;
@@ -2016,15 +2131,16 @@ public class CleanCompiler {
 
         // Resolve target type from @Type annotation (3rd param)
         GenericType targetType = null;
-        for (var p : params) {
-            if (p instanceof GenericTypeInstance gti) {
+        for (var pi : params) {
+            if (pi instanceof GenericTypeInstance gti) {
                 targetType = GenericType.fromTypeName(simpleName(gti.fullPath()));
                 break;
             }
         }
 
         var builder = TypeInfo.builder();
-        if (targetType != null) builder.scalarType(targetType);
+        // get() always returns a variant — default to JSON if no @Type annotation
+        builder.scalarType(targetType != null ? targetType : GenericType.Primitive.JSON);
         if (access != null) builder.variantAccess(access);
         TypeInfo info = builder.build();
         types.put(af, info);
@@ -2466,8 +2582,10 @@ public class CleanCompiler {
                 }
                 // List-preserving functions: propagate source list type through
                 // filter/sort/reverse produce same list type, map may transform element type
-                if (("filter".equals(simple) || "sort".equals(simple)
-                        || "reverse".equals(simple) || "map".equals(simple))
+                // Only set if not already computed by dedicated compile methods (avoids overwrite)
+                if (types.get(af) == null
+                        && ("filter".equals(simple) || "sort".equals(simple)
+                            || "reverse".equals(simple) || "map".equals(simple))
                         && !af.parameters().isEmpty()) {
                     TypeInfo sourceType = types.get(af.parameters().get(0));
                     if (sourceType != null) {
@@ -3091,6 +3209,34 @@ public class CleanCompiler {
                     return scalarTyped(ap, colType);
                 }
             }
+            // Lambda param with ClassType: resolve field type from model context
+            GenericType paramType = ctx.getLambdaParamType(v.name());
+            if (paramType instanceof GenericType.ClassType ct && modelContext != null) {
+                var classOpt = modelContext.findClass(ct.qualifiedName());
+                if (classOpt.isPresent()) {
+                    var propOpt = classOpt.get().findProperty(ap.property());
+                    if (propOpt.isPresent()) {
+                        GenericType fieldType = GenericType.fromType(propOpt.get().genericType());
+                        return scalarTyped(ap, fieldType);
+                    }
+                }
+            }
+        }
+        // .prop on a list-producing function is sugar for ->map(_x | _x.prop)
+        // Desugar by building a synthetic map node and pointing via inlinedBody
+        if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedFunction ownerFn) {
+            TypeInfo ownerInfo = compileExpr(ownerFn, ctx);
+            if (ownerInfo != null && ownerInfo.isList()) {
+                var propVar = new Variable("_prop_x");
+                var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
+                var lambda = new LambdaFunction(List.of(propVar), propAccess);
+                var mapNode = new AppliedFunction("map", List.of(ownerFn, lambda));
+                TypeInfo mapInfo = compileExpr(mapNode, ctx);
+                // Point original property node → synthetic map via inlinedBody
+                var info = TypeInfo.from(mapInfo).inlinedBody(mapNode).build();
+                types.put(ap, info);
+                return info;
+            }
         }
         return scalar(ap);
     }
@@ -3125,6 +3271,9 @@ public class CleanCompiler {
             case CStrictTime st -> GenericType.Primitive.STRICT_TIME;
             case CLatestDate ld -> GenericType.Primitive.DATE_TIME;
             case Collection c -> GenericType.listOf(unifyElementType(c.values()));
+            case ClassInstance ci when "instance".equals(ci.type())
+                    && ci.value() instanceof CleanAstBuilder.InstanceData data ->
+                new GenericType.ClassType(data.className());
             default -> GenericType.Primitive.ANY;
         };
     }
