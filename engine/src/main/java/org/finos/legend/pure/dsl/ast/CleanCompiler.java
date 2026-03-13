@@ -1059,7 +1059,11 @@ public class CleanCompiler {
             }
         }
 
-        // Also type-check ColSpecArray lambda bodies (multi-column extend)
+        // Also type-check and resolve window specs for ColSpecArray (multi-column extend)
+        List<TypeInfo.WindowFunctionSpec> allWindowSpecs = new ArrayList<>();
+        if (windowSpec != null) {
+            allWindowSpecs.add(windowSpec);
+        }
         for (int i = 1; i < params.size(); i++) {
             if (params.get(i) instanceof ClassInstance ci
                     && ci.value() instanceof ColSpecArray csa && sourceType != null) {
@@ -1072,13 +1076,30 @@ public class CleanCompiler {
                             typeCheckExpression(lambda.body().get(0), lambdaCtx);
                         }
                     }
+                    // Resolve window spec if this ColSpec has function2 (aggregate lambda)
+                    if (cs.function2() != null) {
+                        // Use the same overSpec (partition/order) for all columns in the array
+                        List<String> partBy = new ArrayList<>();
+                        List<TypeInfo.SortSpec> ordBy = new ArrayList<>();
+                        TypeInfo.FrameSpec fr = null;
+                        if (overSpec != null) {
+                            var overResult = resolveOverClause(overSpec);
+                            partBy = overResult.partitionBy;
+                            ordBy = overResult.orderBy;
+                            fr = overResult.frame;
+                        }
+                        TypeInfo.WindowFunctionSpec ws = resolveWindowFunc(cs, partBy, ordBy, fr, cs.name());
+                        if (ws != null) {
+                            allWindowSpecs.add(ws);
+                        }
+                    }
                 }
             }
         }
 
         var info = TypeInfo.builder().relationType(new RelationType(newColumns))
                 .mapping(source.mapping())
-                .windowSpecs(windowSpec != null ? List.of(windowSpec) : List.of()).build();
+                .windowSpecs(allWindowSpecs).build();
         types.put(af, info);
         return info;
     }
