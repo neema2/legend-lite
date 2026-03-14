@@ -560,4 +560,12 @@ public sealed interface SqlExpr {
             return dialect.renderVariantScalarCast(expr.toSql(dialect), sqlType);
         }
     }
+
+    /** Cast a value to VARIANT type for type preservation. DuckDB 1.5: expr::VARIANT */
+    record VariantCast(SqlExpr expr) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return expr.toSql(dialect) + "::VARIANT";
+        }
+    }
 }

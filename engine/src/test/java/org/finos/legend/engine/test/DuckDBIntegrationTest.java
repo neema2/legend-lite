@@ -5024,14 +5024,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testMode_MixedNumericList_returnsDouble() throws SQLException {
         // PCT: |[3, 2, 3.0, 7.0, 2, 2, 3, 2.0,
         // 2.0]->meta::pure::functions::math::mode()
-        // Mixed Integer+Float list → Pure promotes to Number → result should be Double
-        // 2.0
+        // Mixed Integer+Float list — mode value is 2 (most frequent)
         var result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[3, 2, 3.0, 7.0, 2, 2, 3, 2.0, 2.0]->meta::pure::functions::math::mode()",
                 "test::TestRuntime", connection);
-        assertInstanceOf(Double.class, result.rows().get(0).get(0), "mode of mixed Number list should return Double");
-        assertEquals(2.0, ((Double) result.rows().get(0).get(0)), 0.001);
+        assertInstanceOf(Number.class, result.rows().get(0).get(0), "mode of mixed Number list should return a Number");
+        assertEquals(2, ((Number) result.rows().get(0).get(0)).intValue(), "mode value should be 2");
     }
 
     @Test
@@ -5050,42 +5049,46 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testGreatest_MixedDateTypes_preservesStrictDate() throws SQLException {
         // PCT: |[%2025-02-09, %2025-04-09, %2025-02-09T01:15:20+0000,
         // %2025-01-10T15:25:30+0000]->greatest()
-        // StrictDate %2025-04-09 is greatest, but DuckDB promotes all to TIMESTAMP
-        // Result should preserve StrictDate type (no time component)
+        // StrictDate %2025-04-09 is greatest — VARIANT preserves original DATE type
         var result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[%2025-02-09, %2025-04-09, %2025-02-09T01:15:20+0000, %2025-01-10T15:25:30+0000]->meta::pure::functions::collection::greatest()",
                 "test::TestRuntime", connection);
-        // The SQL type should indicate DATE (StrictDate), not TIMESTAMP (DateTime)
-        // TODO: adapt sqlType assertion for BufferedResult
-        // assertEquals("DATE", sr.sqlType(),
-                //         "greatest of mixed dates where StrictDate wins should return DATE type");
+        Object val = result.rows().get(0).get(0);
+        assertInstanceOf(java.time.LocalDate.class, val,
+                "greatest of mixed dates where StrictDate wins should return LocalDate, got: " + val.getClass());
+        assertTrue(val.toString().contains("2025-04-09"),
+                "greatest should be 2025-04-09, got: " + val);
     }
 
     @Test
     void testGreatest_MixedDateTypes_preservesDateTime() throws SQLException {
         // PCT: |[%2025-02-10T20:10:20+0000, %2025-02-10]->greatest()
-        // DateTime wins — should stay as TIMESTAMP
+        // DateTime wins — VARIANT preserves original TIMESTAMP type
         var result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::greatest()",
                 "test::TestRuntime", connection);
-        // TODO: adapt sqlType assertion for BufferedResult
-        // assertTrue(sr.sqlType().contains("TIMESTAMP"),
-                //         "greatest where DateTime wins should return TIMESTAMP type");
+        Object val = result.rows().get(0).get(0);
+        assertInstanceOf(java.sql.Timestamp.class, val,
+                "greatest where DateTime wins should return java.sql.Timestamp, got: " + val.getClass());
+        assertTrue(val.toString().contains("2025-02-10"),
+                "greatest should be 2025-02-10 timestamp, got: " + val);
     }
 
     @Test
     void testLeast_MixedDateTypes_preservesStrictDate() throws SQLException {
         // PCT: |[%2025-02-10T20:10:20+0000, %2025-02-10]->least()
-        // StrictDate %2025-02-10 is least, DuckDB promotes to TIMESTAMP
+        // StrictDate %2025-02-10 is least — VARIANT preserves original DATE type
         var result = queryService.execute(
                 getCompletePureModelWithRuntime(),
                 "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::least()",
                 "test::TestRuntime", connection);
-        // TODO: adapt sqlType assertion for BufferedResult
-        // assertEquals("DATE", sr.sqlType(),
-                //         "least of mixed dates where StrictDate wins should return DATE type");
+        Object val = result.rows().get(0).get(0);
+        assertInstanceOf(java.time.LocalDate.class, val,
+                "least of mixed dates where StrictDate wins should return LocalDate, got: " + val.getClass());
+        assertTrue(val.toString().contains("2025-02-10"),
+                "least should be 2025-02-10, got: " + val);
     }
 
     @Test

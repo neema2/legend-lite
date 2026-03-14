@@ -1509,13 +1509,14 @@ public class PlanGenerator {
                 var exprs = coll.values().stream()
                         .map(v -> generateScalar(v, rowParam, mapping, tableAlias))
                         .collect(Collectors.toList());
-                // Mixed-type lists need TO_JSON wrapping for DuckDB variant handling
+                // Heterogeneous lists (List<Number>, List<Date>) wrap each element with
+                // ::VARIANT to preserve original types through DuckDB operations.
                 TypeInfo collInfo = unit.typeInfoFor(coll);
-                if (collInfo != null && collInfo.isMixedList()
+                if (collInfo != null && collInfo.isHeterogeneousList()
                         && !coll.values().isEmpty()
                         && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
                     exprs = exprs.stream()
-                            .map(e -> (SqlExpr) new SqlExpr.FunctionCall("toJson", List.of(e)))
+                            .map(e -> (SqlExpr) new SqlExpr.VariantCast(e))
                             .collect(Collectors.toList());
                 }
                 yield new SqlExpr.ArrayLiteral(exprs);
@@ -2509,32 +2510,80 @@ public class PlanGenerator {
                 yield new SqlExpr.Cast(c.apply(params.get(0)), "Double"); // scalar cast
             }
             case "min" -> {
-                if (params.size() > 1)
+                if (params.size() > 1) {
+                    // Two-arg min(a, b): when types differ, use VARIANT subquery
+                    TypeInfo p0Info = unit.typeInfoFor(params.get(0));
+                    TypeInfo p1Info = unit.typeInfoFor(params.get(1));
+                    if (p0Info != null && p1Info != null
+                            && p0Info.scalarType() != null && p1Info.scalarType() != null
+                            && !p0Info.scalarType().equals(p1Info.scalarType())
+                            && (p0Info.scalarType().isNumeric() && p1Info.scalarType().isNumeric())) {
+                        yield buildVariantMinMaxSubquery(
+                                params.stream().map(c).collect(Collectors.toList()), false, false);
+                    }
                     yield new SqlExpr.FunctionCall("LEAST",
                             params.stream().map(c).collect(Collectors.toList()));
-                if (firstArgIsList)
+                }
+                if (firstArgIsList) {
+                    TypeInfo listInfo = unit.typeInfoFor(params.get(0));
+                    if (listInfo != null && listInfo.isHeterogeneousList()) {
+                        yield buildVariantMinMaxSubquery(
+                                List.of(c.apply(params.get(0))), false, listInfo.isDateList());
+                    }
                     yield new SqlExpr.FunctionCall("listMin", List.of(c.apply(params.get(0))));
+                }
                 yield c.apply(params.get(0)); // scalar identity
             }
             case "max" -> {
-                if (params.size() > 1)
+                if (params.size() > 1) {
+                    // Two-arg max(a, b): when types differ, use VARIANT subquery
+                    TypeInfo p0Info = unit.typeInfoFor(params.get(0));
+                    TypeInfo p1Info = unit.typeInfoFor(params.get(1));
+                    if (p0Info != null && p1Info != null
+                            && p0Info.scalarType() != null && p1Info.scalarType() != null
+                            && !p0Info.scalarType().equals(p1Info.scalarType())
+                            && (p0Info.scalarType().isNumeric() && p1Info.scalarType().isNumeric())) {
+                        yield buildVariantMinMaxSubquery(
+                                params.stream().map(c).collect(Collectors.toList()), true, false);
+                    }
                     yield new SqlExpr.FunctionCall("GREATEST",
                             params.stream().map(c).collect(Collectors.toList()));
-                if (firstArgIsList)
+                }
+                if (firstArgIsList) {
+                    TypeInfo listInfo = unit.typeInfoFor(params.get(0));
+                    if (listInfo != null && listInfo.isHeterogeneousList()) {
+                        yield buildVariantMinMaxSubquery(
+                                List.of(c.apply(params.get(0))), true, listInfo.isDateList());
+                    }
                     yield new SqlExpr.FunctionCall("listMax", List.of(c.apply(params.get(0))));
+                }
                 yield c.apply(params.get(0)); // scalar identity
             }
             case "greatest" -> {
-                if (firstArgIsList) yield new SqlExpr.FunctionCall("listMax",
-                        params.stream().map(c).collect(Collectors.toList()));
+                if (firstArgIsList) {
+                    TypeInfo listInfo = unit.typeInfoFor(params.get(0));
+                    if (listInfo != null && listInfo.isHeterogeneousList()) {
+                        yield buildVariantMinMaxSubquery(
+                                List.of(c.apply(params.get(0))), true, listInfo.isDateList());
+                    }
+                    yield new SqlExpr.FunctionCall("listMax",
+                            params.stream().map(c).collect(Collectors.toList()));
+                }
                 // Single scalar: greatest(x) = x (identity)
                 if (params.size() == 1) yield c.apply(params.get(0));
                 yield new SqlExpr.FunctionCall("GREATEST",
                         params.stream().map(c).collect(Collectors.toList()));
             }
             case "least" -> {
-                if (firstArgIsList) yield new SqlExpr.FunctionCall("listMin",
-                        params.stream().map(c).collect(Collectors.toList()));
+                if (firstArgIsList) {
+                    TypeInfo listInfo = unit.typeInfoFor(params.get(0));
+                    if (listInfo != null && listInfo.isHeterogeneousList()) {
+                        yield buildVariantMinMaxSubquery(
+                                List.of(c.apply(params.get(0))), false, listInfo.isDateList());
+                    }
+                    yield new SqlExpr.FunctionCall("listMin",
+                            params.stream().map(c).collect(Collectors.toList()));
+                }
                 // Single scalar: least(x) = x (identity)
                 if (params.size() == 1) yield c.apply(params.get(0));
                 yield new SqlExpr.FunctionCall("LEAST",
@@ -3066,7 +3115,6 @@ public class PlanGenerator {
      * Wraps individual elements of a Collection in toJson() for cross-type LIST_CONCAT.
      * Only handles literal Collections — non-Collection args should be left as-is
      * (wrapping entire arrays in TO_JSON breaks LIST_CONCAT which needs array args).
-     * TODO: Replace with DuckDB 1.5 VARIANT type support.
      */
     private SqlExpr wrapCollectionElementsInToJson(Collection coll,
                                                     java.util.function.Function<ValueSpecification, SqlExpr> c) {
@@ -3074,5 +3122,47 @@ public class PlanGenerator {
                 .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson", List.of(c.apply(v))))
                 .collect(java.util.stream.Collectors.toList());
         return new SqlExpr.ArrayLiteral(wrapped);
+    }
+
+    /**
+     * Builds a structural subquery for type-preserving min/max on VARIANT lists.
+     * The generated SQL pattern:
+     *   (SELECT "_v" FROM (SELECT UNNEST(array) AS "_v") AS "_vt"
+     *    ORDER BY CAST("_v" AS DOUBLE|TIMESTAMP) DESC|ASC LIMIT 1)
+     *
+     * Each element in the array should already be ::VARIANT cast (done by Collection rendering).
+     * This preserves the winning element's original type through JDBC.
+     *
+     * @param elements  List of SqlExpr — either a single array expr, or multiple scalar values
+     * @param isMax     true for greatest/max (DESC), false for least/min (ASC)
+     * @param isDate    true if comparison should use TIMESTAMP cast, false for DOUBLE
+     */
+    private SqlExpr buildVariantMinMaxSubquery(List<SqlExpr> elements, boolean isMax, boolean isDate) {
+        // If multiple scalar elements (two-arg max/min), wrap each in VARIANT and build array
+        SqlExpr arrayExpr;
+        if (elements.size() > 1) {
+            var variantElements = elements.stream()
+                    .map(e -> (SqlExpr) new SqlExpr.VariantCast(e))
+                    .collect(Collectors.toList());
+            arrayExpr = new SqlExpr.ArrayLiteral(variantElements);
+        } else {
+            arrayExpr = elements.get(0);
+        }
+
+        // Inner: SELECT UNNEST(array) AS "_v"
+        SqlBuilder inner = new SqlBuilder();
+        inner.addSelect(new SqlExpr.Unnest(arrayExpr), "\"_v\"");
+
+        // Outer: SELECT "_v" FROM (inner) ORDER BY CAST("_v" AS DOUBLE|TIMESTAMP) LIMIT 1
+        String castType = isDate ? "DateTime" : "Double";
+        SqlBuilder outer = new SqlBuilder();
+        outer.addSelect(new SqlExpr.ColumnRef("_v"), null);
+        outer.fromSubquery(inner, "\"_vt\"");
+        outer.addOrderBy(
+                new SqlExpr.Cast(new SqlExpr.ColumnRef("_v"), castType),
+                isMax ? SqlBuilder.SortDirection.DESC : SqlBuilder.SortDirection.ASC);
+        outer.limit(1);
+
+        return new SqlExpr.Subquery(outer);
     }
 }

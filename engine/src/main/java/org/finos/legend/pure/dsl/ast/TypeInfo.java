@@ -438,6 +438,25 @@ public record TypeInfo(
                 && scalarType.elementType() == GenericType.Primitive.ANY;
     }
 
+    /**
+     * True if this is a List with heterogeneous elements that need VARIANT wrapping
+     * for type preservation. Matches List&lt;Number&gt; (Integer+Float/Decimal) and
+     * List&lt;Date&gt; (StrictDate+DateTime).
+     */
+    public boolean isHeterogeneousList() {
+        if (scalarType == null || !scalarType.isList()) return false;
+        GenericType elem = scalarType.elementType();
+        return elem == GenericType.Primitive.NUMBER
+                || elem == GenericType.Primitive.DATE
+                || elem == GenericType.Primitive.ANY;
+    }
+
+    /** True if this is a heterogeneous list of date/temporal types (List&lt;Date&gt;). */
+    public boolean isDateList() {
+        return scalarType != null && scalarType.isList()
+                && scalarType.elementType() == GenericType.Primitive.DATE;
+    }
+
     /** True if this node has pre-resolved association targets. */
     public boolean hasAssociations() {
         return associations != null && !associations.isEmpty();
