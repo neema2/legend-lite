@@ -964,6 +964,7 @@ public class PlanGenerator {
                 if (aggFunc == null)
                     throw new PureCompileException("PlanGenerator: unknown aggregate function '" + cs.aggFunction() + "'");
                 SqlExpr expr = buildAggExpr(aggFunc, cs);
+                if (cs.hasCast()) expr = new SqlExpr.Cast(expr, cs.castType());
                 builder.addSelect(expr, dialect.quoteIdentifier(cs.alias()));
             }
         }
@@ -1019,6 +1020,7 @@ public class PlanGenerator {
             if (aggFunc == null)
                 throw new PureCompileException("PlanGenerator: unknown aggregate function '" + cs.aggFunction() + "'");
             SqlExpr expr = buildAggExpr(aggFunc, cs);
+            if (cs.hasCast()) expr = new SqlExpr.Cast(expr, cs.castType());
             builder.addSelect(expr, dialect.quoteIdentifier(cs.alias()));
         }
 
@@ -1070,9 +1072,17 @@ public class PlanGenerator {
                         wrapperArgs.add(parseExtraArg(arg));
                     }
                     SqlExpr wrappedExpr = new SqlExpr.FunctionCall(sqlWrapper, wrapperArgs);
+                    if (ws.hasCast()) wrappedExpr = new SqlExpr.Cast(wrappedExpr, ws.castType());
                     b.addWindowColumn(wrappedExpr, null, quotedAlias);
                 } else {
-                    b.addWindowColumn(windowFunc, windowSpec, quotedAlias);
+                    SqlExpr windowExpr = ws.hasCast()
+                            ? new SqlExpr.Cast(new SqlExpr.WindowFunction(windowFunc, windowSpec), ws.castType())
+                            : windowFunc;
+                    if (ws.hasCast()) {
+                        b.addWindowColumn(windowExpr, null, quotedAlias);
+                    } else {
+                        b.addWindowColumn(windowFunc, windowSpec, quotedAlias);
+                    }
                 }
             }
             return b;

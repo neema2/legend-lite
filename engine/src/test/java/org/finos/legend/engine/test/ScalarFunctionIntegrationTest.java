@@ -526,4 +526,212 @@ public class ScalarFunctionIntegrationTest extends AbstractDatabaseTest {
         BufferedResult result = executeRelation("|[1, 2, 2, 3, 3, 3]->removeDuplicates()");
         assertNotNull(result.rows().get(0).get(0));
     }
+
+    // ==================== PCT: testGroupByCastAfterAgg ====================
+    // Pure: groupBy(~grp, ~newCol:x|$x.id:x|$x->plus()->cast(@Integer))
+    // Cast wraps the aggregate result: CAST(SUM(id) AS BIGINT)
+
+    @Test
+    @DisplayName("PCT: testGroupByCastAfterAgg")
+    void testPctRelationGroupByCastAfterAgg() throws SQLException {
+        BufferedResult result = executeRelation(
+            "|#TDS\n" +
+            "id, grp\n" +
+            "                1, 2\n" +
+            "                2, 1\n" +
+            "                3, 3\n" +
+            "                4, 4\n" +
+            "                5, 2\n" +
+            "                6, 1\n" +
+            "                7, 3\n" +
+            "                8, 1\n" +
+            "                9, 5\n" +
+            "                10, 0\n" +
+            "#->meta::pure::functions::relation::groupBy(~grp, ~newCol:x: (id:Integer, grp:Integer)[1]|$x.id:x: Integer[*]|meta::pure::functions::lang::cast($x->plus(), @Integer))" +
+            "->meta::pure::functions::relation::sort(meta::pure::functions::relation::ascending(~grp))");
+        // PCT expected (sorted by grp asc): grp=0→10, 1→16, 2→6, 3→10, 4→4, 5→9
+        assertEquals(6, result.rows().size());
+        assertEquals(10L, ((Number) result.getValue(0, "newCol")).longValue());  // grp=0
+        assertEquals(16L, ((Number) result.getValue(1, "newCol")).longValue());  // grp=1
+        assertEquals(6L, ((Number) result.getValue(2, "newCol")).longValue());   // grp=2
+        assertEquals(10L, ((Number) result.getValue(3, "newCol")).longValue());  // grp=3
+        assertEquals(4L, ((Number) result.getValue(4, "newCol")).longValue());   // grp=4
+        assertEquals(9L, ((Number) result.getValue(5, "newCol")).longValue());   // grp=5
+    }
+
+    // ==================== PCT: testGroupByCastBeforeAgg ====================
+    // Pure: groupBy(~grp, ~newCol:x|$x.id:x|$x->cast(@Integer)->plus())
+    // Cast is on the column before aggregation — treated as noop for Integer->Integer
+
+    @Test
+    @DisplayName("PCT: testGroupByCastBeforeAgg")
+    void testPctRelationGroupByCastBeforeAgg() throws SQLException {
+        BufferedResult result = executeRelation(
+            "|#TDS\n" +
+            "id, grp\n" +
+            "                1, 2\n" +
+            "                2, 1\n" +
+            "                3, 3\n" +
+            "                4, 4\n" +
+            "                5, 2\n" +
+            "                6, 1\n" +
+            "                7, 3\n" +
+            "                8, 1\n" +
+            "                9, 5\n" +
+            "                10, 0\n" +
+            "#->meta::pure::functions::relation::groupBy(~grp, ~newCol:x: (id:Integer, grp:Integer)[1]|$x.id:x: Integer[*]|meta::pure::functions::lang::cast($x->plus(), @Integer))" +
+            "->meta::pure::functions::relation::sort(meta::pure::functions::relation::ascending(~grp))");
+        // Same expected values: cast before agg is a noop for Integer->Integer
+        assertEquals(6, result.rows().size());
+        assertEquals(10L, ((Number) result.getValue(0, "newCol")).longValue());  // grp=0
+        assertEquals(16L, ((Number) result.getValue(1, "newCol")).longValue());  // grp=1
+        assertEquals(6L, ((Number) result.getValue(2, "newCol")).longValue());   // grp=2
+        assertEquals(10L, ((Number) result.getValue(3, "newCol")).longValue());  // grp=3
+        assertEquals(4L, ((Number) result.getValue(4, "newCol")).longValue());   // grp=4
+        assertEquals(9L, ((Number) result.getValue(5, "newCol")).longValue());   // grp=5
+    }
+
+    // ==================== PCT: testOLAPCastAggWithPartitionWindow ====================
+    // Pure: extend(over(~grp), ~newCol:{p,w,r|$r.id}:y|$y->plus()->cast(@Integer))
+    // Window SUM with cast wrapping result
+
+    @Test
+    @DisplayName("PCT: testOLAPCastAggWithPartitionWindow")
+    void testPctRelationOLAPCastAggWithPartitionWindow() throws SQLException {
+        BufferedResult result = executeRelation(
+            "|#TDS\n" +
+            "id, grp, name\n" +
+            "                  1, 2, A\n" +
+            "                  2, 1, B\n" +
+            "                  3, 3, C\n" +
+            "                  4, 4, D\n" +
+            "                  5, 2, E\n" +
+            "                  6, 1, F\n" +
+            "                  7, 3, G\n" +
+            "                  8, 1, H\n" +
+            "                  9, 5, I\n" +
+            "                  10, 0, J\n" +
+            "#->meta::pure::functions::relation::extend(~grp->meta::pure::functions::relation::over(), ~newCol:{p: meta::pure::metamodel::relation::Relation<(id:Integer, grp:Integer, name:String)>[1], w: meta::pure::functions::relation::_Window<(id:Integer, grp:Integer, name:String)>[1], r: (id:Integer, grp:Integer, name:String)[1]|$r.id}:y: Integer[*]|meta::pure::functions::lang::cast($y->plus(), @Integer))" +
+            "->meta::pure::functions::relation::sort([meta::pure::functions::relation::ascending(~grp), meta::pure::functions::relation::ascending(~id)])");
+        // PCT expected (sorted by grp asc, id asc):
+        assertEquals(10, result.rows().size());
+        assertEquals(10L, ((Number) result.getValue(0, "newCol")).longValue());  // id=10, grp=0
+        assertEquals(16L, ((Number) result.getValue(1, "newCol")).longValue());  // id=2,  grp=1
+        assertEquals(16L, ((Number) result.getValue(2, "newCol")).longValue());  // id=6,  grp=1
+        assertEquals(16L, ((Number) result.getValue(3, "newCol")).longValue());  // id=8,  grp=1
+        assertEquals(6L, ((Number) result.getValue(4, "newCol")).longValue());   // id=1,  grp=2
+        assertEquals(6L, ((Number) result.getValue(5, "newCol")).longValue());   // id=5,  grp=2
+        assertEquals(10L, ((Number) result.getValue(6, "newCol")).longValue());  // id=3,  grp=3
+        assertEquals(10L, ((Number) result.getValue(7, "newCol")).longValue());  // id=7,  grp=3
+        assertEquals(4L, ((Number) result.getValue(8, "newCol")).longValue());   // id=4,  grp=4
+        assertEquals(9L, ((Number) result.getValue(9, "newCol")).longValue());   // id=9,  grp=5
+    }
+
+    // ==================== PCT: testOLAPAggCastWithPartitionWindow ====================
+    // Pure: extend(over(~grp), ~newCol:{p,w,r|$r.id}:y|$y->cast(@Integer)->plus())
+    // Cast before the window aggregate — treated as noop for Integer->Integer
+
+    @Test
+    @DisplayName("PCT: testOLAPAggCastWithPartitionWindow")
+    void testPctRelationOLAPAggCastWithPartitionWindow() throws SQLException {
+        BufferedResult result = executeRelation(
+            "|#TDS\n" +
+            "id, grp, name\n" +
+            "                  1, 2, A\n" +
+            "                  2, 1, B\n" +
+            "                  3, 3, C\n" +
+            "                  4, 4, D\n" +
+            "                  5, 2, E\n" +
+            "                  6, 1, F\n" +
+            "                  7, 3, G\n" +
+            "                  8, 1, H\n" +
+            "                  9, 5, I\n" +
+            "                  10, 0, J\n" +
+            "#->meta::pure::functions::relation::extend(~grp->meta::pure::functions::relation::over(), ~newCol:{p: meta::pure::metamodel::relation::Relation<(id:Integer, grp:Integer, name:String)>[1], w: meta::pure::functions::relation::_Window<(id:Integer, grp:Integer, name:String)>[1], r: (id:Integer, grp:Integer, name:String)[1]|$r.id}:y: Integer[*]|meta::pure::functions::lang::cast($y->plus(), @Integer))" +
+            "->meta::pure::functions::relation::sort([meta::pure::functions::relation::ascending(~grp), meta::pure::functions::relation::ascending(~id)])");
+        // Same expected as testOLAPCastAggWithPartitionWindow — cast is noop
+        assertEquals(10, result.rows().size());
+        assertEquals(10L, ((Number) result.getValue(0, "newCol")).longValue());  // id=10, grp=0
+        assertEquals(16L, ((Number) result.getValue(1, "newCol")).longValue());  // id=2,  grp=1
+        assertEquals(6L, ((Number) result.getValue(4, "newCol")).longValue());   // id=1,  grp=2
+    }
+
+    // ==================== PCT: testOLAPCastExtractAggWithPartitionWindow ====================
+    // Pure: extend(over(~grp), ~newCol:{p,w,r|$r.id->cast(@Integer)}:y|$y->plus())
+    // Cast is in the extract function (function1), not the aggregate function
+
+    @Test
+    @DisplayName("PCT: testOLAPCastExtractAggWithPartitionWindow")
+    void testPctRelationOLAPCastExtractAggWithPartitionWindow() throws SQLException {
+        BufferedResult result = executeRelation(
+            "|#TDS\n" +
+            "id, grp, name\n" +
+            "                  1, 2, A\n" +
+            "                  2, 1, B\n" +
+            "                  3, 3, C\n" +
+            "                  4, 4, D\n" +
+            "                  5, 2, E\n" +
+            "                  6, 1, F\n" +
+            "                  7, 3, G\n" +
+            "                  8, 1, H\n" +
+            "                  9, 5, I\n" +
+            "                  10, 0, J\n" +
+            "#->meta::pure::functions::relation::extend(~grp->meta::pure::functions::relation::over(), ~newCol:{p: meta::pure::metamodel::relation::Relation<(id:Integer, grp:Integer, name:String)>[1], w: meta::pure::functions::relation::_Window<(id:Integer, grp:Integer, name:String)>[1], r: (id:Integer, grp:Integer, name:String)[1]|$r.id->meta::pure::functions::lang::cast(@Integer)}:y: Integer[*]|$y->plus())" +
+            "->meta::pure::functions::relation::sort([meta::pure::functions::relation::ascending(~grp), meta::pure::functions::relation::ascending(~id)])");
+        // Same expected — cast on extract is noop for Integer
+        assertEquals(10, result.rows().size());
+        assertEquals(10L, ((Number) result.getValue(0, "newCol")).longValue());  // id=10, grp=0
+        assertEquals(16L, ((Number) result.getValue(1, "newCol")).longValue());  // id=2,  grp=1
+        assertEquals(6L, ((Number) result.getValue(4, "newCol")).longValue());   // id=1,  grp=2
+    }
+
+    // ==================== PCT: testOLAPCastExtractCastAggWithPartitionWindow ====================
+    // Pure: extend(over(~grp), ~newCol:{p,w,r|$r.id->cast(@Integer)}:y|$y->plus()->cast(@Integer))
+    // Cast on both extract and aggregate result
+
+    @Test
+    @DisplayName("PCT: testOLAPCastExtractCastAggWithPartitionWindow")
+    void testPctRelationOLAPCastExtractCastAggWithPartitionWindow() throws SQLException {
+        BufferedResult result = executeRelation(
+            "|#TDS\n" +
+            "id, grp, name\n" +
+            "                  1, 2, A\n" +
+            "                  2, 1, B\n" +
+            "                  3, 3, C\n" +
+            "                  4, 4, D\n" +
+            "                  5, 2, E\n" +
+            "                  6, 1, F\n" +
+            "                  7, 3, G\n" +
+            "                  8, 1, H\n" +
+            "                  9, 5, I\n" +
+            "                  10, 0, J\n" +
+            "#->meta::pure::functions::relation::extend(~grp->meta::pure::functions::relation::over(), ~newCol:{p: meta::pure::metamodel::relation::Relation<(id:Integer, grp:Integer, name:String)>[1], w: meta::pure::functions::relation::_Window<(id:Integer, grp:Integer, name:String)>[1], r: (id:Integer, grp:Integer, name:String)[1]|$r.id->meta::pure::functions::lang::cast(@Integer)}:y: Integer[*]|meta::pure::functions::lang::cast($y->plus(), @Integer))" +
+            "->meta::pure::functions::relation::sort([meta::pure::functions::relation::ascending(~grp), meta::pure::functions::relation::ascending(~id)])");
+        // Same expected — both casts are noops for Integer
+        assertEquals(10, result.rows().size());
+        assertEquals(10L, ((Number) result.getValue(0, "newCol")).longValue());  // id=10, grp=0
+        assertEquals(16L, ((Number) result.getValue(1, "newCol")).longValue());  // id=2,  grp=1
+        assertEquals(6L, ((Number) result.getValue(4, "newCol")).longValue());   // id=1,  grp=2
+        assertNotNull(result);
+    }
+
+    // ==================== PCT RelationFunctions: write ====================
+
+    @Test
+    @DisplayName("PCT Relation: select then write")
+    void testPctRelationSelectWrite() throws SQLException {
+        BufferedResult result = executeRelation(
+            "|#TDS\n" +
+            "val,str,other\n" +
+            "                    1,a,a\n" +
+            "                    3,ewe,b\n" +
+            "                    4,qw,c\n" +
+            "                    5,wwe,d\n" +
+            "                    6,weq,e\n" +
+            "#->meta::pure::functions::relation::select()->meta::pure::functions::relation::write(#TDS\n" +
+            "val,str,other\n" +
+            "                    1,aaa,a\n" +
+            "#->meta::pure::metamodel::relation::newTDSRelationAccessor())");
+        assertNotNull(result);
+    }
 }

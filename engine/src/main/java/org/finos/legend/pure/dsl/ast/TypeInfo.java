@@ -117,25 +117,30 @@ public record TypeInfo(
      * Pre-resolved column reference for select/rename/groupBy.
      * Populated by CleanCompiler, consumed by PlanGenerator.
      */
-    public record ColumnSpec(String columnName, String alias, String aggFunction, List<String> extraArgs) {
+    public record ColumnSpec(String columnName, String alias, String aggFunction, List<String> extraArgs, String castType) {
         /** Simple column reference (select). */
         public static ColumnSpec col(String name) {
-            return new ColumnSpec(name, null, null, List.of());
+            return new ColumnSpec(name, null, null, List.of(), null);
         }
 
         /** Renamed column. */
         public static ColumnSpec renamed(String oldName, String newName) {
-            return new ColumnSpec(oldName, newName, null, List.of());
+            return new ColumnSpec(oldName, newName, null, List.of(), null);
         }
 
         /** Aggregate column (single-arg). */
         public static ColumnSpec agg(String sourceCol, String alias, String func) {
-            return new ColumnSpec(sourceCol, alias, func, List.of());
+            return new ColumnSpec(sourceCol, alias, func, List.of(), null);
         }
 
         /** Aggregate column (multi-arg, e.g. CORR(x, y), QUANTILE_CONT(x, 0.5)). */
         public static ColumnSpec aggMulti(String sourceCol, String alias, String func, List<String> extraArgs) {
-            return new ColumnSpec(sourceCol, alias, func, extraArgs);
+            return new ColumnSpec(sourceCol, alias, func, extraArgs, null);
+        }
+
+        /** Aggregate column with outer CAST (e.g., CAST(SUM(x) AS INTEGER)). */
+        public static ColumnSpec aggCast(String sourceCol, String alias, String func, List<String> extraArgs, String castType) {
+            return new ColumnSpec(sourceCol, alias, func, extraArgs, castType);
         }
 
         /** True if this is an aggregate spec. */
@@ -146,6 +151,11 @@ public record TypeInfo(
         /** True if this is a rename spec. */
         public boolean isRename() {
             return alias != null && aggFunction == null;
+        }
+
+        /** True if this aggregate has an outer CAST wrapper. */
+        public boolean hasCast() {
+            return castType != null;
         }
     }
 
@@ -164,20 +174,21 @@ public record TypeInfo(
             String wrapperFuncName,
             List<String> wrapperArgs,
             int ntileArg,
-            List<String> extraArgs) {
+            List<String> extraArgs,
+            String castType) {
 
         /** Simple zero-arg window function (rowNumber, rank, etc). */
         public static WindowFunctionSpec ranking(String pureFunc, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
             return new WindowFunctionSpec(pureFunc, null, partitionBy, orderBy, frame, alias, null, List.of(), 0,
-                    List.of());
+                    List.of(), null);
         }
 
         /** Aggregate window function (plus, average, count, etc). */
         public static WindowFunctionSpec aggregate(String pureFunc, String sourceCol, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
             return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0,
-                    List.of());
+                    List.of(), null);
         }
 
         /**
@@ -187,7 +198,14 @@ public record TypeInfo(
         public static WindowFunctionSpec aggregateMulti(String pureFunc, String sourceCol, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame, List<String> extraArgs) {
             return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0,
-                    extraArgs);
+                    extraArgs, null);
+        }
+
+        /** Aggregate window function with outer CAST (e.g., CAST(SUM(x) OVER(...) AS INTEGER)). */
+        public static WindowFunctionSpec aggregateCast(String pureFunc, String sourceCol, String alias,
+                List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame, List<String> extraArgs, String castType) {
+            return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0,
+                    extraArgs, castType);
         }
 
         /** Wrapped window function (e.g. round(cumulativeDistribution(), 2)). */
@@ -195,14 +213,14 @@ public record TypeInfo(
                 List<String> extraArgs, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
             return new WindowFunctionSpec(innerPureFunc, null, partitionBy, orderBy, frame, alias,
-                    wrapperPureFunc, extraArgs, 0, List.of());
+                    wrapperPureFunc, extraArgs, 0, List.of(), null);
         }
 
         /** NTILE window function. */
         public static WindowFunctionSpec ntile(int buckets, String alias,
                 List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
             return new WindowFunctionSpec("ntile", null, partitionBy, orderBy, frame, alias, null, List.of(), buckets,
-                    List.of());
+                    List.of(), null);
         }
 
         public boolean isWrapped() {
@@ -215,6 +233,10 @@ public record TypeInfo(
 
         public boolean hasSourceColumn() {
             return sourceColumn != null;
+        }
+
+        public boolean hasCast() {
+            return castType != null;
         }
     }
 

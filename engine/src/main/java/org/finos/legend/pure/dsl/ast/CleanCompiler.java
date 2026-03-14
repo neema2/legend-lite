@@ -901,7 +901,7 @@ public class CleanCompiler {
                     if (aliasIdx < aliasNames.size()) {
                         aggInfo = new TypeInfo.ColumnSpec(
                                 aggInfo.columnName(), aliasNames.get(aliasIdx),
-                                aggInfo.aggFunction(), aggInfo.extraArgs());
+                                aggInfo.aggFunction(), aggInfo.extraArgs(), aggInfo.castType());
                     }
                     resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
                     colSpecs.add(aggInfo);
@@ -1126,6 +1126,9 @@ public class CleanCompiler {
         if (cs.function2() != null) {
             String column = extractPropertyNameFromLambda(cs.function1());
             String aggFunc = extractPureFuncName(cs.function2());
+            // Extract cast type if function2 body is cast(inner, @Type)
+            String castType = (cs.function2() != null && !cs.function2().body().isEmpty())
+                    ? extractCastType(cs.function2().body().get(0)) : null;
             if (column != null && aggFunc != null) {
                 // Special handling for percentile: boolean args control function name
                 if ("percentile".equals(aggFunc) || "percentileCont".equals(aggFunc)
@@ -1137,6 +1140,10 @@ public class CleanCompiler {
                 }
                 // General: extract non-boolean extra args from function2
                 List<String> fn2ExtraArgs = extractFuncExtraArgs(cs.function2());
+                if (castType != null) {
+                    return TypeInfo.WindowFunctionSpec.aggregateCast(aggFunc, column, alias,
+                            partitionBy, orderBy, frame, fn2ExtraArgs, castType);
+                }
                 if (!fn2ExtraArgs.isEmpty()) {
                     return TypeInfo.WindowFunctionSpec.aggregateMulti(aggFunc, column, alias,
                             partitionBy, orderBy, frame, fn2ExtraArgs);
@@ -1371,13 +1378,54 @@ public class CleanCompiler {
     }
 
     /**
+     * Resolves the effective aggregate function body, seeing through cast().
+     * In aggregate context (groupBy, aggregate, window), cast is a transparent type-assertion
+     * wrapper — the real aggregate is inside. E.g., cast($x->plus(), @Integer) → returns plus().
+     * If the body is not an AppliedFunction, returns null.
+     * If cast wraps a non-function (e.g., a Variable), throws — cast without an aggregate
+     * is invalid in aggregate context.
+     */
+    private AppliedFunction resolveAggregateFunctionBody(ValueSpecification body) {
+        if (!(body instanceof AppliedFunction af)) {
+            return null;
+        }
+        if ("cast".equals(simpleName(af.function()))) {
+            // cast(innerExpr, @Type) — the first param is the real aggregate expression
+            if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof AppliedFunction innerAf) {
+                return innerAf;
+            }
+            throw new PureCompileException(
+                    "cast() in aggregate context must wrap an aggregate function, got: "
+                            + (af.parameters().isEmpty() ? "no params"
+                                    : af.parameters().get(0).getClass().getSimpleName()));
+        }
+        return af;
+    }
+
+    /**
+     * Extracts the cast target type from a cast() expression in aggregate context.
+     * E.g., cast($x->plus(), @Integer) → "Integer". Returns null if not a cast.
+     */
+    private String extractCastType(ValueSpecification body) {
+        if (!(body instanceof AppliedFunction af)) return null;
+        if (!"cast".equals(simpleName(af.function()))) return null;
+        for (var p : af.parameters()) {
+            if (p instanceof GenericTypeInstance gti) {
+                return simpleName(gti.fullPath());
+            }
+        }
+        return null;
+    }
+
+    /**
      * Extracts the Pure function name from an aggregate lambda like {y|$y->plus()}.
      */
     private String extractPureFuncName(LambdaFunction lf) {
         if (lf == null || lf.body().isEmpty())
             return null;
         var body = lf.body().get(0);
-        if (body instanceof AppliedFunction af) {
+        AppliedFunction af = resolveAggregateFunctionBody(body);
+        if (af != null) {
             return simpleName(af.function());
         }
         return null;
@@ -3337,7 +3385,9 @@ public class CleanCompiler {
             List<String> allExtraArgs = new ArrayList<>(extraArgsFromFunc1);
             if (cs.function2() != null && !cs.function2().body().isEmpty()) {
                 var body = cs.function2().body().get(0);
-                if (body instanceof AppliedFunction bodyAf) {
+                // Resolve through cast(): cast wraps the real aggregate in type-assertion context
+                AppliedFunction bodyAf = resolveAggregateFunctionBody(body);
+                if (bodyAf != null) {
                     aggFunc = simpleName(bodyAf.function());
 
                     // Special handling for percentile(value, ascending, continuous)
@@ -3381,6 +3431,12 @@ public class CleanCompiler {
             // aggFunc must be set by now — either from function1 or function2
             if (aggFunc == null) aggFunc = "plus"; // only for simple ~[total:x|$x.id] with no agg function
 
+            // Extract cast type if function2 body is cast(inner, @Type)
+            String castType = (cs.function2() != null && !cs.function2().body().isEmpty())
+                    ? extractCastType(cs.function2().body().get(0)) : null;
+            if (castType != null) {
+                return TypeInfo.ColumnSpec.aggCast(sourceCol, alias, aggFunc, allExtraArgs, castType);
+            }
             if (!allExtraArgs.isEmpty()) {
                 return TypeInfo.ColumnSpec.aggMulti(sourceCol, alias, aggFunc, allExtraArgs);
             }
