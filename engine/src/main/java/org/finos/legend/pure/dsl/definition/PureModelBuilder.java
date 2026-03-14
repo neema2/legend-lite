@@ -477,6 +477,50 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
+     * Resolves a live JDBC Connection from a Runtime name.
+     * Looks up Runtime → Connection binding → ConnectionDefinition → JDBC Connection.
+     *
+     * @param runtimeName The runtime name (simple or qualified)
+     * @return A live JDBC Connection
+     * @throws java.sql.SQLException If connection cannot be established
+     */
+    public java.sql.Connection resolveConnection(String runtimeName) throws java.sql.SQLException {
+        RuntimeDefinition runtime = runtimes.get(runtimeName);
+        if (runtime == null) {
+            throw new IllegalArgumentException("Runtime not found: " + runtimeName);
+        }
+        String storeRef = runtime.connectionBindings().keySet().iterator().next();
+        String connectionRef = runtime.connectionBindings().get(storeRef);
+        ConnectionDefinition def = connections.get(connectionRef);
+        if (def == null) {
+            throw new IllegalArgumentException("Connection not found: " + connectionRef);
+        }
+        return org.finos.legend.engine.execution.ConnectionResolver.resolve(def);
+    }
+
+    /**
+     * Resolves the SQL dialect from a Runtime name.
+     * Looks up Runtime → Connection binding → ConnectionDefinition → dialect().
+     * Does NOT require a live JDBC connection — works from model metadata alone.
+     *
+     * @param runtimeName The runtime name (simple or qualified)
+     * @return The SQLDialect for this runtime's connection
+     */
+    public org.finos.legend.engine.transpiler.SQLDialect resolveDialect(String runtimeName) {
+        RuntimeDefinition runtime = runtimes.get(runtimeName);
+        if (runtime == null) {
+            throw new IllegalArgumentException("Runtime not found: " + runtimeName);
+        }
+        String storeRef = runtime.connectionBindings().keySet().iterator().next();
+        String connectionRef = runtime.connectionBindings().get(storeRef);
+        ConnectionDefinition def = connections.get(connectionRef);
+        if (def == null) {
+            throw new IllegalArgumentException("Connection not found: " + connectionRef);
+        }
+        return def.dialect();
+    }
+
+    /**
      * @param serviceName The service name (simple or qualified)
      * @return The ServiceDefinition, or null if not found
      */

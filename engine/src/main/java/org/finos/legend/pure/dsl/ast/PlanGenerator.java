@@ -43,6 +43,34 @@ public class PlanGenerator {
         this.dialect = dialect;
     }
 
+    /**
+     * One-shot from pre-built model: compile → generate plan.
+     * Use when you already have a PureModelBuilder (e.g., QueryService reuses
+     * the model it built for connection resolution).
+     *
+     * @param model       Pre-built PureModelBuilder
+     * @param query       The Pure query string
+     * @param runtimeName The runtime name to resolve dialect from
+     * @return A SingleExecutionPlan containing the generated SQL
+     */
+    public static SingleExecutionPlan generate(
+            org.finos.legend.pure.dsl.definition.PureModelBuilder model,
+            String query, String runtimeName) {
+        SQLDialect dialect = model.resolveDialect(runtimeName);
+        var vs = org.finos.legend.pure.dsl.PureParser.parseClean(query);
+        var unit = new CleanCompiler(model).compile(vs);
+        return new PlanGenerator(unit, dialect).generate();
+    }
+
+    /**
+     * One-shot from source: parse source → compile → generate plan.
+     * Convenience for callers that don't need the model for anything else.
+     */
+    public static SingleExecutionPlan generate(String pureSource, String query, String runtimeName) {
+        var model = new org.finos.legend.pure.dsl.definition.PureModelBuilder().addSource(pureSource);
+        return generate(model, query, runtimeName);
+    }
+
     public SingleExecutionPlan generate() {
         ValueSpecification vs = unit.root();
         TypeInfo info = unit.types().get(vs);
@@ -420,9 +448,11 @@ public class PlanGenerator {
         }
 
         // Step 3: Can we inline columns into source, or do we need a subquery?
-        // We can inline as long as source is a simple SELECT * (no GROUP BY, no existing WHERE, etc.)
+        // We can inline as long as source is a simple SELECT * (no GROUP BY, no existing WHERE, no JOINs etc.)
+        // JOIN sources must be wrapped: columns from left and right sides need a single alias.
         boolean canInline = source.isSelectStar()
-                && !source.hasGroupBy();
+                && !source.hasGroupBy()
+                && !source.hasJoins();
 
         SqlBuilder builder;
         if (canInline) {

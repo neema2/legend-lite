@@ -3,7 +3,7 @@ package org.finos.legend.engine.execution;
 import org.finos.legend.engine.plan.ExecutionPlan;
 import org.finos.legend.engine.serialization.ResultSerializer;
 import org.finos.legend.engine.serialization.SerializerRegistry;
-import org.finos.legend.engine.server.QueryService.ResultMode;
+import org.finos.legend.engine.plan.PlanExecutor.ResultMode;
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.RuntimeDefinition;
 

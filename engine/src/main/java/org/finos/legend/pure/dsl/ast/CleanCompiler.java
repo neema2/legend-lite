@@ -1768,18 +1768,96 @@ public class CleanCompiler {
                 elemType = sourceInfo.scalarType().elementType();
             }
 
-            // Register both lambda params
+            // Determine init/accumulator type
+            TypeInfo initInfo = types.get(params.get(2));
+            GenericType accType = initInfo != null && initInfo.scalarType() != null
+                    ? initInfo.scalarType() : GenericType.Primitive.ANY;
+
+            String elemParam = lf.parameters().size() >= 1 ? lf.parameters().get(0).name() : "x";
+            String accParam = lf.parameters().size() >= 2 ? lf.parameters().get(1).name() : "y";
+
+            // --- Cross-type scalar fold ---
+            // DuckDB list_reduce requires init type = element type.
+            // When they differ, decompose into: fold(map(source, elem→transform), {__x,acc→acc+__x}, init)
+            boolean isCrossType = isCrossTypeFold(elemType, accType, params.get(2));
+            if (isCrossType && !lf.body().isEmpty()) {
+                // Compile body with params in scope to type-check it
+                CompilationContext lambdaCtx = ctx
+                        .withLambdaParam(elemParam, elemType)
+                        .withLambdaParam(accParam, accType);
+                compileExpr(lf.body().get(0), lambdaCtx);
+
+                // Extract element-only transform from Pure AST body
+                ValueSpecification elemTransform = extractFoldElementTransform(
+                        lf.body().get(0), accParam);
+                if (elemTransform != null) {
+                    // Build: fold(map(source, {elem→transform}), {__x,acc→acc+__x}, init)
+                    var mapLambda = new LambdaFunction(
+                            List.of(new Variable(elemParam)), elemTransform);
+                    var mapped = new AppliedFunction("map",
+                            List.of(params.get(0), mapLambda), true);
+                    String freshX = "__x";
+                    var reduceBody = new AppliedFunction("plus",
+                            List.of(new Variable(accParam), new Variable(freshX)));
+                    var reduceLambda = new LambdaFunction(
+                            List.of(new Variable(freshX), new Variable(accParam)),
+                            reduceBody);
+                    var newFold = new AppliedFunction("fold",
+                            List.of(mapped, reduceLambda, params.get(2)), true);
+                    compileExpr(newFold, ctx);
+                    var info = TypeInfo.from(types.get(newFold)).inlinedBody(newFold).build();
+                    types.put(af, info);
+                    return info;
+                }
+            }
+
+            // --- List-accumulator fold ---
+            // Init is a list (e.g., [-1, 0]) but source elements are scalar.
+            // Wrap each source element in a single-element list, then unwrap in the body.
+            // We compile parts directly and set inlinedBody — we do NOT build a new fold
+            // AST (that would re-enter compileFold and hit this branch again).
+            if (params.get(2) instanceof Collection && !lf.body().isEmpty()) {
+                // Build: map(source, {__e → [__e]})  — wraps each element in a list
+                String wrapParam = "__e";
+                var wrapBody = new Collection(List.of(new Variable(wrapParam)));
+                var wrapLambda = new LambdaFunction(
+                        List.of(new Variable(wrapParam)), wrapBody);
+                var wrappedSource = new AppliedFunction("map",
+                        List.of(params.get(0), wrapLambda), true);
+                // Compile the wrapped source so types propagate
+                compileExpr(wrappedSource, ctx);
+
+                // Rewrite body: replace all Variable(elemParam) with at(Variable(elemParam), 0)
+                ValueSpecification rewrittenBody = substituteVariable(
+                        lf.body().get(0), elemParam,
+                        new AppliedFunction("at",
+                                List.of(new Variable(elemParam), new CInteger(0L)), true));
+
+                // Compile the rewritten body with proper param types
+                GenericType wrappedElemType = accType.isList() ? accType : GenericType.listOf(elemType);
+                CompilationContext lambdaCtx = ctx
+                        .withLambdaParam(elemParam, wrappedElemType)
+                        .withLambdaParam(accParam, accType);
+                compileExpr(rewrittenBody, lambdaCtx);
+
+                // Build the synthetic fold AST for PlanGenerator to process
+                var newLambda = new LambdaFunction(
+                        List.of(new Variable(elemParam), new Variable(accParam)),
+                        rewrittenBody);
+                var newFold = new AppliedFunction("fold",
+                        List.of(wrappedSource, newLambda, params.get(2)), true);
+                // Set scalar TypeInfo directly — do NOT call compileExpr which would re-enter
+                var info = TypeInfo.builder().scalarType(accType).inlinedBody(newFold).build();
+                types.put(af, info);
+                return info;
+            }
+
+            // --- Standard same-type fold ---
             CompilationContext lambdaCtx = ctx;
             if (lf.parameters().size() >= 1) {
-                String elemParam = lf.parameters().get(0).name();
                 lambdaCtx = lambdaCtx.withLambdaParam(elemParam, elemType);
             }
             if (lf.parameters().size() >= 2) {
-                String accParam = lf.parameters().get(1).name();
-                // Accumulator type comes from the init value
-                TypeInfo initInfo = types.get(params.get(2));
-                GenericType accType = initInfo != null && initInfo.scalarType() != null
-                        ? initInfo.scalarType() : GenericType.Primitive.ANY;
                 lambdaCtx = lambdaCtx.withLambdaParam(accParam, accType);
             }
 
@@ -1807,6 +1885,108 @@ public class CleanCompiler {
                     && addElem instanceof Variable elemVar && elemVar.name().equals(elemParam);
         }
         return false;
+    }
+
+    /**
+     * Returns true when the fold source element type differs from the init type,
+     * indicating list_reduce would fail with a type mismatch in DuckDB.
+     * Does NOT match list-accumulator case (init is a Collection) — that's handled separately.
+     */
+    private static boolean isCrossTypeFold(GenericType elemType, GenericType accType,
+            ValueSpecification initNode) {
+        // List-accumulator is handled separately
+        if (initNode instanceof Collection) return false;
+        if (elemType == null || accType == null) return false;
+        if (elemType == GenericType.Primitive.ANY || accType == GenericType.Primitive.ANY) return false;
+        // Compare type names — different means cross-type
+        String elemName = elemType.typeName();
+        String accName = accType.isList() ? accType.elementType().typeName() : accType.typeName();
+        if (elemName == null || accName == null) return false;
+        return !elemName.equals(accName);
+    }
+
+    /**
+     * Extracts the element-only transform from a fold body by stripping the accumulator
+     * from the left spine of a plus() chain.
+     *
+     * <p>Example: body = plus(plus(acc, '; '), p.lastName) → returns plus('; ', p.lastName)
+     * <p>Example: body = plus(acc, length(val)) → returns length(val)
+     *
+     * @return element-only subtree, or null if body can't be decomposed
+     */
+    private static ValueSpecification extractFoldElementTransform(
+            ValueSpecification body, String accParam) {
+        if (!(body instanceof AppliedFunction af)) return null;
+        String fname = TypeInfo.simpleName(af.function());
+        if (!"plus".equals(fname) || af.parameters().size() != 2) return null;
+
+        ValueSpecification left = af.parameters().get(0);
+        ValueSpecification right = af.parameters().get(1);
+
+        // Base case: left is the accumulator variable → return right
+        if (left instanceof Variable v && v.name().equals(accParam)) {
+            return right;
+        }
+
+        // Recursive case: left is another plus() chain containing the accumulator
+        if (left instanceof AppliedFunction leftAf
+                && "plus".equals(TypeInfo.simpleName(leftAf.function()))) {
+            ValueSpecification stripped = extractFoldElementTransform(left, accParam);
+            if (stripped != null) {
+                return new AppliedFunction("plus", List.of(stripped, right));
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Recursively replaces all Variable references matching the given name with a
+     * replacement expression. Used for list-accumulator fold: replace $x with at($x, 0).
+     */
+    private static ValueSpecification substituteVariable(
+            ValueSpecification vs, String varName, ValueSpecification replacement) {
+        if (vs instanceof Variable v && v.name().equals(varName)) {
+            return replacement;
+        }
+        if (vs instanceof AppliedFunction af) {
+            boolean changed = false;
+            var newParams = new java.util.ArrayList<ValueSpecification>(af.parameters().size());
+            for (var p : af.parameters()) {
+                var sub = substituteVariable(p, varName, replacement);
+                if (sub != p) changed = true;
+                newParams.add(sub);
+            }
+            return changed
+                    ? new AppliedFunction(af.function(), newParams, af.hasReceiver())
+                    : af;
+        }
+        if (vs instanceof LambdaFunction lf) {
+            // Don't substitute inside lambdas that shadow the variable name
+            for (var param : lf.parameters()) {
+                if (param.name().equals(varName)) return vs;
+            }
+            boolean changed = false;
+            var newBody = new java.util.ArrayList<ValueSpecification>(lf.body().size());
+            for (var b : lf.body()) {
+                var sub = substituteVariable(b, varName, replacement);
+                if (sub != b) changed = true;
+                newBody.add(sub);
+            }
+            return changed ? new LambdaFunction(lf.parameters(), newBody) : lf;
+        }
+        if (vs instanceof Collection coll) {
+            boolean changed = false;
+            var newVals = new java.util.ArrayList<ValueSpecification>(coll.values().size());
+            for (var v : coll.values()) {
+                var sub = substituteVariable(v, varName, replacement);
+                if (sub != v) changed = true;
+                newVals.add(sub);
+            }
+            return changed ? new Collection(newVals) : coll;
+        }
+        // Literals, ClassInstance, etc. — no variables to substitute
+        return vs;
     }
 
     /** Compiles match(input, [branches], extraParams...) — static type dispatch. */

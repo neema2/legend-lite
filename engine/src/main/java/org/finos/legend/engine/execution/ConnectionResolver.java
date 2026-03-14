@@ -47,7 +47,7 @@ public class ConnectionResolver {
      * @return A live JDBC Connection
      * @throws SQLException If connection fails
      */
-    public Connection resolve(ConnectionDefinition connectionDef) throws SQLException {
+    public static Connection resolve(ConnectionDefinition connectionDef) throws SQLException {
         return switch (connectionDef.databaseType()) {
             case DuckDB -> resolveDuckDB(connectionDef);
             case SQLite -> resolveSQLite(connectionDef);
@@ -58,7 +58,7 @@ public class ConnectionResolver {
         };
     }
 
-    private Connection resolveDuckDB(ConnectionDefinition connectionDef) throws SQLException {
+    private static Connection resolveDuckDB(ConnectionDefinition connectionDef) throws SQLException {
         return switch (connectionDef.specification()) {
             case ConnectionSpecification.InMemory() -> getOrCreateCached(
                     "duckdb:inmemory:" + connectionDef.qualifiedName(),
@@ -70,7 +70,7 @@ public class ConnectionResolver {
         };
     }
 
-    private Connection resolveSQLite(ConnectionDefinition connectionDef) throws SQLException {
+    private static Connection resolveSQLite(ConnectionDefinition connectionDef) throws SQLException {
         return switch (connectionDef.specification()) {
             case ConnectionSpecification.InMemory() -> getOrCreateCached(
                     "sqlite:inmemory:" + connectionDef.qualifiedName(),
@@ -82,7 +82,7 @@ public class ConnectionResolver {
         };
     }
 
-    private Connection resolveH2(ConnectionDefinition connectionDef) throws SQLException {
+    private static Connection resolveH2(ConnectionDefinition connectionDef) throws SQLException {
         String jdbcUrl = switch (connectionDef.specification()) {
             case ConnectionSpecification.InMemory() -> "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1";
             case ConnectionSpecification.LocalFile(String path) -> "jdbc:h2:file:" + path;
@@ -93,7 +93,7 @@ public class ConnectionResolver {
         return applyAuthentication(DriverManager.getConnection(jdbcUrl), connectionDef);
     }
 
-    private Connection resolvePostgres(ConnectionDefinition connectionDef) throws SQLException {
+    private static Connection resolvePostgres(ConnectionDefinition connectionDef) throws SQLException {
         ConnectionSpecification.StaticDatasource staticDs = switch (connectionDef.specification()) {
             case ConnectionSpecification.StaticDatasource s -> s;
             default -> throw new UnsupportedOperationException(
@@ -105,7 +105,7 @@ public class ConnectionResolver {
         return applyAuthentication(DriverManager.getConnection(jdbcUrl), connectionDef);
     }
 
-    private Connection applyAuthentication(Connection connection, ConnectionDefinition connectionDef)
+    private static Connection applyAuthentication(Connection connection, ConnectionDefinition connectionDef)
             throws SQLException {
         return switch (connectionDef.authentication()) {
             case AuthenticationSpec.NoAuth() -> connection;
@@ -123,7 +123,7 @@ public class ConnectionResolver {
      * Gets a cached connection or creates a new one.
      * Used for in-memory databases to persist tables across requests.
      */
-    private Connection getOrCreateCached(String key, ConnectionSupplier supplier) throws SQLException {
+    private static Connection getOrCreateCached(String key, ConnectionSupplier supplier) throws SQLException {
         Connection cached = connectionCache.get(key);
         if (cached != null && !cached.isClosed()) {
             return cached;

@@ -1,5 +1,9 @@
 package org.finos.legend.pure.dsl.definition;
 
+import org.finos.legend.engine.transpiler.DuckDBDialect;
+import org.finos.legend.engine.transpiler.SQLDialect;
+import org.finos.legend.engine.transpiler.SQLiteDialect;
+
 /**
  * Represents a relational database connection definition.
  * 
@@ -32,6 +36,17 @@ public record ConnectionDefinition(
         Postgres,
         Snowflake,
         BigQuery
+    }
+
+    /**
+     * Returns the SQL dialect for this connection's database type.
+     */
+    public SQLDialect dialect() {
+        return switch (databaseType) {
+            case DuckDB -> DuckDBDialect.INSTANCE;
+            case SQLite -> SQLiteDialect.INSTANCE;
+            default -> DuckDBDialect.INSTANCE;
+        };
     }
 
     /**

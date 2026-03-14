@@ -289,6 +289,10 @@ public class SqlBuilder {
         return selectStar;
     }
 
+    public boolean hasJoins() {
+        return !joins.isEmpty();
+    }
+
     public String getFromTable() {
         return fromTable;
     }

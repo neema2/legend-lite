@@ -2,6 +2,7 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.server.QueryService;
+import org.finos.legend.pure.dsl.ast.PlanGenerator;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -147,11 +148,11 @@ class InheritanceIntegrationTest {
         }
 
         private String generateSql(String pureQuery) {
-            var plan = queryService.compile(
+            var plan = PlanGenerator.generate(
                     INHERITANCE_MODEL,
                     pureQuery,
                     "test::TestRuntime");
-            return plan.sqlByStore().values().iterator().next().sql();
+            return plan.sql();
         }
 
         // ==================== Filter on Inherited Property ====================

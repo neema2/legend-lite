@@ -1,7 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.execution.BufferedResult;
-import org.finos.legend.engine.plan.ExecutionPlan;
+
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.store.MappingRegistry;
 import org.finos.legend.engine.transpiler.SQLDialect;
@@ -134,12 +134,54 @@ public abstract class AbstractDatabaseTest {
             """;
 
     /**
-     * Complete Pure model (Classes + Association + Database + Mapping).
+     * PCT test class definitions used by TypeInference struct literal tests.
+     * These were previously injected via TypeEnvironment side-channel.
+     */
+    protected static final String PCT_CLASS_DEFS = """
+            Class meta::pure::functions::collection::tests::model::CO_Person
+            {
+                firstName: String[1];
+                lastName: String[1];
+            }
+
+            Class meta::pure::functions::collection::tests::model::CO_Firm
+            {
+                legalName: String[1];
+                employees: meta::pure::functions::collection::tests::model::CO_Person[*];
+            }
+
+            Class meta::pure::functions::collection::tests::map::model::M_Person
+            {
+                firstName: String[1];
+                lastName: String[1];
+            }
+
+            Class meta::pure::functions::collection::tests::contains::ClassWithoutEquality
+            {
+                name: String[1];
+            }
+
+            Class meta::pure::functions::lang::tests::model::LA_Person
+            {
+                firstName: String[1];
+                lastName: String[1];
+            }
+
+            Class meta::pure::functions::string::tests::plus::model::P_Person
+            {
+                firstName: String[1];
+                lastName: String[1];
+            }
+            """;
+
+    /**
+     * Complete Pure model (Classes + Association + Database + Mapping + PCT classes).
      */
     protected static final String COMPLETE_PURE_MODEL = PERSON_CLASS + "\n" +
             ADDRESS_CLASS + "\n" +
             PERSON_ADDRESS_ASSOCIATION + "\n" +
             STRUCT_TEST_CLASSES + "\n" +
+            PCT_CLASS_DEFS + "\n" +
             PERSON_DATABASE + "\n" +
             PERSON_MAPPING;
 
@@ -232,13 +274,9 @@ public abstract class AbstractDatabaseTest {
      * @return The generated SQL
      */
     protected String generateSql(String pureQuery) {
-        ExecutionPlan plan = queryService.compile(
-                getCompletePureModelWithRuntime(),
-                pureQuery,
-                "test::TestRuntime");
-
-        // Get SQL for the first store in the plan
-        return plan.sqlByStore().values().iterator().next().sql();
+        return org.finos.legend.pure.dsl.ast.PlanGenerator
+                .generate(getCompletePureModelWithRuntime(), pureQuery, "test::TestRuntime")
+                .sql();
     }
 
     /**

@@ -2,11 +2,33 @@ package org.finos.legend.engine.transpiler;
 
 import org.finos.legend.engine.transpiler.json.JsonSqlDialect;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+
 /**
  * Interface defining SQL dialect-specific behavior.
  * Implementations handle differences between database engines.
  */
 public interface SQLDialect {
+
+    /**
+     * Detects the SQL dialect from a live JDBC connection's metadata.
+     *
+     * @param conn A live JDBC connection
+     * @return The appropriate SQLDialect
+     */
+    static SQLDialect forConnection(Connection conn) {
+        try {
+            String product = conn.getMetaData().getDatabaseProductName();
+            return switch (product) {
+                case "DuckDB" -> DuckDBDialect.INSTANCE;
+                case "SQLite" -> SQLiteDialect.INSTANCE;
+                default -> DuckDBDialect.INSTANCE;
+            };
+        } catch (SQLException e) {
+            return DuckDBDialect.INSTANCE;
+        }
+    }
 
     /**
      * @return The dialect name (e.g., "DuckDB", "SQLite")

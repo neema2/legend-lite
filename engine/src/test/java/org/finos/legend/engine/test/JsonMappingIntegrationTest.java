@@ -1,6 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.server.QueryService;
+import org.finos.legend.pure.dsl.ast.PlanGenerator;
 
 import org.junit.jupiter.api.*;
 
@@ -273,8 +274,8 @@ class JsonMappingIntegrationTest {
 
             String query = "Order.all()->project([o | $o.id, o | $o.customerName, o | $o.total], ['id', 'name', 'total'])";
 
-            var plan = queryService.compile(pureModel, query, "test::TestRuntime");
-            String sql = plan.sqlByStore().values().iterator().next().sql();
+            var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
+            String sql = plan.sql();
             System.out.println("Order JSON SQL: " + sql);
 
             assertTrue(sql.contains("CAST"), "SQL should contain CAST for JSON extraction");
@@ -375,8 +376,8 @@ class JsonMappingIntegrationTest {
 
             String query = "OrderItem.all()->project([i | $i.productName, i | $i.quantity, i | $i.price], ['product', 'qty', 'price'])";
 
-            var plan = queryService.compile(pureModel, query, "test::TestRuntime");
-            String sql = plan.sqlByStore().values().iterator().next().sql();
+            var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
+            String sql = plan.sql();
             System.out.println("OrderItem JSON SQL: " + sql);
 
             var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
@@ -583,8 +584,8 @@ class JsonMappingIntegrationTest {
             // Project order's customer name and item's product name (via association)
             String query = "Order.all()->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
 
-            var plan = queryService.compile(pureModel, query, "test::TestRuntime");
-            String sql = plan.sqlByStore().values().iterator().next().sql();
+            var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
+            String sql = plan.sql();
             System.out.println("Association + JSON SQL: " + sql);
 
             // Should have LEFT OUTER JOIN for association navigation
@@ -659,8 +660,8 @@ class JsonMappingIntegrationTest {
             // properties
             String query = "Order.all()->filter(o | $o.items.orderId == 1)->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
 
-            var plan = queryService.compile(pureModel, query, "test::TestRuntime");
-            String sql = plan.sqlByStore().values().iterator().next().sql();
+            var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
+            String sql = plan.sql();
             System.out.println("Filter Scalar + Project JSON Association SQL: " + sql);
 
             // Should use EXISTS for to-many association filtering
@@ -725,8 +726,8 @@ class JsonMappingIntegrationTest {
             // Filter by scalar id, project JSON via association
             String query = "Order.all()->filter(o | $o.id == 1)->project([o | $o.customerName, o | $o.items.productName, o | $o.items.quantity], ['customer', 'product', 'qty'])";
 
-            var plan = queryService.compile(pureModel, query, "test::TestRuntime");
-            String sql = plan.sqlByStore().values().iterator().next().sql();
+            var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
+            String sql = plan.sql();
             System.out.println("Mixed Scalar Filter + JSON Association SQL: " + sql);
 
             // Should have LEFT OUTER JOIN for projection

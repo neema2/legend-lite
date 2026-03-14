@@ -2,6 +2,7 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.server.QueryService;
+import org.finos.legend.pure.dsl.ast.PlanGenerator;
 
 import org.junit.jupiter.api.*;
 
@@ -114,8 +115,8 @@ class VariantIntegrationTest {
     }
 
     private String generateSql(String pureQuery) {
-        var plan = queryService.compile(getCompletePureModel(), pureQuery, "test::TestRuntime");
-        return plan.sqlByStore().values().iterator().next().sql();
+        var plan = PlanGenerator.generate(getCompletePureModel(), pureQuery, "test::TestRuntime");
+        return plan.sql();
     }
 
     @Test
@@ -358,8 +359,8 @@ class VariantIntegrationTest {
                 """;
 
         // Compile and check SQL
-        var plan = queryService.compile(pureModel, pureQuery, "test::TestRuntime");
-        String sql = plan.sqlByStore().values().iterator().next().sql();
+        var plan = PlanGenerator.generate(pureModel, pureQuery, "test::TestRuntime");
+        String sql = plan.sql();
         System.out.println("Embedded class SQL: " + sql);
 
         // Verify SQL contains typed JSON extraction

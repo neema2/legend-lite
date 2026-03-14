@@ -3,6 +3,7 @@ package org.finos.legend.engine.test;
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.server.QueryService;
+import org.finos.legend.pure.dsl.ast.PlanGenerator;
 import org.finos.legend.engine.store.*;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLGenerator;
@@ -458,11 +459,11 @@ class WindowFunctionTest {
         }
 
         private String generateSql(String pureQuery) {
-            var plan = queryService.compile(
+            var plan = PlanGenerator.generate(
                     COMPLETE_MODEL,
                     pureQuery,
                     "test::TestRuntime");
-            return plan.sqlByStore().values().iterator().next().sql();
+            return plan.sql();
         }
 
         @Test
