@@ -746,6 +746,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 if (rawType != null) {
                     String qualifiedTypeName = getQualifiedName(rawType);
                     if (qualifiedTypeName != null) {
+                        // Skip inherited metamodel properties (classifierGenericType,
+                        // elementOverride, etc.) — these leak through class_getSimpleProperties
+                        // from Pure's internal type hierarchy and are not business properties
+                        if (qualifiedTypeName.startsWith("meta::pure::metamodel")) {
+                            continue;
+                        }
                         extractClassRecursive(qualifiedTypeName, classes, visited, processorSupport);
                         PureClass referenced = classes.get(qualifiedTypeName);
                         if (referenced != null) {
