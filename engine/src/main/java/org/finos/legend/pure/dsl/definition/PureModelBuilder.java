@@ -57,7 +57,15 @@ public final class PureModelBuilder implements ModelContext {
             }
         }
 
-        // PHASE 1: Register all classes (without superclass resolution)
+        // PHASE 1a: Register class stubs (names only, no properties yet)
+        // This allows forward references between classes (e.g., TypeForProjectTest → PrimitiveContainer)
+        for (PureDefinition def : definitions) {
+            if (def instanceof ClassDefinition classDef) {
+                registerClassStub(classDef);
+            }
+        }
+
+        // PHASE 1b: Resolve properties now that all class names are registered
         for (PureDefinition def : definitions) {
             if (def instanceof ClassDefinition classDef) {
                 addClass(classDef);
@@ -89,8 +97,24 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
+     * Pre-registers a class by name (stub) so forward references can resolve.
+     * Called before addClass() to handle mutual/forward dependencies.
+     */
+    private void registerClassStub(ClassDefinition classDef) {
+        PureClass stub = new PureClass(
+                classDef.packagePath(),
+                classDef.simpleName(),
+                List.of(), // no properties yet
+                List.of(),
+                classDef.stereotypes(),
+                classDef.taggedValues());
+        classes.put(classDef.qualifiedName(), stub);
+        classes.put(classDef.simpleName(), stub);
+    }
+
+    /**
      * Adds a Class definition.
-     * Initially registers the class with empty superclass list.
+     * Resolves properties (all class names already registered via registerClassStub).
      * Superclass references are resolved later in resolveSuperclasses().
      */
     public PureModelBuilder addClass(ClassDefinition classDef) {
