@@ -77,6 +77,31 @@ public final class TypeEnvironment {
         return classes.size();
     }
 
+    /**
+     * Serializes all classes to Pure DSL text (Class definitions).
+     * Produces output like:
+     *   Class meta::pkg::Person { firstName: String[1]; address: meta::pkg::Address[0..1]; }
+     */
+    public String toPureDsl() {
+        if (classes.isEmpty()) return "";
+        var sb = new StringBuilder();
+        for (PureClass cls : classes.values()) {
+            sb.append("Class ").append(cls.qualifiedName()).append(" {\n");
+            for (var prop : cls.properties()) {
+                sb.append("  ").append(prop.name()).append(": ");
+                // Use qualified name for class types, simple name for primitives
+                if (prop.genericType() instanceof PureClass pc) {
+                    sb.append(pc.qualifiedName());
+                } else {
+                    sb.append(prop.genericType().typeName());
+                }
+                sb.append(prop.multiplicity()).append(";\n");
+            }
+            sb.append("}\n");
+        }
+        return sb.toString();
+    }
+
     @Override
     public String toString() {
         return "TypeEnvironment[classes=" + classes.size() + "]";

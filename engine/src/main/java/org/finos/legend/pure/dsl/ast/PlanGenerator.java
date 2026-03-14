@@ -1173,6 +1173,8 @@ public class PlanGenerator {
             case "ceil" -> "ceil";
             case "floor" -> "floor";
             case "truncate" -> "truncate";
+            // cast: pass-through (identity) in aggregate context
+            case "cast" -> "cast";
             default -> null;
         };
     }
@@ -1989,6 +1991,11 @@ public class PlanGenerator {
             case "toRadians" -> new SqlExpr.FunctionCall("RADIANS", List.of(c.apply(params.get(0))));
             case "toDegrees" -> new SqlExpr.FunctionCall("DEGREES", List.of(c.apply(params.get(0))));
             case "pi" -> new SqlExpr.FunctionCall("PI", List.of());
+            case "sinh" -> new SqlExpr.FunctionCall("sinh", List.of(c.apply(params.get(0))));
+            case "cosh" -> new SqlExpr.FunctionCall("cosh", List.of(c.apply(params.get(0))));
+            case "tanh" -> new SqlExpr.FunctionCall("tanh", List.of(c.apply(params.get(0))));
+            case "cot" -> new SqlExpr.FunctionCall("cot", List.of(c.apply(params.get(0))));
+            case "cbrt" -> new SqlExpr.FunctionCall("cbrt", List.of(c.apply(params.get(0))));
 
             // --- More math ---
             case "mod" -> {
@@ -2007,6 +2014,23 @@ public class PlanGenerator {
             case "reverseString" -> new SqlExpr.FunctionCall("reverseString", List.of(c.apply(params.get(0))));
             case "repeatString" -> new SqlExpr.FunctionCall("REPEAT",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "left" -> new SqlExpr.FunctionCall("left",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "right" -> new SqlExpr.FunctionCall("right",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "ltrim" -> new SqlExpr.FunctionCall("ltrim", List.of(c.apply(params.get(0))));
+            case "rtrim" -> new SqlExpr.FunctionCall("rtrim", List.of(c.apply(params.get(0))));
+            case "split" -> new SqlExpr.FunctionCall("split",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "matches" -> new SqlExpr.FunctionCall("matches",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "toUpperFirstCharacter" -> new SqlExpr.FunctionCall("toUpperFirstCharacter",
+                    List.of(c.apply(params.get(0))));
+            case "toLowerFirstCharacter" -> new SqlExpr.FunctionCall("toLowerFirstCharacter",
+                    List.of(c.apply(params.get(0))));
+            case "jaroWinklerSimilarity" -> new SqlExpr.FunctionCall("jaroWinklerSimilarity",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "hashCode" -> new SqlExpr.FunctionCall("hashCode", List.of(c.apply(params.get(0))));
             case "splitPart" -> {
                 SqlExpr str = c.apply(params.get(0));
                 SqlExpr delim = c.apply(params.get(1));
@@ -2280,6 +2304,61 @@ public class PlanGenerator {
                     yield new SqlExpr.BoolLiteral(true);
                 }
                 yield new SqlExpr.FunctionCall("MONTH", List.of(c.apply(params.get(0))));
+            }
+            case "hasDay" -> {
+                // hasDay: true for full dates (YYYY-MM-DD), false for year-only/year-month
+                if (params.get(0) instanceof CDateTime) {
+                    yield new SqlExpr.BoolLiteral(true);
+                } else if (params.get(0) instanceof CStrictDate sd) {
+                    String raw = sd.value();
+                    boolean hasDay = raw.matches("\\d{4}-\\d{2}-\\d{2}.*");
+                    yield new SqlExpr.BoolLiteral(hasDay);
+                }
+                yield new SqlExpr.FunctionCall("DAY", List.of(c.apply(params.get(0))));
+            }
+            case "hasSecond" -> {
+                // hasSecond: true for DateTime with seconds component
+                if (params.get(0) instanceof CDateTime dt) {
+                    String raw = dt.value();
+                    boolean hasSec = raw.matches(".*T\\d{2}:\\d{2}:\\d{2}.*");
+                    yield new SqlExpr.BoolLiteral(hasSec);
+                } else if (params.get(0) instanceof CStrictDate) {
+                    yield new SqlExpr.BoolLiteral(false);
+                }
+                yield new SqlExpr.FunctionCall("SECOND", List.of(c.apply(params.get(0))));
+            }
+            case "hasSubsecond" -> {
+                // hasSubsecond: true for DateTime with fractional seconds (.NNN)
+                if (params.get(0) instanceof CDateTime dt) {
+                    String raw = dt.value();
+                    boolean hasFrac = raw.matches(".*\\.\\d+.*");
+                    yield new SqlExpr.BoolLiteral(hasFrac);
+                } else if (params.get(0) instanceof CStrictDate) {
+                    yield new SqlExpr.BoolLiteral(false);
+                }
+                yield new SqlExpr.BoolLiteral(false);
+            }
+            case "hasSubsecondWithAtLeastPrecision" -> {
+                // hasSubsecondWithAtLeastPrecision(date, n): check fractional digit count >= n
+                if (params.get(0) instanceof CDateTime dt) {
+                    String raw = dt.value();
+                    int fracDigits = 0;
+                    int dotIdx = raw.indexOf('.');
+                    if (dotIdx >= 0) {
+                        // Count digits after the dot until non-digit
+                        for (int fi = dotIdx + 1; fi < raw.length() && Character.isDigit(raw.charAt(fi)); fi++) {
+                            fracDigits++;
+                        }
+                    }
+                    long required = 1;
+                    if (params.size() > 1 && params.get(1) instanceof CInteger ci) {
+                        required = ci.value().longValue();
+                    }
+                    yield new SqlExpr.BoolLiteral(fracDigits >= required);
+                } else if (params.get(0) instanceof CStrictDate) {
+                    yield new SqlExpr.BoolLiteral(false);
+                }
+                yield new SqlExpr.BoolLiteral(false);
             }
 
             // --- Date constants (SQL keywords, not functions — no parens) ---
@@ -2716,6 +2795,28 @@ public class PlanGenerator {
             // --- List/array operations ---
             case "reverse" -> new SqlExpr.FunctionCall("listReverse",
                     List.of(c.apply(params.get(0))));
+            case "removeDuplicates" -> {
+                SqlExpr listArg = firstArgIsList ? c.apply(params.get(0))
+                        : new SqlExpr.FunctionCall("wrapList", List.of(c.apply(params.get(0))));
+                yield new SqlExpr.FunctionCall("removeDuplicates", List.of(listArg));
+            }
+            case "removeDuplicatesBy" -> {
+                // removeDuplicatesBy(list, keyFn) — distinct by key function
+                SqlExpr listArg = firstArgIsList ? c.apply(params.get(0))
+                        : new SqlExpr.FunctionCall("wrapList", List.of(c.apply(params.get(0))));
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction lf) {
+                    String elemParam = lf.parameters().isEmpty() ? "x"
+                            : lf.parameters().get(0).name();
+                    SqlExpr body = !lf.body().isEmpty()
+                            ? c.apply(lf.body().get(0)) : new SqlExpr.NullLiteral();
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), body);
+                    // list_transform then distinct
+                    SqlExpr transformed = new SqlExpr.FunctionCall("listTransform",
+                            List.of(listArg, lambda));
+                    yield new SqlExpr.FunctionCall("removeDuplicates", List.of(transformed));
+                }
+                yield new SqlExpr.FunctionCall("removeDuplicates", List.of(listArg));
+            }
 
             // --- Misc ---
             case "generateGuid" -> new SqlExpr.FunctionCall("generateGuid", List.of());

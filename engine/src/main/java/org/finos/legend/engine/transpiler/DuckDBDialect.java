@@ -395,6 +395,16 @@ public final class DuckDBDialect implements SQLDialect {
                         + "UNNEST(generate_series(0, len(" + l1 + ")-1)) AS rn) "
                         + "ORDER BY b " + dir + ", rn ASC LIMIT " + limit + ") sub)";
             }
+            case "toUpperFirstCharacter": {
+                // UPPER(LEFT(s,1)) || SUBSTRING(s FROM 2)
+                String s = args.get(0);
+                return "(UPPER(LEFT(" + s + ", 1)) || SUBSTRING(" + s + " FROM 2))";
+            }
+            case "toLowerFirstCharacter": {
+                // LOWER(LEFT(s,1)) || SUBSTRING(s FROM 2)
+                String s = args.get(0);
+                return "(LOWER(LEFT(" + s + ", 1)) || SUBSTRING(" + s + " FROM 2))";
+            }
         }
 
         String sqlName = switch (pureName) {
@@ -421,6 +431,17 @@ public final class DuckDBDialect implements SQLDialect {
             case "joinStrings" -> "STRING_AGG";
             case "levenshteinDistance" -> "LEVENSHTEIN";
             case "hash" -> "HASH";
+
+            // --- New string functions ---
+            case "left" -> "LEFT";
+            case "right" -> "RIGHT";
+            case "ltrim" -> "LTRIM";
+            case "rtrim" -> "RTRIM";
+            case "split" -> "STRING_SPLIT";
+            case "matches" -> "REGEXP_MATCHES";
+            case "jaroWinklerSimilarity" -> "JARO_WINKLER_SIMILARITY";
+            case "hashCode" -> "HASH";
+
             case "decodeBase64" -> "FROM_BASE64";
             case "indexOf" -> "LIST_POSITION";
 
@@ -484,6 +505,18 @@ public final class DuckDBDialect implements SQLDialect {
             case "ceil" -> "CEIL";
             case "floor" -> "FLOOR";
             case "truncate" -> "TRUNCATE";
+            // cast pass-through: identity in aggregate context
+            case "cast" -> "CAST";
+
+            // --- New trig/math functions ---
+            case "sinh" -> "SINH";
+            case "cosh" -> "COSH";
+            case "tanh" -> "TANH";
+            case "cot" -> "COT";
+            case "cbrt" -> "CBRT";
+
+            // --- Collection ---
+            case "removeDuplicates" -> "LIST_DISTINCT";
 
             // --- List transform ---
             case "listTransform" -> "list_transform";

@@ -19,9 +19,8 @@ import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
 import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.Column;
-import org.finos.legend.engine.execution.Result;
-import org.finos.legend.engine.execution.ScalarResult;
 import org.finos.legend.engine.server.QueryService;
+import org.finos.legend.pure.dsl.TypeEnvironment;
 import org.finos.legend.pure.m3.compiler.Context;
 import org.finos.legend.pure.m3.exception.PureExecutionException;
 import org.finos.legend.pure.m3.navigation.Instance;
@@ -127,31 +126,34 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 try (var tzStmt = connection.createStatement()) {
                     tzStmt.execute("SET TimeZone='UTC'");
                 }
-                Result result;
-
-                // Check for InstanceExpression-based queries (e.g.,
-                // [^FirmType(...)...]->project(...))
-                InstanceExpressionHandler instanceHandler = new InstanceExpressionHandler();
-                if (instanceHandler.requiresInstanceHandling(pureExpression)) {
-                    System.out.println("[LegendLite PCT] Detected InstanceExpression pattern, using handler");
-                    TypeEnvironment typeEnv = extractClassMetadata(pureExpression, processorSupport);
-                    System.out.println("[LegendLite PCT] TypeEnvironment: " + typeEnv);
-                    result = instanceHandler.execute(pureExpression, connection, typeEnv);
-                } else {
-                    // Execute through Legend-Lite's QueryService for TDS-based queries
-                    // Extract class metadata for type-aware compilation (multiplicity, etc.)
-                    TypeEnvironment typeEnv = extractClassMetadata(pureExpression, processorSupport);
-                    QueryService queryService = new QueryService();
-                    result = queryService.execute(PURE_MODEL, pureExpression, "test::TestRuntime",
-                            connection, QueryService.ResultMode.BUFFERED, typeEnv);
+                // Extract class definitions from the Pure expression using the
+                // interpreter's ProcessorSupport (which has all PCT test model classes)
+                // and serialize them as Pure DSL to prepend to PURE_MODEL
+                TypeEnvironment typeEnv = extractClassMetadata(pureExpression, processorSupport);
+                String model = PURE_MODEL;
+                if (typeEnv.hasClasses()) {
+                    String classDefs = typeEnv.toPureDsl();
+                    System.out.println("[LegendLite PCT] Injected class definitions:\n" + classDefs);
+                    model = classDefs + "\n" + PURE_MODEL;
                 }
 
-                // For scalar results (constant queries), return the primitive value directly
-                if (result instanceof ScalarResult scalarResult) {
-                    Object value = scalarResult.value();
+                // Execute through Legend-Lite's QueryService
+                // CleanCompiler + PlanGenerator handles all query types including struct literals
+                QueryService queryService = new QueryService();
+                BufferedResult result = queryService.execute(model, pureExpression,
+                        "test::TestRuntime", connection);
+
+                // Scalar detection: single row, single column named "value"
+                // (PlanGenerator wraps scalar queries as SELECT expr AS "value")
+                boolean isScalar = result.rowCount() == 1
+                        && result.columnCount() == 1
+                        && "value".equals(result.columns().get(0).name());
+
+                if (isScalar) {
+                    Object value = result.getValue(0, 0);
+                    String sqlType = result.columns().get(0).sqlType();
                     System.out.println("[LegendLite PCT] Scalar result: " + value
-                            + " sqlType: " + scalarResult.sqlType()
-                            + " pureType: " + scalarResult.pureType());
+                            + " sqlType: " + sqlType);
 
                     // Null scalar (e.g., head() on empty set, splitPart on [])
                     // Return an empty Pure collection
@@ -160,12 +162,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                                 org.eclipse.collections.api.factory.Lists.immutable.empty(), true, processorSupport);
                     }
 
-                    // If the result is a Map (unwrapped DuckDB struct) with a Pure type,
+                    // If the result is a Map (unwrapped DuckDB struct),
                     // reconstruct the Pure class instance
-                    if (value instanceof java.util.Map && scalarResult.pureType() != null) {
+                    if (value instanceof java.util.Map) {
                         @SuppressWarnings("unchecked")
                         java.util.Map<String, Object> structMap = (java.util.Map<String, Object>) value;
-                        return wrapStructAsClassInstance(structMap, scalarResult.pureType(), processorSupport);
+                        return wrapStructAsClassInstance(structMap, null, processorSupport);
                     }
 
                     // Handle array results (e.g., VARCHAR[] from list_transform/map)
@@ -194,17 +196,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     }
 
                     // Handle List of Maps (struct arrays unwrapped by Row.java, e.g., zip results)
-                    // Each Map represents a class instance (e.g., Pair with first/second)
-                    if (value instanceof java.util.List<?> listValue && scalarResult.pureType() != null
+                    if (value instanceof java.util.List<?> listValue
                             && !listValue.isEmpty() && listValue.getFirst() instanceof java.util.Map) {
                         var rawValues = new ArrayList<CoreInstance>();
-                        java.util.Map<String, String> fieldTypes = scalarResult.fieldTypes();
                         for (Object elem : listValue) {
                             if (elem instanceof java.util.Map) {
                                 @SuppressWarnings("unchecked")
                                 java.util.Map<String, Object> structMap = (java.util.Map<String, Object>) elem;
                                 CoreInstance instance = createClassInstance(
-                                        structMap, scalarResult.pureType(), fieldTypes, processorSupport);
+                                        structMap, null, null, processorSupport);
                                 rawValues.add(instance);
                             }
                         }
@@ -213,12 +213,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                                 true, processorSupport);
                     }
 
-                    return wrapPrimitiveValue(value, scalarResult.sqlType(), processorSupport);
+                    return wrapPrimitiveValue(value, sqlType, processorSupport);
                 }
 
                 // For TDS results, wrap in TDSResult class so Pure can distinguish from scalar
                 // strings
-                BufferedResult buffered = result.toBuffered();
+                BufferedResult buffered = result;
                 String tdsString = formatResultForStringToTds(buffered);
 
                 System.out.println("[LegendLite PCT] Result TDS: " + tdsString.replace("\n", "\\n"));

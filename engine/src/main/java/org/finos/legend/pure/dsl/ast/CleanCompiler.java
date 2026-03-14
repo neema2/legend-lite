@@ -167,7 +167,7 @@ public class CleanCompiler {
             // --- Collection / scalar functions (type-propagating) ---
             case "range" -> compileRange(af, ctx);
             // List-producing functions: always return a list
-            case "tail", "init", "reverse", "removeDuplicates", "add" -> compileListProducing(af, ctx);
+            case "tail", "init", "reverse", "removeDuplicates", "removeDuplicatesBy", "add" -> compileListProducing(af, ctx);
             case "at", "head",
                  "in", "length", "indexOf",
                  "last", "isEmpty", "isNotEmpty",
@@ -179,12 +179,17 @@ public class CleanCompiler {
                  // --- Math ---
                  "abs", "ceiling", "floor", "round", "sign",
                  "sqrt", "pow", "exp", "log", "log10",
+                 "sinh", "cosh", "tanh", "cot", "cbrt",
                  "mod", "rem", "divide",
                  "bitAnd", "bitOr", "bitXor", "bitShiftLeft", "bitShiftRight",
                  "plus", "minus", "times",
                  "toDecimal", "toDegrees", "toRadians", "pi",
                  // --- String ---
                  "ascii", "char", "lpad", "rpad", "splitPart",
+                 "left", "right", "ltrim", "rtrim",
+                 "split", "matches",
+                 "toUpperFirstCharacter", "toLowerFirstCharacter",
+                 "jaroWinklerSimilarity", "hashCode",
                  "reverseString", "format", "joinStrings",
                  "encodeBase64", "decodeBase64",
                  "hash", "levenshteinDistance",
@@ -193,6 +198,8 @@ public class CleanCompiler {
                  "date", "dateDiff", "datePart", "adjust", "timeBucket",
                  "year", "monthNumber", "dayOfMonth",
                  "hour", "hasHour", "hasMinute", "hasMonth",
+                 "hasDay", "hasSecond", "hasSubsecond",
+                 "hasSubsecondWithAtLeastPrecision",
                  // --- Comparison / Boolean ---
                  "equal", "greaterThan", "lessThan", "between",
                  "compare", "not", "and", "or", "xor",
@@ -2404,19 +2411,27 @@ public class CleanCompiler {
             case "length", "indexOf", "size", "count", "ascii",
                  "parseInteger", "toInteger",
                  "ceiling", "floor", "round", "mod", "rem", "sign",
-                 "levenshteinDistance" -> GenericType.Primitive.INTEGER;
+                 "levenshteinDistance",
+                 "hashCode" -> GenericType.Primitive.INTEGER;
             // Float-producing functions
-            case "toFloat", "parseFloat" -> GenericType.Primitive.FLOAT;
+            case "toFloat", "parseFloat",
+                 "sinh", "cosh", "tanh", "cot", "cbrt",
+                 "jaroWinklerSimilarity" -> GenericType.Primitive.FLOAT;
             // Decimal-producing functions
             case "toDecimal", "parseDecimal" -> GenericType.Primitive.DECIMAL;
             // String-producing functions
             case "toString", "toLower", "toUpper", "trim", "format",
                  "joinStrings", "replace", "lpad", "rpad", "splitPart",
+                 "left", "right", "ltrim", "rtrim",
+                 "toUpperFirstCharacter", "toLowerFirstCharacter",
                  "reverseString", "encodeBase64", "decodeBase64", "char",
                  "hash" -> GenericType.Primitive.STRING;
             // Boolean-producing functions
             case "contains", "in", "startsWith", "endsWith",
-                 "isEmpty", "isNotEmpty", "parseBoolean" -> GenericType.Primitive.BOOLEAN;
+                 "isEmpty", "isNotEmpty", "parseBoolean",
+                 "matches",
+                 "hasDay", "hasSecond", "hasSubsecond",
+                 "hasSubsecondWithAtLeastPrecision" -> GenericType.Primitive.BOOLEAN;
             // Number-producing (propagate numeric but don't narrow)
             case "toDegrees", "toRadians" -> GenericType.Primitive.FLOAT;
             // DateTime / Date standalone functions
