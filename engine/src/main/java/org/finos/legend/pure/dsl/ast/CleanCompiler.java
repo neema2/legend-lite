@@ -1330,12 +1330,39 @@ public class CleanCompiler {
                     String frameType = funcName.startsWith("_") ? funcName.substring(1) : funcName;
                     TypeInfo.FrameBound start = resolveFrameBoundPure(paf.parameters(), true);
                     TypeInfo.FrameBound end = resolveFrameBoundPure(paf.parameters(), false);
+                    // Validate: lower bound must not exceed upper bound
+                    validateFrameBounds(start, end);
                     frame = new TypeInfo.FrameSpec(frameType, start, end);
                 }
             }
         }
 
         return new OverClauseResult(partitionBy, orderBy, frame);
+    }
+
+    /**
+     * Validates that the window frame lower bound is not greater than the upper bound.
+     * Throws PureCompileException matching the Pure error message for invalid frame boundaries.
+     */
+    private void validateFrameBounds(TypeInfo.FrameBound start, TypeInfo.FrameBound end) {
+        double startPos = frameBoundPosition(start, true);
+        double endPos = frameBoundPosition(end, false);
+        if (startPos > endPos) {
+            throw new PureCompileException(
+                    "Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!");
+        }
+    }
+
+    /**
+     * Converts a FrameBound to a numeric position for comparison.
+     * UNBOUNDED PRECEDING = -∞, n PRECEDING = -n, CURRENT ROW = 0, n FOLLOWING = n, UNBOUNDED FOLLOWING = +∞.
+     */
+    private double frameBoundPosition(TypeInfo.FrameBound bound, boolean isStart) {
+        return switch (bound.type()) {
+            case UNBOUNDED -> isStart ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+            case CURRENT_ROW -> 0;
+            case OFFSET -> bound.offset(); // negative = preceding, positive = following
+        };
     }
 
     /** Try to resolve a single ascending/descending sort spec from an AST node. */
@@ -2373,6 +2400,11 @@ public class CleanCompiler {
                     TypeInfo info = TypeInfo.scalarOf(sourceInfo.scalarType().elementType());
                     types.put(af, info);
                     yield info;
+                }
+                // Non-list source: toOne is a no-op, propagate scalar type through
+                if (sourceInfo != null && sourceInfo.scalarType() != null) {
+                    types.put(af, sourceInfo);
+                    yield sourceInfo;
                 }
                 yield scalar(af);
             }

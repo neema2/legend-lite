@@ -5436,4 +5436,33 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // lead() for that row should be null (no next row in partition).
         // first() for that row should be 'J' (first name in partition ordered by id DESC).
     }
+
+    // ==================== Invalid Window Frame Boundary Tests ====================
+
+    @Test
+    @DisplayName("PCT: Invalid window frame boundary - lower bound greater than upper bound throws compile error")
+    void testInvalidWindowFrameBoundary_lowerGreaterThanUpper() {
+        // GIVEN: A window frame where start (2 FOLLOWING) > end (1 FOLLOWING) — invalid
+        String pureQuery = windowFrameQuery("meta::pure::functions::relation::rows(2, 1)");
+
+        // THEN: Should throw PureCompileException at compile time, not produce bad SQL
+        var ex = assertThrows(
+                org.finos.legend.pure.dsl.PureCompileException.class,
+                () -> executeRelation(pureQuery));
+        assertTrue(ex.getMessage().contains("Invalid window frame boundary"),
+                "Expected 'Invalid window frame boundary' message, got: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("PCT: Invalid window frame boundary - N FOLLOWING to N PRECEDING throws compile error")
+    void testInvalidWindowFrameBoundary_followingToPreceding() {
+        // GIVEN: A window frame where start (1 FOLLOWING) > end (-1 = 1 PRECEDING) — invalid
+        String pureQuery = windowFrameQuery("1->meta::pure::functions::relation::rows(-1)");
+
+        var ex = assertThrows(
+                org.finos.legend.pure.dsl.PureCompileException.class,
+                () -> executeRelation(pureQuery));
+        assertTrue(ex.getMessage().contains("Invalid window frame boundary"),
+                "Expected 'Invalid window frame boundary' message, got: " + ex.getMessage());
+    }
 }

@@ -340,4 +340,54 @@ public class ComputedProjectIntegrationTest {
             }
         }
     }
+
+    // ==================== PCT testSimpleRelationProject ====================
+
+    /**
+     * Reproduces the PCT testSimpleRelationProject failure.
+     *
+     * Pure expression:
+     *   #TDS val, str 1, a 3, ewe ...#
+     *     ->project(~[name:c:(val:Integer, str:String)[1]|$c.str->toOne() + $c.val->toOne()->toString()])
+     *
+     * This is a PURELY COMPUTED column — 'name' doesn't exist in source columns [val, str].
+     * The type must be inferred from the lambda body (string concat → String).
+     *
+     * Without fix, fails with:
+     *   PureCompileException: project(): cannot resolve type for column 'name'.
+     *   Not found in source columns [val, str]
+     */
+    @Test
+    void testSimpleRelationProject_computedColumn() throws Exception {
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+            try (var stmt = connection.createStatement()) {
+                stmt.execute("SET timezone='UTC'");
+            }
+
+            QueryService qs = new QueryService();
+            var result = qs.execute(
+                    TDS_MODEL,
+                    "|#TDS\nval, str\n1, a\n3, ewe\n4, qw\n5, wwe\n6, weq\n#->"
+                    + "meta::pure::functions::relation::project("
+                    + "~[name:c: (val:Integer, str:String)[1]"
+                    + "|$c.str->meta::pure::functions::multiplicity::toOne()"
+                    + " + $c.val->meta::pure::functions::multiplicity::toOne()"
+                    + "->meta::pure::functions::string::toString()])",
+                    "test::TestRuntime", connection);
+
+            assertNotNull(result, "Result should not be null");
+            assertEquals(1, result.columns().size(), "Should have 1 column: name");
+            assertEquals("name", result.columns().get(0).name());
+
+            var rows = result.rows();
+            assertEquals(5, rows.size(), "Should have 5 rows");
+
+            // Expected: str + toString(val) = "a1", "ewe3", "qw4", "wwe5", "weq6"
+            assertEquals("a1", rows.get(0).values().get(0));
+            assertEquals("ewe3", rows.get(1).values().get(0));
+            assertEquals("qw4", rows.get(2).values().get(0));
+            assertEquals("wwe5", rows.get(3).values().get(0));
+            assertEquals("weq6", rows.get(4).values().get(0));
+        }
+    }
 }
