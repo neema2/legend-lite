@@ -14,11 +14,19 @@ import java.util.stream.Collectors;
  * @param pureClass        The Pure class being mapped
  * @param table            The target relational table
  * @param propertyMappings Mappings from Pure properties to table columns
+ * @param nested           If true, properties are accessed via nested struct field paths
+ *                         (e.g., {@code t0."alias"."field"}) rather than flat column refs.
+ *                         Set for struct literals (identity mappings) and future variant-column mappings.
  */
 public record RelationalMapping(
         PureClass pureClass,
         Table table,
-        List<PropertyMapping> propertyMappings) {
+        List<PropertyMapping> propertyMappings,
+        boolean nested) {
+
+    public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
+        this(pureClass, table, propertyMappings, false);
+    }
 
     public RelationalMapping {
         Objects.requireNonNull(pureClass, "Pure class cannot be null");
@@ -100,6 +108,41 @@ public record RelationalMapping(
                 .map(p -> org.finos.legend.engine.plan.GenericType.fromType(p.genericType()))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Property '" + propertyName + "' not found in class " + pureClass.name()));
+    }
+
+    /**
+     * Creates an identity mapping for a struct literal: each scalar primitive
+     * property maps to a virtual column with the same name.
+     *
+     * <p>Class-typed and to-many properties are excluded from the mapping
+     * because they are modeled as associations (resolved via TypeInfo).
+     * PlanGenerator uses the absence of a Join in the AssociationTarget
+     * to emit UNNEST instead of JOIN.
+     *
+     * @param pureClass The Pure class to create an identity mapping for
+     * @return A RelationalMapping with a synthetic Table and identity PropertyMappings
+     */
+    public static RelationalMapping identity(PureClass pureClass) {
+        var columns = new java.util.ArrayList<Column>();
+        var mappings = new java.util.ArrayList<PropertyMapping>();
+
+        for (var prop : pureClass.allProperties()) {
+            // Only map scalar primitive properties — class-typed / to-many
+            // are handled as associations via TypeInfo.AssociationTarget
+            if (prop.isCollection()) continue;
+            if (!(prop.genericType() instanceof org.finos.legend.pure.m3.PrimitiveType pt)) continue;
+
+            SqlDataType sqlType = SqlDataType.fromPrimitiveType(pt);
+            columns.add(Column.nullable(prop.name(), sqlType));
+            mappings.add(PropertyMapping.column(prop.name(), prop.name()));
+        }
+
+        // Synthetic virtual table — name is the lowercased class name
+        String simpleName = pureClass.name();
+        String tableName = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
+        var table = new Table(tableName, columns);
+
+        return new RelationalMapping(pureClass, table, mappings, true);
     }
 
     @Override

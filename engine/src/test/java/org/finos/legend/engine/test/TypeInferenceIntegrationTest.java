@@ -1886,6 +1886,24 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         }
 
         @Test
+        void testConcatenateHeterogeneousStructs() throws SQLException {
+                // PCT: concatenate([^CO_Address(name='Hoboken'), ^CO_Address(name='Jersey City')],
+                //                  [^CO_Location(place='Hoboken, NJ'), ^CO_Location(place='Jersey City, NJ')])
+                // Expected: result type should be CO_GeographicEntity (their common supertype)
+                var result = queryService.execute(
+                                getCompletePureModelWithRuntime(),
+                                "|meta::pure::functions::collection::concatenate(" +
+                                "[^meta::pure::functions::collection::tests::model::CO_Address(name='Hoboken'), " +
+                                "^meta::pure::functions::collection::tests::model::CO_Address(name='Jersey City')], " +
+                                "[^meta::pure::functions::collection::tests::model::CO_Location(place='Hoboken, NJ'), " +
+                                "^meta::pure::functions::collection::tests::model::CO_Location(place='Jersey City, NJ')])",
+                                "test::TestRuntime", connection);
+                assertNotNull(result, "Heterogeneous struct concatenation should produce a result");
+                // Should have 4 elements (2 addresses + 2 locations)
+                assertTrue(result.rows().size() > 0, "Should have rows");
+        }
+
+
         void testContainsPrimitive() throws SQLException {
                 // PCT: |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->contains(1) -> true
                 var result = queryService.execute(

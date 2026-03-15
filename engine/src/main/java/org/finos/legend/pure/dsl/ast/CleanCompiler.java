@@ -307,7 +307,7 @@ public class CleanCompiler {
         if (!lambda.parameters().isEmpty()) {
             String paramName = lambda.parameters().get(0).name();
             if (sourceType != null) {
-                // Relational filter: bind param to relation columns
+                // Relational / struct-with-mapping filter: bind param to relation columns
                 lambdaCtx = ctx.withRelationType(paramName, sourceType);
                 if (source.mapping() != null) {
                     lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
@@ -330,8 +330,7 @@ public class CleanCompiler {
                 lambda.body().isEmpty() ? List.of() : lambda.body(),
                 source.mapping());
 
-        // For collection filters, propagate the source's scalar type
-        // (filter on a list returns a list of the same type)
+        // For collection filters (no relationType), propagate the source's scalar type
         if (sourceType == null && source.scalarType() != null) {
             var info = TypeInfo.scalarOf(source.scalarType());
             types.put(af, info);
@@ -562,9 +561,46 @@ public class CleanCompiler {
         TypeInfo left = compileExpr(params.get(0), ctx);
         TypeInfo right = compileExpr(params.get(1), ctx);
 
-        // Validate column alignment — compiler guards correctness, doesn't silently fix
         RelationType leftType = left.relationType();
         RelationType rightType = right.relationType();
+
+        // For struct/mapped sources with different class types, compute common supertype
+        if (left.mapping() != null && right.mapping() != null
+                && leftType != null && rightType != null
+                && !leftType.columns().keySet().equals(rightType.columns().keySet())) {
+            // Try to find a common supertype via class hierarchy
+            GenericType leftScalar = left.scalarType() != null ? left.scalarType().elementType() : null;
+            GenericType rightScalar = right.scalarType() != null ? right.scalarType().elementType() : null;
+            if (leftScalar instanceof GenericType.ClassType leftCt
+                    && rightScalar instanceof GenericType.ClassType rightCt
+                    && modelContext != null) {
+                var lcaOpt = findLowestCommonAncestor(leftCt.qualifiedName(), rightCt.qualifiedName());
+                if (lcaOpt.isPresent()) {
+                    var lcaClass = lcaOpt.get();
+                    // Build RelationType from the LCA's allProperties
+                    var lcaCols = new java.util.LinkedHashMap<String, GenericType>();
+                    for (var prop : lcaClass.allProperties()) {
+                        lcaCols.put(prop.name(), GenericType.fromType(prop.genericType()));
+                    }
+                    var lcaRelType = new RelationType(lcaCols);
+                    var lcaGenericType = new GenericType.ClassType(lcaClass.qualifiedName());
+                    var info = TypeInfo.builder()
+                            .relationType(lcaRelType)
+                            .scalarType(GenericType.listOf(lcaGenericType))
+                            .build();
+                    types.put(af, info);
+                    return info;
+                }
+            }
+            // No common supertype found — fall back to variant list
+            var info = TypeInfo.builder()
+                    .scalarType(GenericType.listOf(GenericType.Primitive.ANY))
+                    .build();
+            types.put(af, info);
+            return info;
+        }
+
+        // Relational (non-struct) sources: strict column alignment
         if (leftType != null && rightType != null) {
             var leftCols = leftType.columns();
             var rightCols = rightType.columns();
@@ -582,6 +618,42 @@ public class CleanCompiler {
         }
 
         return typed(af, leftType, left.mapping());
+    }
+
+    /**
+     * Finds the lowest common ancestor (LCA) of two classes using BFS on the superclass hierarchy.
+     * Returns empty if no common ancestor is found (other than implicit Any).
+     */
+    private java.util.Optional<org.finos.legend.pure.m3.PureClass> findLowestCommonAncestor(
+            String className1, String className2) {
+        if (modelContext == null) return java.util.Optional.empty();
+        var class1Opt = modelContext.findClass(className1);
+        var class2Opt = modelContext.findClass(className2);
+        if (class1Opt.isEmpty() || class2Opt.isEmpty()) return java.util.Optional.empty();
+
+        // Collect all ancestors of class1 (including itself)
+        var ancestors1 = new java.util.LinkedHashSet<String>();
+        var queue = new java.util.ArrayDeque<org.finos.legend.pure.m3.PureClass>();
+        queue.add(class1Opt.get());
+        while (!queue.isEmpty()) {
+            var cls = queue.poll();
+            if (ancestors1.add(cls.qualifiedName())) {
+                queue.addAll(cls.superClasses());
+            }
+        }
+
+        // BFS class2's ancestor chain, return first match
+        queue.add(class2Opt.get());
+        var visited = new java.util.HashSet<String>();
+        while (!queue.isEmpty()) {
+            var cls = queue.poll();
+            if (!visited.add(cls.qualifiedName())) continue;
+            if (ancestors1.contains(cls.qualifiedName())) {
+                return java.util.Optional.of(cls);
+            }
+            queue.addAll(cls.superClasses());
+        }
+        return java.util.Optional.empty();
     }
 
     /**
@@ -635,6 +707,12 @@ public class CleanCompiler {
 
         // Pre-resolve associations for multi-hop property paths
         var associations = resolveAssociations(lambdaSpecs, mapping);
+        // Merge pre-existing associations from source (e.g., struct instance to-many properties)
+        if (source.hasAssociations()) {
+            var merged = new java.util.LinkedHashMap<>(associations);
+            source.associations().forEach(merged::putIfAbsent);
+            associations = java.util.Map.copyOf(merged);
+        }
 
         // Build projected RelationType + ProjectionSpecs
         Map<String, GenericType> projectedColumns = new LinkedHashMap<>();
@@ -754,13 +832,6 @@ public class CleanCompiler {
         }
 
         RelationType resultType = new RelationType(projectedColumns);
-        // Propagate struct flag from source
-        if (source.isStructSource()) {
-            var info = TypeInfo.builder().relationType(resultType).associations(associations)
-                    .projections(projections).structSource(true).build();
-            types.put(af, info);
-            return info;
-        }
         var info = TypeInfo.builder().relationType(resultType).mapping(mapping)
                 .associations(associations).projections(projections).build();
         types.put(af, info);
@@ -2875,8 +2946,26 @@ public class CleanCompiler {
         }
 
         var rt = new RelationType(columns);
-        // Tag as struct source so PlanGenerator knows without AST walking
-        var info = TypeInfo.structOf(rt);
+
+        // Build identity mapping — scalar primitives get identity PropertyMappings
+        var identityMapping = RelationalMapping.identity(pureClass);
+
+        // Synthesize associations for to-many class-typed properties
+        // These get AssociationTarget(null, null, true) — no Join signals UNNEST
+        var associations = new java.util.LinkedHashMap<String, TypeInfo.AssociationTarget>();
+        for (var prop : pureClass.allProperties()) {
+            if (prop.isCollection() && prop.genericType() instanceof org.finos.legend.pure.m3.PureClass elementClass) {
+                // Build identity mapping for element class so compileProject can resolve leaf properties
+                var targetMapping = RelationalMapping.identity(elementClass);
+                associations.put(prop.name(), new TypeInfo.AssociationTarget(targetMapping, null, true));
+            }
+        }
+
+        var info = TypeInfo.builder()
+                .relationType(rt)
+                .mapping(identityMapping)
+                .associations(associations.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(associations))
+                .build();
         types.put(ci, info);
         return info;
     }
@@ -3679,6 +3768,19 @@ public class CleanCompiler {
                 types.put(ap, info);
                 return info;
             }
+            // .prop on a relational result (e.g., filter(...).legalName)
+            // → desugar to single-column project so PlanGenerator builds proper FROM clause
+            if (ownerInfo != null && ownerInfo.relationType() != null) {
+                var propVar = new Variable("_rel_x");
+                var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
+                var colSpec = new ColSpec(ap.property(), new LambdaFunction(List.of(propVar), propAccess), null);
+                var colSpecCI = new ClassInstance("colSpec", colSpec);
+                var projectNode = new AppliedFunction("project", List.of(ownerFn, colSpecCI));
+                TypeInfo projectInfo = compileExpr(projectNode, ctx);
+                var info = TypeInfo.from(projectInfo).inlinedBody(projectNode).build();
+                types.put(ap, info);
+                return info;
+            }
             // .prop on a ClassType result (e.g., at(1) returning a single struct)
             // → synthesize structExtract(ownerFn, 'prop')
             if (ownerInfo != null && ownerInfo.scalarType() instanceof GenericType.ClassType) {
@@ -3717,11 +3819,12 @@ public class CleanCompiler {
         // so isList() works (for contains/head/find dispatch) AND project() can resolve columns
         if (!coll.values().isEmpty()) {
             TypeInfo firstElem = types.get(coll.values().get(0));
-            if (firstElem != null && firstElem.structSource() && firstElem.relationType() != null) {
+            if (firstElem != null && firstElem.mapping() != null && firstElem.relationType() != null) {
                 var info = TypeInfo.builder()
                         .scalarType(GenericType.listOf(elementType))
                         .relationType(firstElem.relationType())
-                        .structSource(true)
+                        .mapping(firstElem.mapping())
+                        .associations(firstElem.associations())
                         .build();
                 types.put(coll, info);
                 return info;
@@ -3760,7 +3863,8 @@ public class CleanCompiler {
 
     /**
      * Finds the common supertype for a list of expressions.
-     * All numeric → NUMBER, all temporal → DATE, mixed → ANY.
+     * All numeric → NUMBER, all temporal → DATE, all same ClassType → that ClassType,
+     * all ClassTypes with common supertype → LCA ClassType, mixed → ANY.
      */
     private GenericType unifyElementType(java.util.List<ValueSpecification> values) {
         if (values.isEmpty())
@@ -3772,6 +3876,19 @@ public class CleanCompiler {
             return GenericType.Primitive.NUMBER;
         if (elementTypes.stream().allMatch(GenericType::isTemporal))
             return GenericType.Primitive.DATE;
+        // All ClassTypes: try to find common supertype
+        if (elementTypes.stream().allMatch(t -> t instanceof GenericType.ClassType) && modelContext != null) {
+            var classTypes = elementTypes.stream()
+                    .map(t -> ((GenericType.ClassType) t).qualifiedName()).toList();
+            // Pairwise LCA reduction
+            String current = classTypes.get(0);
+            for (int i = 1; i < classTypes.size(); i++) {
+                var lcaOpt = findLowestCommonAncestor(current, classTypes.get(i));
+                if (lcaOpt.isEmpty()) return GenericType.Primitive.ANY;
+                current = lcaOpt.get().qualifiedName();
+            }
+            return new GenericType.ClassType(current);
+        }
         return GenericType.Primitive.ANY;
     }
 

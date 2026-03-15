@@ -172,6 +172,20 @@ public abstract class AbstractDatabaseTest {
                 firstName: String[1];
                 lastName: String[1];
             }
+
+            Class meta::pure::functions::collection::tests::model::CO_GeographicEntity
+            {
+            }
+
+            Class meta::pure::functions::collection::tests::model::CO_Address extends meta::pure::functions::collection::tests::model::CO_GeographicEntity
+            {
+                name: String[1];
+            }
+
+            Class meta::pure::functions::collection::tests::model::CO_Location extends meta::pure::functions::collection::tests::model::CO_GeographicEntity
+            {
+                place: String[1];
+            }
             """;
 
     /**

@@ -43,7 +43,6 @@ public record TypeInfo(
         List<SortSpec> sortSpecs,
         List<ProjectionSpec> projections,
         List<ColumnSpec> columnSpecs,
-        boolean structSource,
         String joinType,
         List<WindowFunctionSpec> windowSpecs,
         ValueSpecification inlinedBody,
@@ -341,10 +340,7 @@ public record TypeInfo(
         return builder().relationType(relationType).mapping(mapping).associations(associations).build();
     }
 
-    /** Constructor for struct-based sources. */
-    public static TypeInfo structOf(RelationType relationType) {
-        return builder().relationType(relationType).structSource(true).build();
-    }
+
 
     /** Creates a TypeInfo tagging a property access with a specific join-side alias. */
     public static TypeInfo withAlias(String columnAlias) {
@@ -374,7 +370,6 @@ public record TypeInfo(
         private List<SortSpec> sortSpecs = List.of();
         private List<ProjectionSpec> projections = List.of();
         private List<ColumnSpec> columnSpecs = List.of();
-        private boolean structSource;
         private String joinType;
         private List<WindowFunctionSpec> windowSpecs = List.of();
         private ValueSpecification inlinedBody;
@@ -393,7 +388,6 @@ public record TypeInfo(
             this.sortSpecs = src.sortSpecs();
             this.projections = src.projections();
             this.columnSpecs = src.columnSpecs();
-            this.structSource = src.structSource();
             this.joinType = src.joinType();
             this.windowSpecs = src.windowSpecs();
             this.inlinedBody = src.inlinedBody();
@@ -410,7 +404,6 @@ public record TypeInfo(
         public Builder sortSpecs(List<SortSpec> v) { this.sortSpecs = v; return this; }
         public Builder projections(List<ProjectionSpec> v) { this.projections = v; return this; }
         public Builder columnSpecs(List<ColumnSpec> v) { this.columnSpecs = v; return this; }
-        public Builder structSource(boolean v) { this.structSource = v; return this; }
         public Builder joinType(String v) { this.joinType = v; return this; }
         public Builder windowSpecs(List<WindowFunctionSpec> v) { this.windowSpecs = v; return this; }
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
@@ -422,7 +415,7 @@ public record TypeInfo(
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
-                    columnSpecs, structSource, joinType, windowSpecs, inlinedBody, scalarType,
+                    columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
                     lambdaParam, columnAlias, pivotSpec, variantAccess);
         }
     }
@@ -484,10 +477,7 @@ public record TypeInfo(
         return associations != null && !associations.isEmpty();
     }
 
-    /** True if this expression is rooted in a struct literal. */
-    public boolean isStructSource() {
-        return structSource;
-    }
+
 
     /** True if this node has pre-resolved sort specs. */
     public boolean hasSortSpecs() {

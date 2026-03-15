@@ -127,6 +127,7 @@ public class PlanGenerator {
                 yield generateRelation(lf.body().getLast());
             }
             case ClassInstance ci -> generateClassInstance(ci);
+            case Collection coll -> generateStructCollection(coll);
             default -> throw new PureCompileException(
                     "PlanGenerator: cannot compile: " + vs.getClass().getSimpleName());
         };
@@ -167,24 +168,62 @@ public class PlanGenerator {
     }
 
     /**
-     * Compiles a struct literal ^ClassName(field=val, ...) to SQL VALUES.
-     * Renders the instance as a dialect-specific struct inside VALUES.
+     * Compiles a struct literal ^ClassName(field=val, ...) to flat VALUES.
+     * Each scalar property becomes its own column; array properties stay as array literals.
+     * This allows the standard relational path (filter, project, etc.) to work uniformly.
      */
     private SqlBuilder generateStructLiteral(CleanAstBuilder.InstanceData data) {
-        SqlExpr structExpr = renderStructValue(new ClassInstance("instance", data));
+        return generateFlatValues(java.util.List.of(data));
+    }
 
-        // Use lowercased simple class name as alias (e.g., "test::TypeForProjectTest" →
-        // "typeForProjectTest")
-        String className = data.className();
-        String simpleName = className.contains("::") ? className.substring(className.lastIndexOf("::") + 2) : className;
-        String alias = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
+    /**
+     * Compiles a collection of struct literals [^Class(...), ^Class(...)] to multi-row flat VALUES.
+     */
+    private SqlBuilder generateStructCollection(Collection coll) {
+        if (coll.values().isEmpty()) {
+            throw new PureCompileException("PlanGenerator: empty struct collection");
+        }
+        var rows = new java.util.ArrayList<CleanAstBuilder.InstanceData>();
+        for (var v : coll.values()) {
+            if (v instanceof ClassInstance ci && "instance".equals(ci.type())) {
+                rows.add((CleanAstBuilder.InstanceData) ci.value());
+            } else {
+                throw new PureCompileException(
+                        "PlanGenerator: struct collection contains non-instance: " + v.getClass().getSimpleName());
+            }
+        }
+        return generateFlatValues(rows);
+    }
+
+    /**
+     * Generates flat multi-row VALUES from a list of InstanceData.
+     * Each property becomes its own column:
+     *   VALUES ('f', [{...}]), ('f2', [{...}]) AS t("legalName", "employees")
+     */
+    private SqlBuilder generateFlatValues(java.util.List<CleanAstBuilder.InstanceData> dataRows) {
+        var firstData = dataRows.get(0);
+        java.util.List<String> columnNames = firstData.properties().keySet().stream()
+                .map(dialect::quoteIdentifier).toList();
+
+        var rows = new java.util.ArrayList<java.util.List<SqlExpr>>();
+        for (var data : dataRows) {
+            var row = new java.util.ArrayList<SqlExpr>();
+            for (var entry : data.properties().entrySet()) {
+                SqlExpr value = renderStructValue(entry.getValue());
+                // If compiler tagged as list but AST is a single element, wrap in array
+                TypeInfo valInfo = unit.types().get(entry.getValue());
+                if (valInfo != null && valInfo.isList()
+                        && !(entry.getValue() instanceof Collection)) {
+                    value = new SqlExpr.ArrayLiteral(java.util.List.of(value));
+                }
+                row.add(value);
+            }
+            rows.add(row);
+        }
 
         return new SqlBuilder()
                 .selectStar()
-                .fromValues(
-                        java.util.List.of(java.util.List.of(structExpr)),
-                        "t",
-                        java.util.List.of(alias));
+                .fromValues(rows, "t", columnNames);
     }
 
     /**
@@ -425,14 +464,9 @@ public class PlanGenerator {
     private SqlBuilder generateProject(AppliedFunction af) {
         List<ValueSpecification> params = af.parameters();
 
-        // Sidecar tells us if source is struct-based
-        if (unit.types().get(params.get(0)).isStructSource()) {
-            return generateStructProject(af);
-        }
-
         var mapping = mappingFor(af);
 
-        // Step 1: Compile the source (getAll, filter, etc.)
+        // Step 1: Compile the source (getAll, filter, struct collection, etc.)
         SqlBuilder source = generateRelation(params.get(0));
 
         // Step 2: Determine table alias from source builder
@@ -474,25 +508,35 @@ public class PlanGenerator {
         TypeInfo info = unit.types().get(af);
         for (var proj : info.projections()) {
             if (proj.isAssociation()) {
-                // Association navigation: e.g., propertyPath=[\"items\", \"productName\"]
+                // Association navigation: e.g., propertyPath=["items", "productName"]
                 String assocProp = proj.associationProperty();
                 String leafProp = proj.property();
 
                 AssocJoinInfo joinInfo = assocJoins.get(assocProp);
                 String targetAlias;
                 RelationalMapping targetMapping;
+                Join join;
 
                 if (joinInfo == null) {
                     var assocTarget = resolveAssociationFromSidecar(af, assocProp);
                     targetMapping = assocTarget.targetMapping();
                     targetAlias = "j" + (assocJoins.size() + 1);
-                    assocJoins.put(assocProp, new AssocJoinInfo(targetAlias, targetMapping, assocTarget.join()));
+                    join = assocTarget.join();
+                    assocJoins.put(assocProp, new AssocJoinInfo(targetAlias, targetMapping, join));
                 } else {
                     targetAlias = joinInfo.alias();
                     targetMapping = joinInfo.mapping();
+                    join = joinInfo.join();
                 }
 
-                SqlExpr colExpr = resolveColumnExpr(leafProp, targetMapping, targetAlias);
+                SqlExpr colExpr;
+                if (join == null) {
+                    // UNNEST association (struct array): resolve from unnested element
+                    String elemAlias = targetAlias + "_elem";
+                    colExpr = resolveColumnExpr(leafProp, targetMapping, elemAlias);
+                } else {
+                    colExpr = resolveColumnExpr(leafProp, targetMapping, targetAlias);
+                }
                 builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
             } else if (proj.computedExpr() != null) {
                 // Computed expression: e.g., $e.eventDate->monthNumber()
@@ -506,11 +550,12 @@ public class PlanGenerator {
             }
         }
 
-        // Step 5: Add LEFT OUTER JOINs for association projections
+        // Step 5: Add JOINs for association projections
         for (var entry : assocJoins.entrySet()) {
             AssocJoinInfo joinInfo = entry.getValue();
             Join join = joinInfo.join();
             if (join != null && mapping != null) {
+                // Regular FK join
                 String targetTableName = joinInfo.mapping().table().name();
                 String srcTableName = mapping != null ? mapping.table().name() : null;
                 String leftCol = srcTableName != null ? join.getColumnForTable(srcTableName) : null;
@@ -521,156 +566,25 @@ public class PlanGenerator {
                 builder.addJoin(SqlBuilder.JoinType.LEFT,
                         dialect.quoteIdentifier(targetTableName),
                         dialect.quoteIdentifier(joinInfo.alias()), onCondition);
+            } else if (join == null) {
+                // UNNEST for inline array properties (struct literal arrays)
+                String arrayProp = entry.getKey();
+                SqlExpr arrayRef = resolveColumnExpr(arrayProp, mapping, tableAlias);
+                String elemAlias = joinInfo.alias() + "_elem";
+
+                SqlBuilder unnestSubquery = new SqlBuilder()
+                        .addSelect(new SqlExpr.Unnest(arrayRef), null);
+                String compoundAlias = joinInfo.alias() + "(" + elemAlias + ")";
+                builder.addJoin(new SqlBuilder.JoinClause(
+                        SqlBuilder.JoinType.LEFT_LATERAL, null, compoundAlias,
+                        unnestSubquery, new SqlExpr.BoolLiteral(true), null));
             }
         }
 
         return builder;
     }
 
-    /**
-     * Compiles project() when the source is a struct literal.
-     * Uses currentResultType (from CleanCompiler) to distinguish
-     * array properties (need UNNEST) from scalar properties.
-     *
-     * Example output:
-     * SELECT struct_src.alias.name AS "one", u0_elem.val AS "two"
-     * FROM (SELECT * FROM (VALUES ({...})) AS t(alias)) AS struct_src
-     * LEFT JOIN LATERAL (SELECT UNNEST(struct_src.alias.addresses)) AS u0(u0_elem)
-     * ON TRUE
-     */
-    private SqlBuilder generateStructProject(AppliedFunction af) {
-        ValueSpecification source = af.parameters().get(0);
 
-        // Extract struct data and type — handle both single struct and collection of structs
-        List<CleanAstBuilder.InstanceData> structRows = new java.util.ArrayList<>();
-        ClassInstance firstCi;
-        if (source instanceof ClassInstance ci && "instance".equals(ci.type())) {
-            firstCi = ci;
-            structRows.add((CleanAstBuilder.InstanceData) ci.value());
-        } else if (source instanceof Collection coll && !coll.values().isEmpty()) {
-            firstCi = (ClassInstance) coll.values().get(0);
-            for (var v : coll.values()) {
-                structRows.add((CleanAstBuilder.InstanceData) ((ClassInstance) v).value());
-            }
-        } else {
-            throw new PureCompileException("generateStructProject: unsupported source type: " + source.getClass().getSimpleName());
-        }
-
-        CleanAstBuilder.InstanceData firstData = (CleanAstBuilder.InstanceData) firstCi.value();
-        RelationType structType = unit.types().get(firstCi).relationType();
-
-        // Build the struct source — multi-row VALUES for collections
-        SqlBuilder structSource;
-        if (structRows.size() == 1) {
-            structSource = generateStructLiteral(firstData);
-        } else {
-            // Generate VALUES with multiple rows
-            var rows = new java.util.ArrayList<java.util.List<SqlExpr>>();
-            for (var data : structRows) {
-                SqlExpr structExpr = renderStructValue(new ClassInstance("instance", data));
-                rows.add(java.util.List.of(structExpr));
-            }
-            String className = firstData.className();
-            String simpleName = className.contains("::") ? className.substring(className.lastIndexOf("::") + 2) : className;
-            String alias = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
-            structSource = new SqlBuilder()
-                    .selectStar()
-                    .fromValues(rows, "t", java.util.List.of(alias));
-        }
-
-        // Extract class alias (lowercased simple name)
-        String className2 = firstData.className();
-        String simpleName = className2.contains("::") ? className2.substring(className2.lastIndexOf("::") + 2) : className2;
-        String structAlias = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
-        String srcAlias = "struct_src";
-
-        // Track UNNEST joins needed for array properties
-        int unnestCounter = 0;
-
-        // Maps: array property name → (joinAlias, elemAlias)
-        var arrayAliases = new java.util.LinkedHashMap<String, String[]>();
-
-        SqlBuilder builder = new SqlBuilder();
-
-        // Use pre-resolved projections from sidecar
-        TypeInfo info = unit.types().get(af);
-        for (var proj : info.projections()) {
-            List<String> propPath = proj.propertyPath();
-            String alias = proj.alias();
-
-            if (propPath.size() == 1) {
-                // Scalar property: struct_src.alias.propName
-                SqlExpr colExpr = new SqlExpr.FieldAccess(
-                        new SqlExpr.FieldAccess(new SqlExpr.ColumnRef(srcAlias), structAlias), propPath.get(0));
-                builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
-            } else if (propPath.size() >= 2) {
-                // Array property path: e.g., [addresses, val]
-                // First segment is the array field, rest is element access
-                String arrayProp = propPath.get(0);
-
-                // Look up type from CleanCompiler's side table
-                GenericType propType = structType != null
-                        ? structType.getColumnType(arrayProp)
-                        : null;
-
-                if (propType != null && propType.isList()) {
-                    // Array property — need UNNEST
-                    String[] existingAliases = arrayAliases.get(arrayProp);
-                    String elemAlias;
-
-                    if (existingAliases == null) {
-                        // First time seeing this array — register for UNNEST join
-                        String joinAlias = "u" + unnestCounter;
-                        elemAlias = "u" + unnestCounter + "_elem";
-                        unnestCounter++;
-                        arrayAliases.put(arrayProp, new String[] { joinAlias, elemAlias });
-                    } else {
-                        elemAlias = existingAliases[1];
-                    }
-
-                    // Access sub-property on the unnested element
-                    String leafProp = propPath.get(propPath.size() - 1);
-                    SqlExpr colExpr = new SqlExpr.Column(elemAlias, leafProp);
-                    builder.addSelect(colExpr, dialect.quoteIdentifier(alias));
-                } else {
-                    // Nested scalar: struct_src.alias.prop1.prop2
-                    SqlExpr base = new SqlExpr.FieldAccess(new SqlExpr.ColumnRef(srcAlias), structAlias);
-                    for (String seg : propPath) {
-                        base = new SqlExpr.FieldAccess(base, seg);
-                    }
-                    builder.addSelect(base, dialect.quoteIdentifier(alias));
-                }
-            }
-        }
-
-        // FROM subquery wrapping the struct VALUES
-        builder.fromSubquery(structSource, srcAlias);
-
-        // Append UNNEST joins as structured LEFT_LATERAL JoinClauses
-        for (var entry : arrayAliases.entrySet()) {
-            String arrayProp = entry.getKey();
-            String[] als = entry.getValue();
-            String joinAlias = als[0];
-            String elemAlias = als[1];
-
-            // Build subquery: SELECT UNNEST(path)
-            SqlBuilder unnestSubquery = new SqlBuilder()
-                    .addSelect(new SqlExpr.Unnest(
-                            new SqlExpr.FieldAccess(
-                                    new SqlExpr.FieldAccess(new SqlExpr.ColumnRef(srcAlias), structAlias),
-                                    arrayProp)),
-                            null);
-
-            // Compose alias as "u0(u0_elem)" for the compound alias syntax
-            String compoundAlias = joinAlias + "(" + elemAlias + ")";
-
-            builder.addJoin(new SqlBuilder.JoinClause(
-                    SqlBuilder.JoinType.LEFT_LATERAL, null, compoundAlias,
-                    unnestSubquery, new SqlExpr.BoolLiteral(true), null));
-        }
-
-        return builder;
-    }
 
     /** Recursively extracts property chain from nested AppliedProperty. */
     private List<String> extractPropertyChain(ValueSpecification vs) {
