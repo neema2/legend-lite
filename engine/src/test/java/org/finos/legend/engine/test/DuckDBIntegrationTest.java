@@ -5393,4 +5393,47 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(10, result.rows().size(), "Should have 10 rows");
         assertEquals(5, result.columns().size(), "Should have 5 columns: id, grp, name, newCol, other");
     }
+
+    @Test
+    @DisplayName("PCT: testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns - PARTITION BY with ColSpecArray")
+    void testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns() throws SQLException {
+        // This is the exact failing PCT test. The over(~[grp,grp2]) uses a ColSpecArray
+        // for partition columns. lead() and first() operate within each partition.
+        String pureQuery = """
+                |#TDS
+                    id, grp, grp2, name
+                    1, 2, 2, A
+                    2, 1, 1, B
+                    3, 3, 3, C
+                    4, 4, 4, D
+                    5, 2, 2, E
+                    6, 1, 2, F
+                    7, 3, 3, G
+                    8, 1, 1, H
+                    9, 5, 5, I
+                    10, 0, 0, J
+                #->meta::pure::functions::relation::extend(~[grp,grp2]->meta::pure::functions::relation::over(~id->meta::pure::functions::relation::descending()), ~[newCol:{p: meta::pure::metamodel::relation::Relation<(id:Integer, grp:Integer, grp2:Integer, name:String)>[1], w: meta::pure::functions::relation::_Window<(id:Integer, grp:Integer, grp2:Integer, name:String)>[1], r: (id:Integer, grp:Integer, grp2:Integer, name:String)[1]|$p->meta::pure::functions::relation::lead($r).id},other:{p: meta::pure::metamodel::relation::Relation<(id:Integer, grp:Integer, grp2:Integer, name:String)>[1], w: meta::pure::functions::relation::_Window<(id:Integer, grp:Integer, grp2:Integer, name:String)>[1], r: (id:Integer, grp:Integer, grp2:Integer, name:String)[1]|$p->meta::pure::functions::relation::first($w, $r).name}])
+                """;
+
+        String sql = generateSql(pureQuery);
+        System.out.println("Multi-partition OLAP SQL: " + sql);
+
+        // Must have PARTITION BY with both grp and grp2
+        assertTrue(sql.contains("PARTITION BY"), "SQL must contain PARTITION BY, got: " + sql);
+        assertTrue(sql.contains("\"grp\"") && sql.contains("\"grp2\""),
+                "SQL must partition by both grp and grp2, got: " + sql);
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Multi-partition OLAP result:");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        assertEquals(10, result.rows().size(), "Should have 10 rows");
+        assertEquals(6, result.columns().size(), "Should have 6 columns: id, grp, grp2, name, newCol, other");
+
+        // Verify partitioned results: Within partition (grp=0, grp2=0), only row is id=10.
+        // lead() for that row should be null (no next row in partition).
+        // first() for that row should be 'J' (first name in partition ordered by id DESC).
+    }
 }

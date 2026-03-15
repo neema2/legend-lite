@@ -1310,6 +1310,10 @@ public class CleanCompiler {
         for (var p : overSpec.parameters()) {
             if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
                 partitionBy.add(cs.name());
+            } else if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
+                for (ColSpec cs : csa.colSpecs()) {
+                    partitionBy.add(cs.name());
+                }
             } else if (p instanceof Collection coll) {
                 // Collection of sort specs: [~o->ascending(), ~i->ascending()]
                 for (var elem : coll.values()) {
