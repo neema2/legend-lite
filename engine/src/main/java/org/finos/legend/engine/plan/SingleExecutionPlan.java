@@ -1,16 +1,24 @@
 package org.finos.legend.engine.plan;
 
+import java.util.Objects;
+
 /**
  * A single-root execution plan, aligned with legend-engine's
  * {@code SingleExecutionPlan}.
  *
  * <p>
  * Contains a single {@link ExecutionNode} tree rooted at
- * {@link #rootExecutionNode}. For relational queries, the root is
- * typically a {@link SQLExecutionNode}.
+ * {@link #rootExecutionNode} and the Pure-level {@link #returnType}
+ * of the compiled expression.
  */
 public record SingleExecutionPlan(
-        ExecutionNode rootExecutionNode) {
+        ExecutionNode rootExecutionNode,
+        GenericType returnType) {
+
+    public SingleExecutionPlan {
+        Objects.requireNonNull(returnType, "returnType must not be null — compiler bug if missing");
+    }
+
     /**
      * Convenience: returns the SQL when the plan has a single SQL node at root.
      *

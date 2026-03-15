@@ -1,6 +1,5 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
 import org.junit.jupiter.api.AfterEach;
@@ -61,7 +60,7 @@ public class StructFilterIntegrationTest extends AbstractDatabaseTest {
     void testExistsInSelectFilterLegalName() throws SQLException {
         // Exact PCT expression: filter firms where any employee has lastName == 'p1', then get legalName
         // Expected: only firm 'f' has an employee with lastName 'p1'
-        BufferedResult result = executeRelation(
+        var result = executeRelation(
                 "|[^meta::pure::functions::collection::tests::model::CO_Firm(" +
                 "legalName='f'," +
                 "employees=[^meta::pure::functions::collection::tests::model::CO_Person(firstName='p1',lastName='p1')," +
@@ -86,7 +85,7 @@ public class StructFilterIntegrationTest extends AbstractDatabaseTest {
         //   f2 has p3 (firstName='p3',lastName='p3')
         // Only f2 matches since f doesn't have lastName='p3'
         // Wait: f has p1,p2 lastNames. f2 has p3,p4 lastNames. So only f2 matches.
-        BufferedResult result = executeRelation(
+        var result = executeRelation(
                 "|[^meta::pure::functions::collection::tests::model::CO_Firm(" +
                 "legalName='f'," +
                 "employees=[^meta::pure::functions::collection::tests::model::CO_Person(firstName='p1',lastName='p1')," +
@@ -106,7 +105,7 @@ public class StructFilterIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("PCT: filter struct collection with exists, no match")
     void testExistsInSelectFilterNoMatch() throws SQLException {
         // Filter where lastName == 'nonexistent' — no firm matches
-        BufferedResult result = executeRelation(
+        var result = executeRelation(
                 "|[^meta::pure::functions::collection::tests::model::CO_Firm(" +
                 "legalName='f'," +
                 "employees=[^meta::pure::functions::collection::tests::model::CO_Person(firstName='p1',lastName='p1')," +
@@ -125,7 +124,7 @@ public class StructFilterIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("PCT: simple struct filter without exists")
     void testStructFilterSimpleProperty() throws SQLException {
         // Simpler case: filter struct collection by direct property, then extract
-        BufferedResult result = executeRelation(
+        var result = executeRelation(
                 "|[^meta::pure::functions::collection::tests::model::CO_Firm(" +
                 "legalName='f'," +
                 "employees=[^meta::pure::functions::collection::tests::model::CO_Person(firstName='p1',lastName='p1')]" +

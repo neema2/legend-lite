@@ -3,7 +3,7 @@ package org.finos.legend.engine.execution;
 import org.finos.legend.engine.plan.ExecutionPlan;
 import org.finos.legend.engine.serialization.ResultSerializer;
 import org.finos.legend.engine.serialization.SerializerRegistry;
-import org.finos.legend.engine.plan.PlanExecutor.ResultMode;
+
 import org.finos.legend.pure.dsl.definition.ConnectionDefinition;
 import org.finos.legend.pure.dsl.definition.RuntimeDefinition;
 
@@ -211,5 +211,10 @@ public class PlanExecutor {
         public PlanExecutor build() {
             return new PlanExecutor(connections, runtimes);
         }
+    }
+
+    /** Result mode for the old execution pipeline. */
+    public enum ResultMode {
+        BUFFERED, STREAMING, SCALAR
     }
 }

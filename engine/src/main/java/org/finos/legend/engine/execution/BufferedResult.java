@@ -50,7 +50,7 @@ public record BufferedResult(
 
     @Override
     public void writeTo(OutputStream out, ResultSerializer serializer) throws IOException {
-        serializer.serialize(this, out);
+        throw new UnsupportedOperationException("Use ExecutionResult pipeline");
     }
 
     @Override

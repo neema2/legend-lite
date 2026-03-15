@@ -1,6 +1,6 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.store.MappingRegistry;
@@ -301,14 +301,14 @@ public abstract class AbstractDatabaseTest {
      * @return List of PersonResult
      */
     protected List<PersonResult> executePureQuery(String pureQuery) throws SQLException {
-        BufferedResult result = executeRelation(pureQuery);
+        ExecutionResult result = executeRelation(pureQuery);
         return convertToPersonResults(result);
     }
 
     /**
-     * Converts BufferedResult to PersonResult list.
+     * Converts ExecutionResult to PersonResult list.
      */
-    private List<PersonResult> convertToPersonResults(BufferedResult result) {
+    private List<PersonResult> convertToPersonResults(ExecutionResult result) {
         List<PersonResult> personResults = new ArrayList<>();
 
         for (var row : result.rows()) {
@@ -334,13 +334,13 @@ public abstract class AbstractDatabaseTest {
     }
 
     /**
-     * Executes a Pure query and returns relation results (tabular data).
+     * Executes a Pure query and returns an ExecutionResult.
      * Uses QueryService for complete compile → plan → execute flow.
-     * 
+     *
      * @param pureQuery The Pure query to execute
-     * @return BufferedResult containing column metadata and rows
+     * @return ExecutionResult containing column metadata and rows
      */
-    protected BufferedResult executeRelation(String pureQuery) throws SQLException {
+    protected ExecutionResult executeRelation(String pureQuery) throws SQLException {
         return queryService.execute(
                 getCompletePureModelWithRuntime(),
                 pureQuery,

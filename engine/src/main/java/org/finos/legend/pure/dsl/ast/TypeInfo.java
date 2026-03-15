@@ -53,7 +53,21 @@ public record TypeInfo(
         /** Pre-resolved pivot specification. */
         PivotSpec pivotSpec,
         /** Pre-resolved variant access annotation (for get() calls). */
-        VariantAccess variantAccess) {
+        VariantAccess variantAccess,
+        /**
+         * Pure-level return type of this expression.
+         * Primitive/EnumType → scalar, Parameterized(List) → collection,
+         * Relation → tabular, ClassType → graph/object.
+         * Non-null on root expressions; null on intermediate nodes during
+         * incremental rollout.
+         */
+        GenericType returnType,
+        /**
+         * Right-side column renames for join duplicate resolution.
+         * Maps original right-side column name → prefixed name.
+         * Empty when no conflicts. Used by PlanGenerator to alias right-side columns.
+         */
+        Map<String, String> joinColumnRenames) {
 
     /**
      * Pre-resolved association navigation target.
@@ -378,6 +392,8 @@ public record TypeInfo(
         private String columnAlias;
         private PivotSpec pivotSpec;
         private VariantAccess variantAccess;
+        private GenericType returnType;
+        private Map<String, String> joinColumnRenames = Map.of();
 
         private Builder() {}
 
@@ -396,6 +412,8 @@ public record TypeInfo(
             this.columnAlias = src.columnAlias();
             this.pivotSpec = src.pivotSpec();
             this.variantAccess = src.variantAccess();
+            this.returnType = src.returnType();
+            this.joinColumnRenames = src.joinColumnRenames();
         }
 
         public Builder relationType(RelationType v) { this.relationType = v; return this; }
@@ -412,11 +430,14 @@ public record TypeInfo(
         public Builder columnAlias(String v) { this.columnAlias = v; return this; }
         public Builder pivotSpec(PivotSpec v) { this.pivotSpec = v; return this; }
         public Builder variantAccess(VariantAccess v) { this.variantAccess = v; return this; }
+        public Builder returnType(GenericType v) { this.returnType = v; return this; }
+        public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
                     columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
-                    lambdaParam, columnAlias, pivotSpec, variantAccess);
+                    lambdaParam, columnAlias, pivotSpec, variantAccess, returnType,
+                    joinColumnRenames);
         }
     }
 

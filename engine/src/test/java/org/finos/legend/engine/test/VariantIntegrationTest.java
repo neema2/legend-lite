@@ -1,6 +1,6 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.ast.PlanGenerator;
 
@@ -110,7 +110,7 @@ class VariantIntegrationTest {
         }
     }
 
-    private BufferedResult executeRelation(String pureQuery) throws SQLException {
+    private ExecutionResult executeRelation(String pureQuery) throws SQLException {
         return queryService.execute(getCompletePureModel(), pureQuery, "test::TestRuntime", connection);
     }
 

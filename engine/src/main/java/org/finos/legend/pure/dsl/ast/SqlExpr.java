@@ -447,6 +447,14 @@ public sealed interface SqlExpr {
         }
     }
 
+    /** Qualified star: table.* — used in joins to select all columns from one side. */
+    record QualifiedStar(String table) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return table + ".*";
+        }
+    }
+
     // ==================== Compile-time Markers ====================
 
     /**

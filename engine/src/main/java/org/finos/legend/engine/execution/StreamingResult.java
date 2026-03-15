@@ -87,7 +87,7 @@ public final class StreamingResult implements Result {
 
     @Override
     public void writeTo(OutputStream out, ResultSerializer serializer) throws IOException {
-        serializer.serializeStreaming(this, out);
+        throw new UnsupportedOperationException("Use ExecutionResult pipeline");
     }
 
     @Override

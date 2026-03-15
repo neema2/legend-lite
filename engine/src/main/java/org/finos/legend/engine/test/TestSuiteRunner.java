@@ -1,6 +1,6 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.definition.MappingDefinition.*;
 
@@ -90,7 +90,7 @@ public class TestSuiteRunner {
             String simpleQuery = className + ".all()->project({x | $x.firstName}, {x | $x.lastName})";
 
             // Execute the query
-            BufferedResult result = queryService.execute(
+            ExecutionResult result = queryService.execute(
                     fullModel,
                     simpleQuery,
                     runtimeName,
@@ -125,7 +125,7 @@ public class TestSuiteRunner {
         return "Person"; // fallback
     }
 
-    private String resultToJson(BufferedResult result) {
+    private String resultToJson(ExecutionResult result) {
         StringBuilder sb = new StringBuilder();
         sb.append("[");
         for (int i = 0; i < result.rows().size(); i++) {

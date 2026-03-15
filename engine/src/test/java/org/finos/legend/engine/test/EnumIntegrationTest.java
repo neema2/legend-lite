@@ -1,6 +1,6 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.definition.*;
 import org.finos.legend.pure.dsl.ModelContext;
@@ -413,7 +413,7 @@ class EnumIntegrationTest {
                         ->project({t | $t.name})
                     """;
 
-            BufferedResult result = queryService.execute(
+            var result = queryService.execute(
                     pureSource, pureQuery, "app::TaskRuntime", connection);
 
             // THEN: Both PENDING tasks are returned
@@ -484,7 +484,7 @@ class EnumIntegrationTest {
                         ->project({i | $i.title}, {i | $i.priority})
                     """;
 
-            BufferedResult result = queryService.execute(
+            var result = queryService.execute(
                     pureSource, pureQuery, "app::IssueRuntime", connection);
 
             // THEN: Both HIGH and CRITICAL issues are returned
@@ -553,7 +553,7 @@ class EnumIntegrationTest {
                         ->project({o | $o.customer}, {o | $o.status})
                     """;
 
-            BufferedResult result = queryService.execute(
+            var result = queryService.execute(
                     pureSource, pureQuery, "app::OrderRuntime", connection);
 
             // THEN: All orders are returned with their status values
@@ -647,7 +647,7 @@ class EnumIntegrationTest {
                         ->project({o | $o.customer}, {o | $o.status})
                     """;
 
-            BufferedResult result = queryService.execute(
+            var result = queryService.execute(
                     pureSource, pureQuery, "app::OrderRuntime", connection);
 
             // THEN: DB codes are translated to enum values
@@ -724,7 +724,7 @@ class EnumIntegrationTest {
                         ->project({t | $t.name}, {t | $t.status})
                     """;
 
-            BufferedResult result = queryService.execute(
+            var result = queryService.execute(
                     pureSource, pureQuery, "app::TaskRuntime", connection);
 
             // THEN: Both P and PEND map to PENDING, both D and COMPLETE map to DONE

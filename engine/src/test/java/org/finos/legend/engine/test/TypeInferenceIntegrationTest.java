@@ -1,6 +1,6 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
 import org.junit.jupiter.api.AfterEach;
@@ -836,8 +836,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                                 "#->groupBy(~grp, ~h : x | $x.val : y | $y->hashCode())",
                                 "test::TestRuntime",
                                 connection);
-                assertTrue(result instanceof BufferedResult);
-                BufferedResult br = (BufferedResult) result;
+                
+                var br = result;
                 // Should have 2 groups, each with a non-null hash value
                 assertEquals(2, br.rows().size());
                 assertNotNull(br.rows().get(0).get(1));
@@ -1086,11 +1086,16 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|#TDS\nval, str\n1, a\n3, ewe\n#->extend(~uid:x|meta::pure::functions::string::generation::generateGuid())",
                                 "test::TestRuntime", connection);
-                BufferedResult buffered = result;
+                var buffered = result;
                 assertEquals(2, buffered.rowCount());
                 // Check uid column exists and has UUID values
+                int uidCol = -1;
+                for (int c = 0; c < buffered.columns().size(); c++) {
+                        if ("uid".equals(buffered.columns().get(c).name())) { uidCol = c; break; }
+                }
+                assertTrue(uidCol >= 0, "uid column should exist");
                 for (int i = 0; i < buffered.rowCount(); i++) {
-                        Object uid = buffered.getValue(i, "uid");
+                        Object uid = buffered.rows().get(i).get(uidCol);
                         assertNotNull(uid);
                         assertTrue(uid.toString()
                                         .matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
@@ -2080,7 +2085,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 pureExpr,
                                 "test::TestRuntime", connection);
-                assertTrue(result instanceof BufferedResult);
+                
         }
 
         // ==================== String indexOf / substring / joinStrings / sort tests
@@ -3363,7 +3368,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 String pure = "|" + PERCENTILE_TDS
                                 + "->meta::pure::functions::relation::groupBy(~[id], ~[newCol:x: (id:Integer, val:Float)[1]|$x.val:y: Float[*]|$y->meta::pure::functions::math::percentile("
                                 + percentileArgs + ")])";
-                BufferedResult br = (BufferedResult) queryService.execute(
+                var br = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
                 int idIdx = -1, valIdx = -1;
@@ -3422,7 +3427,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 String pure = "|" + PERCENTILE_TDS
                                 + "->meta::pure::functions::relation::extend(~id->meta::pure::functions::relation::over(), ~newCol:{p: meta::pure::metamodel::relation::Relation<(id:Integer, val:Float)>[1], w: meta::pure::functions::relation::_Window<(id:Integer, val:Float)>[1], r: (id:Integer, val:Float)[1]|$r.val}:y: Float[*]|$y->meta::pure::functions::math::percentile("
                                 + percentileArgs + "))";
-                BufferedResult br = (BufferedResult) queryService.execute(
+                var br = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
                 int idIdx = -1, newColIdx = -1;
@@ -3689,8 +3694,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
-                assertTrue(result instanceof BufferedResult);
-                BufferedResult br = (BufferedResult) result;
+                
+                var br = result;
                 assertEquals(4, br.rowCount());
                 // Collect newCol values by id (order-independent)
                 var byId = collectWindowResultsById(br);
@@ -3713,8 +3718,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
-                assertTrue(result instanceof BufferedResult);
-                BufferedResult br = (BufferedResult) result;
+                
+                var br = result;
                 assertEquals(4, br.rowCount());
                 var byId = collectWindowResultsById(br);
                 // id=1: covar_samp(1,10; 2,20) = 5.0; id=2: covar_samp(2,40; 4,15) = -25.0
@@ -3736,8 +3741,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
-                assertTrue(result instanceof BufferedResult);
-                BufferedResult br = (BufferedResult) result;
+                
+                var br = result;
                 assertEquals(4, br.rowCount());
                 var byId = collectWindowResultsById(br);
                 // id=1: covar_pop(1,10; 2,20) = 2.5; id=2: covar_pop(2,40; 4,15) = -12.5
@@ -3745,7 +3750,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertEquals(-12.5, byId.get(2), 0.0001);
         }
 
-        private java.util.Map<Integer, Double> collectWindowResultsById(BufferedResult br) {
+        private java.util.Map<Integer, Double> collectWindowResultsById(ExecutionResult br) {
                 int idIdx = -1, newColIdx = -1;
                 for (int i = 0; i < br.columns().size(); i++) {
                         if ("id".equals(br.columns().get(i).name()))
@@ -3789,8 +3794,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
-                assertTrue(result instanceof BufferedResult);
-                BufferedResult br = (BufferedResult) result;
+                
+                var br = result;
                 assertEquals(5, br.rowCount());
                 var byGrp = collectGroupByResults(br, "grp", "wavgCol");
                 assertEquals(180.0, ((Number) byGrp.get(1)).doubleValue(), 0.0001);
@@ -3825,8 +3830,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
-                assertTrue(result instanceof BufferedResult);
-                BufferedResult br = (BufferedResult) result;
+                
+                var br = result;
                 assertEquals(5, br.rowCount());
                 var byGrp1 = collectGroupByResults(br, "grp", "wavgCol1");
                 var byGrp2 = collectGroupByResults(br, "grp", "wavgCol2");
@@ -3864,8 +3869,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
-                assertTrue(result instanceof BufferedResult);
-                BufferedResult br = (BufferedResult) result;
+                
+                var br = result;
                 assertEquals(2, br.rowCount());
                 var byGrp = collectGroupByResults(br, "grp", "newCol");
                 assertEquals("E", byGrp.get(1).toString());
@@ -3894,15 +3899,15 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(), pure,
                                 "test::TestRuntime", connection);
-                assertTrue(result instanceof BufferedResult);
-                BufferedResult br = (BufferedResult) result;
+                
+                var br = result;
                 assertEquals(2, br.rowCount());
                 var byGrp = collectGroupByResults(br, "grp", "newCol");
                 assertEquals("C", byGrp.get(1).toString());
                 assertEquals("I", byGrp.get(2).toString());
         }
 
-        private java.util.Map<Integer, Object> collectGroupByResults(BufferedResult br, String keyCol, String valCol) {
+        private java.util.Map<Integer, Object> collectGroupByResults(ExecutionResult br, String keyCol, String valCol) {
                 int keyIdx = -1, valIdx = -1;
                 for (int i = 0; i < br.columns().size(); i++) {
                         if (keyCol.equals(br.columns().get(i).name()))
@@ -4040,7 +4045,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 query, "test::TestRuntime", connection);
-                BufferedResult buffered = result;
+                var buffered = result;
                 assertEquals(1, buffered.rows().size());
                 assertEquals("idSum", buffered.columns().get(0).name());
         }
@@ -4073,14 +4078,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 query, "test::TestRuntime", connection);
-                BufferedResult buffered = result;
+                var buffered = result;
                 assertNotNull(buffered);
                 // After the full chain: should have city, country, 2011__|__newCol,
                 // 2012__|__newCol, newCol
                 assertTrue(buffered.columns().size() >= 4, "Should have at least 4 columns");
         }
 
-        private void assertScalarInteger(BufferedResult result, long expected) {
+        private void assertScalarInteger(ExecutionResult result, long expected) {
                 assertFalse(result.rows().isEmpty(), "Result should have at least one row");
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value, "Scalar value should not be null");

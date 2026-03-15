@@ -54,8 +54,7 @@ public record ScalarResult(Object value, String sqlType, String pureType,
 
     @Override
     public void writeTo(OutputStream out, ResultSerializer serializer) throws IOException {
-        // Serialize as single-cell TDS
-        serializer.serialize(toBuffered(), out);
+        throw new UnsupportedOperationException("Use ExecutionResult pipeline");
     }
 
     @Override

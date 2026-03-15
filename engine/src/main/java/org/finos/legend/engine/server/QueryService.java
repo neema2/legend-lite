@@ -1,6 +1,6 @@
 package org.finos.legend.engine.server;
 
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.plan.PlanExecutor;
 import org.finos.legend.engine.plan.SingleExecutionPlan;
 import org.finos.legend.engine.serialization.ResultSerializer;
@@ -25,7 +25,8 @@ import java.sql.Statement;
  * Stateless query execution: parse → compile → plan → execute.
  *
  * <pre>
- * new QueryService().execute(model, query, "app::Runtime", conn);
+ * var result = new QueryService().execute(model, query, "app::Runtime", conn);
+ * var tabular = result.asTabular();  // typed access
  * </pre>
  */
 public class QueryService {
@@ -33,9 +34,10 @@ public class QueryService {
     // ==================== Public API ====================
 
     /**
-     * Parse → compile → generate plan → execute against provided connection.
+     * Parse → compile → generate plan → execute with typed result.
+     * Returns the right ExecutionResult variant based on plan's returnType.
      */
-    public BufferedResult execute(String pureSource, String query, String runtimeName,
+    public ExecutionResult execute(String pureSource, String query, String runtimeName,
             Connection connection) throws SQLException {
 
         SingleExecutionPlan plan = PlanGenerator.generate(pureSource, query, runtimeName);
@@ -50,7 +52,7 @@ public class QueryService {
      * Convenience: resolves connection from Runtime, then executes.
      * Uses model-based overload to avoid double-parsing.
      */
-    public BufferedResult execute(String pureSource, String query, String runtimeName)
+    public ExecutionResult execute(String pureSource, String query, String runtimeName)
             throws SQLException {
 
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
@@ -67,20 +69,15 @@ public class QueryService {
      * Execute raw SQL against the connection from the Runtime.
      * No Pure compilation — just SQL passthrough for DDL/DML/SELECT.
      */
-    public BufferedResult executeSql(String pureSource, String sql, String runtimeName)
+    public ExecutionResult executeSql(String pureSource, String sql, String runtimeName)
             throws SQLException {
 
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
         Connection conn = model.resolveConnection(runtimeName);
 
         try (Statement stmt = conn.createStatement()) {
-            boolean hasResultSet = stmt.execute(sql);
-            if (hasResultSet) {
-                try (ResultSet rs = stmt.getResultSet()) {
-                    return BufferedResult.fromResultSet(rs);
-                }
-            }
-            return BufferedResult.empty();
+            stmt.execute(sql);
+            return ExecutionResult.empty();
         }
     }
 
@@ -118,14 +115,9 @@ public class QueryService {
             throws SQLException, IOException {
 
         SingleExecutionPlan plan = PlanGenerator.generate(pureSource, query, runtimeName);
+        ExecutionResult result = PlanExecutor.execute(plan, connection);
 
         ResultSerializer serializer = SerializerRegistry.get(format);
-        PlanExecutor.ResultMode mode = serializer.supportsStreaming()
-                ? PlanExecutor.ResultMode.STREAMING
-                : PlanExecutor.ResultMode.BUFFERED;
-
-        try (var result = PlanExecutor.execute(plan, connection, mode)) {
-            result.writeTo(out, serializer);
-        }
+        serializer.serialize(result, out);
     }
 }

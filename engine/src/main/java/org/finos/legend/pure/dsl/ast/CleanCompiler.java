@@ -56,6 +56,34 @@ public class CleanCompiler {
      */
     public CompilationUnit compile(ValueSpecification vs) {
         compileExpr(vs, new CompilationContext());
+
+        // Stamp returnType on root expression — THE single place this happens.
+        // Interior nodes don't need returnType; only the root matters for plan generation.
+        TypeInfo rootInfo = types.get(vs);
+        if (rootInfo != null && rootInfo.returnType() == null) {
+            GenericType returnType;
+            if (rootInfo.inlinedBody() != null) {
+                // User function → check if inlined body has returnType already
+                TypeInfo bodyInfo = types.get(rootInfo.inlinedBody());
+                if (bodyInfo != null && bodyInfo.returnType() != null) {
+                    returnType = bodyInfo.returnType();
+                } else if (bodyInfo != null && bodyInfo.isScalar() && bodyInfo.scalarType() != null) {
+                    returnType = bodyInfo.scalarType();
+                } else if (bodyInfo != null && bodyInfo.relationType() != null) {
+                    returnType = new GenericType.Relation(bodyInfo.relationType());
+                } else {
+                    returnType = GenericType.Primitive.ANY;
+                }
+            } else if (rootInfo.isScalar() && rootInfo.scalarType() != null) {
+                returnType = rootInfo.scalarType();
+            } else if (rootInfo.relationType() != null) {
+                returnType = new GenericType.Relation(rootInfo.relationType());
+            } else {
+                returnType = GenericType.Primitive.ANY;
+            }
+            types.put(vs, TypeInfo.from(rootInfo).returnType(returnType).build());
+        }
+
         return new CompilationUnit(vs, types);
     }
 
@@ -582,7 +610,7 @@ public class CleanCompiler {
                     for (var prop : lcaClass.allProperties()) {
                         lcaCols.put(prop.name(), GenericType.fromType(prop.genericType()));
                     }
-                    var lcaRelType = new RelationType(lcaCols);
+                    var lcaRelType = RelationType.withoutPivot(lcaCols);
                     var lcaGenericType = new GenericType.ClassType(lcaClass.qualifiedName());
                     var info = TypeInfo.builder()
                             .relationType(lcaRelType)
@@ -831,7 +859,7 @@ public class CleanCompiler {
             projections.add(new TypeInfo.ProjectionSpec(specPath, resolvedColumn, alias, computedExpr));
         }
 
-        RelationType resultType = new RelationType(projectedColumns);
+        RelationType resultType = RelationType.withoutPivot(projectedColumns);
         var info = TypeInfo.builder().relationType(resultType).mapping(mapping)
                 .associations(associations).projections(projections).build();
         types.put(af, info);
@@ -869,7 +897,7 @@ public class CleanCompiler {
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
 
-        var info = TypeInfo.builder().relationType(new RelationType(selectedColumns))
+        var info = TypeInfo.builder().relationType(new RelationType(selectedColumns, source.relationType().dynamicPivotColumns()))
                 .mapping(source.mapping()).columnSpecs(colSpecs).build();
         types.put(af, info);
         return info;
@@ -913,7 +941,7 @@ public class CleanCompiler {
         resultColumns.put(colName, GenericType.Primitive.JSON);
 
         var flattenInfo = TypeInfo.builder()
-                .relationType(new RelationType(resultColumns))
+                .relationType(new RelationType(resultColumns, sourceType.dynamicPivotColumns()))
                 .mapping(source.mapping())
                 .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
                 .build();
@@ -1006,7 +1034,7 @@ public class CleanCompiler {
             return typed(af, sourceType, source.mapping());
         }
 
-        var info = TypeInfo.builder().relationType(new RelationType(resultColumns))
+        var info = TypeInfo.builder().relationType(RelationType.withoutPivot(resultColumns))
                 .mapping(source.mapping()).columnSpecs(colSpecs).build();
         types.put(af, info);
         return info;
@@ -1062,7 +1090,7 @@ public class CleanCompiler {
             return typed(af, source.relationType(), source.mapping());
         }
 
-        var info = TypeInfo.builder().relationType(new RelationType(resultColumns))
+        var info = TypeInfo.builder().relationType(RelationType.withoutPivot(resultColumns))
                 .mapping(source.mapping()).columnSpecs(colSpecs).build();
         types.put(af, info);
         return info;
@@ -1085,11 +1113,20 @@ public class CleanCompiler {
         // Build new RelationType = source columns + new columns
         Map<String, GenericType> newColumns = new LinkedHashMap<>(sourceType.columns());
         for (int i = 1; i < params.size(); i++) {
-            String colName = extractNewColumnName(params.get(i));
-            if (colName != null) {
-                // Infer new column type from lambda body if possible
-                GenericType colType = inferExtendColumnType(params.get(i), ctx);
-                newColumns.put(colName, colType);
+            var p = params.get(i);
+            // ColSpecArray: register ALL columns, not just the first
+            if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
+                for (ColSpec cs : csa.colSpecs()) {
+                    GenericType colType = inferExtendColumnType(
+                            new ClassInstance("colSpec", cs), ctx);
+                    newColumns.put(cs.name(), colType);
+                }
+            } else {
+                String colName = extractNewColumnName(p);
+                if (colName != null) {
+                    GenericType colType = inferExtendColumnType(p, ctx);
+                    newColumns.put(colName, colType);
+                }
             }
         }
 
@@ -1178,7 +1215,7 @@ public class CleanCompiler {
             }
         }
 
-        var info = TypeInfo.builder().relationType(new RelationType(newColumns))
+        var info = TypeInfo.builder().relationType(new RelationType(newColumns, sourceType.dynamicPivotColumns()))
                 .mapping(source.mapping())
                 .windowSpecs(allWindowSpecs).build();
         types.put(af, info);
@@ -1680,25 +1717,52 @@ public class CleanCompiler {
         TypeInfo left = compileExpr(params.get(0), ctx);
         TypeInfo right = compileExpr(params.get(1), ctx);
 
-        // Merge column types from both sides — detect name conflicts
-        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.relationType().columns());
-        for (var entry : right.relationType().columns().entrySet()) {
-            if (mergedColumns.containsKey(entry.getKey())) {
-                // Column exists in both sides — keep but don't overwrite type silently
-                // In SQL, both sides are aliased so there's no real conflict, but
-                // downstream code should be aware
-                mergedColumns.put(entry.getKey(), entry.getValue());
-            } else {
-                mergedColumns.put(entry.getKey(), entry.getValue());
-            }
-        }
-
         // Pre-resolve join type from params
         String joinType = "INNER"; // default
         if (params.size() >= 4) {
             joinType = extractJoinTypeName(params.get(2));
         } else if (params.get(2) instanceof EnumValue) {
             joinType = extractJoinTypeName(params.get(2));
+        }
+
+        // Extract optional right-side prefix for duplicate column disambiguation
+        // join(left, right, JoinType, condition, 'prefix')
+        String rightPrefix = null;
+        int prefixIdx = params.size() >= 4 ? 4 : 3; // after condition
+        if (prefixIdx < params.size() && params.get(prefixIdx) instanceof CString cs) {
+            rightPrefix = cs.value();
+        }
+
+        // Detect duplicate column names between left and right
+        Set<String> leftColNames = left.relationType().columns().keySet();
+        Set<String> rightColNames = right.relationType().columns().keySet();
+        Set<String> duplicates = new LinkedHashSet<>();
+        for (String name : rightColNames) {
+            if (leftColNames.contains(name)) {
+                duplicates.add(name);
+            }
+        }
+
+        // If duplicates found and no prefix supplied → throw with helpful message
+        if (!duplicates.isEmpty() && rightPrefix == null) {
+            throw new PureCompileException(
+                    "Join produces duplicate columns " + duplicates
+                    + ". Supply a right-side prefix parameter to disambiguate: "
+                    + "->join(right, JoinType.INNER, {l, r | ...}, 'prefix')");
+        }
+
+        // Merge columns: left stays as-is, right gets prefix on conflicts only
+        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.relationType().columns());
+        Map<String, String> renames = new LinkedHashMap<>(); // original → prefixed
+        for (var entry : right.relationType().columns().entrySet()) {
+            String name = entry.getKey();
+            if (duplicates.contains(name)) {
+                String prefixed = rightPrefix + "_" + name;
+                mergedColumns.put(prefixed, entry.getValue());
+                renames.put(name, prefixed);
+            } else {
+                mergedColumns.put(name, entry.getValue());
+            }
         }
 
         // Walk the condition lambda and tag each AppliedProperty with its join-side alias
@@ -1711,8 +1775,10 @@ public class CleanCompiler {
             }
         }
 
-        var info = TypeInfo.builder().relationType(new RelationType(mergedColumns))
-                .mapping(left.mapping()).joinType(joinType).build();
+        var info = TypeInfo.builder().relationType(RelationType.withoutPivot(mergedColumns))
+                .mapping(left.mapping()).joinType(joinType)
+                .joinColumnRenames(renames)
+                .build();
         types.put(af, info);
         return info;
     }
@@ -1767,9 +1833,48 @@ public class CleanCompiler {
         TypeInfo left = compileExpr(params.get(0), ctx);
         TypeInfo right = compileExpr(params.get(1), ctx);
 
-        // Merge columns from both sides
+        // Extract optional right-side prefix for duplicate column disambiguation
+        // asOfJoin(left, right, matchCond, keyCond?, 'prefix')
+        String rightPrefix = null;
+        // Check after key condition (index 4), or after match condition (index 3) if no key lambda
+        for (int i = 3; i < params.size(); i++) {
+            if (params.get(i) instanceof CString cs) {
+                rightPrefix = cs.value();
+                break;
+            }
+        }
+
+        // Detect duplicate column names between left and right
+        Set<String> leftColNames = left.relationType().columns().keySet();
+        Set<String> rightColNames = right.relationType().columns().keySet();
+        Set<String> duplicates = new LinkedHashSet<>();
+        for (String name : rightColNames) {
+            if (leftColNames.contains(name)) {
+                duplicates.add(name);
+            }
+        }
+
+        // If duplicates found and no prefix supplied → throw with helpful message
+        if (!duplicates.isEmpty() && rightPrefix == null) {
+            throw new PureCompileException(
+                    "asOfJoin produces duplicate columns " + duplicates
+                    + ". Supply a right-side prefix parameter to disambiguate: "
+                    + "->asOfJoin(right, {t, q | ...}, {t, q | ...}, 'prefix')");
+        }
+
+        // Merge columns: left stays as-is, right gets prefix on conflicts only
         Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.relationType().columns());
-        mergedColumns.putAll(right.relationType().columns());
+        Map<String, String> renames = new LinkedHashMap<>(); // original → prefixed
+        for (var entry : right.relationType().columns().entrySet()) {
+            String name = entry.getKey();
+            if (duplicates.contains(name)) {
+                String prefixed = rightPrefix + "_" + name;
+                mergedColumns.put(prefixed, entry.getValue());
+                renames.put(name, prefixed);
+            } else {
+                mergedColumns.put(name, entry.getValue());
+            }
+        }
 
         // Tag match condition lambda (params[2])
         if (params.get(2) instanceof LambdaFunction matchLf) {
@@ -1789,8 +1894,10 @@ public class CleanCompiler {
             }
         }
 
-        var info = TypeInfo.builder().relationType(new RelationType(mergedColumns))
-                .mapping(left.mapping()).build();
+        var info = TypeInfo.builder().relationType(RelationType.withoutPivot(mergedColumns))
+                .mapping(left.mapping())
+                .joinColumnRenames(renames)
+                .build();
         types.put(af, info);
         return info;
     }
@@ -1873,7 +1980,23 @@ public class CleanCompiler {
         }
 
         var pivotSpec = new TypeInfo.PivotSpec(pivotColumns, aggregates);
-        var info = TypeInfo.builder().relationType(source.relationType())
+
+        // Compute group-by columns: source cols minus pivot cols minus aggregate value cols.
+        // These are the columns the compiler CAN know. Dynamic pivot columns are data-dependent
+        // and will be resolved from JDBC ResultSetMetaData at execution time.
+        var groupByCols = new java.util.LinkedHashMap<>(source.relationType().columns());
+        pivotColumns.forEach(groupByCols::remove);
+        for (var agg : aggregates) {
+            if (agg.valueColumn() != null) groupByCols.remove(agg.valueColumn());
+        }
+        // Build dynamic pivot column specs from aggregates — compiler knows the return types
+        var dynamicCols = aggregates.stream()
+                .map(agg -> new org.finos.legend.engine.plan.RelationType.DynamicPivotColumn(
+                        agg.alias(), aggReturnType(agg.aggFunction())))
+                .toList();
+        var partialType = new org.finos.legend.engine.plan.RelationType(groupByCols, dynamicCols);
+
+        var info = TypeInfo.builder().relationType(partialType)
                 .mapping(source.mapping()).pivotSpec(pivotSpec).build();
         types.put(af, info);
         return info;
@@ -2945,7 +3068,7 @@ public class CleanCompiler {
             }
         }
 
-        var rt = new RelationType(columns);
+        var rt = RelationType.withoutPivot(columns);
 
         // Build identity mapping — scalar primitives get identity PropertyMappings
         var identityMapping = RelationalMapping.identity(pureClass);
@@ -3001,7 +3124,7 @@ public class CleanCompiler {
             columns.put(col.name(), colType != null ? colType : GenericType.Primitive.STRING);
         }
         // Register type on the ORIGINAL ci so callers can look it up
-        var info = typed(ci, new RelationType(columns), null);
+        var info = typed(ci, RelationType.withoutPivot(columns), null);
         // Also register a parsed-TDS ClassInstance for PlanGenerator
         types.put(new ClassInstance("tdsLiteral", tds), info);
         return info;
@@ -3157,7 +3280,7 @@ public class CleanCompiler {
         for (var col : table.columns()) {
             columns.put(col.name(), col.dataType().toGenericType());
         }
-        return new RelationType(columns);
+        return RelationType.withoutPivot(columns);
     }
 
     // ========== Extraction Utilities ==========
@@ -3182,10 +3305,9 @@ public class CleanCompiler {
         if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
             return cs.name();
         }
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
-            // ColSpecArray in single-column context — use first ColSpec name
-            if (!csa.colSpecs().isEmpty())
-                return csa.colSpecs().get(0).name();
+        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpecArray) {
+            throw new PureCompileException(
+                    "ColSpecArray passed to single-column extractColumnName(); caller must handle arrays");
         }
         if (vs instanceof CString s)
             return s.value();
@@ -3441,15 +3563,8 @@ public class CleanCompiler {
         if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
             return cs.name();
         }
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
-            // Multiple columns in extend — return first
-            return csa.colSpecs().isEmpty() ? null : csa.colSpecs().get(0).name();
-        }
-        // For AppliedFunction (e.g., over() window spec), try to extract from first
-        // param
-        if (vs instanceof AppliedFunction af && !af.parameters().isEmpty()) {
-            return extractNewColumnName(af.parameters().get(0));
-        }
+        // ColSpecArray and AppliedFunction (over()) are handled by compileExtend directly.
+        // No recursion — new column names only come from ColSpec.
         return null;
     }
 
@@ -3770,6 +3885,7 @@ public class CleanCompiler {
             }
             // .prop on a relational result (e.g., filter(...).legalName)
             // → desugar to single-column project so PlanGenerator builds proper FROM clause
+            // Pure return type is the column type as a collection (e.g., String[*])
             if (ownerInfo != null && ownerInfo.relationType() != null) {
                 var propVar = new Variable("_rel_x");
                 var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
@@ -3777,7 +3893,15 @@ public class CleanCompiler {
                 var colSpecCI = new ClassInstance("colSpec", colSpec);
                 var projectNode = new AppliedFunction("project", List.of(ownerFn, colSpecCI));
                 TypeInfo projectInfo = compileExpr(projectNode, ctx);
-                var info = TypeInfo.from(projectInfo).inlinedBody(projectNode).build();
+                // Extract the column's GenericType for the return type
+                GenericType colType = ownerInfo.relationType().getColumnType(ap.property());
+                GenericType returnType = colType != null
+                        ? GenericType.listOf(colType)   // String[*], Integer[*], etc.
+                        : null;
+                var info = TypeInfo.from(projectInfo)
+                        .inlinedBody(projectNode)
+                        .returnType(returnType)
+                        .build();
                 types.put(ap, info);
                 return info;
             }

@@ -31,8 +31,26 @@ import java.util.Set;
  * </pre>
  *
  * @param columns Ordered map of column name → {@link GenericType}
+ * @param dynamicPivotColumns Specs for data-dependent pivot columns; empty for non-pivot queries
  */
-public record RelationType(Map<String, GenericType> columns) {
+public record RelationType(Map<String, GenericType> columns, List<DynamicPivotColumn> dynamicPivotColumns) {
+
+    /**
+     * Describes a dynamic pivot output column whose name is data-dependent.
+     * The alias suffix and return type are known at compile time; the actual
+     * column names (prefixed with the pivot value) come from JDBC at runtime.
+     *
+     * <p>Example: for {@code pivot(~year, ~val : x | $x.amount : y | sum($y) : 'total')},
+     * the alias suffix is "total" and the return type is the aggregate's Pure return type.
+     * At runtime, JDBC produces columns like "2011__|__total", "2012__|__total".
+     *
+     * @param aliasSuffix  The aggregate alias (e.g., "total"). Matches the portion after SEPARATOR.
+     * @param returnType   The compiler-derived Pure return type of the aggregate.
+     */
+    public record DynamicPivotColumn(String aliasSuffix, GenericType returnType) {
+        /** Semantic separator in pivot column names: value + SEPARATOR + alias. */
+        public static final String SEPARATOR = "__|__";
+    }
 
     /**
      * Canonical constructor — defensive copy to LinkedHashMap for order
@@ -40,6 +58,12 @@ public record RelationType(Map<String, GenericType> columns) {
      */
     public RelationType {
         columns = Collections.unmodifiableMap(new LinkedHashMap<>(columns));
+        dynamicPivotColumns = dynamicPivotColumns != null ? List.copyOf(dynamicPivotColumns) : List.of();
+    }
+
+    /** Convenience constructor for non-pivot (source-creating) contexts. */
+    public static RelationType withoutPivot(Map<String, GenericType> columns) {
+        return new RelationType(columns, List.of());
     }
 
     // ========== Column Operations ==========
@@ -51,7 +75,7 @@ public record RelationType(Map<String, GenericType> columns) {
     public RelationType withColumn(String name, GenericType type) {
         var newCols = new LinkedHashMap<>(columns);
         newCols.put(name, type);
-        return new RelationType(newCols);
+        return new RelationType(newCols, dynamicPivotColumns);
     }
 
     /**
@@ -60,7 +84,7 @@ public record RelationType(Map<String, GenericType> columns) {
     public RelationType withColumns(Map<String, GenericType> additionalColumns) {
         var newCols = new LinkedHashMap<>(columns);
         newCols.putAll(additionalColumns);
-        return new RelationType(newCols);
+        return new RelationType(newCols, dynamicPivotColumns);
     }
 
     /**
@@ -80,7 +104,7 @@ public record RelationType(Map<String, GenericType> columns) {
             }
             newCols.put(name, type);
         }
-        return new RelationType(newCols);
+        return new RelationType(newCols, dynamicPivotColumns);
     }
 
     /**
@@ -89,7 +113,7 @@ public record RelationType(Map<String, GenericType> columns) {
     public RelationType withoutColumns(Set<String> names) {
         var newCols = new LinkedHashMap<>(columns);
         names.forEach(newCols::remove);
-        return new RelationType(newCols);
+        return new RelationType(newCols, dynamicPivotColumns);
     }
 
     /**
@@ -112,7 +136,7 @@ public record RelationType(Map<String, GenericType> columns) {
                 newCols.put(entry.getKey(), entry.getValue());
             }
         }
-        return new RelationType(newCols);
+        return new RelationType(newCols, dynamicPivotColumns);
     }
 
     /**
@@ -122,7 +146,7 @@ public record RelationType(Map<String, GenericType> columns) {
     public RelationType merge(RelationType other) {
         var newCols = new LinkedHashMap<>(columns);
         newCols.putAll(other.columns());
-        return new RelationType(newCols);
+        return new RelationType(newCols, dynamicPivotColumns);
     }
 
     // ========== Validation ==========
@@ -201,14 +225,14 @@ public record RelationType(Map<String, GenericType> columns) {
      * Creates an empty RelationType (no columns).
      */
     public static RelationType empty() {
-        return new RelationType(Map.of());
+        return new RelationType(Map.of(), List.of());
     }
 
     /**
      * Creates a RelationType from a column name→type map.
      */
     public static RelationType of(Map<String, GenericType> columns) {
-        return new RelationType(columns);
+        return new RelationType(columns, List.of());
     }
 
     /**
@@ -222,14 +246,14 @@ public record RelationType(Map<String, GenericType> columns) {
         for (int i = 0; i < names.size(); i++) {
             cols.put(names.get(i), types.get(i));
         }
-        return new RelationType(cols);
+        return new RelationType(cols, List.of());
     }
 
     /**
      * Creates a RelationType with a single column.
      */
     public static RelationType ofSingle(String name, GenericType type) {
-        return new RelationType(Map.of(name, type));
+        return new RelationType(Map.of(name, type), List.of());
     }
 
     @Override

@@ -1,26 +1,22 @@
 package org.finos.legend.engine.serialization;
 
-import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.Column;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.execution.Row;
-import org.finos.legend.engine.execution.StreamingResult;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
 import java.util.List;
 
 /**
  * JSON serializer for query results.
- * 
+ *
  * Produces a JSON array of objects, where each object represents a row
  * with column names as keys.
- * 
- * Supports true streaming - rows are written incrementally.
- * 
+ *
  * GraalVM native-image compatible (no external dependencies).
  */
 public final class JsonSerializer implements ResultSerializer {
@@ -46,33 +42,22 @@ public final class JsonSerializer implements ResultSerializer {
     }
 
     @Override
-    public void serialize(BufferedResult result, OutputStream out) throws IOException {
+    public void serialize(ExecutionResult result, OutputStream out) throws IOException {
         try (Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-            writeRows(writer, result.columns(), result.rows().iterator());
-        }
-    }
+            List<Column> columns = result.columns();
+            writer.write('[');
 
-    @Override
-    public void serializeStreaming(StreamingResult result, OutputStream out) throws IOException {
-        try (Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-            writeRows(writer, result.columns(), result.iterator());
-        }
-    }
-
-    private void writeRows(Writer writer, List<Column> columns, Iterator<Row> rows) throws IOException {
-        writer.write('[');
-
-        boolean first = true;
-        while (rows.hasNext()) {
-            if (!first) {
-                writer.write(',');
+            boolean first = true;
+            for (Row row : result.rows()) {
+                if (!first) {
+                    writer.write(',');
+                }
+                first = false;
+                writeRow(writer, columns, row);
             }
-            first = false;
 
-            writeRow(writer, columns, rows.next());
+            writer.write(']');
         }
-
-        writer.write(']');
     }
 
     private void writeRow(Writer writer, List<Column> columns, Row row) throws IOException {

@@ -17,7 +17,7 @@ package org.finos.legend.lite.pct.extension;
 import org.eclipse.collections.api.list.ListIterable;
 import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.execution.Column;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.TypeEnvironment;
@@ -140,7 +140,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 // Execute through Legend-Lite's QueryService
                 // CleanCompiler + PlanGenerator handles all query types including struct literals
                 QueryService queryService = new QueryService();
-                BufferedResult result = queryService.execute(model, pureExpression,
+                var result = queryService.execute(model, pureExpression,
                         "test::TestRuntime", connection);
 
                 // Scalar detection: single row, single column named "value"
@@ -150,7 +150,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                         && "value".equals(result.columns().get(0).name());
 
                 if (isScalar) {
-                    Object value = result.getValue(0, 0);
+                    Object value = result.rows().get(0).get(0);
                     String sqlType = result.columns().get(0).sqlType();
                     System.out.println("[LegendLite PCT] Scalar result: " + value
                             + " sqlType: " + sqlType);
@@ -218,8 +218,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
                 // For TDS results, wrap in TDSResult class so Pure can distinguish from scalar
                 // strings
-                BufferedResult buffered = result;
-                String tdsString = formatResultForStringToTds(buffered);
+                String tdsString = formatResultForStringToTds(result);
 
                 System.out.println("[LegendLite PCT] Result TDS: " + tdsString.replace("\n", "\\n"));
 
@@ -246,7 +245,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * 
      * This matches the format expected by legend-engine's stringToTDS() function.
      */
-    private String formatResultForStringToTds(BufferedResult result) {
+    private String formatResultForStringToTds(ExecutionResult result) {
         StringBuilder sb = new StringBuilder();
 
         // Column header: name:Type,name:Type

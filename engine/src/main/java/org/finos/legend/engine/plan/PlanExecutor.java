@@ -1,9 +1,6 @@
 package org.finos.legend.engine.plan;
 
-import org.finos.legend.engine.execution.BufferedResult;
-import org.finos.legend.engine.execution.Result;
-import org.finos.legend.engine.execution.ScalarResult;
-import org.finos.legend.engine.execution.StreamingResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -14,75 +11,28 @@ import java.sql.Statement;
  * Executes a {@link SingleExecutionPlan} against a JDBC connection.
  *
  * <p>
- * Stateless — the plan already contains the rendered SQL, so no
- * dialect or other state is needed. Just pass the plan and a connection.
+ * Stateless — the plan already contains the rendered SQL and the
+ * returnType, so no dialect or other state is needed.
  *
  * <p>
- * Usage:
- * 
+ * Returns a typed {@link ExecutionResult} (TabularResult, ScalarResult,
+ * CollectionResult) based on the plan's returnType.
+ *
  * <pre>
- * var result = new PlanExecutor().execute(plan, connection);
+ * var result = PlanExecutor.execute(plan, connection);
+ * var tabular = result.asTabular();
  * </pre>
  */
 public class PlanExecutor {
 
-    private static final int DEFAULT_FETCH_SIZE = 1000;
-
     /**
-     * Executes the plan and returns a buffered result (all rows in memory).
+     * Executes the plan and returns a typed ExecutionResult based on the
+     * plan's returnType.
      */
-    public static BufferedResult execute(SingleExecutionPlan plan, Connection conn) throws SQLException {
-        return executeBuffered(conn, plan.sql());
-    }
-
-    /**
-     * Executes the plan with the specified result mode.
-     */
-    public static Result execute(SingleExecutionPlan plan, Connection conn, ResultMode mode) throws SQLException {
-        return executeWithMode(conn, plan.sql(), mode);
-    }
-
-    // ========== Internal Execution ==========
-
-    private static Result executeWithMode(Connection conn, String sql, ResultMode mode) throws SQLException {
-        return switch (mode) {
-            case BUFFERED -> executeBuffered(conn, sql);
-            case STREAMING -> executeStreaming(conn, sql);
-            case SCALAR -> executeScalar(conn, sql);
-        };
-    }
-
-    private static BufferedResult executeBuffered(Connection conn, String sql) throws SQLException {
+    public static ExecutionResult execute(SingleExecutionPlan plan, Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(sql)) {
-            return BufferedResult.fromResultSet(rs);
+                ResultSet rs = stmt.executeQuery(plan.sql())) {
+            return ExecutionResult.fromResultSet(plan.returnType(), rs);
         }
-    }
-
-    private static StreamingResult executeStreaming(Connection conn, String sql) throws SQLException {
-        Statement stmt = conn.createStatement();
-        ResultSet rs = stmt.executeQuery(sql);
-        return StreamingResult.fromResultSet(rs, stmt, conn, DEFAULT_FETCH_SIZE);
-    }
-
-    private static Result executeScalar(Connection conn, String sql) throws SQLException {
-        BufferedResult buffered = executeBuffered(conn, sql);
-        if (buffered.rowCount() == 1 && buffered.columnCount() == 1) {
-            String sqlType = buffered.columns().getFirst().sqlType();
-            return new ScalarResult(buffered.getValue(0, 0), sqlType);
-        }
-        return buffered;
-    }
-
-    /**
-     * Determines whether to buffer or stream results.
-     */
-    public enum ResultMode {
-        /** Materialize all rows in memory. */
-        BUFFERED,
-        /** Lazy iteration with held connection. */
-        STREAMING,
-        /** Single scalar value (for constant queries). */
-        SCALAR
     }
 }

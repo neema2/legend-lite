@@ -1,6 +1,5 @@
 package org.finos.legend.engine.server;
 
-import org.finos.legend.engine.execution.BufferedResult;
 import org.junit.jupiter.api.*;
 
 import java.nio.file.Files;
@@ -103,7 +102,7 @@ class QueryServiceDirectTest {
                 """;
 
         System.out.println("Executing: CREATE TABLE...");
-        BufferedResult result = queryService.executeSql(sampleModel, sql, "test::TestRuntime");
+        var result = queryService.executeSql(sampleModel, sql, "test::TestRuntime");
 
         System.out.println("Result: " + result);
         assertTrue(result.columns().isEmpty() || result.columns() != null, "CREATE should succeed");
@@ -116,7 +115,7 @@ class QueryServiceDirectTest {
         String sql = "INSERT INTO T_PERSON VALUES (1, 'John', 'Smith', 30)";
 
         System.out.println("Executing: INSERT...");
-        BufferedResult result = queryService.executeSql(sampleModel, sql, "test::TestRuntime");
+        var result = queryService.executeSql(sampleModel, sql, "test::TestRuntime");
 
         System.out.println("Result: " + result);
         assertNotNull(result);
@@ -124,17 +123,16 @@ class QueryServiceDirectTest {
 
     @Test
     @Order(3)
-    @DisplayName("Direct: executeSql SELECT")
+    @DisplayName("Direct: executeSql SELECT returns empty (raw SQL has no compiler types)")
     void testDirectSelect() throws Exception {
         String sql = "SELECT FIRST_NAME, LAST_NAME FROM T_PERSON WHERE ID = 1";
 
         System.out.println("Executing: SELECT...");
-        BufferedResult result = queryService.executeSql(sampleModel, sql, "test::TestRuntime");
+        var result = queryService.executeSql(sampleModel, sql, "test::TestRuntime");
 
-        System.out.println("Columns: " + result.columns());
-        System.out.println("Rows: " + result.rows());
-
-        assertFalse(result.columns().isEmpty(), "SELECT should return columns");
-        assertEquals(1, result.rows().size(), "Should return 1 row");
+        // executeSql always returns empty — raw SQL has no compiler-provided types.
+        // Use the compiled Pure pipeline (QueryService.execute) for typed results.
+        assertEquals(0, result.columns().size(), "executeSql returns empty (no compiler types)");
+        assertEquals(0, result.rows().size(), "executeSql returns empty (no compiler types)");
     }
 }

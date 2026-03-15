@@ -3,7 +3,7 @@ package org.finos.legend.engine.server;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -148,7 +148,7 @@ public class LegendHttpServer {
                 System.out.println("Runtime: " + runtimeName);
 
                 // Execute using QueryService - uses Connection from Runtime
-                BufferedResult result = queryService.execute(
+                var result = queryService.execute(
                         modelSource,
                         query,
                         runtimeName);
@@ -157,7 +157,7 @@ public class LegendHttpServer {
                 response.put("success", true);
                 response.put("data", result.toJsonArray());
                 response.put("columns", result.columns().stream().map(c -> c.name()).toList());
-                response.put("rowCount", result.rows().size());
+                response.put("rowCount", result.rowCount());
 
                 sendResponse(exchange, 200, LegendHttpJson.toJson(response));
 
@@ -222,7 +222,7 @@ public class LegendHttpServer {
                 }
 
                 // Execute using QueryService
-                BufferedResult result = queryService.executeSql(pureSource, sql, runtimeName);
+                var result = queryService.executeSql(pureSource, sql, runtimeName);
 
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", true);
@@ -233,7 +233,7 @@ public class LegendHttpServer {
                     // SELECT - return results
                     response.put("data", result.toJsonArray());
                     response.put("columns", result.columns().stream().map(c -> c.name()).toList());
-                    response.put("rowCount", result.rows().size());
+                    response.put("rowCount", result.rowCount());
                 }
 
                 sendResponse(exchange, 200, LegendHttpJson.toJson(response));

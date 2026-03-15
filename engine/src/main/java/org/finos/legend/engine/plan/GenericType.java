@@ -13,7 +13,7 @@ import java.util.Objects;
 public sealed interface GenericType
         permits GenericType.Primitive, GenericType.Parameterized,
                 GenericType.ClassType, GenericType.EnumType,
-                GenericType.PrecisionDecimal {
+                GenericType.PrecisionDecimal, GenericType.Relation {
 
     String typeName();
 
@@ -184,6 +184,19 @@ public sealed interface GenericType
         public String typeName() {
             return "Decimal";
         }
+    }
+
+    /**
+     * Relational type: Relation<(col1:Type1, col2:Type2, ...)>.
+     * Represents tabular query results with a column schema.
+     */
+    record Relation(RelationType schema) implements GenericType {
+        public Relation {
+            java.util.Objects.requireNonNull(schema, "Relation schema must not be null");
+        }
+
+        @Override
+        public String typeName() { return "Relation"; }
     }
 
     // ========== Factory methods ==========

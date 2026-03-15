@@ -1,27 +1,23 @@
 package org.finos.legend.engine.serialization;
 
-import org.finos.legend.engine.execution.BufferedResult;
 import org.finos.legend.engine.execution.Column;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.execution.Row;
-import org.finos.legend.engine.execution.StreamingResult;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * CSV serializer for query results.
- * 
+ *
  * Produces RFC 4180 compliant CSV with header row.
  * Values containing commas, quotes, or newlines are properly escaped.
- * 
- * Supports true streaming - rows are written incrementally.
- * 
+ *
  * GraalVM native-image compatible (no external dependencies).
  */
 public final class CsvSerializer implements ResultSerializer {
@@ -51,18 +47,12 @@ public final class CsvSerializer implements ResultSerializer {
     }
 
     @Override
-    public void serialize(BufferedResult result, OutputStream out) throws IOException {
+    public void serialize(ExecutionResult result, OutputStream out) throws IOException {
         try (Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
             writeHeader(writer, result.columns());
-            writeRows(writer, result.rows().iterator());
-        }
-    }
-
-    @Override
-    public void serializeStreaming(StreamingResult result, OutputStream out) throws IOException {
-        try (Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-            writeHeader(writer, result.columns());
-            writeRows(writer, result.iterator());
+            for (Row row : result.rows()) {
+                writeRow(writer, row);
+            }
         }
     }
 
@@ -72,12 +62,6 @@ public final class CsvSerializer implements ResultSerializer {
                 .collect(Collectors.joining(String.valueOf(DELIMITER)));
         writer.write(header);
         writer.write(LINE_ENDING);
-    }
-
-    private void writeRows(Writer writer, Iterator<Row> rows) throws IOException {
-        while (rows.hasNext()) {
-            writeRow(writer, rows.next());
-        }
     }
 
     private void writeRow(Writer writer, Row row) throws IOException {

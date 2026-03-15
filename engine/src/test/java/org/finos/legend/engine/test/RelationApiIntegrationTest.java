@@ -704,6 +704,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testExplicitJoinWithMatches() throws SQLException {
             // Self-join: join Person with itself on firstName
             // This tests that explicit join produces matching rows
+            // Since both sides have "firstName", we must supply a prefix to disambiguate
 
             String pureQuery = """
                     Person.all()
@@ -711,7 +712,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
                         ->join(
                             Person.all()->project({p2 | $p2.firstName}, {p2 | $p2.age}),
                             JoinType.INNER,
-                            {l, r | $l.firstName == $r.firstName}
+                            {l, r | $l.firstName == $r.firstName},
+                            'right'
                         )
                     """;
 
@@ -721,8 +723,9 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             // Self-join on firstName: John=John, Jane=Jane, Bob=Bob = 3 exact matches
             assertEquals(3, result.rows().size(), "Self-join on firstName should produce 3 matches");
 
-            // Verify we have columns from both projections
-            assertEquals(4, result.columns().size(), "Should have 4 columns: firstName, lastName, firstName, age");
+            // Verify we have columns from both projections:
+            // left: firstName, lastName; right: right_firstName (renamed), age (no conflict)
+            assertEquals(4, result.columns().size(), "Should have 4 columns: firstName, lastName, right_firstName, age");
         }
     }
 

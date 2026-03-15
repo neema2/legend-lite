@@ -1077,7 +1077,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String relationQuery = "#>{store::PersonDatabase.T_PERSON}->from(test::TestRuntime)";
 
         // WHEN: Execute through QueryService (parse → compile → SQL → execute)
-        org.finos.legend.engine.execution.BufferedResult result = queryService.execute(
+        var result = queryService.execute(
                 pureSource,
                 relationQuery,
                 "test::TestRuntime",
@@ -1126,7 +1126,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // WHEN: Execute a relation query with distinct()
         String relationQuery = "#>{store::ItemDb.T_ITEMS}->select(~CATEGORY, ~VALUE)->distinct()->from(test::TestRuntime)";
 
-        org.finos.legend.engine.execution.BufferedResult result = queryService.execute(
+        var result = queryService.execute(
                 pureSource, relationQuery, "test::TestRuntime", connection);
 
         // THEN: Should have 3 distinct category-value combinations (A-100, B-200,
@@ -1146,7 +1146,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // WHEN: Execute a relation query with rename()
         String relationQuery = "#>{store::PersonDatabase.T_PERSON}->select(~FIRST_NAME)->rename(~FIRST_NAME, ~givenName)->from(test::TestRuntime)";
 
-        org.finos.legend.engine.execution.BufferedResult result = queryService.execute(
+        var result = queryService.execute(
                 pureSource, relationQuery, "test::TestRuntime", connection);
 
         // THEN: Should have the renamed column
@@ -1195,7 +1195,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     ->from(test::TestRuntime)
                 """;
 
-        org.finos.legend.engine.execution.BufferedResult result = queryService.execute(
+        var result = queryService.execute(
                 pureSource, relationQuery, "test::TestRuntime", connection);
 
         // THEN: Should have all 5 rows (2 active + 3 inactive)

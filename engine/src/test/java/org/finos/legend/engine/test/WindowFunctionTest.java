@@ -1,6 +1,6 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.plan.*;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.ast.PlanGenerator;
@@ -450,7 +450,7 @@ class WindowFunctionTest {
             }
         }
 
-        private BufferedResult executeQuery(String pureQuery) throws SQLException {
+        private ExecutionResult executeQuery(String pureQuery) throws SQLException {
             return queryService.execute(
                     COMPLETE_MODEL,
                     pureQuery,
@@ -482,7 +482,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("PARTITION BY"), "SQL should contain PARTITION BY");
 
             // Execute and verify results
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
@@ -520,7 +520,7 @@ class WindowFunctionTest {
                         ->extend(over(~department, ~salary->desc()), ~salaryRank:{p,w,r|$p->rank($w,$r)})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Count ranks for Engineering (Alice=1, Bob=2, Grace=2, Charlie=4)
             int foundRankOf2 = 0;
@@ -559,7 +559,7 @@ class WindowFunctionTest {
                         ->extend(over(~department, ~salary->ascending()), ~runningTotal:{p,w,r|$r.salary}:y|$y->plus())
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Verify running totals for Engineering (sorted by salary ASC):
             // Charlie(80k) -> 80k, Bob(90k) -> 170k, Alice(100k) -> 270k
@@ -598,7 +598,7 @@ class WindowFunctionTest {
                         ->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Verify dense ranks for Engineering: Alice=1, Bob=2, Grace=2, Charlie=3 (no
             // gap!)
@@ -635,7 +635,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("UNBOUNDED PRECEDING"), "SQL should contain UNBOUNDED PRECEDING");
 
             // Execute and verify results
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
@@ -645,7 +645,7 @@ class WindowFunctionTest {
                     "Should have runningSum column");
         }
 
-        private int findColumnIndex(BufferedResult result, String columnName) {
+        private int findColumnIndex(ExecutionResult result, String columnName) {
             for (int i = 0; i < result.columns().size(); i++) {
                 if (result.columns().get(i).name().equals(columnName)) {
                     return i;
@@ -663,7 +663,7 @@ class WindowFunctionTest {
                         ->extend(over(~department, ~salary->descending()), ~prevSalary:{p,w,r|$p->lag($r).salary})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Build a map of name -> prevSalary for verification
             Map<String, Object> lagValues = new HashMap<>();
@@ -697,7 +697,7 @@ class WindowFunctionTest {
                         ->extend(over(~department, ~salary->descending()), ~nextSalary:{p,w,r|$p->lead($r).salary})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Build a map of name -> nextSalary for verification
             Map<String, Object> leadValues = new HashMap<>();
@@ -731,7 +731,7 @@ class WindowFunctionTest {
                         ->extend(over(~department, ~salary->descending()), ~topSalary:{p,w,r|$p->first($w,$r).salary})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Every employee should see their department's top salary
             for (var row : result.rows()) {
@@ -757,7 +757,7 @@ class WindowFunctionTest {
                         ->extend(over(~department, ~salary->descending()), ~bottomSalary:{p,w,r|$p->last($w,$r).salary})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Build map for verification
             Map<String, Integer> salaries = new HashMap<>();
@@ -791,7 +791,7 @@ class WindowFunctionTest {
                         ->extend(over(~department, ~salary->descending()), ~bucket:{p,w,r|$p->ntile($r,2)})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Build map for verification
             Map<String, Integer> buckets = new HashMap<>();
@@ -826,7 +826,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"),
                     "SQL should contain unbounded frame");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Build map for verification
             Map<String, Integer> topSalaries = new HashMap<>();
@@ -865,7 +865,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"),
                     "SQL should contain unbounded frame");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             // Build map for verification
             Map<String, Integer> bottomSalaries = new HashMap<>();
@@ -903,7 +903,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"),
                     "SQL should contain running total frame");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
             // Verify running sum column exists and has values
@@ -936,7 +936,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING"),
                     "SQL should contain sliding window frame");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
             Map<String, Double> movingAvgs = new HashMap<>();
@@ -970,7 +970,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"),
                     "SQL should contain trailing window frame");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             Map<String, Integer> trailingSums = new HashMap<>();
             for (var row : result.rows()) {
@@ -1003,7 +1003,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING"),
                     "SQL should contain current to end frame");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             Map<String, Integer> remainingSums = new HashMap<>();
             for (var row : result.rows()) {
@@ -1036,7 +1036,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING"),
                     "SQL should contain sliding window frame");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             Map<String, Long> neighborCounts = new HashMap<>();
             for (var row : result.rows()) {
@@ -1133,7 +1133,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("OVER"), "SQL should contain OVER");
             assertTrue(sql.contains("PARTITION BY"), "SQL should contain PARTITION BY");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
             // Verify stdDev column exists
@@ -1166,7 +1166,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("OVER"), "SQL should contain OVER");
             assertTrue(sql.contains("PARTITION BY"), "SQL should contain PARTITION BY");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
             // Print results for verification
@@ -1193,7 +1193,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("PERCENT_RANK"), "SQL should contain PERCENT_RANK");
             assertTrue(sql.contains("OVER"), "SQL should contain OVER");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
             // PERCENT_RANK is (rank - 1) / (total_rows - 1)
@@ -1230,7 +1230,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("CUME_DIST"), "SQL should contain CUME_DIST");
             assertTrue(sql.contains("OVER"), "SQL should contain OVER");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
             // CUME_DIST is number_of_rows_with_value_<=_current / total_rows
@@ -1268,7 +1268,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("CUME_DIST"), "SQL should contain CUME_DIST");
             assertTrue(sql.contains("OVER"), "SQL should contain OVER");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
             // Verify results are rounded to 2 decimal places
@@ -1304,7 +1304,7 @@ class WindowFunctionTest {
             assertTrue(sql.contains("SUM"), "SQL should contain SUM");
             assertTrue(sql.contains("OVER"), "SQL should contain OVER (empty window = entire relation)");
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
             assertEquals(6, result.rowCount(), "Should have 6 employees");
 
             // Total salary should be sum of all: 100k + 90k + 80k + 85k + 75k + 70k = 500k

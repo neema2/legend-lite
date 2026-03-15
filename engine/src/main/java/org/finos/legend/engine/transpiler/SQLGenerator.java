@@ -652,24 +652,21 @@ public final class SQLGenerator implements RelationNodeVisitor<String>, Expressi
         // Render source as subquery
         String sourceSql = pivot.source().accept(this);
 
-        // For multiple pivot columns, we need to concatenate them with '__|__'
-        // to match Pure's expected column naming format (DuckDB uses single _
-        // internally)
-        // For single pivot column, use standard approach which already works
+        // For multiple pivot columns, concatenate with SEPARATOR
+        // to match Pure's expected column naming format
+        String sep = org.finos.legend.engine.plan.RelationType.DynamicPivotColumn.SEPARATOR;
         List<String> pivotCols = pivot.pivotColumns();
         if (pivotCols.size() > 1) {
             // Create a wrapper that:
             // 1. Excludes original pivot columns (so they don't become grouping columns)
             // 2. Adds a concatenated pivot key column
-            // SELECT * EXCLUDE(col1, col2), col1 || '__|__' || col2 AS _pivot_key FROM
-            // (source)
             String excludeList = pivotCols.stream()
                     .map(dialect::quoteIdentifier)
                     .reduce((a, b) -> a + ", " + b)
                     .orElse("");
             String concatExpr = pivotCols.stream()
                     .map(dialect::quoteIdentifier)
-                    .reduce((a, b) -> a + " || '__|__' || " + b)
+                    .reduce((a, b) -> a + " || '" + sep + "' || " + b)
                     .orElse("");
             sourceSql = "SELECT * EXCLUDE(" + excludeList + "), " + concatExpr + " AS \"_pivot_key\" FROM (" + sourceSql
                     + ") AS _pivot_src";

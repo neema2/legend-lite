@@ -1,6 +1,6 @@
 package org.finos.legend.engine.test;
 
-import org.finos.legend.engine.execution.BufferedResult;
+import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.ast.PlanGenerator;
 import org.junit.jupiter.api.*;
@@ -139,7 +139,7 @@ class InheritanceIntegrationTest {
             }
         }
 
-        private BufferedResult executeQuery(String pureQuery) throws SQLException {
+        private ExecutionResult executeQuery(String pureQuery) throws SQLException {
             return queryService.execute(
                     INHERITANCE_MODEL,
                     pureQuery,
@@ -167,7 +167,7 @@ class InheritanceIntegrationTest {
                         ->project({e | $e.firstName}, {e | $e.lastName}, {e | $e.employeeId})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             assertEquals(1, result.rowCount(), "Should find 1 employee named John");
 
@@ -187,7 +187,7 @@ class InheritanceIntegrationTest {
                         ->project({e | $e.id}, {e | $e.firstName}, {e | $e.employeeId})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             assertEquals(1, result.rowCount(), "Should find 1 employee with id E001");
 
@@ -208,7 +208,7 @@ class InheritanceIntegrationTest {
                         ->project({e | $e.id}, {e | $e.firstName}, {e | $e.lastName}, {e | $e.employeeId}, {e | $e.department})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             assertEquals(4, result.rowCount(), "Should retrieve all 4 employees");
             assertEquals(5, result.columns().size(), "Should have 5 projected columns");
@@ -234,7 +234,7 @@ class InheritanceIntegrationTest {
                         ->sort({r | $r.lastName})
                     """;
 
-            BufferedResult result = executeQuery(pureQuery);
+            var result = executeQuery(pureQuery);
 
             assertEquals(3, result.rowCount(), "Should find 3 employees with salary > 82000");
 
@@ -267,7 +267,7 @@ class InheritanceIntegrationTest {
                     "SQL should contain filter value");
         }
 
-        private int findColumnIndex(BufferedResult result, String columnName) {
+        private int findColumnIndex(ExecutionResult result, String columnName) {
             for (int i = 0; i < result.columns().size(); i++) {
                 if (result.columns().get(i).name().equals(columnName)) {
                     return i;

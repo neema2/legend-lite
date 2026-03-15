@@ -1,5 +1,6 @@
 package org.finos.legend.pure.dsl.ast;
 
+import org.finos.legend.engine.plan.RelationType.DynamicPivotColumn;
 import org.finos.legend.engine.transpiler.SQLDialect;
 
 import java.util.ArrayList;
@@ -644,13 +645,13 @@ public class SqlBuilder {
 
         List<String> pivotCols = pivotClause.pivotColumns();
         if (pivotCols.size() > 1) {
-            // Multi-column pivot: concatenate columns with '__|__'
+            // Multi-column pivot: concatenate columns with separator
             String excludeList = pivotCols.stream()
                     .map(dialect::quoteIdentifier)
                     .collect(Collectors.joining(", "));
             String concatExpr = pivotCols.stream()
                     .map(dialect::quoteIdentifier)
-                    .reduce((a, b) -> a + " || '__|__' || " + b)
+                    .reduce((a, b) -> a + " || '" + DynamicPivotColumn.SEPARATOR + "' || " + b)
                     .orElse("");
             sourceSql = "SELECT * EXCLUDE(" + excludeList + "), " + concatExpr
                     + " AS \"_pivot_key\" FROM (" + sourceSql + ") AS _pivot_src";

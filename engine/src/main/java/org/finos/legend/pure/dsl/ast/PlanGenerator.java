@@ -1,7 +1,6 @@
 package org.finos.legend.pure.dsl.ast;
 
 import org.finos.legend.engine.plan.GenericType;
-import org.finos.legend.engine.plan.RelationType;
 import org.finos.legend.engine.plan.SQLExecutionNode;
 import org.finos.legend.engine.plan.SingleExecutionPlan;
 import org.finos.legend.engine.store.Join;
@@ -12,6 +11,7 @@ import org.finos.legend.pure.dsl.PureCompileException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -88,13 +88,22 @@ public class PlanGenerator {
             builder = generateRelation(vs);
         }
 
+        // returnType MUST be stamped by CleanCompiler.compile() — no silent fallback.
+        GenericType returnType = info.returnType();
+        if (returnType == null) {
+            throw new PureCompileException(
+                    "PlanGenerator: returnType not stamped by compiler for root expression "
+                            + vs.getClass().getSimpleName()
+                            + " — this is a compiler bug, not a query error");
+        }
+
         String sql = builder.toSql(dialect);
         var sqlNode = new SQLExecutionNode(
                 sql,
                 info != null ? info.relationType() : null,
                 null // connectionRef resolved by QueryService at execution time
         );
-        return new SingleExecutionPlan(sqlNode);
+        return new SingleExecutionPlan(sqlNode, returnType);
     }
 
     /**
@@ -1204,9 +1213,35 @@ public class PlanGenerator {
         }
         String leftAlias = dialect.quoteIdentifier("left_src");
         String rightAlias = dialect.quoteIdentifier("right_src");
-        SqlBuilder result = new SqlBuilder()
-                .selectStar()
-                .fromSubquery(left, leftAlias);
+
+        // When renames exist, enumerate columns explicitly to apply prefixed aliases
+        Map<String, String> renames = info.joinColumnRenames();
+        SqlBuilder result = new SqlBuilder();
+        if (renames != null && !renames.isEmpty()) {
+            // Left: all columns as "left_src".*
+            result.addSelect(new SqlExpr.QualifiedStar(leftAlias), null);
+            // Right: enumerate each column, applying rename for conflicts
+            TypeInfo rightInfo = unit.types().get(params.get(1));
+            if (rightInfo != null && rightInfo.relationType() != null) {
+                for (String colName : rightInfo.relationType().columns().keySet()) {
+                    String renamed = renames.get(colName);
+                    if (renamed != null) {
+                        // Conflicting column → right_src.col AS prefixed_name
+                        result.addSelect(
+                                new SqlExpr.Column("right_src", colName),
+                                dialect.quoteIdentifier(renamed));
+                    } else {
+                        // Non-conflicting → right_src.col AS col
+                        result.addSelect(
+                                new SqlExpr.Column("right_src", colName),
+                                dialect.quoteIdentifier(colName));
+                    }
+                }
+            }
+        } else {
+            result.selectStar();
+        }
+        result.fromSubquery(left, leftAlias);
 
         result.addJoin(new SqlBuilder.JoinClause(
                 joinType,
@@ -1253,9 +1288,33 @@ public class PlanGenerator {
 
         String leftAlias = dialect.quoteIdentifier("left_src");
         String rightAlias = dialect.quoteIdentifier("right_src");
-        SqlBuilder result = new SqlBuilder()
-                .selectStar()
-                .fromSubquery(left, leftAlias);
+
+        TypeInfo info = unit.typeInfoFor(af);
+        Map<String, String> renames = info != null ? info.joinColumnRenames() : null;
+        SqlBuilder result = new SqlBuilder();
+        if (renames != null && !renames.isEmpty()) {
+            // Left: all columns as "left_src".*
+            result.addSelect(new SqlExpr.QualifiedStar(leftAlias), null);
+            // Right: enumerate each column, applying rename for conflicts
+            TypeInfo rightInfo = unit.types().get(params.get(1));
+            if (rightInfo != null && rightInfo.relationType() != null) {
+                for (String colName : rightInfo.relationType().columns().keySet()) {
+                    String renamed = renames.get(colName);
+                    if (renamed != null) {
+                        result.addSelect(
+                                new SqlExpr.Column("right_src", colName),
+                                dialect.quoteIdentifier(renamed));
+                    } else {
+                        result.addSelect(
+                                new SqlExpr.Column("right_src", colName),
+                                dialect.quoteIdentifier(colName));
+                    }
+                }
+            }
+        } else {
+            result.selectStar();
+        }
+        result.fromSubquery(left, leftAlias);
 
         result.addJoin(new SqlBuilder.JoinClause(
                 SqlBuilder.JoinType.ASOF_LEFT,
