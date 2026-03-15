@@ -4312,6 +4312,45 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /**
+     * Test let bindings with concatenate chaining.
+     * Pattern: let a = #TDS...#; let b = #TDS...#; let c = $a->concatenate($b); $c->concatenate($b);
+     * Expected: 9 rows (a's 3 + b's 3 from c, then b's 3 again)
+     * Bug: only produces 6 rows (one UNION ALL instead of two)
+     */
+    @Test
+    void testLetBindingWithConcatenateChain() throws SQLException {
+        String pureQuery = """
+                |let a = #TDS
+                    val, str
+                    1, a
+                    3, ewe
+                    4, qw
+                #;
+                let b = #TDS
+                    val, str
+                    5, qwea
+                    6, eeewe
+                    7, qqwew
+                #;
+                let c = $a->concatenate($b);
+                $c->concatenate($b);
+                """;
+
+        String sql = generateSql(pureQuery);
+        System.out.println("Multi-let concatenate SQL: " + sql);
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Multi-let concatenate result (" + result.rows().size() + " rows):");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        // c = a UNION ALL b = 6 rows
+        // c UNION ALL b = 6 + 3 = 9 rows
+        assertEquals(9, result.rows().size(), "Should have 9 rows: (a ∪ b) ∪ b");
+    }
+
+    /**
      * Test sort()->groupBy() chain with complex sort expression.
      * Tests that SortExpression can be used as source for groupBy.
      * Pattern: #TDS...#->sort(~col->ascending())->groupBy(...)

@@ -231,7 +231,13 @@ public class SqlBuilder {
     }
 
     public SqlBuilder unionWrapped(SqlBuilder other, boolean all) {
-        this.setOperation = new SetOperation(SetOpType.UNION, all, other, true);
+        if (this.setOperation != null) {
+            // Already has a set operation (e.g., from chained concatenate via let-binding).
+            // Chain by appending onto the rightmost builder rather than overwriting.
+            this.setOperation.other().unionWrapped(other, all);
+        } else {
+            this.setOperation = new SetOperation(SetOpType.UNION, all, other, true);
+        }
         return this;
     }
 

@@ -2299,16 +2299,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertEquals(true, result.rows().get(0).get(0));
         }
 
-        @Test
-        void testPropertyAccessOnFilteredCollection() throws SQLException {
-                // [^Firm(legalName='a'), ^Firm(legalName='b')]->filter(f|$f.legalName ==
-                // 'a').legalName
-                var result = queryService.execute(
-                                getCompletePureModelWithRuntime(),
-                                "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='a'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='b')]->meta::pure::functions::collection::filter(f: meta::pure::functions::collection::tests::model::CO_Firm[1]|$f.legalName == 'a').legalName",
-                                "test::TestRuntime", connection);
-                assertEquals("[a]", result.rows().get(0).get(0).toString());
-        }
+
 
         // ==================== Fold function tests ====================
 

@@ -607,6 +607,7 @@ public class CleanCompiler {
         RelationType sourceType = source.relationType();
         RelationalMapping mapping = source.mapping();
 
+
         // Determine projection specs and aliases based on AST pattern
         List<ValueSpecification> lambdaSpecs;
         List<String> aliases;
@@ -1382,8 +1383,11 @@ public class CleanCompiler {
      * In aggregate context (groupBy, aggregate, window), cast is a transparent type-assertion
      * wrapper — the real aggregate is inside. E.g., cast($x->plus(), @Integer) → returns plus().
      * If the body is not an AppliedFunction, returns null.
-     * If cast wraps a non-function (e.g., a Variable), throws — cast without an aggregate
-     * is invalid in aggregate context.
+     *
+     * Special case: when the Pure interpreter serializes `$x->cast(@Integer)->plus()`, the
+     * `plus()` gets rendered as the `+` prefix sign, which our parser treats as a unary no-op
+     * (signedExpression rule). This makes `cast($x, @Integer)` the actual body with a Variable
+     * inside. In this case we return null so the caller defaults to aggFunc = "plus".
      */
     private AppliedFunction resolveAggregateFunctionBody(ValueSpecification body) {
         if (!(body instanceof AppliedFunction af)) {
@@ -1394,10 +1398,10 @@ public class CleanCompiler {
             if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof AppliedFunction innerAf) {
                 return innerAf;
             }
-            throw new PureCompileException(
-                    "cast() in aggregate context must wrap an aggregate function, got: "
-                            + (af.parameters().isEmpty() ? "no params"
-                                    : af.parameters().get(0).getClass().getSimpleName()));
+            // cast wraps a Variable — this happens when plus() was serialized as the `+` prefix
+            // (signedExpression) making cast the outermost function. Cast on same-type primitives
+            // is a no-op; return null so the caller uses the default aggregate function ("plus").
+            return null;
         }
         return af;
     }
@@ -1419,6 +1423,8 @@ public class CleanCompiler {
 
     /**
      * Extracts the Pure function name from an aggregate lambda like {y|$y->plus()}.
+     * When the body is cast(Variable) — caused by the parser dropping the + prefix
+     * (signedExpression rule) — defaults to "plus" since the lost function was plus().
      */
     private String extractPureFuncName(LambdaFunction lf) {
         if (lf == null || lf.body().isEmpty())
@@ -1427,6 +1433,11 @@ public class CleanCompiler {
         AppliedFunction af = resolveAggregateFunctionBody(body);
         if (af != null) {
             return simpleName(af.function());
+        }
+        // When resolveAggregateFunctionBody returns null for cast(Variable),
+        // the + prefix (plus) was lost by the parser. Default to "plus".
+        if (body instanceof AppliedFunction castAf && "cast".equals(simpleName(castAf.function()))) {
+            return "plus";
         }
         return null;
     }
@@ -2579,8 +2590,7 @@ public class CleanCompiler {
         for (int i = 0; i < stmts.size() - 1; i++) {
             var stmt = stmts.get(i);
             if (stmt instanceof AppliedFunction letAf
-                    && (simpleName(letAf.function()).equals("letFunction")
-                            || simpleName(letAf.function()).equals("letAsLastStatement"))
+                    && simpleName(letAf.function()).equals("letFunction")
                     && letAf.parameters().size() >= 2
                     && letAf.parameters().get(0) instanceof CString varName) {
                 // let x = valueExpr → store binding in context
@@ -3667,6 +3677,20 @@ public class CleanCompiler {
             compileExpr(v, ctx);
         }
         GenericType elementType = unifyElementType(coll.values());
+        // For struct collections, carry both list type AND struct column info
+        // so isList() works (for contains/head/find dispatch) AND project() can resolve columns
+        if (!coll.values().isEmpty()) {
+            TypeInfo firstElem = types.get(coll.values().get(0));
+            if (firstElem != null && firstElem.structSource() && firstElem.relationType() != null) {
+                var info = TypeInfo.builder()
+                        .scalarType(GenericType.listOf(elementType))
+                        .relationType(firstElem.relationType())
+                        .structSource(true)
+                        .build();
+                types.put(coll, info);
+                return info;
+            }
+        }
         return scalarTyped(coll, GenericType.listOf(elementType));
     }
 

@@ -539,16 +539,48 @@ public class PlanGenerator {
      * ON TRUE
      */
     private SqlBuilder generateStructProject(AppliedFunction af) {
-        ClassInstance structCi = (ClassInstance) af.parameters().get(0);
-        CleanAstBuilder.InstanceData structData = (CleanAstBuilder.InstanceData) structCi.value();
-        RelationType structType = unit.types().get(structCi).relationType();
+        ValueSpecification source = af.parameters().get(0);
 
-        // Build the struct source
-        SqlBuilder structSource = generateStructLiteral(structData);
+        // Extract struct data and type — handle both single struct and collection of structs
+        List<CleanAstBuilder.InstanceData> structRows = new java.util.ArrayList<>();
+        ClassInstance firstCi;
+        if (source instanceof ClassInstance ci && "instance".equals(ci.type())) {
+            firstCi = ci;
+            structRows.add((CleanAstBuilder.InstanceData) ci.value());
+        } else if (source instanceof Collection coll && !coll.values().isEmpty()) {
+            firstCi = (ClassInstance) coll.values().get(0);
+            for (var v : coll.values()) {
+                structRows.add((CleanAstBuilder.InstanceData) ((ClassInstance) v).value());
+            }
+        } else {
+            throw new PureCompileException("generateStructProject: unsupported source type: " + source.getClass().getSimpleName());
+        }
+
+        CleanAstBuilder.InstanceData firstData = (CleanAstBuilder.InstanceData) firstCi.value();
+        RelationType structType = unit.types().get(firstCi).relationType();
+
+        // Build the struct source — multi-row VALUES for collections
+        SqlBuilder structSource;
+        if (structRows.size() == 1) {
+            structSource = generateStructLiteral(firstData);
+        } else {
+            // Generate VALUES with multiple rows
+            var rows = new java.util.ArrayList<java.util.List<SqlExpr>>();
+            for (var data : structRows) {
+                SqlExpr structExpr = renderStructValue(new ClassInstance("instance", data));
+                rows.add(java.util.List.of(structExpr));
+            }
+            String className = firstData.className();
+            String simpleName = className.contains("::") ? className.substring(className.lastIndexOf("::") + 2) : className;
+            String alias = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
+            structSource = new SqlBuilder()
+                    .selectStar()
+                    .fromValues(rows, "t", java.util.List.of(alias));
+        }
 
         // Extract class alias (lowercased simple name)
-        String className = structData.className();
-        String simpleName = className.contains("::") ? className.substring(className.lastIndexOf("::") + 2) : className;
+        String className2 = firstData.className();
+        String simpleName = className2.contains("::") ? className2.substring(className2.lastIndexOf("::") + 2) : className2;
         String structAlias = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
         String srcAlias = "struct_src";
 
@@ -3040,10 +3072,8 @@ public class PlanGenerator {
             }
 
             // --- Let binding ---
-            case "letAsLastStatement", "letFunction" -> {
+            case "letFunction" -> {
                 // Let bindings: compile the value expression
-                // Zero-param calls to letAsLastStatement are test-defined functions, not let
-                // bindings
                 if (params.size() >= 2) {
                     yield c.apply(params.get(1));
                 }
