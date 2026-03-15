@@ -5360,4 +5360,37 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Pivot composition result: " + result.rows());
         assertEquals(2, result.rows().size(), "Should have 2 rows (UK, USA)");
     }
+
+    @Test
+    @DisplayName("PCT: testOLAPAggNoWindowChainedWithSimple - chained OLAP extend + simple extend")
+    void testOLAPAggNoWindowChainedWithSimple() throws SQLException {
+        String pureQuery = """
+                #TDS
+                    id, grp, name
+                    1, 2, A
+                    2, 1, B
+                    3, 3, C
+                    4, 4, D
+                    5, 2, E
+                    6, 1, F
+                    7, 3, G
+                    8, 1, H
+                    9, 5, I
+                    10, 0, J
+                #->extend(~newCol:c|$c.id:y|$y->plus())
+                 ->extend(~other:x|floor($x.newCol->toOne() / $x.id->toOne()))
+                """;
+
+        String sql = generateSql(pureQuery);
+        System.out.println("Chained OLAP+simple extend SQL: " + sql);
+
+        var result = executeRelation(pureQuery);
+        System.out.println("Chained OLAP+simple extend result (" + result.rows().size() + " rows):");
+        for (var row : result.rows()) {
+            System.out.println("  " + row);
+        }
+
+        assertEquals(10, result.rows().size(), "Should have 10 rows");
+        assertEquals(5, result.columns().size(), "Should have 5 columns: id, grp, name, newCol, other");
+    }
 }

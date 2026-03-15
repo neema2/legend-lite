@@ -1131,8 +1131,9 @@ public class PlanGenerator {
                 }
             }
         }
-        // Pivot source can't have selects appended (toSql bypasses them) — wrap first
-        if (source.hasPivot()) {
+        // Pivot/window sources can't have selects appended — wrap in subquery first.
+        // Window wrap is also required so the window alias is available for reference.
+        if (source.hasPivot() || source.hasWindowColumns()) {
             source = new SqlBuilder().selectStar().fromSubquery(source, "extend_src");
         }
         for (ColSpec cs : colSpecs) {
