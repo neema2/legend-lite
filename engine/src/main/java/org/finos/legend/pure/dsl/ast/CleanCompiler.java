@@ -1003,7 +1003,7 @@ public class CleanCompiler {
                                 aggInfo.columnName(), aliasNames.get(aliasIdx),
                                 aggInfo.aggFunction(), aggInfo.extraArgs(), aggInfo.castType());
                     }
-                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1014,7 +1014,7 @@ public class CleanCompiler {
             for (var cs : csa.colSpecs()) {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1023,7 +1023,7 @@ public class CleanCompiler {
             for (int i = 2; i < params.size(); i++) {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1062,7 +1062,7 @@ public class CleanCompiler {
             for (var v : aggColl.values()) {
                 var aggInfo = extractAggSpec(v);
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), source.relationType().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1072,7 +1072,7 @@ public class CleanCompiler {
             for (var cs : csa.colSpecs()) {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), source.relationType().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1080,7 +1080,7 @@ public class CleanCompiler {
             for (int i = 1; i < params.size(); i++) {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), aggReturnType(aggInfo.aggFunction()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), source.relationType().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1989,10 +1989,31 @@ public class CleanCompiler {
         for (var agg : aggregates) {
             if (agg.valueColumn() != null) groupByCols.remove(agg.valueColumn());
         }
-        // Build dynamic pivot column specs from aggregates — compiler knows the return types
+        // Build dynamic pivot column specs from aggregates.
+        // When aggReturnType returns the generic NUMBER, refine to the source column's
+        // concrete type (e.g., SUM(Integer col) → Integer, not Number).
+        var sourceColumns = source.relationType().columns();
         var dynamicCols = aggregates.stream()
-                .map(agg -> new org.finos.legend.engine.plan.RelationType.DynamicPivotColumn(
-                        agg.alias(), aggReturnType(agg.aggFunction())))
+                .map(agg -> {
+                    GenericType returnType = aggReturnType(agg.aggFunction());
+                    if (returnType == GenericType.Primitive.NUMBER) {
+                        if (agg.valueColumn() != null) {
+                            // Refine from source column type (e.g., SUM(integerCol) → Integer)
+                            GenericType colType = sourceColumns.get(agg.valueColumn());
+                            if (colType != null) returnType = colType;
+                        } else if (agg.valueExpr() != null) {
+                            // First try literal type (e.g., count pattern: SUM(1) → Integer)
+                            returnType = inferLiteralType(agg.valueExpr(), returnType);
+                            // If still NUMBER, try inferring from column references in the expression
+                            // (e.g., SUM($x.treePlanted * $x.coefficient) → Integer from source cols)
+                            if (returnType == GenericType.Primitive.NUMBER) {
+                                returnType = inferExprType(agg.valueExpr(), sourceColumns, returnType);
+                            }
+                        }
+                    }
+                    return new org.finos.legend.engine.plan.RelationType.DynamicPivotColumn(
+                            agg.alias(), returnType);
+                })
                 .toList();
         var partialType = new org.finos.legend.engine.plan.RelationType(groupByCols, dynamicCols);
 
@@ -2707,7 +2728,7 @@ public class CleanCompiler {
                  "sinh", "cosh", "tanh", "cot", "cbrt",
                  "jaroWinklerSimilarity" -> GenericType.Primitive.FLOAT;
             // Decimal-producing functions
-            case "toDecimal", "parseDecimal" -> GenericType.Primitive.DECIMAL;
+            case "toDecimal", "parseDecimal" -> new GenericType.PrecisionDecimal(18, 3);
             // String-producing functions
             case "toString", "toLower", "toUpper", "trim", "format",
                  "joinStrings", "replace", "lpad", "rpad", "splitPart",
@@ -2745,6 +2766,48 @@ public class CleanCompiler {
                  "covarpopulation", "corr" -> GenericType.Primitive.FLOAT;
             default -> GenericType.Primitive.NUMBER;
         };
+    }
+
+    /**
+     * Returns a refined aggregate return type: if the generic aggReturnType is NUMBER,
+     * uses the source column's concrete type instead (e.g., SUM(integerCol) → Integer).
+     */
+    private static GenericType refinedAggReturnType(String aggFunc, String sourceColumn, Map<String, GenericType> sourceColumns) {
+        GenericType returnType = aggReturnType(aggFunc);
+        if (returnType == GenericType.Primitive.NUMBER && sourceColumn != null && sourceColumns != null) {
+            GenericType colType = sourceColumns.get(sourceColumn);
+            if (colType != null) returnType = colType;
+        }
+        return returnType;
+    }
+
+    /** Infers a GenericType from a literal value expression (pivot count patterns). */
+    private static GenericType inferLiteralType(ValueSpecification expr, GenericType fallback) {
+        if (expr instanceof CInteger) return GenericType.Primitive.INTEGER;
+        if (expr instanceof CFloat) return GenericType.Primitive.FLOAT;
+        if (expr instanceof CDecimal) return GenericType.Primitive.DECIMAL;
+        if (expr instanceof CString) return GenericType.Primitive.STRING;
+        if (expr instanceof CBoolean) return GenericType.Primitive.BOOLEAN;
+        return fallback;
+    }
+
+    /**
+     * Infers a GenericType from an expression by walking the AST for column references.
+     * E.g., $x.treePlanted * $x.coefficient → finds treePlanted:Integer → Integer.
+     * Returns the first resolved column type, or the fallback if none found.
+     */
+    private static GenericType inferExprType(ValueSpecification expr, Map<String, GenericType> sourceColumns, GenericType fallback) {
+        if (expr instanceof AppliedProperty ap) {
+            GenericType colType = sourceColumns.get(ap.property());
+            if (colType != null) return colType;
+        }
+        if (expr instanceof AppliedFunction af) {
+            for (var p : af.parameters()) {
+                GenericType found = inferExprType(p, sourceColumns, null);
+                if (found != null) return found;
+            }
+        }
+        return fallback;
     }
 
     /** Infers the column type for an extend column from its lambda body. */
@@ -3793,6 +3856,9 @@ public class CleanCompiler {
         }
         if (!lf.body().isEmpty()) {
             TypeInfo bodyInfo = compileExpr(lf.body().get(0), lambdaCtx);
+            if (bodyInfo.isScalar() && bodyInfo.scalarType() != null) {
+                return scalarTyped(lf, bodyInfo.scalarType());
+            }
             return typed(lf, bodyInfo.relationType(), bodyInfo.mapping());
         }
         return scalar(lf);

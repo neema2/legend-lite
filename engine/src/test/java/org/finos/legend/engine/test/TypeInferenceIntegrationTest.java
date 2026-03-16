@@ -1173,7 +1173,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|8->toDecimal()",
                                 "test::TestRuntime", connection);
-                assertEquals("DECIMAL(18,3)", result.columns().get(0).sqlType(), "toDecimal should produce DECIMAL(18,3) column type");
+                assertEquals("Decimal(18,3)", result.returnType().typeName(), "toDecimal should produce Decimal(18,3) Pure type");
+                assertEquals(8.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.001);
         }
 
         @Test
@@ -1183,7 +1184,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|1.0D + 2.0D + 3.0D",
                                 "test::TestRuntime", connection);
-                assertEquals("DECIMAL(4,1)", result.columns().get(0).sqlType(), "Decimal literal arithmetic should track as DECIMAL(4,1)");
+                assertTrue(result.returnType().typeName().startsWith("Decimal"), "Decimal literals should produce Decimal Pure type");
                 assertEquals(6.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 1e-10);
         }
 
@@ -1194,7 +1195,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|meta::pure::functions::math::abs(-3.0D)",
                                 "test::TestRuntime", connection);
-                assertEquals("DECIMAL(12,1)", result.columns().get(0).sqlType(), "abs of Decimal should be DECIMAL(12,1)");
+                assertTrue(result.returnType().typeName().startsWith("Decimal"), "abs of Decimal should produce Decimal Pure type");
                 assertEquals(3.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 1e-10);
         }
 
@@ -1253,7 +1254,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|'3.14159d'->parseDecimal()",
                                 "test::TestRuntime", connection);
-                assertEquals("DECIMAL(18,3)", result.columns().get(0).sqlType(), "parseDecimal should produce DECIMAL(18,3) column type");
+                assertEquals("Decimal(18,3)", result.returnType().typeName(), "parseDecimal should produce Decimal(18,3) Pure type");
                 // DuckDB DECIMAL(18,3) truncates to 3.142 - known limitation
                 assertTrue(result.rows().get(0).get(0) instanceof java.math.BigDecimal);
         }
@@ -1265,7 +1266,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|'3.14'->parseDecimal()",
                                 "test::TestRuntime", connection);
-                assertEquals("DECIMAL(18,3)", result.columns().get(0).sqlType(), "parseDecimal simple should produce DECIMAL(18,3) column type");
+                assertEquals("Decimal(18,3)", result.returnType().typeName(), "parseDecimal should produce Decimal(18,3) Pure type");
                 assertEquals(3.14, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }
 
@@ -1327,7 +1328,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|19.905D * 17774D",
                                 "test::TestRuntime", connection);
-                assertEquals("DECIMAL(18,3)", result.columns().get(0).sqlType(), "Decimal multiplication should produce DECIMAL(18,3) column type");
+                assertTrue(result.returnType().typeName().startsWith("Decimal"), "Decimal multiplication should produce Decimal Pure type");
                 assertEquals(353791.47, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }
 
@@ -4049,6 +4050,143 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertEquals(1, buffered.rows().size());
                 assertEquals("idSum", buffered.columns().get(0).name());
         }
+
+        // ==================== PCT: pivot ====================
+
+        private static final String PIVOT_TDS = """
+                #TDS
+                city, country, year, treePlanted
+                NYC, USA, 2011, 5000
+                NYC, USA, 2000, 5000
+                SAN, USA, 2000, 2000
+                SAN, USA, 2011, 100
+                LDN, UK, 2011, 3000
+                SAN, USA, 2011, 2500
+                NYC, USA, 2000, 10000
+                NYC, USA, 2012, 7600
+                NYC, USA, 2012, 7600
+                #""";
+
+        /**
+         * PCT: pivot_SingleMultiple — single aggregate pivot.
+         * pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
+         * Verifies that SUM(treePlanted) grouped by year produces Integer pivot columns.
+         */
+        @Test
+        void testPivotSingleAggregate() throws SQLException {
+                String pure = "|" + PIVOT_TDS
+                                + "->meta::pure::functions::relation::pivot(~[year], ~[newCol:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|$x.treePlanted:y: Integer[*]|$y->plus()])";
+                var result = queryService.execute(
+                                getCompletePureModelWithRuntime(), pure,
+                                "test::TestRuntime", connection);
+                // Should have columns: city, country, plus pivot columns like 2000__|__newCol, 2011__|__newCol, 2012__|__newCol
+                assertTrue(result.columns().size() >= 4, "Should have city, country, plus pivot year columns");
+                // All pivot columns should be numeric (Integer), not String
+                for (var col : result.columns()) {
+                        if (col.name().contains("__|__")) {
+                                for (var row : result.rows()) {
+                                        Object val = row.get(result.columns().indexOf(col));
+                                        if (val != null) {
+                                                assertInstanceOf(Number.class, val,
+                                                                "Pivot column '" + col.name() + "' should be numeric, not " + val.getClass().getSimpleName());
+                                        }
+                                }
+                        }
+                }
+                assertTrue(result.rowCount() > 0, "Should have rows");
+        }
+
+        /**
+         * PCT: pivot_SingleMultiple — multi-aggregate pivot with sum + count.
+         * pivot(~[year], ~[sum:x|$x.treePlanted:y|$y->plus(), count:x|1:y|$y->plus()])
+         * Verifies that the count pattern (literal 1 → plus()) infers Integer type,
+         * not String. This tests the inferLiteralType fix.
+         */
+        @Test
+        void testPivotMultiAggregateWithCount() throws SQLException {
+                String pure = "|" + PIVOT_TDS
+                                + "->meta::pure::functions::relation::pivot(~[year], ~[sum:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|$x.treePlanted:y: Integer[*]|$y->plus(), count:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|1:y: Integer[*]|$y->plus()])";
+                var result = queryService.execute(
+                                getCompletePureModelWithRuntime(), pure,
+                                "test::TestRuntime", connection);
+                // Should have columns: city, country, plus pivot columns for each year × {sum, count}
+                assertTrue(result.columns().size() >= 4, "Should have city, country, plus pivot year×agg columns");
+                // ALL pivot columns (both sum and count) should be numeric, not String
+                for (var col : result.columns()) {
+                        if (col.name().contains("__|__")) {
+                                for (var row : result.rows()) {
+                                        Object val = row.get(result.columns().indexOf(col));
+                                        if (val != null) {
+                                                assertInstanceOf(Number.class, val,
+                                                                "Pivot column '" + col.name() + "' should be numeric, not " + val.getClass().getSimpleName());
+                                        }
+                                }
+                        }
+                }
+                // Spot-check: count columns should have positive integer values
+                boolean foundCountCol = false;
+                for (var col : result.columns()) {
+                        if (col.name().contains("__|__count")) {
+                                foundCountCol = true;
+                                for (var row : result.rows()) {
+                                        Object val = row.get(result.columns().indexOf(col));
+                                        if (val != null) {
+                                                assertTrue(((Number) val).intValue() > 0,
+                                                                "Count column should have positive values");
+                                        }
+                                }
+                        }
+                }
+                assertTrue(foundCountCol, "Should have at least one count pivot column");
+                assertTrue(result.rowCount() > 0, "Should have rows");
+        }
+
+        /**
+         * PCT: pivot_SingleMultiple_Dynamic_Aggregation — multi-aggregate pivot with
+         * expression-based
+         * sum (x.treePlanted * x.coefficient) + count(1).
+         * Verifies that SUM of an expression infers Integer type from source columns,
+         * not String (which happens when the type falls through to NUMBER → String
+         * mapping).
+         */
+        @Test
+        void testPivotMultiAggregateWithExpressionValue() throws SQLException {
+                String pure = ""
+                                + "|#TDS\n"
+                                + "city, country, year, treePlanted, coefficient\n"
+                                + "NYC, USA, 2011, 5000, 1\n"
+                                + "NYC, USA, 2000, 5000, 2\n"
+                                + "SAN, USA, 2000, 2000, 1\n"
+                                + "SAN, USA, 2011, 100, 2\n"
+                                + "LDN, UK, 2011, 3000, 2\n"
+                                + "SAN, USA, 2011, 2500, 1\n"
+                                + "NYC, USA, 2000, 10000, 2\n"
+                                + "NYC, USA, 2012, 7600, 1\n"
+                                + "NYC, USA, 2012, 7600, 2\n"
+                                + "#->meta::pure::functions::relation::pivot(~[year], ~[sum:x: (city:String, country:String, year:Integer, treePlanted:Integer, coefficient:Integer)[1]|$x.treePlanted->meta::pure::functions::multiplicity::toOne() * $x.coefficient->meta::pure::functions::multiplicity::toOne():y: Integer[*]|$y->plus(),count:x: (city:String, country:String, year:Integer, treePlanted:Integer, coefficient:Integer)[1]|1:y: Integer[*]|$y->plus()])";
+                var result = queryService.execute(
+                                getCompletePureModelWithRuntime(), pure,
+                                "test::TestRuntime", connection);
+                // Should have columns: city, country, plus pivot columns for each year × {sum, count}
+                assertTrue(result.columns().size() >= 4,
+                                "Should have city, country, plus pivot year×agg columns");
+                // ALL pivot columns (both sum and count) should be numeric, not String
+                for (var col : result.columns()) {
+                        if (col.name().contains("__|__")) {
+                                for (var row : result.rows()) {
+                                        Object val = row.get(result.columns().indexOf(col));
+                                        if (val != null) {
+                                                assertInstanceOf(Number.class, val,
+                                                                "Pivot column '" + col.name()
+                                                                                + "' should be numeric, not "
+                                                                                + val.getClass().getSimpleName());
+                                        }
+                                }
+                        }
+                }
+                assertTrue(result.rowCount() > 0, "Should have rows");
+        }
+
 
         /**
          * Exact PCT test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit

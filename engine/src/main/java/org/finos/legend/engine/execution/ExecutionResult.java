@@ -127,7 +127,7 @@ public sealed interface ExecutionResult {
 
         @Override public List<Row> rows() {
             return values.stream()
-                    .map(v -> new Row(List.of(v)))
+                    .map(v -> new Row(java.util.Collections.singletonList(v)))
                     .toList();
         }
     }

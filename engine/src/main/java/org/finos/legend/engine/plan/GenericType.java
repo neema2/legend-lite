@@ -182,7 +182,7 @@ public sealed interface GenericType
     record PrecisionDecimal(int precision, int scale) implements GenericType {
         @Override
         public String typeName() {
-            return "Decimal";
+            return "Decimal(" + precision + "," + scale + ")";
         }
     }
 
