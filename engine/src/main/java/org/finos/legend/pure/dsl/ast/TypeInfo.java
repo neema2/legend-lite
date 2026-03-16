@@ -4,6 +4,7 @@ import org.finos.legend.engine.plan.GenericType;
 import org.finos.legend.engine.plan.RelationType;
 import org.finos.legend.engine.store.Join;
 import org.finos.legend.engine.store.RelationalMapping;
+import org.finos.legend.pure.m3.Multiplicity;
 
 import java.util.List;
 import java.util.Map;
@@ -67,7 +68,14 @@ public record TypeInfo(
          * Maps original right-side column name → prefixed name.
          * Empty when no conflicts. Used by PlanGenerator to alias right-side columns.
          */
-        Map<String, String> joinColumnRenames) {
+        Map<String, String> joinColumnRenames,
+        /**
+         * Pure-level multiplicity of this expression.
+         * Null means unset (treated as [1] / scalar).
+         * MANY ([*]) signals PlanGenerator to UNNEST list results into N rows.
+         * ONE ([1]) means the list is a single opaque value (e.g., fold result).
+         */
+        Multiplicity multiplicity) {
 
     /**
      * Pre-resolved association navigation target.
@@ -394,6 +402,7 @@ public record TypeInfo(
         private VariantAccess variantAccess;
         private GenericType returnType;
         private Map<String, String> joinColumnRenames = Map.of();
+        private Multiplicity multiplicity;
 
         private Builder() {}
 
@@ -414,6 +423,7 @@ public record TypeInfo(
             this.variantAccess = src.variantAccess();
             this.returnType = src.returnType();
             this.joinColumnRenames = src.joinColumnRenames();
+            this.multiplicity = src.multiplicity();
         }
 
         public Builder relationType(RelationType v) { this.relationType = v; return this; }
@@ -432,12 +442,13 @@ public record TypeInfo(
         public Builder variantAccess(VariantAccess v) { this.variantAccess = v; return this; }
         public Builder returnType(GenericType v) { this.returnType = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
+        public Builder multiplicity(Multiplicity v) { this.multiplicity = v; return this; }
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
                     columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
                     lambdaParam, columnAlias, pivotSpec, variantAccess, returnType,
-                    joinColumnRenames);
+                    joinColumnRenames, multiplicity);
         }
     }
 
@@ -461,6 +472,11 @@ public record TypeInfo(
     /** True if the scalar type is a list/collection. */
     public boolean isList() {
         return scalarType != null && scalarType.isList();
+    }
+
+    /** True if this expression has multiplicity [*] (produces N independent values). */
+    public boolean isMany() {
+        return multiplicity != null && multiplicity.isMany();
     }
 
     /** True if the scalar type is a date (StrictDate, DateTime, Date — not StrictTime). */

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -304,7 +305,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|['1', '2']->match([a: Integer[1]|1, a: String[1]|[6, 7, 1, 2], a: String[*]|$a, a: Date[1]|[4, 5, 6]])",
                                 "test::TestRuntime", connection);
-                assertEquals("[1, 2]", result.rows().get(0).get(0).toString());
+                assertEquals(List.of("1", "2"), result.asCollection().values().stream().map(Object::toString).toList());
         }
 
         @Test
@@ -315,7 +316,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|['1', '2']->match([a: Integer[1]|1, a: String[1]|[6, 7, 1, 2], a: String[*]|$a, a: Date[1]|[4, 5, 6]])",
                                 "test::TestRuntime", connection);
-                assertEquals("[1, 2]", result.rows().get(0).get(0).toString());
+                assertEquals(List.of("1", "2"), result.asCollection().values().stream().map(Object::toString).toList());
         }
 
         @Test
@@ -656,7 +657,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3]->drop(1)",
                                 "test::TestRuntime",
                                 connection);
-                assertEquals("[2, 3]", result.rows().get(0).get(0).toString());
+                assertEquals(List.of(2, 3), result.asCollection().values());
         }
 
         @Test
@@ -666,7 +667,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3]->take(2)",
                                 "test::TestRuntime",
                                 connection);
-                assertEquals("[1, 2]", result.rows().get(0).get(0).toString());
+                assertEquals(List.of(1, 2), result.asCollection().values());
         }
 
         @Test
@@ -676,7 +677,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3, 4]->slice(1, 3)",
                                 "test::TestRuntime",
                                 connection);
-                assertEquals("[2, 3]", result.rows().get(0).get(0).toString());
+                assertEquals(List.of(2, 3), result.asCollection().values());
         }
 
         @Test
@@ -696,7 +697,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3]->concatenate([4, 5])",
                                 "test::TestRuntime",
                                 connection);
-                assertEquals("[1, 2, 3, 4, 5]", result.rows().get(0).get(0).toString());
+                assertEquals(List.of(1, 2, 3, 4, 5), result.asCollection().values());
         }
 
         // ==================== List aggregate functions ====================
@@ -1840,7 +1841,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|['a', 'b']->meta::pure::functions::collection::add('c')",
                                 "test::TestRuntime", connection);
-                assertEquals("[a, b, c]", String.valueOf(result.rows().get(0).get(0)));
+                assertEquals(List.of("a", "b", "c"), result.asCollection().values());
         }
 
         @Test
@@ -1850,7 +1851,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|['a', 'b']->meta::pure::functions::collection::add(1, 'c')",
                                 "test::TestRuntime", connection);
-                assertEquals("[a, c, b]", String.valueOf(result.rows().get(0).get(0)));
+                assertEquals(List.of("a", "c", "b"), result.asCollection().values());
         }
 
         // ==================== Mixed-type list tests (JSON[]) ====================
@@ -1862,17 +1863,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1, 2, 3]->meta::pure::functions::collection::concatenate(['a', 'b'])",
                                 "test::TestRuntime", connection);
-                // Engine unwraps JSON[] to native Java List: [Long(1), Long(2), Long(3),
-                // String("a"), String("b")]
-                Object val = result.rows().get(0).get(0);
-                assertTrue(val instanceof java.util.List, "Expected List result, got: " + val.getClass());
-                java.util.List<?> elements = (java.util.List<?>) val;
-                assertEquals(5, elements.size());
-                assertEquals(1L, elements.get(0));
-                assertEquals(2L, elements.get(1));
-                assertEquals(3L, elements.get(2));
-                assertEquals("a", elements.get(3));
-                assertEquals("b", elements.get(4));
+                // UNNEST produces N rows. VARIANT[] elements are unwrapped to native Java types.
+                var values = result.asCollection().values();
+                assertEquals(5, values.size());
+                assertEquals(1L, values.get(0));
+                assertEquals(2L, values.get(1));
+                assertEquals(3L, values.get(2));
+                assertEquals("a", values.get(3));
+                assertEquals("b", values.get(4));
         }
 
         @Test
@@ -1882,13 +1880,11 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1, 2, 3]->meta::pure::functions::collection::concatenate([4, 5])",
                                 "test::TestRuntime", connection);
-                Object val = result.rows().get(0).get(0);
-                // Homogeneous arrays stay as sql.Array (not unwrapped to List)
-                assertTrue(val instanceof java.sql.Array, "Expected sql.Array result, got: " + val.getClass());
-                Object[] elements = (Object[]) ((java.sql.Array) val).getArray();
-                assertEquals(5, elements.length);
-                assertEquals(1, elements[0]);
-                assertEquals(5, elements[4]);
+                // UNNEST produces individual integer rows
+                var values = result.asCollection().values();
+                assertEquals(5, values.size());
+                assertEquals(1, ((Number) values.get(0)).intValue());
+                assertEquals(5, ((Number) values.get(4)).intValue());
         }
 
         @Test
@@ -2056,8 +2052,9 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1, 2, 3]->meta::pure::functions::collection::take(-1)",
                                 "test::TestRuntime", connection);
-                // negative take returns empty list
-                assertNotNull(result.rows().get(0).get(0));
+                // negative take returns empty list — UNNEST produces 0 rows
+                assertTrue(result.asCollection().values().isEmpty(),
+                                "take(-1) should return empty collection");
         }
 
         @Test
@@ -2170,10 +2167,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|['Smith', 'Branche', 'Doe']->meta::pure::functions::collection::sort({x: String[1], y: String[1]|$y->meta::pure::functions::lang::compare($x)})",
                                 "test::TestRuntime", connection);
-                Object val = result.rows().get(0).get(0);
-                assertTrue(val instanceof java.sql.Array, "Expected sql.Array but got " + val.getClass());
-                Object[] elements = (Object[]) ((java.sql.Array) val).getArray();
-                assertArrayEquals(new Object[] { "Smith", "Doe", "Branche" }, elements);
+                assertEquals(List.of("Smith", "Doe", "Branche"), result.asCollection().values());
         }
 
         // ==================== Variant type mapping tests ====================
@@ -2226,10 +2220,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[^meta::pure::functions::collection::tests::map::model::M_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::map::model::M_Person(firstName='Pierre',lastName='Doe')]->meta::pure::functions::collection::map(p: meta::pure::functions::collection::tests::map::model::M_Person[1]|$p.lastName)",
                                 "test::TestRuntime", connection);
-                Object val = result.rows().get(0).get(0);
-                assertTrue(val instanceof java.sql.Array, "Expected sql.Array but got " + val.getClass());
-                Object[] elements = (Object[]) ((java.sql.Array) val).getArray();
-                assertArrayEquals(new Object[] { "Smith", "Doe" }, elements);
+                assertEquals(List.of("Smith", "Doe"), result.asCollection().values());
         }
 
         @Test
@@ -2568,14 +2559,11 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1, 'hello']",
                                 "test::TestRuntime", connection);
-                Object val = result.rows().get(0).get(0);
-                // DuckDB 1.5: VARIANT arrays return as java.sql.Array (DuckDBArray)
-                assertTrue(val instanceof java.sql.Array, "Expected sql.Array for VARIANT-wrapped mixed-type list but got: "
-                                + (val == null ? "null" : val.getClass().getName()));
-                Object[] elements = (Object[]) ((java.sql.Array) val).getArray();
-                assertEquals(2, elements.length, "Expected 2 elements in mixed-type list");
-                assertEquals(1, ((Number) elements[0]).intValue(), "First element should be 1");
-                assertEquals("hello", elements[1].toString(), "Second element should be 'hello'");
+                // UNNEST produces individual rows from the VARIANT array
+                var values = result.asCollection().values();
+                assertEquals(2, values.size(), "Expected 2 elements in mixed-type list");
+                assertEquals(1, ((Number) values.get(0)).intValue(), "First element should be 1");
+                assertEquals("hello", values.get(1).toString(), "Second element should be 'hello'");
         }
 
         // ==================== Helper: common class definitions ====================
@@ -2690,45 +2678,42 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "test::TestRuntime", connection);
                 assertNull(lastResult.rows().get(0).get(0), "last() on empty set should be null");
 
-                // []->tail() should return empty list
+                // []->tail() should return empty list — UNNEST produces 0 rows
                 var tailResult = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|[]->meta::pure::functions::collection::tail()",
                                 "test::TestRuntime", connection);
-                Object tailValue = tailResult.rows().get(0).get(0);
-                assertTrue(tailValue == null || tailValue.toString().equals("[]"),
-                                "tail() on empty set should be null or []: " + tailValue);
+                assertTrue(tailResult.asCollection().values().isEmpty(),
+                                "tail() on empty set should return empty collection");
 
-                // []->init() should return empty list
+                // []->init() should return empty list — UNNEST produces 0 rows
                 var initResult = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|[]->meta::pure::functions::collection::init()",
                                 "test::TestRuntime", connection);
-                Object initValue = initResult.rows().get(0).get(0);
-                assertTrue(initValue == null || initValue.toString().equals("[]"),
-                                "init() on empty set should be null or []: " + initValue);
+                assertTrue(initResult.asCollection().values().isEmpty(),
+                                "init() on empty set should return empty collection");
         }
 
         @Test
         void testScalarInitAndTail() throws SQLException {
                 // 'a'->init() should return empty list (all but last of single element)
+                // UNNEST on empty result produces 0 rows
                 var initResult = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|'a'->meta::pure::functions::collection::init()",
                                 "test::TestRuntime", connection);
-                Object initValue = initResult.rows().get(0).get(0);
-                // LIST_SLICE(['a'], 1, -2) returns empty list []
-                assertTrue(initValue == null || initValue.toString().equals("[]"),
-                                "'a'->init() should be empty but got: " + initValue);
+                assertTrue(initResult.asCollection().values().isEmpty(),
+                                "'a'->init() should return empty collection");
 
                 // 'a'->tail() should return empty list (all but first of single element)
+                // UNNEST on empty result produces 0 rows
                 var tailResult = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|'a'->meta::pure::functions::collection::tail()",
                                 "test::TestRuntime", connection);
-                Object tailValue = tailResult.rows().get(0).get(0);
-                assertTrue(tailValue == null || tailValue.toString().equals("[]"),
-                                "'a'->tail() should be empty but got: " + tailValue);
+                assertTrue(tailResult.asCollection().values().isEmpty(),
+                                "'a'->tail() should return empty collection");
         }
 
         @Test
@@ -2759,15 +2744,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|['Doe', 'Smith', 'Branche']->meta::pure::functions::collection::sort({s: String[1]|$s->meta::pure::functions::string::substring(1, 2)}, {x: String[1], y: String[1]|$x->meta::pure::functions::lang::compare($y)})",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertNotNull(value);
-                assertTrue(value instanceof java.sql.Array,
-                                "Expected SQL Array but got: " + value.getClass().getSimpleName());
-                Object[] elements = (Object[]) ((java.sql.Array) value).getArray();
-                assertEquals(3, elements.length);
-                assertEquals("Smith", elements[0]);
-                assertEquals("Doe", elements[1]);
-                assertEquals("Branche", elements[2]);
+                assertEquals(List.of("Smith", "Doe", "Branche"), result.asCollection().values());
         }
 
         @Test
@@ -2777,14 +2754,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|['a', 'b', 'c']->meta::pure::functions::collection::tail()",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertNotNull(value, "tail() on ['a','b','c'] should not be null");
-                assertTrue(value instanceof java.sql.Array,
-                                "Expected SQL Array but got: " + value.getClass().getSimpleName());
-                Object[] elements = (Object[]) ((java.sql.Array) value).getArray();
-                assertEquals(2, elements.length);
-                assertEquals("b", elements[0]);
-                assertEquals("c", elements[1]);
+                assertEquals(List.of("b", "c"), result.asCollection().values());
         }
 
         // ==================== Zip Tests ====================
@@ -2795,12 +2765,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = []; let b = []; $a->meta::pure::functions::collection::zip($b);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                // Empty zip should return empty list or null
-                assertTrue(value == null || (value instanceof java.util.List && ((java.util.List<?>) value).isEmpty())
-                                || (value instanceof java.sql.Array
-                                                && ((Object[]) ((java.sql.Array) value).getArray()).length == 0),
-                                "zip of two empty lists should be empty, got: " + value);
+                assertTrue(result.asCollection().values().isEmpty(),
+                                "zip of two empty lists should be empty");
         }
 
         @Test
@@ -2809,11 +2775,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = []; let b = ['a', 'b', 'c', 'd']; $a->meta::pure::functions::collection::zip($b);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertTrue(value == null || (value instanceof java.util.List && ((java.util.List<?>) value).isEmpty())
-                                || (value instanceof java.sql.Array
-                                                && ((Object[]) ((java.sql.Array) value).getArray()).length == 0),
-                                "zip with first empty should be empty, got: " + value);
+                assertTrue(result.asCollection().values().isEmpty(),
+                                "zip with first empty should be empty");
         }
 
         @Test
@@ -2822,11 +2785,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = [1, 2, 3, 4]; let b = []; $a->meta::pure::functions::collection::zip($b);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertTrue(value == null || (value instanceof java.util.List && ((java.util.List<?>) value).isEmpty())
-                                || (value instanceof java.sql.Array
-                                                && ((Object[]) ((java.sql.Array) value).getArray()).length == 0),
-                                "zip with second empty should be empty, got: " + value);
+                assertTrue(result.asCollection().values().isEmpty(),
+                                "zip with second empty should be empty");
         }
 
         @SuppressWarnings("unchecked")
@@ -2836,11 +2796,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = [1, 2, 3, 4]; let b = ['a', 'b', 'c', 'd']; $a->meta::pure::functions::collection::zip($b);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertNotNull(value);
-                assertTrue(value instanceof java.util.List,
-                                "Expected List but got: " + value.getClass().getSimpleName());
-                java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+                var pairs = (java.util.List<java.util.Map<String, Object>>) (java.util.List<?>) result.asCollection().values();
                 assertEquals(4, pairs.size());
                 assertEquals(1, ((Number) pairs.get(0).get("first")).intValue());
                 assertEquals("a", pairs.get(0).get("second"));
@@ -2855,11 +2811,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = [1, 2, 3, 4]; let b = ['a', 'b']; $a->meta::pure::functions::collection::zip($b);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertNotNull(value);
-                assertTrue(value instanceof java.util.List,
-                                "Expected List but got: " + value.getClass().getSimpleName());
-                java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+                var pairs = (java.util.List<java.util.Map<String, Object>>) (java.util.List<?>) result.asCollection().values();
                 assertEquals(2, pairs.size(), "Should truncate to shorter list");
                 assertEquals(1, ((Number) pairs.get(0).get("first")).intValue());
                 assertEquals("a", pairs.get(0).get("second"));
@@ -2874,11 +2826,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = [1, 2]; let b = ['a', 'b', 'c', 'd']; $a->meta::pure::functions::collection::zip($b);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertNotNull(value);
-                assertTrue(value instanceof java.util.List,
-                                "Expected List but got: " + value.getClass().getSimpleName());
-                java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+                var pairs = (java.util.List<java.util.Map<String, Object>>) (java.util.List<?>) result.asCollection().values();
                 assertEquals(2, pairs.size(), "Should truncate to shorter list");
                 assertEquals(1, ((Number) pairs.get(0).get("first")).intValue());
                 assertEquals("a", pairs.get(0).get("second"));
@@ -2893,11 +2841,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = [1, 2, 3]; let b = ['a', 'b', 'c']; let c = [4, 5, 6]; let d = ['d', 'e', 'f']; let x = $a->meta::pure::functions::collection::zip($b); let y = $c->meta::pure::functions::collection::zip($d); $x->meta::pure::functions::collection::zip($y);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertNotNull(value);
-                assertTrue(value instanceof java.util.List,
-                                "Expected List but got: " + value.getClass().getSimpleName());
-                java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+                var pairs = (java.util.List<java.util.Map<String, Object>>) (java.util.List<?>) result.asCollection().values();
                 assertEquals(3, pairs.size());
                 // first element: pair(pair(1,'a'), pair(4,'d'))
                 var first = pairs.get(0);
@@ -2918,11 +2862,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = [1, 2, 3]; let b = ['a', 'b', 'c']; let c = [4, 5, 6]; let x = $a->meta::pure::functions::collection::zip($b); $x->meta::pure::functions::collection::zip($c);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertNotNull(value);
-                assertTrue(value instanceof java.util.List,
-                                "Expected List but got: " + value.getClass().getSimpleName());
-                java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+                var pairs = (java.util.List<java.util.Map<String, Object>>) (java.util.List<?>) result.asCollection().values();
                 assertEquals(3, pairs.size());
                 // first element: pair(pair(1,'a'), 4)
                 var first = pairs.get(0);
@@ -2940,11 +2880,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|let a = [1, 2, 3]; let c = [4, 5, 6]; let d = ['d', 'e', 'f']; let x = $c->meta::pure::functions::collection::zip($d); $a->meta::pure::functions::collection::zip($x);",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                assertNotNull(value);
-                assertTrue(value instanceof java.util.List,
-                                "Expected List but got: " + value.getClass().getSimpleName());
-                java.util.List<java.util.Map<String, Object>> pairs = (java.util.List<java.util.Map<String, Object>>) value;
+                var pairs = (java.util.List<java.util.Map<String, Object>>) (java.util.List<?>) result.asCollection().values();
                 assertEquals(3, pairs.size());
                 // first element: pair(1, pair(4,'d'))
                 var first = pairs.get(0);
@@ -2988,16 +2924,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Pierre',lastName='Doe'), ^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Kevin',lastName='RoeDoe')]->meta::pure::functions::collection::map(p: meta::pure::functions::string::tests::plus::model::P_Person[1]|$p.lastName->meta::pure::functions::collection::at(0) + ', ' + $p.firstName->meta::pure::functions::collection::at(0))",
                                 "test::TestRuntime", connection);
-                // map() over 2 structs should return a list of 2 "lastName, firstName" strings
-                Object value = result.rows().get(0).get(0);
-                // DuckDB returns VARCHAR[] as DuckDBArray (implements java.sql.Array)
-                assertTrue(value instanceof java.sql.Array,
-                                "Expected java.sql.Array result but got: " + value.getClass().getName() + " = "
-                                                + value);
-                Object[] arr = (Object[]) ((java.sql.Array) value).getArray();
-                assertEquals(2, arr.length, "Expected 2 elements from map over 2 P_Person structs");
-                assertEquals("Doe, Pierre", arr[0].toString());
-                assertEquals("RoeDoe, Kevin", arr[1].toString());
+                assertEquals(List.of("Doe, Pierre", "RoeDoe, Kevin"), result.asCollection().values());
         }
 
         // ==================== Large integer arithmetic (PCT: testLargeTimes)
@@ -3184,20 +3111,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1001, 1020, 1030, 900, 2010, 2020]->meta::pure::functions::math::maxBy([10000, 9000, 8000, 15000, 15000, 8000], 3)",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                // Expected: [900, 2010, 1001] - top 3 by descending keys, preserving original
-                // order for ties
-                Object[] arr;
-                if (value instanceof java.sql.Array sqlArray) {
-                        arr = (Object[]) sqlArray.getArray();
-                } else {
-                        fail("Expected array result, got: " + value);
-                        return;
-                }
-                assertEquals(3, arr.length);
-                assertEquals(900, ((Number) arr[0]).intValue());
-                assertEquals(2010, ((Number) arr[1]).intValue());
-                assertEquals(1001, ((Number) arr[2]).intValue());
+                // Expected: [900, 2010, 1001] - top 3 by descending keys
+                var values = result.asCollection().values();
+                assertEquals(3, values.size());
+                assertEquals(900, ((Number) values.get(0)).intValue());
+                assertEquals(2010, ((Number) values.get(1)).intValue());
+                assertEquals(1001, ((Number) values.get(2)).intValue());
         }
 
         // === PCT: testFold* assertions ===
@@ -3521,20 +3440,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1001, 1020, 1030, 900, 2010, 2020]->meta::pure::functions::math::minBy([10000, 9000, 8000, 15000, 14000, 7000], 3)",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                // Expected: [2020, 1030, 1020] - top 3 by ascending keys, preserving original
-                // order for ties
-                Object[] arr;
-                if (value instanceof java.sql.Array sqlArray) {
-                        arr = (Object[]) sqlArray.getArray();
-                } else {
-                        fail("Expected array result, got: " + value);
-                        return;
-                }
-                assertEquals(3, arr.length);
-                assertEquals(2020, ((Number) arr[0]).intValue());
-                assertEquals(1030, ((Number) arr[1]).intValue());
-                assertEquals(1020, ((Number) arr[2]).intValue());
+                // Expected: [2020, 1030, 1020] - top 3 by ascending keys
+                var values = result.asCollection().values();
+                assertEquals(3, values.size());
+                assertEquals(2020, ((Number) values.get(0)).intValue());
+                assertEquals(1030, ((Number) values.get(1)).intValue());
+                assertEquals(1020, ((Number) values.get(2)).intValue());
         }
 
         @Test

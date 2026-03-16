@@ -116,6 +116,15 @@ public class PlanGenerator {
             body = lf.body().getLast();
         }
         SqlExpr scalar = generateScalar(body, null, mappingFor(ast));
+
+        // Collection results: UNNEST to produce N scalar rows instead of 1 row with a LIST.
+        // Only applied when the compiler explicitly marked this expression with Multiplicity.MANY,
+        // meaning it produces N independent values. Single list values (e.g., fold result) are left as-is.
+        TypeInfo info = unit.types().get(ast);
+        if (info != null && info.isMany()) {
+            scalar = new SqlExpr.FunctionCall("unnest", List.of(scalar));
+        }
+
         return new SqlBuilder().addSelect(scalar, dialect.quoteIdentifier("value"));
     }
 
@@ -1529,13 +1538,21 @@ public class PlanGenerator {
                         .collect(Collectors.toList());
                 // Heterogeneous lists (List<Number>, List<Date>) wrap each element with
                 // ::VARIANT to preserve original types through DuckDB operations.
+                // Integer literals must be upcast to Integer (→ BIGINT) before VARIANT
+                // so that VARIANT preserves 64-bit semantics (Pure Integer = Java Long).
                 TypeInfo collInfo = unit.typeInfoFor(coll);
                 if (collInfo != null && collInfo.isHeterogeneousList()
                         && !coll.values().isEmpty()
                         && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
-                    exprs = exprs.stream()
-                            .map(e -> (SqlExpr) new SqlExpr.VariantCast(e))
-                            .collect(Collectors.toList());
+                    var values = coll.values();
+                    for (int idx = 0; idx < exprs.size(); idx++) {
+                        SqlExpr e = exprs.get(idx);
+                        // Upcast integer literals to BIGINT before VARIANT
+                        if (values.get(idx) instanceof CInteger) {
+                            e = new SqlExpr.Cast(e, "Integer");
+                        }
+                        exprs.set(idx, new SqlExpr.VariantCast(e));
+                    }
                 }
                 yield new SqlExpr.ArrayLiteral(exprs);
             }
@@ -2535,10 +2552,12 @@ public class PlanGenerator {
 
                 // Cross-list mixed-type: [1,2,3].concatenate(['a','b'])
                 // Each list is homogeneous individually but they have different element types
-                // Wrap individual *elements* in TO_JSON so LIST_CONCAT gets JSON[] on both sides
+                // Wrap individual *elements* in ::VARIANT so LIST_CONCAT gets VARIANT[] on both sides.
+                // VARIANT preserves original types through UNNEST (getObject returns native Java types),
+                // unlike TO_JSON which returns JsonNode objects.
                 // Only works for Collection nodes (literal arrays) — non-Collection args (e.g.
                 // cast() expressions from fold identity) are left as-is to avoid wrapping the
-                // entire array in TO_JSON which would break LIST_CONCAT (needs arrays, not JSON)
+                // entire array which would break LIST_CONCAT (needs arrays, not scalars)
                 TypeInfo leftInfo = unit.typeInfoFor(params.get(0));
                 TypeInfo rightInfo2 = unit.typeInfoFor(params.get(1));
                 boolean leftEmpty = params.get(0) instanceof org.finos.legend.pure.dsl.ast.Collection lc
@@ -2551,10 +2570,10 @@ public class PlanGenerator {
                         && !leftInfo.scalarType().equals(rightInfo2.scalarType())
                         && params.get(0) instanceof org.finos.legend.pure.dsl.ast.Collection
                         && params.get(1) instanceof org.finos.legend.pure.dsl.ast.Collection) {
-                    // Both are literal collections with different element types — wrap elements
-                    left = wrapCollectionElementsInToJson(
+                    // Both are literal collections with different element types — wrap elements in VARIANT
+                    left = wrapCollectionElementsInVariant(
                             (org.finos.legend.pure.dsl.ast.Collection) params.get(0), c);
-                    right = wrapCollectionElementsInToJson(
+                    right = wrapCollectionElementsInVariant(
                             (org.finos.legend.pure.dsl.ast.Collection) params.get(1), c);
                 }
 
@@ -3227,15 +3246,23 @@ public class PlanGenerator {
         return new SqlExpr.ColumnRef(s);
     }
     /**
-     * Wraps individual elements of a Collection in toJson() for cross-type LIST_CONCAT.
+     * Wraps individual elements of a Collection in ::VARIANT for cross-type LIST_CONCAT.
+     * VARIANT preserves original types through UNNEST — getObject() returns native Java types.
+     * Integer literals are upcast to Integer (→ BIGINT) before VARIANT so that
+     * DuckDB preserves 64-bit semantics (Pure Integer = Java Long).
      * Only handles literal Collections — non-Collection args should be left as-is
-     * (wrapping entire arrays in TO_JSON breaks LIST_CONCAT which needs array args).
+     * (wrapping entire arrays would break LIST_CONCAT which needs array args).
      */
-    private SqlExpr wrapCollectionElementsInToJson(Collection coll,
+    private SqlExpr wrapCollectionElementsInVariant(Collection coll,
                                                     java.util.function.Function<ValueSpecification, SqlExpr> c) {
-        var wrapped = coll.values().stream()
-                .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson", List.of(c.apply(v))))
-                .collect(java.util.stream.Collectors.toList());
+        var wrapped = new java.util.ArrayList<SqlExpr>();
+        for (var v : coll.values()) {
+            SqlExpr e = c.apply(v);
+            if (v instanceof CInteger) {
+                e = new SqlExpr.Cast(e, "Integer");
+            }
+            wrapped.add(new SqlExpr.VariantCast(e));
+        }
         return new SqlExpr.ArrayLiteral(wrapped);
     }
 

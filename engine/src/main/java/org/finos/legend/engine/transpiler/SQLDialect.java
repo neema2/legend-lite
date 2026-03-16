@@ -275,6 +275,9 @@ public interface SQLDialect {
     /** Cast Variant to a scalar type. */
     String renderVariantScalarCast(String expr, String sqlType);
 
+    /** Cast a value to VARIANT type for type preservation in mixed-type lists. */
+    String renderVariantCast(String expr);
+
     /**
      * Render an interval unit literal for date diff functions.
      *

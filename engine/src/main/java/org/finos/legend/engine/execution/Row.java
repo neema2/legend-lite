@@ -33,9 +33,8 @@ public record Row(List<Object> values) {
 
     /**
      * Unwraps DuckDB-specific types to standard Java types.
-     * Converts JSON[] arrays (mixed-type lists with JsonNode elements)
-     * to a List of native Java values. Converts DuckDB Structs to
-     * LinkedHashMap preserving field order. Leaves other types as-is.
+     * Converts DuckDB Structs to LinkedHashMap preserving field order.
+     * Leaves other types as-is.
      */
     private static Object unwrapValue(Object value) throws SQLException {
         if (value instanceof java.sql.Struct struct) {
@@ -49,15 +48,6 @@ public record Row(List<Object> values) {
                 for (Object elem : elements) {
                     if (elem instanceof java.sql.Struct s) result.add(unwrapStruct(s));
                     else result.add(elem);
-                }
-                return result;
-            }
-            // Unwrap JsonNode arrays (JSON[] from mixed-type lists)
-            if (elements.length > 0 && elements[0] != null
-                    && "org.duckdb.JsonNode".equals(elements[0].getClass().getName())) {
-                List<Object> result = new ArrayList<>(elements.length);
-                for (Object elem : elements) {
-                    result.add(unwrapJsonNode(elem));
                 }
                 return result;
             }
@@ -123,24 +113,5 @@ public record Row(List<Object> values) {
         return names;
     }
 
-    /**
-     * Unwraps a DuckDB JsonNode to its native Java type.
-     * JsonNode is used internally for JSON[] mixed-type lists.
-     */
-    private static Object unwrapJsonNode(Object value) {
-        if (value == null) return null;
-        // Only unwrap org.duckdb.JsonNode; leave native types (Integer, String, etc.) as-is
-        if (!"org.duckdb.JsonNode".equals(value.getClass().getName())) return value;
 
-        String text = value.toString();
-        if (text.startsWith("\"") && text.endsWith("\"")) {
-            return text.substring(1, text.length() - 1);
-        }
-        if ("true".equals(text)) return true;
-        if ("false".equals(text)) return false;
-        if ("null".equals(text)) return null;
-        try { return Long.parseLong(text); } catch (NumberFormatException ignored) {}
-        try { return Double.parseDouble(text); } catch (NumberFormatException ignored) {}
-        return text;
-    }
 }

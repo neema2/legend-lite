@@ -97,6 +97,11 @@ public final class DuckDBDialect implements SQLDialect {
         return "CAST(" + expr + " AS " + sqlType + ")";
     }
 
+    @Override
+    public String renderVariantCast(String expr) {
+        return expr + "::VARIANT";
+    }
+
     private static boolean isSimpleIdentifier(String expr) {
         return expr.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
     }
@@ -517,6 +522,7 @@ public final class DuckDBDialect implements SQLDialect {
 
             // --- Collection ---
             case "removeDuplicates" -> "LIST_DISTINCT";
+            case "unnest" -> "UNNEST";
 
             // --- List transform ---
             case "listTransform" -> "list_transform";

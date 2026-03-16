@@ -130,4 +130,9 @@ public final class SQLiteDialect implements SQLDialect {
     public String renderVariantScalarCast(String expr, String sqlType) {
         throw new UnsupportedOperationException("SQLite does not support Variant types");
     }
+
+    @Override
+    public String renderVariantCast(String expr) {
+        throw new UnsupportedOperationException("SQLite does not support Variant types");
+    }
 }

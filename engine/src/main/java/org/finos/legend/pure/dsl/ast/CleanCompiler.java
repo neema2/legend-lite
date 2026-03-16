@@ -9,6 +9,7 @@ import org.finos.legend.pure.dsl.ModelContext;
 import org.finos.legend.pure.dsl.PureCompileException;
 import org.finos.legend.pure.dsl.PureFunctionRegistry;
 import org.finos.legend.pure.dsl.PureParser;
+import org.finos.legend.pure.m3.Multiplicity;
 
 import java.util.*;
 
@@ -62,6 +63,7 @@ public class CleanCompiler {
         TypeInfo rootInfo = types.get(vs);
         if (rootInfo != null && rootInfo.returnType() == null) {
             GenericType returnType;
+            Multiplicity multiplicity = null;
             if (rootInfo.inlinedBody() != null) {
                 // User function → check if inlined body has returnType already
                 TypeInfo bodyInfo = types.get(rootInfo.inlinedBody());
@@ -74,14 +76,19 @@ public class CleanCompiler {
                 } else {
                     returnType = GenericType.Primitive.ANY;
                 }
+                // Propagate multiplicity from inlined body
+                if (bodyInfo != null) multiplicity = bodyInfo.multiplicity();
             } else if (rootInfo.isScalar() && rootInfo.scalarType() != null) {
                 returnType = rootInfo.scalarType();
+                multiplicity = rootInfo.multiplicity();
             } else if (rootInfo.relationType() != null) {
                 returnType = new GenericType.Relation(rootInfo.relationType());
             } else {
                 returnType = GenericType.Primitive.ANY;
             }
-            types.put(vs, TypeInfo.from(rootInfo).returnType(returnType).build());
+            var builder = TypeInfo.from(rootInfo).returnType(returnType);
+            if (multiplicity != null) builder.multiplicity(multiplicity);
+            types.put(vs, builder.build());
         }
 
         return new CompilationUnit(vs, types);
@@ -124,6 +131,13 @@ public class CleanCompiler {
     /** Registers a scalar TypeInfo with a known GenericType. */
     private TypeInfo scalarTyped(ValueSpecification ast, GenericType type) {
         var info = TypeInfo.scalarOf(type);
+        types.put(ast, info);
+        return info;
+    }
+
+    /** Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent values. */
+    private TypeInfo scalarTypedMany(ValueSpecification ast, GenericType type) {
+        var info = TypeInfo.builder().scalarType(type).multiplicity(Multiplicity.MANY).build();
         types.put(ast, info);
         return info;
     }
@@ -409,7 +423,8 @@ public class CleanCompiler {
             // Propagate source scalarType (e.g., List<Integer>) so downstream
             // functions like toVariant() can read it.
             var builder = TypeInfo.builder()
-                    .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)));
+                    .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)))
+                    .multiplicity(Multiplicity.MANY);
             if (source.scalarType() != null) {
                 builder.scalarType(source.scalarType());
             }
@@ -508,6 +523,12 @@ public class CleanCompiler {
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
+        compileExpr(params.get(1), ctx);
+        // Scalar list: [1,2,3]->take(2) → List<Integer> with MANY multiplicity
+        if (source.relationType() == null && source.scalarType() != null) {
+            return scalarTypedMany(af, source.scalarType().isList() ? source.scalarType()
+                    : GenericType.listOf(source.scalarType()));
+        }
         return typed(af, source.relationType(), source.mapping());
     }
 
@@ -519,6 +540,12 @@ public class CleanCompiler {
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
+        compileExpr(params.get(1), ctx);
+        // Scalar list: [1,2,3]->drop(1) → List<Integer> with MANY multiplicity
+        if (source.relationType() == null && source.scalarType() != null) {
+            return scalarTypedMany(af, source.scalarType().isList() ? source.scalarType()
+                    : GenericType.listOf(source.scalarType()));
+        }
         return typed(af, source.relationType(), source.mapping());
     }
 
@@ -530,6 +557,13 @@ public class CleanCompiler {
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
+        compileExpr(params.get(1), ctx);
+        compileExpr(params.get(2), ctx);
+        // Scalar list: [1,2,3,4]->slice(1,3) → List<Integer> with MANY multiplicity
+        if (source.relationType() == null && source.scalarType() != null) {
+            return scalarTypedMany(af, source.scalarType().isList() ? source.scalarType()
+                    : GenericType.listOf(source.scalarType()));
+        }
         return typed(af, source.relationType(), source.mapping());
     }
 
@@ -597,6 +631,13 @@ public class CleanCompiler {
 
         TypeInfo left = compileExpr(params.get(0), ctx);
         TypeInfo right = compileExpr(params.get(1), ctx);
+
+        // Scalar list concatenation: [1,2]->concatenate([3,4]) → List<Integer> with MANY multiplicity
+        if (left.relationType() == null && left.scalarType() != null) {
+            GenericType elemType = left.scalarType().isList() && left.scalarType().elementType() != null
+                    ? left.scalarType().elementType() : left.scalarType();
+            return scalarTypedMany(af, GenericType.listOf(elemType));
+        }
 
         RelationType leftType = left.relationType();
         RelationType rightType = right.relationType();
@@ -2109,8 +2150,13 @@ public class CleanCompiler {
                 var concat = new AppliedFunction("concatenate",
                         List.of(params.get(2), params.get(0)));
                 compileExpr(concat, ctx);
-                // Point fold node to the synthetic concatenate via inlinedBody
-                var info = TypeInfo.from(types.get(concat)).inlinedBody(concat).build();
+                // Point fold node to the synthetic concatenate via inlinedBody.
+                // Fold produces a single list value — leave multiplicity unset (ONE)
+                // so PlanGenerator does NOT UNNEST.
+                var info = TypeInfo.from(types.get(concat))
+                        .inlinedBody(concat)
+                        .multiplicity(null)
+                        .build();
                 types.put(af, info);
                 return info;
             }
@@ -2200,8 +2246,12 @@ public class CleanCompiler {
                         rewrittenBody);
                 var newFold = new AppliedFunction("fold",
                         List.of(wrappedSource, newLambda, params.get(2)), true);
-                // Set scalar TypeInfo directly — do NOT call compileExpr which would re-enter
-                var info = TypeInfo.builder().scalarType(accType).inlinedBody(newFold).build();
+                // Set scalar TypeInfo directly — do NOT call compileExpr which would re-enter.
+                // Fold produces a single list value — leave multiplicity unset (ONE)
+                // so PlanGenerator does NOT UNNEST.
+                var info = TypeInfo.builder().scalarType(accType)
+                        .inlinedBody(newFold)
+                        .build();
                 types.put(af, info);
                 return info;
             }
@@ -2464,7 +2514,7 @@ public class CleanCompiler {
                 }
             }
         }
-        return scalarTyped(af, GenericType.listOf(elemType));
+        return scalarTypedMany(af, GenericType.listOf(elemType));
     }
 
     /** Compiles range(n) — produces a List&lt;Integer&gt;. */
@@ -2473,7 +2523,7 @@ public class CleanCompiler {
         for (var p : params) {
             compileExpr(p, ctx);
         }
-        return scalarTyped(af, GenericType.listOf(GenericType.Primitive.INTEGER));
+        return scalarTypedMany(af, GenericType.listOf(GenericType.Primitive.INTEGER));
     }
 
     /** Compiles map(source, {x|body}). */
@@ -2521,7 +2571,7 @@ public class CleanCompiler {
         }
 
         if (sourceInfo != null && (sourceInfo.isList() || isVariantArray)) {
-            var result = scalarTyped(af, GenericType.listOf(resultElemType));
+            var result = scalarTypedMany(af, GenericType.listOf(resultElemType));
             return result;
         }
         return scalar(af);
@@ -2563,7 +2613,7 @@ public class CleanCompiler {
                 elemB = bInfo.scalarType().elementType();
             }
         }
-        return scalarTyped(af, GenericType.listOf(GenericType.pairOf(elemA, elemB)));
+        return scalarTypedMany(af, GenericType.listOf(GenericType.pairOf(elemA, elemB)));
     }
 
     /** Compiles forAll(list, {e|predicate}) and exists(list, {e|predicate}) — always BOOLEAN. */
@@ -2764,10 +2814,22 @@ public class CleanCompiler {
             TypeInfo sourceInfo = types.get(params.get(0));
             if (sourceInfo != null && sourceInfo.scalarType() != null) {
                 GenericType propType = sourceInfo.scalarType();
-                // at/head/last extract a single element from a list → unwrap element type
-                if (("at".equals(fn) || "head".equals(fn) || "last".equals(fn))
-                        && propType.isList() && propType.elementType() != null) {
+                // List-reducing functions extract a scalar from a list → unwrap element type.
+                // Only list-PRESERVING functions (sort, split, pair, list) keep the List wrapper.
+                // Also: maxBy/minBy with topK (3 args) return a list, not a scalar.
+                boolean preserveList = isListPreserving(fn)
+                        || ((fn.equals("maxBy") || fn.equals("minBy")) && params.size() >= 3);
+                if (propType.isList() && propType.elementType() != null
+                        && !preserveList) {
                     propType = propType.elementType();
+                }
+                // List-preserving functions that produce N independent values → MANY
+                // list(), pair(), toVariant() wrap into a single list value → NOT MANY
+                // maxBy/minBy with topK (3+ params) also produce N independent values
+                boolean producesMany = isListProducingMany(fn)
+                        || ((fn.equals("maxBy") || fn.equals("minBy")) && params.size() >= 3);
+                if (preserveList && propType.isList() && producesMany) {
+                    return scalarTypedMany(af, propType);
                 }
                 types.put(af, TypeInfo.scalarOf(propType));
                 return TypeInfo.scalarOf(propType);
@@ -2821,6 +2883,34 @@ public class CleanCompiler {
                  "variance", "varianceSample", "variancePopulation",
                  "stdDevSample", "stdDevPopulation",
                  "median", "percentile", "mode" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Returns true if the function preserves a list — i.e., takes a list and returns a list.
+     * All other functions that accept a list reduce it to a scalar element type.
+     * 
+     * Examples: sort([1,2,3]) → [1,2,3] (list), but min([1,2,3]) → 1 (scalar).
+     */
+    private static boolean isListPreserving(String fn) {
+        return switch (fn) {
+            case "sort", "sortBy",
+                 "split",
+                 "pair", "list",
+                 "toVariant" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * True if the function both preserves the list type AND produces N independent values.
+     * sort/sortBy/split return an array of N elements that should each become a row.
+     * list/pair/toVariant wrap values into a single opaque list → multiplicity [1].
+     */
+    private static boolean isListProducingMany(String fn) {
+        return switch (fn) {
+            case "sort", "sortBy", "split" -> true;
             default -> false;
         };
     }
@@ -3959,6 +4049,11 @@ public class CleanCompiler {
         if (!lf.body().isEmpty()) {
             TypeInfo bodyInfo = compileExpr(lf.body().get(0), lambdaCtx);
             if (bodyInfo.isScalar() && bodyInfo.scalarType() != null) {
+                // Propagate multiplicity from body — if body is MANY (list-producing),
+                // the lambda must also be MANY so UNNEST is applied at the root.
+                if (bodyInfo.isMany()) {
+                    return scalarTypedMany(lf, bodyInfo.scalarType());
+                }
                 return scalarTyped(lf, bodyInfo.scalarType());
             }
             // Mutations (e.g. write()) set relationType for PlanGenerator routing but
@@ -4129,12 +4224,13 @@ public class CleanCompiler {
                         .relationType(firstElem.relationType())
                         .mapping(firstElem.mapping())
                         .associations(firstElem.associations())
+                        .multiplicity(Multiplicity.MANY)
                         .build();
                 types.put(coll, info);
                 return info;
             }
         }
-        return scalarTyped(coll, GenericType.listOf(elementType));
+        return scalarTypedMany(coll, GenericType.listOf(elementType));
     }
 
     /**
