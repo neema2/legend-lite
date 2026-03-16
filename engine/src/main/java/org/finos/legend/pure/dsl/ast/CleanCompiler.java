@@ -2588,14 +2588,22 @@ public class CleanCompiler {
         return info;
     }
 
-    /** write() returns a single-row relation with one Integer column ("value"). */
+    /**
+     * write() is a mutation: operates on relations (needs relational compilation path)
+     * but returns a scalar Integer count. relationType keeps PlanGenerator routing
+     * through generateRelation → generateWrite; returnType tells execution layer
+     * to extract a ScalarResult.
+     */
     private TypeInfo compileWrite(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
             try { compileExpr(p, ctx); }
             catch (PureCompileException ignored) { }
         }
-        TypeInfo info = TypeInfo.of(RelationType.ofSingle("value", GenericType.Primitive.INTEGER));
+        TypeInfo info = TypeInfo.builder()
+                .relationType(RelationType.ofSingle("value", GenericType.Primitive.INTEGER))
+                .returnType(GenericType.Primitive.INTEGER)
+                .build();
         types.put(af, info);
         return info;
     }
@@ -3952,6 +3960,18 @@ public class CleanCompiler {
             TypeInfo bodyInfo = compileExpr(lf.body().get(0), lambdaCtx);
             if (bodyInfo.isScalar() && bodyInfo.scalarType() != null) {
                 return scalarTyped(lf, bodyInfo.scalarType());
+            }
+            // Mutations (e.g. write()) set relationType for PlanGenerator routing but
+            // returnType as scalar (Integer). Propagate that returnType so the root
+            // stamping logic doesn't overwrite it with Relation.
+            if (bodyInfo.returnType() != null && !(bodyInfo.returnType() instanceof GenericType.Relation)) {
+                var info = TypeInfo.builder()
+                        .relationType(bodyInfo.relationType())
+                        .mapping(bodyInfo.mapping())
+                        .returnType(bodyInfo.returnType())
+                        .build();
+                types.put(lf, info);
+                return info;
             }
             return typed(lf, bodyInfo.relationType(), bodyInfo.mapping());
         }

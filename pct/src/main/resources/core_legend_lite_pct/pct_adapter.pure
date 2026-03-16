@@ -66,6 +66,47 @@ function meta::legend::lite::pct::legendLiteGrammarConfiguration():Configuration
   );
 }
 
+// Extract simple Pure type name from a GenericType (e.g., Integer, String, Date)
+function meta::legend::lite::pct::getSimpleTypeName(gt:GenericType[1]):String[1]
+{
+  let rawType = $gt.rawType->toOne();
+  let typeName = $rawType->elementToPath();
+  if($rawType->instanceOf(PrimitiveType),
+    | $rawType->cast(@PrimitiveType).name->toOne(),
+    | if($rawType->instanceOf(Enumeration),
+        | 'String',
+        | if($typeName->contains('Variant'),
+            | $typeName,
+            | 'String'
+          )
+      )
+  );
+}
+
+// Build typed column header from expected return type's RelationType
+// Format: col1:Type,col2:Type (no multiplicity — stringToTDS uses just Type names)
+function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]):String[0..1]
+{
+  if ($funcReturnType.rawType->toOne()->subTypeOf(Relation) && 
+      $funcReturnType.typeArguments->at(0).rawType->toOne()->instanceOf(RelationType),
+    | let relType = $funcReturnType.typeArguments->at(0).rawType->cast(@RelationType<Any>)->toOne();
+      let columns = $relType.columns->map(col |
+        let colName = $col.name->toOne();
+        let quotedName = if($colName->startsWith('\''),
+          | $colName,
+          | if($colName->contains('__|__'),
+              | '\'' + $colName + '\'',
+              | $colName
+            )
+        );
+        let colType = getSimpleTypeName($col->functionReturnType());
+        $quotedName + ':' + $colType;
+      );
+      $columns->joinStrings(',');,
+    | []
+  );
+}
+
 // Substitute open (captured) variables in the function's expression sequence
 // This replaces VariableExpression nodes with their captured values from outer scope
 function meta::legend::lite::pct::substituteOpenVariables(f:FunctionDefinition<Any>[1]):FunctionDefinition<Any>[1]
@@ -203,9 +244,19 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
             | // Single-value result: could be TDS or typed scalar
               let single = $result->toOne();
               if($single->instanceOf(TDSResult),
-                | // TDS: Java provides correctly typed col:Type header; just parse
+                | // TDS: overlay Pure-typed header from function return type if available
                   let tdsData = $single->cast(@TDSResult).tdsString;
-                  $tdsData->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
+                  let typedHeader = buildTypedHeader($f->functionReturnType());
+                  let tdsString = if($typedHeader->isEmpty(),
+                    | $tdsData,
+                    | // Replace first line (compiler-inferred types) with Pure types from return type
+                      let lines = $tdsData->split('\n');
+                      if($lines->size() > 1,
+                        | $typedHeader->toOne() + '\n' + $lines->tail()->joinStrings('\n'),
+                        | $typedHeader->toOne()
+                      );
+                  );
+                  $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
                 | // Scalar: Java returns properly typed value, pass through directly
                   $single->cast(@X)->toMultiplicity(@[o]);
               );
