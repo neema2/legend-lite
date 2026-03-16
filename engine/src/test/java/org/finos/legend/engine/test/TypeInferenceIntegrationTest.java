@@ -4223,6 +4223,33 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertTrue(buffered.columns().size() >= 4, "Should have at least 4 columns");
         }
 
+        // ==================== extend column type inference ====================
+
+        @Test
+        void testExtendColumnTypeInference_StringConcat() throws SQLException {
+                // Exact PCT that failed when inferExtendColumnType didn't have sourceType:
+                // extend(~newCol: str + toString(val)) -> filter(newCol == 'qw4')
+                // Without sourceType, the compiler couldn't resolve $x.str / $x.val
+                // in the lambda body, fell back to Any, and stringToTDS couldn't parse it.
+                var result = queryService.execute(
+                                getCompletePureModelWithRuntime(),
+                                "|#TDS\nval, str\n1, a\n3, ewe\n4, qw\n5, wwe\n6, weq\n#"
+                                        + "->extend(~newCol:x|$x.str->toOne() + $x.val->toOne()->toString())"
+                                        + "->filter(x|$x.newCol == 'qw4')",
+                                "test::TestRuntime", connection);
+                assertEquals(1, result.rowCount(), "Should match exactly one row");
+                // The matching row is val=4, str='qw', newCol='qw4'
+                int newColIdx = -1;
+                for (int c = 0; c < result.columns().size(); c++) {
+                        if ("newCol".equals(result.columns().get(c).name())) {
+                                newColIdx = c;
+                                break;
+                        }
+                }
+                assertTrue(newColIdx >= 0, "newCol column should exist");
+                assertEquals("qw4", result.rows().get(0).get(newColIdx));
+        }
+
         private void assertScalarInteger(ExecutionResult result, long expected) {
                 assertFalse(result.rows().isEmpty(), "Result should have at least one row");
                 Object value = result.rows().get(0).get(0);

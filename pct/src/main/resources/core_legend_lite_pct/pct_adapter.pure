@@ -66,55 +66,6 @@ function meta::legend::lite::pct::legendLiteGrammarConfiguration():Configuration
   );
 }
 
-// Get simple type name from a generic type (e.g., Integer, String, Float, Variant)
-// For non-primitive types like Variant, we must return the full path because stringToTDS()
-// doesn't scan imports for type resolution.
-function meta::legend::lite::pct::getSimpleTypeName(gt:GenericType[1]):String[1]
-{
-  let rawType = $gt.rawType->toOne();
-  let typeName = $rawType->elementToPath();
-  // Get just the simple name, not fully qualified
-  if($rawType->instanceOf(PrimitiveType),
-    | $rawType->cast(@PrimitiveType).name->toOne(),
-    | if($rawType->instanceOf(Enumeration),
-        | 'String', // Enums serialize as strings
-        | // Check for Variant type - use full path because stringToTDS requires it
-          if($typeName->contains('Variant'),
-            | $typeName,  // Full path: meta::pure::metamodel::variant::Variant
-            | 'String'    // Default fallback
-          )
-      )
-  );
-}
-
-// Build typed column header from expected return type
-// This is needed to preserve column types when parsing TDS results
-// Format: col1:Type,col2:Type (NO multiplicity - stringToTDS uses just Type names)
-function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]):String[0..1]
-{
-  if ($funcReturnType.rawType->toOne()->subTypeOf(Relation) && 
-      $funcReturnType.typeArguments->at(0).rawType->toOne()->instanceOf(RelationType),
-    | let relType = $funcReturnType.typeArguments->at(0).rawType->cast(@RelationType<Any>)->toOne();
-      let columns = $relType.columns->map(col |
-        let colName = $col.name->toOne();
-        // Quote column names containing '__|__' (pivot columns) with single quotes
-        // Note: RelationType column names may already include quotes from Pure type system
-        let quotedName = if($colName->startsWith('\''),
-          | $colName,  // Already quoted
-          | if($colName->contains('__|__'),
-              | '\'' + $colName + '\'',
-              | $colName
-            )
-        );
-        // Use simple type name (Integer, String, Float, Boolean) - NO multiplicity
-        let colType = getSimpleTypeName($col->functionReturnType());
-        $quotedName + ':' + $colType;
-      );
-      $columns->joinStrings(',');,
-    | []
-  );
-}
-
 // Substitute open (captured) variables in the function's expression sequence
 // This replaces VariableExpression nodes with their captured values from outer scope
 function meta::legend::lite::pct::substituteOpenVariables(f:FunctionDefinition<Any>[1]):FunctionDefinition<Any>[1]
@@ -205,109 +156,6 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
   ]);
 }
 
-// Parse a single element from a mixed-type array string.
-// Determines type from format: 'text'→String, true/false→Boolean, digits→Integer, otherwise→String
-function meta::legend::lite::pct::parseTypedElement(s:String[1]):Any[1]
-{
-  let t = $s->trim();
-  if ($t->startsWith('\''),
-    | $t->substring(1, $t->length()-1),
-    | if ($t == 'true', | true,
-        | if ($t == 'false', | false,
-            | // Check if it looks numeric: starts with digit or minus sign
-              let first = $t->substring(0, 1);
-              let isNumeric = '0123456789-'->contains($first);
-              if ($isNumeric,
-                | if ($t->contains('.'),
-                    | $t->parseFloat(),
-                    | $t->parseInteger()
-                  ),
-                | $t
-              );
-          )
-      )
-  );
-}
-
-// Convert a scalar result to the expected Pure type.
-// Modeled after legend-engine's resultToType in pct_relational.pure.
-// Handles: String→Integer, String→Float, String→Boolean, String→Nil,
-// array strings like "[1, 2, 3]" → Integer[*], Integer→String, and Decimal→Float.
-function meta::legend::lite::pct::resultToType(result: Any[1], type: GenericType[1], mult: Multiplicity[1]):Any[*]
-{
-  let resultType = $type.rawType->toOne();
-
-  if ([
-    // Expected Nil → empty collection
-    pair(|$resultType == Nil, |[]),
-    // String result that looks like array "[]" or "[1, 2, 3]" with toMany multiplicity → parse
-    pair(|$result->instanceOf(String) && $result->cast(@String) == '[]' && $resultType != List && !$resultType->subTypeOf(String), |[]),
-    // List<T> wrapper: array string + expected type is List → parse elements and wrap in ^List(values=...)
-    pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $resultType == List,
-         |let elemType = $type.typeArguments->at(0).rawType->toOne();
-          let str = $result->cast(@String);
-          let inner = $str->substring(1, $str->length()-1);
-          let elements = if ($inner == '',
-            | [],
-            | let parts = $inner->split(',');
-              if ($elemType->subTypeOf(Integer),
-                | $parts->map(s|$s->trim()->parseInteger()),
-                | if ($elemType->subTypeOf(Float) || $elemType->subTypeOf(Number),
-                    | $parts->map(s|$s->trim()->parseFloat()),
-                    | if ($elemType->subTypeOf(Boolean),
-                        | $parts->map(s|$s->trim() == 'true'),
-                        | $parts->map(s|$s->trim()))));
-          );
-          if ($elemType == Integer, | ^List<Integer>(values = $elements->cast(@Integer)),
-            | if ($elemType == Float, | ^List<Float>(values = $elements->cast(@Float)),
-              | if ($elemType == Boolean, | ^List<Boolean>(values = $elements->cast(@Boolean)),
-                | if ($elemType == String, | ^List<String>(values = $elements->cast(@String)),
-                  | if ($elemType == Number, | ^List<Number>(values = $elements->cast(@Number)),
-                    | ^List<Any>(values = $elements))))));),
-    // Mixed-type array: when expected type is Any, parse each element by its format
-    pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $result->cast(@String)->endsWith(']') && $mult->isToMany() && $resultType == Any,
-         |let str = $result->cast(@String);
-          let inner = $str->substring(1, $str->length()-1);
-          if ($inner == '', | [], | $inner->split(',')->map(s|parseTypedElement($s)));),
-    // Typed array: when expected type is specific, parse all elements as that type
-    pair(|$result->instanceOf(String) && $result->cast(@String)->startsWith('[') && $result->cast(@String)->endsWith(']') && $mult->isToMany(),
-         |let str = $result->cast(@String);
-          let inner = $str->substring(1, $str->length()-1);
-          if ($inner == '',
-            | [],
-            | let parts = $inner->split(',');
-              if ($resultType->subTypeOf(Integer),
-                | $parts->map(s|$s->trim()->parseInteger()),
-                | if ($resultType->subTypeOf(Float) || $resultType->subTypeOf(Number),
-                    | $parts->map(s|$s->trim()->parseFloat()),
-                    | if ($resultType->subTypeOf(Boolean),
-                        | $parts->map(s|$s->trim() == 'true'),
-                        | $parts->map(s|$s->trim())
-                      )
-                  )
-              );
-          );),
-    // String result, expected Integer → parse
-    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Integer), |$result->cast(@String)->parseInteger()),
-    // String result, expected Float → parse
-    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Float), |$result->cast(@String)->parseFloat()),
-    // String result, expected Boolean → parse
-    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Boolean), |$result->cast(@String) == 'true'),
-    // String result, expected Number → parse as float
-    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Number), |$result->cast(@String)->parseFloat()),
-    // String result, expected Date → parse (handles partial dates like '2015-03' → %2015-03)
-    pair(|$result->instanceOf(String) && $resultType->subTypeOf(Date), |$result->cast(@String)->parseDate()),
-    // Non-string result, expected String → convert to string
-    pair(|$resultType->subTypeOf(String) && !$result->instanceOf(String), |$result->toString()),
-    // Decimal/Number result but Float expected → convert
-    pair(|$result->instanceOf(Number) && $resultType->subTypeOf(Float) && !$result->instanceOf(Float), |$result->cast(@Number)->toFloat()),
-    // Number result but Integer expected → round
-    pair(|$result->instanceOf(Number) && $resultType->subTypeOf(Integer) && !$result->instanceOf(Integer), |$result->cast(@Number)->round())
-  ],
-  | $result  // fallback: keep as-is
-  );
-}
-
 // PCT Adapter for Legend-Lite
 // This adapter serializes Pure functions to grammar text, executes through
 // legend-lite's QueryService, and converts results back to Pure values.
@@ -327,21 +175,21 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     print('[LegendLite PCT] Executing Pure expression: ' + $pureText + '\n');
     
     // Execute through Legend-Lite's QueryService via native bridge
-    // Returns either:
-    //   - TDSResult wrapper containing TDS string (for relation queries)
-    //   - Scalar value directly (Integer, Float, Boolean, String)
+    // Java dispatch returns properly typed values:
+    //   - TDSResult wrapper containing TDS string (for TabularResult)
+    //   - Typed scalar values directly (Integer, Float, Boolean, String, Date, etc.)
+    //   - Multi-value collection (for CollectionResult)
     let result = executeLegendLiteQuery($pureText);
     
     // Handle result based on size and type
     if($result->isEmpty(),
         | []->cast(@X)->toMultiplicity(@[o]),
         | if($result->size() > 1,
-            | // Multi-value result (e.g., from map/collect returning a collection)
+            | // Multi-value result (collection from Java's CollectionResult dispatch)
               // If expected type is List<T>, wrap in List; otherwise return directly
               let retType = $f->functionReturnType().rawType->toOne();
               if($retType == List,
-                | // Wrap in List<T> using resultToType on the string representation
-                  let elemType = $f->functionReturnType().typeArguments->at(0).rawType->toOne();
+                | let elemType = $f->functionReturnType().typeArguments->at(0).rawType->toOne();
                   let wrapped = if($elemType == Integer, | ^List<Integer>(values = $result->cast(@Integer)),
                     | if($elemType == Float, | ^List<Float>(values = $result->cast(@Float)),
                       | if($elemType == Boolean, | ^List<Boolean>(values = $result->cast(@Boolean)),
@@ -352,37 +200,14 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                 | // Not a List type — return values directly as collection
                   $result->cast(@X)->toMultiplicity(@[o])
               );,
-            | // Single-value result: could be TDS, scalar, or class instance
+            | // Single-value result: could be TDS or typed scalar
               let single = $result->toOne();
               if($single->instanceOf(TDSResult),
-                | // For TDS results, build a properly typed TDS by constructing header from expected return type
+                | // TDS: Java provides correctly typed col:Type header; just parse
                   let tdsData = $single->cast(@TDSResult).tdsString;
-                  
-                  // Debug: print original TDS data from Java
-                  print('[LegendLite PCT] Original TDS data from Java: <<<' + $tdsData + '>>>\n');
-                  
-                  let typedHeader = buildTypedHeader($f->functionReturnType());
-                  
-                  // If we have type info, prepend the typed header to the data rows
-                  // Otherwise fall back to raw parsing (Java already provides col:Type format)
-                  let tdsString = if($typedHeader->isEmpty(),
-                    | $tdsData,
-                    | // Replace the first line (SQL-inferred types) with Pure-inferred types from return type
-                      let lines = $tdsData->split('\n');
-                      print('[LegendLite PCT] Lines after split: ' + $lines->size()->toString() + ' lines\n');
-                      if($lines->size() > 1,
-                        | let tail = $lines->tail();
-                          print('[LegendLite PCT] Tail has: ' + $tail->size()->toString() + ' lines\n');
-                          $typedHeader->toOne() + '\n' + $tail->joinStrings('\n');,
-                        | // No data rows, just return header
-                          $typedHeader->toOne()
-                      );
-                  );
-                  
-                  print('[LegendLite PCT] TDS String for parsing: <<<' + $tdsString + '>>>\n');
-                  $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
-                | let converted = resultToType($single, $f->functionReturnType(), $f->functionReturnMultiplicity());
-                  $converted->cast(@X)->toMultiplicity(@[o]);
+                  $tdsData->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
+                | // Scalar: Java returns properly typed value, pass through directly
+                  $single->cast(@X)->toMultiplicity(@[o]);
               );
           );
     );

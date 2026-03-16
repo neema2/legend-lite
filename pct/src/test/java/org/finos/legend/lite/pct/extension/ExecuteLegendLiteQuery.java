@@ -18,7 +18,12 @@ import org.eclipse.collections.api.list.ListIterable;
 import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
 import org.finos.legend.engine.execution.ExecutionResult;
+import org.finos.legend.engine.execution.ExecutionResult.ScalarResult;
+import org.finos.legend.engine.execution.ExecutionResult.CollectionResult;
+import org.finos.legend.engine.execution.ExecutionResult.TabularResult;
+import org.finos.legend.engine.execution.ExecutionResult.GraphResult;
 import org.finos.legend.engine.execution.Column;
+import org.finos.legend.engine.plan.GenericType;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.TypeEnvironment;
 import org.finos.legend.pure.m3.compiler.Context;
@@ -28,8 +33,11 @@ import org.finos.legend.pure.m3.navigation.M3Properties;
 import org.finos.legend.pure.m3.navigation.PrimitiveUtilities;
 import org.finos.legend.pure.m3.navigation.ProcessorSupport;
 import org.finos.legend.pure.m3.navigation.ValueSpecificationBootstrap;
+import org.finos.legend.pure.m3.navigation.type.Type;
 import org.finos.legend.pure.m4.ModelRepository;
 import org.finos.legend.pure.m4.coreinstance.CoreInstance;
+import org.finos.legend.pure.m4.coreinstance.primitive.date.DateFunctions;
+import org.finos.legend.pure.m4.coreinstance.primitive.date.PureDate;
 import org.finos.legend.pure.runtime.java.interpreted.ExecutionSupport;
 import org.finos.legend.pure.runtime.java.interpreted.FunctionExecutionInterpreted;
 import org.finos.legend.pure.runtime.java.interpreted.VariableContext;
@@ -37,51 +45,41 @@ import org.finos.legend.pure.runtime.java.interpreted.natives.InstantiationConte
 import org.finos.legend.pure.runtime.java.interpreted.natives.NativeFunction;
 import org.finos.legend.pure.runtime.java.interpreted.profiler.Profiler;
 
+import org.finos.legend.pure.m3.Multiplicity;
+import org.finos.legend.pure.m3.PrimitiveType;
+import org.finos.legend.pure.m3.Property;
+import org.finos.legend.pure.m3.PureClass;
+
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.finos.legend.pure.dsl.TypeEnvironment;
-import org.finos.legend.pure.m3.Multiplicity;
-import org.finos.legend.pure.m3.PrimitiveType;
-import org.finos.legend.pure.m3.Property;
-import org.finos.legend.pure.m3.PureClass;
-
-import org.finos.legend.pure.m3.navigation.type.Type;
-import org.finos.legend.pure.m4.coreinstance.primitive.date.DateFunctions;
-import org.finos.legend.pure.m4.coreinstance.primitive.date.PureDate;
-
 /**
- * Native function that executes Pure expressions through Legend-Lite's
- * QueryService.
- * 
- * This bridges the PCT framework running in the Pure interpreted runtime to
- * Legend-Lite's execution engine. Pure expressions are serialized to grammar
- * text,
- * then executed via QueryService which compiles to SQL and runs against DuckDB.
- * 
- * Returns a TDS-formatted string for use with stringToTDS():
- * Format: "col1:Type,col2:Type\nval1,val2\nval3,val4"
- * 
- * Signature: executeLegendLiteQuery(pureExpression:String[1]):String[1]
+ * Native function that bridges PCT tests to Legend-Lite's QueryService.
+ *
+ * Pure expressions are re-escaped, executed via QueryService (compile → SQL → DuckDB),
+ * and the typed ExecutionResult is converted back to Pure CoreInstances.
+ *
+ * All type information flows from GenericType on ExecutionResult — no SQL type inspection.
  */
 public class ExecuteLegendLiteQuery extends NativeFunction {
 
-    // Minimal model for TDS-based testing - no classes needed for pure relation
-    // operations
     private static final String PURE_MODEL = """
                 Class model::DoyRecord { eventDate: StrictDate[1]; }
                 Database store::DoyDb ( Table T_DOY ( ID INTEGER, EVENT_DATE DATE ) )
@@ -90,11 +88,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
             """;
 
+    private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
+
     private final ModelRepository modelRepository;
 
     public ExecuteLegendLiteQuery(FunctionExecutionInterpreted functionExecution, ModelRepository modelRepository) {
         this.modelRepository = modelRepository;
     }
+
+    // ===== execute =====
 
     @Override
     public CoreInstance execute(
@@ -109,607 +111,352 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             Context context,
             ProcessorSupport processorSupport) throws PureExecutionException {
 
-        // Extract the Pure expression string from params
         String pureExpression = PrimitiveUtilities.getStringValue(
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
-
-        // Re-escape literal special characters inside single-quoted strings.
-        // The Pure interpreter resolves escape sequences (e.g., '\n' → actual newline)
-        // before passing the expression to us, but our parser expects escape sequences.
         pureExpression = reEscapeStringLiterals(pureExpression);
 
-        System.out.println("[LegendLite PCT] Executing Pure expression: " + pureExpression);
+        System.out.println("[LegendLite PCT] Executing: " + pureExpression);
 
-        try {
-            // Create in-memory DuckDB connection with UTC timezone
-            try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-                try (var tzStmt = connection.createStatement()) {
-                    tzStmt.execute("SET TimeZone='UTC'");
-                }
-                // Extract class definitions from the Pure expression using the
-                // interpreter's ProcessorSupport (which has all PCT test model classes)
-                // and serialize them as Pure DSL to prepend to PURE_MODEL
-                TypeEnvironment typeEnv = extractClassMetadata(pureExpression, processorSupport);
-                String model = PURE_MODEL;
-                if (typeEnv.hasClasses()) {
-                    String classDefs = typeEnv.toPureDsl();
-                    System.out.println("[LegendLite PCT] Injected class definitions:\n" + classDefs);
-                    model = classDefs + "\n" + PURE_MODEL;
-                }
-
-                // Execute through Legend-Lite's QueryService
-                // CleanCompiler + PlanGenerator handles all query types including struct literals
-                QueryService queryService = new QueryService();
-                var result = queryService.execute(model, pureExpression,
-                        "test::TestRuntime", connection);
-
-                // Scalar detection: single row, single column named "value"
-                // (PlanGenerator wraps scalar queries as SELECT expr AS "value")
-                boolean isScalar = result.rowCount() == 1
-                        && result.columnCount() == 1
-                        && "value".equals(result.columns().get(0).name());
-
-                if (isScalar) {
-                    Object value = result.rows().get(0).get(0);
-                    String sqlType = result.columns().get(0).sqlType();
-                    System.out.println("[LegendLite PCT] Scalar result: " + value
-                            + " sqlType: " + sqlType);
-
-                    // Null scalar (e.g., head() on empty set, splitPart on [])
-                    // Return an empty Pure collection
-                    if (value == null) {
-                        return ValueSpecificationBootstrap.wrapValueSpecification(
-                                org.eclipse.collections.api.factory.Lists.immutable.empty(), true, processorSupport);
-                    }
-
-                    // If the result is a Map (unwrapped DuckDB struct),
-                    // reconstruct the Pure class instance
-                    if (value instanceof java.util.Map) {
-                        @SuppressWarnings("unchecked")
-                        java.util.Map<String, Object> structMap = (java.util.Map<String, Object>) value;
-                        return wrapStructAsClassInstance(structMap, null, processorSupport);
-                    }
-
-                    // Handle array results (e.g., VARCHAR[] from list_transform/map)
-                    // Unwrap into a proper Pure collection of raw CoreInstance values
-                    if (value instanceof java.sql.Array sqlArray) {
-                        Object[] elements = (Object[]) sqlArray.getArray();
-                        var rawValues = new ArrayList<CoreInstance>();
-                        for (Object elem : elements) {
-                            if (elem instanceof String s) {
-                                rawValues.add(modelRepository.newStringCoreInstance_cached(s));
-                            } else if (elem instanceof Integer i) {
-                                rawValues.add(modelRepository.newIntegerCoreInstance(i));
-                            } else if (elem instanceof Long l) {
-                                rawValues.add(modelRepository.newIntegerCoreInstance(l));
-                            } else if (elem instanceof Boolean b) {
-                                rawValues.add(modelRepository.newBooleanCoreInstance(b));
-                            } else if (elem instanceof Double d) {
-                                rawValues.add(modelRepository.newFloatCoreInstance(java.math.BigDecimal.valueOf(d)));
-                            } else if (elem != null) {
-                                rawValues.add(modelRepository.newStringCoreInstance_cached(elem.toString()));
-                            }
-                        }
-                        return ValueSpecificationBootstrap.wrapValueSpecification(
-                                org.eclipse.collections.impl.factory.Lists.immutable.withAll(rawValues),
-                                true, processorSupport);
-                    }
-
-                    // Handle List of Maps (struct arrays unwrapped by Row.java, e.g., zip results)
-                    if (value instanceof java.util.List<?> listValue
-                            && !listValue.isEmpty() && listValue.getFirst() instanceof java.util.Map) {
-                        var rawValues = new ArrayList<CoreInstance>();
-                        for (Object elem : listValue) {
-                            if (elem instanceof java.util.Map) {
-                                @SuppressWarnings("unchecked")
-                                java.util.Map<String, Object> structMap = (java.util.Map<String, Object>) elem;
-                                CoreInstance instance = createClassInstance(
-                                        structMap, null, null, processorSupport);
-                                rawValues.add(instance);
-                            }
-                        }
-                        return ValueSpecificationBootstrap.wrapValueSpecification(
-                                org.eclipse.collections.impl.factory.Lists.immutable.withAll(rawValues),
-                                true, processorSupport);
-                    }
-
-                    return wrapPrimitiveValue(value, sqlType, processorSupport);
-                }
-
-                // For TDS results, wrap in TDSResult class so Pure can distinguish from scalar
-                // strings
-                String tdsString = formatResultForStringToTds(result);
-
-                System.out.println("[LegendLite PCT] Result TDS: " + tdsString.replace("\n", "\\n"));
-
-                // Create a TDSResult instance: ^TDSResult(tdsString = '...')
-                return createTDSResult(tdsString, processorSupport);
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+            try (var tzStmt = connection.createStatement()) {
+                tzStmt.execute("SET TimeZone='UTC'");
             }
-        } catch (SQLException e) {
-            throw new PureExecutionException(
-                    functionExpressionCallStack.peek().getSourceInformation(),
-                    remapErrorMessage(e.getMessage()),
-                    e);
+
+            // Inject class definitions from the interpreter's model
+            TypeEnvironment typeEnv = extractClassMetadata(pureExpression, processorSupport);
+            String model = PURE_MODEL;
+            if (typeEnv.hasClasses()) {
+                String classDefs = typeEnv.toPureDsl();
+                System.out.println("[LegendLite PCT] Injected classes:\n" + classDefs);
+                model = classDefs + "\n" + PURE_MODEL;
+            }
+
+            ExecutionResult result = new QueryService().execute(model, pureExpression,
+                    "test::TestRuntime", connection);
+
+            return switch (result) {
+                case ScalarResult s -> handleScalar(s, processorSupport);
+                case CollectionResult c -> handleCollection(c, processorSupport);
+                case TabularResult t -> handleTabular(t, processorSupport);
+                case GraphResult g -> ValueSpecificationBootstrap.newStringLiteral(
+                        modelRepository, g.json(), processorSupport);
+            };
         } catch (Exception e) {
             throw new PureExecutionException(
                     functionExpressionCallStack.peek().getSourceInformation(),
-                    remapErrorMessage(e.getMessage()),
-                    e);
+                    remapErrorMessage(e.getMessage()), e);
         }
     }
 
-    /**
-     * Formats a BufferedResult as a TDS string for stringToTDS().
-     * 
-     * Format: col1:Type,col2:Type\nval1,val2\nval3,val4
-     * 
-     * This matches the format expected by legend-engine's stringToTDS() function.
-     */
-    private String formatResultForStringToTds(ExecutionResult result) {
-        StringBuilder sb = new StringBuilder();
+    private CoreInstance handleScalar(ScalarResult result, ProcessorSupport ps) {
+        Object value = result.value();
+        if (value == null) {
+            return ValueSpecificationBootstrap.wrapValueSpecification(
+                    org.eclipse.collections.api.factory.Lists.immutable.empty(), true, ps);
+        }
+        CoreInstance ci = toCoreInstance(value, result.returnType(), ps);
+        return ValueSpecificationBootstrap.wrapValueSpecification(ci, true, ps);
+    }
 
-        // Column header: name:Type,name:Type
+    private CoreInstance handleCollection(CollectionResult result, ProcessorSupport ps) {
+        GenericType elementType = result.returnType().elementType();
+        var coreInstances = new ArrayList<CoreInstance>();
+        for (Object value : result.values()) {
+            if (value != null) {
+                coreInstances.add(toCoreInstance(value, elementType, ps));
+            }
+        }
+        return ValueSpecificationBootstrap.wrapValueSpecification(
+                org.eclipse.collections.impl.factory.Lists.immutable.withAll(coreInstances), true, ps);
+    }
+
+    private CoreInstance handleTabular(TabularResult result, ProcessorSupport ps) {
+        String tdsString = formatAsTds(result);
+        System.out.println("[LegendLite PCT] TDS: " + tdsString.replace("\n", "\\n"));
+        return createTDSResult(tdsString, ps);
+    }
+
+    // ===== toCoreInstance: single Java → CoreInstance conversion =====
+
+    /**
+     * Converts a Java value to a raw Pure CoreInstance.
+     * Dispatches on Java type; uses GenericType for BigDecimal disambiguation
+     * and class instance creation.
+     */
+    private CoreInstance toCoreInstance(Object value, GenericType type, ProcessorSupport ps) {
+        if (value instanceof Boolean b) {
+            return modelRepository.newBooleanCoreInstance(b);
+        }
+        if (value instanceof Integer i) {
+            return modelRepository.newIntegerCoreInstance(i);
+        }
+        if (value instanceof Long l) {
+            return modelRepository.newIntegerCoreInstance(l);
+        }
+        if (value instanceof BigInteger bi) {
+            return modelRepository.newIntegerCoreInstance(bi.toString());
+        }
+        if (value instanceof BigDecimal bd) {
+            if (type instanceof GenericType.Primitive p
+                    && (p == GenericType.Primitive.DECIMAL || p == GenericType.Primitive.NUMBER)) {
+                return modelRepository.newDecimalCoreInstance(bd);
+            }
+            if (type instanceof GenericType.PrecisionDecimal) {
+                return modelRepository.newDecimalCoreInstance(bd.stripTrailingZeros());
+            }
+            return modelRepository.newFloatCoreInstance(bd);
+        }
+        if (value instanceof Double d) {
+            if (type instanceof GenericType.Primitive p && p == GenericType.Primitive.DECIMAL) {
+                return modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d));
+            }
+            if (type instanceof GenericType.PrecisionDecimal) {
+                return modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d).stripTrailingZeros());
+            }
+            return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
+        }
+        if (value instanceof Float f) {
+            return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(f.doubleValue()));
+        }
+        if (value instanceof Number n) {
+            return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(n.doubleValue()));
+        }
+        // Dates
+        if (value instanceof java.sql.Date sqlDate) {
+            return toPureDateInstance(sqlDate.toLocalDate());
+        }
+        if (value instanceof LocalDate ld) {
+            return toPureDateInstance(ld);
+        }
+        if (value instanceof java.sql.Timestamp ts) {
+            // GenericType tells us if this was originally a StrictDate promoted to Timestamp
+            if (type instanceof GenericType.Primitive p && p == GenericType.Primitive.STRICT_DATE) {
+                return toPureDateInstance(ts.toLocalDateTime().toLocalDate());
+            }
+            return toPureDateTimeInstance(ts.toLocalDateTime());
+        }
+        if (value instanceof LocalDateTime ldt) {
+            return toPureDateTimeInstance(ldt);
+        }
+        if (value instanceof OffsetDateTime odt) {
+            return toPureDateTimeInstance(odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime());
+        }
+        if (value instanceof LocalTime lt) {
+            PureDate pd = DateFunctions.newPureDate(1, 1, 1, lt.getHour(), lt.getMinute(), lt.getSecond());
+            return modelRepository.newCoreInstance(pd.toString(), modelRepository.getTopLevel("StrictTime"), null);
+        }
+        // Strings
+        if (value instanceof String s) {
+            return modelRepository.newStringCoreInstance(s);
+        }
+        // Struct → class instance
+        if (value instanceof Map<?, ?> map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> structMap = (Map<String, Object>) map;
+            return createClassInstance(structMap, type, ps);
+        }
+        // List (struct arrays unwrapped by Row.java, e.g. zip → List<Pair>)
+        if (value instanceof List<?> list) {
+            GenericType elemType = type.elementType();
+            var coreInstances = new ArrayList<CoreInstance>();
+            for (Object elem : list) {
+                if (elem != null) {
+                    coreInstances.add(toCoreInstance(elem, elemType, ps));
+                }
+            }
+            // Return as a single-element wrapping — the collection will be wrapped by caller
+            if (coreInstances.size() == 1) return coreInstances.get(0);
+            // For multi-element, this shouldn't happen in scalar context
+            // but return first as fallback
+            return coreInstances.isEmpty() ? modelRepository.newStringCoreInstance("[]")
+                    : coreInstances.get(0);
+        }
+        // Fallback
+        return modelRepository.newStringCoreInstance(value.toString());
+    }
+
+    private CoreInstance toPureDateInstance(LocalDate ld) {
+        PureDate pd = DateFunctions.newPureDate(ld.getYear(), ld.getMonthValue(), ld.getDayOfMonth());
+        return modelRepository.newCoreInstance(pd.toString(),
+                modelRepository.getTopLevel("StrictDate"), null);
+    }
+
+    private CoreInstance toPureDateTimeInstance(LocalDateTime ldt) {
+        PureDate pd;
+        int nanos = ldt.getNano();
+        if (nanos > 0) {
+            String subsecond = stripTrailingZeros(String.format("%09d", nanos));
+            pd = DateFunctions.newPureDate(ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                    ldt.getHour(), ldt.getMinute(), ldt.getSecond(), subsecond);
+        } else {
+            pd = DateFunctions.newPureDate(ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
+                    ldt.getHour(), ldt.getMinute(), ldt.getSecond());
+        }
+        return modelRepository.newCoreInstance(pd.toString(),
+                modelRepository.getTopLevel("DateTime"), null);
+    }
+
+    // ===== TDS formatting =====
+
+    /**
+     * Formats a TabularResult as a TDS string for stringToTDS().
+     * Column types come from the compiler schema (already Pure type names).
+     */
+    private String formatAsTds(ExecutionResult result) {
+        StringBuilder sb = new StringBuilder();
         var columns = result.columns();
         for (int i = 0; i < columns.size(); i++) {
-            if (i > 0)
-                sb.append(",");
+            if (i > 0) sb.append(",");
             Column col = columns.get(i);
             String colName = col.name();
-            // Quote column names containing '__|__' (pivot columns) with single quotes
             if (colName.contains("__|__")) {
                 colName = "'" + colName + "'";
             }
-            sb.append(colName).append(":").append(mapToLegendType(col.sqlType()));
+            sb.append(colName).append(":").append(col.sqlType());
         }
-
-        // Data rows: value,value\nvalue,value
         for (var row : result.rows()) {
             sb.append("\n");
             var values = row.values();
             for (int i = 0; i < values.size(); i++) {
-                if (i > 0)
-                    sb.append(",");
-                Object value = values.get(i);
-                sb.append(formatValue(value));
+                if (i > 0) sb.append(",");
+                sb.append(formatValue(values.get(i)));
             }
         }
-
         return sb.toString();
     }
 
-    /**
-     * Maps Java/SQL types to Pure type names.
-     */
-    private String mapToLegendType(String sqlType) {
-        if (sqlType == null)
-            return "String";
-        String lower = sqlType.toLowerCase();
-        // Handle parameterized types like DECIMAL(18,2) -> Float for TDS columns
-        if (lower.startsWith("decimal") || lower.startsWith("numeric"))
-            return "Float";
-        return switch (lower) {
-            case "integer", "int", "bigint", "smallint", "tinyint", "hugeint", "ubigint", "uinteger", "usmallint", "utinyint" -> "Integer";
-            case "double", "float", "real" -> "Float";
-            case "boolean", "bool" -> "Boolean";
-            case "date" -> "StrictDate";
-            case "timestamp", "datetime" -> "DateTime";
-            // JSON types map to Pure Variant
-            case "json", "jsonb" -> "Variant";
-            default -> "String";
-        };
-    }
-
-    /**
-     * Formats a value for CSV output, escaping as needed.
-     */
     private String formatValue(Object value) {
-        if (value == null) {
-            return "null";
-        }
+        if (value == null) return "null";
         String str = value.toString();
-        // Escape strings that contain commas, quotes, or newlines
         if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
             return "\"" + str.replace("\"", "\"\"") + "\"";
         }
         return str;
     }
 
-    /**
-     * Wraps a Java primitive value into a Pure CoreInstance.
-     * Used for scalar results from constant queries.
-     */
-    private CoreInstance wrapPrimitiveValue(Object value, String sqlType, ProcessorSupport processorSupport) {
-        if (value == null) {
-            // Return Pure's nil/empty
-            return ValueSpecificationBootstrap.wrapValueSpecification(
-                    org.eclipse.collections.api.factory.Lists.immutable.empty(), true, processorSupport);
-        }
-        // Handle java.sql.Array (e.g., DuckDBArray from list_transform/VARCHAR[])
-        // Unwrap to Object[] and convert to List for unified handling below
-        if (value instanceof java.sql.Array sqlArray) {
-            try {
-                Object[] elements = (Object[]) sqlArray.getArray();
-                value = java.util.Arrays.asList(elements);
-            } catch (SQLException e) {
-                throw new RuntimeException("Failed to unwrap SQL array", e);
-            }
-        }
-        // Handle lists (from DuckDB arrays unwrapped by Row.java)
-        // Format as a string that the Pure adapter's resultToType can parse.
-        // Uses type-preserving format: [1, 2, 'a', true, %2014-02-01]
-        if (value instanceof java.util.List<?> list) {
-            StringBuilder sb = new StringBuilder("[");
-            for (int i = 0; i < list.size(); i++) {
-                if (i > 0) sb.append(", ");
-                Object elem = list.get(i);
-                if (elem instanceof String s) {
-                    sb.append("'").append(s).append("'");
-                } else if (elem == null) {
-                    sb.append("[]");
-                } else {
-                    sb.append(elem);
-                }
-            }
-            sb.append("]");
-            return ValueSpecificationBootstrap.newStringLiteral(modelRepository, sb.toString(), processorSupport);
-        }
-        if (value instanceof Boolean b) {
-            return ValueSpecificationBootstrap.newBooleanLiteral(modelRepository, b, processorSupport);
-        }
-        if (value instanceof Integer i) {
-            return ValueSpecificationBootstrap.newIntegerLiteral(modelRepository, i, processorSupport);
-        }
-        if (value instanceof Long l) {
-            return ValueSpecificationBootstrap.newIntegerLiteral(modelRepository, l, processorSupport);
-        }
-        if (value instanceof BigDecimal bd) {
-            // "DECIMAL" = from Decimal literal arithmetic (preserve DuckDB scale as-is)
-            // "DECIMAL_CAST" = from toDecimal() CAST (strip trailing zeros from CAST padding)
-            if ("DECIMAL".equals(sqlType)) {
-                return ValueSpecificationBootstrap.wrapValueSpecification(
-                        modelRepository.newDecimalCoreInstance(bd), true, processorSupport);
-            }
-            if ("DECIMAL_CAST".equals(sqlType)) {
-                return ValueSpecificationBootstrap.wrapValueSpecification(
-                        modelRepository.newDecimalCoreInstance(bd.stripTrailingZeros()), true, processorSupport);
-            }
-            return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, bd, processorSupport);
-        }
-        if (value instanceof Double d) {
-            if ("DECIMAL".equals(sqlType) || "DECIMAL_CAST".equals(sqlType)) {
-                BigDecimal bd = BigDecimal.valueOf(d);
-                if ("DECIMAL_CAST".equals(sqlType)) bd = bd.stripTrailingZeros();
-                return ValueSpecificationBootstrap.wrapValueSpecification(
-                        modelRepository.newDecimalCoreInstance(bd), true, processorSupport);
-            }
-            return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(d),
-                    processorSupport);
-        }
-        if (value instanceof Float f) {
-            return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(f.doubleValue()),
-                    processorSupport);
-        }
-        if (value instanceof java.math.BigInteger bi) {
-            // DuckDB HUGEINT/UBIGINT returns BigInteger via JDBC
-            // Use newIntegerCoreInstance(String) to handle values exceeding Long.MAX_VALUE
-            return ValueSpecificationBootstrap.wrapValueSpecification(
-                    modelRepository.newIntegerCoreInstance(bi.toString()), true, processorSupport);
-        }
-        if (value instanceof Number n) {
-            return ValueSpecificationBootstrap.newFloatLiteral(modelRepository, BigDecimal.valueOf(n.doubleValue()),
-                    processorSupport);
-        }
-        // Handle date types - convert to PureDate and wrap as date literal
-        if (value instanceof java.sql.Date sqlDate) {
-            LocalDate ld = sqlDate.toLocalDate();
-            PureDate pureDate = DateFunctions.newPureDate(ld.getYear(), ld.getMonthValue(), ld.getDayOfMonth());
-            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-        }
-        if (value instanceof LocalDate ld) {
-            PureDate pureDate = DateFunctions.newPureDate(ld.getYear(), ld.getMonthValue(), ld.getDayOfMonth());
-            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-        }
-        if (value instanceof java.sql.Timestamp ts) {
-            // DuckDB promotes DATE→TIMESTAMP in mixed lists; sqlType="DATE" means original was StrictDate
-            if ("DATE".equalsIgnoreCase(sqlType)) {
-                LocalDateTime ldt = ts.toLocalDateTime();
-                PureDate pureDate = DateFunctions.newPureDate(ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth());
-                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-            }
-            LocalDateTime ldt = ts.toLocalDateTime();
-            int nanos = ldt.getNano();
-            if (nanos > 0) {
-                // Format subseconds and strip trailing zeros to match Pure format
-                String subsecond = stripTrailingZeros(String.format("%09d", nanos));
-                PureDate pureDate = DateFunctions.newPureDate(
-                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                        ldt.getHour(), ldt.getMinute(), ldt.getSecond(), subsecond);
-                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-            } else if ("TIMESTAMP_NS".equalsIgnoreCase(sqlType)) {
-                // TIMESTAMP_NS with zero nanos: preserve nanosecond precision (9 zeros)
-                PureDate pureDate = DateFunctions.newPureDate(
-                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                        ldt.getHour(), ldt.getMinute(), ldt.getSecond(), "000000000");
-                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-            } else {
-                PureDate pureDate = DateFunctions.newPureDate(
-                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                        ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-            }
-        }
-        if (value instanceof LocalDateTime ldt) {
-            int nanos = ldt.getNano();
-            if (nanos > 0) {
-                String subsecond = stripTrailingZeros(String.format("%09d", nanos));
-                PureDate pureDate = DateFunctions.newPureDate(
-                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                        ldt.getHour(), ldt.getMinute(), ldt.getSecond(), subsecond);
-                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-            } else {
-                PureDate pureDate = DateFunctions.newPureDate(
-                        ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                        ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-            }
-        }
-        if (value instanceof java.time.OffsetDateTime odt) {
-            // TIMESTAMPTZ: convert to UTC then create PureDate
-            java.time.OffsetDateTime utc = odt.withOffsetSameInstant(java.time.ZoneOffset.UTC);
-            int nanos = utc.getNano();
-            if (nanos > 0) {
-                String subsecond = stripTrailingZeros(String.format("%09d", nanos));
-                PureDate pureDate = DateFunctions.newPureDate(
-                        utc.getYear(), utc.getMonthValue(), utc.getDayOfMonth(),
-                        utc.getHour(), utc.getMinute(), utc.getSecond(), subsecond);
-                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-            } else {
-                PureDate pureDate = DateFunctions.newPureDate(
-                        utc.getYear(), utc.getMonthValue(), utc.getDayOfMonth(),
-                        utc.getHour(), utc.getMinute(), utc.getSecond());
-                return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-            }
-        }
-        if (value instanceof LocalTime lt) {
-            // StrictTime - just time part, use arbitrary date
-            PureDate pureDate = DateFunctions.newPureDate(1, 1, 1, lt.getHour(), lt.getMinute(), lt.getSecond());
-            return ValueSpecificationBootstrap.newDateLiteral(modelRepository, pureDate, processorSupport);
-        }
-        if (value instanceof String s) {
-            return ValueSpecificationBootstrap.newStringLiteral(modelRepository, s, processorSupport);
-        }
-        // Default to string representation
-        return ValueSpecificationBootstrap.newStringLiteral(modelRepository, value.toString(), processorSupport);
-    }
-
-    /**
-     * Creates a TDSResult instance to wrap TDS string results.
-     * This allows the Pure adapter to distinguish TDS results from scalar String
-     * values.
-     */
-    private CoreInstance createTDSResult(String tdsString, ProcessorSupport processorSupport) {
-        // Get the TDSResult class
-        CoreInstance tdsResultClass = processorSupport.package_getByUserPath("meta::legend::lite::pct::TDSResult");
+    private CoreInstance createTDSResult(String tdsString, ProcessorSupport ps) {
+        CoreInstance tdsResultClass = ps.package_getByUserPath("meta::legend::lite::pct::TDSResult");
         if (tdsResultClass == null) {
             throw new RuntimeException("TDSResult class not found in Pure model");
         }
-
-        // Create an instance with tdsString property
-        CoreInstance instance = modelRepository.newCoreInstance(
-                "TDSResult", tdsResultClass, null);
-
-        // Set the tdsString property - use raw string value, not wrapped
-        // ValueSpecification
-        // The property expects a String primitive, not a ValueSpecification wrapper
-        CoreInstance tdsStringValue = modelRepository.newStringCoreInstance(tdsString);
-        Instance.addValueToProperty(instance, "tdsString", tdsStringValue, processorSupport);
-
-        // Wrap in value specification for return
-        return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, processorSupport);
+        CoreInstance instance = modelRepository.newCoreInstance("TDSResult", tdsResultClass, null);
+        Instance.addValueToProperty(instance, "tdsString",
+                modelRepository.newStringCoreInstance(tdsString), ps);
+        return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, ps);
     }
+
+    // ===== Class instance creation =====
 
     /**
      * Creates a Pure class instance from a DuckDB struct Map.
-     * Uses fieldTypes from the IR to resolve nested struct class names.
-     *
-     * @param structMap     The struct fields as key-value pairs
-     * @param pureTypeName  The Pure class name (e.g., "Pair")
-     * @param fieldTypes    Map of field name → Pure class name for nested struct fields (from IR)
-     * @param processorSupport The processor support for class lookup
-     * @return A raw Pure CoreInstance (not wrapped in ValueSpecification)
+     * Uses GenericType for the class path and type arguments.
      */
-    private CoreInstance createClassInstance(
-            java.util.Map<String, Object> structMap,
-            String pureTypeName,
-            java.util.Map<String, String> fieldTypes,
-            ProcessorSupport processorSupport) {
+    private CoreInstance createClassInstance(Map<String, Object> structMap, GenericType type,
+                                            ProcessorSupport ps) {
+        // Resolve class path from GenericType
+        String qualifiedName = switch (type) {
+            case GenericType.ClassType ct -> ct.qualifiedName();
+            case GenericType.Parameterized p -> switch (p.rawType()) {
+                case "Pair" -> "meta::pure::functions::collection::Pair";
+                default -> p.rawType();
+            };
+            default -> "meta::pure::functions::collection::Pair"; // fallback for unknown struct types
+        };
 
-        // Resolve full path for well-known types
-        String fullTypeName = resolveFullTypeName(pureTypeName, processorSupport);
-
-        CoreInstance classInstance = processorSupport.package_getByUserPath(fullTypeName);
+        CoreInstance classInstance = ps.package_getByUserPath(qualifiedName);
         if (classInstance == null) {
-            throw new RuntimeException("Pure class not found: " + fullTypeName);
+            throw new RuntimeException("Pure class not found: " + qualifiedName);
         }
 
-        CoreInstance instance = modelRepository.newCoreInstance(
-                fullTypeName.substring(fullTypeName.lastIndexOf(':') + 1),
-                classInstance, null);
+        String simpleName = qualifiedName.substring(qualifiedName.lastIndexOf(':') + 1);
+        CoreInstance instance = modelRepository.newCoreInstance(simpleName, classInstance, null);
 
-        // Build classifierGenericType with concrete type arguments
-        // e.g., Pair<Integer, String> needs GenericType(rawType=Pair, typeArguments=[GT(Integer), GT(String)])
-        CoreInstance classifierGT = Type.wrapGenericType(classInstance, null, processorSupport);
+        // Build classifierGenericType with type arguments from GenericType
+        CoreInstance classifierGT = Type.wrapGenericType(classInstance, null, ps);
 
-        // Collect type arguments from the Pair's type parameters (first, second for Pair)
-        // We infer them from the actual field values
-        java.util.List<CoreInstance> typeArgs = new ArrayList<>();
+        if (type instanceof GenericType.Parameterized p) {
+            // Set type arguments from the compiler-provided GenericType
+            for (GenericType typeArg : p.typeArgs()) {
+                String argTypeName = typeArg.typeName();
+                CoreInstance argTypeClass = ps.package_getByUserPath(argTypeName);
+                if (argTypeClass != null) {
+                    CoreInstance argGT = Type.wrapGenericType(argTypeClass, null, ps);
+                    Instance.addValueToProperty(classifierGT, M3Properties.typeArguments, argGT, ps);
+                }
+            }
+        }
 
-        for (java.util.Map.Entry<String, Object> entry : structMap.entrySet()) {
+        Instance.addValueToProperty(instance, M3Properties.classifierGenericType, classifierGT, ps);
+
+        // Set properties from struct map
+        for (Map.Entry<String, Object> entry : structMap.entrySet()) {
             String propName = entry.getKey();
             Object propValue = entry.getValue();
             if (propValue == null) continue;
 
-            CoreInstance valueInstance;
-            if (propValue instanceof java.util.Map) {
-                @SuppressWarnings("unchecked")
-                java.util.Map<String, Object> nestedMap = (java.util.Map<String, Object>) propValue;
-                String nestedType = (fieldTypes != null) ? fieldTypes.get(propName) : null;
-                if (nestedType != null) {
-                    valueInstance = createClassInstance(nestedMap, nestedType, null, processorSupport);
-                    // Type arg is the nested class's classifierGenericType
-                    CoreInstance nestedClassGT = Instance.extractGenericTypeFromInstance(valueInstance, processorSupport);
-                    typeArgs.add(nestedClassGT);
-                } else {
-                    valueInstance = modelRepository.newStringCoreInstance(propValue.toString());
-                    typeArgs.add(inferGenericType(propValue, processorSupport));
+            // Determine property GenericType from Parameterized typeArgs if available
+            GenericType propType = GenericType.Primitive.ANY;
+            if (type instanceof GenericType.Parameterized p && !p.typeArgs().isEmpty()) {
+                // For Pair: first → typeArgs[0], second → typeArgs[1]
+                int idx = indexOf(structMap, propName);
+                if (idx >= 0 && idx < p.typeArgs().size()) {
+                    propType = p.typeArgs().get(idx);
                 }
-            } else if (propValue instanceof String s) {
-                valueInstance = modelRepository.newStringCoreInstance(s);
-                typeArgs.add(inferGenericType(propValue, processorSupport));
-            } else if (propValue instanceof Integer i) {
-                valueInstance = modelRepository.newIntegerCoreInstance(i);
-                typeArgs.add(inferGenericType(propValue, processorSupport));
-            } else if (propValue instanceof Long l) {
-                valueInstance = modelRepository.newIntegerCoreInstance(l);
-                typeArgs.add(inferGenericType(propValue, processorSupport));
-            } else if (propValue instanceof Boolean b) {
-                valueInstance = modelRepository.newBooleanCoreInstance(b);
-                typeArgs.add(inferGenericType(propValue, processorSupport));
-            } else if (propValue instanceof Double d) {
-                valueInstance = modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
-                typeArgs.add(inferGenericType(propValue, processorSupport));
-            } else if (propValue instanceof BigDecimal bd) {
-                valueInstance = modelRepository.newFloatCoreInstance(bd);
-                typeArgs.add(inferGenericType(propValue, processorSupport));
-            } else {
-                valueInstance = modelRepository.newStringCoreInstance(propValue.toString());
-                typeArgs.add(inferGenericType(propValue, processorSupport));
             }
 
-            Instance.addValueToProperty(instance, propName, valueInstance, processorSupport);
+            CoreInstance valueInstance = toCoreInstance(propValue, propType, ps);
+            Instance.addValueToProperty(instance, propName, valueInstance, ps);
         }
-
-        // Set type arguments on the classifierGenericType
-        for (CoreInstance typeArg : typeArgs) {
-            Instance.addValueToProperty(classifierGT, M3Properties.typeArguments, typeArg, processorSupport);
-        }
-        Instance.addValueToProperty(instance, M3Properties.classifierGenericType, classifierGT, processorSupport);
 
         return instance;
     }
 
-    /**
-     * Infers a Pure GenericType from a Java value.
-     * Maps Java types to Pure primitive types.
-     */
-    private CoreInstance inferGenericType(Object value, ProcessorSupport processorSupport) {
-        String purePrimitive;
-        if (value instanceof Integer || value instanceof Long) {
-            purePrimitive = "Integer";
-        } else if (value instanceof String) {
-            purePrimitive = "String";
-        } else if (value instanceof Boolean) {
-            purePrimitive = "Boolean";
-        } else if (value instanceof Double || value instanceof Float || value instanceof BigDecimal) {
-            purePrimitive = "Float";
-        } else {
-            purePrimitive = "Any";
+    /** Returns the positional index of a key in an ordered map. */
+    private static int indexOf(Map<String, ?> map, String key) {
+        int i = 0;
+        for (String k : map.keySet()) {
+            if (k.equals(key)) return i;
+            i++;
         }
-        CoreInstance typeClass = processorSupport.package_getByUserPath(purePrimitive);
-        return Type.wrapGenericType(typeClass, null, processorSupport);
+        return -1;
     }
 
-    /**
-     * Resolves a short Pure type name to its fully qualified path.
-     * Handles well-known types like "Pair" → "meta::pure::functions::collection::Pair".
-     */
-    private String resolveFullTypeName(String typeName, ProcessorSupport processorSupport) {
-        // Already fully qualified
-        if (typeName.contains("::")) return typeName;
-
-        // Try well-known mappings
-        String fullPath = switch (typeName) {
-            case "Pair" -> "meta::pure::functions::collection::Pair";
-            default -> typeName;
-        };
-
-        // Verify it exists
-        if (processorSupport.package_getByUserPath(fullPath) != null) {
-            return fullPath;
-        }
-        return typeName;
-    }
+    // ===== Class metadata extraction =====
 
     /**
-     * Wraps a DuckDB struct (Map) as a Pure class instance.
-     * Uses the pureType to look up the class, creates an instance,
-     * and sets each property from the map values.
-     *
-     * @param structMap     The struct fields as key-value pairs
-     * @param pureTypeName  The fully qualified Pure class name (e.g., "meta::...::CO_Person")
-     * @param processorSupport The processor support for class lookup
-     * @return A wrapped Pure class instance
+     * Extracts class definitions from the Pure interpreter for ^className() patterns
+     * in the expression. Builds a TypeEnvironment for injection into the model.
      */
-    private CoreInstance wrapStructAsClassInstance(
-            java.util.Map<String, Object> structMap,
-            String pureTypeName,
-            ProcessorSupport processorSupport) {
-
-        CoreInstance instance = createClassInstance(structMap, pureTypeName, null, processorSupport);
-        return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, processorSupport);
-    }
-
-    /**
-     * Strips trailing zeros from a subsecond string.
-     * Pure normalizes subseconds without trailing zeros (e.g., "338001" not
-     * "338001000").
-     */
-    // Pattern to find ^className( in Pure expressions
-    private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
-
-    /**
-     * Extracts class metadata from the Pure interpreter for all classes
-     * referenced in the expression. Builds a TypeEnvironment with PureClass
-     * definitions including property types and multiplicities.
-     */
-    private TypeEnvironment extractClassMetadata(String pureExpression, ProcessorSupport processorSupport) {
+    private TypeEnvironment extractClassMetadata(String pureExpression, ProcessorSupport ps) {
         try {
             Map<String, PureClass> classes = new HashMap<>();
             Set<String> visited = new HashSet<>();
-
-            // Find all ^className( patterns
             Matcher matcher = INSTANCE_CLASS_PATTERN.matcher(pureExpression);
             while (matcher.find()) {
-                String className = matcher.group(1);
-                extractClassRecursive(className, classes, visited, processorSupport);
+                extractClassRecursive(matcher.group(1), classes, visited, ps);
             }
-
             return TypeEnvironment.of(classes);
         } catch (Exception e) {
-            System.out.println("[LegendLite PCT] TypeEnvironment extraction failed, falling back to empty: " + e.getMessage());
+            System.out.println("[LegendLite PCT] TypeEnvironment extraction failed: " + e.getMessage());
             return TypeEnvironment.empty();
         }
     }
 
-    /**
-     * Recursively extracts a class and any classes referenced by its properties.
-     */
     private void extractClassRecursive(String className, Map<String, PureClass> classes,
-            Set<String> visited, ProcessorSupport processorSupport) {
+                                       Set<String> visited, ProcessorSupport ps) {
         if (visited.contains(className)) return;
         visited.add(className);
 
-        CoreInstance cls = processorSupport.package_getByUserPath(className);
+        CoreInstance cls = ps.package_getByUserPath(className);
         if (cls == null) return;
 
         List<Property> properties = new ArrayList<>();
-        for (CoreInstance prop : processorSupport.class_getSimpleProperties(cls)) {
+        for (CoreInstance prop : ps.class_getSimpleProperties(cls)) {
             CoreInstance nameInstance = prop.getValueForMetaPropertyToOne(M3Properties.name);
             if (nameInstance == null) continue;
             String propName = PrimitiveUtilities.getStringValue(nameInstance);
             if (propName == null) continue;
 
-            // Extract multiplicity
             CoreInstance mult = prop.getValueForMetaPropertyToOne(M3Properties.multiplicity);
             if (mult == null) continue;
             int upper = org.finos.legend.pure.m3.navigation.multiplicity.Multiplicity
@@ -718,15 +465,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     .multiplicityLowerBoundToInt(mult);
             Multiplicity multiplicity = new Multiplicity(lower, upper < 0 ? null : upper);
 
-            // Extract type name (with null safety)
             CoreInstance genericType = prop.getValueForMetaPropertyToOne(M3Properties.genericType);
             CoreInstance rawType = (genericType != null)
-                    ? genericType.getValueForMetaPropertyToOne(M3Properties.rawType)
-                    : null;
-            // Resolve import stubs (lazy references) to get the actual type
+                    ? genericType.getValueForMetaPropertyToOne(M3Properties.rawType) : null;
             if (rawType != null) {
                 rawType = org.finos.legend.pure.m3.navigation.importstub.ImportStub
-                        .withImportStubByPass(rawType, processorSupport);
+                        .withImportStubByPass(rawType, ps);
             }
             String typeName = "Any";
             if (rawType != null) {
@@ -736,22 +480,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 }
             }
 
-            // Build type reference
             org.finos.legend.pure.m3.Type propType;
             try {
                 propType = PrimitiveType.fromName(typeName);
             } catch (IllegalArgumentException e) {
-                // Non-primitive type — resolve to extracted PureClass
                 if (rawType != null) {
                     String qualifiedTypeName = getQualifiedName(rawType);
                     if (qualifiedTypeName != null) {
-                        // Skip inherited metamodel properties (classifierGenericType,
-                        // elementOverride, etc.) — these leak through class_getSimpleProperties
-                        // from Pure's internal type hierarchy and are not business properties
-                        if (qualifiedTypeName.startsWith("meta::pure::metamodel")) {
-                            continue;
-                        }
-                        extractClassRecursive(qualifiedTypeName, classes, visited, processorSupport);
+                        if (qualifiedTypeName.startsWith("meta::pure::metamodel")) continue;
+                        extractClassRecursive(qualifiedTypeName, classes, visited, ps);
                         PureClass referenced = classes.get(qualifiedTypeName);
                         if (referenced != null) {
                             propType = referenced;
@@ -765,11 +502,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     continue;
                 }
             }
-
             properties.add(new Property(propName, propType, multiplicity));
         }
 
-        // Extract package path
         String qualifiedName = getQualifiedName(cls);
         String packagePath = "";
         String simpleName = className;
@@ -781,8 +516,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             }
         }
 
-        PureClass pureClass = new PureClass(packagePath, simpleName, properties);
-        classes.put(qualifiedName != null ? qualifiedName : className, pureClass);
+        classes.put(qualifiedName != null ? qualifiedName : className,
+                new PureClass(packagePath, simpleName, properties));
     }
 
     private String getQualifiedName(CoreInstance element) {
@@ -794,15 +529,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
     }
 
-    /**
-     * Remaps DuckDB-specific error messages to Pure-expected error messages.
-     */
+    // ===== Utilities =====
+
     private static String remapErrorMessage(String message) {
         if (message == null) return null;
-        // DuckDB bit shift errors:
-        //   "Out of Range Error: Left-shift value 63 is out of range" (INTEGER)
-        //   "Out of Range Error: Overflow in left shift (1 << 63)" (BIGINT)
-        // Pure expects: "Unsupported number of bits to shift - max bits allowed is 62"
         if ((message.contains("shift value") && message.contains("is out of range"))
                 || message.contains("Overflow in left shift")
                 || message.contains("Overflow in right shift")) {
@@ -813,9 +543,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
     /**
      * Re-escapes literal special characters inside single-quoted strings.
-     * The Pure interpreter resolves escape sequences (e.g., '\n' becomes a real newline)
-     * before passing the expression string to us, but our ANTLR parser expects the
-     * escape sequences to still be present.
+     * The Pure interpreter resolves escape sequences before passing the expression,
+     * but our ANTLR parser expects them.
      */
     private static String reEscapeStringLiterals(String expr) {
         StringBuilder sb = new StringBuilder(expr.length());

@@ -177,6 +177,10 @@ public class CleanCompiler {
             case "pivot" -> compilePivot(af, ctx);
             case "flatten" -> compileFlatten(af, ctx);
             case "from" -> compileFrom(af, ctx);
+            // --- Window functions (inside extend lambdas) ---
+            case "rowNumber", "rank", "denseRank", "ntile" -> compileWindowRanking(af, ctx, GenericType.Primitive.INTEGER);
+            case "percentRank", "cumulativeDistribution" -> compileWindowRanking(af, ctx, GenericType.Primitive.FLOAT);
+            case "lag", "lead" -> compileWindowNavigation(af, ctx);
             // --- Scalar collection functions with lambdas ---
             case "fold" -> compileFold(af, ctx);
             case "map" -> compileMap(af, ctx);
@@ -233,7 +237,7 @@ public class CleanCompiler {
                  "compare", "not", "and", "or", "xor",
                  "greatest", "least", "coalesce",
                  // --- Aggregation ---
-                 "sum", "average", "mean", "median", "mode",
+                 "count", "sum", "average", "mean", "median", "mode",
                  "min", "max", "minBy", "maxBy",
                  "stdDevSample", "variance", "varianceSample",
                  "variancePopulation", "covarPopulation",
@@ -402,9 +406,14 @@ public class CleanCompiler {
                     }
                 }
             }
-            // Store direction as a SortSpec with null column (list sort, not relational)
-            var info = TypeInfo.builder()
-                    .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction))).build();
+            // Propagate source scalarType (e.g., List<Integer>) so downstream
+            // functions like toVariant() can read it.
+            var builder = TypeInfo.builder()
+                    .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)));
+            if (source.scalarType() != null) {
+                builder.scalarType(source.scalarType());
+            }
+            var info = builder.build();
             types.put(af, info);
             return info;
         }
@@ -1118,13 +1127,13 @@ public class CleanCompiler {
             if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
                 for (ColSpec cs : csa.colSpecs()) {
                     GenericType colType = inferExtendColumnType(
-                            new ClassInstance("colSpec", cs), ctx);
+                            new ClassInstance("colSpec", cs), ctx, sourceType);
                     newColumns.put(cs.name(), colType);
                 }
             } else {
                 String colName = extractNewColumnName(p);
                 if (colName != null) {
-                    GenericType colType = inferExtendColumnType(p, ctx);
+                    GenericType colType = inferExtendColumnType(p, ctx, sourceType);
                     newColumns.put(colName, colType);
                 }
             }
@@ -2038,6 +2047,39 @@ public class CleanCompiler {
         return typed(af, source.relationType(), source.mapping());
     }
 
+    // ========== Window Functions (inside extend lambdas) ==========
+
+    /**
+     * Compiles ranking window functions: rank(), rowNumber(), denseRank(), ntile(),
+     * percentRank(), cumulativeDistribution().
+     * Compiles all params (so lambda variables get scoped) and returns the known scalar type.
+     */
+    private TypeInfo compileWindowRanking(AppliedFunction af, CompilationContext ctx, GenericType returnType) {
+        for (var p : af.parameters()) {
+            compileExpr(p, ctx);
+        }
+        return scalarTyped(af, returnType);
+    }
+
+    /**
+     * Compiles navigation window functions: lag(), lead().
+     * These return a single row from the source relation, so the result carries
+     * the source's RelationType. This allows {@code $p->lag($r).salary} to resolve
+     * via compileProperty's existing relational-result path.
+     */
+    private TypeInfo compileWindowNavigation(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        if (params.isEmpty()) return scalar(af);
+        TypeInfo source = compileExpr(params.get(0), ctx);
+        for (int i = 1; i < params.size(); i++) {
+            compileExpr(params.get(i), ctx);
+        }
+        if (source.relationType() != null) {
+            return typed(af, source.relationType(), source.mapping());
+        }
+        return scalar(af);
+    }
+
     /**
      * Handles unknown/scalar functions — compiles the source (if it's a relation)
      * and propagates its type.
@@ -2177,6 +2219,8 @@ public class CleanCompiler {
             if (!lf.body().isEmpty()) {
                 compileExpr(lf.body().get(0), lambdaCtx);
             }
+            // Propagate accumulator type — fold result has the same type as init/accumulator.
+            return scalarTyped(af, accType);
         }
         return scalar(af);
     }
@@ -2691,10 +2735,21 @@ public class CleanCompiler {
         for (var p : params) {
             compileExpr(p, ctx);
         }
-        // Check if the function has a known return type that differs from its source
-        GenericType returnType = knownReturnType(simpleName(af.function()));
+        String fn = simpleName(af.function());
+        // Known return type takes priority — e.g., count() always returns INTEGER,
+        // even in a window context like $p->count($w,$r).
+        GenericType returnType = knownReturnType(fn);
         if (returnType != null) {
             return scalarTyped(af, returnType);
+        }
+        // Window aggregate dispatch: when a known aggregate function is called
+        // in a window context, propagate the source relationType so subsequent
+        // .property access resolves (e.g. $p->sum($w), $p->last($w,$r).salary).
+        if (!params.isEmpty() && isWindowAggregate(fn)) {
+            TypeInfo sourceInfo = types.get(params.get(0));
+            if (sourceInfo != null && sourceInfo.relationType() != null) {
+                return typed(af, sourceInfo.relationType(), sourceInfo.mapping());
+            }
         }
         // Propagate scalarType from source (first param)
         if (!params.isEmpty()) {
@@ -2702,7 +2757,6 @@ public class CleanCompiler {
             if (sourceInfo != null && sourceInfo.scalarType() != null) {
                 GenericType propType = sourceInfo.scalarType();
                 // at/head/last extract a single element from a list → unwrap element type
-                String fn = simpleName(af.function());
                 if (("at".equals(fn) || "head".equals(fn) || "last".equals(fn))
                         && propType.isList() && propType.elementType() != null) {
                     propType = propType.elementType();
@@ -2735,7 +2789,7 @@ public class CleanCompiler {
                  "left", "right", "ltrim", "rtrim",
                  "toUpperFirstCharacter", "toLowerFirstCharacter",
                  "reverseString", "encodeBase64", "decodeBase64", "char",
-                 "hash" -> GenericType.Primitive.STRING;
+                 "hash", "generateGuid" -> GenericType.Primitive.STRING;
             // Boolean-producing functions
             case "contains", "in", "startsWith", "endsWith",
                  "isEmpty", "isNotEmpty", "parseBoolean",
@@ -2748,6 +2802,18 @@ public class CleanCompiler {
             case "now" -> GenericType.Primitive.DATE_TIME;
             case "today" -> GenericType.Primitive.STRICT_DATE;
             default -> null; // propagate source type
+        };
+    }
+
+    /** Returns true if the function is a known aggregate that can be used as a window function. */
+    private static boolean isWindowAggregate(String fn) {
+        return switch (fn) {
+            case "sum", "avg", "average", "mean",
+                 "min", "max", "first", "last",
+                 "variance", "varianceSample", "variancePopulation",
+                 "stdDevSample", "stdDevPopulation",
+                 "median", "percentile", "mode" -> true;
+            default -> false;
         };
     }
 
@@ -2811,7 +2877,8 @@ public class CleanCompiler {
     }
 
     /** Infers the column type for an extend column from its lambda body. */
-    private GenericType inferExtendColumnType(ValueSpecification param, CompilationContext ctx) {
+    private GenericType inferExtendColumnType(ValueSpecification param, CompilationContext ctx,
+            RelationType sourceType) {
         // Extract the lambda body from ColSpec wrapper
         ColSpec cs = null;
         if (param instanceof ClassInstance ci && ci.value() instanceof ColSpec colSpec) {
@@ -2825,15 +2892,42 @@ public class CleanCompiler {
                 }
             }
         }
-        if (cs != null && cs.function1() != null && !cs.function1().body().isEmpty()) {
-            try {
-                TypeInfo bodyInfo = compileExpr(cs.function1().body().get(0), ctx);
-                if (bodyInfo != null && bodyInfo.scalarType() != null) {
-                    return bodyInfo.scalarType();
-                }
-            } catch (PureCompileException ignored) { }
+        if (cs == null || cs.function1() == null || cs.function1().body().isEmpty()) {
+            throw new PureCompileException("extend column spec has no lambda body");
         }
-        return GenericType.Primitive.ANY;
+
+        LambdaFunction lambda = cs.function1();
+
+        // Bind ALL lambda parameters to the source RelationType.
+        // Simple extend: {x|$x.prop}            — 1 param, x = row
+        // Window extend: {p,w,r|$p->fn($w,$r)}  — 3 params, all bound to source columns
+        CompilationContext bodyCtx = ctx;
+        if (sourceType != null) {
+            for (var lp : lambda.parameters()) {
+                bodyCtx = bodyCtx.withRelationType(lp.name(), sourceType);
+            }
+        }
+
+        TypeInfo bodyInfo = compileExpr(lambda.body().get(0), bodyCtx);
+        if (bodyInfo != null && bodyInfo.scalarType() != null) {
+            return bodyInfo.scalarType();
+        }
+        // Fallback: returnType is List<X> (from property access on relational result)
+        if (bodyInfo != null && bodyInfo.returnType() != null) {
+            GenericType rt = bodyInfo.returnType();
+            if (rt.isList() && rt.elementType() != null) {
+                return rt.elementType();
+            }
+            return rt;
+        }
+        // Fallback: single-column relationType (from desugared property project)
+        if (bodyInfo != null && bodyInfo.relationType() != null
+                && bodyInfo.relationType().columns().size() == 1) {
+            return bodyInfo.relationType().columns().values().iterator().next();
+        }
+
+        throw new PureCompileException("cannot infer type for extend column '"
+                + (cs.name() != null ? cs.name() : "?") + "'");
     }
 
     /** Compiles if(condition, then-lambda, else-lambda) with type unification. */
