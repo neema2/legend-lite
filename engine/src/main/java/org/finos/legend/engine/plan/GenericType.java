@@ -1,5 +1,7 @@
 package org.finos.legend.engine.plan;
 
+import org.finos.legend.pure.m3.Multiplicity;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -8,7 +10,8 @@ import java.util.Objects;
  * Supports type hierarchy, generics (List&lt;Integer&gt;), class types, and enum types.
  *
  * In Pure: Integer[*] = type Integer + multiplicity [*].
- * Multiplicity is tracked separately via m3.Multiplicity.
+ * Multiplicity is carried on {@link Parameterized} for root return types;
+ * other variants default to null (treated as [1] / scalar).
  */
 public sealed interface GenericType
         permits GenericType.Primitive, GenericType.Parameterized,
@@ -121,12 +124,22 @@ public sealed interface GenericType
 
     /**
      * Parameterized types: List&lt;Integer&gt;, Pair&lt;String, Integer&gt;, etc.
+     *
+     * @param multiplicity Pure-level multiplicity (null = unset, treated as [1]).
+     *                     Stamped by CleanCompiler on root return types so the execution
+     *                     layer knows whether the SQL produced N scalar rows (MANY)
+     *                     or 1 row with an opaque array value (ONE/null).
      */
-    record Parameterized(String rawType, List<GenericType> typeArgs) implements GenericType {
+    record Parameterized(String rawType, List<GenericType> typeArgs, Multiplicity multiplicity) implements GenericType {
         public Parameterized {
             Objects.requireNonNull(rawType);
             Objects.requireNonNull(typeArgs);
             typeArgs = List.copyOf(typeArgs);
+        }
+
+        /** Convenience constructor without multiplicity (defaults to null). */
+        public Parameterized(String rawType, List<GenericType> typeArgs) {
+            this(rawType, typeArgs, null);
         }
 
         @Override
@@ -203,6 +216,11 @@ public sealed interface GenericType
 
     static GenericType listOf(GenericType elementType) {
         return new Parameterized("List", List.of(elementType));
+    }
+
+    /** Creates a List type with explicit multiplicity. */
+    static GenericType listOf(GenericType elementType, Multiplicity multiplicity) {
+        return new Parameterized("List", List.of(elementType), multiplicity);
     }
 
     static GenericType pairOf(GenericType first, GenericType second) {
@@ -284,6 +302,17 @@ public sealed interface GenericType
      */
     default boolean isJson() {
         return this == Primitive.JSON || this.isList();
+    }
+
+    /**
+     * Pure-level multiplicity of this type expression.
+     * Non-null only on Parameterized types that have been stamped by the compiler.
+     * Null means unset (treated as [1] / scalar).
+     *
+     * <p>Parameterized types override this via their record accessor.
+     */
+    default Multiplicity multiplicity() {
+        return null;
     }
 
     /**

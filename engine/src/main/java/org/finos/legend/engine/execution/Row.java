@@ -42,15 +42,12 @@ public record Row(List<Object> values) {
         }
         if (value instanceof java.sql.Array sqlArray) {
             Object[] elements = (Object[]) sqlArray.getArray();
-            // Unwrap struct arrays (e.g., from zip → Pair structs)
-            if (elements.length > 0 && elements[0] instanceof java.sql.Struct) {
-                List<Object> result = new ArrayList<>(elements.length);
-                for (Object elem : elements) {
-                    if (elem instanceof java.sql.Struct s) result.add(unwrapStruct(s));
-                    else result.add(elem);
-                }
-                return result;
+            List<Object> result = new ArrayList<>(elements.length);
+            for (Object elem : elements) {
+                if (elem instanceof java.sql.Struct s) result.add(unwrapStruct(s));
+                else result.add(elem);
             }
+            return result;
         }
         return value;
     }

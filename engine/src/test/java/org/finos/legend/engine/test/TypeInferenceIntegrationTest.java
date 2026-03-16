@@ -2725,13 +2725,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value, "list(slice([1,2,3,4], 1, 3)) should not be null");
-                // list() is a no-op — DuckDB returns a flat array [2, 3], not nested [[2, 3]]
-                assertTrue(value instanceof java.sql.Array,
-                                "Expected SQL Array but got: " + value.getClass().getSimpleName());
-                Object[] elements = (Object[]) ((java.sql.Array) value).getArray();
-                assertEquals(2, elements.length, "Should have 2 elements");
-                assertEquals(2, ((Number) elements[0]).intValue());
-                assertEquals(3, ((Number) elements[1]).intValue());
+                // Row.unwrapValue converts DuckDB arrays to List<Object>
+                @SuppressWarnings("unchecked")
+                List<Object> elements = (List<Object>) value;
+                assertEquals(2, elements.size(), "Should have 2 elements");
+                assertEquals(2, ((Number) elements.get(0)).intValue());
+                assertEquals(3, ((Number) elements.get(1)).intValue());
         }
 
         @Test
@@ -3129,15 +3128,16 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[2]|$y->meta::pure::functions::collection::add($x)}, [-1, 0])",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray()
-                                : (Object[]) value;
-                assertEquals(6, arr.length);
-                assertEquals(-1, ((Number) arr[0]).intValue());
-                assertEquals(0, ((Number) arr[1]).intValue());
-                assertEquals(1, ((Number) arr[2]).intValue());
-                assertEquals(2, ((Number) arr[3]).intValue());
-                assertEquals(3, ((Number) arr[4]).intValue());
-                assertEquals(4, ((Number) arr[5]).intValue());
+                // Row.unwrapValue converts DuckDB arrays to List<Object>
+                @SuppressWarnings("unchecked")
+                List<Object> arr = (List<Object>) value;
+                assertEquals(6, arr.size());
+                assertEquals(-1, ((Number) arr.get(0)).intValue());
+                assertEquals(0, ((Number) arr.get(1)).intValue());
+                assertEquals(1, ((Number) arr.get(2)).intValue());
+                assertEquals(2, ((Number) arr.get(3)).intValue());
+                assertEquals(3, ((Number) arr.get(4)).intValue());
+                assertEquals(4, ((Number) arr.get(5)).intValue());
         }
 
         @Test
@@ -3149,12 +3149,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[1..3]|meta::pure::functions::lang::if($y->meta::pure::functions::collection::size() < 3, |$y->meta::pure::functions::collection::add($x), |$y->meta::pure::functions::collection::add($x)->meta::pure::functions::collection::tail())}, [-1, 0])",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray()
-                                : (Object[]) value;
-                assertEquals(3, arr.length);
-                assertEquals(2, ((Number) arr[0]).intValue());
-                assertEquals(3, ((Number) arr[1]).intValue());
-                assertEquals(4, ((Number) arr[2]).intValue());
+                @SuppressWarnings("unchecked")
+                List<Object> arr = (List<Object>) value;
+                assertEquals(3, arr.size());
+                assertEquals(2, ((Number) arr.get(0)).intValue());
+                assertEquals(3, ((Number) arr.get(1)).intValue());
+                assertEquals(4, ((Number) arr.get(2)).intValue());
         }
 
         @Test
@@ -3165,12 +3165,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[1, 2, 3]->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Nil[0]|$acc->meta::pure::functions::collection::add($val)}, [])",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray()
-                                : (Object[]) value;
-                assertEquals(3, arr.length);
-                assertEquals(1, ((Number) arr[0]).intValue());
-                assertEquals(2, ((Number) arr[1]).intValue());
-                assertEquals(3, ((Number) arr[2]).intValue());
+                @SuppressWarnings("unchecked")
+                List<Object> arr = (List<Object>) value;
+                assertEquals(3, arr.size());
+                assertEquals(1, ((Number) arr.get(0)).intValue());
+                assertEquals(2, ((Number) arr.get(1)).intValue());
+                assertEquals(3, ((Number) arr.get(2)).intValue());
         }
 
         @Test
@@ -3181,9 +3181,9 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|[]->meta::pure::functions::lang::cast(@Integer)->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Any[0]|$acc->meta::pure::functions::collection::add($val)}, []->meta::pure::functions::lang::cast(@meta::pure::metamodel::type::Any))",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray()
-                                : (Object[]) value;
-                assertEquals(0, arr.length);
+                @SuppressWarnings("unchecked")
+                List<Object> arr = (List<Object>) value;
+                assertEquals(0, arr.size());
         }
 
         @Test
@@ -3194,10 +3194,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|1->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Nil[0]|$acc->meta::pure::functions::collection::add($val)}, [])",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                Object[] arr = value instanceof java.sql.Array ? (Object[]) ((java.sql.Array) value).getArray()
-                                : (Object[]) value;
-                assertEquals(1, arr.length);
-                assertEquals(1, ((Number) arr[0]).intValue());
+                @SuppressWarnings("unchecked")
+                List<Object> arr = (List<Object>) value;
+                assertEquals(1, arr.size());
+                assertEquals(1, ((Number) arr.get(0)).intValue());
         }
 
         @Test

@@ -86,6 +86,11 @@ public class CleanCompiler {
             } else {
                 returnType = GenericType.Primitive.ANY;
             }
+            // Stamp multiplicity onto the GenericType itself (if Parameterized)
+            // so it flows through SingleExecutionPlan.returnType() → fromResultSet.
+            if (multiplicity != null && returnType instanceof GenericType.Parameterized p) {
+                returnType = new GenericType.Parameterized(p.rawType(), p.typeArgs(), multiplicity);
+            }
             var builder = TypeInfo.from(rootInfo).returnType(returnType);
             if (multiplicity != null) builder.multiplicity(multiplicity);
             types.put(vs, builder.build());
@@ -2151,11 +2156,11 @@ public class CleanCompiler {
                         List.of(params.get(2), params.get(0)));
                 compileExpr(concat, ctx);
                 // Point fold node to the synthetic concatenate via inlinedBody.
-                // Fold produces a single list value — leave multiplicity unset (ONE)
-                // so PlanGenerator does NOT UNNEST.
+                // Fold produces a single list value — stamp ONE so ExecutionResult
+                // unwraps the DuckDB array (vs MANY which treats rows as elements).
                 var info = TypeInfo.from(types.get(concat))
                         .inlinedBody(concat)
-                        .multiplicity(null)
+                        .multiplicity(Multiplicity.ONE)
                         .build();
                 types.put(af, info);
                 return info;
@@ -2247,10 +2252,11 @@ public class CleanCompiler {
                 var newFold = new AppliedFunction("fold",
                         List.of(wrappedSource, newLambda, params.get(2)), true);
                 // Set scalar TypeInfo directly — do NOT call compileExpr which would re-enter.
-                // Fold produces a single list value — leave multiplicity unset (ONE)
-                // so PlanGenerator does NOT UNNEST.
+                // Fold produces a single list value — stamp ONE so ExecutionResult
+                // unwraps the DuckDB array (vs MANY which treats rows as elements).
                 var info = TypeInfo.builder().scalarType(accType)
                         .inlinedBody(newFold)
+                        .multiplicity(Multiplicity.ONE)
                         .build();
                 types.put(af, info);
                 return info;

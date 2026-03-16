@@ -253,8 +253,15 @@ public sealed interface ExecutionResult {
         // Build the right variant using compiler types
         return switch (returnType) {
             case GenericType.Parameterized p when p.isList() -> {
-                List<Object> values = rows.stream()
-                        .map(r -> r.get(0)).toList();
+                // ONE multiplicity = single row with DuckDB array (list(), fold())
+                // MANY or null = N scalar rows (UNNEST'd collection expressions)
+                boolean isSingleArray = p.multiplicity() != null && !p.multiplicity().isMany();
+                @SuppressWarnings("unchecked")
+                List<Object> values = isSingleArray
+                        // Single row with array value (list(), fold()) → Row already unwrapped to List
+                        ? rows.stream().flatMap(r -> ((List<Object>) r.get(0)).stream()).toList()
+                        // N scalar rows (UNNEST'd) → each row is an element
+                        : rows.stream().map(r -> r.get(0)).toList();
                 yield new CollectionResult(values, returnType);
             }
             case GenericType.Relation r -> {
