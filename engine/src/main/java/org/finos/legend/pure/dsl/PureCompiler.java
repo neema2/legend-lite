@@ -6826,7 +6826,7 @@ public final class PureCompiler {
 
                 // Get the target class and mapping
                 String targetClassName = nav.targetClassName();
-                RelationalMapping targetMapping = modelContext.findMapping(targetClassName).orElse(null);
+                RelationalMapping targetMapping = (RelationalMapping) modelContext.findMapping(targetClassName).orElse(null);
 
                 navigationSegments.add(new NavigationSegment(
                         propName,

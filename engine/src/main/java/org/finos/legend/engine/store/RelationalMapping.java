@@ -1,5 +1,9 @@
 package org.finos.legend.engine.store;
 
+import org.finos.legend.engine.plan.GenericType;
+import org.finos.legend.pure.dsl.ast.AppliedProperty;
+import org.finos.legend.pure.dsl.ast.ValueSpecification;
+import org.finos.legend.pure.dsl.ast.Variable;
 import org.finos.legend.pure.m3.PureClass;
 
 import java.util.List;
@@ -22,7 +26,7 @@ public record RelationalMapping(
         PureClass pureClass,
         Table table,
         List<PropertyMapping> propertyMappings,
-        boolean nested) {
+        boolean nested) implements ClassMapping {
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
         this(pureClass, table, propertyMappings, false);
@@ -127,12 +131,15 @@ public record RelationalMapping(
         var mappings = new java.util.ArrayList<PropertyMapping>();
 
         for (var prop : pureClass.allProperties()) {
-            // Only map scalar primitive properties — class-typed / to-many
-            // are handled as associations via TypeInfo.AssociationTarget
-            if (prop.isCollection()) continue;
-            if (!(prop.genericType() instanceof org.finos.legend.pure.m3.PrimitiveType pt)) continue;
-
-            SqlDataType sqlType = SqlDataType.fromPrimitiveType(pt);
+            // Map ALL properties — for struct literals, every property is a physical column,
+            // including collections (arrays needing UNNEST) and class-typed (nested structs).
+            SqlDataType sqlType;
+            if (prop.genericType() instanceof org.finos.legend.pure.m3.PrimitiveType pt) {
+                sqlType = SqlDataType.fromPrimitiveType(pt);
+            } else {
+                // Class-typed property → use VARIANT (JSON/struct)
+                sqlType = SqlDataType.SEMISTRUCTURED;
+            }
             columns.add(Column.nullable(prop.name(), sqlType));
             mappings.add(PropertyMapping.column(prop.name(), prop.name()));
         }
@@ -155,5 +162,40 @@ public record RelationalMapping(
         }
         sb.append("}");
         return sb.toString();
+    }
+
+    // ========== ClassMapping interface ==========
+
+    @Override
+    public PureClass targetClass() {
+        return pureClass;
+    }
+
+    @Override
+    public Table sourceTable() {
+        return table;
+    }
+
+    @Override
+    public ValueSpecification expressionForProperty(String propertyName) {
+        var pmOpt = getPropertyMapping(propertyName);
+        if (pmOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Property '" + propertyName + "' not found in mapping for " + pureClass.name());
+        }
+        var pm = pmOpt.get();
+        // Simple column reference: $src.COLUMN_NAME
+        return new AppliedProperty(pm.columnName(), List.of(new Variable("src")));
+    }
+
+    @Override
+    public GenericType typeForProperty(String propertyName) {
+        return pureTypeForProperty(propertyName);
+    }
+
+    @Override
+    public boolean hasProperty(String propertyName) {
+        return propertyMappings.stream()
+                .anyMatch(pm -> pm.propertyName().equals(propertyName));
     }
 }

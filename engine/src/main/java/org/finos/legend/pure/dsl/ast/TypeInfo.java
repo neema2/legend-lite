@@ -3,7 +3,8 @@ package org.finos.legend.pure.dsl.ast;
 import org.finos.legend.engine.plan.GenericType;
 import org.finos.legend.engine.plan.RelationType;
 import org.finos.legend.engine.store.Join;
-import org.finos.legend.engine.store.RelationalMapping;
+import org.finos.legend.engine.store.PureClassMapping;
+import org.finos.legend.engine.store.ClassMapping;
 import org.finos.legend.pure.m3.Multiplicity;
 
 import java.util.List;
@@ -39,7 +40,7 @@ import java.util.Map;
  */
 public record TypeInfo(
         RelationType relationType,
-        RelationalMapping mapping,
+        ClassMapping mapping,
         Map<String, AssociationTarget> associations,
         List<SortSpec> sortSpecs,
         List<ProjectionSpec> projections,
@@ -75,14 +76,20 @@ public record TypeInfo(
          * MANY ([*]) signals PlanGenerator to UNNEST list results into N rows.
          * ONE ([1]) means the list is a single opaque value (e.g., fold result).
          */
-        Multiplicity multiplicity) {
+        Multiplicity multiplicity,
+        /**
+         * Pre-parsed M2M (Pure) class mapping.
+         * When non-null, this relation is backed by M2M expressions, not a direct table.
+         * PlanGenerator reads this to emit computed SQL expressions for M2M columns.
+         */
+        PureClassMapping pureClassMapping) {
 
     /**
      * Pre-resolved association navigation target.
      * Computed by CleanCompiler so PlanGenerator needs no ModelContext.
      */
     public record AssociationTarget(
-            RelationalMapping targetMapping,
+            ClassMapping targetMapping,
             Join join,
             boolean isToMany) {
     }
@@ -352,12 +359,12 @@ public record TypeInfo(
     }
 
     /** Full constructor with both type and mapping. */
-    public static TypeInfo of(RelationType relationType, RelationalMapping mapping) {
+    public static TypeInfo of(RelationType relationType, ClassMapping mapping) {
         return builder().relationType(relationType).mapping(mapping).build();
     }
 
     /** Full constructor with associations. */
-    public static TypeInfo of(RelationType relationType, RelationalMapping mapping,
+    public static TypeInfo of(RelationType relationType, ClassMapping mapping,
             Map<String, AssociationTarget> associations) {
         return builder().relationType(relationType).mapping(mapping).associations(associations).build();
     }
@@ -387,7 +394,7 @@ public record TypeInfo(
      */
     public static final class Builder {
         private RelationType relationType;
-        private RelationalMapping mapping;
+        private ClassMapping mapping;
         private Map<String, AssociationTarget> associations = Map.of();
         private List<SortSpec> sortSpecs = List.of();
         private List<ProjectionSpec> projections = List.of();
@@ -403,6 +410,7 @@ public record TypeInfo(
         private GenericType returnType;
         private Map<String, String> joinColumnRenames = Map.of();
         private Multiplicity multiplicity;
+        private PureClassMapping pureClassMapping;
 
         private Builder() {}
 
@@ -424,10 +432,11 @@ public record TypeInfo(
             this.returnType = src.returnType();
             this.joinColumnRenames = src.joinColumnRenames();
             this.multiplicity = src.multiplicity();
+            this.pureClassMapping = src.pureClassMapping();
         }
 
         public Builder relationType(RelationType v) { this.relationType = v; return this; }
-        public Builder mapping(RelationalMapping v) { this.mapping = v; return this; }
+        public Builder mapping(ClassMapping v) { this.mapping = v; return this; }
         public Builder associations(Map<String, AssociationTarget> v) { this.associations = v; return this; }
         public Builder sortSpecs(List<SortSpec> v) { this.sortSpecs = v; return this; }
         public Builder projections(List<ProjectionSpec> v) { this.projections = v; return this; }
@@ -443,12 +452,13 @@ public record TypeInfo(
         public Builder returnType(GenericType v) { this.returnType = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
         public Builder multiplicity(Multiplicity v) { this.multiplicity = v; return this; }
+        public Builder pureClassMapping(PureClassMapping v) { this.pureClassMapping = v; return this; }
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
                     columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
                     lambdaParam, columnAlias, pivotSpec, variantAccess, returnType,
-                    joinColumnRenames, multiplicity);
+                    joinColumnRenames, multiplicity, pureClassMapping);
         }
     }
 
@@ -523,7 +533,7 @@ public record TypeInfo(
 
     /** Returns the physical table name from the mapping, or null if unmapped. */
     public String tableName() {
-        return mapping != null ? mapping.table().name() : null;
+        return mapping != null ? mapping.sourceTable().name() : null;
     }
 
     /**

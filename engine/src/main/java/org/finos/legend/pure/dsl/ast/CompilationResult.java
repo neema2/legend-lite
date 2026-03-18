@@ -1,7 +1,7 @@
 package org.finos.legend.pure.dsl.ast;
 
 import org.finos.legend.engine.plan.RelationType;
-import org.finos.legend.engine.store.RelationalMapping;
+import org.finos.legend.engine.store.ClassMapping;
 
 import java.util.IdentityHashMap;
 
@@ -25,7 +25,7 @@ import java.util.IdentityHashMap;
 public record CompilationResult(
         ValueSpecification ast,
         IdentityHashMap<ValueSpecification, TypeInfo> types,
-        RelationalMapping mapping) {
+        ClassMapping mapping) {
 
     /** Looks up the type info for a node, throwing if not found. */
     public TypeInfo requireType(ValueSpecification node) {

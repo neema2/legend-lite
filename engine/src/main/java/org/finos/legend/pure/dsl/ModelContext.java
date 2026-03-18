@@ -1,8 +1,8 @@
 package org.finos.legend.pure.dsl;
 
 import org.finos.legend.engine.store.Join;
+import org.finos.legend.engine.store.ClassMapping;
 import org.finos.legend.engine.store.MappingRegistry;
-import org.finos.legend.engine.store.RelationalMapping;
 import org.finos.legend.engine.store.Table;
 import org.finos.legend.pure.m3.Association;
 import org.finos.legend.pure.m3.PureClass;
@@ -36,9 +36,9 @@ public interface ModelContext {
      * Finds a mapping for a class by name.
      * 
      * @param className Simple or qualified class name
-     * @return The relational mapping, if found
+     * @return The class mapping, if found
      */
-    Optional<RelationalMapping> findMapping(String className);
+    Optional<ClassMapping> findMapping(String className);
 
     /**
      * Finds a PureClass by name.

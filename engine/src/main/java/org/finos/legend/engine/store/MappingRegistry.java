@@ -1,6 +1,7 @@
 package org.finos.legend.engine.store;
 
 import org.finos.legend.pure.dsl.m2m.M2MClassMapping;
+import org.finos.legend.engine.store.PureClassMapping;
 import org.finos.legend.pure.m3.PureClass;
 
 import java.util.Map;
@@ -16,12 +17,14 @@ public final class MappingRegistry {
     private final Map<String, RelationalMapping> mappingsByClassName;
     private final Map<String, RelationalMapping> mappingsByTableName;
     private final Map<String, M2MClassMapping> m2mMappingsByTargetClass;
+    private final Map<String, PureClassMapping> pureClassMappingsByTargetClass;
     private final Map<String, Join> joinsByName;
 
     public MappingRegistry() {
         this.mappingsByClassName = new ConcurrentHashMap<>();
         this.mappingsByTableName = new ConcurrentHashMap<>();
         this.m2mMappingsByTargetClass = new ConcurrentHashMap<>();
+        this.pureClassMappingsByTargetClass = new ConcurrentHashMap<>();
         this.joinsByName = new ConcurrentHashMap<>();
     }
 
@@ -54,6 +57,21 @@ public final class MappingRegistry {
     public MappingRegistry registerM2M(M2MClassMapping mapping) {
         m2mMappingsByTargetClass.put(mapping.targetClassName(), mapping);
         return this;
+    }
+
+    /**
+     * Registers a PureClassMapping (clean AST, replaces M2M).
+     */
+    public MappingRegistry registerPureClassMapping(PureClassMapping mapping) {
+        pureClassMappingsByTargetClass.put(mapping.targetClassName(), mapping);
+        return this;
+    }
+
+    /**
+     * Looks up a PureClassMapping by target class name.
+     */
+    public Optional<PureClassMapping> findPureClassMapping(String targetClassName) {
+        return Optional.ofNullable(pureClassMappingsByTargetClass.get(targetClassName));
     }
 
     /**
@@ -200,6 +218,7 @@ public final class MappingRegistry {
         mappingsByClassName.clear();
         mappingsByTableName.clear();
         m2mMappingsByTargetClass.clear();
+        pureClassMappingsByTargetClass.clear();
         joinsByName.clear();
     }
 }

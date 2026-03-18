@@ -3,6 +3,7 @@ package org.finos.legend.pure.dsl.ast;
 import org.finos.legend.engine.plan.GenericType;
 import org.finos.legend.engine.plan.RelationType;
 import org.finos.legend.engine.store.MappingRegistry;
+import org.finos.legend.engine.store.ClassMapping;
 import org.finos.legend.engine.store.RelationalMapping;
 import org.finos.legend.engine.store.Table;
 import org.finos.legend.pure.dsl.ModelContext;
@@ -152,7 +153,7 @@ public class CleanCompiler {
      * All type registration in CleanCompiler goes through this method.
      */
     private TypeInfo typed(ValueSpecification ast, RelationType relationType,
-            RelationalMapping mapping) {
+            ClassMapping mapping) {
         return typed(ast, relationType, mapping, java.util.Map.of());
     }
 
@@ -160,7 +161,7 @@ public class CleanCompiler {
      * Registers TypeInfo with pre-resolved associations in the side table.
      */
     private TypeInfo typed(ValueSpecification ast, RelationType relationType,
-            RelationalMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
+            ClassMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
         var info = TypeInfo.of(relationType, mapping, associations);
         types.put(ast, info);
         return info;
@@ -293,8 +294,8 @@ public class CleanCompiler {
             if (mappingRegistry != null) {
                 var mappingOpt = mappingRegistry.findByClassName(className);
                 if (mappingOpt.isPresent()) {
-                    RelationalMapping mapping = mappingOpt.get();
-                    RelationType relType = tableToRelationType(mapping.table());
+                    ClassMapping mapping = mappingOpt.get();
+                    RelationType relType = tableToRelationType(mapping.sourceTable());
                     return typed(af, relType, mapping);
                 }
             }
@@ -326,15 +327,118 @@ public class CleanCompiler {
         }
 
         if (mappingRegistry != null) {
+            // Try relational mapping first
             var mappingOpt = mappingRegistry.findByClassName(className);
             if (mappingOpt.isPresent()) {
-                RelationalMapping mapping = mappingOpt.get();
-                RelationType relType = tableToRelationType(mapping.table());
+                ClassMapping mapping = mappingOpt.get();
+                RelationType relType = tableToRelationType(mapping.sourceTable());
                 return typed(af, relType, mapping);
+            }
+
+            // Try PureClassMapping (M2M) — runtime-driven
+            var pureMappingOpt = mappingRegistry.findPureClassMapping(className);
+            if (pureMappingOpt.isPresent()) {
+                return compileM2MGetAll(af, pureMappingOpt.get());
             }
         }
 
         return scalar(af);
+    }
+
+    /**
+     * Compiles getAll() for an M2M-mapped class.
+     * Resolves source class → source RelationalMapping → source table.
+     * Builds virtual RelationType from M2M property names.
+     * Stores PureClassMapping in TypeInfo sidecar for PlanGenerator.
+     */
+    private TypeInfo compileM2MGetAll(AppliedFunction af,
+            org.finos.legend.engine.store.PureClassMapping pureMapping) {
+        // Resolve source class → its relational mapping → source table
+        String sourceClassName = pureMapping.sourceClassName();
+        var sourceMapping = mappingRegistry.findByClassName(sourceClassName);
+
+        if (sourceMapping.isEmpty()) {
+            throw new PureCompileException(
+                    "M2M source class '" + sourceClassName + "' has no relational mapping. "
+                    + "The source class must be mapped to a database table.");
+        }
+
+        ClassMapping srcMapping = sourceMapping.get();
+
+        // Resolve the PureClassMapping: link it to its source mapping and target class
+        org.finos.legend.pure.m3.PureClass targetClass = null;
+        if (modelContext != null) {
+            targetClass = modelContext.findClass(pureMapping.targetClassName()).orElse(null);
+        }
+        var resolvedMapping = pureMapping.withResolved(targetClass, srcMapping);
+
+        // Build virtual RelationType: M2M property names as columns.
+        // Infer types from target class properties (via ModelContext).
+        Map<String, GenericType> virtualColumns = new LinkedHashMap<>();
+        for (String propName : pureMapping.propertyExpressions().keySet()) {
+            // Look up property type from the target class
+            GenericType propType = resolveM2MPropertyType(pureMapping.targetClassName(), propName);
+            virtualColumns.put(propName, propType);
+        }
+        // Also add join reference properties (deep fetch)
+        for (String propName : pureMapping.joinReferences().keySet()) {
+            // Join properties are class-typed (nested objects) — mark as ANY for now
+            virtualColumns.put(propName, GenericType.Primitive.ANY);
+        }
+
+        RelationType virtualRelType = RelationType.withoutPivot(virtualColumns);
+
+        // Type-check M2M property expressions: bind $src to source relationType+mapping
+        // so that operands in expressions like `$src.firstName + ' ' + $src.lastName`
+        // get tagged with their types (String, Integer, etc.) in the sidecar.
+        if (srcMapping instanceof RelationalMapping srcRm) {
+            // Build source RelationType from source mapping's property names + types
+            Map<String, GenericType> srcColumns = new LinkedHashMap<>();
+            for (var pm : srcRm.propertyMappings()) {
+                srcColumns.put(pm.propertyName(), srcRm.pureTypeForProperty(pm.propertyName()));
+            }
+            RelationType srcRelType = RelationType.withoutPivot(srcColumns);
+
+            // Bind $src to source type
+            CompilationContext srcCtx = new CompilationContext()
+                    .withRelationType("src", srcRelType)
+                    .withMapping("src", srcRm);
+
+            // Type-check each M2M property expression
+            for (var entry : pureMapping.propertyExpressions().entrySet()) {
+                typeCheckExpression(entry.getValue(), srcCtx);
+            }
+        }
+
+        // Store resolved PureClassMapping as the sidecar mapping.
+        // ClassMapping.sourceTable() chains through to the source RelationalMapping's table.
+        // ClassMapping.expressionForProperty() returns the M2M expression AST.
+        var info = TypeInfo.builder()
+                .relationType(virtualRelType)
+                .mapping(resolvedMapping)
+                .pureClassMapping(pureMapping)
+                .build();
+        types.put(af, info);
+        return info;
+    }
+
+    /**
+     * Resolves the type of an M2M target property from the model.
+     * Falls back to String if class/property not found.
+     */
+    private GenericType resolveM2MPropertyType(String className, String propertyName) {
+        if (modelContext != null) {
+            var classOpt = modelContext.findClass(className);
+            if (classOpt.isPresent()) {
+                for (var prop : classOpt.get().properties()) {
+                    if (prop.name().equals(propertyName)) {
+                        return GenericType.Primitive.fromTypeName(prop.genericType().typeName());
+                    }
+                }
+            }
+        }
+        // Default to String if we can't resolve
+        return GenericType.Primitive.STRING;
     }
 
     // ========== Shape-Preserving Operations ==========
@@ -760,7 +864,7 @@ public class CleanCompiler {
 
         TypeInfo source = compileExpr(params.get(0), ctx);
         RelationType sourceType = source.relationType();
-        RelationalMapping mapping = source.mapping();
+        ClassMapping mapping = source.mapping();
 
 
         // Determine projection specs and aliases based on AST pattern
@@ -790,10 +894,10 @@ public class CleanCompiler {
 
         // Pre-resolve associations for multi-hop property paths
         var associations = resolveAssociations(lambdaSpecs, mapping);
-        // Merge pre-existing associations from source (e.g., struct instance to-many properties)
+        // Merge: pre-existing associations from source (e.g. struct identity mappings) take priority
         if (source.hasAssociations()) {
-            var merged = new java.util.LinkedHashMap<>(associations);
-            source.associations().forEach(merged::putIfAbsent);
+            var merged = new java.util.LinkedHashMap<>(source.associations());
+            associations.forEach(merged::putIfAbsent);
             associations = java.util.Map.copyOf(merged);
         }
 
@@ -840,10 +944,16 @@ public class CleanCompiler {
             String resolvedColumn = null;
             GenericType colType = null;
             if (mapping != null && propertyName != null) {
-                var columnOpt = mapping.getColumnForProperty(propertyName);
-                if (columnOpt.isPresent()) {
-                    resolvedColumn = columnOpt.get();
-                    colType = sourceType.columns().get(resolvedColumn);
+                if (mapping instanceof RelationalMapping rm) {
+                    var columnOpt = rm.getColumnForProperty(propertyName);
+                    if (columnOpt.isPresent()) {
+                        resolvedColumn = columnOpt.get();
+                        colType = sourceType.columns().get(resolvedColumn);
+                    }
+                } else if (mapping.hasProperty(propertyName)) {
+                    // M2M: property name IS the virtual column name
+                    resolvedColumn = propertyName;
+                    colType = sourceType.columns().get(propertyName);
                 }
             } else if (propertyName != null && sourceType.columns().containsKey(propertyName)) {
                 resolvedColumn = propertyName;
@@ -871,13 +981,14 @@ public class CleanCompiler {
                 if (assocTarget != null) {
                     var targetMapping = assocTarget.targetMapping();
                     // Resolve column name for the property
-                    var targetColOpt = targetMapping.getColumnForProperty(propertyName);
+                    var targetColOpt = (targetMapping instanceof RelationalMapping trm)
+                            ? trm.getColumnForProperty(propertyName) : java.util.Optional.<String>empty();
                     if (targetColOpt.isPresent()) {
                         resolvedColumn = targetColOpt.get();
                     }
                     // Get type from Pure class definition (authoritative)
                     try {
-                        colType = targetMapping.pureTypeForProperty(propertyName);
+                        colType = targetMapping.typeForProperty(propertyName);
                     } catch (IllegalArgumentException ignored) { }
                 }
             }
@@ -3339,8 +3450,13 @@ public class CleanCompiler {
         var associations = new java.util.LinkedHashMap<String, TypeInfo.AssociationTarget>();
         for (var prop : pureClass.allProperties()) {
             if (prop.isCollection() && prop.genericType() instanceof org.finos.legend.pure.m3.PureClass elementClass) {
+                // Resolve FULL class from modelContext — property genericType may be a
+                // forward-reference stub with no properties
+                var resolvedClass = modelContext != null
+                    ? modelContext.findClass(elementClass.qualifiedName()).orElse(elementClass)
+                    : elementClass;
                 // Build identity mapping for element class so compileProject can resolve leaf properties
-                var targetMapping = RelationalMapping.identity(elementClass);
+                var targetMapping = RelationalMapping.identity(resolvedClass);
                 associations.put(prop.name(), new TypeInfo.AssociationTarget(targetMapping, null, true));
             }
         }
@@ -3419,9 +3535,10 @@ public class CleanCompiler {
                     if (relType != null && !relType.columns().isEmpty()) {
                         // Mapping exists — verify the property name is a valid column
                         // (projected columns use property names, not physical column names)
-                        RelationalMapping mapping = ctx.getMapping(v.name());
+                        ClassMapping mapping = ctx.getMapping(v.name());
                         if (mapping != null) {
-                            var columnOpt = mapping.getColumnForProperty(ap.property());
+                            var columnOpt = (mapping instanceof RelationalMapping rm2)
+                                    ? rm2.getColumnForProperty(ap.property()) : java.util.Optional.<String>empty();
                             if (columnOpt.isPresent()) {
                                 // Property is in the mapping — check the property name (alias)
                                 // against projected columns, not the physical column name
@@ -3657,7 +3774,7 @@ public class CleanCompiler {
      * @return Map of association property name → pre-resolved target
      */
     private java.util.Map<String, TypeInfo.AssociationTarget> resolveAssociations(
-            List<ValueSpecification> lambdaSpecs, RelationalMapping mapping) {
+            List<ValueSpecification> lambdaSpecs, ClassMapping mapping) {
         if (modelContext == null || mapping == null) {
             return java.util.Map.of();
         }
@@ -3683,7 +3800,7 @@ public class CleanCompiler {
      * @return Map of association property name → pre-resolved target
      */
     private java.util.Map<String, TypeInfo.AssociationTarget> resolveAssociationsInBody(
-            List<ValueSpecification> body, RelationalMapping mapping) {
+            List<ValueSpecification> body, ClassMapping mapping) {
         if (modelContext == null || mapping == null) {
             return java.util.Map.of();
         }
@@ -3698,7 +3815,7 @@ public class CleanCompiler {
      * Recursively scans an expression tree for multi-hop AppliedProperty chains.
      * When found, resolves the association and stores in the result map.
      */
-    private void scanForAssociationPaths(ValueSpecification vs, RelationalMapping mapping,
+    private void scanForAssociationPaths(ValueSpecification vs, ClassMapping mapping,
             java.util.Map<String, TypeInfo.AssociationTarget> result) {
         if (vs instanceof AppliedProperty ap) {
             // Check if this is a multi-hop chain like $p.items.name
@@ -3727,9 +3844,9 @@ public class CleanCompiler {
     /**
      * Resolves a single association property and stores in the result map.
      */
-    private void resolveAndStore(String assocProp, RelationalMapping mapping,
+    private void resolveAndStore(String assocProp, ClassMapping mapping,
             java.util.Map<String, TypeInfo.AssociationTarget> result) {
-        String sourceClassName = mapping.pureClass().name();
+        String sourceClassName = mapping.targetClass().name();
         var assocNav = modelContext.findAssociationByProperty(sourceClassName, assocProp);
         if (assocNav.isPresent()) {
             var nav = assocNav.get();
@@ -4306,7 +4423,7 @@ public class CleanCompiler {
      */
     public record CompilationContext(
             Map<String, RelationType> relationTypes,
-            Map<String, RelationalMapping> mappings,
+            Map<String, ClassMapping> mappings,
             Map<String, GenericType> lambdaParams,
             Map<String, ValueSpecification> letBindings) {
 
@@ -4320,7 +4437,7 @@ public class CleanCompiler {
             return new CompilationContext(Map.copyOf(newTypes), mappings, lambdaParams, letBindings);
         }
 
-        public CompilationContext withMapping(String paramName, RelationalMapping mapping) {
+        public CompilationContext withMapping(String paramName, ClassMapping mapping) {
             var newMappings = new HashMap<>(mappings);
             newMappings.put(paramName, mapping);
             return new CompilationContext(relationTypes, Map.copyOf(newMappings), lambdaParams, letBindings);
@@ -4354,7 +4471,7 @@ public class CleanCompiler {
             return relationTypes.get(name);
         }
 
-        public RelationalMapping getMapping(String name) {
+        public ClassMapping getMapping(String name) {
             return mappings.get(name);
         }
     }

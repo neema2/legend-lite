@@ -375,43 +375,74 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
-     * Creates an M2MClassMapping from the parsed ClassMappingDefinition and
-     * registers it.
+     * Creates M2M class mappings from the parsed ClassMappingDefinition and
+     * registers them.
      * This is called when addMapping encounters a "Pure" mapping type.
+     * 
+     * Registers BOTH old M2MClassMapping (for backward compat) and new
+     * PureClassMapping (for clean pipeline). Phase 4 will remove old one.
      */
     private void registerM2MClassMapping(String mappingName, MappingDefinition.ClassMappingDefinition classMapping) {
-        // Convert m2mPropertyExpressions to M2MPropertyMappings
-        List<org.finos.legend.pure.dsl.m2m.M2MPropertyMapping> propertyMappings = new java.util.ArrayList<>();
+        // === NEW: Parse M2M expressions via CleanAstBuilder → PureClassMapping ===
+        java.util.Map<String, org.finos.legend.pure.dsl.ast.ValueSpecification> parsedExpressions = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> joinRefs = new java.util.LinkedHashMap<>();
 
         if (classMapping.m2mPropertyExpressions() != null) {
             for (var entry : classMapping.m2mPropertyExpressions().entrySet()) {
                 String propertyName = entry.getKey();
                 String expressionString = entry.getValue();
 
-                // Parse the expression string into an M2MExpression
+                if (expressionString.startsWith("@")) {
+                    // Join reference (e.g., @PersonAddress) — store separately
+                    joinRefs.put(propertyName, expressionString.substring(1));
+                } else {
+                    // Parse Pure expression via CleanAstBuilder
+                    parsedExpressions.put(propertyName,
+                            org.finos.legend.pure.dsl.PureParser.parseClean(expressionString));
+                }
+            }
+        }
+
+        // Parse filter via CleanAstBuilder
+        org.finos.legend.pure.dsl.ast.ValueSpecification parsedFilter = null;
+        if (classMapping.filterExpression() != null && !classMapping.filterExpression().isEmpty()) {
+            parsedFilter = org.finos.legend.pure.dsl.PureParser.parseClean(classMapping.filterExpression());
+        }
+
+        // Register new PureClassMapping (clean pipeline)
+        org.finos.legend.engine.store.PureClassMapping pureMapping =
+                new org.finos.legend.engine.store.PureClassMapping(
+                        classMapping.className(),
+                        classMapping.sourceClassName(),
+                        parsedExpressions,
+                        parsedFilter,
+                        joinRefs,
+                        null,  // targetClass — resolved later
+                        null); // sourceMapping — resolved later
+        mappingRegistry.registerPureClassMapping(pureMapping);
+
+        // === OLD: Keep M2MClassMapping registration for backward compat ===
+        List<org.finos.legend.pure.dsl.m2m.M2MPropertyMapping> propertyMappings = new java.util.ArrayList<>();
+        if (classMapping.m2mPropertyExpressions() != null) {
+            for (var entry : classMapping.m2mPropertyExpressions().entrySet()) {
+                String propertyName = entry.getKey();
+                String expressionString = entry.getValue();
                 org.finos.legend.pure.dsl.m2m.M2MExpression expression = org.finos.legend.pure.dsl.m2m.M2MExpressionParser
                         .parse(expressionString);
-
                 propertyMappings.add(new org.finos.legend.pure.dsl.m2m.M2MPropertyMapping(
                         propertyName, expression));
             }
         }
-
-        // Parse filter expression if present
         org.finos.legend.pure.dsl.m2m.M2MExpression filter = null;
         if (classMapping.filterExpression() != null && !classMapping.filterExpression().isEmpty()) {
             filter = org.finos.legend.pure.dsl.m2m.M2MExpressionParser.parse(classMapping.filterExpression());
         }
-
-        // Create M2MClassMapping
         org.finos.legend.pure.dsl.m2m.M2MClassMapping m2mMapping = new org.finos.legend.pure.dsl.m2m.M2MClassMapping(
                 classMapping.className(),
-                null, // tag
+                null,
                 classMapping.sourceClassName(),
                 filter,
                 propertyMappings);
-
-        // Register with MappingRegistry
         mappingRegistry.registerM2M(m2mMapping);
     }
 
@@ -594,8 +625,13 @@ public final class PureModelBuilder implements ModelContext {
     // ==================== ModelContext Implementation ====================
 
     @Override
-    public Optional<RelationalMapping> findMapping(String className) {
-        return mappingRegistry.findByClassName(className);
+    public Optional<ClassMapping> findMapping(String className) {
+        // Try relational mapping first, then M2M
+        var relOpt = mappingRegistry.findByClassName(className);
+        if (relOpt.isPresent()) return Optional.of(relOpt.get());
+        var pureOpt = mappingRegistry.findPureClassMapping(className);
+        if (pureOpt.isPresent()) return Optional.of(pureOpt.get());
+        return Optional.empty();
     }
 
     @Override

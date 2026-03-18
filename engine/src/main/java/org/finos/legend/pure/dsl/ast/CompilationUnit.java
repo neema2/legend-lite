@@ -1,6 +1,6 @@
 package org.finos.legend.pure.dsl.ast;
 
-import org.finos.legend.engine.store.RelationalMapping;
+import org.finos.legend.engine.store.ClassMapping;
 
 import java.util.IdentityHashMap;
 
@@ -28,7 +28,7 @@ public record CompilationUnit(
     /**
      * Looks up the mapping for a specific AST node (may be null for relation DSL).
      */
-    public RelationalMapping mappingFor(ValueSpecification node) {
+    public ClassMapping mappingFor(ValueSpecification node) {
         TypeInfo info = types.get(node);
         return info != null ? info.mapping() : null;
     }

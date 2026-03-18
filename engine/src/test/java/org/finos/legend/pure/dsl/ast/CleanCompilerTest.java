@@ -54,8 +54,9 @@ class CleanCompilerTest {
             return registry;
         }
 
-        public java.util.Optional<RelationalMapping> findMapping(String n) {
-            return registry.findByClassName(n);
+        public java.util.Optional<org.finos.legend.engine.store.ClassMapping> findMapping(String n) {
+            var opt = registry.findByClassName(n);
+            return opt.map(m -> (org.finos.legend.engine.store.ClassMapping) m);
         }
 
         public java.util.Optional<org.finos.legend.pure.m3.PureClass> findClass(String n) {
