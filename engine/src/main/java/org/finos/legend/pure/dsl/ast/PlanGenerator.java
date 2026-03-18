@@ -89,10 +89,7 @@ public class PlanGenerator {
             builder = generateRelation(vs);
         }
 
-        // GraphFetch JSON wrapping: replace tabular SELECT with JSON output
-        if (info.graphFetchSpec() != null) {
-            builder = wrapJsonOutput(builder, info.graphFetchSpec(), info);
-        }
+        // JSON wrapping now handled inside generateGraphFetch — no top-level intercept needed.
 
         // returnType MUST be stamped by CleanCompiler.compile() — no silent fallback.
         GenericType returnType = info.returnType();
@@ -130,12 +127,8 @@ public class PlanGenerator {
         var kvPairs = new java.util.ArrayList<SqlExpr>();
         for (var prop : spec.properties()) {
             kvPairs.add(new SqlExpr.StringLiteral(prop.name()));
-            if (prop.isNested()) {
-                // TODO: nested json_object for deep fetch (Phase 3)
-                kvPairs.add(new SqlExpr.ColumnRef(dialect.quoteIdentifier(prop.name())));
-            } else {
-                kvPairs.add(new SqlExpr.ColumnRef(dialect.quoteIdentifier(prop.name())));
-            }
+            // ColumnRef.toSql() calls dialect.quoteIdentifier() — pass raw name
+            kvPairs.add(new SqlExpr.ColumnRef(prop.name()));
         }
 
         // Dialect-delegated JSON expressions (no DuckDB names in PlanGenerator)
@@ -385,6 +378,8 @@ public class PlanGenerator {
             case "asOfJoin" -> generateAsOfJoin(af);
             case "flatten" -> generateFlatten(af);
             case "write" -> generateWrite(af);
+            case "graphFetch" -> generateGraphFetch(af);
+            case "serialize" -> generateRelation(af.parameters().get(0)); // walk to graphFetch source
             // --- Pass-through: source-preserving relational functions ---
             case "toString", "toVariant",
                  "eq", "cast", "size",
@@ -406,6 +401,57 @@ public class PlanGenerator {
         return new SqlBuilder()
                 .selectStar()
                 .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier(alias));
+    }
+
+    /**
+     * Generates SQL for graphFetch: projects mapped properties from the source,
+     * then wraps with JSON output based on the GraphFetchSpec.
+     *
+     * <p>Like generateProject, resolves mapped property expressions via
+     * resolveColumnExpr. The projected columns are then wrapped with
+     * json_group_array(json_object(...)).
+     *
+     * <p>Currently handles flat fetch (all scalar properties).
+     * Phase 3: extend to handle nested properties via correlated subqueries.
+     */
+    private SqlBuilder generateGraphFetch(AppliedFunction af) {
+        TypeInfo info = unit.typeInfoFor(af);
+        var spec = info.graphFetchSpec();
+        if (spec == null) {
+            throw new PureCompileException(
+                    "generateGraphFetch: graphFetchSpec not found in TypeInfo — compiler bug");
+        }
+
+        // Step 1: Build source SQL (e.g., Person.all() → SELECT * FROM T_RAW_PERSON)
+        SqlBuilder source = generateRelation(af.parameters().get(0));
+
+        // Step 2: Get table alias and mapping
+        var mapping = mappingFor(af);
+        String tableAlias = unquote(source.getFromAlias());
+
+        // Step 2b: Apply ~filter from M2M mapping (if present)
+        // The filter uses $src which resolves against source columns via sourceMapping
+        if (mapping instanceof org.finos.legend.engine.store.PureClassMapping pcm
+                && pcm.optionalFilter().isPresent()) {
+            SqlExpr whereClause = generateScalar(
+                    pcm.optionalFilter().get(), "$src", pcm.sourceMapping(), tableAlias);
+            source.addWhere(whereClause);
+        }
+
+        // Step 3: Project mapped properties into source builder
+        source.clearSelect();
+        for (var prop : spec.properties()) {
+            if (prop.isNested()) {
+                // TODO: Phase 3 — correlated subquery for nested objects
+                throw new PureCompileException(
+                        "Nested graphFetch properties not yet supported in new pipeline: " + prop.name());
+            }
+            SqlExpr colExpr = resolveColumnExpr(prop.name(), mapping, tableAlias);
+            source.addSelect(colExpr, dialect.quoteIdentifier(prop.name()));
+        }
+
+        // Step 4: Wrap projected query in JSON output
+        return wrapJsonOutput(source, spec, info);
     }
 
     private SqlBuilder generateTableAccess(AppliedFunction af) {

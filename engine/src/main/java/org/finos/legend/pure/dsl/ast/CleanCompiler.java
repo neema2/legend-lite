@@ -594,7 +594,7 @@ public class CleanCompiler {
         // (2) Stamp returnType = String (JSON serialization produces a string)
         var info = TypeInfo.from(sourceInfo)
                 .graphFetchSpec(spec)
-                .returnType(org.finos.legend.engine.plan.GenericType.Primitive.STRING)
+                .returnType(org.finos.legend.engine.plan.GenericType.Primitive.JSON)
                 .build();
         types.put(af, info);
         return info;

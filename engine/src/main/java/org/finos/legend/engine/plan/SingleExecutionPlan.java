@@ -33,3 +33,5 @@ public record SingleExecutionPlan(
                 "Plan root is not a SQL node: " + rootExecutionNode.getClass().getSimpleName());
     }
 }
+
+

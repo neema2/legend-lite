@@ -292,17 +292,81 @@ class M2MIntegrationTest {
         }
     }
 
-    // ==================== Helper Method ====================
+    // ==================== Helper Methods ====================
 
     /**
-     * Executes a graphFetch Pure query and returns JSON.
-     * This is the ONLY way tests should execute M2M queries.
+     * OLD PIPELINE: Executes via QueryService.executeGraphFetch() → raw JSON string.
      */
     private String executeGraphFetch(String pureQuery) throws SQLException {
         return queryService.executeGraphFetch(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
     }
 
-    // ==================== M2M graphFetch Tests ====================
+    /**
+     * NEW PIPELINE: Executes via QueryService.execute() → GraphResult.
+     * parse → CleanCompiler → PlanGenerator (JSON SQL) → PlanExecutor → GraphResult
+     */
+    private String executeNew(String pureQuery) throws SQLException {
+        var result = queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+        assertInstanceOf(org.finos.legend.engine.execution.ExecutionResult.GraphResult.class, result,
+                "graphFetch/serialize should return GraphResult, got: " + result.getClass().getSimpleName());
+        return result.asGraph().json();
+    }
+
+    // ==================== NEW PIPELINE: graphFetch via execute() ====================
+
+    @Test
+    @DisplayName("NEW PIPELINE: Person.all()->graphFetch->serialize via execute()")
+    void testNewPipelinePersonTransform() throws SQLException {
+        String pureQuery = """
+                Person.all()
+                    ->graphFetch(#{ Person { fullName, upperLastName } }#)
+                    ->serialize(#{ Person { fullName, upperLastName } }#)
+                """;
+
+        String json = executeNew(pureQuery);
+        System.out.println("NEW Person JSON: " + json);
+
+        // Same assertions as old pipeline test
+        assertTrue(json.contains("John Smith"), "Should have concatenated fullName");
+        assertTrue(json.contains("SMITH"), "Should have uppercase lastName");
+        assertTrue(json.contains("Jane Doe"), "Should have all people");
+        assertTrue(json.contains("DOE"));
+    }
+
+    @Test
+    @DisplayName("NEW PIPELINE: Conditional M2M + graphFetch (PersonView)")
+    void testNewPipelineConditional() throws SQLException {
+        String pureQuery = """
+                PersonView.all()
+                    ->graphFetch(#{ PersonView { firstName, ageGroup } }#)
+                    ->serialize(#{ PersonView { firstName, ageGroup } }#)
+                """;
+
+        String json = executeNew(pureQuery);
+        System.out.println("NEW PersonView JSON: " + json);
+
+        assertTrue(json.contains("Adult"), "Should have Adult category");
+        assertTrue(json.contains("Minor"), "Should have Minor for Alice (17)");
+    }
+
+    @Test
+    @DisplayName("NEW PIPELINE: Filtered mapping + graphFetch (ActivePerson)")
+    void testNewPipelineFiltered() throws SQLException {
+        String pureQuery = """
+                ActivePerson.all()
+                    ->graphFetch(#{ ActivePerson { firstName, lastName } }#)
+                    ->serialize(#{ ActivePerson { firstName, lastName } }#)
+                """;
+
+        String json = executeNew(pureQuery);
+        System.out.println("NEW ActivePerson JSON: " + json);
+
+        assertTrue(json.contains("John"), "Should have John (active)");
+        assertTrue(json.contains("Jane"), "Should have Jane (active)");
+        assertFalse(json.contains("Bob"), "Should NOT have Bob (inactive)");
+    }
+
+    // ==================== M2M graphFetch Tests (old pipeline) ====================
 
     @Test
     @DisplayName("M2M: String concatenation and toUpper() - Person.all()->graphFetch")

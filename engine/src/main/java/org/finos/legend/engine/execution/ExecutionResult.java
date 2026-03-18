@@ -275,7 +275,13 @@ public sealed interface ExecutionResult {
                 }
                 yield new TabularResult(columns, rows, r.schema(), returnType);
             }
-            // Primitive, EnumType, PrecisionDecimal, ClassType (future: GraphResult)
+            // Primitive, EnumType, PrecisionDecimal, ClassType
+            case GenericType.Primitive p when p == GenericType.Primitive.JSON -> {
+                // graphFetch/serialize: SQL returns single row with JSON string
+                String json = rows.isEmpty() ? "[]"
+                        : (rows.get(0).get(0) != null ? rows.get(0).get(0).toString() : "[]");
+                yield new GraphResult(json, returnType);
+            }
             default -> {
                 Object value = rows.isEmpty() ? null : rows.get(0).get(0);
                 yield new ScalarResult(value, returnType);
