@@ -77,6 +77,12 @@ class M2MIntegrationTest {
                 addresses: model::Address[*];
             }
 
+            Class model::ActivePersonWithAddress
+            {
+                fullName: String[1];
+                address: model::Address[0..1];
+            }
+
             Class model::PersonView
             {
                 firstName: String[1];
@@ -175,6 +181,13 @@ class M2MIntegrationTest {
                     ~src RawPerson
                     fullName: $src.firstName + ' ' + $src.lastName,
                     addresses: @PersonAddress
+                }
+                ActivePersonWithAddress: Pure
+                {
+                    ~src RawPerson
+                    ~filter $src.isActive == true
+                    fullName: $src.firstName + ' ' + $src.lastName,
+                    address: @PersonAddress
                 }
                 Address: Pure
                 {
@@ -456,6 +469,48 @@ class M2MIntegrationTest {
         assertTrue(json.contains("John Smith"), "Should resolve through chained fullName");
         assertTrue(json.contains("SMITH"), "Should resolve through chained upperLastName");
         assertTrue(json.contains("Jane Doe"), "Should have all people");
+    }
+
+    @Test
+    @DisplayName("NEW PIPELINE: Deep fetch 1-to-1 works for valid data (0 or 1 address)")
+    void testNewPipelineDeepFetch1to1Valid() throws SQLException {
+        // Use ActivePersonWithAddress which filters to isActive==true people.
+        // John (1 addr), Jane (1 addr), Alice (0 addr) — all valid [0..1]
+        // Bob is inactive AND has 2 addresses, so he's excluded by the filter.
+        String pureQuery = """
+                ActivePersonWithAddress.all()
+                    ->graphFetch(#{ ActivePersonWithAddress { fullName, address { city, street } } }#)
+                    ->serialize(#{ ActivePersonWithAddress { fullName, address { city, street } } }#)
+                """;
+
+        String json = executeNew(pureQuery);
+        System.out.println("NEW Deep Fetch 1-to-1 (valid) JSON: " + json);
+
+        assertTrue(json.contains("John Smith"), "Should have John's fullName");
+        assertTrue(json.contains("\"address\""), "Should have nested address property");
+        assertTrue(json.contains("New York"), "Should have John's city");
+        assertTrue(json.contains("123 Main St"), "Should have John's street");
+        assertTrue(json.contains("Jane Doe"), "Should have Jane's fullName");
+        assertTrue(json.contains("Boston"), "Should have Jane's city");
+        assertFalse(json.contains("Bob"), "Bob should be excluded by filter");
+
+        // Alice has no address — nested object should be null
+        assertTrue(json.contains("Alice Wonder"), "Should have Alice's fullName");
+    }
+
+    @Test
+    @DisplayName("NEW PIPELINE: Deep fetch 1-to-1 throws on multiplicity violation")
+    void testNewPipelineDeepFetch1to1Violation() {
+        // PersonWithAddress.address is [0..1] but Bob has 2 addresses in the data.
+        // The scalar subquery correctly rejects this — no silent data loss.
+        String pureQuery = """
+                PersonWithAddress.all()
+                    ->graphFetch(#{ PersonWithAddress { fullName, address { city, street } } }#)
+                    ->serialize(#{ PersonWithAddress { fullName, address { city, street } } }#)
+                """;
+
+        assertThrows(SQLException.class, () -> executeNew(pureQuery),
+                "Should throw when [0..1] property has multiple matches");
     }
 
     // ==================== M2M graphFetch Tests (old pipeline) ====================

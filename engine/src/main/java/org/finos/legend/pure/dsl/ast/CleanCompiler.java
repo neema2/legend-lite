@@ -394,9 +394,38 @@ public class CleanCompiler {
             virtualColumns.put(propName, propType);
         }
         // Also add join reference properties (deep fetch)
-        for (String propName : pureMapping.joinReferences().keySet()) {
+        // Resolve @JoinName references → AssociationTarget for PlanGenerator
+        var associations = new java.util.LinkedHashMap<String, TypeInfo.AssociationTarget>();
+        for (var jrEntry : pureMapping.joinReferences().entrySet()) {
+            String propName = jrEntry.getKey();
+            String joinName = jrEntry.getValue();
+
             // Join properties are class-typed (nested objects) — mark as ANY for now
             virtualColumns.put(propName, GenericType.Primitive.ANY);
+
+            // Resolve the join from the registry
+            var joinOpt = mappingRegistry.findJoin(joinName);
+            if (joinOpt.isEmpty()) continue;
+            org.finos.legend.engine.store.Join join = joinOpt.get();
+
+            // Determine target class from the property type on the target class
+            boolean isToMany = false;
+            ClassMapping targetMapping = null;
+            if (targetClass != null) {
+                var propOpt = targetClass.findProperty(propName);
+                if (propOpt.isPresent()) {
+                    var prop = propOpt.get();
+                    isToMany = !prop.multiplicity().isSingular();
+                    // Find the target class mapping by property type name
+                    String targetClassName = prop.genericType().typeName();
+                    if (targetClassName != null) {
+                        targetMapping = mappingRegistry.findAnyMapping(targetClassName).orElse(null);
+                    }
+                }
+            }
+            if (targetMapping != null) {
+                associations.put(propName, new TypeInfo.AssociationTarget(targetMapping, join, isToMany));
+            }
         }
 
         RelationType virtualRelType = RelationType.withoutPivot(virtualColumns);
@@ -414,10 +443,13 @@ public class CleanCompiler {
         // Store resolved mapping in sidecar.
         // ClassMapping.sourceTable() chains through to the source RelationalMapping's table.
         // ClassMapping.expressionForProperty() returns the M2M expression AST.
-        var info = TypeInfo.builder()
+        var infoBuilder = TypeInfo.builder()
                 .relationType(virtualRelType)
-                .mapping(resolvedMapping)
-                .build();
+                .mapping(resolvedMapping);
+        if (!associations.isEmpty()) {
+            infoBuilder.associations(Map.copyOf(associations));
+        }
+        var info = infoBuilder.build();
         types.put(af, info);
         return info;
     }

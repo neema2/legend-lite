@@ -123,19 +123,30 @@ public class PlanGenerator {
      */
     private SqlBuilder wrapJsonOutput(SqlBuilder tabular,
             org.finos.legend.engine.plan.GraphFetchSpec spec, TypeInfo info) {
+        return wrapJsonOutput(tabular, spec, info, java.util.Map.of());
+    }
+
+    private SqlBuilder wrapJsonOutput(SqlBuilder tabular,
+            org.finos.legend.engine.plan.GraphFetchSpec spec, TypeInfo info,
+            java.util.Map<String, SqlExpr> nestedSubqueries) {
         // Build json_object key-value pairs: 'key', _sub."key", ...
         var kvPairs = new java.util.ArrayList<SqlExpr>();
         for (var prop : spec.properties()) {
             kvPairs.add(new SqlExpr.StringLiteral(prop.name()));
-            // ColumnRef.toSql() calls dialect.quoteIdentifier() — pass raw name
-            kvPairs.add(new SqlExpr.ColumnRef(prop.name()));
+            if (prop.isNested() && nestedSubqueries.containsKey(prop.name())) {
+                // Nested property: correlated subquery expression
+                kvPairs.add(nestedSubqueries.get(prop.name()));
+            } else {
+                // ColumnRef.toSql() calls dialect.quoteIdentifier() — pass raw name
+                kvPairs.add(new SqlExpr.ColumnRef(prop.name()));
+            }
         }
 
         // Dialect-delegated JSON expressions (no DuckDB names in PlanGenerator)
         var jsonObjectExpr = new SqlExpr.JsonObject(kvPairs);
         var jsonArrayExpr = new SqlExpr.JsonArrayAgg(jsonObjectExpr);
 
-        // Outer query: SELECT json_array_agg(json_object(...)) AS "result" FROM (inner) AS _sub
+        // Outer query: SELECT json_array_agg(json_object(...)) AS "result" FROM (inner) AS "_sub"
         var outer = new SqlBuilder();
         outer.addSelect(jsonArrayExpr, dialect.quoteIdentifier("result"));
         outer.fromSubquery(tabular, dialect.quoteIdentifier("_sub"));
@@ -439,19 +450,70 @@ public class PlanGenerator {
         }
 
         // Step 3: Project mapped properties into source builder
+        // Also track parent join columns needed for nested correlated subqueries
         source.clearSelect();
+        var nestedSubqueries = new java.util.LinkedHashMap<String, SqlExpr>();
         for (var prop : spec.properties()) {
             if (prop.isNested()) {
-                // TODO: Phase 3 — correlated subquery for nested objects
-                throw new PureCompileException(
-                        "Nested graphFetch properties not yet supported in new pipeline: " + prop.name());
+                // Resolve association target for this nested property
+                var assocTarget = info.associations().get(prop.name());
+                if (assocTarget == null) {
+                    throw new PureCompileException(
+                            "Nested property '" + prop.name() + "' has no resolved association in TypeInfo");
+                }
+                var childMapping = assocTarget.targetMapping();
+                var join = assocTarget.join();
+                boolean isToMany = assocTarget.isToMany();
+
+                // Ensure parent join column is projected (e.g., ID for T_RAW_PERSON.ID)
+                String parentTable = mapping.sourceTable().name();
+                String parentJoinCol = join.getColumnForTable(parentTable);
+                source.addSelect(
+                        new SqlExpr.Column(tableAlias, parentJoinCol),
+                        dialect.quoteIdentifier(parentJoinCol));
+
+                // Build correlated subquery for nested object
+                String childTable = join.getOtherTable(parentTable);
+                String childJoinCol = join.getColumnForTable(childTable);
+                String childAlias = "c_" + prop.name();
+
+                // Build json_object for child properties
+                var childKvPairs = new java.util.ArrayList<SqlExpr>();
+                for (var childProp : prop.nested().properties()) {
+                    childKvPairs.add(new SqlExpr.StringLiteral(childProp.name()));
+                    SqlExpr childColExpr = resolveColumnExpr(childProp.name(), childMapping, childAlias);
+                    childKvPairs.add(childColExpr);
+                }
+                var childJsonObj = new SqlExpr.JsonObject(childKvPairs);
+
+                // Correlated WHERE: child.fk = _sub.parent_pk
+                // Use raw names — Column.toSql() quotes internally
+                SqlExpr correlation = new SqlExpr.Binary(
+                        new SqlExpr.Column(childAlias, childJoinCol),
+                        "=",
+                        new SqlExpr.Column("_sub", parentJoinCol));
+
+                SqlBuilder childQuery = new SqlBuilder();
+                if (isToMany) {
+                    // 1-to-many: SELECT json_group_array(json_object(...))
+                    childQuery.addSelect(new SqlExpr.JsonArrayAgg(childJsonObj),
+                            dialect.quoteIdentifier("_arr"));
+                } else {
+                    // 1-to-1: scalar subquery — enforces [0..1] by throwing if >1 row
+                    childQuery.addSelect(childJsonObj, dialect.quoteIdentifier("_obj"));
+                }
+                childQuery.from(dialect.quoteIdentifier(childTable), dialect.quoteIdentifier(childAlias));
+                childQuery.addWhere(correlation);
+
+                nestedSubqueries.put(prop.name(), new SqlExpr.Subquery(childQuery));
+            } else {
+                SqlExpr colExpr = resolveColumnExpr(prop.name(), mapping, tableAlias);
+                source.addSelect(colExpr, dialect.quoteIdentifier(prop.name()));
             }
-            SqlExpr colExpr = resolveColumnExpr(prop.name(), mapping, tableAlias);
-            source.addSelect(colExpr, dialect.quoteIdentifier(prop.name()));
         }
 
-        // Step 4: Wrap projected query in JSON output
-        return wrapJsonOutput(source, spec, info);
+        // Step 4: Wrap projected query in JSON output (with nested subqueries)
+        return wrapJsonOutput(source, spec, info, nestedSubqueries);
     }
 
     private SqlBuilder generateTableAccess(AppliedFunction af) {
