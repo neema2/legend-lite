@@ -287,4 +287,31 @@ public interface SQLDialect {
     default String renderIntervalUnit(String unit) {
         return "'" + unit + "'";
     }
+
+    // ==================== JSON Rendering ====================
+
+    /**
+     * Render a JSON object constructor from pre-rendered key-value pairs.
+     * DuckDB: json_object(k1, v1, k2, v2, ...)
+     * Snowflake: OBJECT_CONSTRUCT(k1, v1, k2, v2, ...)
+     *
+     * @param keyValuePairs Alternating key (string literal) and value expressions
+     * @return Dialect-specific JSON object expression
+     */
+    default String renderJsonObject(java.util.List<String> keyValuePairs) {
+        return "json_object(" + String.join(", ", keyValuePairs) + ")";
+    }
+
+    /**
+     * Render a JSON array aggregation that collects rows into a JSON array.
+     * DuckDB: json_group_array(expr)
+     * Snowflake: ARRAY_AGG(expr)
+     * Postgres: json_agg(expr)
+     *
+     * @param expr Pre-rendered expression to aggregate
+     * @return Dialect-specific JSON array aggregation expression
+     */
+    default String renderJsonArrayAgg(String expr) {
+        return "json_group_array(" + expr + ")";
+    }
 }

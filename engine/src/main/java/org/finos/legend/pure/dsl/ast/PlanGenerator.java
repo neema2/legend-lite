@@ -89,6 +89,11 @@ public class PlanGenerator {
             builder = generateRelation(vs);
         }
 
+        // GraphFetch JSON wrapping: replace tabular SELECT with JSON output
+        if (info.graphFetchSpec() != null) {
+            builder = wrapJsonOutput(builder, info.graphFetchSpec(), info);
+        }
+
         // returnType MUST be stamped by CleanCompiler.compile() — no silent fallback.
         GenericType returnType = info.returnType();
         if (returnType == null) {
@@ -105,6 +110,43 @@ public class PlanGenerator {
                 null // connectionRef resolved by QueryService at execution time
         );
         return new SingleExecutionPlan(sqlNode, returnType);
+    }
+
+    /**
+     * Wraps a tabular SQL builder in JSON output.
+     *
+     * <p>Generates:
+     * <pre>
+     * SELECT json_group_array(json_object('p1', _sub."p1", ...)) AS result
+     * FROM (tabular_sql) AS _sub
+     * </pre>
+     *
+     * Uses GraphFetchSpec properties as JSON keys.
+     * The inner tabular query must have SELECT columns matching the spec's property names.
+     */
+    private SqlBuilder wrapJsonOutput(SqlBuilder tabular,
+            org.finos.legend.engine.plan.GraphFetchSpec spec, TypeInfo info) {
+        // Build json_object key-value pairs: 'key', _sub."key", ...
+        var kvPairs = new java.util.ArrayList<SqlExpr>();
+        for (var prop : spec.properties()) {
+            kvPairs.add(new SqlExpr.StringLiteral(prop.name()));
+            if (prop.isNested()) {
+                // TODO: nested json_object for deep fetch (Phase 3)
+                kvPairs.add(new SqlExpr.ColumnRef(dialect.quoteIdentifier(prop.name())));
+            } else {
+                kvPairs.add(new SqlExpr.ColumnRef(dialect.quoteIdentifier(prop.name())));
+            }
+        }
+
+        // Dialect-delegated JSON expressions (no DuckDB names in PlanGenerator)
+        var jsonObjectExpr = new SqlExpr.JsonObject(kvPairs);
+        var jsonArrayExpr = new SqlExpr.JsonArrayAgg(jsonObjectExpr);
+
+        // Outer query: SELECT json_array_agg(json_object(...)) AS "result" FROM (inner) AS _sub
+        var outer = new SqlBuilder();
+        outer.addSelect(jsonArrayExpr, dialect.quoteIdentifier("result"));
+        outer.fromSubquery(tabular, "_sub");
+        return outer;
     }
 
     /**

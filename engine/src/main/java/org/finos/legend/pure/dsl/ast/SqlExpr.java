@@ -509,6 +509,27 @@ public sealed interface SqlExpr {
         }
     }
 
+    // ==================== JSON (dialect-delegated) ====================
+
+    /** Dialect-rendered JSON object: json_object(k1, v1, k2, v2, ...) */
+    record JsonObject(List<SqlExpr> keyValuePairs) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            var rendered = keyValuePairs.stream()
+                    .map(e -> e.toSql(dialect))
+                    .collect(Collectors.toList());
+            return dialect.renderJsonObject(rendered);
+        }
+    }
+
+    /** Dialect-rendered JSON array aggregation: json_group_array(expr) */
+    record JsonArrayAgg(SqlExpr expr) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderJsonArrayAgg(expr.toSql(dialect));
+        }
+    }
+
     // ==================== Variant Expressions ====================
     // PlanGenerator emits these using Variant semantics.
     // Each dialect decides the physical representation (DuckDB: JSON, Snowflake: VARIANT).
