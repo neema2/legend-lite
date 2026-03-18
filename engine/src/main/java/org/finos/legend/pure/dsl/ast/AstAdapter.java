@@ -155,7 +155,11 @@ public final class AstAdapter {
                 yield new InstanceExpression(data.className(), props);
             }
             case "rootGraphFetchTree" -> {
-                // Raw content string — parse into GraphFetchTree
+                // Structured GraphFetchTree from CleanAstBuilder sub-parse
+                if (ci.value() instanceof GraphFetchTree gft) {
+                    yield gft;
+                }
+                // Legacy: raw content string — parse into GraphFetchTree
                 String content = (String) ci.value();
                 yield parseGraphFetchContent(content);
             }

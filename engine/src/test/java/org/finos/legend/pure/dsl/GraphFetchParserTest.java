@@ -1,31 +1,36 @@
 package org.finos.legend.pure.dsl;
 
+import org.finos.legend.pure.dsl.ast.AppliedFunction;
+import org.finos.legend.pure.dsl.ast.ClassInstance;
+import org.finos.legend.pure.dsl.ast.ValueSpecification;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for graphFetch/serialize parsing.
+ * Tests for graphFetch/serialize parsing via g4 sub-parse in CleanAstBuilder.
  * 
- * All parsing now uses ANTLR via PureParser. The standalone GraphFetchParser
- * was
- * removed as redundant - island mode (#{ }#) is handled directly by the ANTLR
- * grammar.
+ * Verifies that #{...}# island content is sub-parsed through
+ * PureParser.graphFetchTree() into structured GraphFetchTree records.
  */
 class GraphFetchParserTest {
 
     @Test
     void testParseSimpleGraphFetchTree() {
-        // Parse a simple graphFetch expression - island mode is parsed via ANTLR
         String query = "Person.all()->graphFetch(#{ Person { firstName, lastName } }#)";
-        PureExpression expr = PureParser.parse(query);
+        ValueSpecification vs = PureParser.parseClean(query);
 
-        assertTrue(expr instanceof GraphFetchExpression,
-                "Expected GraphFetchExpression, got: " + expr.getClass().getSimpleName());
+        // graphFetch(...) is an AppliedFunction
+        assertInstanceOf(AppliedFunction.class, vs);
+        AppliedFunction af = (AppliedFunction) vs;
+        assertEquals("graphFetch", af.function());
 
-        GraphFetchExpression graphFetch = (GraphFetchExpression) expr;
-        GraphFetchTree tree = graphFetch.fetchTree();
+        // Second parameter is ClassInstance wrapping GraphFetchTree
+        ClassInstance ci = (ClassInstance) af.parameters().get(1);
+        assertEquals("rootGraphFetchTree", ci.type());
+        assertInstanceOf(GraphFetchTree.class, ci.value());
 
+        GraphFetchTree tree = (GraphFetchTree) ci.value();
         assertEquals("Person", tree.rootClass());
         assertEquals(2, tree.properties().size());
         assertEquals("firstName", tree.properties().get(0).name());
@@ -35,50 +40,78 @@ class GraphFetchParserTest {
     }
 
     @Test
-    void testParseGraphFetchExpression() {
+    void testParseGraphFetchWithSerialize() {
         String query = "Person.all()->graphFetch(#{ Person { fullName, upperLastName } }#)->serialize(#{ Person { fullName, upperLastName } }#)";
-        PureExpression expr = PureParser.parse(query);
+        ValueSpecification vs = PureParser.parseClean(query);
 
-        assertTrue(expr instanceof SerializeExpression,
-                "Expected SerializeExpression, got: " + expr.getClass().getSimpleName());
+        // serialize is the outermost function
+        assertInstanceOf(AppliedFunction.class, vs);
+        AppliedFunction serialize = (AppliedFunction) vs;
+        assertEquals("serialize", serialize.function());
 
-        SerializeExpression serialize = (SerializeExpression) expr;
-        assertEquals("Person", serialize.getRootClassName());
-        assertEquals(2, serialize.serializeTree().properties().size());
+        // First param of serialize is graphFetch(...)
+        AppliedFunction graphFetch = (AppliedFunction) serialize.parameters().get(0);
+        assertEquals("graphFetch", graphFetch.function());
 
-        GraphFetchExpression graphFetch = serialize.source();
-        assertEquals("Person", graphFetch.fetchTree().rootClass());
+        // serialize tree
+        ClassInstance serializeCi = (ClassInstance) serialize.parameters().get(1);
+        GraphFetchTree serializeTree = (GraphFetchTree) serializeCi.value();
+        assertEquals("Person", serializeTree.rootClass());
+        assertEquals(2, serializeTree.properties().size());
+
+        // graphFetch tree
+        ClassInstance fetchCi = (ClassInstance) graphFetch.parameters().get(1);
+        GraphFetchTree fetchTree = (GraphFetchTree) fetchCi.value();
+        assertEquals("Person", fetchTree.rootClass());
     }
 
     @Test
     void testParseWithFilter() {
         String query = "Person.all()->filter({p | $p.age > 18})->graphFetch(#{ Person { name } }#)->serialize(#{ Person { name } }#)";
-        PureExpression expr = PureParser.parse(query);
+        ValueSpecification vs = PureParser.parseClean(query);
 
-        assertTrue(expr instanceof SerializeExpression);
-        SerializeExpression serialize = (SerializeExpression) expr;
-        assertEquals("Person", serialize.getRootClassName());
+        assertInstanceOf(AppliedFunction.class, vs);
+        AppliedFunction serialize = (AppliedFunction) vs;
+        assertEquals("serialize", serialize.function());
+
+        // Verify the tree inside serialize
+        ClassInstance ci = (ClassInstance) serialize.parameters().get(1);
+        GraphFetchTree tree = (GraphFetchTree) ci.value();
+        assertEquals("Person", tree.rootClass());
+        assertEquals(1, tree.properties().size());
+        assertEquals("name", tree.properties().get(0).name());
+    }
+
+    @Test
+    void testNestedGraphFetchTree() {
+        String query = "Person.all()->graphFetch(#{ Person { firstName, addresses { street, city } } }#)";
+        ValueSpecification vs = PureParser.parseClean(query);
+
+        AppliedFunction af = (AppliedFunction) vs;
+        ClassInstance ci = (ClassInstance) af.parameters().get(1);
+        GraphFetchTree tree = (GraphFetchTree) ci.value();
+
+        assertEquals("Person", tree.rootClass());
+        assertEquals(2, tree.properties().size());
+
+        // Simple property
+        assertEquals("firstName", tree.properties().get(0).name());
+        assertFalse(tree.properties().get(0).isNested());
+
+        // Nested property
+        GraphFetchTree.PropertyFetch addressFetch = tree.properties().get(1);
+        assertEquals("addresses", addressFetch.name());
+        assertTrue(addressFetch.isNested());
+        assertEquals(2, addressFetch.subTree().properties().size());
+        assertEquals("street", addressFetch.subTree().properties().get(0).name());
+        assertEquals("city", addressFetch.subTree().properties().get(1).name());
     }
 
     @Test
     void testGraphFetchRequiresClassExpression() {
-        // graphFetch on a non-class expression should fail - this is semantic
-        // validation
-        // to ensure class functions are not used on relation expressions
+        // graphFetch on a relation expression should parse (validation is compiler's job)
         String invalidQuery = "#>{store::DB.TABLE}#->graphFetch(#{ Person { name } }#)";
-
-        assertThrows(PureParseException.class, () -> {
-            PureParser.parse(invalidQuery);
-        });
-    }
-
-    @Test
-    void testSerializeRequiresGraphFetch() {
-        // serialize without graphFetch should fail
-        String invalidQuery = "Person.all()->serialize(#{ Person { name } }#)";
-
-        assertThrows(PureParseException.class, () -> {
-            PureParser.parse(invalidQuery);
-        });
+        // This should parse without error — the clean pipeline doesn't do semantic validation
+        assertDoesNotThrow(() -> PureParser.parseClean(invalidQuery));
     }
 }

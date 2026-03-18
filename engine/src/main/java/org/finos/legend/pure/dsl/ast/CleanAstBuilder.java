@@ -1,8 +1,12 @@
 package org.finos.legend.pure.dsl.ast;
 
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.finos.legend.pure.dsl.antlr.PureLexer;
 import org.finos.legend.pure.dsl.antlr.PureParser;
 import org.finos.legend.pure.dsl.antlr.PureParserBaseVisitor;
+import org.finos.legend.pure.dsl.GraphFetchTree;
 import org.finos.legend.pure.dsl.PureParseException;
 
 import java.math.BigDecimal;
@@ -445,11 +449,73 @@ public class CleanAstBuilder extends PureParserBaseVisitor<ValueSpecification> {
     }
 
     private ValueSpecification parseGraphFetchTree(String content) {
-        // GraphFetch trees are DSL constructs → ClassInstance("rootGraphFetchTree",
-        // content)
-        // The content is the raw text like "Person { firstName, lastName }"
-        // The compiler will parse this further if needed
-        return new ClassInstance("rootGraphFetchTree", content);
+        // Sub-parse the island content through PureParser.graphFetchTree() rule.
+        // The island grammar captures #{...}# as raw text; we re-lex/parse to get
+        // structured GraphFetchTree nodes with full ANTLR validation.
+        PureLexer lexer = new PureLexer(CharStreams.fromString(content));
+        PureParser parser = new PureParser(new CommonTokenStream(lexer));
+        parser.removeErrorListeners();
+        parser.addErrorListener(new org.antlr.v4.runtime.BaseErrorListener() {
+            @Override
+            public void syntaxError(org.antlr.v4.runtime.Recognizer<?, ?> recognizer,
+                    Object offendingSymbol, int line, int charPositionInLine,
+                    String msg, org.antlr.v4.runtime.RecognitionException e) {
+                throw new PureParseException(
+                        "GraphFetch tree parse error at " + line + ":" + charPositionInLine + " - " + msg);
+            }
+        });
+
+        PureParser.GraphFetchTreeContext tree = parser.graphFetchTree();
+        GraphFetchTree gft = buildGraphFetchTree(tree);
+        return new ClassInstance("rootGraphFetchTree", gft);
+    }
+
+    /**
+     * Builds a GraphFetchTree from the parser context.
+     */
+    private GraphFetchTree buildGraphFetchTree(PureParser.GraphFetchTreeContext ctx) {
+        String rootClass = ctx.qualifiedName().getText();
+        List<GraphFetchTree.PropertyFetch> properties = buildGraphPaths(ctx.graphDefinition());
+        return new GraphFetchTree(rootClass, properties);
+    }
+
+    /**
+     * Builds property fetches from a graphDefinition: { graphPaths }
+     */
+    private List<GraphFetchTree.PropertyFetch> buildGraphPaths(PureParser.GraphDefinitionContext ctx) {
+        List<GraphFetchTree.PropertyFetch> props = new ArrayList<>();
+        if (ctx.graphPaths() != null) {
+            for (PureParser.GraphPathContext gp : ctx.graphPaths().graphPath()) {
+                props.add(buildPropertyFetch(gp));
+            }
+            // Handle subTypeGraphPath if present (future extension)
+            for (PureParser.SubTypeGraphPathContext stgp : ctx.graphPaths().subTypeGraphPath()) {
+                // For now, we could support subtypes but skip for simplicity
+                String subTypeName = stgp.subtype().qualifiedName().getText();
+                List<GraphFetchTree.PropertyFetch> subProps = buildGraphPaths(stgp.graphDefinition());
+                // Represent as a special property fetch with subtype marker
+                GraphFetchTree subTree = new GraphFetchTree(subTypeName, subProps);
+                props.add(new GraphFetchTree.PropertyFetch("@" + subTypeName, subTree));
+            }
+        }
+        return props;
+    }
+
+    /**
+     * Builds a single PropertyFetch from a graphPath: alias? identifier params? subtype? graphDefinition?
+     */
+    private GraphFetchTree.PropertyFetch buildPropertyFetch(PureParser.GraphPathContext ctx) {
+        String propName = getIdentifierText(ctx.identifier());
+
+        // Check for nested graph definition
+        if (ctx.graphDefinition() != null) {
+            List<GraphFetchTree.PropertyFetch> nested = buildGraphPaths(ctx.graphDefinition());
+            // For nested, the rootClass is the property name (or resolved class)
+            GraphFetchTree subTree = new GraphFetchTree(propName, nested);
+            return GraphFetchTree.PropertyFetch.nested(propName, subTree);
+        }
+
+        return GraphFetchTree.PropertyFetch.simple(propName);
     }
 
     private ValueSpecification parseRelationLiteral(String content) {
