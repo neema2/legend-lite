@@ -514,12 +514,25 @@ public class CleanCompiler {
 
     /**
      * Compiles graphFetch(source, #{Tree}#).
-     * Extracts GraphFetchTree from ClassInstance, transforms to plan-level GraphFetchSpec,
-     * stores spec in TypeInfo sidecar.
+     *
+     * <p>Type-checks:
+     * <ol>
+     *   <li>Source must be class-based (has a ClassMapping)</li>
+     *   <li>Root class in tree must match source mapping's target class</li>
+     *   <li>All properties in tree must exist on the target class</li>
+     *   <li>Nested properties must be class-typed (not scalars)</li>
+     * </ol>
      */
     private TypeInfo compileGraphFetch(AppliedFunction af, CompilationContext ctx) {
         // Compile source (e.g., Person.all())
         TypeInfo sourceInfo = compileExpr(af.parameters().get(0), ctx);
+
+        // (1) Source must be class-based
+        if (sourceInfo.mapping() == null) {
+            throw new PureCompileException(
+                    "graphFetch() requires a class-based source (e.g., Person.all()), "
+                    + "but source has no ClassMapping");
+        }
 
         // Extract GraphFetchTree from ClassInstance parameter
         org.finos.legend.pure.dsl.GraphFetchTree tree = null;
@@ -531,8 +544,17 @@ public class CleanCompiler {
             throw new PureCompileException("graphFetch() requires a graph fetch tree argument #{...}#");
         }
 
-        // Transform parser-level tree → plan-level spec (compiler's job)
-        var spec = toGraphFetchSpec(tree);
+        // (2) Root class must match source mapping's target class
+        var targetClass = sourceInfo.mapping().targetClass();
+        if (!tree.rootClass().equals(targetClass.name())
+                && !tree.rootClass().equals(targetClass.qualifiedName())) {
+            throw new PureCompileException(
+                    "graphFetch tree root class '" + tree.rootClass()
+                    + "' does not match source class '" + targetClass.qualifiedName() + "'");
+        }
+
+        // (3+4) Validate all properties exist and nested types are correct
+        var spec = toGraphFetchSpec(tree, targetClass);
 
         var info = TypeInfo.from(sourceInfo)
                 .graphFetchSpec(spec)
@@ -543,21 +565,36 @@ public class CleanCompiler {
 
     /**
      * Compiles serialize(graphFetchSource, #{Tree}#).
-     * graphFetchSpec non-null signals PlanGenerator to produce JSON output.
+     *
+     * <p>Type-checks:
+     * <ol>
+     *   <li>Source must have a graphFetchSpec (must come from graphFetch())</li>
+     *   <li>Stamps returnType = String (JSON output)</li>
+     * </ol>
      */
     private TypeInfo compileSerialize(AppliedFunction af, CompilationContext ctx) {
         // Compile source (must be a graphFetch result)
         TypeInfo sourceInfo = compileExpr(af.parameters().get(0), ctx);
 
-        // Use serialize tree if provided, otherwise carry forward from graphFetch
+        // (1) Source must have a graphFetchSpec
         org.finos.legend.engine.plan.GraphFetchSpec spec = sourceInfo.graphFetchSpec();
-        if (af.parameters().size() > 1 && af.parameters().get(1) instanceof ClassInstance ci
-                && ci.value() instanceof org.finos.legend.pure.dsl.GraphFetchTree gft) {
-            spec = toGraphFetchSpec(gft);
+        if (spec == null) {
+            throw new PureCompileException(
+                    "serialize() requires a graphFetch source — "
+                    + "call ->graphFetch(#{...}#) before ->serialize()");
         }
 
+        // Override with serialize tree if provided
+        if (af.parameters().size() > 1 && af.parameters().get(1) instanceof ClassInstance ci
+                && ci.value() instanceof org.finos.legend.pure.dsl.GraphFetchTree gft) {
+            var targetClass = sourceInfo.mapping().targetClass();
+            spec = toGraphFetchSpec(gft, targetClass);
+        }
+
+        // (2) Stamp returnType = String (JSON serialization produces a string)
         var info = TypeInfo.from(sourceInfo)
                 .graphFetchSpec(spec)
+                .returnType(org.finos.legend.engine.plan.GenericType.Primitive.STRING)
                 .build();
         types.put(af, info);
         return info;
@@ -565,14 +602,37 @@ public class CleanCompiler {
 
     /**
      * Transforms a parser-level GraphFetchTree into a plan-level GraphFetchSpec.
-     * Resolves property names and nesting structure without leaking parser types.
+     * Validates all properties against the target class:
+     *   - Each property must exist on the class (including inherited)
+     *   - Nested properties must be class-typed (not scalar/primitive)
      */
     private org.finos.legend.engine.plan.GraphFetchSpec toGraphFetchSpec(
-            org.finos.legend.pure.dsl.GraphFetchTree tree) {
+            org.finos.legend.pure.dsl.GraphFetchTree tree,
+            org.finos.legend.pure.m3.PureClass targetClass) {
         var properties = tree.properties().stream()
                 .map(pf -> {
+                    // Validate property exists on the class
+                    var propOpt = targetClass.findProperty(pf.name());
+                    if (propOpt.isEmpty()) {
+                        throw new PureCompileException(
+                                "Property '" + pf.name() + "' not found on class '"
+                                + targetClass.qualifiedName() + "'. Available: "
+                                + targetClass.allProperties().stream()
+                                        .map(org.finos.legend.pure.m3.Property::name)
+                                        .toList());
+                    }
+
                     if (pf.isNested()) {
-                        var nestedSpec = toGraphFetchSpec(pf.subTree());
+                        // Validate nested property is class-typed
+                        var prop = propOpt.get();
+                        if (!(prop.genericType() instanceof org.finos.legend.pure.m3.PureClass nestedClass)) {
+                            throw new PureCompileException(
+                                    "Property '" + pf.name() + "' on class '"
+                                    + targetClass.qualifiedName()
+                                    + "' is not class-typed — cannot nest in graphFetch tree. "
+                                    + "Type: " + prop.genericType().typeName());
+                        }
+                        var nestedSpec = toGraphFetchSpec(pf.subTree(), nestedClass);
                         return org.finos.legend.engine.plan.GraphFetchSpec.PropertySpec.nested(
                                 pf.name(), nestedSpec);
                     }
