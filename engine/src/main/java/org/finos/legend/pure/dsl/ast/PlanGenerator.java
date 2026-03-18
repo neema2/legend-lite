@@ -138,7 +138,7 @@ public class PlanGenerator {
         // Outer query: SELECT json_array_agg(json_object(...)) AS "result" FROM (inner) AS _sub
         var outer = new SqlBuilder();
         outer.addSelect(jsonArrayExpr, dialect.quoteIdentifier("result"));
-        outer.fromSubquery(tabular, "_sub");
+        outer.fromSubquery(tabular, dialect.quoteIdentifier("_sub"));
         return outer;
     }
 
@@ -581,6 +581,15 @@ public class PlanGenerator {
 
         // Step 1: Compile the source (getAll, filter, struct collection, etc.)
         SqlBuilder source = generateRelation(params.get(0));
+
+        // Step 1b: Apply ~filter from M2M mapping (if present)
+        if (mapping instanceof org.finos.legend.engine.store.PureClassMapping pcm
+                && pcm.optionalFilter().isPresent()) {
+            String srcAlias = source.getFromAlias() != null ? unquote(source.getFromAlias()) : "t0";
+            SqlExpr whereClause = generateScalar(
+                    pcm.optionalFilter().get(), "$src", pcm.sourceMapping(), srcAlias);
+            source.addWhere(whereClause);
+        }
 
         // Step 2: Determine table alias from source builder
         String tableAlias;

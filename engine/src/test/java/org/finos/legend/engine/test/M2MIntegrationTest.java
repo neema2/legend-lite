@@ -95,6 +95,12 @@ class M2MIntegrationTest {
                 salaryBand: String[1];
             }
 
+            Class model::PersonSummary
+            {
+                name: String[1];
+                nameUpper: String[1];
+            }
+
             Database store::RawDatabase
             (
                 Table T_RAW_PERSON
@@ -209,6 +215,16 @@ class M2MIntegrationTest {
                 }
             )
 
+            Mapping model::ChainedM2MMapping
+            (
+                PersonSummary: Pure
+                {
+                    ~src Person
+                    name: $src.fullName,
+                    nameUpper: $src.upperLastName
+                }
+            )
+
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
@@ -224,7 +240,8 @@ class M2MIntegrationTest {
                     model::ConditionalMapping,
                     model::FilteredMapping,
                     model::SalaryBandMapping,
-                    model::DeepFetchMapping
+                    model::DeepFetchMapping,
+                    model::ChainedM2MMapping
                 ];
                 connections:
                 [
@@ -364,6 +381,81 @@ class M2MIntegrationTest {
         assertTrue(json.contains("John"), "Should have John (active)");
         assertTrue(json.contains("Jane"), "Should have Jane (active)");
         assertFalse(json.contains("Bob"), "Should NOT have Bob (inactive)");
+    }
+
+    @Test
+    @DisplayName("NEW PIPELINE: Salary band conditional (nested if/else)")
+    void testNewPipelineSalaryBand() throws SQLException {
+        String pureQuery = """
+                PersonWithSalary.all()
+                    ->graphFetch(#{ PersonWithSalary { firstName, salaryBand } }#)
+                    ->serialize(#{ PersonWithSalary { firstName, salaryBand } }#)
+                """;
+
+        String json = executeNew(pureQuery);
+        System.out.println("NEW PersonWithSalary JSON: " + json);
+
+        assertTrue(json.contains("Mid"), "Should have Mid salary band");
+        assertTrue(json.contains("Senior"), "Should have Senior for Bob (120k)");
+        assertTrue(json.contains("Entry"), "Should have Entry for Alice (0)");
+    }
+
+    @Test
+    @DisplayName("NEW PIPELINE: Single property projection")
+    void testNewPipelineSingleProperty() throws SQLException {
+        String pureQuery = """
+                Person.all()
+                    ->graphFetch(#{ Person { upperLastName } }#)
+                    ->serialize(#{ Person { upperLastName } }#)
+                """;
+
+        String json = executeNew(pureQuery);
+        System.out.println("NEW Single property JSON: " + json);
+
+        assertTrue(json.contains("upperLastName"), "Should have upperLastName property");
+        assertTrue(json.contains("SMITH"), "Should have SMITH");
+        assertTrue(json.contains("DOE"), "Should have DOE");
+        assertTrue(json.contains("JONES"), "Should have JONES");
+        assertTrue(json.contains("WONDER"), "Should have WONDER");
+    }
+
+    @Test
+    @DisplayName("NEW PIPELINE: JSON output is valid array format")
+    void testNewPipelineJsonFormat() throws SQLException {
+        String pureQuery = """
+                Person.all()
+                    ->graphFetch(#{ Person { fullName } }#)
+                    ->serialize(#{ Person { fullName } }#)
+                """;
+
+        String json = executeNew(pureQuery);
+
+        assertTrue(json.startsWith("["), "Should start with array bracket");
+        assertTrue(json.endsWith("]"), "Should end with array bracket");
+        assertTrue(json.contains("\"fullName\""), "Should have property names in quotes");
+
+        // Count objects — should have 4 people
+        long count = json.chars().filter(c -> c == '{').count();
+        assertEquals(4, count, "Should have 4 Person objects");
+    }
+
+    @Test
+    @DisplayName("NEW PIPELINE: Chained M2M graphFetch (PersonSummary→Person→RawPerson)")
+    void testNewPipelineChainedM2M() throws SQLException {
+        // PersonSummary.name resolves through Person.fullName → $src.firstName + ' ' + $src.lastName
+        // PersonSummary.nameUpper resolves through Person.upperLastName → $src.lastName->toUpper()
+        String pureQuery = """
+                PersonSummary.all()
+                    ->graphFetch(#{ PersonSummary { name, nameUpper } }#)
+                    ->serialize(#{ PersonSummary { name, nameUpper } }#)
+                """;
+
+        String json = executeNew(pureQuery);
+        System.out.println("NEW Chained M2M JSON: " + json);
+
+        assertTrue(json.contains("John Smith"), "Should resolve through chained fullName");
+        assertTrue(json.contains("SMITH"), "Should resolve through chained upperLastName");
+        assertTrue(json.contains("Jane Doe"), "Should have all people");
     }
 
     // ==================== M2M graphFetch Tests (old pipeline) ====================
