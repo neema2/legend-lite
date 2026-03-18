@@ -3,7 +3,6 @@ package org.finos.legend.pure.dsl.ast;
 import org.finos.legend.engine.plan.GenericType;
 import org.finos.legend.engine.plan.RelationType;
 import org.finos.legend.engine.store.Join;
-import org.finos.legend.engine.store.PureClassMapping;
 import org.finos.legend.engine.store.ClassMapping;
 import org.finos.legend.pure.m3.Multiplicity;
 
@@ -78,11 +77,12 @@ public record TypeInfo(
          */
         Multiplicity multiplicity,
         /**
-         * Pre-parsed M2M (Pure) class mapping.
-         * When non-null, this relation is backed by M2M expressions, not a direct table.
-         * PlanGenerator reads this to emit computed SQL expressions for M2M columns.
+        /**
+         * GraphFetch tree specification.
+         * When non-null, PlanGenerator wraps SQL output in json_group_array(json_object(...)).
+         * Also implies jsonOutput=true (no separate field needed).
          */
-        PureClassMapping pureClassMapping) {
+        org.finos.legend.pure.dsl.GraphFetchTree graphFetchTree) {
 
     /**
      * Pre-resolved association navigation target.
@@ -410,7 +410,7 @@ public record TypeInfo(
         private GenericType returnType;
         private Map<String, String> joinColumnRenames = Map.of();
         private Multiplicity multiplicity;
-        private PureClassMapping pureClassMapping;
+        private org.finos.legend.pure.dsl.GraphFetchTree graphFetchTree;
 
         private Builder() {}
 
@@ -432,7 +432,7 @@ public record TypeInfo(
             this.returnType = src.returnType();
             this.joinColumnRenames = src.joinColumnRenames();
             this.multiplicity = src.multiplicity();
-            this.pureClassMapping = src.pureClassMapping();
+            this.graphFetchTree = src.graphFetchTree();
         }
 
         public Builder relationType(RelationType v) { this.relationType = v; return this; }
@@ -452,13 +452,13 @@ public record TypeInfo(
         public Builder returnType(GenericType v) { this.returnType = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
         public Builder multiplicity(Multiplicity v) { this.multiplicity = v; return this; }
-        public Builder pureClassMapping(PureClassMapping v) { this.pureClassMapping = v; return this; }
+        public Builder graphFetchTree(org.finos.legend.pure.dsl.GraphFetchTree v) { this.graphFetchTree = v; return this; }
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
                     columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
                     lambdaParam, columnAlias, pivotSpec, variantAccess, returnType,
-                    joinColumnRenames, multiplicity, pureClassMapping);
+                    joinColumnRenames, multiplicity, graphFetchTree);
         }
     }
 

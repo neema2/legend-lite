@@ -569,18 +569,10 @@ public class PlanGenerator {
                 SqlExpr computed = generateScalar(proj.computedExpr(), null, mapping, tableAlias);
                 builder.addSelect(computed, dialect.quoteIdentifier(proj.alias()));
             } else {
-                // Simple single-hop property
-                // Check if this is an M2M property — compile expression from PureClassMapping
-                var pureMapping = info.pureClassMapping();
-                if (pureMapping != null && pureMapping.propertyExpressions().containsKey(proj.property())) {
-                    // M2M expression: compile the pre-parsed AST expression to SQL
-                    ValueSpecification m2mExpr = pureMapping.propertyExpressions().get(proj.property());
-                    SqlExpr computed = generateScalar(m2mExpr, "src", mapping, tableAlias);
-                    builder.addSelect(computed, dialect.quoteIdentifier(proj.alias()));
-                } else {
-                    SqlExpr colExpr = resolveColumnExpr(proj.property(), mapping, tableAlias);
-                    builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
-                }
+                // Simple single-hop property — resolveColumnExpr handles both
+                // relational (column ref) and M2M (computed expression) via mapping dispatch
+                SqlExpr colExpr = resolveColumnExpr(proj.property(), mapping, tableAlias);
+                builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
             }
         }
 

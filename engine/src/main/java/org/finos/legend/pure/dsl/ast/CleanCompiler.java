@@ -216,6 +216,9 @@ public class CleanCompiler {
             // --- Size (returns Integer scalar for both relations and lists) ---
             case "size" -> compileSize(af, ctx);
             case "write" -> compileWrite(af, ctx);
+            // --- GraphFetch / Serialize (M2M JSON output) ---
+            case "graphFetch" -> compileGraphFetch(af, ctx);
+            case "serialize" -> compileSerialize(af, ctx);
             // --- Collection / scalar functions (type-propagating) ---
             case "range" -> compileRange(af, ctx);
             // List-producing functions: always return a list
@@ -408,13 +411,12 @@ public class CleanCompiler {
             }
         }
 
-        // Store resolved PureClassMapping as the sidecar mapping.
+        // Store resolved mapping in sidecar.
         // ClassMapping.sourceTable() chains through to the source RelationalMapping's table.
         // ClassMapping.expressionForProperty() returns the M2M expression AST.
         var info = TypeInfo.builder()
                 .relationType(virtualRelType)
                 .mapping(resolvedMapping)
-                .pureClassMapping(pureMapping)
                 .build();
         types.put(af, info);
         return info;
@@ -506,6 +508,58 @@ public class CleanCompiler {
         }
         // Default to String if we can't resolve
         return GenericType.Primitive.STRING;
+    }
+
+    // ========== GraphFetch / Serialize ==========
+
+    /**
+     * Compiles graphFetch(source, #{Tree}#).
+     * Extracts GraphFetchTree from ClassInstance, resolves M2M mapping for root class,
+     * stores tree + mapping in TypeInfo sidecar.
+     */
+    private TypeInfo compileGraphFetch(AppliedFunction af, CompilationContext ctx) {
+        // Compile source (e.g., Person.all())
+        TypeInfo sourceInfo = compileExpr(af.parameters().get(0), ctx);
+
+        // Extract GraphFetchTree from ClassInstance parameter
+        org.finos.legend.pure.dsl.GraphFetchTree tree = null;
+        if (af.parameters().size() > 1 && af.parameters().get(1) instanceof ClassInstance ci
+                && ci.value() instanceof org.finos.legend.pure.dsl.GraphFetchTree gft) {
+            tree = gft;
+        }
+        if (tree == null) {
+            throw new PureCompileException("graphFetch() requires a graph fetch tree argument #{...}#");
+        }
+
+        // Build TypeInfo: propagate source's relation type and mapping, add graphFetchTree
+        var info = TypeInfo.from(sourceInfo)
+                .graphFetchTree(tree)
+                .build();
+        types.put(af, info);
+        return info;
+    }
+
+    /**
+     * Compiles serialize(graphFetchSource, #{Tree}#).
+     * Marks jsonOutput=true so PlanGenerator wraps SQL in json_group_array(json_object(...)).
+     */
+    private TypeInfo compileSerialize(AppliedFunction af, CompilationContext ctx) {
+        // Compile source (must be a graphFetch result)
+        TypeInfo sourceInfo = compileExpr(af.parameters().get(0), ctx);
+
+        // Extract serialize tree (optional — same as graphFetch tree in most cases)
+        org.finos.legend.pure.dsl.GraphFetchTree serializeTree = sourceInfo.graphFetchTree();
+        if (af.parameters().size() > 1 && af.parameters().get(1) instanceof ClassInstance ci
+                && ci.value() instanceof org.finos.legend.pure.dsl.GraphFetchTree gft) {
+            serializeTree = gft;
+        }
+
+        // Build TypeInfo: carry forward graphFetchTree (non-null → PlanGenerator produces JSON)
+        var info = TypeInfo.from(sourceInfo)
+                .graphFetchTree(serializeTree)
+                .build();
+        types.put(af, info);
+        return info;
     }
 
     // ========== Shape-Preserving Operations ==========
