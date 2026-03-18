@@ -77,12 +77,11 @@ public record TypeInfo(
          */
         Multiplicity multiplicity,
         /**
-        /**
-         * GraphFetch tree specification.
+         * Graph fetch specification for JSON output.
          * When non-null, PlanGenerator wraps SQL output in json_group_array(json_object(...)).
-         * Also implies jsonOutput=true (no separate field needed).
+         * Compiler-resolved from parsed GraphFetchTree — no parser types cross this boundary.
          */
-        org.finos.legend.pure.dsl.GraphFetchTree graphFetchTree) {
+        org.finos.legend.engine.plan.GraphFetchSpec graphFetchSpec) {
 
     /**
      * Pre-resolved association navigation target.
@@ -410,7 +409,7 @@ public record TypeInfo(
         private GenericType returnType;
         private Map<String, String> joinColumnRenames = Map.of();
         private Multiplicity multiplicity;
-        private org.finos.legend.pure.dsl.GraphFetchTree graphFetchTree;
+        private org.finos.legend.engine.plan.GraphFetchSpec graphFetchSpec;
 
         private Builder() {}
 
@@ -432,7 +431,7 @@ public record TypeInfo(
             this.returnType = src.returnType();
             this.joinColumnRenames = src.joinColumnRenames();
             this.multiplicity = src.multiplicity();
-            this.graphFetchTree = src.graphFetchTree();
+            this.graphFetchSpec = src.graphFetchSpec();
         }
 
         public Builder relationType(RelationType v) { this.relationType = v; return this; }
@@ -452,13 +451,13 @@ public record TypeInfo(
         public Builder returnType(GenericType v) { this.returnType = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
         public Builder multiplicity(Multiplicity v) { this.multiplicity = v; return this; }
-        public Builder graphFetchTree(org.finos.legend.pure.dsl.GraphFetchTree v) { this.graphFetchTree = v; return this; }
+        public Builder graphFetchSpec(org.finos.legend.engine.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
                     columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
                     lambdaParam, columnAlias, pivotSpec, variantAccess, returnType,
-                    joinColumnRenames, multiplicity, graphFetchTree);
+                    joinColumnRenames, multiplicity, graphFetchSpec);
         }
     }
 

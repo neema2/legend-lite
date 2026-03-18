@@ -514,8 +514,8 @@ public class CleanCompiler {
 
     /**
      * Compiles graphFetch(source, #{Tree}#).
-     * Extracts GraphFetchTree from ClassInstance, resolves M2M mapping for root class,
-     * stores tree + mapping in TypeInfo sidecar.
+     * Extracts GraphFetchTree from ClassInstance, transforms to plan-level GraphFetchSpec,
+     * stores spec in TypeInfo sidecar.
      */
     private TypeInfo compileGraphFetch(AppliedFunction af, CompilationContext ctx) {
         // Compile source (e.g., Person.all())
@@ -531,9 +531,11 @@ public class CleanCompiler {
             throw new PureCompileException("graphFetch() requires a graph fetch tree argument #{...}#");
         }
 
-        // Build TypeInfo: propagate source's relation type and mapping, add graphFetchTree
+        // Transform parser-level tree → plan-level spec (compiler's job)
+        var spec = toGraphFetchSpec(tree);
+
         var info = TypeInfo.from(sourceInfo)
-                .graphFetchTree(tree)
+                .graphFetchSpec(spec)
                 .build();
         types.put(af, info);
         return info;
@@ -541,25 +543,43 @@ public class CleanCompiler {
 
     /**
      * Compiles serialize(graphFetchSource, #{Tree}#).
-     * Marks jsonOutput=true so PlanGenerator wraps SQL in json_group_array(json_object(...)).
+     * graphFetchSpec non-null signals PlanGenerator to produce JSON output.
      */
     private TypeInfo compileSerialize(AppliedFunction af, CompilationContext ctx) {
         // Compile source (must be a graphFetch result)
         TypeInfo sourceInfo = compileExpr(af.parameters().get(0), ctx);
 
-        // Extract serialize tree (optional — same as graphFetch tree in most cases)
-        org.finos.legend.pure.dsl.GraphFetchTree serializeTree = sourceInfo.graphFetchTree();
+        // Use serialize tree if provided, otherwise carry forward from graphFetch
+        org.finos.legend.engine.plan.GraphFetchSpec spec = sourceInfo.graphFetchSpec();
         if (af.parameters().size() > 1 && af.parameters().get(1) instanceof ClassInstance ci
                 && ci.value() instanceof org.finos.legend.pure.dsl.GraphFetchTree gft) {
-            serializeTree = gft;
+            spec = toGraphFetchSpec(gft);
         }
 
-        // Build TypeInfo: carry forward graphFetchTree (non-null → PlanGenerator produces JSON)
         var info = TypeInfo.from(sourceInfo)
-                .graphFetchTree(serializeTree)
+                .graphFetchSpec(spec)
                 .build();
         types.put(af, info);
         return info;
+    }
+
+    /**
+     * Transforms a parser-level GraphFetchTree into a plan-level GraphFetchSpec.
+     * Resolves property names and nesting structure without leaking parser types.
+     */
+    private org.finos.legend.engine.plan.GraphFetchSpec toGraphFetchSpec(
+            org.finos.legend.pure.dsl.GraphFetchTree tree) {
+        var properties = tree.properties().stream()
+                .map(pf -> {
+                    if (pf.isNested()) {
+                        var nestedSpec = toGraphFetchSpec(pf.subTree());
+                        return org.finos.legend.engine.plan.GraphFetchSpec.PropertySpec.nested(
+                                pf.name(), nestedSpec);
+                    }
+                    return org.finos.legend.engine.plan.GraphFetchSpec.PropertySpec.scalar(pf.name());
+                })
+                .toList();
+        return new org.finos.legend.engine.plan.GraphFetchSpec(tree.rootClass(), properties);
     }
 
     // ========== Shape-Preserving Operations ==========
