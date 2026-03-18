@@ -75,6 +75,25 @@ public final class MappingRegistry {
     }
 
     /**
+     * Finds any ClassMapping (relational or M2M) by class name.
+     * Checks relational mappings first, then PureClassMappings.
+     */
+    public Optional<ClassMapping> findAnyMapping(String className) {
+        RelationalMapping rm = mappingsByClassName.get(className);
+        if (rm != null) return Optional.of(rm);
+        PureClassMapping pcm = pureClassMappingsByTargetClass.get(className);
+        if (pcm != null) return Optional.of(pcm);
+        return Optional.empty();
+    }
+
+    /**
+     * Updates a PureClassMapping with a resolved version (e.g., after chain resolution).
+     */
+    public void updatePureClassMapping(String targetClassName, PureClassMapping resolved) {
+        pureClassMappingsByTargetClass.put(targetClassName, resolved);
+    }
+
+    /**
      * Looks up a mapping by Pure class name.
      * 
      * @param className The fully qualified class name

@@ -59,6 +59,12 @@ class M2M2RTabularTest {
                 salaryBand: String[1];
             }
 
+            Class model::PersonSummary
+            {
+                name: String[1];
+                nameUpper: String[1];
+            }
+
             Database store::RawDatabase
             (
                 Table T_RAW_PERSON
@@ -126,6 +132,16 @@ class M2M2RTabularTest {
                 }
             )
 
+            Mapping model::ChainedM2MMapping
+            (
+                PersonSummary: Pure
+                {
+                    ~src Person
+                    name: $src.fullName,
+                    nameUpper: $src.upperLastName
+                }
+            )
+
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
@@ -140,7 +156,8 @@ class M2M2RTabularTest {
                     model::PersonM2MMapping,
                     model::PersonViewMapping,
                     model::FilteredMapping,
-                    model::SalaryBandMapping
+                    model::SalaryBandMapping,
+                    model::ChainedM2MMapping
                 ];
                 connections:
                 [
@@ -487,5 +504,55 @@ class M2M2RTabularTest {
         // Both should be Adult
         assertEquals("Adult", result.rows().get(0).get(1).toString());
         assertEquals("Adult", result.rows().get(1).get(1).toString());
+    }
+
+    // ==================== Chained M2M (M2M→M2M→R) ====================
+
+    @Test
+    @DisplayName("Chained M2M: PersonSummary (src=Person, src=RawPerson)")
+    void testChainedM2M() throws SQLException {
+        // PersonSummary.name resolves through Person.fullName → $src.firstName + ' ' + $src.lastName
+        // PersonSummary.nameUpper resolves through Person.upperLastName → $src.lastName->toUpper()
+        String query = "PersonSummary.all()->project(~[n:x|$x.name, u:x|$x.nameUpper])";
+
+        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+
+        assertEquals(2, result.columns().size());
+        assertEquals("n", result.columns().get(0).name());
+        assertEquals("u", result.columns().get(1).name());
+        assertEquals(4, result.rows().size());
+
+        var names = result.rows().stream()
+                .map(r -> r.get(0).toString())
+                .sorted()
+                .toList();
+        assertEquals("Alice Wonder", names.get(0));
+        assertEquals("Bob Jones", names.get(1));
+        assertEquals("Jane Doe", names.get(2));
+        assertEquals("John Smith", names.get(3));
+
+        var uppers = result.rows().stream()
+                .map(r -> r.get(1).toString())
+                .sorted()
+                .toList();
+        assertEquals("DOE", uppers.get(0));
+        assertEquals("JONES", uppers.get(1));
+        assertEquals("SMITH", uppers.get(2));
+        assertEquals("WONDER", uppers.get(3));
+    }
+
+    @Test
+    @DisplayName("Chained M2M + filter: PersonSummary filtered by name")
+    void testChainedM2MWithFilter() throws SQLException {
+        String query = "PersonSummary.all()" +
+                "->project(~[n:x|$x.name])" +
+                "->filter(x|$x.n->startsWith('J'))" +
+                "->sort(asc(~n))";
+
+        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+
+        assertEquals(2, result.rows().size());
+        assertEquals("Jane Doe", result.rows().get(0).get(0).toString());
+        assertEquals("John Smith", result.rows().get(1).get(0).toString());
     }
 }

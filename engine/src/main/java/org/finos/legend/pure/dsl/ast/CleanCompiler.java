@@ -353,17 +353,27 @@ public class CleanCompiler {
      */
     private TypeInfo compileM2MGetAll(AppliedFunction af,
             org.finos.legend.engine.store.PureClassMapping pureMapping) {
-        // Resolve source class → its relational mapping → source table
+        // Resolve source class → its mapping (may be relational or another M2M)
         String sourceClassName = pureMapping.sourceClassName();
-        var sourceMapping = mappingRegistry.findByClassName(sourceClassName);
+        var sourceMapping = mappingRegistry.findAnyMapping(sourceClassName);
 
         if (sourceMapping.isEmpty()) {
             throw new PureCompileException(
-                    "M2M source class '" + sourceClassName + "' has no relational mapping. "
-                    + "The source class must be mapped to a database table.");
+                    "M2M source class '" + sourceClassName + "' has no mapping. "
+                    + "The source class must be mapped to a database table or another M2M class.");
         }
 
         ClassMapping srcMapping = sourceMapping.get();
+
+        // Recursive M2M chain resolution: if source is itself M2M, resolve its source too.
+        // Each intermediate PureClassMapping gets linked to its own source mapping.
+        // The chain must ultimately terminate at a RelationalMapping.
+        if (srcMapping instanceof org.finos.legend.engine.store.PureClassMapping srcPcm) {
+            // Recursively resolve the source M2M first (this compiles the intermediate mapping)
+            resolveM2MChain(srcPcm);
+            // Re-fetch from registry to get the resolved version (records are immutable)
+            srcMapping = mappingRegistry.findAnyMapping(sourceClassName).orElseThrow();
+        }
 
         // Resolve the PureClassMapping: link it to its source mapping and target class
         org.finos.legend.pure.m3.PureClass targetClass = null;
@@ -391,20 +401,8 @@ public class CleanCompiler {
         // Type-check M2M property expressions: bind $src to source relationType+mapping
         // so that operands in expressions like `$src.firstName + ' ' + $src.lastName`
         // get tagged with their types (String, Integer, etc.) in the sidecar.
-        if (srcMapping instanceof RelationalMapping srcRm) {
-            // Build source RelationType from source mapping's property names + types
-            Map<String, GenericType> srcColumns = new LinkedHashMap<>();
-            for (var pm : srcRm.propertyMappings()) {
-                srcColumns.put(pm.propertyName(), srcRm.pureTypeForProperty(pm.propertyName()));
-            }
-            RelationType srcRelType = RelationType.withoutPivot(srcColumns);
-
-            // Bind $src to source type
-            CompilationContext srcCtx = new CompilationContext()
-                    .withRelationType("src", srcRelType)
-                    .withMapping("src", srcRm);
-
-            // Type-check each M2M property expression
+        CompilationContext srcCtx = buildSourceContext(srcMapping);
+        if (srcCtx != null) {
             for (var entry : pureMapping.propertyExpressions().entrySet()) {
                 typeCheckExpression(entry.getValue(), srcCtx);
             }
@@ -420,6 +418,75 @@ public class CleanCompiler {
                 .build();
         types.put(af, info);
         return info;
+    }
+
+    /**
+     * Recursively resolves an M2M chain, ensuring each intermediate PureClassMapping
+     * is linked to its source mapping. Terminates when the source is a RelationalMapping.
+     */
+    private void resolveM2MChain(org.finos.legend.engine.store.PureClassMapping pcm) {
+        String srcClassName = pcm.sourceClassName();
+        var srcMappingOpt = mappingRegistry.findAnyMapping(srcClassName);
+        if (srcMappingOpt.isEmpty()) {
+            throw new PureCompileException(
+                    "M2M chain: source class '" + srcClassName + "' has no mapping.");
+        }
+        ClassMapping srcMapping = srcMappingOpt.get();
+
+        // If source is also M2M, resolve recursively first
+        if (srcMapping instanceof org.finos.legend.engine.store.PureClassMapping innerPcm) {
+            resolveM2MChain(innerPcm);
+            // Re-fetch resolved version
+            srcMapping = mappingRegistry.findAnyMapping(srcClassName).orElseThrow();
+        }
+
+        // Type-check this intermediate M2M's property expressions against its source
+        CompilationContext srcCtx = buildSourceContext(srcMapping);
+        if (srcCtx != null) {
+            for (var entry : pcm.propertyExpressions().entrySet()) {
+                typeCheckExpression(entry.getValue(), srcCtx);
+            }
+        }
+
+        // Resolve this M2M mapping: link to its source
+        org.finos.legend.pure.m3.PureClass targetClass = null;
+        if (modelContext != null) {
+            targetClass = modelContext.findClass(pcm.targetClassName()).orElse(null);
+        }
+        var resolved = pcm.withResolved(targetClass, srcMapping);
+
+        // Update the mapping registry with the resolved version
+        mappingRegistry.updatePureClassMapping(pcm.targetClassName(), resolved);
+    }
+
+    /**
+     * Builds a CompilationContext for type-checking M2M expressions against a source mapping.
+     * Handles both RelationalMapping sources (column types from schema) and
+     * PureClassMapping sources (virtual column types from M2M property expressions).
+     */
+    private CompilationContext buildSourceContext(ClassMapping srcMapping) {
+        if (srcMapping instanceof RelationalMapping srcRm) {
+            Map<String, GenericType> srcColumns = new LinkedHashMap<>();
+            for (var pm : srcRm.propertyMappings()) {
+                srcColumns.put(pm.propertyName(), srcRm.pureTypeForProperty(pm.propertyName()));
+            }
+            RelationType srcRelType = RelationType.withoutPivot(srcColumns);
+            return new CompilationContext()
+                    .withRelationType("src", srcRelType)
+                    .withMapping("src", srcRm);
+        }
+        if (srcMapping instanceof org.finos.legend.engine.store.PureClassMapping srcPcm) {
+            // For M2M→M2M: bind $src to the intermediate M2M's virtual columns
+            Map<String, GenericType> srcColumns = new LinkedHashMap<>();
+            for (String propName : srcPcm.propertyExpressions().keySet()) {
+                srcColumns.put(propName, resolveM2MPropertyType(srcPcm.targetClassName(), propName));
+            }
+            RelationType srcRelType = RelationType.withoutPivot(srcColumns);
+            return new CompilationContext()
+                    .withRelationType("src", srcRelType)
+                    .withMapping("src", srcPcm);
+        }
+        return null;
     }
 
     /**
