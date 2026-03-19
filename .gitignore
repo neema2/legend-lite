@@ -15,6 +15,7 @@ dependency-reduced-pom.xml
 
 # Logs
 *.log
-*.wal
-engine/null.wal
-engine/null
+
+# DuckDB artifacts
+null
+null.wal
