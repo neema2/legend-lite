@@ -123,7 +123,139 @@ Mapping model::PersonMapping
 
 A single class can be mapped to **different databases** — swap the mapping at runtime to query Postgres, DuckDB, or SQLite with the same model.
 
-### 6. Connections & Runtimes — Bind to a Live Database
+### 6. Model-to-Model Mappings — Transform Between Classes
+
+M2M mappings transform one class into another using Pure expressions. The engine compiles all transforms to SQL — no in-memory processing:
+
+```pure
+// Source class (raw staging data)
+Class model::RawPerson
+{
+    firstName: String[1];
+    lastName:  String[1];
+    age:       Integer[1];
+    salary:    Float[1];
+    isActive:  Boolean[1];
+}
+
+// Target class (clean business model)
+Class model::Person
+{
+    fullName:      String[1];
+    upperLastName: String[1];
+}
+
+// M2M mapping: RawPerson → Person
+Mapping model::PersonM2MMapping
+(
+    Person: Pure
+    {
+        ~src RawPerson
+        fullName:      $src.firstName + ' ' + $src.lastName,
+        upperLastName: $src.lastName->toUpper()
+    }
+)
+```
+
+- `~src RawPerson` — declares the source class
+- `$src.property` — references a source property
+- String concat (`+`), function chaining (`->toUpper()`), and conditionals all compile to SQL
+
+**Conditionals, filters, and nested if/else:**
+
+```pure
+// Conditional: age grouping with nested if/else → CASE WHEN
+Mapping model::ConditionalMapping
+(
+    PersonView: Pure
+    {
+        ~src RawPerson
+        firstName: $src.firstName,
+        ageGroup:  if($src.age < 18, |'Minor', |if($src.age < 65, |'Adult', |'Senior'))
+    }
+)
+
+// Filter: only include active people → WHERE clause
+Mapping model::FilteredMapping
+(
+    ActivePerson: Pure
+    {
+        ~src RawPerson
+        ~filter $src.isActive == true
+        firstName: $src.firstName,
+        lastName:  $src.lastName
+    }
+)
+```
+
+**Chained M2M — compose transforms through multiple layers:**
+
+```pure
+// PersonSummary → Person → RawPerson (resolves through the full chain to SQL)
+Mapping model::ChainedM2MMapping
+(
+    PersonSummary: Pure
+    {
+        ~src Person
+        name:      $src.fullName,
+        nameUpper: $src.upperLastName
+    }
+)
+```
+
+**Nested associations in M2M — `@JoinName` for deep-fetch:**
+
+```pure
+Mapping model::DeepFetchMapping
+(
+    PersonWithAddress: Pure
+    {
+        ~src RawPerson
+        fullName: $src.firstName + ' ' + $src.lastName,
+        address:  @PersonAddress
+    }
+    Address: Pure
+    {
+        ~src RawAddress
+        city:   $src.city,
+        street: $src.street
+    }
+)
+```
+
+### 7. Graph Fetch — Nested / Structured Results
+
+Instead of flat tabular output, `graphFetch` returns nested JSON objects matching the class graph shape:
+
+```pure
+// Flat properties
+Person.all()
+  ->graphFetch(#{ Person { fullName, upperLastName } }#)
+  ->serialize(#{ Person { fullName, upperLastName } }#)
+```
+
+```json
+[{"fullName": "John Smith", "upperLastName": "SMITH"},
+ {"fullName": "Jane Doe", "upperLastName": "DOE"}]
+```
+
+**Nested associations — objects within objects:**
+
+```pure
+PersonWithAddress.all()
+  ->graphFetch(#{ PersonWithAddress { fullName, address { city, street } } }#)
+  ->serialize(#{ PersonWithAddress { fullName, address { city, street } } }#)
+```
+
+```json
+[{"fullName": "John Smith", "address": [{"city": "New York", "street": "123 Main St"}]},
+ {"fullName": "Bob Jones",  "address": [{"city": "Chicago", "street": "789 Pine Rd"},
+                                         {"city": "Seattle", "street": "321 Elm Blvd"}]}]
+```
+
+The entire object graph — including nested one-to-many associations — is assembled in a **single SQL statement** using DuckDB's `ROW()` and `LIST()` constructs with correlated subqueries.
+
+### 8. Connections & Runtimes — Bind to a Live Database
 
 ```pure
 RelationalDatabaseConnection store::TestConnection
@@ -151,12 +283,12 @@ Runtime test::TestRuntime
 
 The Runtime binds everything together: which mapping to use, and which database connection to target. Change the runtime to switch databases without touching your model or queries.
 
-### 7. Queries — Type-Safe Expressions
+### 9. Queries — Type-Safe Expressions
 
-Now query the model with Pure expressions that compile to SQL:
+Query the model with Pure expressions that compile to SQL:
 
 ```pure
-// Filter + project
+// Filter + project (tabular)
 Person.all()
   ->filter({p | $p.age > 30})
   ->project([p|$p.firstName, p|$p.lastName], ['first', 'last'])
@@ -177,14 +309,16 @@ Person.all()
   ->sort(descending('age'))
   ->limit(5)
 
-// Graph fetch (nested/structured results)
-Person.all()->graphFetch(#{Person{firstName, addresses{city, street}}}#)
+// Graph fetch (nested/structured JSON)
+Person.all()
+  ->graphFetch(#{ Person { fullName, upperLastName } }#)
+  ->serialize(#{ Person { fullName, upperLastName } }#)
 
 // Conditional logic
 Person.all()->project({p | if($p.age < 18, |'Minor', |'Adult')}, 'category')
 ```
 
-**Every one of these compiles to a single SQL statement.** Associations become JOINs, to-many filters become EXISTS, graph fetches become nested STRUCTs — all pushed down to the database.
+**Every one of these compiles to a single SQL statement.** Associations become JOINs, to-many filters become EXISTS, graph fetches become nested STRUCTs, M2M transforms become inline SQL expressions — all pushed down to the database.
 
 ---
 
