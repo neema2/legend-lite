@@ -1,8 +1,190 @@
 # Legend Lite
 
-A **clean-room reimplementation** of the [FINOS Legend](https://legend.finos.org/) Engine in ~25K lines of modern Java 21. Every Pure query compiles to a single SQL statement and executes entirely inside the database — **zero rows are ever fetched into the JVM**.
+A **clean-room reimplementation** of the [FINOS Legend](https://legend.finos.org/) Engine in ~25K lines of modern Java 21. Legend Lite compiles Pure models and queries to SQL and executes them entirely inside the database — **zero rows are ever fetched into the JVM**.
 
-> **Legend** is an open-source data management platform created by Goldman Sachs and donated to FINOS. It provides a formal modeling language (Pure) for describing data models, mappings, and queries. Legend Lite reimplements the engine that compiles and executes Pure against relational databases.
+---
+
+## What is Legend?
+
+[Legend](https://legend.finos.org/) is an open-source data management platform created by Goldman Sachs and donated to FINOS. Its core idea: **define your data model once in a formal language (Pure), then map it to physical databases and query it with type-safe semantics.**
+
+Legend Lite reimplements this in a fraction of the code, with 100% SQL push-down execution.
+
+---
+
+## The Pure Language
+
+Pure is Legend's modeling and query language. You define **what your data looks like** (classes), **where it lives** (databases + mappings), and **how to access it** (runtimes + connections). Then you query it with a type-safe expression language that compiles to SQL.
+
+### 1. Classes — Define Your Data Model
+
+Classes describe the shape of your domain objects:
+
+```pure
+Class model::Person
+{
+    firstName: String[1];
+    lastName:  String[1];
+    age:       Integer[1];
+}
+
+Class model::Address
+{
+    street: String[1];
+    city:   String[1];
+}
+```
+
+- `String[1]` — required, exactly one value
+- `String[0..1]` — optional
+- `String[*]` — zero or more (collection)
+- Types: `String`, `Integer`, `Float`, `Decimal`, `Boolean`, `Date`, `DateTime`, `StrictDate`
+
+### 2. Associations — Link Classes Together
+
+Associations define relationships between classes:
+
+```pure
+Association model::Person_Address
+{
+    person:    Person[1];
+    addresses: Address[*];
+}
+```
+
+This says: a Person has many Addresses, and each Address belongs to one Person. Both sides are navigable — you can traverse `$person.addresses` or `$address.person` in queries.
+
+### 3. Inheritance — Extend Classes
+
+```pure
+Class model::GeographicEntity
+{
+}
+
+Class model::Address extends model::GeographicEntity
+{
+    name: String[1];
+}
+
+Class model::Location extends model::GeographicEntity
+{
+    place: String[1];
+}
+```
+
+### 4. Databases — Describe Physical Storage
+
+Database definitions describe tables, columns, and joins:
+
+```pure
+Database store::PersonDatabase
+(
+    Table T_PERSON
+    (
+        ID         INTEGER PRIMARY KEY,
+        FIRST_NAME VARCHAR(100) NOT NULL,
+        LAST_NAME  VARCHAR(100) NOT NULL,
+        AGE_VAL    INTEGER NOT NULL
+    )
+    Table T_ADDRESS
+    (
+        ID        INTEGER PRIMARY KEY,
+        PERSON_ID INTEGER NOT NULL,
+        STREET    VARCHAR(200) NOT NULL,
+        CITY      VARCHAR(100) NOT NULL
+    )
+    Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
+)
+```
+
+### 5. Mappings — Connect Models to Storage
+
+Mappings tell the engine how class properties map to table columns:
+
+```pure
+Mapping model::PersonMapping
+(
+    Person: Relational
+    {
+        ~mainTable [PersonDatabase] T_PERSON
+        firstName: [PersonDatabase] T_PERSON.FIRST_NAME,
+        lastName:  [PersonDatabase] T_PERSON.LAST_NAME,
+        age:       [PersonDatabase] T_PERSON.AGE_VAL
+    }
+
+    Address: Relational
+    {
+        ~mainTable [PersonDatabase] T_ADDRESS
+        street: [PersonDatabase] T_ADDRESS.STREET,
+        city:   [PersonDatabase] T_ADDRESS.CITY
+    }
+)
+```
+
+A single class can be mapped to **different databases** — swap the mapping at runtime to query Postgres, DuckDB, or SQLite with the same model.
+
+### 6. Connections & Runtimes — Bind to a Live Database
+
+```pure
+RelationalDatabaseConnection store::TestConnection
+{
+    type: DuckDB;
+    specification: InMemory { };
+    auth: NoAuth { };
+}
+
+Runtime test::TestRuntime
+{
+    mappings:
+    [
+        model::PersonMapping
+    ];
+    connections:
+    [
+        store::PersonDatabase:
+        [
+            environment: store::TestConnection
+        ]
+    ];
+}
+```
+
+The Runtime binds everything together: which mapping to use, and which database connection to target. Change the runtime to switch databases without touching your model or queries.
+
+### 7. Queries — Type-Safe Expressions
+
+Now query the model with Pure expressions that compile to SQL:
+
+```pure
+// Filter + project
+Person.all()
+  ->filter({p | $p.age > 30})
+  ->project([p|$p.firstName, p|$p.lastName], ['first', 'last'])
+
+// Navigate through associations
+Person.all()
+  ->filter({p | $p.addresses.city == 'New York'})
+  ->project({p | $p.firstName}, {p | $p.addresses.street})
+
+// GroupBy with aggregation
+Person.all()
+  ->project([p|$p.lastName, p|$p.age], ['name', 'age'])
+  ->groupBy([{r|$r.name}], [{r|$r.age->average()}], ['name', 'avgAge'])
+
+// Sort + limit
+Person.all()
+  ->project([p|$p.firstName, p|$p.age], ['name', 'age'])
+  ->sort(descending('age'))
+  ->limit(5)
+
+// Graph fetch (nested/structured results)
+Person.all()->graphFetch(#{Person{firstName, addresses{city, street}}}#)
+
+// Conditional logic
+Person.all()->project({p | if($p.age < 18, |'Minor', |'Adult')}, 'category')
+```
+
+**Every one of these compiles to a single SQL statement.** Associations become JOINs, to-many filters become EXISTS, graph fetches become nested STRUCTs — all pushed down to the database.
 
 ---
 
@@ -17,53 +199,6 @@ A **clean-room reimplementation** of the [FINOS Legend](https://legend.finos.org
 | **Java version** | Java 11 | Java 21 (records, sealed interfaces, pattern matching) |
 | **Databases** | Postgres, Databricks, Snowflake, etc. | DuckDB (primary), SQLite |
 
-Legend Lite is **not a fork** — it's a clean-room implementation that reads the same Pure language but compiles it through a completely different pipeline. The goal is to demonstrate that a modern, minimalist engine can achieve the same (and in many cases better) query semantics with orders-of-magnitude less complexity.
-
----
-
-## Modules
-
-```
-legend-lite/
-├── engine/     Core: parser, compiler, SQL generator, executor, HTTP server
-├── nlq/        Natural Language Query — English → Pure via LLM pipeline
-├── pct/        Pure Compatibility Tests against the Legend specification
-├── docs/       Design documents (Model-to-Model, etc.)
-└── pom.xml     Parent POM (Java 21, DuckDB 1.5, ANTLR 4.13)
-```
-
-### Engine (`engine/`)
-
-The engine is the heart of Legend Lite — 110 source files organized into 12 packages:
-
-| Package | Purpose |
-|---------|---------|
-| `ast` | Value specification AST — all Pure expressions as Java records |
-| `antlr` | ANTLR visitors that build the AST from parse trees |
-| `parser` | Hand-written recursive-descent parser for Pure model definitions |
-| `compiler` | `TypeChecker` — resolves types, validates semantics, annotates the AST |
-| `model` | `PureModelBuilder` — constructs the in-memory model (classes, mappings, runtimes) |
-| `plan` | `PlanGenerator` — compiles typed AST → SQL via `SqlBuilder` / `SqlExpr` |
-| `sql` | `SqlBuilder` — structural SQL AST (SELECT, JOIN, WHERE, etc.) |
-| `sqlgen` | Dialect layer — translates generic SQL nodes to database-specific SQL text |
-| `exec` | `PlanExecutor` — sends SQL to DuckDB/SQLite, maps results to typed rows |
-| `serial` | Result serializers (JSON, CSV) |
-| `server` | `LegendHttpServer` — embedded HTTP server with LSP, execute, diagram endpoints |
-| `service` | `QueryService` — high-level orchestration of compile → plan → execute |
-
-### NLQ (`nlq/`)
-
-The NLQ module translates English questions into executable Pure queries using a 4-step LLM pipeline:
-
-```
-Question → Semantic Retrieval → LLM Router → Query Planner → Pure Generator → Parse Validation
-              (TF-IDF)          (root class)   (JSON plan)    (Pure syntax)    (PureParser)
-```
-
-### PCT (`pct/`)
-
-Pure Compatibility Tests — runs the Legend specification's PCT test suite against Legend Lite to measure function coverage and compatibility with the upstream engine.
-
 ---
 
 ## Quick Start
@@ -74,7 +209,7 @@ Pure Compatibility Tests — runs the Legend specification's PCT test suite agai
 - **Maven 3.9+**
 - **GEMINI_API_KEY** — required only for NLQ features
 
-### Build
+### Build & Test
 
 ```bash
 mvn clean install -DskipTests     # ~8 seconds
@@ -83,38 +218,32 @@ mvn clean test -pl engine          # 955 tests in ~19 seconds
 
 ### Run the Server
 
-**Engine only** (LSP, query execution, SQL, diagrams):
-
 ```bash
+# Engine only (LSP, query execution, SQL, diagrams)
 mvn exec:java -pl engine \
   -Dexec.mainClass="com.gs.legend.server.LegendHttpServer"
-```
 
-**With NLQ** (adds the `POST /engine/nlq` endpoint):
-
-```bash
-GEMINI_API_KEY=your-key-here \
+# With NLQ (adds natural language → Pure endpoint)
+GEMINI_API_KEY=your-key \
 mvn exec:java -pl nlq \
   -Dexec.mainClass="org.finos.legend.engine.nlq.NlqHttpServer"
 ```
 
-Both start on **port 8080**. Override with a port argument:
-
-```bash
-mvn exec:java -pl engine \
-  -Dexec.mainClass="com.gs.legend.server.LegendHttpServer" \
-  -Dexec.args="9090"
-```
-
-### Connect the Frontend
-
-See [Studio Lite](https://github.com/neema2/studio-lite) — the React-based IDE that connects to `http://localhost:8080`.
+Both start on **port 8080**. Connect [Studio Lite](https://github.com/neema2/studio-lite) (the React IDE) to `http://localhost:8080`.
 
 ---
 
-## Architecture
+## Modules
 
-### Compilation Pipeline
+```
+legend-lite/
+├── engine/     Core: parser, compiler, SQL generator, executor, HTTP server
+├── nlq/        Natural Language Query — English → Pure via LLM pipeline
+├── pct/        Pure Compatibility Tests against the Legend specification
+└── docs/       Design documents (Model-to-Model transforms, etc.)
+```
+
+### Engine Architecture
 
 Every Pure query flows through the same pipeline:
 
@@ -130,19 +259,24 @@ Pure Source → PureParser → AST → PureModelBuilder → Model
                                                                                     PlanExecutor → Rows
 ```
 
-**Key design decisions:**
+The engine is organized into 12 packages:
 
-1. **Immutable AST** — All AST nodes are Java records (`sealed interface ValueSpecification permits ...`). Pattern matching in `switch` expressions provides exhaustiveness guarantees.
-
-2. **Single-pass SQL compilation** — The `PlanGenerator` walks the typed AST exactly once and emits a structural `SqlBuilder` (not raw SQL strings). The `SqlDialect` layer renders the builder to database-specific SQL.
-
-3. **Side-table metadata** — The `TypeChecker` annotates each AST node with a `TypeInfo` record (scalar type, multiplicity, relation columns, inlined expressions). The `PlanGenerator` reads this metadata without re-walking the model.
-
-4. **Dialect abstraction** — Database-specific SQL (DuckDB structs, `LIST_TRANSFORM`, `DATE_TRUNC`) is emitted as semantic function names (`listTransform`, `dateTruncDay`) and translated to real SQL by the dialect layer.
+| Package | Purpose |
+|---------|---------|
+| `ast` | Value specification AST — all Pure expressions as Java records |
+| `antlr` | ANTLR visitors that build the AST from parse trees |
+| `parser` | Hand-written recursive-descent parser for Pure model definitions |
+| `compiler` | `TypeChecker` — resolves types, validates semantics, annotates the AST |
+| `model` | `PureModelBuilder` — constructs the in-memory model (classes, mappings, runtimes) |
+| `plan` | `PlanGenerator` — compiles typed AST → SQL via `SqlBuilder` / `SqlExpr` |
+| `sql` | `SqlBuilder` — structural SQL AST (SELECT, JOIN, WHERE, etc.) |
+| `sqlgen` | Dialect layer — translates generic SQL nodes to database-specific SQL text |
+| `exec` | `PlanExecutor` — sends SQL to DuckDB/SQLite, maps results to typed rows |
+| `serial` | Result serializers (JSON, CSV) |
+| `server` | `LegendHttpServer` — embedded HTTP server |
+| `service` | `QueryService` — high-level orchestration |
 
 ### SQL Push-Down Strategy
-
-Legend Lite never fetches rows into the JVM for processing. Every Pure operation maps to a SQL construct:
 
 | Pure Operation | SQL Translation |
 |---------------|----------------|
@@ -150,13 +284,13 @@ Legend Lite never fetches rows into the JVM for processing. Every Pure operation
 | `project([...])` | `SELECT` columns |
 | `groupBy([...], [...])` | `GROUP BY` + aggregate functions |
 | `sort(ascending('col'))` | `ORDER BY col ASC` |
-| `limit(n)` | `LIMIT n` |
+| `limit(n)` / `drop(n)` | `LIMIT` / `OFFSET` |
 | `distinct()` | `SELECT DISTINCT` |
-| `->contains()` (to-many) | `WHERE EXISTS (...)` |
-| Property access through association | `LEFT OUTER JOIN` |
+| Association in filter | `WHERE EXISTS (...)` — prevents row explosion |
+| Association in project | `LEFT OUTER JOIN` — preserves nulls |
 | `if(cond, \|then, \|else)` | `CASE WHEN ... THEN ... ELSE ... END` |
-| `fold({e,a\| ...}, init)` | `LIST_REDUCE(...)` or desugared `CONCATENATE` |
-| Struct construction (`^Class(...)`) | `ROW(...)` / `STRUCT(...)` |
+| `fold({e,a\| ...}, init)` | `LIST_REDUCE(...)` |
+| Graph fetch | Nested `ROW(...)` / `STRUCT(...)` with correlated subqueries |
 
 ---
 
@@ -167,7 +301,7 @@ All endpoints are served on port 8080.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/lsp` | LSP JSON-RPC — diagnostics, completions, hover |
-| `POST` | `/engine/execute` | Compile + execute a Pure query against DuckDB |
+| `POST` | `/engine/execute` | Compile + execute a Pure query against a database |
 | `POST` | `/engine/sql` | Execute raw SQL against a Runtime's connection |
 | `POST` | `/engine/diagram` | Extract class diagram data from a Pure model |
 | `POST` | `/engine/nlq` | Translate natural language to Pure query (NLQ module) |
@@ -179,67 +313,53 @@ All endpoints are served on port 8080.
 
 ```json
 {
-  "code": "Class model::Person { firstName: String[1]; age: Integer[1]; }\nDatabase store::DB ( Table T_PERSON (ID INT, FIRST_NAME VARCHAR(100), AGE INT) )\nMapping model::PersonMapping ( Person: Relational { ~mainTable [DB] T_PERSON  firstName: [DB] T_PERSON.FIRST_NAME, age: [DB] T_PERSON.AGE } )\nRuntime model::PersonRuntime { mappings: [model::PersonMapping]; connections: [store::DB: DuckDB]; }\n\nPerson.all()->filter({p|$p.age > 30})->project({p|$p.firstName})"
+  "code": "Class model::Person { ... }\nDatabase store::DB ( ... )\nMapping model::M ( ... )\nRuntime model::R { ... }\n\nPerson.all()->filter({p|$p.age > 30})->project({p|$p.firstName})"
 }
 ```
 
-The `code` field contains the full Pure source. The query expression is the last statement (after the Runtime definition).
-
-### NLQ Endpoint
-
-**Request:**
-
-```json
-{
-  "code": "Class model::Trade { trader: Trader[1]; notional: Float[1]; ... }",
-  "question": "show me total notional by desk",
-  "domain": "Trading"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "rootClass": "Trade",
-  "pureQuery": "Trade.all()->project([t|$t.trader.desk.name, t|$t.notional], ['desk', 'notional'])->groupBy([{r|$r.desk}], [{r|$r.notional->sum()}], ['desk', 'totalNotional'])",
-  "queryPlan": "{ ... }",
-  "retrievedClasses": ["Trade", "Trader", "Desk"],
-  "latencyMs": 4200
-}
-```
+The `code` field contains the full Pure source. The query is the last expression (after the Runtime definition). The engine parses the model, compiles the query, generates SQL, executes it, and returns tabular results.
 
 ---
 
-## Pure Language Quick Reference
+## NLQ (Natural Language Query)
+
+The NLQ module translates English questions into executable Pure queries using a 4-step LLM pipeline:
+
+```
+Question → Semantic Retrieval → LLM Router → Query Planner → Pure Generator → Parse Validation
+              (TF-IDF)          (root class)   (JSON plan)    (Pure syntax)    (PureParser)
+```
+
+**Example:**
+
+```
+Input:  "show me total notional by desk"
+Output: Trade.all()->project([t|$t.trader.desk.name, t|$t.notional], ['desk', 'notional'])
+          ->groupBy([{r|$r.desk}], [{r|$r.notional->sum()}], ['desk', 'totalNotional'])
+```
+
+### NLQ Annotations
+
+Improve NLQ accuracy by annotating your Pure model:
 
 ```pure
-// Filter + project
-Person.all()
-  ->filter({p | $p.age > 30 && $p.lastName != 'Smith'})
-  ->project([p|$p.firstName, p|$p.lastName, p|$p.age], ['first', 'last', 'age'])
+Profile nlq {
+  tags: [description, synonyms, businessDomain, importance,
+         exampleQuestions, displayName, sampleValues, unit];
+}
 
-// GroupBy with aggregation
-Trade.all()
-  ->project([t|$t.trader.desk.name, t|$t.notional], ['desk', 'notional'])
-  ->groupBy([{r|$r.desk}], [{r|$r.notional->sum()}], ['desk', 'totalNotional'])
-
-// Sort + limit
-Trade.all()
-  ->project([t|$t.notional, t|$t.tradeDate], ['notional', 'date'])
-  ->sort(descending('notional'))
-  ->limit(10)
-
-// Graph fetch (nested/structured results)
-Person.all()->graphFetch(#{Person{firstName, lastName, addresses{city, street}}}#)
-
-// Conditional logic
-Person.all()->project({p | if($p.age < 18, |'Minor', |'Adult')}, 'category')
-
-// String operations
-Person.all()->project({p | $p.firstName->toUpper() + ' ' + $p.lastName->toLower()}, 'name')
+Class {nlq.description = 'Individual trade execution'} model::Trade {
+  {nlq.synonyms = 'deal, transaction'} notional: Float[1];
+  {nlq.unit = 'USD'} price: Float[1];
+}
 ```
+
+### Configuration
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GEMINI_API_KEY` | Yes (NLQ only) | — | Google Gemini API key |
+| `GEMINI_MODEL` | No | `gemini-3-flash-preview` | Gemini model name |
 
 ---
 
@@ -249,44 +369,14 @@ Person.all()->project({p | $p.firstName->toUpper() + ' ' + $p.lastName->toLower(
 # Engine: full test suite (955 tests, ~19s clean / ~8s incremental)
 mvn clean test -pl engine
 
-# Engine: specific test class
+# Engine: single test class
 mvn test -pl engine -Dtest="DuckDBIntegrationTest"
 
-# NLQ eval: sales-trading model (requires GEMINI_API_KEY)
+# NLQ eval (requires GEMINI_API_KEY)
 GEMINI_API_KEY=your-key mvn test -pl nlq -Dtest="NlqFullPipelineEvalTest"
-
-# NLQ eval: CDM model (741 classes)
-GEMINI_API_KEY=your-key mvn test -pl nlq -Dtest="NlqCdmEvalTest"
 
 # PCT compatibility tests
 mvn test -pl pct
-```
-
----
-
-## NLQ Configuration
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `GEMINI_API_KEY` | Yes (NLQ only) | — | Google Gemini API key |
-| `LLM_PROVIDER` | No | `gemini` | LLM provider |
-| `GEMINI_MODEL` | No | `gemini-3-flash-preview` | Gemini model name |
-
-### NLQ Annotations
-
-Pure models can include metadata via tagged values to improve NLQ retrieval and accuracy:
-
-```pure
-Profile nlq {
-  tags: [description, synonyms, businessDomain, importance, exampleQuestions,
-         displayName, sampleValues, unit];
-}
-
-Class {nlq.description = 'Daily profit and loss by trader'} model::DailyPnL {
-  {nlq.synonyms = 'PnL, P&L, daily P&L'} totalPnL: Float[1];
-}
 ```
 
 ---
@@ -297,7 +387,7 @@ Class {nlq.description = 'Daily profit and loss by trader'} model::DailyPnL {
 |--------|-------|
 | Engine source files | 110 |
 | Engine test files | 41 |
-| Engine LOC (source) | ~25,000 |
+| Engine LOC | ~25,000 |
 | Total project LOC | ~88,000 |
 | Engine tests | 955 |
 | Clean build + test | ~19 seconds |
