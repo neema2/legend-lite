@@ -1,7 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
-import org.finos.legend.pure.dsl.definition.PureModelBuilder;
+import com.gs.legend.model.PureModelBuilder;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;

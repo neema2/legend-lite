@@ -2,9 +2,9 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
 import org.finos.legend.engine.nlq.ModelSchemaExtractor;
-import org.finos.legend.pure.dsl.definition.EnumDefinition;
-import org.finos.legend.pure.dsl.definition.PureModelBuilder;
-import org.finos.legend.pure.m3.*;
+import com.gs.legend.model.def.EnumDefinition;
+import com.gs.legend.model.PureModelBuilder;
+import com.gs.legend.model.m3.*;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;

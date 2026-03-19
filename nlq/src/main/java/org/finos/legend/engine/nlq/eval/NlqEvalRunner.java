@@ -5,7 +5,7 @@ import org.finos.legend.engine.nlq.ModelSchemaExtractor;
 import org.finos.legend.engine.nlq.NlqResult;
 import org.finos.legend.engine.nlq.NlqService;
 import org.finos.legend.engine.nlq.SemanticIndex;
-import org.finos.legend.pure.dsl.definition.PureModelBuilder;
+import com.gs.legend.model.PureModelBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;

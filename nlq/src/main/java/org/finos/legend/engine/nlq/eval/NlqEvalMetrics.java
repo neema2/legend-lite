@@ -2,7 +2,7 @@ package org.finos.legend.engine.nlq.eval;
 
 import org.finos.legend.engine.nlq.LlmClient;
 import org.finos.legend.engine.nlq.SemanticIndex;
-import org.finos.legend.pure.dsl.PureParser;
+import com.gs.legend.parser.PureParser;
 
 import java.util.*;
 import java.util.regex.Matcher;

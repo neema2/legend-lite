@@ -2,7 +2,7 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.eval.NlqEvalCase;
 import org.finos.legend.engine.nlq.eval.NlqEvalRunner;
-import org.finos.legend.pure.dsl.PureParser;
+import com.gs.legend.parser.PureParser;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;

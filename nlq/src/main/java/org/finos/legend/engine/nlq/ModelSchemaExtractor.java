@@ -1,9 +1,9 @@
 package org.finos.legend.engine.nlq;
 
-import org.finos.legend.pure.dsl.definition.PureModelBuilder;
-import org.finos.legend.pure.m3.Association;
-import org.finos.legend.pure.m3.Property;
-import org.finos.legend.pure.m3.PureClass;
+import com.gs.legend.model.PureModelBuilder;
+import com.gs.legend.model.m3.Association;
+import com.gs.legend.model.m3.Property;
+import com.gs.legend.model.m3.PureClass;
 
 import java.util.*;
 

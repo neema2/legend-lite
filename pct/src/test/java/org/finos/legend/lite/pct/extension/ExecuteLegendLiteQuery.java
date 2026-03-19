@@ -17,14 +17,14 @@ package org.finos.legend.lite.pct.extension;
 import org.eclipse.collections.api.list.ListIterable;
 import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
-import org.finos.legend.engine.execution.ExecutionResult;
-import org.finos.legend.engine.execution.ExecutionResult.ScalarResult;
-import org.finos.legend.engine.execution.ExecutionResult.CollectionResult;
-import org.finos.legend.engine.execution.ExecutionResult.TabularResult;
-import org.finos.legend.engine.execution.ExecutionResult.GraphResult;
-import org.finos.legend.engine.execution.Column;
-import org.finos.legend.engine.plan.GenericType;
-import org.finos.legend.engine.server.QueryService;
+import com.gs.legend.exec.ExecutionResult;
+import com.gs.legend.exec.ExecutionResult.ScalarResult;
+import com.gs.legend.exec.ExecutionResult.CollectionResult;
+import com.gs.legend.exec.ExecutionResult.TabularResult;
+import com.gs.legend.exec.ExecutionResult.GraphResult;
+import com.gs.legend.exec.Column;
+import com.gs.legend.plan.GenericType;
+import com.gs.legend.server.QueryService;
 
 import org.finos.legend.pure.m3.compiler.Context;
 import org.finos.legend.pure.m3.exception.PureExecutionException;
@@ -45,10 +45,10 @@ import org.finos.legend.pure.runtime.java.interpreted.natives.InstantiationConte
 import org.finos.legend.pure.runtime.java.interpreted.natives.NativeFunction;
 import org.finos.legend.pure.runtime.java.interpreted.profiler.Profiler;
 
-import org.finos.legend.pure.m3.Multiplicity;
-import org.finos.legend.pure.m3.PrimitiveType;
-import org.finos.legend.pure.m3.Property;
-import org.finos.legend.pure.m3.PureClass;
+import com.gs.legend.model.m3.Multiplicity;
+import com.gs.legend.model.m3.PrimitiveType;
+import com.gs.legend.model.m3.Property;
+import com.gs.legend.model.m3.PureClass;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -482,7 +482,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 }
             }
 
-            org.finos.legend.pure.m3.Type propType;
+            com.gs.legend.model.m3.Type propType;
             try {
                 propType = PrimitiveType.fromName(typeName);
             } catch (IllegalArgumentException e) {

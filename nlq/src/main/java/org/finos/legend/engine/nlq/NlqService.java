@@ -1,7 +1,7 @@
 package org.finos.legend.engine.nlq;
 
-import org.finos.legend.pure.dsl.PureParser;
-import org.finos.legend.pure.dsl.definition.PureModelBuilder;
+import com.gs.legend.parser.PureParser;
+import com.gs.legend.model.PureModelBuilder;
 
 import java.util.List;
 import java.util.Set;

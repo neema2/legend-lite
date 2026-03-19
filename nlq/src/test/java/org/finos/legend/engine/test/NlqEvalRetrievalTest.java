@@ -6,8 +6,8 @@ import org.finos.legend.engine.nlq.eval.NlqEvalCase;
 import org.finos.legend.engine.nlq.eval.NlqEvalMetrics;
 import org.finos.legend.engine.nlq.eval.NlqEvalResult;
 import org.finos.legend.engine.nlq.eval.NlqEvalRunner;
-import org.finos.legend.pure.dsl.definition.PureModelBuilder;
-import org.finos.legend.pure.m3.PureClass;
+import com.gs.legend.model.PureModelBuilder;
+import com.gs.legend.model.m3.PureClass;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;

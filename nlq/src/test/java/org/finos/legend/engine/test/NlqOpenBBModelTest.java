@@ -2,8 +2,8 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
 import org.finos.legend.engine.nlq.ModelSchemaExtractor;
-import org.finos.legend.pure.dsl.definition.PureModelBuilder;
-import org.finos.legend.pure.m3.PureClass;
+import com.gs.legend.model.PureModelBuilder;
+import com.gs.legend.model.m3.PureClass;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
