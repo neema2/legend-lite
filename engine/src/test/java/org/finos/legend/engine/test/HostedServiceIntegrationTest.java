@@ -1,4 +1,5 @@
 package org.finos.legend.engine.test;
+import org.finos.legend.pure.dsl.PureParser;
 
 import org.finos.legend.engine.server.*;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
@@ -133,7 +134,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
      * No path parameters - just compile and run.
      */
     private void registerService(ServiceRegistry registry, String servicePure) {
-        ServiceDefinition def = PureDefinitionParser.parseServiceDefinition(servicePure);
+        ServiceDefinition def = PureParser.parseServiceDefinition(servicePure);
         String pureQuery = def.functionBody();
         String pureSource = getCompletePureModelWithRuntime();
 
@@ -149,7 +150,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
      * The filter value is substituted into the WHERE clause.
      */
     private void registerServiceWithFilter(ServiceRegistry registry, String servicePure, String paramName) {
-        ServiceDefinition def = PureDefinitionParser.parseServiceDefinition(servicePure);
+        ServiceDefinition def = PureParser.parseServiceDefinition(servicePure);
         String pureQueryTemplate = def.functionBody();
         String pureSource = getCompletePureModelWithRuntime();
 
@@ -182,7 +183,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("Parse service definition with path parameter")
     void testParseServiceDefinition() {
-        ServiceDefinition def = PureDefinitionParser.parseServiceDefinition(PERSONS_BY_LASTNAME_SERVICE);
+        ServiceDefinition def = PureParser.parseServiceDefinition(PERSONS_BY_LASTNAME_SERVICE);
 
         assertEquals("model::PersonsByLastName", def.qualifiedName());
         assertEquals("PersonsByLastName", def.simpleName());
@@ -196,7 +197,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("Parse service definition without path parameters")
     void testParseServiceWithoutParams() {
-        ServiceDefinition def = PureDefinitionParser.parseServiceDefinition(ALL_PERSONS_SERVICE);
+        ServiceDefinition def = PureParser.parseServiceDefinition(ALL_PERSONS_SERVICE);
 
         assertEquals("model::AllPersons", def.qualifiedName());
         assertEquals("/api/persons", def.pattern());
@@ -206,7 +207,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("Service pattern converts to regex correctly")
     void testPatternToRegex() {
-        ServiceDefinition def = PureDefinitionParser.parseServiceDefinition(PERSONS_BY_LASTNAME_SERVICE);
+        ServiceDefinition def = PureParser.parseServiceDefinition(PERSONS_BY_LASTNAME_SERVICE);
         var regex = def.toRegexPattern();
 
         assertTrue(regex.matcher("/api/persons/Smith").matches());

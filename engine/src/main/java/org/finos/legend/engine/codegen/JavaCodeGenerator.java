@@ -5,7 +5,7 @@ import org.finos.legend.pure.dsl.definition.ClassDefinition.DerivedPropertyDefin
 import org.finos.legend.pure.dsl.definition.ClassDefinition.PropertyDefinition;
 import org.finos.legend.pure.dsl.definition.EnumDefinition;
 import org.finos.legend.pure.dsl.definition.PackageableElement;
-import org.finos.legend.pure.dsl.definition.PureDefinitionParser;
+import org.finos.legend.pure.dsl.PureParser;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,7 +42,7 @@ public final class JavaCodeGenerator {
      * @return List of generated Java source files (filename, content pairs)
      */
     public List<GeneratedFile> generate(String pureSource) {
-        List<PackageableElement> definitions = PureDefinitionParser.parse(pureSource);
+        List<PackageableElement> definitions = PureParser.parseModel(pureSource);
 
         return definitions.stream()
                 .filter(def -> def instanceof ClassDefinition || def instanceof EnumDefinition)

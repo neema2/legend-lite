@@ -1,7 +1,7 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.pure.dsl.PureParseException;
-import org.finos.legend.pure.dsl.definition.PureDefinitionParser;
+import org.finos.legend.pure.dsl.PureParser;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,7 +44,7 @@ class ParseErrorLocationTest {
             // WHEN: We try to parse it
             PureParseException exception = assertThrows(
                     PureParseException.class,
-                    () -> PureDefinitionParser.parseClassDefinition(pureClass));
+                    () -> PureParser.parseClassDefinition(pureClass));
 
             // THEN: The exception has correct line number
             assertTrue(exception.hasLocation(),
@@ -69,7 +69,7 @@ class ParseErrorLocationTest {
             // WHEN: We try to parse it
             PureParseException exception = assertThrows(
                     PureParseException.class,
-                    () -> PureDefinitionParser.parseClassDefinition(pureClass));
+                    () -> PureParser.parseClassDefinition(pureClass));
 
             // THEN: The exception has correct line number
             assertTrue(exception.hasLocation(),
@@ -103,7 +103,7 @@ class ParseErrorLocationTest {
             // WHEN: We try to parse it
             PureParseException exception = assertThrows(
                     PureParseException.class,
-                    () -> PureDefinitionParser.parse(pureSource));
+                    () -> PureParser.parseModel(pureSource));
 
             // THEN: The exception reports line 7, NOT a lower line
             assertTrue(exception.hasLocation(),
@@ -131,7 +131,7 @@ class ParseErrorLocationTest {
             // WHEN: We try to parse it
             PureParseException exception = assertThrows(
                     PureParseException.class,
-                    () -> PureDefinitionParser.parseClassDefinition(pureClass));
+                    () -> PureParser.parseClassDefinition(pureClass));
 
             // THEN: The message includes "line X:Y" format
             String message = exception.getMessage();

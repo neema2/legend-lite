@@ -1,29 +1,26 @@
 package org.finos.legend.pure.dsl.antlr;
 
+import org.finos.legend.pure.dsl.PureParser;
 import org.finos.legend.pure.dsl.definition.ClassDefinition;
+import org.finos.legend.pure.dsl.definition.PackageableElement;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for PureDefinitionBuilder - specifically testing class inheritance
+ * Unit tests for PackageableElementBuilder - specifically testing class inheritance
  * parsing.
  */
-class PureDefinitionBuilderTest {
+class PackageableElementBuilderTest {
 
     @Test
     void testParseClassWithNoSuperclass() {
         String source = "Class model::Person { firstName: String[1]; }";
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        Optional<ClassDefinition> result = PureDefinitionBuilder.extractFirstClassDefinition(ctx);
+        ClassDefinition classDef = PureParser.parseClassDefinition(source);
 
-        assertTrue(result.isPresent());
-        ClassDefinition classDef = result.get();
         assertEquals("model::Person", classDef.qualifiedName());
         assertTrue(classDef.superClasses().isEmpty());
         assertEquals(1, classDef.properties().size());
@@ -34,12 +31,8 @@ class PureDefinitionBuilderTest {
     void testParseClassWithSingleSuperclass() {
         String source = "Class model::Employee extends model::Person { employeeId: String[1]; }";
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        Optional<ClassDefinition> result = PureDefinitionBuilder.extractFirstClassDefinition(ctx);
+        ClassDefinition classDef = PureParser.parseClassDefinition(source);
 
-        assertTrue(result.isPresent());
-        ClassDefinition classDef = result.get();
         assertEquals("model::Employee", classDef.qualifiedName());
         assertEquals(List.of("model::Person"), classDef.superClasses());
         assertEquals(1, classDef.properties().size());
@@ -50,12 +43,8 @@ class PureDefinitionBuilderTest {
     void testParseClassWithMultipleSuperclasses() {
         String source = "Class model::Manager extends model::Employee, model::Leader { teamSize: Integer[1]; }";
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        Optional<ClassDefinition> result = PureDefinitionBuilder.extractFirstClassDefinition(ctx);
+        ClassDefinition classDef = PureParser.parseClassDefinition(source);
 
-        assertTrue(result.isPresent());
-        ClassDefinition classDef = result.get();
         assertEquals("model::Manager", classDef.qualifiedName());
         assertEquals(List.of("model::Employee", "model::Leader"), classDef.superClasses());
         assertEquals(1, classDef.properties().size());
@@ -69,9 +58,11 @@ class PureDefinitionBuilderTest {
                 Class model::Employee extends model::Person { employeeId: String[1]; }
                 """;
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        List<ClassDefinition> result = PureDefinitionBuilder.extractClassDefinitions(ctx);
+        List<PackageableElement> elements = PureParser.parseModel(source);
+        List<ClassDefinition> result = elements.stream()
+                .filter(e -> e instanceof ClassDefinition)
+                .map(e -> (ClassDefinition) e)
+                .toList();
 
         assertEquals(2, result.size());
 
@@ -97,12 +88,8 @@ class PureDefinitionBuilderTest {
                 }
                 """;
 
-        org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext ctx = org.finos.legend.pure.dsl.PureParser
-                .parseDefinition(source);
-        Optional<ClassDefinition> result = PureDefinitionBuilder.extractFirstClassDefinition(ctx);
+        ClassDefinition classDef = PureParser.parseClassDefinition(source);
 
-        assertTrue(result.isPresent());
-        ClassDefinition classDef = result.get();
         assertEquals(4, classDef.properties().size());
 
         // Check property types and multiplicities

@@ -58,7 +58,7 @@ public class PlanGenerator {
             org.finos.legend.pure.dsl.definition.PureModelBuilder model,
             String query, String runtimeName) {
         SQLDialect dialect = model.resolveDialect(runtimeName);
-        var vs = org.finos.legend.pure.dsl.PureParser.parseClean(query);
+        var vs = org.finos.legend.pure.dsl.PureParser.parseQuery(query);
         var unit = new CleanCompiler(model).compile(vs);
         return new PlanGenerator(unit, dialect).generate();
     }

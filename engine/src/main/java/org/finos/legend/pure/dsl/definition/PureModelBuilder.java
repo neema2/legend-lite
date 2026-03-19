@@ -2,6 +2,7 @@ package org.finos.legend.pure.dsl.definition;
 
 import org.finos.legend.engine.store.*;
 import org.finos.legend.pure.dsl.ModelContext;
+import org.finos.legend.pure.dsl.PureParser;
 import org.finos.legend.pure.m3.*;
 
 import java.util.HashMap;
@@ -48,7 +49,7 @@ public final class PureModelBuilder implements ModelContext {
      * @return this builder for chaining
      */
     public PureModelBuilder addSource(String pureSource) {
-        List<PackageableElement> definitions = PureDefinitionParser.parse(pureSource);
+        List<PackageableElement> definitions = PureParser.parseModel(pureSource);
 
         // PHASE 0: Register all enums first (needed for type resolution in classes)
         for (PackageableElement def : definitions) {
@@ -398,7 +399,7 @@ public final class PureModelBuilder implements ModelContext {
                 } else {
                     // Parse Pure expression via CleanAstBuilder
                     parsedExpressions.put(propertyName,
-                            org.finos.legend.pure.dsl.PureParser.parseClean(expressionString));
+                            org.finos.legend.pure.dsl.PureParser.parseQuery(expressionString));
                 }
             }
         }
@@ -406,7 +407,7 @@ public final class PureModelBuilder implements ModelContext {
         // Parse filter via CleanAstBuilder
         org.finos.legend.pure.dsl.ast.ValueSpecification parsedFilter = null;
         if (classMapping.filterExpression() != null && !classMapping.filterExpression().isEmpty()) {
-            parsedFilter = org.finos.legend.pure.dsl.PureParser.parseClean(classMapping.filterExpression());
+            parsedFilter = org.finos.legend.pure.dsl.PureParser.parseQuery(classMapping.filterExpression());
         }
 
         // Register new PureClassMapping (clean pipeline)

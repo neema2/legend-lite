@@ -3583,7 +3583,7 @@ public class CleanCompiler {
         }
 
         // Re-parse inlined body into new AST and compile
-        ValueSpecification inlinedNode = PureParser.parseClean(body);
+        ValueSpecification inlinedNode = PureParser.parseQuery(body);
         TypeInfo bodyResult = compileExpr(inlinedNode, ctx);
         // Store inlined body in TypeInfo — PlanGenerator processes it instead of the
         // original call

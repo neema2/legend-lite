@@ -23,7 +23,7 @@ import java.util.Optional;
  * - Properties (simple and derived)
  * - Constraints, stereotypes, and tagged values
  */
-public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
+public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
 
     /**
      * Visits a class definition parse tree node and returns a ClassDefinition.
@@ -397,7 +397,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
             return result;
         }
 
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         // Navigate through elementDefinition* to find classDefinitions
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
@@ -454,7 +454,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.EnumDefinition> extractEnumDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.EnumDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.enumDefinition() != null) {
@@ -516,7 +516,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.ProfileDefinition> extractProfileDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.ProfileDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.profile() != null) {
@@ -582,7 +582,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.AssociationDefinition> extractAssociationDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.AssociationDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.association() != null) {
@@ -675,7 +675,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.FunctionDefinition> extractFunctionDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.FunctionDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.functionDefinition() != null) {
@@ -802,7 +802,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.DatabaseDefinition> extractDatabaseDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.DatabaseDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.database() != null) {
@@ -1310,7 +1310,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.MappingDefinition> extractMappingDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.MappingDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.mapping() != null) {
@@ -1408,7 +1408,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.ServiceDefinition> extractServiceDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.ServiceDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.serviceDefinition() != null) {
@@ -1547,7 +1547,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.ConnectionDefinition> extractConnectionDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.ConnectionDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.relationalDatabaseConnection() != null) {
@@ -1617,7 +1617,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     public static List<org.finos.legend.pure.dsl.definition.RuntimeDefinition> extractRuntimeDefinitions(
             PureParser.DefinitionContext definitionCtx) {
         List<org.finos.legend.pure.dsl.definition.RuntimeDefinition> result = new ArrayList<>();
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.runtime() != null) {
@@ -1654,7 +1654,7 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
             return result;
         }
 
-        PureDefinitionBuilder builder = new PureDefinitionBuilder();
+        PackageableElementBuilder builder = new PackageableElementBuilder();
 
         for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.classDefinition() != null) {

@@ -1,4 +1,5 @@
 package org.finos.legend.engine.test;
+import org.finos.legend.pure.dsl.PureParser;
 
 import org.finos.legend.engine.store.*;
 import org.finos.legend.engine.transpiler.SQLDialect;
@@ -72,7 +73,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // WHEN: We parse it
-        ClassDefinition classDef = PureDefinitionParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureParser.parseClassDefinition(pureClass);
 
         // THEN: We get correct multiplicities
         assertEquals("model::Employee", classDef.qualifiedName());
@@ -110,7 +111,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // WHEN: We parse it
-        DatabaseDefinition dbDef = PureDefinitionParser.parseDatabaseDefinition(pureDatabase);
+        DatabaseDefinition dbDef = PureParser.parseDatabaseDefinition(pureDatabase);
 
         // THEN: We get both tables
         assertEquals("store::SalesDB", dbDef.qualifiedName());

@@ -1,7 +1,7 @@
 package org.finos.legend.pure.dsl;
 
 import org.finos.legend.pure.dsl.definition.FunctionDefinition;
-import org.finos.legend.pure.dsl.definition.PureDefinitionParser;
+import org.finos.legend.pure.dsl.PureParser;
 
 import java.util.HashMap;
 import java.util.List;
@@ -70,7 +70,7 @@ public class PureFunctionRegistry {
      * Parse a Pure function definition using the ANTLR parser.
      */
     private FunctionEntry parseFunctionSource(String pureSource) {
-        FunctionDefinition def = PureDefinitionParser.parseFunctionDefinition(pureSource);
+        FunctionDefinition def = PureParser.parseFunctionDefinition(pureSource);
         
         List<String> paramNames = def.parameters().stream()
                 .map(FunctionDefinition.ParameterDefinition::name)

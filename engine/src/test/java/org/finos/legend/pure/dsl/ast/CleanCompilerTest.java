@@ -186,7 +186,7 @@ class CleanCompilerTest {
     // ========== Helpers ==========
 
     private ValueSpecification parse(String pureQuery) {
-        return org.finos.legend.pure.dsl.PureParser.parseClean(pureQuery);
+        return org.finos.legend.pure.dsl.PureParser.parseQuery(pureQuery);
     }
 
     private String compileSql(CompilationUnit unit) {

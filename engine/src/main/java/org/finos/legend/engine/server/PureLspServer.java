@@ -136,7 +136,7 @@ public class PureLspServer {
             new PureModelBuilder().addSource(text);
             // Also validate as a query expression if it doesn't look like definitions
             if (!text.contains("Class ") && !text.contains("Mapping ") && !text.contains("Database ")) {
-                PureParser.parseClean(text);
+                PureParser.parseQuery(text);
             }
         } catch (Exception e) {
             String message = e.getMessage();

@@ -1,4 +1,5 @@
 package org.finos.legend.engine.test;
+import org.finos.legend.pure.dsl.PureParser;
 
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.pure.dsl.definition.*;
@@ -143,7 +144,7 @@ class MappingTestIntegrationTest {
                 RELATIONAL_MODEL.indexOf("Mapping model::PersonMapping"),
                 RELATIONAL_MODEL.indexOf("RelationalDatabaseConnection")).trim();
 
-        MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(mappingOnly);
+        MappingDefinition mapping = PureParser.parseMappingDefinition(mappingOnly);
 
         // Create and run the test runner
         TestSuiteRunner runner = new TestSuiteRunner(
@@ -175,7 +176,7 @@ class MappingTestIntegrationTest {
                 RELATIONAL_MODEL.indexOf("Mapping model::PersonMapping"),
                 RELATIONAL_MODEL.indexOf("RelationalDatabaseConnection")).trim();
 
-        MappingDefinition mapping = PureDefinitionParser.parseMappingDefinition(mappingOnly);
+        MappingDefinition mapping = PureParser.parseMappingDefinition(mappingOnly);
 
         TestSuiteRunner runner = new TestSuiteRunner(
                 queryService, connection, RELATIONAL_MODEL, "test::TestRuntime");

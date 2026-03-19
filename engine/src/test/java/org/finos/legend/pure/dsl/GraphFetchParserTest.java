@@ -18,7 +18,7 @@ class GraphFetchParserTest {
     @Test
     void testParseSimpleGraphFetchTree() {
         String query = "Person.all()->graphFetch(#{ Person { firstName, lastName } }#)";
-        ValueSpecification vs = PureParser.parseClean(query);
+        ValueSpecification vs = PureParser.parseQuery(query);
 
         // graphFetch(...) is an AppliedFunction
         assertInstanceOf(AppliedFunction.class, vs);
@@ -42,7 +42,7 @@ class GraphFetchParserTest {
     @Test
     void testParseGraphFetchWithSerialize() {
         String query = "Person.all()->graphFetch(#{ Person { fullName, upperLastName } }#)->serialize(#{ Person { fullName, upperLastName } }#)";
-        ValueSpecification vs = PureParser.parseClean(query);
+        ValueSpecification vs = PureParser.parseQuery(query);
 
         // serialize is the outermost function
         assertInstanceOf(AppliedFunction.class, vs);
@@ -68,7 +68,7 @@ class GraphFetchParserTest {
     @Test
     void testParseWithFilter() {
         String query = "Person.all()->filter({p | $p.age > 18})->graphFetch(#{ Person { name } }#)->serialize(#{ Person { name } }#)";
-        ValueSpecification vs = PureParser.parseClean(query);
+        ValueSpecification vs = PureParser.parseQuery(query);
 
         assertInstanceOf(AppliedFunction.class, vs);
         AppliedFunction serialize = (AppliedFunction) vs;
@@ -85,7 +85,7 @@ class GraphFetchParserTest {
     @Test
     void testNestedGraphFetchTree() {
         String query = "Person.all()->graphFetch(#{ Person { firstName, addresses { street, city } } }#)";
-        ValueSpecification vs = PureParser.parseClean(query);
+        ValueSpecification vs = PureParser.parseQuery(query);
 
         AppliedFunction af = (AppliedFunction) vs;
         ClassInstance ci = (ClassInstance) af.parameters().get(1);
@@ -112,6 +112,6 @@ class GraphFetchParserTest {
         // graphFetch on a relation expression should parse (validation is compiler's job)
         String invalidQuery = "#>{store::DB.TABLE}#->graphFetch(#{ Person { name } }#)";
         // This should parse without error — the clean pipeline doesn't do semantic validation
-        assertDoesNotThrow(() -> PureParser.parseClean(invalidQuery));
+        assertDoesNotThrow(() -> PureParser.parseQuery(invalidQuery));
     }
 }

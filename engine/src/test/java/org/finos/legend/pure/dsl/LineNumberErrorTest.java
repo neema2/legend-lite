@@ -1,6 +1,6 @@
 package org.finos.legend.pure.dsl;
 
-import org.finos.legend.pure.dsl.definition.PureDefinitionParser;
+import org.finos.legend.pure.dsl.PureParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +24,7 @@ public class LineNumberErrorTest {
                 """; // Missing colon on line 3
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureDefinitionParser.parseClassDefinition(source));
+                () -> PureParser.parseClassDefinition(source));
 
         assertTrue(e.hasLocation(), "Error should have location info");
         assertEquals(3, e.getLine(), "Error should be on line 3 (missing colon)");
@@ -45,7 +45,7 @@ public class LineNumberErrorTest {
                 """; // Missing colon on line 6
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureDefinitionParser.parse(source));
+                () -> PureParser.parseModel(source));
 
         assertTrue(e.hasLocation(), "Error should have location info");
         // The error is on line 6 of the original source
@@ -67,7 +67,7 @@ public class LineNumberErrorTest {
         // The parse should either fail or we get unexpected token
         // This tests that the ANTLR error carries line info
         try {
-            PureDefinitionParser.parseEnumDefinition(source);
+            PureParser.parseEnumDefinition(source);
             // If it parses (comma optional), that's also fine
         } catch (PureParseException e) {
             assertTrue(e.hasLocation(), "Error should have location info");
@@ -85,7 +85,7 @@ public class LineNumberErrorTest {
                 """; // Missing colon before return type on line 1
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureDefinitionParser.parseFunctionDefinition(source));
+                () -> PureParser.parseFunctionDefinition(source));
 
         assertTrue(e.hasLocation(), "Error should have location info");
         assertEquals(1, e.getLine(), "Error should be on line 1 (missing colon)");
@@ -109,7 +109,7 @@ public class LineNumberErrorTest {
                 """; // Missing colon on line 10
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureDefinitionParser.parse(source));
+                () -> PureParser.parseModel(source));
 
         assertTrue(e.hasLocation(), "Error should have location info");
         assertEquals(10, e.getLine(), "Error should be on line 10 (third class, missing colon)");
@@ -131,7 +131,7 @@ public class LineNumberErrorTest {
 
         // Profile syntax error
         try {
-            PureDefinitionParser.parse(source);
+            PureParser.parseModel(source);
             fail("Expected parse error");
         } catch (PureParseException e) {
             assertTrue(e.hasLocation(), "Error should have location info");
@@ -158,7 +158,7 @@ public class LineNumberErrorTest {
         // This may or may not error depending on grammar strictness
         // The key is that IF there's an error, it has location
         try {
-            PureDefinitionParser.parseDatabaseDefinition(source);
+            PureParser.parseDatabaseDefinition(source);
         } catch (PureParseException e) {
             assertTrue(e.hasLocation(), "Error should have location info");
         }
@@ -171,7 +171,7 @@ public class LineNumberErrorTest {
         String source = "Class model::@Invalid { }"; // Invalid char at column 14
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureDefinitionParser.parseClassDefinition(source));
+                () -> PureParser.parseClassDefinition(source));
 
         assertTrue(e.hasLocation(), "Error should have location info");
         assertTrue(e.getColumn() > 0, "Column should be captured");
@@ -196,7 +196,7 @@ public class LineNumberErrorTest {
                 """;
 
         // This should parse successfully
-        var definitions = PureDefinitionParser.parse(source);
+        var definitions = PureParser.parseModel(source);
         assertEquals(3, definitions.size(), "Should parse 3 definitions");
     }
 
@@ -233,7 +233,7 @@ public class LineNumberErrorTest {
                 """; // "Clas" instead of "Class" on line 5
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureDefinitionParser.parse(source));
+                () -> PureParser.parseModel(source));
 
         assertTrue(e.hasLocation(), "Misspelled keyword error should have location");
         assertEquals(5, e.getLine(), "Error should be on line 5 (misspelled 'Clas')");
@@ -252,7 +252,7 @@ public class LineNumberErrorTest {
                 """; // Missing closing brace - ANTLR detects at EOF (line 4)
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureDefinitionParser.parse(source));
+                () -> PureParser.parseModel(source));
 
         assertTrue(e.hasLocation(), "Unmatched brace error should have location");
         // ANTLR reports error where it's detected (EOF), not where brace opened

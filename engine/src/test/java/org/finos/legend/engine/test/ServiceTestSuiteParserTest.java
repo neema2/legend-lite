@@ -1,4 +1,5 @@
 package org.finos.legend.engine.test;
+import org.finos.legend.pure.dsl.PureParser;
 
 import org.finos.legend.pure.dsl.definition.*;
 import org.junit.jupiter.api.*;
@@ -26,7 +27,7 @@ class ServiceTestSuiteParserTest {
                 }
                 """;
 
-        ServiceDefinition service = PureDefinitionParser.parseServiceDefinition(pureService);
+        ServiceDefinition service = PureParser.parseServiceDefinition(pureService);
 
         // Verify basic service parsed
         assertEquals("api::PersonService", service.qualifiedName());
@@ -52,7 +53,7 @@ class ServiceTestSuiteParserTest {
                 }
                 """;
 
-        ServiceDefinition service = PureDefinitionParser.parseServiceDefinition(pureService);
+        ServiceDefinition service = PureParser.parseServiceDefinition(pureService);
 
         assertEquals("api::SimpleService", service.qualifiedName());
         assertTrue(service.testSuites().isEmpty());
@@ -72,7 +73,7 @@ class ServiceTestSuiteParserTest {
                 }
                 """;
 
-        ServiceDefinition service = PureDefinitionParser.parseServiceDefinition(pureService);
+        ServiceDefinition service = PureParser.parseServiceDefinition(pureService);
 
         // Verify path params
         assertEquals(2, service.pathParams().size());
