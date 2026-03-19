@@ -1,8 +1,9 @@
 package com.gs.legend.model.mapping;
-import com.gs.legend.model.store.*;
+
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.plan.GenericType;
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.store.Table;
+import com.gs.legend.plan.GenericType;
 
 /**
  * Unified mapping interface for all class-to-store mappings.

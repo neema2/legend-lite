@@ -1,9 +1,5 @@
 package com.gs.legend.serial;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
+
 import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.ClassDefinition.DerivedPropertyDefinition;
 import com.gs.legend.model.def.ClassDefinition.PropertyDefinition;

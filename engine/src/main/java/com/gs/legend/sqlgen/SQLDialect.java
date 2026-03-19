@@ -1,6 +1,5 @@
 package com.gs.legend.sqlgen;
-import com.gs.legend.plan.*;
-import com.gs.legend.model.m3.*;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 

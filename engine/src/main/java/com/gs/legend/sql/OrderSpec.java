@@ -20,7 +20,7 @@ public record OrderSpec(
     }
 
     public enum NullsOrder {
-        NULLS_FIRST, NULLS_LAST, DEFAULT;
+        NULLS_FIRST, NULLS_LAST, DEFAULT
     }
 
     /**

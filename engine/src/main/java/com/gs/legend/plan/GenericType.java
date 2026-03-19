@@ -1,5 +1,5 @@
 package com.gs.legend.plan;
-import com.gs.legend.model.m3.*;
+
 import com.gs.legend.model.m3.Multiplicity;
 
 import java.util.List;

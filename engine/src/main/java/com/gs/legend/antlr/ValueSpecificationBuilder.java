@@ -1,14 +1,10 @@
 package com.gs.legend.antlr;
+
 import com.gs.legend.ast.*;
-import com.gs.legend.model.def.*;
+import com.gs.legend.parser.PureParseException;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
-import com.gs.legend.antlr.PureLexer;
-import com.gs.legend.antlr.PureParser;
-import com.gs.legend.antlr.PureParserBaseVisitor;
-import com.gs.legend.ast.GraphFetchTree;
-import com.gs.legend.parser.PureParseException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -261,8 +257,8 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
         }
 
         // Enum value access: EnumType.VALUE → EnumValue
-        if (source instanceof PackageableElementPtr ptr) {
-            return new EnumValue(ptr.fullPath(), propName);
+        if (source instanceof PackageableElementPtr(String fullPath)) {
+            return new EnumValue(fullPath, propName);
         }
 
         // Property access: $x.name → AppliedProperty("name", [$x])

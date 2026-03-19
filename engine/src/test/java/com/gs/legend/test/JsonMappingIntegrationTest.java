@@ -1,27 +1,16 @@
 package com.gs.legend.test;
-import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.parser.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.exec.*;
-import com.gs.legend.serial.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.server.*;
-import com.gs.legend.service.*;
-import com.gs.legend.server.QueryService;
-import com.gs.legend.plan.PlanGenerator;
 
+import com.gs.legend.plan.PlanGenerator;
+import com.gs.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Integration tests for Order/OrderItem mappings with various combinations
@@ -33,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class JsonMappingIntegrationTest {
 
     private Connection connection;
-    private QueryService queryService = new QueryService();
+    private final QueryService queryService = new QueryService();
 
     // =========================================================================
     // DATABASE DEFINITIONS

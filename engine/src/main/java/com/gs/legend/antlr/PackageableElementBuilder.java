@@ -1,17 +1,11 @@
 package com.gs.legend.antlr;
-import com.gs.legend.parser.*;
-import com.gs.legend.ast.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
+
 import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.ClassDefinition.ConstraintDefinition;
 import com.gs.legend.model.def.ClassDefinition.DerivedPropertyDefinition;
 import com.gs.legend.model.def.ClassDefinition.PropertyDefinition;
 import com.gs.legend.model.def.StereotypeApplication;
 import com.gs.legend.model.def.TaggedValue;
-
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.misc.Interval;
 

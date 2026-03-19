@@ -1,5 +1,5 @@
 package com.gs.legend.serial;
-import com.gs.legend.exec.*;
+
 import com.gs.legend.exec.Column;
 import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.exec.Row;

@@ -1,6 +1,5 @@
 package com.gs.legend.sqlgen;
-import com.gs.legend.plan.*;
-import com.gs.legend.model.m3.*;
+
 /**
  * SQL dialect implementation for DuckDB.
  * DuckDB uses double quotes for identifiers and single quotes for strings.

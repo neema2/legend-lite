@@ -1,14 +1,11 @@
 package com.gs.legend.compiler;
-import com.gs.legend.ast.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
+
+import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.model.m3.Multiplicity;
+import com.gs.legend.model.mapping.ClassMapping;
+import com.gs.legend.model.store.Join;
 import com.gs.legend.plan.GenericType;
 import com.gs.legend.plan.RelationType;
-import com.gs.legend.model.store.Join;
-import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.m3.Multiplicity;
 
 import java.util.List;
 import java.util.Map;

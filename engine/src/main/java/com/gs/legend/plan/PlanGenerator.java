@@ -1,21 +1,17 @@
 package com.gs.legend.plan;
+
+import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.plan.GenericType;
-import com.gs.legend.plan.SQLExecutionNode;
-import com.gs.legend.plan.SingleExecutionPlan;
-import com.gs.legend.model.store.Join;
+import com.gs.legend.compiler.PureCompileException;
+import com.gs.legend.compiler.TypeCheckResult;
+import com.gs.legend.compiler.TypeChecker;
+import com.gs.legend.compiler.TypeInfo;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.RelationalMapping;
+import com.gs.legend.model.store.Join;
 import com.gs.legend.sqlgen.SQLDialect;
-
-import com.gs.legend.compiler.PureCompileException;
+import com.gs.legend.sqlgen.SqlBuilder;
+import com.gs.legend.sqlgen.SqlExpr;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -252,8 +248,8 @@ public class PlanGenerator {
         }
         var rows = new java.util.ArrayList<ValueSpecificationBuilder.InstanceData>();
         for (var v : coll.values()) {
-            if (v instanceof ClassInstance ci && "instance".equals(ci.type())) {
-                rows.add((ValueSpecificationBuilder.InstanceData) ci.value());
+            if (v instanceof ClassInstance(String type, Object value) && "instance".equals(type)) {
+                rows.add((ValueSpecificationBuilder.InstanceData) value);
             } else {
                 throw new PureCompileException(
                         "PlanGenerator: struct collection contains non-instance: " + v.getClass().getSimpleName());
@@ -523,10 +519,9 @@ public class PlanGenerator {
         String tableName = info != null ? info.tableName() : null;
         // table('myTable') — tableName comes from the string parameter, not from a mapping
         if (tableName == null && !af.parameters().isEmpty()
-                && af.parameters().get(0) instanceof CString s) {
-            String content = s.value();
-            int dotIdx = content.lastIndexOf('.');
-            tableName = dotIdx > 0 ? content.substring(dotIdx + 1) : content;
+                && af.parameters().get(0) instanceof CString(String value)) {
+            int dotIdx = value.lastIndexOf('.');
+            tableName = dotIdx > 0 ? value.substring(dotIdx + 1) : value;
         }
         if (tableName == null) {
             throw new PureCompileException("tableAccess: tableName not resolved for " + af.function());
@@ -775,14 +770,14 @@ public class PlanGenerator {
 
     /** Recursively extracts property chain from nested AppliedProperty. */
     private List<String> extractPropertyChain(ValueSpecification vs) {
-        if (vs instanceof AppliedProperty ap) {
-            if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty) {
-                List<String> parent = extractPropertyChain(ap.parameters().get(0));
+        if (vs instanceof AppliedProperty(String property, List<ValueSpecification> parameters)) {
+            if (!parameters.isEmpty() && parameters.get(0) instanceof AppliedProperty) {
+                List<String> parent = extractPropertyChain(parameters.get(0));
                 var result = new ArrayList<>(parent);
-                result.add(ap.property());
+                result.add(property);
                 return result;
             }
-            return List.of(ap.property());
+            return List.of(property);
         }
         throw new PureCompileException(
                 "PlanGenerator: cannot extract property chain from " + vs.getClass().getSimpleName());
@@ -1246,8 +1241,8 @@ public class PlanGenerator {
             if (params.get(i) instanceof ClassInstance ci) {
                 if (ci.value() instanceof ColSpec cs) {
                     colSpecs.add(cs);
-                } else if (ci.value() instanceof ColSpecArray csa) {
-                    colSpecs.addAll(csa.colSpecs());
+                } else if (ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
+                    colSpecs.addAll(specs);
                 }
             }
         }
@@ -1664,7 +1659,7 @@ public class PlanGenerator {
                 // Only when owner is NOT the relational row param (relational row accesses → column ref)
                 if (tableAlias == null && !ap.parameters().isEmpty()
                         && ap.parameters().get(0) instanceof Variable owner
-                        && (rowParam == null || !owner.name().equals(rowParam))) {
+                        && (!owner.name().equals(rowParam))) {
                     yield new SqlExpr.FieldAccess(new SqlExpr.Identifier(owner.name()), colName);
                 }
                 yield tableAlias != null ? new SqlExpr.Column(tableAlias, colName) : new SqlExpr.ColumnRef(colName);
@@ -1696,10 +1691,12 @@ public class PlanGenerator {
             case CDecimal d -> {
                 // Check compiler type annotation for precision
                 TypeInfo tiDec = unit.typeInfoFor(d);
-                if (tiDec != null && tiDec.scalarType() instanceof GenericType.PrecisionDecimal pd) {
+                if (tiDec != null && tiDec.scalarType() instanceof GenericType.PrecisionDecimal(
+                        int precision, int scale
+                )) {
                     yield new SqlExpr.Cast(
                             new SqlExpr.DecimalLiteral(d.value()),
-                            "Decimal(" + pd.precision() + "," + pd.scale() + ")");
+                            "Decimal(" + precision + "," + scale + ")");
                 }
                 yield new SqlExpr.DecimalLiteral(d.value());
             }
@@ -1923,11 +1920,11 @@ public class PlanGenerator {
 
                     // Check if list has mixed types (List<ANY>) — needs TO_JSON wrapping
                     if (listInfo != null && listInfo.isMixedList()
-                            && params.get(0) instanceof PureCollection coll
-                            && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
+                            && params.get(0) instanceof PureCollection(List<ValueSpecification> values)
+                            && values.stream().noneMatch(v -> v instanceof ClassInstance)) {
                         // Mixed-type list: wrap elements in toJson for comparable representation
                         // "toJson" is a semantic name — dialect maps it (DuckDB: TO_JSON)
-                        var wrappedElems = coll.values().stream()
+                        var wrappedElems = values.stream()
                                 .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson",
                                         List.of(c.apply(v))))
                                 .collect(Collectors.toList());
@@ -1951,15 +1948,14 @@ public class PlanGenerator {
             case "trim" -> new SqlExpr.FunctionCall("TRIM", List.of(c.apply(params.get(0))));
             case "toString" -> {
                 // DateTime/StrictDate toString: return the literal string directly
-                if (params.get(0) instanceof CDateTime dt) {
-                    yield new SqlExpr.StringLiteral(dt.value());
-                } else if (params.get(0) instanceof CStrictDate sd) {
-                    yield new SqlExpr.StringLiteral(sd.value());
-                } else if (params.get(0) instanceof PackageableElementPtr ptr) {
+                if (params.get(0) instanceof CDateTime(String value)) {
+                    yield new SqlExpr.StringLiteral(value);
+                } else if (params.get(0) instanceof CStrictDate(String value)) {
+                    yield new SqlExpr.StringLiteral(value);
+                } else if (params.get(0) instanceof PackageableElementPtr(String fullPath)) {
                     // Class toString: return simplified name
-                    String full = ptr.fullPath();
-                    int idx = full.lastIndexOf("::");
-                    yield new SqlExpr.StringLiteral(idx >= 0 ? full.substring(idx + 2) : full);
+                    int idx = fullPath.lastIndexOf("::");
+                    yield new SqlExpr.StringLiteral(idx >= 0 ? fullPath.substring(idx + 2) : fullPath);
                 }
                 yield new SqlExpr.Cast(c.apply(params.get(0)), "String");
             }
@@ -2089,9 +2085,9 @@ public class PlanGenerator {
                 }
                 // Multi-if: [pair(cond, val), ...] -> if(default) — compile to CASE WHEN
                 // params[0] is Collection of pairs, params[1] is else lambda
-                if (params.size() >= 2 && params.get(0) instanceof PureCollection pairsColl) {
+                if (params.size() >= 2 && params.get(0) instanceof PureCollection(List<ValueSpecification> values)) {
                     List<SqlExpr.SearchedCase.WhenBranch> branches = new ArrayList<>();
-                    for (var pairExpr : pairsColl.values()) {
+                    for (var pairExpr : values) {
                         if (pairExpr instanceof AppliedFunction pairAf
                                 && pairAf.parameters().size() >= 2) {
                             // pair(|condition, |value) — both are lambdas
@@ -2127,12 +2123,12 @@ public class PlanGenerator {
             // --- In ---
             case "in" -> {
                 SqlExpr left = c.apply(params.get(0));
-                if (params.get(1) instanceof PureCollection coll) {
+                if (params.get(1) instanceof PureCollection(List<ValueSpecification> values)) {
                     // Check if this is a mixed-type list — needs TO_JSON wrapping
                     TypeInfo listInfo = unit.typeInfoFor(params.get(1));
                     if (listInfo != null && listInfo.isMixedList()
-                            && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
-                        var wrappedElems = coll.values().stream()
+                            && values.stream().noneMatch(v -> v instanceof ClassInstance)) {
+                        var wrappedElems = values.stream()
                                 .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson",
                                         List.of(c.apply(v))))
                                 .collect(Collectors.toList());
@@ -2140,7 +2136,7 @@ public class PlanGenerator {
                         SqlExpr wrappedSearch = new SqlExpr.FunctionCall("toJson", List.of(left));
                         yield new SqlExpr.ListContains(wrappedList, wrappedSearch);
                     }
-                    var vals = coll.values().stream().map(c).collect(Collectors.toList());
+                    var vals = values.stream().map(c).collect(Collectors.toList());
                     yield new SqlExpr.In(left, vals);
                 }
                 yield new SqlExpr.In(left, List.of(c.apply(params.get(1))));
@@ -2151,7 +2147,7 @@ public class PlanGenerator {
                 // Map empty list [] to NULL for COALESCE semantics
                 java.util.List<SqlExpr> coalArgs = new java.util.ArrayList<>();
                 for (var p : params) {
-                    if (p instanceof PureCollection coll && coll.values().isEmpty()) {
+                    if (p instanceof PureCollection(List<ValueSpecification> values) && values.isEmpty()) {
                         coalArgs.add(new SqlExpr.NullLiteral());
                     } else {
                         coalArgs.add(c.apply(p));
@@ -2185,14 +2181,13 @@ public class PlanGenerator {
                 }
                 SqlExpr adjusted = new SqlExpr.DateAdd(dateExpr, amount, unit);
                 // Check input date precision for proper output wrapping
-                if (params.get(0) instanceof CStrictDate sd) {
-                    String raw = sd.value();
-                    if (raw.matches("\\d{4}")) {
+                if (params.get(0) instanceof CStrictDate(String value)) {
+                    if (value.matches("\\d{4}")) {
                         // Year-only: wrap in strftime('%Y', CAST(adjusted AS DATE))
                         yield new SqlExpr.FunctionCall("strftime", List.of(
                                 new SqlExpr.Cast(adjusted, "Date"),
                                 new SqlExpr.StringLiteral("%Y")));
-                    } else if (raw.matches("\\d{4}-\\d{2}")) {
+                    } else if (value.matches("\\d{4}-\\d{2}")) {
                         // Year-month: wrap in strftime('%Y-%m', CAST(adjusted AS DATE))
                         yield new SqlExpr.FunctionCall("strftime", List.of(
                                 new SqlExpr.Cast(adjusted, "Date"),
@@ -2267,7 +2262,7 @@ public class PlanGenerator {
                 // Pure 0-based index -> SQL 1-based: offset + 1
                 SqlExpr idx = new SqlExpr.Binary(c.apply(params.get(2)), "+", new SqlExpr.NumericLiteral(1));
                 // Empty input -> NULL
-                if (params.get(0) instanceof PureCollection col && col.values().isEmpty()) {
+                if (params.get(0) instanceof PureCollection(List<ValueSpecification> values) && values.isEmpty()) {
                     yield new SqlExpr.NullLiteral();
                 }
                 yield new SqlExpr.CaseWhen(
@@ -2294,12 +2289,14 @@ public class PlanGenerator {
                 yield new SqlExpr.FunctionCall("CONCAT", List.of(c.apply(params.get(0))));
             }
             case "find" -> {
-                if (firstArgIsList && params.size() > 1 && params.get(1) instanceof LambdaFunction lf) {
+                if (firstArgIsList && params.size() > 1 && params.get(1) instanceof LambdaFunction(
+                        List<Variable> parameters, List<ValueSpecification> body
+                )) {
                     // Collection find: LIST_EXTRACT(list_filter(list, (s) -> predicate), 1)
-                    String paramName = lf.parameters().isEmpty() ? "s" : lf.parameters().get(0).name();
-                    SqlExpr body = !lf.body().isEmpty()
-                            ? c.apply(lf.body().get(0)) : new SqlExpr.NullLiteral();
-                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(paramName), body);
+                    String paramName = parameters.isEmpty() ? "s" : parameters.get(0).name();
+                    SqlExpr lambdaBody = !body.isEmpty()
+                            ? c.apply(body.get(0)) : new SqlExpr.NullLiteral();
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(paramName), lambdaBody);
                     yield new SqlExpr.FunctionCall("listFind",
                             List.of(c.apply(params.get(0)), lambda));
                 }
@@ -2315,11 +2312,10 @@ public class PlanGenerator {
                     String hashAlgo = ev.value().toUpperCase();
                     yield new SqlExpr.FunctionCall(hashAlgo, List.of(c.apply(params.get(0))));
                 }
-                if (params.size() > 1 && params.get(1) instanceof PackageableElementPtr ptr) {
-                    String path = ptr.fullPath();
-                    if (path.contains("SHA256"))
+                if (params.size() > 1 && params.get(1) instanceof PackageableElementPtr(String fullPath)) {
+                    if (fullPath.contains("SHA256"))
                         yield new SqlExpr.FunctionCall("SHA256", List.of(c.apply(params.get(0))));
-                    if (path.contains("MD5"))
+                    if (fullPath.contains("MD5"))
                         yield new SqlExpr.FunctionCall("MD5", List.of(c.apply(params.get(0))));
                 }
                 yield new SqlExpr.FunctionCall("hash", List.of(c.apply(params.get(0))));
@@ -2405,12 +2401,11 @@ public class PlanGenerator {
             case "datePart" -> {
                 // datePart on year/year-month uses STRFTIME; on full date/timestamp uses
                 // DATE_TRUNC
-                if (params.get(0) instanceof CStrictDate sd) {
-                    String raw = sd.value();
-                    if (raw.matches("\\d{4}")) {
+                if (params.get(0) instanceof CStrictDate(String value)) {
+                    if (value.matches("\\d{4}")) {
                         yield new SqlExpr.FunctionCall("strftime",
                                 List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("%Y")));
-                    } else if (raw.matches("\\d{4}-\\d{2}")) {
+                    } else if (value.matches("\\d{4}-\\d{2}")) {
                         yield new SqlExpr.FunctionCall("strftime",
                                 List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("%Y-%m")));
                     }
@@ -2518,10 +2513,9 @@ public class PlanGenerator {
             case "hasMinute" -> {
                 // Check date precision: hasMinute is true only for DateTime with minute
                 // component
-                if (params.get(0) instanceof CDateTime dt) {
-                    String raw = dt.value();
+                if (params.get(0) instanceof CDateTime(String value)) {
                     // Dates like %2015-04-15T17 have hour but no minute
-                    boolean hasMin = raw.matches(".*T\\d{2}:\\d{2}.*");
+                    boolean hasMin = value.matches(".*T\\d{2}:\\d{2}.*");
                     yield new SqlExpr.BoolLiteral(hasMin);
                 } else if (params.get(0) instanceof CStrictDate) {
                     yield new SqlExpr.BoolLiteral(false);
@@ -2539,18 +2533,16 @@ public class PlanGenerator {
                 // hasDay: true for full dates (YYYY-MM-DD), false for year-only/year-month
                 if (params.get(0) instanceof CDateTime) {
                     yield new SqlExpr.BoolLiteral(true);
-                } else if (params.get(0) instanceof CStrictDate sd) {
-                    String raw = sd.value();
-                    boolean hasDay = raw.matches("\\d{4}-\\d{2}-\\d{2}.*");
+                } else if (params.get(0) instanceof CStrictDate(String value)) {
+                    boolean hasDay = value.matches("\\d{4}-\\d{2}-\\d{2}.*");
                     yield new SqlExpr.BoolLiteral(hasDay);
                 }
                 yield new SqlExpr.FunctionCall("DAY", List.of(c.apply(params.get(0))));
             }
             case "hasSecond" -> {
                 // hasSecond: true for DateTime with seconds component
-                if (params.get(0) instanceof CDateTime dt) {
-                    String raw = dt.value();
-                    boolean hasSec = raw.matches(".*T\\d{2}:\\d{2}:\\d{2}.*");
+                if (params.get(0) instanceof CDateTime(String value)) {
+                    boolean hasSec = value.matches(".*T\\d{2}:\\d{2}:\\d{2}.*");
                     yield new SqlExpr.BoolLiteral(hasSec);
                 } else if (params.get(0) instanceof CStrictDate) {
                     yield new SqlExpr.BoolLiteral(false);
@@ -2559,9 +2551,8 @@ public class PlanGenerator {
             }
             case "hasSubsecond" -> {
                 // hasSubsecond: true for DateTime with fractional seconds (.NNN)
-                if (params.get(0) instanceof CDateTime dt) {
-                    String raw = dt.value();
-                    boolean hasFrac = raw.matches(".*\\.\\d+.*");
+                if (params.get(0) instanceof CDateTime(String value)) {
+                    boolean hasFrac = value.matches(".*\\.\\d+.*");
                     yield new SqlExpr.BoolLiteral(hasFrac);
                 } else if (params.get(0) instanceof CStrictDate) {
                     yield new SqlExpr.BoolLiteral(false);
@@ -2570,19 +2561,18 @@ public class PlanGenerator {
             }
             case "hasSubsecondWithAtLeastPrecision" -> {
                 // hasSubsecondWithAtLeastPrecision(date, n): check fractional digit count >= n
-                if (params.get(0) instanceof CDateTime dt) {
-                    String raw = dt.value();
+                if (params.get(0) instanceof CDateTime(String value)) {
                     int fracDigits = 0;
-                    int dotIdx = raw.indexOf('.');
+                    int dotIdx = value.indexOf('.');
                     if (dotIdx >= 0) {
                         // Count digits after the dot until non-digit
-                        for (int fi = dotIdx + 1; fi < raw.length() && Character.isDigit(raw.charAt(fi)); fi++) {
+                        for (int fi = dotIdx + 1; fi < value.length() && Character.isDigit(value.charAt(fi)); fi++) {
                             fracDigits++;
                         }
                     }
                     long required = 1;
-                    if (params.size() > 1 && params.get(1) instanceof CInteger ci) {
-                        required = ci.value().longValue();
+                    if (params.size() > 1 && params.get(1) instanceof CInteger(Number precValue)) {
+                        required = precValue.longValue();
                     }
                     yield new SqlExpr.BoolLiteral(fracDigits >= required);
                 } else if (params.get(0) instanceof CStrictDate) {
@@ -2757,10 +2747,10 @@ public class PlanGenerator {
                 // entire array which would break LIST_CONCAT (needs arrays, not scalars)
                 TypeInfo leftInfo = unit.typeInfoFor(params.get(0));
                 TypeInfo rightInfo2 = unit.typeInfoFor(params.get(1));
-                boolean leftEmpty = params.get(0) instanceof PureCollection lc
-                        && lc.values().isEmpty();
-                boolean rightEmpty = params.get(1) instanceof PureCollection rc
-                        && rc.values().isEmpty();
+                boolean leftEmpty = params.get(0) instanceof PureCollection(List<ValueSpecification> values)
+                        && values.isEmpty();
+                boolean rightEmpty = params.get(1) instanceof PureCollection(List<ValueSpecification> values)
+                        && values.isEmpty();
                 if (!leftEmpty && !rightEmpty
                         && leftInfo != null && rightInfo2 != null
                         && leftInfo.scalarType() != null && rightInfo2.scalarType() != null
@@ -2795,8 +2785,8 @@ public class PlanGenerator {
                 SqlExpr end = c.apply(params.get(2));
                 // Pure slice is 0-based, DuckDB LIST_SLICE is 1-based
                 // Pre-compute for literal starts; negative→clamp to 1
-                if (params.get(1) instanceof CInteger ci) {
-                    long startVal = ci.value().longValue();
+                if (params.get(1) instanceof CInteger(Number value)) {
+                    long startVal = value.longValue();
                     long offset = Math.max(startVal + 1, 1);
                     yield new SqlExpr.FunctionCall("listSlice",
                             List.of(list, new SqlExpr.NumericLiteral(offset), end));
@@ -2916,7 +2906,7 @@ public class PlanGenerator {
                     params.stream().map(c).collect(Collectors.toList()));
             case "variance", "varianceSample" -> {
                 // variance(list, isSample) — isSample=true→var_samp, isSample=false→var_pop
-                if (params.size() > 1 && params.get(1) instanceof CBoolean cb && !cb.value()) {
+                if (params.size() > 1 && params.get(1) instanceof CBoolean(boolean value) && !value) {
                     yield new SqlExpr.FunctionCall(
                             firstArgIsList ? "listVariancePopulation" : "variancePopulation",
                             List.of(c.apply(params.get(0))));
@@ -2951,12 +2941,12 @@ public class PlanGenerator {
                 // param[2]: ascending — when false, invert p to (1 - p)
                 boolean ascending = true;
                 boolean continuous = true;
-                if (params.size() > 2 && params.get(2) instanceof CBoolean cb) {
-                    ascending = cb.value();
+                if (params.size() > 2 && params.get(2) instanceof CBoolean(boolean value)) {
+                    ascending = value;
                 }
                 // param[3]: continuous — when false, use percentileDisc
-                if (params.size() > 3 && params.get(3) instanceof CBoolean cb) {
-                    continuous = cb.value();
+                if (params.size() > 3 && params.get(3) instanceof CBoolean(boolean value)) {
+                    continuous = value;
                 }
                 if (!ascending) {
                     p = new SqlExpr.Binary(new SqlExpr.NumericLiteral(1), "-", p);
@@ -2970,7 +2960,7 @@ public class PlanGenerator {
                 SqlExpr list = c.apply(params.get(0));
                 SqlExpr p = c.apply(params.get(1));
                 // param[2]: ascending — when false, invert p
-                if (params.size() > 2 && params.get(2) instanceof CBoolean cb && !cb.value()) {
+                if (params.size() > 2 && params.get(2) instanceof CBoolean(boolean value) && !value) {
                     p = new SqlExpr.Binary(new SqlExpr.NumericLiteral(1), "-", p);
                 }
                 yield new SqlExpr.FunctionCall(
@@ -3008,17 +2998,17 @@ public class PlanGenerator {
                 String targetSqlType = info != null ? info.variantScalarSqlType(dialect) : null;
                 TypeInfo.VariantAccess access = info != null ? info.variantAccess() : null;
 
-                if (access instanceof TypeInfo.VariantAccess.IndexAccess ia) {
-                    SqlExpr indexExpr = new SqlExpr.VariantIndex(source, ia.index());
+                if (access instanceof TypeInfo.VariantAccess.IndexAccess(int index)) {
+                    SqlExpr indexExpr = new SqlExpr.VariantIndex(source, index);
                     yield targetSqlType != null
                             ? new SqlExpr.VariantScalarCast(indexExpr, targetSqlType) : indexExpr;
                 }
-                if (access instanceof TypeInfo.VariantAccess.FieldAccess fa) {
+                if (access instanceof TypeInfo.VariantAccess.FieldAccess(String key)) {
                     if (targetSqlType != null) {
                         yield new SqlExpr.VariantScalarCast(
-                                new SqlExpr.VariantTextAccess(source, fa.key()), targetSqlType);
+                                new SqlExpr.VariantTextAccess(source, key), targetSqlType);
                     }
-                    yield new SqlExpr.VariantAccess(source, fa.key());
+                    yield new SqlExpr.VariantAccess(source, key);
                 }
                 // Compiler should always provide access pattern
                 throw new IllegalStateException("get() missing VariantAccess annotation from compiler");
@@ -3036,12 +3026,14 @@ public class PlanGenerator {
                 // removeDuplicatesBy(list, keyFn) — distinct by key function
                 SqlExpr listArg = firstArgIsList ? c.apply(params.get(0))
                         : new SqlExpr.FunctionCall("wrapList", List.of(c.apply(params.get(0))));
-                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction lf) {
-                    String elemParam = lf.parameters().isEmpty() ? "x"
-                            : lf.parameters().get(0).name();
-                    SqlExpr body = !lf.body().isEmpty()
-                            ? c.apply(lf.body().get(0)) : new SqlExpr.NullLiteral();
-                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), body);
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction(
+                        List<Variable> parameters, List<ValueSpecification> body
+                )) {
+                    String elemParam = parameters.isEmpty() ? "x"
+                            : parameters.get(0).name();
+                    SqlExpr lambdaBody = !body.isEmpty()
+                            ? c.apply(body.get(0)) : new SqlExpr.NullLiteral();
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), lambdaBody);
                     // list_transform then distinct
                     SqlExpr transformed = new SqlExpr.FunctionCall("listTransform",
                             List.of(listArg, lambda));
@@ -3061,11 +3053,13 @@ public class PlanGenerator {
             // --- forAll / exists ---
             case "forAll" -> {
                 // forAll(list, {e|pred}) → COALESCE(listBoolAnd(listTransform(list, e -> pred)), TRUE)
-                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction lf) {
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction(
+                        List<Variable> parameters, List<ValueSpecification> body
+                )) {
                     SqlExpr list = c.apply(params.get(0));
-                    String elemParam = lf.parameters().get(0).name();
-                    SqlExpr predBody = !lf.body().isEmpty()
-                            ? c.apply(lf.body().get(0)) : new SqlExpr.BoolLiteral(true);
+                    String elemParam = parameters.get(0).name();
+                    SqlExpr predBody = !body.isEmpty()
+                            ? c.apply(body.get(0)) : new SqlExpr.BoolLiteral(true);
                     SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), predBody);
                     SqlExpr transformed = new SqlExpr.FunctionCall("listTransform", List.of(list, lambda));
                     SqlExpr boolAnd = new SqlExpr.FunctionCall("listBoolAnd", List.of(transformed));
@@ -3076,11 +3070,13 @@ public class PlanGenerator {
             }
             case "exists" -> {
                 // exists(list, {f|pred}) → listLength(listFilter(list, f -> pred)) > 0
-                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction lf) {
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction(
+                        List<Variable> parameters, List<ValueSpecification> body
+                )) {
                     SqlExpr list = c.apply(params.get(0));
-                    String elemParam = lf.parameters().get(0).name();
-                    SqlExpr predBody = !lf.body().isEmpty()
-                            ? c.apply(lf.body().get(0)) : new SqlExpr.BoolLiteral(true);
+                    String elemParam = parameters.get(0).name();
+                    SqlExpr predBody = !body.isEmpty()
+                            ? c.apply(body.get(0)) : new SqlExpr.BoolLiteral(true);
                     SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), predBody);
                     SqlExpr filtered = new SqlExpr.FunctionCall("listFilter", List.of(list, lambda));
                     SqlExpr len = new SqlExpr.FunctionCall("listLength", List.of(filtered));
@@ -3093,11 +3089,13 @@ public class PlanGenerator {
             // --- Scalar list operations (used in variant array chains) ---
             case "filter" -> {
                 // filter(list, {t|pred}) → list_filter(list, t -> pred)
-                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction lf) {
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction(
+                        List<Variable> parameters, List<ValueSpecification> body
+                )) {
                     SqlExpr list = c.apply(params.get(0));
-                    String elemParam = lf.parameters().get(0).name();
-                    SqlExpr predBody = !lf.body().isEmpty()
-                            ? c.apply(lf.body().get(0)) : new SqlExpr.BoolLiteral(true);
+                    String elemParam = parameters.get(0).name();
+                    SqlExpr predBody = !body.isEmpty()
+                            ? c.apply(body.get(0)) : new SqlExpr.BoolLiteral(true);
                     SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), predBody);
                     yield new SqlExpr.FunctionCall("listFilter", List.of(list, lambda));
                 }
@@ -3161,18 +3159,20 @@ public class PlanGenerator {
             }
             case "map" -> {
                 // map(list, {x|body}) → list_transform(list, x -> body)
-                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction mapLf) {
+                if (params.size() >= 2 && params.get(1) instanceof LambdaFunction(
+                        List<Variable> parameters, List<ValueSpecification> body
+                )) {
                     SqlExpr list = c.apply(params.get(0));
                     // If source is a variant (JSON), wrap in CAST(AS JSON[]) for array iteration
                     TypeInfo sourceInfo = unit.types().get(params.get(0));
                     if (sourceInfo != null && sourceInfo.scalarType() == GenericType.Primitive.JSON) {
                         list = new SqlExpr.VariantArrayCast(list, dialect.sqlTypeName("JSON"));
                     }
-                    String elemParam = mapLf.parameters().isEmpty() ? "x"
-                            : mapLf.parameters().get(0).name();
-                    SqlExpr body = !mapLf.body().isEmpty()
-                            ? c.apply(mapLf.body().get(0)) : new SqlExpr.NullLiteral();
-                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), body);
+                    String elemParam = parameters.isEmpty() ? "x"
+                            : parameters.get(0).name();
+                    SqlExpr lambdaBody = !body.isEmpty()
+                            ? c.apply(body.get(0)) : new SqlExpr.NullLiteral();
+                    SqlExpr lambda = new SqlExpr.LambdaExpr(List.of(elemParam), lambdaBody);
                     yield new SqlExpr.FunctionCall("listTransform", List.of(list, lambda));
                 }
                 // Non-lambda map: pass through source
@@ -3185,7 +3185,9 @@ public class PlanGenerator {
                 // fold(source, {elem,acc|body}, init) → list_reduce(source, ((acc,elem)->body), init)
                 // Note: fold+add is handled by compiler desugar (inlinedBody → concatenate)
                 if (params.size() >= 3
-                        && params.get(1) instanceof LambdaFunction foldLf) {
+                        && params.get(1) instanceof LambdaFunction(
+                        List<Variable> parameters, List<ValueSpecification> body
+                )) {
                     SqlExpr list = c.apply(params.get(0));
                     // Wrap single values in list for list_reduce
                     if (!firstArgIsList) {
@@ -3193,16 +3195,16 @@ public class PlanGenerator {
                     }
                     SqlExpr init = c.apply(params.get(2));
                     // Extract lambda params: x=element (1st), y=accumulator (2nd)
-                    String elemParam = foldLf.parameters().isEmpty() ? "x"
-                            : foldLf.parameters().get(0).name();
-                    String accParam = foldLf.parameters().size() < 2 ? "y"
-                            : foldLf.parameters().get(1).name();
+                    String elemParam = parameters.isEmpty() ? "x"
+                            : parameters.get(0).name();
+                    String accParam = parameters.size() < 2 ? "y"
+                            : parameters.get(1).name();
                     // Compile body
-                    SqlExpr body = !foldLf.body().isEmpty()
-                            ? c.apply(foldLf.body().get(0)) : new SqlExpr.NullLiteral();
+                    SqlExpr lambdaBody = !body.isEmpty()
+                            ? c.apply(body.get(0)) : new SqlExpr.NullLiteral();
                     // Emit LambdaExpr: ((acc, elem) -> body)
                     SqlExpr lambda = new SqlExpr.LambdaExpr(
-                            List.of(accParam, elemParam), body);
+                            List.of(accParam, elemParam), lambdaBody);
                     yield new SqlExpr.FunctionCall("listReduce",
                             List.of(list, lambda, init));
                 }
@@ -3293,8 +3295,8 @@ public class PlanGenerator {
                 fmtArgs.add(fmtString);
                 for (int fi = 1; fi < params.size(); fi++) {
                     var fp = params.get(fi);
-                    if (fp instanceof PureCollection coll) {
-                        for (var elem : coll.values()) {
+                    if (fp instanceof PureCollection(List<ValueSpecification> values)) {
+                        for (var elem : values) {
                             fmtArgs.add(c.apply(elem));
                         }
                     } else {
@@ -3312,7 +3314,7 @@ public class PlanGenerator {
     /** Checks if any param is an actual partial date (year-only or year-month, not full YYYY-MM-DD). */
     private boolean hasPartialDate(List<ValueSpecification> params) {
         for (var p : params) {
-            if (p instanceof CStrictDate sd && isPartialDate(sd.value())) return true;
+            if (p instanceof CStrictDate(String value) && isPartialDate(value)) return true;
         }
         return false;
     }
@@ -3334,8 +3336,8 @@ public class PlanGenerator {
      */
     private SqlExpr renderForDateComparison(ValueSpecification vs,
             java.util.function.Function<ValueSpecification, SqlExpr> c) {
-        if (vs instanceof CStrictDate sd) {
-            return new SqlExpr.StringLiteral(sd.value());
+        if (vs instanceof CStrictDate(String value)) {
+            return new SqlExpr.StringLiteral(value);
         }
         return c.apply(vs);
     }
@@ -3349,10 +3351,8 @@ public class PlanGenerator {
         SqlExpr left = c.apply(params.get(0));
         SqlExpr right = c.apply(params.get(1));
 
-        if (left instanceof SqlExpr.AssociationRef ar
+        if (left instanceof SqlExpr.AssociationRef(String assocProp, String targetCol)
                 && mapping != null) {
-            String assocProp = ar.assocProp();
-            String targetCol = ar.targetCol();
 
             TypeInfo.AssociationTarget assocTarget = findAssociationInSidecar(assocProp);
             if (assocTarget != null) {
@@ -3406,10 +3406,10 @@ public class PlanGenerator {
     // binaryOp DELETED — was thin wrapper, inlined into generateScalarFunction
 
     private long extractIntValue(ValueSpecification vs) {
-        if (vs instanceof CInteger i)
-            return i.value().longValue();
-        if (vs instanceof CFloat f)
-            return (long) f.value();
+        if (vs instanceof CInteger(Number value))
+            return value.longValue();
+        if (vs instanceof CFloat(double value))
+            return (long) value;
         throw new PureCompileException("Expected integer, got: " + vs.getClass().getSimpleName());
     }
 

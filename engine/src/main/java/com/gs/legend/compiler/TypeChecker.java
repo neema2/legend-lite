@@ -1,24 +1,17 @@
 package com.gs.legend.compiler;
+
+import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.exec.*;import com.gs.legend.plan.GenericType;
-import com.gs.legend.plan.RelationType;
-import com.gs.legend.model.mapping.MappingRegistry;
+import com.gs.legend.model.ModelContext;
+import com.gs.legend.model.PureFunctionRegistry;
+import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.mapping.ClassMapping;
+import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.store.Table;
-import com.gs.legend.model.ModelContext;
-import com.gs.legend.compiler.PureCompileException;
-import com.gs.legend.model.PureFunctionRegistry;
 import com.gs.legend.parser.PureParser;
-import com.gs.legend.model.m3.Multiplicity;
+import com.gs.legend.plan.GenericType;
+import com.gs.legend.plan.RelationType;
 
 import java.util.*;
 
@@ -330,9 +323,9 @@ public class TypeChecker {
         }
 
         String className;
-        if (params.get(0) instanceof PackageableElementPtr pe) {
-            className = pe.fullPath().contains("::") ? pe.fullPath().substring(pe.fullPath().lastIndexOf("::") + 2)
-                    : pe.fullPath();
+        if (params.get(0) instanceof PackageableElementPtr(String fullPath)) {
+            className = fullPath.contains("::") ? fullPath.substring(fullPath.lastIndexOf("::") + 2)
+                    : fullPath;
         } else {
             return scalar(af);
         }
@@ -756,13 +749,13 @@ public class TypeChecker {
             if (params.size() > 1) {
                 // The compare lambda is always the last lambda with 2 params
                 var lastParam = params.get(params.size() - 1);
-                if (lastParam instanceof LambdaFunction compLf
-                        && compLf.parameters().size() == 2 && !compLf.body().isEmpty()) {
-                    var body = compLf.body().get(0);
-                    if (body instanceof AppliedFunction af2
+                if (lastParam instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)
+                        && parameters.size() == 2 && !body.isEmpty()) {
+                    var firstBody = body.get(0);
+                    if (firstBody instanceof AppliedFunction af2
                             && simpleName(af2.function()).equals("compare")
                             && !af2.parameters().isEmpty()) {
-                        String secondParam = compLf.parameters().get(1).name();
+                        String secondParam = parameters.get(1).name();
                         if (af2.parameters().get(0) instanceof Variable v
                                 && v.name().equals(secondParam)) {
                             direction = TypeInfo.SortDirection.DESC;
@@ -787,8 +780,8 @@ public class TypeChecker {
         List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
 
         // Handle direction override in 3rd param: sort('col', 'DESC') or sortBy({e | $e.col}, 'desc')
-        if (params.size() > 2 && params.get(2) instanceof CString dirStr) {
-            String dir = dirStr.value().toUpperCase();
+        if (params.size() > 2 && params.get(2) instanceof CString(String value)) {
+            String dir = value.toUpperCase();
             if ("DESC".equals(dir) || "DESCENDING".equals(dir)) {
                 sortSpecs = sortSpecs.stream()
                         .map(s -> new TypeInfo.SortSpec(s.column(), TypeInfo.SortDirection.DESC))
@@ -809,7 +802,7 @@ public class TypeChecker {
      */
     private List<TypeInfo.SortSpec> resolveSortSpecs(ValueSpecification vs, RelationType sourceType) {
         List<TypeInfo.SortSpec> result = new ArrayList<>();
-        List<ValueSpecification> specs = (vs instanceof PureCollection coll) ? coll.values() : List.of(vs);
+        List<ValueSpecification> specs = (vs instanceof PureCollection(List<ValueSpecification> values)) ? values : List.of(vs);
         for (var spec : specs) {
             result.add(resolveSingleSortSpec(spec, sourceType));
         }
@@ -817,8 +810,8 @@ public class TypeChecker {
     }
 
     private TypeInfo.SortSpec resolveSingleSortSpec(ValueSpecification vs, RelationType sourceType) {
-        if (vs instanceof ClassInstance ci && "sortInfo".equals(ci.type())) {
-            if (ci.value() instanceof ColSpec cs) {
+        if (vs instanceof ClassInstance(String type, Object value) && "sortInfo".equals(type)) {
+            if (value instanceof ColSpec cs) {
                 if (!sourceType.columns().isEmpty())
                     sourceType.requireColumn(cs.name());
                 return new TypeInfo.SortSpec(cs.name(), TypeInfo.SortDirection.ASC);
@@ -837,29 +830,29 @@ public class TypeChecker {
                 return new TypeInfo.SortSpec(col, dir);
             }
         }
-        if (vs instanceof CString s) {
-            return new TypeInfo.SortSpec(s.value(), TypeInfo.SortDirection.ASC);
+        if (vs instanceof CString(String value)) {
+            return new TypeInfo.SortSpec(value, TypeInfo.SortDirection.ASC);
         }
         // Old-style lambda sort: sortBy({e | $e.sal}) or sort({x,y | $y->compare($x)})
-        if (vs instanceof LambdaFunction lf) {
+        if (vs instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
             // 2-param compare lambda: detect direction
-            if (lf.parameters().size() == 2 && !lf.body().isEmpty()) {
-                var body = lf.body().get(0);
-                if (body instanceof AppliedFunction af2
+            if (parameters.size() == 2 && !body.isEmpty()) {
+                var firstBody = body.get(0);
+                if (firstBody instanceof AppliedFunction af2
                         && simpleName(af2.function()).equals("compare")
                         && !af2.parameters().isEmpty()) {
-                    String secondParam = lf.parameters().get(1).name();
+                    String secondParam = parameters.get(1).name();
                     TypeInfo.SortDirection dir = TypeInfo.SortDirection.ASC;
                     if (af2.parameters().get(0) instanceof Variable v
                             && v.name().equals(secondParam)) {
                         dir = TypeInfo.SortDirection.DESC;
                     }
-                    String col = extractColumnName(lf);
+                    String col = extractColumnName(vs);
                     return new TypeInfo.SortSpec(col, dir);
                 }
             }
             // 1-param key function: sortBy({e | $e.sal})
-            String col = extractColumnName(lf);
+            String col = extractColumnName(vs);
             return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC);
         }
         throw new PureCompileException("Unsupported sort spec type: " + vs.getClass().getSimpleName());
@@ -999,10 +992,10 @@ public class TypeChecker {
             // Try to find a common supertype via class hierarchy
             GenericType leftScalar = left.scalarType() != null ? left.scalarType().elementType() : null;
             GenericType rightScalar = right.scalarType() != null ? right.scalarType().elementType() : null;
-            if (leftScalar instanceof GenericType.ClassType leftCt
-                    && rightScalar instanceof GenericType.ClassType rightCt
+            if (leftScalar instanceof GenericType.ClassType(String qualifiedName)
+                    && rightScalar instanceof GenericType.ClassType(String rightQualifiedName)
                     && modelContext != null) {
-                var lcaOpt = findLowestCommonAncestor(leftCt.qualifiedName(), rightCt.qualifiedName());
+                var lcaOpt = findLowestCommonAncestor(qualifiedName, rightQualifiedName);
                 if (lcaOpt.isPresent()) {
                     var lcaClass = lcaOpt.get();
                     // Build RelationType from the LCA's allProperties
@@ -1112,17 +1105,17 @@ public class TypeChecker {
         List<ValueSpecification> lambdaSpecs;
         List<String> aliases;
 
-        if (params.get(1) instanceof PureCollection coll) {
+        if (params.get(1) instanceof PureCollection(List<ValueSpecification> values)) {
             // Pattern 1: project(source, [lambdas], ['aliases'])
-            lambdaSpecs = coll.values();
+            lambdaSpecs = values;
             aliases = params.size() > 2 ? extractStringList(params.get(2)) : List.of();
         } else if (params.get(1) instanceof ClassInstance ci
-                && ci.value() instanceof ColSpecArray csa) {
+                && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
             // Pattern 3: project(source, ~[alias1:x|$x.prop, alias2:x|$x.prop])
             // Unwrap ColSpecArray into individual ColSpec ClassInstances
             lambdaSpecs = new ArrayList<>();
             aliases = new ArrayList<>();
-            for (var cs : csa.colSpecs()) {
+            for (var cs : colSpecs) {
                 lambdaSpecs.add(new ClassInstance("colSpec", cs));
                 aliases.add(cs.name());
             }
@@ -1241,8 +1234,8 @@ public class TypeChecker {
                 if (parentType != null) {
                     // Unwrap List<ClassType> → ClassType
                     GenericType elemType = parentType.elementType();
-                    if (elemType instanceof GenericType.ClassType ct) {
-                        var classOpt = modelContext.findClass(ct.qualifiedName());
+                    if (elemType instanceof GenericType.ClassType(String qualifiedName)) {
+                        var classOpt = modelContext.findClass(qualifiedName);
                         if (classOpt.isPresent()) {
                             var propOpt = classOpt.get().findProperty(propertyName);
                             if (propOpt.isPresent()) {
@@ -1390,18 +1383,18 @@ public class TypeChecker {
         // Pattern 1 (legacy): params[2] is Collection[LambdaFunction]
         // Pattern 2 (new API, array): params[2] is ClassInstance(ColSpecArray)
         // Pattern 3 (new API, single): params[2+] are individual ColSpec instances
-        if (params.size() > 2 && params.get(2) instanceof PureCollection aggColl) {
+        if (params.size() > 2 && params.get(2) instanceof PureCollection(List<ValueSpecification> values)) {
             // Legacy pattern: unwrap Collection of agg lambdas
             // Alias names come from params[3] (CString collection): ['dept', 'medianSal']
             // First N aliases are for group cols, rest for agg cols
             List<String> aliasNames = new ArrayList<>();
-            if (params.size() > 3 && params.get(3) instanceof PureCollection aliasColl) {
-                for (var v : aliasColl.values()) {
-                    if (v instanceof CString cs) aliasNames.add(cs.value());
+            if (params.size() > 3 && params.get(3) instanceof PureCollection(List<ValueSpecification> aliasValues)) {
+                for (var v : aliasValues) {
+                    if (v instanceof CString(String value)) aliasNames.add(value);
                 }
             }
-            for (int i = 0; i < aggColl.values().size(); i++) {
-                var aggInfo = extractAggSpec(aggColl.values().get(i));
+            for (int i = 0; i < values.size(); i++) {
+                var aggInfo = extractAggSpec(values.get(i));
                 if (aggInfo != null) {
                     // Override alias from params[3] if available
                     int aliasIdx = groupColNames.size() + i;
@@ -1416,9 +1409,9 @@ public class TypeChecker {
             }
         } else if (params.size() > 2
                 && params.get(2) instanceof ClassInstance ci
-                && ci.value() instanceof ColSpecArray csa) {
+                && ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
             // Relation API array: ~[total:x|$x.id, count:x|$x.id:y|$y->count()]
-            for (var cs : csa.colSpecs()) {
+            for (var cs : specs) {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
                     resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
@@ -1465,8 +1458,8 @@ public class TypeChecker {
         List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
 
         // Handle three patterns: Collection, ColSpecArray, or individual params
-        if (params.size() > 1 && params.get(1) instanceof PureCollection aggColl) {
-            for (var v : aggColl.values()) {
+        if (params.size() > 1 && params.get(1) instanceof PureCollection(List<ValueSpecification> values)) {
+            for (var v : values) {
                 var aggInfo = extractAggSpec(v);
                 if (aggInfo != null) {
                     resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), source.relationType().columns()));
@@ -1475,8 +1468,8 @@ public class TypeChecker {
             }
         } else if (params.size() > 1
                 && params.get(1) instanceof ClassInstance ci
-                && ci.value() instanceof ColSpecArray csa) {
-            for (var cs : csa.colSpecs()) {
+                && ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
+            for (var cs : specs) {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
                     resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), source.relationType().columns()));
@@ -1522,8 +1515,8 @@ public class TypeChecker {
         for (int i = 1; i < params.size(); i++) {
             var p = params.get(i);
             // ColSpecArray: register ALL columns, not just the first
-            if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
-                for (ColSpec cs : csa.colSpecs()) {
+            if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
+                for (ColSpec cs : colSpecs) {
                     GenericType colType = inferExtendColumnType(
                             new ClassInstance("colSpec", cs), ctx, sourceType);
                     newColumns.put(cs.name(), colType);
@@ -1590,8 +1583,8 @@ public class TypeChecker {
         }
         for (int i = 1; i < params.size(); i++) {
             if (params.get(i) instanceof ClassInstance ci
-                    && ci.value() instanceof ColSpecArray csa && sourceType != null) {
-                for (ColSpec cs : csa.colSpecs()) {
+                    && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs) && sourceType != null) {
+                for (ColSpec cs : colSpecs) {
                     if (cs.function1() != null) {
                         LambdaFunction lambda = cs.function1();
                         if (!lambda.parameters().isEmpty() && !lambda.body().isEmpty()) {
@@ -1730,8 +1723,8 @@ public class TypeChecker {
                     int buckets = 1;
                     for (int pi = 0; pi < af.parameters().size(); pi++) {
                         var p = af.parameters().get(pi);
-                        if (p instanceof CInteger ci) {
-                            buckets = ci.value().intValue();
+                        if (p instanceof CInteger(Number value)) {
+                            buckets = value.intValue();
                             break;
                         }
                     }
@@ -1758,8 +1751,8 @@ public class TypeChecker {
                     int offset = 1;
                     for (int pi = 0; pi < af.parameters().size(); pi++) {
                         var p = af.parameters().get(pi);
-                        if (p instanceof CInteger ci) {
-                            offset = ci.value().intValue();
+                        if (p instanceof CInteger(Number value)) {
+                            offset = value.intValue();
                             break;
                         }
                     }
@@ -1776,33 +1769,34 @@ public class TypeChecker {
             }
 
             // Property access pattern: {p,w,r|$p->avg($w,$r).salary}
-            if (!body.isEmpty() && body.get(0) instanceof AppliedProperty ap) {
-                String propName = ap.property();
-                if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedFunction innerAf) {
+            if (!body.isEmpty() && body.get(0) instanceof AppliedProperty(
+                    String property, List<ValueSpecification> parameters
+            )) {
+                if (!parameters.isEmpty() && parameters.get(0) instanceof AppliedFunction innerAf) {
                     String innerFunc = simpleName(innerAf.function());
                     // Extract extra literal args (e.g., nth offset 2, joinStrings separator)
                     List<String> innerExtras = new ArrayList<>();
                     for (int ei = 1; ei < innerAf.parameters().size(); ei++) {
                         var px = innerAf.parameters().get(ei);
-                        if (px instanceof CInteger ci) {
-                            innerExtras.add(String.valueOf(ci.value()));
-                        } else if (px instanceof CFloat cf) {
-                            innerExtras.add(String.valueOf(cf.value()));
-                        } else if (px instanceof CString cstr) {
-                            innerExtras.add("'" + cstr.value() + "'");
+                        if (px instanceof CInteger(Number value)) {
+                            innerExtras.add(String.valueOf(value));
+                        } else if (px instanceof CFloat(double value)) {
+                            innerExtras.add(String.valueOf(value));
+                        } else if (px instanceof CString(String value)) {
+                            innerExtras.add("'" + value + "'");
                         }
                         // Skip variable references ($p, $w, $r)
                     }
                     if (!innerExtras.isEmpty()) {
-                        return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, propName, alias,
+                        return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, property, alias,
                                 partitionBy, orderBy, frame, innerExtras);
                     }
                     // LAG/LEAD always need offset=1
                     if ("lag".equals(innerFunc) || "lead".equals(innerFunc)) {
-                        return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, propName, alias,
+                        return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, property, alias,
                                 partitionBy, orderBy, frame, List.of("1"));
                     }
-                    return TypeInfo.WindowFunctionSpec.aggregate(innerFunc, propName, alias,
+                    return TypeInfo.WindowFunctionSpec.aggregate(innerFunc, property, alias,
                             partitionBy, orderBy, frame);
                 }
             }
@@ -1825,13 +1819,13 @@ public class TypeChecker {
         for (var p : overSpec.parameters()) {
             if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
                 partitionBy.add(cs.name());
-            } else if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
-                for (ColSpec cs : csa.colSpecs()) {
+            } else if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
+                for (ColSpec cs : colSpecs) {
                     partitionBy.add(cs.name());
                 }
-            } else if (p instanceof PureCollection coll) {
+            } else if (p instanceof PureCollection(List<ValueSpecification> values)) {
                 // Collection of sort specs: [~o->ascending(), ~i->ascending()]
-                for (var elem : coll.values()) {
+                for (var elem : values) {
                     var sortSpec = tryResolveSortSpec(elem);
                     if (sortSpec != null)
                         orderBy.add(sortSpec);
@@ -1918,9 +1912,9 @@ public class TypeChecker {
 
     /** Extracts a numeric literal as double (supports CInteger, CFloat, CDecimal). */
     private double extractNumericLiteral(ValueSpecification vs) {
-        if (vs instanceof CInteger ci) return ci.value().doubleValue();
-        if (vs instanceof CFloat cf) return cf.value();
-        if (vs instanceof CDecimal cd) return cd.value().doubleValue();
+        if (vs instanceof CInteger(Number value)) return value.doubleValue();
+        if (vs instanceof CFloat(double value)) return value;
+        if (vs instanceof CDecimal(java.math.BigDecimal value)) return value.doubleValue();
         throw new PureCompileException("Expected numeric literal in frame bound, got: " + vs.getClass().getSimpleName());
     }
 
@@ -1960,8 +1954,8 @@ public class TypeChecker {
         if (!(body instanceof AppliedFunction af)) return null;
         if (!"cast".equals(simpleName(af.function()))) return null;
         for (var p : af.parameters()) {
-            if (p instanceof GenericTypeInstance gti) {
-                return simpleName(gti.fullPath());
+            if (p instanceof GenericTypeInstance(String fullPath)) {
+                return simpleName(fullPath);
             }
         }
         return null;
@@ -2002,14 +1996,14 @@ public class TypeChecker {
             // Params: [0] = $y (variable), [1+] = extra args
             for (int i = 1; i < af.parameters().size(); i++) {
                 var p = af.parameters().get(i);
-                if (p instanceof CInteger ci) {
-                    extras.add(String.valueOf(ci.value()));
-                } else if (p instanceof CFloat cf) {
-                    extras.add(String.valueOf(cf.value()));
-                } else if (p instanceof CDecimal cd) {
-                    extras.add(cd.value().toPlainString());
-                } else if (p instanceof CString cstr2) {
-                    extras.add("'" + cstr2.value() + "'");
+                if (p instanceof CInteger(Number value)) {
+                    extras.add(String.valueOf(value));
+                } else if (p instanceof CFloat(double value)) {
+                    extras.add(String.valueOf(value));
+                } else if (p instanceof CDecimal(java.math.BigDecimal value)) {
+                    extras.add(value.toPlainString());
+                } else if (p instanceof CString(String value)) {
+                    extras.add("'" + value + "'");
                 } else if (p instanceof AppliedProperty ap) {
                     extras.add(ap.property());
                 }
@@ -2038,22 +2032,22 @@ public class TypeChecker {
             // Extract percentile value (arg1, after $y variable at index 0)
             if (af.parameters().size() > 1) {
                 var valParam = af.parameters().get(1);
-                if (valParam instanceof CFloat cf)
-                    value = cf.value();
-                else if (valParam instanceof CDecimal cd)
-                    value = cd.value().doubleValue();
-                else if (valParam instanceof CInteger ci)
-                    value = ci.value().doubleValue();
+                if (valParam instanceof CFloat(double value1))
+                    value = value1;
+                else if (valParam instanceof CDecimal(java.math.BigDecimal value1))
+                    value = value1.doubleValue();
+                else if (valParam instanceof CInteger(Number value1))
+                    value = value1.doubleValue();
             }
             // arg2: ascending (index 2)
-            if (af.parameters().size() > 2 && af.parameters().get(2) instanceof CBoolean ascBool) {
-                if (!ascBool.value()) {
+            if (af.parameters().size() > 2 && af.parameters().get(2) instanceof CBoolean(boolean value1)) {
+                if (!value1) {
                     value = 1.0 - value;
                 }
             }
             // arg3: continuous (index 3)
-            if (af.parameters().size() > 3 && af.parameters().get(3) instanceof CBoolean contBool) {
-                if (!contBool.value()) {
+            if (af.parameters().size() > 3 && af.parameters().get(3) instanceof CBoolean(boolean value1)) {
+                if (!value1) {
                     funcName = "percentileDisc";
                 }
             }
@@ -2101,12 +2095,12 @@ public class TypeChecker {
 
     /** Extracts a literal value as string from a ValueSpecification. */
     private String extractLiteralValue(ValueSpecification vs) {
-        if (vs instanceof CInteger ci)
-            return String.valueOf(ci.value());
-        if (vs instanceof CFloat cf)
-            return String.valueOf(cf.value());
-        if (vs instanceof CString cs)
-            return cs.value();
+        if (vs instanceof CInteger(Number value))
+            return String.valueOf(value);
+        if (vs instanceof CFloat(double value))
+            return String.valueOf(value);
+        if (vs instanceof CString(String value))
+            return value;
         throw new PureCompileException("Expected literal value, got: " + vs.getClass().getSimpleName());
     }
 
@@ -2136,8 +2130,8 @@ public class TypeChecker {
         // join(left, right, JoinType, condition, 'prefix')
         String rightPrefix = null;
         int prefixIdx = params.size() >= 4 ? 4 : 3; // after condition
-        if (prefixIdx < params.size() && params.get(prefixIdx) instanceof CString cs) {
-            rightPrefix = cs.value();
+        if (prefixIdx < params.size() && params.get(prefixIdx) instanceof CString(String value)) {
+            rightPrefix = value;
         }
 
         // Detect duplicate column names between left and right
@@ -2174,11 +2168,13 @@ public class TypeChecker {
 
         // Walk the condition lambda and tag each AppliedProperty with its join-side alias
         int conditionIdx = params.size() >= 4 ? 3 : 2;
-        if (conditionIdx < params.size() && params.get(conditionIdx) instanceof LambdaFunction lf) {
-            String leftParam = lf.parameters().size() > 0 ? lf.parameters().get(0).name() : "l";
-            String rightParam = lf.parameters().size() > 1 ? lf.parameters().get(1).name() : "r";
-            if (!lf.body().isEmpty()) {
-                tagJoinConditionProperties(lf.body().get(0), leftParam, rightParam);
+        if (conditionIdx < params.size() && params.get(conditionIdx) instanceof LambdaFunction(
+                List<Variable> parameters, List<ValueSpecification> body
+        )) {
+            String leftParam = parameters.size() > 0 ? parameters.get(0).name() : "l";
+            String rightParam = parameters.size() > 1 ? parameters.get(1).name() : "r";
+            if (!body.isEmpty()) {
+                tagJoinConditionProperties(body.get(0), leftParam, rightParam);
             }
         }
 
@@ -2245,8 +2241,8 @@ public class TypeChecker {
         String rightPrefix = null;
         // Check after key condition (index 4), or after match condition (index 3) if no key lambda
         for (int i = 3; i < params.size(); i++) {
-            if (params.get(i) instanceof CString cs) {
-                rightPrefix = cs.value();
+            if (params.get(i) instanceof CString(String value)) {
+                rightPrefix = value;
                 break;
             }
         }
@@ -2284,20 +2280,22 @@ public class TypeChecker {
         }
 
         // Tag match condition lambda (params[2])
-        if (params.get(2) instanceof LambdaFunction matchLf) {
-            String leftParam = matchLf.parameters().size() > 0 ? matchLf.parameters().get(0).name() : "l";
-            String rightParam = matchLf.parameters().size() > 1 ? matchLf.parameters().get(1).name() : "r";
-            if (!matchLf.body().isEmpty()) {
-                tagJoinConditionProperties(matchLf.body().get(0), leftParam, rightParam);
+        if (params.get(2) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
+            String leftParam = parameters.size() > 0 ? parameters.get(0).name() : "l";
+            String rightParam = parameters.size() > 1 ? parameters.get(1).name() : "r";
+            if (!body.isEmpty()) {
+                tagJoinConditionProperties(body.get(0), leftParam, rightParam);
             }
         }
 
         // Tag key condition lambda (params[3]) if present
-        if (params.size() >= 4 && params.get(3) instanceof LambdaFunction keyLf) {
-            String leftParam = keyLf.parameters().size() > 0 ? keyLf.parameters().get(0).name() : "l";
-            String rightParam = keyLf.parameters().size() > 1 ? keyLf.parameters().get(1).name() : "r";
-            if (!keyLf.body().isEmpty()) {
-                tagJoinConditionProperties(keyLf.body().get(0), leftParam, rightParam);
+        if (params.size() >= 4 && params.get(3) instanceof LambdaFunction(
+                List<Variable> parameters, List<ValueSpecification> body
+        )) {
+            String leftParam = parameters.size() > 0 ? parameters.get(0).name() : "l";
+            String rightParam = parameters.size() > 1 ? parameters.get(1).name() : "r";
+            if (!body.isEmpty()) {
+                tagJoinConditionProperties(body.get(0), leftParam, rightParam);
             }
         }
 
@@ -2324,8 +2322,8 @@ public class TypeChecker {
         // Extract pivot columns from params[1]: ClassInstance(ColSpecArray)
         List<String> pivotColumns = new java.util.ArrayList<>();
         if (params.size() > 1 && params.get(1) instanceof ClassInstance ci) {
-            if (ci.value() instanceof ColSpecArray csa) {
-                for (ColSpec cs : csa.colSpecs()) {
+            if (ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
+                for (ColSpec cs : colSpecs) {
                     pivotColumns.add(cs.name());
                 }
             } else if (ci.value() instanceof ColSpec cs) {
@@ -2337,8 +2335,8 @@ public class TypeChecker {
         List<TypeInfo.PivotAggSpec> aggregates = new java.util.ArrayList<>();
         if (params.size() > 2 && params.get(2) instanceof ClassInstance ci) {
             List<ColSpec> aggSpecs;
-            if (ci.value() instanceof ColSpecArray csa) {
-                aggSpecs = csa.colSpecs();
+            if (ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
+                aggSpecs = colSpecs;
             } else if (ci.value() instanceof ColSpec cs) {
                 aggSpecs = List.of(cs);
             } else {
@@ -2500,9 +2498,9 @@ public class TypeChecker {
         compileExpr(params.get(2), ctx);
 
         // 2. Register fold lambda params: {elem, acc | body}
-        if (params.get(1) instanceof LambdaFunction lf) {
+        if (params.get(1) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
             // Detect fold+add pattern before full lambda compilation
-            if (isFoldAddPattern(lf)) {
+            if (isFoldAddPattern((LambdaFunction) params.get(1))) {
                 // Build synthetic: concatenate(init, source)
                 var concat = new AppliedFunction("concatenate",
                         List.of(params.get(2), params.get(0)));
@@ -2530,23 +2528,23 @@ public class TypeChecker {
             GenericType accType = initInfo != null && initInfo.scalarType() != null
                     ? initInfo.scalarType() : GenericType.Primitive.ANY;
 
-            String elemParam = lf.parameters().size() >= 1 ? lf.parameters().get(0).name() : "x";
-            String accParam = lf.parameters().size() >= 2 ? lf.parameters().get(1).name() : "y";
+            String elemParam = parameters.size() >= 1 ? parameters.get(0).name() : "x";
+            String accParam = parameters.size() >= 2 ? parameters.get(1).name() : "y";
 
             // --- Cross-type scalar fold ---
             // DuckDB list_reduce requires init type = element type.
             // When they differ, decompose into: fold(map(source, elem→transform), {__x,acc→acc+__x}, init)
             boolean isCrossType = isCrossTypeFold(elemType, accType, params.get(2));
-            if (isCrossType && !lf.body().isEmpty()) {
+            if (isCrossType && !body.isEmpty()) {
                 // Compile body with params in scope to type-check it
                 CompilationContext lambdaCtx = ctx
                         .withLambdaParam(elemParam, elemType)
                         .withLambdaParam(accParam, accType);
-                compileExpr(lf.body().get(0), lambdaCtx);
+                compileExpr(body.get(0), lambdaCtx);
 
                 // Extract element-only transform from Pure AST body
                 ValueSpecification elemTransform = extractFoldElementTransform(
-                        lf.body().get(0), accParam);
+                        body.get(0), accParam);
                 if (elemTransform != null) {
                     // Build: fold(map(source, {elem→transform}), {__x,acc→acc+__x}, init)
                     var mapLambda = new LambdaFunction(
@@ -2573,7 +2571,7 @@ public class TypeChecker {
             // Wrap each source element in a single-element list, then unwrap in the body.
             // We compile parts directly and set inlinedBody — we do NOT build a new fold
             // AST (that would re-enter compileFold and hit this branch again).
-            if (params.get(2) instanceof PureCollection && !lf.body().isEmpty()) {
+            if (params.get(2) instanceof PureCollection && !body.isEmpty()) {
                 // Build: map(source, {__e → [__e]})  — wraps each element in a list
                 String wrapParam = "__e";
                 var wrapBody = new PureCollection(List.of(new Variable(wrapParam)));
@@ -2586,7 +2584,7 @@ public class TypeChecker {
 
                 // Rewrite body: replace all Variable(elemParam) with at(Variable(elemParam), 0)
                 ValueSpecification rewrittenBody = substituteVariable(
-                        lf.body().get(0), elemParam,
+                        body.get(0), elemParam,
                         new AppliedFunction("at",
                                 List.of(new Variable(elemParam), new CInteger(0L)), true));
 
@@ -2616,16 +2614,16 @@ public class TypeChecker {
 
             // --- Standard same-type fold ---
             CompilationContext lambdaCtx = ctx;
-            if (lf.parameters().size() >= 1) {
+            if (parameters.size() >= 1) {
                 lambdaCtx = lambdaCtx.withLambdaParam(elemParam, elemType);
             }
-            if (lf.parameters().size() >= 2) {
+            if (parameters.size() >= 2) {
                 lambdaCtx = lambdaCtx.withLambdaParam(accParam, accType);
             }
 
             // Compile body with params in scope
-            if (!lf.body().isEmpty()) {
-                compileExpr(lf.body().get(0), lambdaCtx);
+            if (!body.isEmpty()) {
+                compileExpr(body.get(0), lambdaCtx);
             }
             // Propagate accumulator type — fold result has the same type as init/accumulator.
             return scalarTyped(af, accType);
@@ -2725,29 +2723,29 @@ public class TypeChecker {
                     ? new AppliedFunction(af.function(), newParams, af.hasReceiver())
                     : af;
         }
-        if (vs instanceof LambdaFunction lf) {
+        if (vs instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
             // Don't substitute inside lambdas that shadow the variable name
-            for (var param : lf.parameters()) {
+            for (var param : parameters) {
                 if (param.name().equals(varName)) return vs;
             }
             boolean changed = false;
-            var newBody = new java.util.ArrayList<ValueSpecification>(lf.body().size());
-            for (var b : lf.body()) {
+            var newBody = new java.util.ArrayList<ValueSpecification>(body.size());
+            for (var b : body) {
                 var sub = substituteVariable(b, varName, replacement);
                 if (sub != b) changed = true;
                 newBody.add(sub);
             }
-            return changed ? new LambdaFunction(lf.parameters(), newBody) : lf;
+            return changed ? new LambdaFunction(parameters, newBody) : vs;
         }
-        if (vs instanceof PureCollection coll) {
+        if (vs instanceof PureCollection(List<ValueSpecification> values)) {
             boolean changed = false;
-            var newVals = new java.util.ArrayList<ValueSpecification>(coll.values().size());
-            for (var v : coll.values()) {
+            var newVals = new java.util.ArrayList<ValueSpecification>(values.size());
+            for (var v : values) {
                 var sub = substituteVariable(v, varName, replacement);
                 if (sub != v) changed = true;
                 newVals.add(sub);
             }
-            return changed ? new PureCollection(newVals) : coll;
+            return changed ? new PureCollection(newVals) : vs;
         }
         // Literals, ClassInstance, etc. — no variables to substitute
         return vs;
@@ -2769,8 +2767,8 @@ public class TypeChecker {
 
         // Extract branches from Collection (params[1])
         List<LambdaFunction> branches;
-        if (params.get(1) instanceof PureCollection coll) {
-            branches = coll.values().stream()
+        if (params.get(1) instanceof PureCollection(List<ValueSpecification> values)) {
+            branches = values.stream()
                     .filter(v -> v instanceof LambdaFunction)
                     .map(v -> (LambdaFunction) v)
                     .toList();
@@ -2781,7 +2779,7 @@ public class TypeChecker {
         }
 
         // Determine if input is a collection (affects multiplicity matching)
-        boolean inputIsMany = (params.get(0) instanceof PureCollection coll && coll.values().size() != 1)
+        boolean inputIsMany = (params.get(0) instanceof PureCollection(List<ValueSpecification> values) && values.size() != 1)
                 || (types.get(params.get(0)) != null && types.get(params.get(0)).isList());
 
         // Find matching branch by type + multiplicity
@@ -2830,10 +2828,10 @@ public class TypeChecker {
         if (vs instanceof CBoolean) return "Boolean";
         if (vs instanceof CStrictDate) return "StrictDate";
         if (vs instanceof CDateTime) return "DateTime";
-        if (vs instanceof PureCollection coll) {
+        if (vs instanceof PureCollection(List<ValueSpecification> values)) {
             // Infer from first element, or fall through to side table
-            if (!coll.values().isEmpty()) {
-                return inferTypeName(coll.values().get(0));
+            if (!values.isEmpty()) {
+                return inferTypeName(values.get(0));
             }
         }
         // Check side table
@@ -2906,15 +2904,17 @@ public class TypeChecker {
         }
 
         // 3. Register lambda param and compile body with proper context
-        if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf) {
+        if (params.size() > 1 && params.get(1) instanceof LambdaFunction(
+                List<Variable> parameters, List<ValueSpecification> body
+        )) {
             CompilationContext lambdaCtx = ctx;
-            if (!lf.parameters().isEmpty()) {
-                String paramName = lf.parameters().get(0).name();
+            if (!parameters.isEmpty()) {
+                String paramName = parameters.get(0).name();
                 lambdaCtx = ctx.withLambdaParam(paramName, elemType);
             }
             // Compile the lambda body with the param in scope
-            if (!lf.body().isEmpty()) {
-                compileExpr(lf.body().get(0), lambdaCtx);
+            if (!body.isEmpty()) {
+                compileExpr(body.get(0), lambdaCtx);
             }
         }
 
@@ -3029,8 +3029,8 @@ public class TypeChecker {
         // Resolve target type from @Type argument (GenericTypeInstance)
         GenericType targetType = null;
         for (var p : params) {
-            if (p instanceof GenericTypeInstance gti) {
-                targetType = GenericType.fromTypeName(simpleName(gti.fullPath()));
+            if (p instanceof GenericTypeInstance(String fullPath)) {
+                targetType = GenericType.fromTypeName(simpleName(fullPath));
                 break;
             }
         }
@@ -3120,18 +3120,18 @@ public class TypeChecker {
         TypeInfo.VariantAccess access = null;
         if (params.size() > 1) {
             ValueSpecification keyVs = params.get(1);
-            if (keyVs instanceof CInteger ci) {
-                access = new TypeInfo.VariantAccess.IndexAccess(ci.value().intValue());
-            } else if (keyVs instanceof CString cs) {
-                access = new TypeInfo.VariantAccess.FieldAccess(cs.value());
+            if (keyVs instanceof CInteger(Number value)) {
+                access = new TypeInfo.VariantAccess.IndexAccess(value.intValue());
+            } else if (keyVs instanceof CString(String value)) {
+                access = new TypeInfo.VariantAccess.FieldAccess(value);
             }
         }
 
         // Resolve target type from @Type annotation (3rd param)
         GenericType targetType = null;
         for (var pi : params) {
-            if (pi instanceof GenericTypeInstance gti) {
-                targetType = GenericType.fromTypeName(simpleName(gti.fullPath()));
+            if (pi instanceof GenericTypeInstance(String fullPath)) {
+                targetType = GenericType.fromTypeName(simpleName(fullPath));
                 break;
             }
         }
@@ -3435,11 +3435,11 @@ public class TypeChecker {
             if (stmt instanceof AppliedFunction letAf
                     && simpleName(letAf.function()).equals("letFunction")
                     && letAf.parameters().size() >= 2
-                    && letAf.parameters().get(0) instanceof CString varName) {
+                    && letAf.parameters().get(0) instanceof CString(String value)) {
                 // let x = valueExpr → store binding in context
                 ValueSpecification valueExpr = letAf.parameters().get(1);
                 compileExpr(valueExpr, blockCtx); // compile value for type info
-                blockCtx = blockCtx.withLetBinding(varName.value(), valueExpr);
+                blockCtx = blockCtx.withLetBinding(value, valueExpr);
             } else {
                 compileExpr(stmt, blockCtx);
             }
@@ -3463,8 +3463,7 @@ public class TypeChecker {
     private TypeInfo compileEval(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         // eval(functionRef, args...) — rewrite to normal function call
-        if (params.size() >= 2 && params.get(0) instanceof PackageableElementPtr ptr) {
-            String fullPath = ptr.fullPath();
+        if (params.size() >= 2 && params.get(0) instanceof PackageableElementPtr(String fullPath)) {
             String lastSegment = fullPath.contains("::")
                     ? fullPath.substring(fullPath.lastIndexOf("::") + 2)
                     : fullPath;
@@ -3481,19 +3480,20 @@ public class TypeChecker {
             return result;
         }
         // eval(lambda, args) — compile lambda body and store as inlinedBody
-        if (params.size() >= 2 && params.get(0) instanceof LambdaFunction lf) {
-            if (!lf.body().isEmpty()) {
+        if (params.size() >= 2 && params.get(0) instanceof LambdaFunction(
+                List<Variable> parameters, List<ValueSpecification> body
+        )) {
+            if (!body.isEmpty()) {
                 // Bind each lambda param to its corresponding arg value
                 CompilationContext evalCtx = ctx;
-                List<Variable> lambdaParams = lf.parameters();
                 List<ValueSpecification> args = params.subList(1, params.size());
-                for (int i = 0; i < lambdaParams.size() && i < args.size(); i++) {
+                for (int i = 0; i < parameters.size() && i < args.size(); i++) {
                     compileExpr(args.get(i), ctx);
-                    evalCtx = evalCtx.withLetBinding(lambdaParams.get(i).name(), args.get(i));
+                    evalCtx = evalCtx.withLetBinding(parameters.get(i).name(), args.get(i));
                 }
-                ValueSpecification body = lf.body().get(0);
-                TypeInfo bodyResult = compileExpr(body, evalCtx);
-                TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(body).build();
+                ValueSpecification evalBody = body.get(0);
+                TypeInfo bodyResult = compileExpr(evalBody, evalCtx);
+                TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(evalBody).build();
                 types.put(af, result);
                 return result;
             }
@@ -3915,8 +3915,8 @@ public class TypeChecker {
     }
 
     private String extractStringValue(ValueSpecification vs) {
-        if (vs instanceof CString s)
-            return s.value();
+        if (vs instanceof CString(String value))
+            return value;
         throw new PureCompileException("Expected string, got: " + vs.getClass().getSimpleName());
     }
 
@@ -3928,11 +3928,11 @@ public class TypeChecker {
             throw new PureCompileException(
                     "ColSpecArray passed to single-column extractColumnName(); caller must handle arrays");
         }
-        if (vs instanceof CString s)
-            return s.value();
+        if (vs instanceof CString(String value))
+            return value;
         // Column index (old-style groupBy): groupBy([0, 1], ...)
-        if (vs instanceof CInteger ci)
-            return "col" + ci.value();
+        if (vs instanceof CInteger(Number value))
+            return "col" + value;
         // Old-style lambda: {r | $r.colName} → extract property name
         if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
             var body = lf.body().get(0);
@@ -3970,36 +3970,36 @@ public class TypeChecker {
         if (vs instanceof Variable v)
             return v.name();
         // Type annotation: GenericTypeInstance(Integer) in project specs
-        if (vs instanceof GenericTypeInstance gti)
-            return gti.fullPath();
+        if (vs instanceof GenericTypeInstance(String fullPath))
+            return fullPath;
         // No fallback — throw so we can fix the root cause
         throw new PureCompileException(
                 "extractColumnName: unrecognized VS type: " + vs.getClass().getSimpleName() + " → " + vs);
     }
 
     private List<String> extractColumnNames(ValueSpecification vs) {
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) {
-            return csa.colSpecs().stream().map(ColSpec::name).toList();
+        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
+            return colSpecs.stream().map(ColSpec::name).toList();
         }
         if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
             return List.of(cs.name());
         }
-        if (vs instanceof PureCollection coll) {
-            return coll.values().stream().map(this::extractColumnName).toList();
+        if (vs instanceof PureCollection(List<ValueSpecification> values)) {
+            return values.stream().map(this::extractColumnName).toList();
         }
         return List.of(extractColumnName(vs));
     }
 
     /** Extracts a list of strings from a PureCollection. */
     private List<String> extractStringList(ValueSpecification vs) {
-        if (vs instanceof PureCollection coll) {
-            return coll.values().stream()
+        if (vs instanceof PureCollection(List<ValueSpecification> values)) {
+            return values.stream()
                     .filter(v -> v instanceof CString)
                     .map(v -> ((CString) v).value())
                     .toList();
         }
-        if (vs instanceof CString s) {
-            return List.of(s.value());
+        if (vs instanceof CString(String value)) {
+            return List.of(value);
         }
         return List.of();
     }
@@ -4194,15 +4194,16 @@ public class TypeChecker {
      * Returns a ColumnSpec with sourceCol, alias, and Pure aggregate function name.
      */
     private TypeInfo.ColumnSpec extractAggSpec(ValueSpecification vs) {
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-            String alias = cs.name();
+        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec(
+                String name, LambdaFunction function1, LambdaFunction function2
+        )) {
             String sourceCol = null;
             String aggFunc = null;
 
             // Extract source column(s) from function1 lambda
             List<String> extraArgsFromFunc1 = new ArrayList<>();
-            if (cs.function1() != null && !cs.function1().body().isEmpty()) {
-                var f1Body = cs.function1().body().get(0);
+            if (function1 != null && !function1.body().isEmpty()) {
+                var f1Body = function1.body().get(0);
 
                 if (f1Body instanceof AppliedFunction f1Af) {
                     String f1Func = simpleName(f1Af.function());
@@ -4218,7 +4219,7 @@ public class TypeChecker {
                                 }
                             }
                         }
-                    } else if (cs.function2() == null) {
+                    } else if (function2 == null) {
                         // Single-function aggregate: x|$x.name->joinStrings(',')
                         // The outermost function IS the aggregate
                         aggFunc = f1Func;
@@ -4229,17 +4230,17 @@ public class TypeChecker {
                         // Extract extra args (separator for joinStrings, etc.)
                         for (int k = 1; k < f1Af.parameters().size(); k++) {
                             var extra = f1Af.parameters().get(k);
-                            if (extra instanceof CString cs2) {
-                                extraArgsFromFunc1.add("'" + cs2.value() + "'");
-                            } else if (extra instanceof CInteger ci2) {
-                                extraArgsFromFunc1.add(String.valueOf(ci2.value()));
-                            } else if (extra instanceof CFloat cf) {
-                                extraArgsFromFunc1.add(String.valueOf(cf.value()));
+                            if (extra instanceof CString(String value)) {
+                                extraArgsFromFunc1.add("'" + value + "'");
+                            } else if (extra instanceof CInteger(Number value)) {
+                                extraArgsFromFunc1.add(String.valueOf(value));
+                            } else if (extra instanceof CFloat(double value)) {
+                                extraArgsFromFunc1.add(String.valueOf(value));
                             }
                         }
                     } else {
                         // Has function2 — function1 is just value extraction
-                        sourceCol = extractPropertyNameFromLambda(cs.function1());
+                        sourceCol = extractPropertyNameFromLambda(function1);
                     }
                 } else if (f1Body instanceof AppliedProperty ap) {
                     // Simple property: x|$x.salary
@@ -4248,12 +4249,12 @@ public class TypeChecker {
             }
 
             // If sourceCol still null, fall back to alias (e.g., ~[total:x|$x.id] with no explicit column)
-            if (sourceCol == null) sourceCol = alias;
+            if (sourceCol == null) sourceCol = name;
 
             // Extract aggregate function from function2 lambda: y|$y->sum()
             List<String> allExtraArgs = new ArrayList<>(extraArgsFromFunc1);
-            if (cs.function2() != null && !cs.function2().body().isEmpty()) {
-                var body = cs.function2().body().get(0);
+            if (function2 != null && !function2.body().isEmpty()) {
+                var body = function2.body().get(0);
                 // Resolve through cast(): cast wraps the real aggregate in type-assertion context
                 AppliedFunction bodyAf = resolveAggregateFunctionBody(body);
                 if (bodyAf != null) {
@@ -4266,11 +4267,11 @@ public class TypeChecker {
                         double pValue = 0.5;
                         var pParams = bodyAf.parameters();
                         if (pParams.size() > 1) {
-                            if (pParams.get(1) instanceof CFloat cf) pValue = cf.value();
-                            else if (pParams.get(1) instanceof CDecimal cd) pValue = cd.value().doubleValue();
+                            if (pParams.get(1) instanceof CFloat(double value)) pValue = value;
+                            else if (pParams.get(1) instanceof CDecimal(java.math.BigDecimal value)) pValue = value.doubleValue();
                         }
-                        if (pParams.size() > 2 && pParams.get(2) instanceof CBoolean cb) ascending = cb.value();
-                        if (pParams.size() > 3 && pParams.get(3) instanceof CBoolean cb) continuous = cb.value();
+                        if (pParams.size() > 2 && pParams.get(2) instanceof CBoolean(boolean value)) ascending = value;
+                        if (pParams.size() > 3 && pParams.get(3) instanceof CBoolean(boolean value)) continuous = value;
                         aggFunc = continuous ? "percentileCont" : "percentileDisc";
                         double effectiveValue = ascending ? pValue : (1.0 - pValue);
                         String valStr = effectiveValue == (long) effectiveValue
@@ -4283,14 +4284,14 @@ public class TypeChecker {
                             var extra = bodyAf.parameters().get(k);
                             if (extra instanceof AppliedProperty ap) {
                                 allExtraArgs.add(ap.property());
-                            } else if (extra instanceof CInteger ci2) {
-                                allExtraArgs.add(String.valueOf(ci2.value()));
-                            } else if (extra instanceof CFloat cf) {
-                                allExtraArgs.add(String.valueOf(cf.value()));
-                            } else if (extra instanceof CDecimal cd) {
-                                allExtraArgs.add(cd.value().toPlainString());
-                            } else if (extra instanceof CString cs2) {
-                                allExtraArgs.add("'" + cs2.value() + "'");
+                            } else if (extra instanceof CInteger(Number value)) {
+                                allExtraArgs.add(String.valueOf(value));
+                            } else if (extra instanceof CFloat(double value)) {
+                                allExtraArgs.add(String.valueOf(value));
+                            } else if (extra instanceof CDecimal(java.math.BigDecimal value)) {
+                                allExtraArgs.add(value.toPlainString());
+                            } else if (extra instanceof CString(String value)) {
+                                allExtraArgs.add("'" + value + "'");
                             }
                         }
                     }
@@ -4301,15 +4302,15 @@ public class TypeChecker {
             if (aggFunc == null) aggFunc = "plus"; // only for simple ~[total:x|$x.id] with no agg function
 
             // Extract cast type if function2 body is cast(inner, @Type)
-            String castType = (cs.function2() != null && !cs.function2().body().isEmpty())
-                    ? extractCastType(cs.function2().body().get(0)) : null;
+            String castType = (function2 != null && !function2.body().isEmpty())
+                    ? extractCastType(function2.body().get(0)) : null;
             if (castType != null) {
-                return TypeInfo.ColumnSpec.aggCast(sourceCol, alias, aggFunc, allExtraArgs, castType);
+                return TypeInfo.ColumnSpec.aggCast(sourceCol, name, aggFunc, allExtraArgs, castType);
             }
             if (!allExtraArgs.isEmpty()) {
-                return TypeInfo.ColumnSpec.aggMulti(sourceCol, alias, aggFunc, allExtraArgs);
+                return TypeInfo.ColumnSpec.aggMulti(sourceCol, name, aggFunc, allExtraArgs);
             }
-            return TypeInfo.ColumnSpec.agg(sourceCol, alias, aggFunc);
+            return TypeInfo.ColumnSpec.agg(sourceCol, name, aggFunc);
         }
 
         // Legacy lambda pattern: {r | $r.sal->stdDevSample()} or {r |
@@ -4333,14 +4334,14 @@ public class TypeChecker {
                     var extra = bodyAf.parameters().get(k);
                     if (extra instanceof AppliedProperty ap) {
                         extraArgs.add(ap.property()); // column ref
-                    } else if (extra instanceof CInteger ci) {
-                        extraArgs.add(String.valueOf(ci.value()));
-                    } else if (extra instanceof CFloat cf) {
-                        extraArgs.add(String.valueOf(cf.value()));
-                    } else if (extra instanceof CDecimal cd) {
-                        extraArgs.add(cd.value().toPlainString());
-                    } else if (extra instanceof CString cs) {
-                        extraArgs.add("'" + cs.value() + "'");
+                    } else if (extra instanceof CInteger(Number value)) {
+                        extraArgs.add(String.valueOf(value));
+                    } else if (extra instanceof CFloat(double value)) {
+                        extraArgs.add(String.valueOf(value));
+                    } else if (extra instanceof CDecimal(java.math.BigDecimal value)) {
+                        extraArgs.add(value.toPlainString());
+                    } else if (extra instanceof CString(String value)) {
+                        extraArgs.add("'" + value + "'");
                     }
                 }
                 if (sourceCol != null) {
@@ -4480,8 +4481,8 @@ public class TypeChecker {
             }
             // Lambda param with ClassType: resolve field type from model context
             GenericType paramType = ctx.getLambdaParamType(v.name());
-            if (paramType instanceof GenericType.ClassType ct && modelContext != null) {
-                var classOpt = modelContext.findClass(ct.qualifiedName());
+            if (paramType instanceof GenericType.ClassType(String qualifiedName) && modelContext != null) {
+                var classOpt = modelContext.findClass(qualifiedName);
                 if (classOpt.isPresent()) {
                     var propOpt = classOpt.get().findProperty(ap.property());
                     if (propOpt.isPresent()) {

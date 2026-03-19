@@ -1,12 +1,5 @@
 package com.gs.legend.service;
-import com.gs.legend.parser.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.exec.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.serial.*;
+
 import com.gs.legend.model.def.ServiceDefinition;
 
 import java.util.*;

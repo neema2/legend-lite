@@ -1,25 +1,15 @@
 package com.gs.legend.test;
-import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.parser.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.exec.*;
-import com.gs.legend.serial.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.server.*;
-import com.gs.legend.service.*;
+
 import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.exec.ExecutionResult.*;
+import com.gs.legend.exec.ExecutionResult.ScalarResult;
+import com.gs.legend.exec.ExecutionResult.TabularResult;
 import com.gs.legend.plan.GenericType;
 import com.gs.legend.sqlgen.DuckDBDialect;
 import com.gs.legend.sqlgen.SQLDialect;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;

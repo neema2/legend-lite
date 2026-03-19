@@ -1,7 +1,7 @@
 package com.gs.legend.compiler;
-import com.gs.legend.ast.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
+
+import com.gs.legend.ast.ValueSpecification;
+
 import java.util.IdentityHashMap;
 
 /**

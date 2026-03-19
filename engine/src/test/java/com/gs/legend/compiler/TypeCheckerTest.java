@@ -1,33 +1,19 @@
 package com.gs.legend.compiler;
-import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.parser.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.exec.*;
-import com.gs.legend.serial.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.server.*;
-import com.gs.legend.service.*;
-import com.gs.legend.plan.GenericType;
-import com.gs.legend.plan.RelationType;
-import com.gs.legend.model.store.Column;
-import com.gs.legend.model.mapping.MappingRegistry;
-import com.gs.legend.model.store.PropertyMapping;
-import com.gs.legend.model.mapping.RelationalMapping;
-import com.gs.legend.model.store.SqlDataType;
-import com.gs.legend.model.store.Table;
-import com.gs.legend.sqlgen.DuckDBDialect;
-import com.gs.legend.compiler.PureCompileException;
+
+import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.model.m3.PrimitiveType;
 import com.gs.legend.model.m3.Property;
 import com.gs.legend.model.m3.PureClass;
-import com.gs.legend.model.PureModelBuilder;
+import com.gs.legend.model.mapping.MappingRegistry;
+import com.gs.legend.model.mapping.RelationalMapping;
+import com.gs.legend.model.store.Column;
+import com.gs.legend.model.store.PropertyMapping;
+import com.gs.legend.model.store.SqlDataType;
+import com.gs.legend.model.store.Table;
+import com.gs.legend.plan.GenericType;
+import com.gs.legend.plan.PlanGenerator;
+import com.gs.legend.plan.RelationType;
+import com.gs.legend.sqlgen.DuckDBDialect;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -71,7 +57,7 @@ class TypeCheckerTest {
 
         public java.util.Optional<com.gs.legend.model.mapping.ClassMapping> findMapping(String n) {
             var opt = registry.findByClassName(n);
-            return opt.map(m -> (com.gs.legend.model.mapping.ClassMapping) m);
+            return opt.map(m -> m);
         }
 
         public java.util.Optional<com.gs.legend.model.m3.PureClass> findClass(String n) {

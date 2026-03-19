@@ -1,18 +1,5 @@
 package com.gs.legend.server;
-import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.parser.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.exec.*;
-import com.gs.legend.serial.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.service.*;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -20,7 +7,8 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 

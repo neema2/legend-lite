@@ -1,19 +1,5 @@
 package com.gs.legend.server;
-import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.parser.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.exec.*;
-import com.gs.legend.serial.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.server.*;
-import com.gs.legend.service.*;
+
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -122,13 +108,12 @@ class LegendHttpServerIntegrationTest {
 
     // Build JSON request body properly
     private static String buildJsonRequest(String code, String sql, String runtime) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        sb.append("\"code\":\"").append(escapeJson(code)).append("\",");
-        sb.append("\"sql\":\"").append(escapeJson(sql)).append("\",");
-        sb.append("\"runtime\":\"").append(escapeJson(runtime)).append("\"");
-        sb.append("}");
-        return sb.toString();
+        String sb = "{" +
+                "\"code\":\"" + escapeJson(code) + "\"," +
+                "\"sql\":\"" + escapeJson(sql) + "\"," +
+                "\"runtime\":\"" + escapeJson(runtime) + "\"" +
+                "}";
+        return sb;
     }
 
     private static String escapeJson(String s) {

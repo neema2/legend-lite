@@ -1,7 +1,5 @@
 package com.gs.legend.model.def;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
+
 /**
  * Sealed interface representing top-level Pure definitions (packageable elements).
  *

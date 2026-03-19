@@ -1,12 +1,8 @@
 package com.gs.legend.plan;
-import com.gs.legend.model.m3.*;
+
 import com.gs.legend.compiler.PureCompileException;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Tracks available columns and their types through a relation compilation

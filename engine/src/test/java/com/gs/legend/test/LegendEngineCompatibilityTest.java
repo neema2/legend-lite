@@ -1,22 +1,11 @@
 package com.gs.legend.test;
-import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.parser.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.exec.*;
-import com.gs.legend.serial.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.server.*;
-import com.gs.legend.service.*;import com.gs.legend.parser.PureParser;
 
+import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.def.*;
-import org.junit.jupiter.api.*;
+import com.gs.legend.parser.PureParser;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Set;
@@ -55,7 +44,7 @@ class LegendEngineCompatibilityTest {
 
             assertEquals(1, defs.size());
             assertInstanceOf(ClassDefinition.class, defs.get(0));
-            assertEquals("model::Person", ((ClassDefinition) defs.get(0)).qualifiedName());
+            assertEquals("model::Person", defs.get(0).qualifiedName());
         }
 
         @Test

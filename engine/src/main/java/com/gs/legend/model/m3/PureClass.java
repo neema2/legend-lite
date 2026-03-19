@@ -3,11 +3,7 @@ package com.gs.legend.model.m3;
 import com.gs.legend.model.def.StereotypeApplication;
 import com.gs.legend.model.def.TaggedValue;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Represents a user-defined Class in the Pure type system.

@@ -1,20 +1,12 @@
 package com.gs.legend.model;
-import com.gs.legend.parser.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.ast.*;
-import com.gs.legend.compiler.*;
+
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.m3.*;
+import com.gs.legend.model.mapping.ClassMapping;
+import com.gs.legend.model.mapping.MappingRegistry;
+import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.exec.ConnectionResolver;
-import com.gs.legend.exec.PlanExecutor;
-import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.exec.Row;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.ModelContext;
 import com.gs.legend.parser.PureParser;
-import com.gs.legend.model.m3.*;
 
 import java.util.HashMap;
 import java.util.List;

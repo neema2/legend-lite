@@ -1,13 +1,8 @@
 package com.gs.legend.exec;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.parser.*;
-import com.gs.legend.exec.ExecutionResult;
+
+import com.gs.legend.model.def.MappingDefinition.TestDefinition;
+import com.gs.legend.model.def.MappingDefinition.TestSuiteDefinition;
 import com.gs.legend.server.QueryService;
-import com.gs.legend.model.def.MappingDefinition.*;
 
 import java.sql.Connection;
 import java.util.ArrayList;

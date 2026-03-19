@@ -1,19 +1,9 @@
 package com.gs.legend.parser;
-import com.gs.legend.antlr.*;
-import com.gs.legend.ast.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.model.*;import org.antlr.v4.runtime.BaseErrorListener;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.Recognizer;
 
-import com.gs.legend.antlr.PureLexer;
 import com.gs.legend.antlr.PackageableElementBuilder;
+import com.gs.legend.antlr.PureLexer;
 import com.gs.legend.model.def.*;
+import org.antlr.v4.runtime.*;
 
 import java.util.List;
 

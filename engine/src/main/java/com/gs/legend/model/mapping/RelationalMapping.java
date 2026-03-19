@@ -1,10 +1,14 @@
 package com.gs.legend.model.mapping;
-import com.gs.legend.model.store.*;
-import com.gs.legend.plan.GenericType;
+
 import com.gs.legend.ast.AppliedProperty;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.ast.Variable;
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.store.Column;
+import com.gs.legend.model.store.PropertyMapping;
+import com.gs.legend.model.store.SqlDataType;
+import com.gs.legend.model.store.Table;
+import com.gs.legend.plan.GenericType;
 
 import java.util.List;
 import java.util.Map;

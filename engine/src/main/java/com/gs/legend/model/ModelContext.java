@@ -1,11 +1,11 @@
 package com.gs.legend.model;
 
-import com.gs.legend.model.store.Join;
-import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.mapping.MappingRegistry;
-import com.gs.legend.model.store.Table;
 import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.mapping.ClassMapping;
+import com.gs.legend.model.mapping.MappingRegistry;
+import com.gs.legend.model.store.Join;
+import com.gs.legend.model.store.Table;
 
 import java.util.Optional;
 

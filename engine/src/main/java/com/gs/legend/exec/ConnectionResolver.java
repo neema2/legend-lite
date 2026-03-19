@@ -1,7 +1,5 @@
 package com.gs.legend.exec;
-import com.gs.legend.model.def.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.model.*;
+
 import com.gs.legend.model.def.AuthenticationSpec;
 import com.gs.legend.model.def.ConnectionDefinition;
 import com.gs.legend.model.def.ConnectionSpecification;

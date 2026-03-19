@@ -1,6 +1,7 @@
 package com.gs.legend.model;
-import com.gs.legend.parser.*;
+
 import com.gs.legend.model.def.FunctionDefinition;
+import com.gs.legend.parser.PureParser;
 
 import java.util.HashMap;
 import java.util.List;

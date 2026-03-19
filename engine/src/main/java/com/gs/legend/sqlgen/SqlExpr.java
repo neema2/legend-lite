@@ -1,6 +1,4 @@
 package com.gs.legend.sqlgen;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.sqlgen.SQLDialect;
 
 import java.util.List;
 import java.util.stream.Collectors;

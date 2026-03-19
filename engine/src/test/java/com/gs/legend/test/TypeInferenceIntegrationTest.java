@@ -1,19 +1,5 @@
 package com.gs.legend.test;
-import com.gs.legend.ast.*;
-import com.gs.legend.antlr.*;
-import com.gs.legend.parser.*;
-import com.gs.legend.compiler.*;
-import com.gs.legend.model.*;
-import com.gs.legend.model.def.*;
-import com.gs.legend.model.m3.*;
-import com.gs.legend.model.store.*;
-import com.gs.legend.model.mapping.*;
-import com.gs.legend.plan.*;
-import com.gs.legend.exec.*;
-import com.gs.legend.serial.*;
-import com.gs.legend.sqlgen.*;
-import com.gs.legend.server.*;
-import com.gs.legend.service.*;
+
 import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.sqlgen.DuckDBDialect;
 import com.gs.legend.sqlgen.SQLDialect;
@@ -21,9 +7,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -1271,7 +1260,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "test::TestRuntime", connection);
                 assertEquals("Decimal(18,3)", result.returnType().typeName(), "parseDecimal should produce Decimal(18,3) Pure type");
                 // DuckDB DECIMAL(18,3) truncates to 3.142 - known limitation
-                assertTrue(result.rows().get(0).get(0) instanceof java.math.BigDecimal);
+            assertInstanceOf(BigDecimal.class, result.rows().get(0).get(0));
         }
 
         @Test
@@ -2316,8 +2305,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
                 // After struct unwrapping, should be a Map with firstName/lastName keys
-                assertTrue(value instanceof java.util.Map,
-                                "Expected Map but got: " + (value == null ? "null" : value.getClass().getName()));
+            assertInstanceOf(Map.class, value, "Expected Map but got: " + (value == null ? "null" : value.getClass().getName()));
                 @SuppressWarnings("unchecked")
                 java.util.Map<String, Object> map = (java.util.Map<String, Object>) value;
                 assertEquals("Fabrice", map.get("firstName"));
@@ -2406,8 +2394,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|'2014-02-27T10:01:35.231-0500'->meta::pure::functions::string::parseDate()",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                assertTrue(value instanceof java.time.OffsetDateTime,
-                                "Expected OffsetDateTime but got: " + value.getClass().getName());
+            assertInstanceOf(OffsetDateTime.class, value, "Expected OffsetDateTime but got: " + value.getClass().getName());
                 java.time.OffsetDateTime odt = (java.time.OffsetDateTime) value;
                 // Convert to UTC and verify the instant is correct
                 java.time.OffsetDateTime utc = odt.withOffsetSameInstant(java.time.ZoneOffset.UTC);
@@ -2823,8 +2810,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertEquals(3, pairs.size());
                 // first element: pair(pair(1,'a'), pair(4,'d'))
                 var first = pairs.get(0);
-                assertTrue(first.get("first") instanceof java.util.Map, "first should be a nested Pair (Map)");
-                assertTrue(first.get("second") instanceof java.util.Map, "second should be a nested Pair (Map)");
+            assertInstanceOf(Map.class, first.get("first"), "first should be a nested Pair (Map)");
+            assertInstanceOf(Map.class, first.get("second"), "second should be a nested Pair (Map)");
                 var firstFirst = (java.util.Map<String, Object>) first.get("first");
                 assertEquals(1, ((Number) firstFirst.get("first")).intValue());
                 assertEquals("a", firstFirst.get("second"));
@@ -2844,7 +2831,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertEquals(3, pairs.size());
                 // first element: pair(pair(1,'a'), 4)
                 var first = pairs.get(0);
-                assertTrue(first.get("first") instanceof java.util.Map, "first should be a nested Pair (Map)");
+            assertInstanceOf(Map.class, first.get("first"), "first should be a nested Pair (Map)");
                 var firstFirst = (java.util.Map<String, Object>) first.get("first");
                 assertEquals(1, ((Number) firstFirst.get("first")).intValue());
                 assertEquals("a", firstFirst.get("second"));
@@ -2863,7 +2850,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // first element: pair(1, pair(4,'d'))
                 var first = pairs.get(0);
                 assertEquals(1, ((Number) first.get("first")).intValue());
-                assertTrue(first.get("second") instanceof java.util.Map, "second should be a nested Pair (Map)");
+            assertInstanceOf(Map.class, first.get("second"), "second should be a nested Pair (Map)");
                 var firstSecond = (java.util.Map<String, Object>) first.get("second");
                 assertEquals(4, ((Number) firstSecond.get("first")).intValue());
                 assertEquals("d", firstSecond.get("second"));
@@ -3223,7 +3210,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|meta::pure::functions::math::abs(-123456789123456789.99)",
                                 "test::TestRuntime", connection);
                 assertEquals(new java.math.BigDecimal("123456789123456789.99"),
-                                new java.math.BigDecimal(((Number) result.rows().get(0).get(0)).toString()));
+                                new java.math.BigDecimal(result.rows().get(0).get(0).toString()));
         }
 
         // === PCT: testPercentile assertions ===
@@ -4041,8 +4028,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
          */
         @Test
         void testPivotMultiAggregateWithExpressionValue() throws SQLException {
-                String pure = ""
-                                + "|#TDS\n"
+                String pure = "|#TDS\n"
                                 + "city, country, year, treePlanted, coefficient\n"
                                 + "NYC, USA, 2011, 5000, 1\n"
                                 + "NYC, USA, 2000, 5000, 2\n"

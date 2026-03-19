@@ -1,6 +1,7 @@
 package com.gs.legend.model.mapping;
-import com.gs.legend.model.store.*;
+
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.store.Join;
 
 import java.util.Map;
 import java.util.Optional;
