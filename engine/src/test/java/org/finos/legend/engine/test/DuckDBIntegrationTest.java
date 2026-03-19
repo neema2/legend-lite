@@ -3,7 +3,6 @@ package org.finos.legend.engine.test;
 import org.finos.legend.engine.store.*;
 
 
-import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.transpiler.DuckDBDialect;
 import org.finos.legend.engine.transpiler.SQLDialect;
 import org.finos.legend.pure.dsl.definition.*;

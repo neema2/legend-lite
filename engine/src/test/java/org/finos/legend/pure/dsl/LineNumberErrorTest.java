@@ -1,6 +1,5 @@
 package org.finos.legend.pure.dsl;
 
-import org.finos.legend.pure.dsl.PureParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -3,7 +3,6 @@ package org.finos.legend.engine.server;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import org.finos.legend.engine.execution.ExecutionResult;
 
 import java.io.*;
 import java.net.InetSocketAddress;

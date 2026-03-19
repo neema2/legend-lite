@@ -2083,7 +2083,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 pureExpr,
                                 "test::TestRuntime", connection);
-                
+                // groupBy(~grp, ~id : x | $x.id : y | $y->average()) should produce 3 groups:
+                // grp=1 → avg(id)=2.0, grp=2 → avg(id)=1.0, grp=3 → avg(id)=3.0
+                assertNotNull(result);
+                assertEquals(3, result.rows().size(), "Should have 3 groups");
+                var grouped = collectGroupByResults(result, "grp", "id");
+                assertEquals(1.0, ((Number) grouped.get(2)).doubleValue(), 0.01, "grp=2 avg should be 1.0");
+                assertEquals(2.0, ((Number) grouped.get(1)).doubleValue(), 0.01, "grp=1 avg should be 2.0");
+                assertEquals(3.0, ((Number) grouped.get(3)).doubleValue(), 0.01, "grp=3 avg should be 3.0");
         }
 
         // ==================== String indexOf / substring / joinStrings / sort tests

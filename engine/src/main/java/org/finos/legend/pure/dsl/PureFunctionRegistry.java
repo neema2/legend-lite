@@ -1,7 +1,6 @@
 package org.finos.legend.pure.dsl;
 
 import org.finos.legend.pure.dsl.definition.FunctionDefinition;
-import org.finos.legend.pure.dsl.PureParser;
 
 import java.util.HashMap;
 import java.util.List;

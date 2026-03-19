@@ -1,6 +1,5 @@
 package org.finos.legend.engine.store;
 
-import org.finos.legend.engine.store.PureClassMapping;
 import org.finos.legend.pure.m3.PureClass;
 
 import java.util.Map;

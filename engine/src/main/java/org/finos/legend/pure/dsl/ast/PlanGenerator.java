@@ -122,11 +122,6 @@ public class PlanGenerator {
      * The inner tabular query must have SELECT columns matching the spec's property names.
      */
     private SqlBuilder wrapJsonOutput(SqlBuilder tabular,
-            org.finos.legend.engine.plan.GraphFetchSpec spec, TypeInfo info) {
-        return wrapJsonOutput(tabular, spec, info, java.util.Map.of());
-    }
-
-    private SqlBuilder wrapJsonOutput(SqlBuilder tabular,
             org.finos.legend.engine.plan.GraphFetchSpec spec, TypeInfo info,
             java.util.Map<String, SqlExpr> nestedSubqueries) {
         // Build json_object key-value pairs: 'key', _sub."key", ...
