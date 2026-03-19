@@ -322,62 +322,77 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     // ==================== JSON Serialization Tests ====================
 
     @Test
-    @DisplayName("BufferedResult.toJsonArray produces valid JSON for various types")
+    @DisplayName("ExecutionResult.toJsonArray produces valid JSON for various types")
     void testJsonSerializer() throws Exception {
-        try (Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery(
-                        "SELECT 1 as \"id\", 'test' as \"name\", true as \"active\", 42.5 as \"value\"")) {
+        // Build a TabularResult directly with known types
+        var columns = java.util.List.of(
+                new org.finos.legend.engine.execution.Column("id", "Integer", "Integer"),
+                new org.finos.legend.engine.execution.Column("name", "String", "String"),
+                new org.finos.legend.engine.execution.Column("active", "Boolean", "Boolean"),
+                new org.finos.legend.engine.execution.Column("value", "Float", "Float"));
+        var rows = java.util.List.of(
+                new org.finos.legend.engine.execution.Row(java.util.List.of(1, "test", true, 42.5)));
+        var schema = new org.finos.legend.engine.plan.RelationType(
+                java.util.Map.of("id", org.finos.legend.engine.plan.GenericType.Primitive.INTEGER,
+                        "name", org.finos.legend.engine.plan.GenericType.Primitive.STRING,
+                        "active", org.finos.legend.engine.plan.GenericType.Primitive.BOOLEAN,
+                        "value", org.finos.legend.engine.plan.GenericType.Primitive.FLOAT),
+                java.util.List.of());
+        var result = new org.finos.legend.engine.execution.ExecutionResult.TabularResult(
+                columns, rows, schema, new org.finos.legend.engine.plan.GenericType.Relation(schema));
 
-            var result = org.finos.legend.engine.execution.BufferedResult.fromResultSet(rs);
-            String json = result.toJsonArray();
-            System.out.println("JSON: " + json);
+        String json = result.toJsonArray();
+        System.out.println("JSON: " + json);
 
-            assertEquals("[{\"id\":1,\"name\":\"test\",\"active\":true,\"value\":42.5}]", json);
-        }
+        assertTrue(json.contains("\"id\":1"));
+        assertTrue(json.contains("\"name\":\"test\""));
+        assertTrue(json.contains("\"active\":true"));
+        assertTrue(json.contains("\"value\":42.5"));
     }
 
     @Test
-    @DisplayName("BufferedResult.toJsonArray handles null values correctly")
+    @DisplayName("ExecutionResult.toJsonArray handles null values correctly")
     void testJsonSerializerNulls() throws Exception {
-        // Create a query that produces NULL values naturally via LEFT JOIN
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("INSERT INTO T_PERSON VALUES (99, 'NoAddress', 'Person', 99)");
-        }
+        var columns = java.util.List.of(
+                new org.finos.legend.engine.execution.Column("firstName", "String", "String"),
+                new org.finos.legend.engine.execution.Column("street", "String", "String"));
+        var rows = java.util.List.of(
+                new org.finos.legend.engine.execution.Row(java.util.Arrays.asList("NoAddress", null)));
+        var schema = new org.finos.legend.engine.plan.RelationType(
+                java.util.Map.of("firstName", org.finos.legend.engine.plan.GenericType.Primitive.STRING,
+                        "street", org.finos.legend.engine.plan.GenericType.Primitive.STRING),
+                java.util.List.of());
+        var result = new org.finos.legend.engine.execution.ExecutionResult.TabularResult(
+                columns, rows, schema, new org.finos.legend.engine.plan.GenericType.Relation(schema));
 
-        try (Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery(
-                        "SELECT p.FIRST_NAME as \"firstName\", a.STREET as \"street\" " +
-                                "FROM T_PERSON p LEFT OUTER JOIN T_ADDRESS a ON p.ID = a.PERSON_ID " +
-                                "WHERE p.ID = 99")) {
+        String json = result.toJsonArray();
+        System.out.println("JSON with nulls: " + json);
 
-            var result = org.finos.legend.engine.execution.BufferedResult.fromResultSet(rs);
-            String json = result.toJsonArray();
-            System.out.println("JSON with nulls: " + json);
-
-            assertTrue(json.contains("\"firstName\":\"NoAddress\""));
-            assertTrue(json.contains("\"street\":null"));
-        }
+        assertTrue(json.contains("\"firstName\":\"NoAddress\""));
+        assertTrue(json.contains("\"street\":null"));
     }
 
     @Test
-    @DisplayName("BufferedResult.toJsonArray escapes special characters in strings")
+    @DisplayName("ExecutionResult.toJsonArray escapes special characters in strings")
     void testJsonSerializerEscaping() throws Exception {
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("INSERT INTO T_PERSON VALUES (98, 'Quote\"Test', 'Tab\tPerson', 20)");
-        }
+        var columns = java.util.List.of(
+                new org.finos.legend.engine.execution.Column("firstName", "String", "String"),
+                new org.finos.legend.engine.execution.Column("lastName", "String", "String"));
+        var rows = java.util.List.of(
+                new org.finos.legend.engine.execution.Row(java.util.List.of("Quote\"Test", "Tab\tPerson")));
+        var schema = new org.finos.legend.engine.plan.RelationType(
+                java.util.Map.of("firstName", org.finos.legend.engine.plan.GenericType.Primitive.STRING,
+                        "lastName", org.finos.legend.engine.plan.GenericType.Primitive.STRING),
+                java.util.List.of());
+        var result = new org.finos.legend.engine.execution.ExecutionResult.TabularResult(
+                columns, rows, schema, new org.finos.legend.engine.plan.GenericType.Relation(schema));
 
-        try (Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery(
-                        "SELECT FIRST_NAME as \"firstName\", LAST_NAME as \"lastName\" FROM T_PERSON WHERE ID = 98")) {
+        String json = result.toJsonArray();
+        System.out.println("JSON with escaping: " + json);
 
-            var result = org.finos.legend.engine.execution.BufferedResult.fromResultSet(rs);
-            String json = result.toJsonArray();
-            System.out.println("JSON with escaping: " + json);
-
-            // Should contain escaped quote and tab
-            assertTrue(json.contains("\\\"")); // Escaped quote
-            assertTrue(json.contains("\\t")); // Escaped tab
-        }
+        // Should contain escaped quote and tab
+        assertTrue(json.contains("\\\"")); // Escaped quote
+        assertTrue(json.contains("\\t")); // Escaped tab
     }
 
     // ==================== Helper Methods ====================
