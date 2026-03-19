@@ -4,7 +4,7 @@ import org.finos.legend.pure.dsl.definition.ClassDefinition;
 import org.finos.legend.pure.dsl.definition.ClassDefinition.DerivedPropertyDefinition;
 import org.finos.legend.pure.dsl.definition.ClassDefinition.PropertyDefinition;
 import org.finos.legend.pure.dsl.definition.EnumDefinition;
-import org.finos.legend.pure.dsl.definition.PureDefinition;
+import org.finos.legend.pure.dsl.definition.PackageableElement;
 import org.finos.legend.pure.dsl.definition.PureDefinitionParser;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ public final class JavaCodeGenerator {
      * @return List of generated Java source files (filename, content pairs)
      */
     public List<GeneratedFile> generate(String pureSource) {
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pureSource);
+        List<PackageableElement> definitions = PureDefinitionParser.parse(pureSource);
 
         return definitions.stream()
                 .filter(def -> def instanceof ClassDefinition || def instanceof EnumDefinition)
@@ -50,7 +50,7 @@ public final class JavaCodeGenerator {
                 .collect(Collectors.toList());
     }
 
-    private GeneratedFile generateDefinition(PureDefinition def) {
+    private GeneratedFile generateDefinition(PackageableElement def) {
         return switch (def) {
             case ClassDefinition classDef -> new GeneratedFile(
                     classDef.simpleName() + ".java",

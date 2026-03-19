@@ -166,7 +166,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pure);
+        List<PackageableElement> definitions = PureDefinitionParser.parse(pure);
 
         assertEquals(2, definitions.size());
         assertInstanceOf(ClassDefinition.class, definitions.get(0));

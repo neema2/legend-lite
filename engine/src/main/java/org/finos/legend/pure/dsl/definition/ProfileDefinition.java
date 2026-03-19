@@ -27,7 +27,7 @@ import java.util.Objects;
 public record ProfileDefinition(
         String qualifiedName,
         List<String> stereotypes,
-        List<String> tags) implements PureDefinition {
+        List<String> tags) implements PackageableElement {
 
     public ProfileDefinition {
         Objects.requireNonNull(qualifiedName, "Profile name cannot be null");

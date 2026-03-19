@@ -43,7 +43,7 @@ public record MappingDefinition(
         String qualifiedName,
         List<ClassMappingDefinition> classMappings,
         List<EnumerationMappingDefinition> enumerationMappings,
-        List<TestSuiteDefinition> testSuites) implements PureDefinition {
+        List<TestSuiteDefinition> testSuites) implements PackageableElement {
 
     public MappingDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

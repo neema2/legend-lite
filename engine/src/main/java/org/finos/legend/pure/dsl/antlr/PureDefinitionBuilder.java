@@ -1642,14 +1642,14 @@ public class PureDefinitionBuilder extends PureParserBaseVisitor<Object> {
     /**
      * Extracts ALL definitions from a parsed definition context.
      * Iterates through all elementDefinition nodes and builds the appropriate
-     * PureDefinition based on which grammar rule matched.
+     * PackageableElement based on which grammar rule matched.
      *
      * @param definitionCtx The definition context from parsing
-     * @return List of all PureDefinitions found
+     * @return List of all PackageableElements found
      */
-    public static List<org.finos.legend.pure.dsl.definition.PureDefinition> extractAllDefinitions(
+    public static List<org.finos.legend.pure.dsl.definition.PackageableElement> extractAllDefinitions(
             PureParser.DefinitionContext definitionCtx) {
-        List<org.finos.legend.pure.dsl.definition.PureDefinition> result = new ArrayList<>();
+        List<org.finos.legend.pure.dsl.definition.PackageableElement> result = new ArrayList<>();
         if (definitionCtx == null) {
             return result;
         }

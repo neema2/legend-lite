@@ -35,7 +35,7 @@ public record ServiceDefinition(
         String functionBody,
         List<String> pathParams,
         String documentation,
-        List<MappingDefinition.TestSuiteDefinition> testSuites) implements PureDefinition {
+        List<MappingDefinition.TestSuiteDefinition> testSuites) implements PackageableElement {
 
     private static final Pattern PATH_PARAM_PATTERN = Pattern.compile("\\{(\\w+)\\}");
 

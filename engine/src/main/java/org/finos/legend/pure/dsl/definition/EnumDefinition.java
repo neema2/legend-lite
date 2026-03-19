@@ -35,7 +35,7 @@ import java.util.Objects;
  */
 public record EnumDefinition(
         String qualifiedName,
-        List<String> values) implements PureDefinition {
+        List<String> values) implements PackageableElement {
 
     public EnumDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

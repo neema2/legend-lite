@@ -48,10 +48,10 @@ public final class PureModelBuilder implements ModelContext {
      * @return this builder for chaining
      */
     public PureModelBuilder addSource(String pureSource) {
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pureSource);
+        List<PackageableElement> definitions = PureDefinitionParser.parse(pureSource);
 
         // PHASE 0: Register all enums first (needed for type resolution in classes)
-        for (PureDefinition def : definitions) {
+        for (PackageableElement def : definitions) {
             if (def instanceof EnumDefinition enumDef) {
                 addEnum(enumDef);
             }
@@ -59,14 +59,14 @@ public final class PureModelBuilder implements ModelContext {
 
         // PHASE 1a: Register class stubs (names only, no properties yet)
         // This allows forward references between classes (e.g., TypeForProjectTest → PrimitiveContainer)
-        for (PureDefinition def : definitions) {
+        for (PackageableElement def : definitions) {
             if (def instanceof ClassDefinition classDef) {
                 registerClassStub(classDef);
             }
         }
 
         // PHASE 1b: Resolve properties now that all class names are registered
-        for (PureDefinition def : definitions) {
+        for (PackageableElement def : definitions) {
             if (def instanceof ClassDefinition classDef) {
                 addClass(classDef);
             }
@@ -76,7 +76,7 @@ public final class PureModelBuilder implements ModelContext {
         resolveSuperclasses();
 
         // PHASE 3: Process remaining definitions
-        for (PureDefinition def : definitions) {
+        for (PackageableElement def : definitions) {
             switch (def) {
                 case ClassDefinition classDef -> {
                 } // Already processed in Phase 1

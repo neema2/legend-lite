@@ -35,7 +35,7 @@ public record FunctionDefinition(
         Integer returnUpperBound,
         String body,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues) implements PureDefinition {
+        List<TaggedValue> taggedValues) implements PackageableElement {
 
     public FunctionDefinition {
         Objects.requireNonNull(qualifiedName, "Function name cannot be null");

@@ -154,7 +154,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        List<PureDefinition> definitions = PureDefinitionParser.parse(pure);
+        List<PackageableElement> definitions = PureDefinitionParser.parse(pure);
 
         assertEquals(2, definitions.size());
         assertInstanceOf(ProfileDefinition.class, definitions.get(0));

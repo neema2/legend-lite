@@ -22,7 +22,7 @@ import java.util.Map;
 public record RuntimeDefinition(
         String qualifiedName,
         List<String> mappings,
-        Map<String, String> connectionBindings) implements PureDefinition {
+        Map<String, String> connectionBindings) implements PackageableElement {
 
     /**
      * Returns the simple name (last part after ::).

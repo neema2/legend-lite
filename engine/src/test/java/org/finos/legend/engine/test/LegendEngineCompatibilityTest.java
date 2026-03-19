@@ -36,7 +36,7 @@ class LegendEngineCompatibilityTest {
                     }
                     """;
 
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
 
             assertEquals(1, defs.size());
             assertInstanceOf(ClassDefinition.class, defs.get(0));
@@ -74,7 +74,7 @@ class LegendEngineCompatibilityTest {
                     )
                     """;
 
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
 
             assertEquals(3, defs.size());
             assertInstanceOf(ClassDefinition.class, defs.get(0));
@@ -94,7 +94,7 @@ class LegendEngineCompatibilityTest {
                     Mapping model::M ( A: Relational { ~mainTable [DB] T } )
                     """;
 
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
             assertEquals(3, defs.size());
         }
     }
@@ -116,7 +116,7 @@ class LegendEngineCompatibilityTest {
                     }
                     """;
 
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
 
             assertEquals(1, defs.size());
             assertInstanceOf(ClassDefinition.class, defs.get(0));
@@ -141,7 +141,7 @@ class LegendEngineCompatibilityTest {
                     """;
 
             // Should not throw - imports are stripped
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
             assertEquals(1, defs.size());
             assertInstanceOf(MappingDefinition.class, defs.get(0));
         }
@@ -268,7 +268,7 @@ class LegendEngineCompatibilityTest {
                     }
                     """;
 
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
 
             assertEquals(1, defs.size());
             ClassDefinition classDef = (ClassDefinition) defs.get(0);
@@ -291,7 +291,7 @@ class LegendEngineCompatibilityTest {
                     }
                     """;
 
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
 
             assertEquals(1, defs.size());
         }
@@ -367,7 +367,7 @@ class LegendEngineCompatibilityTest {
                     )
                     """;
 
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
 
             // Should parse 5 definitions: 2 classes + 1 association + 1 database + 1
             // mapping
@@ -467,7 +467,7 @@ class LegendEngineCompatibilityTest {
                     )
                     """;
 
-            List<PureDefinition> defs = PureDefinitionParser.parse(source);
+            List<PackageableElement> defs = PureDefinitionParser.parse(source);
 
             // Verify all definitions parsed
             assertEquals(5, defs.size(), "Expected 5 definitions (2 classes + 1 assoc + 1 db + 1 mapping)");

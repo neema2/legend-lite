@@ -40,7 +40,7 @@ public record ClassDefinition(
         List<DerivedPropertyDefinition> derivedProperties,
         List<ConstraintDefinition> constraints,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues) implements PureDefinition {
+        List<TaggedValue> taggedValues) implements PackageableElement {
 
     public ClassDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

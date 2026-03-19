@@ -33,7 +33,7 @@ public record AssociationDefinition(
         String qualifiedName,
         AssociationEndDefinition property1,
         AssociationEndDefinition property2
-) implements PureDefinition {
+) implements PackageableElement {
     
     public AssociationDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

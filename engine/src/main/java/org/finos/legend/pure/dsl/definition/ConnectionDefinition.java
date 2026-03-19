@@ -24,7 +24,7 @@ public record ConnectionDefinition(
         String storeName,
         DatabaseType databaseType,
         ConnectionSpecification specification,
-        AuthenticationSpec authentication) implements PureDefinition {
+        AuthenticationSpec authentication) implements PackageableElement {
 
     /**
      * Supported database types.

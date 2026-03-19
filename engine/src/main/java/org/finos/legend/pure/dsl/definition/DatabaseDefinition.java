@@ -47,7 +47,7 @@ public record DatabaseDefinition(
         String qualifiedName,
         List<TableDefinition> tables,
         List<JoinDefinition> joins
-) implements PureDefinition {
+) implements PackageableElement {
     
     public DatabaseDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

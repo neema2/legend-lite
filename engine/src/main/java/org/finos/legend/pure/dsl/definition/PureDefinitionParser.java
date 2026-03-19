@@ -22,7 +22,7 @@ public final class PureDefinitionParser {
      * @param pureSource The Pure source code
      * @return List of parsed definitions
      */
-    public static List<PureDefinition> parse(String pureSource) {
+    public static List<PackageableElement> parse(String pureSource) {
         org.finos.legend.pure.dsl.antlr.PureParser.DefinitionContext tree = org.finos.legend.pure.dsl.PureParser
                 .parseDefinition(pureSource);
         return org.finos.legend.pure.dsl.antlr.PureDefinitionBuilder.extractAllDefinitions(tree);
