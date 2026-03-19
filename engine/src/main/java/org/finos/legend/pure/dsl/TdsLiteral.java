@@ -19,7 +19,7 @@ import java.util.List;
  */
 public record TdsLiteral(
                 List<TdsColumn> columns,
-                List<List<Object>> rows) implements RelationExpression {
+                List<List<Object>> rows) {
 
         /**
          * Parses a raw TDS literal string into a structured TdsLiteral.

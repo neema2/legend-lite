@@ -8,6 +8,12 @@ import java.util.function.Supplier;
 
 import static org.finos.legend.engine.sql.Token.*;
 
+// TODO: Rewrite SQL compilation to parse SQL into ValueSpecification
+// (same metamodel that Pure queries get parsed into via CleanAstBuilder).
+// Use Alibaba Druid (https://github.com/alibaba/druid) as the SQL parser
+// foundation instead of this hand-rolled recursive descent parser.
+// Target flow: SQL → Druid parser → ValueSpecification → CleanCompiler → PlanGenerator
+
 /**
  * Recursive descent parser for SELECT statements.
  * 

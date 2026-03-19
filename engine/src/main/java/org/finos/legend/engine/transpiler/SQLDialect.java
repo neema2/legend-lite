@@ -1,7 +1,5 @@
 package org.finos.legend.engine.transpiler;
 
-import org.finos.legend.engine.transpiler.json.JsonSqlDialect;
-
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -68,14 +66,7 @@ public interface SQLDialect {
         return "NULL";
     }
 
-    /**
-     * Get the JSON dialect for JSON/VARIANT operations.
-     * 
-     * @return The JSON dialect, or null if not supported
-     */
-    default JsonSqlDialect getJsonDialect() {
-        return null;
-    }
+
 
     /**
      * Format a DATE literal from Pure's %YYYY-MM-DD format.

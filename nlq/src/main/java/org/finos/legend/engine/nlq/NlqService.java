@@ -274,7 +274,7 @@ public class NlqService {
             for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                 pureQuery = generatePure(question, rootClass, queryPlan, focusedSchema);
                 try {
-                    PureParser.parse(pureQuery);
+                    PureParser.parseClean(pureQuery);
                     lastParseError = null;
                     break;
                 } catch (Exception e) {

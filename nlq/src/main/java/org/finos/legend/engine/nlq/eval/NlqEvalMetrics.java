@@ -181,7 +181,7 @@ public final class NlqEvalMetrics {
 
         boolean parseable;
         try {
-            PureParser.parse(pureQuery);
+            PureParser.parseClean(pureQuery);
             parseable = true;
         } catch (Exception e) {
             parseable = false;

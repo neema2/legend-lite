@@ -25,7 +25,7 @@ import org.finos.legend.engine.execution.ExecutionResult.GraphResult;
 import org.finos.legend.engine.execution.Column;
 import org.finos.legend.engine.plan.GenericType;
 import org.finos.legend.engine.server.QueryService;
-import org.finos.legend.pure.dsl.TypeEnvironment;
+
 import org.finos.legend.pure.m3.compiler.Context;
 import org.finos.legend.pure.m3.exception.PureExecutionException;
 import org.finos.legend.pure.m3.navigation.Instance;
@@ -123,12 +123,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             }
 
             // Inject class definitions from the interpreter's model
-            TypeEnvironment typeEnv = extractClassMetadata(pureExpression, processorSupport);
+            Map<String, PureClass> extractedClasses = extractClassMetadata(pureExpression, processorSupport);
             String model = PURE_MODEL;
-            if (typeEnv.hasClasses()) {
-                String classDefs = typeEnv.toPureDsl();
+            if (!extractedClasses.isEmpty()) {
+                StringBuilder classDefs = new StringBuilder();
+                for (PureClass pc : extractedClasses.values()) {
+                    classDefs.append(pc.toString()).append("\n");
+                }
                 System.out.println("[LegendLite PCT] Injected classes:\n" + classDefs);
-                model = classDefs + "\n" + PURE_MODEL;
+                model = classDefs + PURE_MODEL;
             }
 
             ExecutionResult result = new QueryService().execute(model, pureExpression,
@@ -425,9 +428,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
     /**
      * Extracts class definitions from the Pure interpreter for ^className() patterns
-     * in the expression. Builds a TypeEnvironment for injection into the model.
+     * in the expression. Returns a map of qualified name → PureClass.
      */
-    private TypeEnvironment extractClassMetadata(String pureExpression, ProcessorSupport ps) {
+    private Map<String, PureClass> extractClassMetadata(String pureExpression, ProcessorSupport ps) {
         try {
             Map<String, PureClass> classes = new HashMap<>();
             Set<String> visited = new HashSet<>();
@@ -435,10 +438,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             while (matcher.find()) {
                 extractClassRecursive(matcher.group(1), classes, visited, ps);
             }
-            return TypeEnvironment.of(classes);
+            return classes;
         } catch (Exception e) {
-            System.out.println("[LegendLite PCT] TypeEnvironment extraction failed: " + e.getMessage());
-            return TypeEnvironment.empty();
+            System.out.println("[LegendLite PCT] Class metadata extraction failed: " + e.getMessage());
+            return Map.of();
         }
     }
 

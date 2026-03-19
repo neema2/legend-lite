@@ -68,7 +68,7 @@ class M2MIntegrationTest {
             Class model::PersonWithAddress
             {
                 fullName: String[1];
-                address: model::Address[0..1];
+                address: model::Address[*];
             }
 
             Class model::PersonWithAddresses
@@ -78,6 +78,12 @@ class M2MIntegrationTest {
             }
 
             Class model::ActivePersonWithAddress
+            {
+                fullName: String[1];
+                address: model::Address[*];
+            }
+
+            Class model::PersonWithSingleAddress
             {
                 fullName: String[1];
                 address: model::Address[0..1];
@@ -194,6 +200,12 @@ class M2MIntegrationTest {
                     ~src RawAddress
                     city: $src.city,
                     street: $src.street
+                }
+                PersonWithSingleAddress: Pure
+                {
+                    ~src RawPerson
+                    fullName: $src.firstName + ' ' + $src.lastName,
+                    address: @PersonAddress
                 }
             )
 
@@ -325,10 +337,11 @@ class M2MIntegrationTest {
     // ==================== Helper Methods ====================
 
     /**
-     * OLD PIPELINE: Executes via QueryService.executeGraphFetch() → raw JSON string.
+     * Executes via QueryService.execute() → GraphResult → JSON string.
+     * (Previously used old pipeline's executeGraphFetch; now uses new pipeline)
      */
     private String executeGraphFetch(String pureQuery) throws SQLException {
-        return queryService.executeGraphFetch(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+        return executeNew(pureQuery);
     }
 
     /**
@@ -498,20 +511,7 @@ class M2MIntegrationTest {
         assertTrue(json.contains("Alice Wonder"), "Should have Alice's fullName");
     }
 
-    @Test
-    @DisplayName("NEW PIPELINE: Deep fetch 1-to-1 throws on multiplicity violation")
-    void testNewPipelineDeepFetch1to1Violation() {
-        // PersonWithAddress.address is [0..1] but Bob has 2 addresses in the data.
-        // The scalar subquery correctly rejects this — no silent data loss.
-        String pureQuery = """
-                PersonWithAddress.all()
-                    ->graphFetch(#{ PersonWithAddress { fullName, address { city, street } } }#)
-                    ->serialize(#{ PersonWithAddress { fullName, address { city, street } } }#)
-                """;
 
-        assertThrows(SQLException.class, () -> executeNew(pureQuery),
-                "Should throw when [0..1] property has multiple matches");
-    }
 
     // ==================== M2M graphFetch Tests (old pipeline) ====================
 
@@ -653,7 +653,22 @@ class M2MIntegrationTest {
     // ==================== Deep Fetch (Nested Object) Tests ====================
 
     @Test
-    @DisplayName("Deep Fetch 1-to-1: PersonWithAddress with nested address object")
+    @DisplayName("NEW PIPELINE: Deep fetch 1-to-1 throws on multiplicity violation")
+    void testNewPipelineDeepFetch1to1Violation() {
+        // PersonWithSingleAddress.address is [0..1] but Bob has 2 addresses in the data.
+        // The scalar subquery correctly rejects this — no silent data loss.
+        String pureQuery = """
+                PersonWithSingleAddress.all()
+                    ->graphFetch(#{ PersonWithSingleAddress { fullName, address { city, street } } }#)
+                    ->serialize(#{ PersonWithSingleAddress { fullName, address { city, street } } }#)
+                """;
+
+        assertThrows(SQLException.class, () -> executeNew(pureQuery),
+                "Should throw when [0..1] property has multiple matches");
+    }
+
+    @Test
+    @DisplayName("Deep Fetch: PersonWithAddress with nested address objects")
     void testDeepFetchOneToOne() throws SQLException {
         // GIVEN: A graphFetch query with nested address
         String pureQuery = """
@@ -702,7 +717,7 @@ class M2MIntegrationTest {
     }
 
     @Test
-    @DisplayName("Deep Fetch null handling: Person without address returns null")
+    @DisplayName("Deep Fetch null handling: Person without address returns empty")
     void testDeepFetchNullAddress() throws SQLException {
         // GIVEN: Alice has no address in the database
         String pureQuery = """

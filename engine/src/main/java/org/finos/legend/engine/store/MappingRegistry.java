@@ -1,6 +1,5 @@
 package org.finos.legend.engine.store;
 
-import org.finos.legend.pure.dsl.m2m.M2MClassMapping;
 import org.finos.legend.engine.store.PureClassMapping;
 import org.finos.legend.pure.m3.PureClass;
 
@@ -16,14 +15,12 @@ public final class MappingRegistry {
 
     private final Map<String, RelationalMapping> mappingsByClassName;
     private final Map<String, RelationalMapping> mappingsByTableName;
-    private final Map<String, M2MClassMapping> m2mMappingsByTargetClass;
     private final Map<String, PureClassMapping> pureClassMappingsByTargetClass;
     private final Map<String, Join> joinsByName;
 
     public MappingRegistry() {
         this.mappingsByClassName = new ConcurrentHashMap<>();
         this.mappingsByTableName = new ConcurrentHashMap<>();
-        this.m2mMappingsByTargetClass = new ConcurrentHashMap<>();
         this.pureClassMappingsByTargetClass = new ConcurrentHashMap<>();
         this.joinsByName = new ConcurrentHashMap<>();
     }
@@ -48,16 +45,7 @@ public final class MappingRegistry {
         return this;
     }
 
-    /**
-     * Registers an M2M class mapping.
-     * 
-     * @param mapping The M2M mapping to register
-     * @return this registry for fluent API
-     */
-    public MappingRegistry registerM2M(M2MClassMapping mapping) {
-        m2mMappingsByTargetClass.put(mapping.targetClassName(), mapping);
-        return this;
-    }
+
 
     /**
      * Registers a PureClassMapping (clean AST, replaces M2M).
@@ -123,38 +111,7 @@ public final class MappingRegistry {
         return Optional.ofNullable(mappingsByTableName.get(tableName));
     }
 
-    /**
-     * Checks if a class is M2M-mapped.
-     * 
-     * @param className The class name (simple or qualified)
-     * @return true if the class has an M2M mapping
-     */
-    public boolean isM2MMapped(String className) {
-        return m2mMappingsByTargetClass.containsKey(className);
-    }
 
-    /**
-     * Looks up an M2M mapping by target class name.
-     * 
-     * @param targetClassName The target class name
-     * @return Optional containing the M2M mapping if found
-     */
-    public Optional<M2MClassMapping> findM2MMapping(String targetClassName) {
-        return Optional.ofNullable(m2mMappingsByTargetClass.get(targetClassName));
-    }
-
-    /**
-     * Gets an M2M mapping or throws.
-     * 
-     * @param targetClassName The target class name
-     * @return The M2M mapping
-     * @throws IllegalArgumentException if no mapping exists
-     */
-    public M2MClassMapping getM2MMapping(String targetClassName) {
-        return findM2MMapping(targetClassName)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "No M2M mapping found for class: " + targetClassName));
-    }
 
     /**
      * @param className The fully qualified class name
@@ -174,12 +131,7 @@ public final class MappingRegistry {
         return mappingsByClassName.size();
     }
 
-    /**
-     * @return Number of registered M2M mappings
-     */
-    public int m2mSize() {
-        return m2mMappingsByTargetClass.size();
-    }
+
 
     // ==================== Join Registration ====================
 
@@ -236,7 +188,6 @@ public final class MappingRegistry {
     public void clear() {
         mappingsByClassName.clear();
         mappingsByTableName.clear();
-        m2mMappingsByTargetClass.clear();
         pureClassMappingsByTargetClass.clear();
         joinsByName.clear();
     }

@@ -1,8 +1,5 @@
 package org.finos.legend.engine.transpiler;
 
-import org.finos.legend.engine.transpiler.json.DuckDbJsonDialect;
-import org.finos.legend.engine.transpiler.json.JsonSqlDialect;
-
 /**
  * SQL dialect implementation for DuckDB.
  * DuckDB uses double quotes for identifiers and single quotes for strings.
@@ -42,10 +39,7 @@ public final class DuckDBDialect implements SQLDialect {
         return value ? "TRUE" : "FALSE";
     }
 
-    @Override
-    public JsonSqlDialect getJsonDialect() {
-        return DuckDbJsonDialect.INSTANCE;
-    }
+
 
     // ==================== Star Exclude ====================
 

@@ -5,8 +5,6 @@ import org.finos.legend.engine.execution.ExecutionResult;
 import org.finos.legend.engine.server.QueryService;
 import org.finos.legend.engine.store.MappingRegistry;
 import org.finos.legend.engine.transpiler.SQLDialect;
-import org.finos.legend.engine.transpiler.SQLGenerator;
-import org.finos.legend.pure.dsl.PureCompiler;
 import org.finos.legend.pure.dsl.definition.PureModelBuilder;
 
 import java.sql.*;
@@ -22,9 +20,7 @@ import java.util.List;
 public abstract class AbstractDatabaseTest {
 
     protected Connection connection;
-    protected SQLGenerator sqlGenerator;
     protected MappingRegistry mappingRegistry;
-    protected PureCompiler pureCompiler;
     protected PureModelBuilder modelBuilder;
     protected QueryService queryService = new QueryService();
 
@@ -267,8 +263,6 @@ public abstract class AbstractDatabaseTest {
                 .addSource(COMPLETE_PURE_MODEL);
 
         mappingRegistry = modelBuilder.getMappingRegistry();
-        // Pass modelBuilder as ModelContext for association navigation support
-        pureCompiler = new PureCompiler(mappingRegistry, modelBuilder);
     }
 
     /**

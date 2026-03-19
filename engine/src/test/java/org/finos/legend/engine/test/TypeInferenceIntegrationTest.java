@@ -2566,48 +2566,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertEquals("hello", values.get(1).toString(), "Second element should be 'hello'");
         }
 
-        // ==================== Helper: common class definitions ====================
-
-        private org.finos.legend.pure.dsl.TypeEnvironment commonClassDefs() {
-                var coPersonClass = new org.finos.legend.pure.m3.PureClass(
-                                "meta::pure::functions::collection::tests::model", "CO_Person", java.util.List.of(
-                                                new org.finos.legend.pure.m3.Property("firstName",
-                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
-                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1)),
-                                                new org.finos.legend.pure.m3.Property("lastName",
-                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
-                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1))));
-                var coFirmClass = new org.finos.legend.pure.m3.PureClass(
-                                "meta::pure::functions::collection::tests::model", "CO_Firm", java.util.List.of(
-                                                new org.finos.legend.pure.m3.Property("legalName",
-                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
-                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1)),
-                                                new org.finos.legend.pure.m3.Property("employees",
-                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
-                                                                new org.finos.legend.pure.m3.Multiplicity(0, null))));
-                var mPersonClass = new org.finos.legend.pure.m3.PureClass(
-                                "meta::pure::functions::collection::tests::map::model", "M_Person", java.util.List.of(
-                                                new org.finos.legend.pure.m3.Property("firstName",
-                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
-                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1)),
-                                                new org.finos.legend.pure.m3.Property("lastName",
-                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
-                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1))));
-                var classWithoutEqualityClass = new org.finos.legend.pure.m3.PureClass(
-                                "meta::pure::functions::collection::tests::contains", "ClassWithoutEquality",
-                                java.util.List.of(
-                                                new org.finos.legend.pure.m3.Property("name",
-                                                                org.finos.legend.pure.m3.PrimitiveType.STRING,
-                                                                new org.finos.legend.pure.m3.Multiplicity(1, 1))));
-                return org.finos.legend.pure.dsl.TypeEnvironment.of(java.util.Map.of(
-                                "meta::pure::functions::collection::tests::model::CO_Person", coPersonClass,
-                                "meta::pure::functions::collection::tests::model::CO_Firm", coFirmClass,
-                                "meta::pure::functions::collection::tests::map::model::M_Person", mPersonClass,
-                                "meta::pure::functions::collection::tests::contains::ClassWithoutEquality",
-                                classWithoutEqualityClass));
-        }
-
-        // ==================== TypeEnvironment / multiplicity tests
+        // ==================== Struct literal / multiplicity tests
         // ====================
 
         @Test
@@ -2618,9 +2577,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // firm1 has 1 employee (smith), firm2 has 2 employees (doe, roe)
                 // [$firm1, $firm2]->head().legalName == 'Firm1'
                 //
-                // Without TypeEnvironment, this fails with DuckDB "Cannot deduce template type
-                // 'T'"
-                // because firm1.employees is STRUCT but firm2.employees is STRUCT[].
+                // Without class definitions in the Pure model, this fails because
+                // firm1.employees is STRUCT but firm2.employees is STRUCT[].
                 // PCT line 51: assertEquals($firm1, $f->eval(|$set->head()));
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),

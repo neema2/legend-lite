@@ -28,7 +28,7 @@ import java.util.List;
  */
 public record GraphFetchTree(
         String rootClass,
-        List<PropertyFetch> properties) implements PureExpression {
+        List<PropertyFetch> properties) {
 
     /**
      * A single property in the fetch tree.
