@@ -133,6 +133,8 @@ public class TypeChecker {
         };
     }
 
+    // TODO(Phase 4): delete scalar() — every expression must have a typed expressionType.
+    // Remaining callers are end-of-function fallbacks that need proper typing or throws.
     private TypeInfo scalar(ValueSpecification ast) {
         return typed(ast, RelationType.empty(), null);
     }
@@ -406,7 +408,8 @@ public class TypeChecker {
         // ClassMapping.expressionForProperty() returns the M2M expression AST.
         var infoBuilder = TypeInfo.builder()
                 .relationType(virtualRelType)
-                .mapping(resolvedMapping);
+                .mapping(resolvedMapping)
+                .expressionType(ExpressionType.many(new GenericType.Relation(virtualRelType)));
         if (!associations.isEmpty()) {
             infoBuilder.associations(Map.copyOf(associations));
         }
@@ -730,7 +733,8 @@ public class TypeChecker {
                     .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)))
                     .multiplicity(Multiplicity.MANY);
             if (source.scalarType() != null) {
-                builder.scalarType(source.scalarType());
+                builder.scalarType(source.scalarType())
+                       .expressionType(ExpressionType.many(source.scalarType()));
             }
             var info = builder.build();
             types.put(af, info);
@@ -751,7 +755,8 @@ public class TypeChecker {
         }
 
         var info = TypeInfo.builder().relationType(sourceType).mapping(source.mapping())
-                .sortSpecs(sortSpecs).build();
+                .sortSpecs(sortSpecs)
+                .expressionType(ExpressionType.many(new GenericType.Relation(sourceType))).build();
         types.put(af, info);
         return info;
     }
@@ -903,7 +908,8 @@ public class TypeChecker {
                 colSpecs.add(TypeInfo.ColumnSpec.col(c));
             }
             var info = TypeInfo.builder().relationType(source.relationType().onlyColumns(cols))
-                    .mapping(source.mapping()).columnSpecs(colSpecs).build();
+                    .mapping(source.mapping()).columnSpecs(colSpecs)
+                    .expressionType(ExpressionType.many(new GenericType.Relation(source.relationType().onlyColumns(cols)))).build();
             types.put(af, info);
             return info;
         }
@@ -927,7 +933,8 @@ public class TypeChecker {
         RelationType newType = source.relationType().renameColumn(oldName, newName);
         List<TypeInfo.ColumnSpec> colSpecs = List.of(TypeInfo.ColumnSpec.renamed(oldName, newName));
         var info = TypeInfo.builder().relationType(newType).mapping(source.mapping())
-                .columnSpecs(colSpecs).build();
+                .columnSpecs(colSpecs)
+                .expressionType(ExpressionType.many(new GenericType.Relation(newType))).build();
         types.put(af, info);
         return info;
     }
@@ -975,6 +982,7 @@ public class TypeChecker {
                     var info = TypeInfo.builder()
                             .relationType(lcaRelType)
                             .scalarType(GenericType.listOf(lcaGenericType))
+                            .expressionType(ExpressionType.many(new GenericType.Relation(lcaRelType)))
                             .build();
                     types.put(af, info);
                     return info;
@@ -983,6 +991,7 @@ public class TypeChecker {
             // No common supertype found — fall back to variant list
             var info = TypeInfo.builder()
                     .scalarType(GenericType.listOf(GenericType.Primitive.ANY))
+                    .expressionType(ExpressionType.one(GenericType.listOf(GenericType.Primitive.ANY)))
                     .build();
             types.put(af, info);
             return info;
@@ -1228,7 +1237,8 @@ public class TypeChecker {
 
         RelationType resultType = RelationType.withoutPivot(projectedColumns);
         var info = TypeInfo.builder().relationType(resultType).mapping(mapping)
-                .associations(associations).projections(projections).build();
+                .associations(associations).projections(projections)
+                .expressionType(ExpressionType.many(new GenericType.Relation(resultType))).build();
         types.put(af, info);
         return info;
     }
@@ -1264,8 +1274,10 @@ public class TypeChecker {
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
 
-        var info = TypeInfo.builder().relationType(new RelationType(selectedColumns, source.relationType().dynamicPivotColumns()))
-                .mapping(source.mapping()).columnSpecs(colSpecs).build();
+        var selectRelType = new RelationType(selectedColumns, source.relationType().dynamicPivotColumns());
+        var info = TypeInfo.builder().relationType(selectRelType)
+                .mapping(source.mapping()).columnSpecs(colSpecs)
+                .expressionType(ExpressionType.many(new GenericType.Relation(selectRelType))).build();
         types.put(af, info);
         return info;
     }
@@ -1307,10 +1319,12 @@ public class TypeChecker {
                 sourceType != null ? sourceType.columns() : Map.of());
         resultColumns.put(colName, GenericType.Primitive.JSON);
 
+        var flattenRelType = new RelationType(resultColumns, sourceType.dynamicPivotColumns());
         var flattenInfo = TypeInfo.builder()
-                .relationType(new RelationType(resultColumns, sourceType.dynamicPivotColumns()))
+                .relationType(flattenRelType)
                 .mapping(source.mapping())
                 .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
+                .expressionType(ExpressionType.many(new GenericType.Relation(flattenRelType)))
                 .build();
         types.put(af, flattenInfo);
         return flattenInfo;
@@ -1401,8 +1415,10 @@ public class TypeChecker {
             return typed(af, sourceType, source.mapping());
         }
 
-        var info = TypeInfo.builder().relationType(RelationType.withoutPivot(resultColumns))
-                .mapping(source.mapping()).columnSpecs(colSpecs).build();
+        var groupByRelType = RelationType.withoutPivot(resultColumns);
+        var info = TypeInfo.builder().relationType(groupByRelType)
+                .mapping(source.mapping()).columnSpecs(colSpecs)
+                .expressionType(ExpressionType.many(new GenericType.Relation(groupByRelType))).build();
         types.put(af, info);
         return info;
     }
@@ -1457,8 +1473,10 @@ public class TypeChecker {
             return typed(af, source.relationType(), source.mapping());
         }
 
-        var info = TypeInfo.builder().relationType(RelationType.withoutPivot(resultColumns))
-                .mapping(source.mapping()).columnSpecs(colSpecs).build();
+        var aggRelType = RelationType.withoutPivot(resultColumns);
+        var info = TypeInfo.builder().relationType(aggRelType)
+                .mapping(source.mapping()).columnSpecs(colSpecs)
+                .expressionType(ExpressionType.many(new GenericType.Relation(aggRelType))).build();
         types.put(af, info);
         return info;
     }
@@ -1582,9 +1600,11 @@ public class TypeChecker {
             }
         }
 
-        var info = TypeInfo.builder().relationType(new RelationType(newColumns, sourceType.dynamicPivotColumns()))
+        var extendRelType = new RelationType(newColumns, sourceType.dynamicPivotColumns());
+        var info = TypeInfo.builder().relationType(extendRelType)
                 .mapping(source.mapping())
-                .windowSpecs(allWindowSpecs).build();
+                .windowSpecs(allWindowSpecs)
+                .expressionType(ExpressionType.many(new GenericType.Relation(extendRelType))).build();
         types.put(af, info);
         return info;
     }
@@ -2145,9 +2165,11 @@ public class TypeChecker {
             }
         }
 
-        var info = TypeInfo.builder().relationType(RelationType.withoutPivot(mergedColumns))
+        var joinRelType = RelationType.withoutPivot(mergedColumns);
+        var info = TypeInfo.builder().relationType(joinRelType)
                 .mapping(left.mapping()).joinType(joinType)
                 .joinColumnRenames(renames)
+                .expressionType(ExpressionType.many(new GenericType.Relation(joinRelType)))
                 .build();
         types.put(af, info);
         return info;
@@ -2266,9 +2288,11 @@ public class TypeChecker {
             }
         }
 
-        var info = TypeInfo.builder().relationType(RelationType.withoutPivot(mergedColumns))
+        var crossJoinRelType = RelationType.withoutPivot(mergedColumns);
+        var info = TypeInfo.builder().relationType(crossJoinRelType)
                 .mapping(left.mapping())
                 .joinColumnRenames(renames)
+                .expressionType(ExpressionType.many(new GenericType.Relation(crossJoinRelType)))
                 .build();
         types.put(af, info);
         return info;
@@ -2390,7 +2414,8 @@ public class TypeChecker {
         var partialType = new com.gs.legend.plan.RelationType(groupByCols, dynamicCols);
 
         var info = TypeInfo.builder().relationType(partialType)
-                .mapping(source.mapping()).pivotSpec(pivotSpec).build();
+                .mapping(source.mapping()).pivotSpec(pivotSpec)
+                .expressionType(ExpressionType.many(new GenericType.Relation(partialType))).build();
         types.put(af, info);
         return info;
     }
@@ -2574,6 +2599,7 @@ public class TypeChecker {
                 var info = TypeInfo.builder().scalarType(accType)
                         .inlinedBody(newFold)
                         .multiplicity(Multiplicity.ONE)
+                        .expressionType(ExpressionType.one(accType))
                         .build();
                 types.put(af, info);
                 return info;
@@ -2976,9 +3002,11 @@ public class TypeChecker {
             try { compileExpr(p, ctx); }
             catch (PureCompileException ignored) { }
         }
+        var writeRelType = RelationType.ofSingle("value", GenericType.Primitive.INTEGER);
         TypeInfo info = TypeInfo.builder()
-                .relationType(RelationType.ofSingle("value", GenericType.Primitive.INTEGER))
+                .relationType(writeRelType)
                 .returnType(GenericType.Primitive.INTEGER)
+                .expressionType(ExpressionType.one(GenericType.Primitive.INTEGER))
                 .build();
         types.put(af, info);
         return info;
@@ -3111,7 +3139,8 @@ public class TypeChecker {
 
         var builder = TypeInfo.builder();
         // get() always returns a variant — default to JSON if no @Type annotation
-        builder.scalarType(targetType != null ? targetType : GenericType.Primitive.JSON);
+        GenericType getType = targetType != null ? targetType : GenericType.Primitive.JSON;
+        builder.scalarType(getType).expressionType(ExpressionType.one(getType));
         if (access != null) builder.variantAccess(access);
         TypeInfo info = builder.build();
         types.put(af, info);
@@ -3662,6 +3691,7 @@ public class TypeChecker {
                 .relationType(rt)
                 .mapping(identityMapping)
                 .associations(associations.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(associations))
+                .expressionType(ExpressionType.many(new GenericType.Relation(rt)))
                 .build();
         types.put(ci, info);
         return info;
@@ -4387,6 +4417,7 @@ public class TypeChecker {
                         .relationType(bodyInfo.relationType())
                         .mapping(bodyInfo.mapping())
                         .returnType(bodyInfo.returnType())
+                        .expressionType(ExpressionType.one(bodyInfo.returnType()))
                         .build();
                 types.put(lf, info);
                 return info;
@@ -4510,7 +4541,8 @@ public class TypeChecker {
                 var extractNode = new AppliedFunction("structExtract",
                         List.of(ownerFn, new CString(ap.property())));
                 var info = TypeInfo.builder().scalarType(GenericType.Primitive.ANY)
-                        .inlinedBody(extractNode).build();
+                        .inlinedBody(extractNode)
+                        .expressionType(ExpressionType.one(GenericType.Primitive.ANY)).build();
                 types.put(ap, info);
                 return info;
             }
@@ -4527,7 +4559,8 @@ public class TypeChecker {
         var extractNode = new AppliedFunction("structExtract",
                 List.of(ci, new CString(ap.property())));
         var info = TypeInfo.builder().scalarType(GenericType.Primitive.ANY)
-                .inlinedBody(extractNode).build();
+                .inlinedBody(extractNode)
+                .expressionType(ExpressionType.one(GenericType.Primitive.ANY)).build();
         types.put(ap, info);
         return info;
     }
@@ -4549,6 +4582,7 @@ public class TypeChecker {
                         .mapping(firstElem.mapping())
                         .associations(firstElem.associations())
                         .multiplicity(Multiplicity.MANY)
+                        .expressionType(ExpressionType.many(GenericType.listOf(elementType)))
                         .build();
                 types.put(coll, info);
                 return info;
