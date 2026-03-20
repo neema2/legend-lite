@@ -715,7 +715,18 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
     public ValueSpecification visitComparatorExpression(PureParser.ComparatorExpressionContext ctx) {
         // comparator(a: Type[1], b: Type[1]): Boolean[1] { body }
         List<Variable> params = ctx.functionVariableExpression().stream()
-                .map(fve -> new Variable(getIdentifierText(fve.identifier())))
+                .map(fve -> {
+                    String name = getIdentifierText(fve.identifier());
+                    if (fve.type() != null && fve.multiplicity() != null) {
+                        String typeName = fve.type().getText();
+                        String multiplicity = fve.multiplicity().getText();
+                        if (multiplicity.startsWith("[") && multiplicity.endsWith("]")) {
+                            multiplicity = multiplicity.substring(1, multiplicity.length() - 1);
+                        }
+                        return new Variable(name, typeName, multiplicity);
+                    }
+                    return new Variable(name);
+                })
                 .toList();
         ValueSpecification body = visit(ctx.codeBlock());
         return new LambdaFunction(params, body);

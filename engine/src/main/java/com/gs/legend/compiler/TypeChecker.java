@@ -39,7 +39,10 @@ import java.util.*;
  */
 public class TypeChecker {
 
-    /** Built-in function registry — validates function existence, no more passthrough. */
+    /**
+     * Built-in function registry — validates function existence, no more
+     * passthrough.
+     */
     private static final BuiltinFunctionRegistry builtinRegistry = BuiltinFunctionRegistry.instance();
 
     private final ModelContext modelContext;
@@ -73,15 +76,15 @@ public class TypeChecker {
      * Internal: compiles a ValueSpecification to a typed result.
      * Called recursively for sub-expressions.
      */
-    TypeInfo compileExpr(ValueSpecification vs, CompilationContext ctx) {
+    private TypeInfo compileExpr(ValueSpecification vs, CompilationContext ctx) {
         return switch (vs) {
             case AppliedFunction af -> compileFunction(af, ctx);
             case ClassInstance ci -> compileClassInstance(ci, ctx);
             case LambdaFunction lf -> compileLambda(lf, ctx);
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
-            case PackageableElementPtr pe -> scalar(pe);
-            case GenericTypeInstance gti -> scalar(gti);
+            case PackageableElementPtr pe -> scalarTyped(pe, GenericType.Primitive.STRING);
+            case GenericTypeInstance gti -> scalarTyped(gti, GenericType.Primitive.STRING);
             case PureCollection coll -> compileCollection(coll, ctx);
             // Literals — scalar with known type
             case CInteger i -> scalarTyped(i, classifyInteger(i));
@@ -93,57 +96,10 @@ public class TypeChecker {
             case CStrictDate sd -> scalarTyped(sd, GenericType.Primitive.STRICT_DATE);
             case CStrictTime st -> scalarTyped(st, GenericType.Primitive.STRICT_TIME);
             case CLatestDate ld -> scalarTyped(ld, GenericType.Primitive.DATE_TIME);
-            case CByteArray ba -> scalar(ba);
-            case EnumValue ev -> scalar(ev);
-            case UnitInstance ui -> scalar(ui);
+            case CByteArray ba -> scalarTyped(ba, GenericType.Primitive.STRING);
+            case EnumValue ev -> scalarTyped(ev, GenericType.Primitive.STRING);
+            case UnitInstance ui -> scalarTyped(ui, GenericType.Primitive.FLOAT);
         };
-    }
-
-    // TODO(Phase 4): delete scalar() — every expression must have a typed
-    // expressionType.
-    // Remaining callers are end-of-function fallbacks that need proper typing or
-    // throws.
-    private TypeInfo scalar(ValueSpecification ast) {
-        return typed(ast, RelationType.empty(), null);
-    }
-
-    /** Registers a scalar TypeInfo with a known GenericType. */
-    private TypeInfo scalarTyped(ValueSpecification ast, GenericType type) {
-        var info = TypeInfo.builder().scalarType(type)
-                .expressionType(ExpressionType.one(type)).build();
-        types.put(ast, info);
-        return info;
-    }
-
-    /**
-     * Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent
-     * values.
-     */
-    private TypeInfo scalarTypedMany(ValueSpecification ast, GenericType type) {
-        var info = TypeInfo.builder().scalarType(type)
-                .expressionType(ExpressionType.many(type)).build();
-        types.put(ast, info);
-        return info;
-    }
-
-    /**
-     * Registers TypeInfo in the side table and returns it.
-     * All type registration in TypeChecker goes through this method.
-     */
-    private TypeInfo typed(ValueSpecification ast, RelationType relationType,
-            ClassMapping mapping) {
-        return typed(ast, relationType, mapping, java.util.Map.of());
-    }
-
-    /**
-     * Registers TypeInfo with pre-resolved associations in the side table.
-     */
-    private TypeInfo typed(ValueSpecification ast, RelationType relationType,
-            ClassMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
-        var info = TypeInfo.builder().relationType(relationType).mapping(mapping).associations(associations)
-                .expressionType(ExpressionType.many(new GenericType.Relation(relationType))).build();
-        types.put(ast, info);
-        return info;
     }
 
     // ========== Function Dispatch ==========
@@ -260,7 +216,7 @@ public class TypeChecker {
             className = fullPath.contains("::") ? fullPath.substring(fullPath.lastIndexOf("::") + 2)
                     : fullPath;
         } else {
-            return scalar(af);
+            throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
         }
 
         // Try relational mapping first
@@ -277,7 +233,7 @@ public class TypeChecker {
             return compileM2MGetAll(af, pureMappingOpt.get());
         }
 
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /**
@@ -2502,7 +2458,7 @@ public class TypeChecker {
         if (source.relationType() != null) {
             return typed(af, source.relationType(), source.mapping());
         }
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /**
@@ -2666,7 +2622,7 @@ public class TypeChecker {
             // init/accumulator.
             return scalarTyped(af, accType);
         }
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /** Checks if a fold lambda body is the add pattern: $acc->add($val) */
@@ -2879,7 +2835,7 @@ public class TypeChecker {
                 }
             }
         }
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /** Infers the simple type name from an AST node. */
@@ -3008,7 +2964,7 @@ public class TypeChecker {
             var result = scalarTypedMany(af, GenericType.listOf(resultElemType));
             return result;
         }
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /**
@@ -3027,7 +2983,7 @@ public class TypeChecker {
                 return scalarTyped(af, sourceInfo.scalarType().elementType());
             }
         }
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /** Compiles zip(list1, list2). */
@@ -3158,7 +3114,7 @@ public class TypeChecker {
                     types.put(af, info);
                     yield info;
                 }
-                yield scalar(af);
+                throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
             }
             case "toOne" -> {
                 // toOne extracts single value — if source has list type, return element type
@@ -3176,7 +3132,7 @@ public class TypeChecker {
                     types.put(af, sourceInfo);
                     yield sourceInfo;
                 }
-                yield scalar(af);
+                throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
             }
             case "to" -> {
                 // to(@Type) — variant conversion, produces target type
@@ -3186,7 +3142,7 @@ public class TypeChecker {
                     types.put(af, info);
                     yield info;
                 }
-                yield scalar(af);
+                throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
             }
             case "toVariant" -> {
                 // toVariant produces a variant (pass through source type for list detection)
@@ -3195,9 +3151,9 @@ public class TypeChecker {
                     types.put(af, sourceInfo);
                     yield sourceInfo;
                 }
-                yield scalar(af);
+                throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
             }
-            default -> scalar(af);
+            default -> throw new PureCompileException("Unresolved type function: " + simpleName(af.function()));
         };
     }
 
@@ -3325,7 +3281,7 @@ public class TypeChecker {
                 return propInfo;
             }
         }
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /**
@@ -3554,14 +3510,14 @@ public class TypeChecker {
         if (resultType != null) {
             return scalarTyped(af, resultType);
         }
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
     private TypeInfo compileBlock(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> stmts = af.parameters();
         if (stmts.isEmpty())
-            return scalar(af);
+            throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
 
         CompilationContext blockCtx = ctx;
         // Process all statements; for let stmts, enrich context with binding
@@ -3646,7 +3602,7 @@ public class TypeChecker {
         if (!params.isEmpty()) {
             return compileExpr(params.get(0), ctx);
         }
-        return scalar(af);
+        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
     }
 
     /**
@@ -3728,7 +3684,7 @@ public class TypeChecker {
             case "relation" -> compileRelationAccessor(ci, ctx);
             case "tdsLiteral" -> compileTdsLiteral(ci, ctx);
             case "instance" -> compileInstanceLiteral(ci, ctx);
-            default -> scalar(ci);
+            default -> throw new PureCompileException("Unknown ClassInstance type: " + ci.type());
         };
     }
 
@@ -4575,7 +4531,7 @@ public class TypeChecker {
             }
             return typed(lf, bodyInfo.relationType(), bodyInfo.mapping());
         }
-        return scalar(lf);
+        throw new PureCompileException("Unresolved type for lambda");
     }
 
     private TypeInfo compileVariable(Variable v, CompilationContext ctx) {
@@ -4608,7 +4564,7 @@ public class TypeChecker {
             types.put(v, info);
             return info;
         }
-        return scalar(v);
+        throw new PureCompileException("Unresolved type for variable: " + v.name());
     }
 
     private TypeInfo compileProperty(AppliedProperty ap, CompilationContext ctx) {
@@ -4700,7 +4656,7 @@ public class TypeChecker {
                 return info;
             }
         }
-        return scalar(ap);
+        throw new PureCompileException("Unresolved type for property: " + ap.property());
     }
 
     /**
@@ -4900,8 +4856,52 @@ public class TypeChecker {
         return GenericType.Primitive.DECIMAL;
     }
 
-    /** Convenience accessor — never null (ModelContext guarantees non-null empty registry). */
+    /**
+     * Convenience accessor — never null (ModelContext guarantees non-null empty
+     * registry).
+     */
     private MappingRegistry mappingRegistry() {
         return modelContext.getMappingRegistry();
+    }
+
+    // ========== Type Registration Utilities ==========
+
+    /** Registers a scalar TypeInfo with a known GenericType. */
+    private TypeInfo scalarTyped(ValueSpecification ast, GenericType type) {
+        var info = TypeInfo.builder().scalarType(type)
+                .expressionType(ExpressionType.one(type)).build();
+        types.put(ast, info);
+        return info;
+    }
+
+    /**
+     * Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent
+     * values.
+     */
+    private TypeInfo scalarTypedMany(ValueSpecification ast, GenericType type) {
+        var info = TypeInfo.builder().scalarType(type)
+                .expressionType(ExpressionType.many(type)).build();
+        types.put(ast, info);
+        return info;
+    }
+
+    /**
+     * Registers TypeInfo in the side table and returns it.
+     * All type registration in TypeChecker goes through this method.
+     */
+    private TypeInfo typed(ValueSpecification ast, RelationType relationType,
+            ClassMapping mapping) {
+        return typed(ast, relationType, mapping, java.util.Map.of());
+    }
+
+    /**
+     * Registers TypeInfo with pre-resolved associations in the side table.
+     */
+    private TypeInfo typed(ValueSpecification ast, RelationType relationType,
+            ClassMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
+        var info = TypeInfo.builder().relationType(relationType).mapping(mapping).associations(associations)
+                .expressionType(ExpressionType.many(new GenericType.Relation(relationType))).build();
+        types.put(ast, info);
+        return info;
     }
 }
