@@ -681,7 +681,8 @@ public class TypeChecker {
 
         // For collection filters (no relationType), propagate the source's scalar type
         if (sourceType == null && source.scalarType() != null) {
-            var info = TypeInfo.scalarOf(source.scalarType());
+            var info = TypeInfo.builder().scalarType(source.scalarType())
+                    .expressionType(ExpressionType.one(source.scalarType())).build();
             types.put(af, info);
             return info;
         }
@@ -2161,9 +2162,9 @@ public class TypeChecker {
             case AppliedProperty ap -> {
                 if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
                     if (v.name().equals(leftParam)) {
-                        types.put(ap, TypeInfo.withAlias("left_src"));
+                        types.put(ap, TypeInfo.builder().columnAlias("left_src").build());
                     } else if (v.name().equals(rightParam)) {
-                        types.put(ap, TypeInfo.withAlias("right_src"));
+                        types.put(ap, TypeInfo.builder().columnAlias("right_src").build());
                     }
                 }
             }
@@ -2957,7 +2958,8 @@ public class TypeChecker {
             try { compileExpr(p, ctx); }
             catch (PureCompileException ignored) { }
         }
-        TypeInfo info = TypeInfo.scalarOf(GenericType.Primitive.INTEGER);
+        TypeInfo info = TypeInfo.builder().scalarType(GenericType.Primitive.INTEGER)
+                .expressionType(ExpressionType.one(GenericType.Primitive.INTEGER)).build();
         types.put(af, info);
         return info;
     }
@@ -3007,7 +3009,8 @@ public class TypeChecker {
                 GenericType listType = targetType != null
                         ? GenericType.listOf(targetType)
                         : GenericType.listOf(GenericType.Primitive.ANY);
-                TypeInfo info = TypeInfo.scalarOf(listType);
+                TypeInfo info = TypeInfo.builder().scalarType(listType)
+                        .expressionType(ExpressionType.one(listType)).build();
                 types.put(af, info);
                 yield info;
             }
@@ -3021,12 +3024,14 @@ public class TypeChecker {
                 }
                 // Scalar cast: if source is list, result is list of target type
                 if (sourceInfo != null && sourceInfo.isList() && targetType != null) {
-                    TypeInfo info = TypeInfo.scalarOf(GenericType.listOf(targetType));
+                    TypeInfo info = TypeInfo.builder().scalarType(GenericType.listOf(targetType))
+                            .expressionType(ExpressionType.one(GenericType.listOf(targetType))).build();
                     types.put(af, info);
                     yield info;
                 }
                 if (targetType != null) {
-                    TypeInfo info = TypeInfo.scalarOf(targetType);
+                    TypeInfo info = TypeInfo.builder().scalarType(targetType)
+                            .expressionType(ExpressionType.one(targetType)).build();
                     types.put(af, info);
                     yield info;
                 }
@@ -3038,7 +3043,8 @@ public class TypeChecker {
                 if (sourceInfo != null && sourceInfo.scalarType() != null
                         && sourceInfo.scalarType().isList()
                         && sourceInfo.scalarType().elementType() != null) {
-                    TypeInfo info = TypeInfo.scalarOf(sourceInfo.scalarType().elementType());
+                    TypeInfo info = TypeInfo.builder().scalarType(sourceInfo.scalarType().elementType())
+                            .expressionType(ExpressionType.one(sourceInfo.scalarType().elementType())).build();
                     types.put(af, info);
                     yield info;
                 }
@@ -3052,7 +3058,8 @@ public class TypeChecker {
             case "to" -> {
                 // to(@Type) — variant conversion, produces target type
                 if (targetType != null) {
-                    TypeInfo info = TypeInfo.scalarOf(targetType);
+                    TypeInfo info = TypeInfo.builder().scalarType(targetType)
+                            .expressionType(ExpressionType.one(targetType)).build();
                     types.put(af, info);
                     yield info;
                 }
@@ -3176,8 +3183,10 @@ public class TypeChecker {
                 if (preserveList && propType.isList() && producesMany) {
                     return scalarTypedMany(af, propType);
                 }
-                types.put(af, TypeInfo.scalarOf(propType));
-                return TypeInfo.scalarOf(propType);
+                var propInfo = TypeInfo.builder().scalarType(propType)
+                        .expressionType(ExpressionType.one(propType)).build();
+                types.put(af, propInfo);
+                return propInfo;
             }
         }
         return scalar(af);
@@ -3746,7 +3755,8 @@ public class TypeChecker {
                         // Resolve column type and store in side table
                         GenericType colType = relType.columns().get(ap.property());
                         if (colType != null) {
-                            types.put(ap, TypeInfo.scalarOf(colType));
+                            types.put(ap, TypeInfo.builder().scalarType(colType)
+                                    .expressionType(ExpressionType.one(colType)).build());
                         }
                     }
                 }
@@ -3773,7 +3783,8 @@ public class TypeChecker {
                 } else if ("toOne".equals(simple) && !af.parameters().isEmpty()) {
                     TypeInfo innerType = types.get(af.parameters().get(0));
                     if (innerType != null && innerType.scalarType() != null) {
-                        types.put(af, TypeInfo.scalarOf(innerType.scalarType()));
+                        types.put(af, TypeInfo.builder().scalarType(innerType.scalarType())
+                                .expressionType(ExpressionType.one(innerType.scalarType())).build());
                     }
                 }
                 // List-preserving functions: propagate source list type through
@@ -4403,12 +4414,13 @@ public class TypeChecker {
         // Lambda parameter — mark in side table with declared type
         GenericType lambdaType = ctx.getLambdaParamType(v.name());
         if (lambdaType != null) {
-            var info = TypeInfo.lambdaParamOf(lambdaType);
+            var info = TypeInfo.builder().scalarType(lambdaType).lambdaParam(true)
+                    .expressionType(ExpressionType.one(lambdaType)).build();
             types.put(v, info);
             return info;
         }
         if (ctx.isLambdaParam(v.name())) {
-            var info = TypeInfo.lambdaParamMarker();
+            var info = TypeInfo.builder().lambdaParam(true).build();
             types.put(v, info);
             return info;
         }

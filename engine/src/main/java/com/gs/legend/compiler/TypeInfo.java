@@ -338,48 +338,8 @@ public record TypeInfo(
             String lambdaParam) {
     }
 
-    /** Creates a TypeInfo for a scalar (non-relational) expression. */
-    public static TypeInfo scalar() {
-        return builder().build();
-    }
-
-    /** Creates a TypeInfo for a scalar with a known type. */
-    public static TypeInfo scalarOf(GenericType type) {
-        return builder().scalarType(type).build();
-    }
-
-    /** Creates a TypeInfo marking a lambda parameter variable with a declared type. */
-    public static TypeInfo lambdaParamOf(GenericType type) {
-        return builder().scalarType(type).lambdaParam(true).build();
-    }
-
-    /** Creates a TypeInfo marking a lambda parameter variable (untyped). */
-    public static TypeInfo lambdaParamMarker() {
-        return builder().lambdaParam(true).build();
-    }
-
-    /** Creates a TypeInfo with type info but no mapping. */
-    public static TypeInfo of(RelationType relationType) {
-        return builder().relationType(relationType).build();
-    }
-
-    /** Full constructor with both type and mapping. */
-    public static TypeInfo of(RelationType relationType, ClassMapping mapping) {
-        return builder().relationType(relationType).mapping(mapping).build();
-    }
-
-    /** Full constructor with associations. */
-    public static TypeInfo of(RelationType relationType, ClassMapping mapping,
-            Map<String, AssociationTarget> associations) {
-        return builder().relationType(relationType).mapping(mapping).associations(associations).build();
-    }
-
-
-
-    /** Creates a TypeInfo tagging a property access with a specific join-side alias. */
-    public static TypeInfo withAlias(String columnAlias) {
-        return builder().columnAlias(columnAlias).build();
-    }
+    // All TypeInfo construction goes through builder() or from(). No static shortcuts —
+    // this ensures expressionType is always considered at each construction site.
 
     // ===== Builder =====
 
