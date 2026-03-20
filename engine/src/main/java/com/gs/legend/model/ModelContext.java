@@ -25,11 +25,10 @@ public interface ModelContext {
 
     /**
      * Returns the mapping registry for table/class lookups.
-     * 
-     * @return The mapping registry, or null if not available
+     * Default is an empty registry (never null).
      */
     default MappingRegistry getMappingRegistry() {
-        return null;
+        return new MappingRegistry();
     }
 
     /**

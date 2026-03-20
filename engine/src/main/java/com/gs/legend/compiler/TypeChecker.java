@@ -19,7 +19,8 @@ import java.util.*;
  * Clean compiler for Pure expressions.
  *
  * <p>
- * Takes untyped {@link ValueSpecification} AST (from {@link ValueSpecificationBuilder})
+ * Takes untyped {@link ValueSpecification} AST (from
+ * {@link ValueSpecificationBuilder})
  * and produces typed {@link TypeInfo} with full type checking via
  * {@link RelationType}.
  *
@@ -38,21 +39,15 @@ import java.util.*;
  */
 public class TypeChecker {
 
-    private final MappingRegistry mappingRegistry;
+    /** Built-in function registry — validates function existence, no more passthrough. */
+    private static final BuiltinFunctionRegistry builtinRegistry = BuiltinFunctionRegistry.instance();
+
     private final ModelContext modelContext;
     /** Per-node type info, consumed by PlanGenerator. */
-    private final java.util.IdentityHashMap<ValueSpecification, TypeInfo> types = new java.util.IdentityHashMap<>();
-    /** Built-in function registry — validates function existence, no more passthrough. */
-    private final BuiltinFunctionRegistry builtinRegistry = BuiltinFunctionRegistry.instance();
+    private final IdentityHashMap<ValueSpecification, TypeInfo> types = new IdentityHashMap<>();
 
     public TypeChecker(ModelContext modelContext) {
-        this.modelContext = modelContext;
-        this.mappingRegistry = modelContext != null ? modelContext.getMappingRegistry() : null;
-    }
-
-    /** Returns the per-node type side table. */
-    public java.util.IdentityHashMap<ValueSpecification, TypeInfo> types() {
-        return types;
+        this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
     }
 
     /**
@@ -104,8 +99,10 @@ public class TypeChecker {
         };
     }
 
-    // TODO(Phase 4): delete scalar() — every expression must have a typed expressionType.
-    // Remaining callers are end-of-function fallbacks that need proper typing or throws.
+    // TODO(Phase 4): delete scalar() — every expression must have a typed
+    // expressionType.
+    // Remaining callers are end-of-function fallbacks that need proper typing or
+    // throws.
     private TypeInfo scalar(ValueSpecification ast) {
         return typed(ast, RelationType.empty(), null);
     }
@@ -118,7 +115,10 @@ public class TypeChecker {
         return info;
     }
 
-    /** Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent values. */
+    /**
+     * Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent
+     * values.
+     */
     private TypeInfo scalarTypedMany(ValueSpecification ast, GenericType type) {
         var info = TypeInfo.builder().scalarType(type)
                 .expressionType(ExpressionType.many(type)).build();
@@ -177,7 +177,8 @@ public class TypeChecker {
             case "flatten" -> compileFlatten(af, ctx);
             case "from" -> compileFrom(af, ctx);
             // --- Window functions (inside extend lambdas) ---
-            case "rowNumber", "rank", "denseRank", "ntile" -> compileWindowRanking(af, ctx, GenericType.Primitive.INTEGER);
+            case "rowNumber", "rank", "denseRank", "ntile" ->
+                compileWindowRanking(af, ctx, GenericType.Primitive.INTEGER);
             case "percentRank", "cumulativeDistribution" -> compileWindowRanking(af, ctx, GenericType.Primitive.FLOAT);
             case "lag", "lead" -> compileWindowNavigation(af, ctx);
             // --- Scalar collection functions with lambdas ---
@@ -201,7 +202,8 @@ public class TypeChecker {
             // --- Collection / scalar functions ---
             case "range" -> compileRange(af, ctx);
             // List-producing functions: always return a list
-            case "tail", "init", "reverse", "removeDuplicates", "removeDuplicatesBy", "add" -> compileListProducing(af, ctx);
+            case "tail", "init", "reverse", "removeDuplicates", "removeDuplicatesBy", "add" ->
+                compileListProducing(af, ctx);
             case "eval" -> compileEval(af, ctx);
             case "match" -> compileMatch(af, ctx);
             // --- Conditional ---
@@ -228,13 +230,11 @@ public class TypeChecker {
         // For class('model::Person'), resolve via class name
         if ("class".equals(simpleName(af.function()))) {
             String className = tableRef.contains("::") ? tableRef.substring(tableRef.lastIndexOf("::") + 2) : tableRef;
-            if (mappingRegistry != null) {
-                var mappingOpt = mappingRegistry.findByClassName(className);
-                if (mappingOpt.isPresent()) {
-                    ClassMapping mapping = mappingOpt.get();
-                    RelationType relType = tableToRelationType(mapping.sourceTable());
-                    return typed(af, relType, mapping);
-                }
+            var mappingOpt = mappingRegistry().findByClassName(className);
+            if (mappingOpt.isPresent()) {
+                ClassMapping mapping = mappingOpt.get();
+                RelationType relType = tableToRelationType(mapping.sourceTable());
+                return typed(af, relType, mapping);
             }
         }
 
@@ -263,20 +263,18 @@ public class TypeChecker {
             return scalar(af);
         }
 
-        if (mappingRegistry != null) {
-            // Try relational mapping first
-            var mappingOpt = mappingRegistry.findByClassName(className);
-            if (mappingOpt.isPresent()) {
-                ClassMapping mapping = mappingOpt.get();
-                RelationType relType = tableToRelationType(mapping.sourceTable());
-                return typed(af, relType, mapping);
-            }
+        // Try relational mapping first
+        var mappingOpt = mappingRegistry().findByClassName(className);
+        if (mappingOpt.isPresent()) {
+            ClassMapping mapping = mappingOpt.get();
+            RelationType relType = tableToRelationType(mapping.sourceTable());
+            return typed(af, relType, mapping);
+        }
 
-            // Try PureClassMapping (M2M) — runtime-driven
-            var pureMappingOpt = mappingRegistry.findPureClassMapping(className);
-            if (pureMappingOpt.isPresent()) {
-                return compileM2MGetAll(af, pureMappingOpt.get());
-            }
+        // Try PureClassMapping (M2M) — runtime-driven
+        var pureMappingOpt = mappingRegistry().findPureClassMapping(className);
+        if (pureMappingOpt.isPresent()) {
+            return compileM2MGetAll(af, pureMappingOpt.get());
         }
 
         return scalar(af);
@@ -292,24 +290,26 @@ public class TypeChecker {
             com.gs.legend.model.mapping.PureClassMapping pureMapping) {
         // Resolve source class → its mapping (may be relational or another M2M)
         String sourceClassName = pureMapping.sourceClassName();
-        var sourceMapping = mappingRegistry.findAnyMapping(sourceClassName);
+        var sourceMapping = mappingRegistry().findAnyMapping(sourceClassName);
 
         if (sourceMapping.isEmpty()) {
             throw new PureCompileException(
                     "M2M source class '" + sourceClassName + "' has no mapping. "
-                    + "The source class must be mapped to a database table or another M2M class.");
+                            + "The source class must be mapped to a database table or another M2M class.");
         }
 
         ClassMapping srcMapping = sourceMapping.get();
 
-        // Recursive M2M chain resolution: if source is itself M2M, resolve its source too.
+        // Recursive M2M chain resolution: if source is itself M2M, resolve its source
+        // too.
         // Each intermediate PureClassMapping gets linked to its own source mapping.
         // The chain must ultimately terminate at a RelationalMapping.
         if (srcMapping instanceof com.gs.legend.model.mapping.PureClassMapping srcPcm) {
-            // Recursively resolve the source M2M first (this compiles the intermediate mapping)
+            // Recursively resolve the source M2M first (this compiles the intermediate
+            // mapping)
             resolveM2MChain(srcPcm);
             // Re-fetch from registry to get the resolved version (records are immutable)
-            srcMapping = mappingRegistry.findAnyMapping(sourceClassName).orElseThrow();
+            srcMapping = mappingRegistry().findAnyMapping(sourceClassName).orElseThrow();
         }
 
         // Resolve the PureClassMapping: link it to its source mapping and target class
@@ -338,8 +338,9 @@ public class TypeChecker {
             virtualColumns.put(propName, GenericType.Primitive.ANY);
 
             // Resolve the join from the registry
-            var joinOpt = mappingRegistry.findJoin(joinName);
-            if (joinOpt.isEmpty()) continue;
+            var joinOpt = mappingRegistry().findJoin(joinName);
+            if (joinOpt.isEmpty())
+                continue;
             com.gs.legend.model.store.Join join = joinOpt.get();
 
             // Determine target class from the property type on the target class
@@ -353,7 +354,7 @@ public class TypeChecker {
                     // Find the target class mapping by property type name
                     String targetClassName = prop.genericType().typeName();
                     if (targetClassName != null) {
-                        targetMapping = mappingRegistry.findAnyMapping(targetClassName).orElse(null);
+                        targetMapping = mappingRegistry().findAnyMapping(targetClassName).orElse(null);
                     }
                 }
             }
@@ -375,7 +376,8 @@ public class TypeChecker {
         }
 
         // Store resolved mapping in sidecar.
-        // ClassMapping.sourceTable() chains through to the source RelationalMapping's table.
+        // ClassMapping.sourceTable() chains through to the source RelationalMapping's
+        // table.
         // ClassMapping.expressionForProperty() returns the M2M expression AST.
         var infoBuilder = TypeInfo.builder()
                 .relationType(virtualRelType)
@@ -390,12 +392,14 @@ public class TypeChecker {
     }
 
     /**
-     * Recursively resolves an M2M chain, ensuring each intermediate PureClassMapping
-     * is linked to its source mapping. Terminates when the source is a RelationalMapping.
+     * Recursively resolves an M2M chain, ensuring each intermediate
+     * PureClassMapping
+     * is linked to its source mapping. Terminates when the source is a
+     * RelationalMapping.
      */
     private void resolveM2MChain(com.gs.legend.model.mapping.PureClassMapping pcm) {
         String srcClassName = pcm.sourceClassName();
-        var srcMappingOpt = mappingRegistry.findAnyMapping(srcClassName);
+        var srcMappingOpt = mappingRegistry().findAnyMapping(srcClassName);
         if (srcMappingOpt.isEmpty()) {
             throw new PureCompileException(
                     "M2M chain: source class '" + srcClassName + "' has no mapping.");
@@ -406,7 +410,7 @@ public class TypeChecker {
         if (srcMapping instanceof com.gs.legend.model.mapping.PureClassMapping innerPcm) {
             resolveM2MChain(innerPcm);
             // Re-fetch resolved version
-            srcMapping = mappingRegistry.findAnyMapping(srcClassName).orElseThrow();
+            srcMapping = mappingRegistry().findAnyMapping(srcClassName).orElseThrow();
         }
 
         // Type-check this intermediate M2M's property expressions against its source
@@ -425,13 +429,15 @@ public class TypeChecker {
         var resolved = pcm.withResolved(targetClass, srcMapping);
 
         // Update the mapping registry with the resolved version
-        mappingRegistry.updatePureClassMapping(pcm.targetClassName(), resolved);
+        mappingRegistry().updatePureClassMapping(pcm.targetClassName(), resolved);
     }
 
     /**
-     * Builds a CompilationContext for type-checking M2M expressions against a source mapping.
+     * Builds a CompilationContext for type-checking M2M expressions against a
+     * source mapping.
      * Handles both RelationalMapping sources (column types from schema) and
-     * PureClassMapping sources (virtual column types from M2M property expressions).
+     * PureClassMapping sources (virtual column types from M2M property
+     * expressions).
      */
     private CompilationContext buildSourceContext(ClassMapping srcMapping) {
         if (srcMapping instanceof RelationalMapping srcRm) {
@@ -482,12 +488,13 @@ public class TypeChecker {
     /**
      * Compiles graphFetch(source, #{Tree}#).
      *
-     * <p>Type-checks:
+     * <p>
+     * Type-checks:
      * <ol>
-     *   <li>Source must be class-based (has a ClassMapping)</li>
-     *   <li>Root class in tree must match source mapping's target class</li>
-     *   <li>All properties in tree must exist on the target class</li>
-     *   <li>Nested properties must be class-typed (not scalars)</li>
+     * <li>Source must be class-based (has a ClassMapping)</li>
+     * <li>Root class in tree must match source mapping's target class</li>
+     * <li>All properties in tree must exist on the target class</li>
+     * <li>Nested properties must be class-typed (not scalars)</li>
      * </ol>
      */
     private TypeInfo compileGraphFetch(AppliedFunction af, CompilationContext ctx) {
@@ -498,7 +505,7 @@ public class TypeChecker {
         if (sourceInfo.mapping() == null) {
             throw new PureCompileException(
                     "graphFetch() requires a class-based source (e.g., Person.all()), "
-                    + "but source has no ClassMapping");
+                            + "but source has no ClassMapping");
         }
 
         // Extract GraphFetchTree from ClassInstance parameter
@@ -517,7 +524,7 @@ public class TypeChecker {
                 && !tree.rootClass().equals(targetClass.qualifiedName())) {
             throw new PureCompileException(
                     "graphFetch tree root class '" + tree.rootClass()
-                    + "' does not match source class '" + targetClass.qualifiedName() + "'");
+                            + "' does not match source class '" + targetClass.qualifiedName() + "'");
         }
 
         // (3+4) Validate all properties exist and nested types are correct
@@ -533,10 +540,11 @@ public class TypeChecker {
     /**
      * Compiles serialize(graphFetchSource, #{Tree}#).
      *
-     * <p>Type-checks:
+     * <p>
+     * Type-checks:
      * <ol>
-     *   <li>Source must have a graphFetchSpec (must come from graphFetch())</li>
-     *   <li>Stamps returnType = String (JSON output)</li>
+     * <li>Source must have a graphFetchSpec (must come from graphFetch())</li>
+     * <li>Stamps returnType = String (JSON output)</li>
      * </ol>
      */
     private TypeInfo compileSerialize(AppliedFunction af, CompilationContext ctx) {
@@ -548,7 +556,7 @@ public class TypeChecker {
         if (spec == null) {
             throw new PureCompileException(
                     "serialize() requires a graphFetch source — "
-                    + "call ->graphFetch(#{...}#) before ->serialize()");
+                            + "call ->graphFetch(#{...}#) before ->serialize()");
         }
 
         // Override with serialize tree if provided
@@ -570,8 +578,8 @@ public class TypeChecker {
     /**
      * Transforms a parser-level GraphFetchTree into a plan-level GraphFetchSpec.
      * Validates all properties against the target class:
-     *   - Each property must exist on the class (including inherited)
-     *   - Nested properties must be class-typed (not scalar/primitive)
+     * - Each property must exist on the class (including inherited)
+     * - Nested properties must be class-typed (not scalar/primitive)
      */
     private com.gs.legend.plan.GraphFetchSpec toGraphFetchSpec(
             com.gs.legend.ast.GraphFetchTree tree,
@@ -583,10 +591,10 @@ public class TypeChecker {
                     if (propOpt.isEmpty()) {
                         throw new PureCompileException(
                                 "Property '" + pf.name() + "' not found on class '"
-                                + targetClass.qualifiedName() + "'. Available: "
-                                + targetClass.allProperties().stream()
-                                        .map(com.gs.legend.model.m3.Property::name)
-                                        .toList());
+                                        + targetClass.qualifiedName() + "'. Available: "
+                                        + targetClass.allProperties().stream()
+                                                .map(com.gs.legend.model.m3.Property::name)
+                                                .toList());
                     }
 
                     if (pf.isNested()) {
@@ -595,9 +603,9 @@ public class TypeChecker {
                         if (!(prop.genericType() instanceof com.gs.legend.model.m3.PureClass nestedClass)) {
                             throw new PureCompileException(
                                     "Property '" + pf.name() + "' on class '"
-                                    + targetClass.qualifiedName()
-                                    + "' is not class-typed — cannot nest in graphFetch tree. "
-                                    + "Type: " + prop.genericType().typeName());
+                                            + targetClass.qualifiedName()
+                                            + "' is not class-typed — cannot nest in graphFetch tree. "
+                                            + "Type: " + prop.genericType().typeName());
                         }
                         var nestedSpec = toGraphFetchSpec(pf.subTree(), nestedClass);
                         return com.gs.legend.plan.GraphFetchSpec.PropertySpec.nested(
@@ -638,7 +646,8 @@ public class TypeChecker {
             } else {
                 // Collection filter: bind param as lambda variable with element type
                 GenericType elemType = source.scalarType() != null && source.scalarType().isList()
-                        ? source.scalarType().elementType() : source.scalarType();
+                        ? source.scalarType().elementType()
+                        : source.scalarType();
                 lambdaCtx = ctx.withLambdaParam(paramName, elemType);
             }
         }
@@ -704,7 +713,7 @@ public class TypeChecker {
                     .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)));
             if (source.scalarType() != null) {
                 builder.scalarType(source.scalarType())
-                       .expressionType(ExpressionType.many(source.scalarType()));
+                        .expressionType(ExpressionType.many(source.scalarType()));
             }
             var info = builder.build();
             types.put(af, info);
@@ -714,7 +723,8 @@ public class TypeChecker {
         // Relational sort: resolve sort specs
         List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
 
-        // Handle direction override in 3rd param: sort('col', 'DESC') or sortBy({e | $e.col}, 'desc')
+        // Handle direction override in 3rd param: sort('col', 'DESC') or sortBy({e |
+        // $e.col}, 'desc')
         if (params.size() > 2 && params.get(2) instanceof CString(String value)) {
             String dir = value.toUpperCase();
             if ("DESC".equals(dir) || "DESCENDING".equals(dir)) {
@@ -738,7 +748,8 @@ public class TypeChecker {
      */
     private List<TypeInfo.SortSpec> resolveSortSpecs(ValueSpecification vs, RelationType sourceType) {
         List<TypeInfo.SortSpec> result = new ArrayList<>();
-        List<ValueSpecification> specs = (vs instanceof PureCollection(List<ValueSpecification> values)) ? values : List.of(vs);
+        List<ValueSpecification> specs = (vs instanceof PureCollection(List<ValueSpecification> values)) ? values
+                : List.of(vs);
         for (var spec : specs) {
             result.add(resolveSingleSortSpec(spec, sourceType));
         }
@@ -879,7 +890,9 @@ public class TypeChecker {
             }
             var info = TypeInfo.builder().relationType(source.relationType().onlyColumns(cols))
                     .mapping(source.mapping()).columnSpecs(colSpecs)
-                    .expressionType(ExpressionType.many(new GenericType.Relation(source.relationType().onlyColumns(cols)))).build();
+                    .expressionType(
+                            ExpressionType.many(new GenericType.Relation(source.relationType().onlyColumns(cols))))
+                    .build();
             types.put(af, info);
             return info;
         }
@@ -919,17 +932,20 @@ public class TypeChecker {
         TypeInfo left = compileExpr(params.get(0), ctx);
         TypeInfo right = compileExpr(params.get(1), ctx);
 
-        // Scalar list concatenation: [1,2]->concatenate([3,4]) → List<Integer> with MANY multiplicity
+        // Scalar list concatenation: [1,2]->concatenate([3,4]) → List<Integer> with
+        // MANY multiplicity
         if (left.relationType() == null && left.scalarType() != null) {
             GenericType elemType = left.scalarType().isList() && left.scalarType().elementType() != null
-                    ? left.scalarType().elementType() : left.scalarType();
+                    ? left.scalarType().elementType()
+                    : left.scalarType();
             return scalarTypedMany(af, GenericType.listOf(elemType));
         }
 
         RelationType leftType = left.relationType();
         RelationType rightType = right.relationType();
 
-        // For struct/mapped sources with different class types, compute common supertype
+        // For struct/mapped sources with different class types, compute common
+        // supertype
         if (left.mapping() != null && right.mapping() != null
                 && leftType != null && rightType != null
                 && !leftType.columns().keySet().equals(rightType.columns().keySet())) {
@@ -988,15 +1004,18 @@ public class TypeChecker {
     }
 
     /**
-     * Finds the lowest common ancestor (LCA) of two classes using BFS on the superclass hierarchy.
+     * Finds the lowest common ancestor (LCA) of two classes using BFS on the
+     * superclass hierarchy.
      * Returns empty if no common ancestor is found (other than implicit Any).
      */
     private java.util.Optional<com.gs.legend.model.m3.PureClass> findLowestCommonAncestor(
             String className1, String className2) {
-        if (modelContext == null) return java.util.Optional.empty();
+        if (modelContext == null)
+            return java.util.Optional.empty();
         var class1Opt = modelContext.findClass(className1);
         var class2Opt = modelContext.findClass(className2);
-        if (class1Opt.isEmpty() || class2Opt.isEmpty()) return java.util.Optional.empty();
+        if (class1Opt.isEmpty() || class2Opt.isEmpty())
+            return java.util.Optional.empty();
 
         // Collect all ancestors of class1 (including itself)
         var ancestors1 = new java.util.LinkedHashSet<String>();
@@ -1014,7 +1033,8 @@ public class TypeChecker {
         var visited = new java.util.HashSet<String>();
         while (!queue.isEmpty()) {
             var cls = queue.poll();
-            if (!visited.add(cls.qualifiedName())) continue;
+            if (!visited.add(cls.qualifiedName()))
+                continue;
             if (ancestors1.contains(cls.qualifiedName())) {
                 return java.util.Optional.of(cls);
             }
@@ -1046,7 +1066,6 @@ public class TypeChecker {
         RelationType sourceType = source.relationType();
         ClassMapping mapping = source.mapping();
 
-
         // Determine projection specs and aliases based on AST pattern
         List<ValueSpecification> lambdaSpecs;
         List<String> aliases;
@@ -1074,7 +1093,8 @@ public class TypeChecker {
 
         // Pre-resolve associations for multi-hop property paths
         var associations = resolveAssociations(lambdaSpecs, mapping);
-        // Merge: pre-existing associations from source (e.g. struct identity mappings) take priority
+        // Merge: pre-existing associations from source (e.g. struct identity mappings)
+        // take priority
         if (source.hasAssociations()) {
             var merged = new java.util.LinkedHashMap<>(source.associations());
             associations.forEach(merged::putIfAbsent);
@@ -1091,7 +1111,8 @@ public class TypeChecker {
             List<String> propertyPath = extractPropertyPathFromLambda(lambdaSpec);
             String propertyName = propertyPath.isEmpty() ? extractPropertyFromLambda(lambdaSpec)
                     : propertyPath.getLast();
-            // Alias is the output column name — ColSpec.name() is authoritative for Relation API
+            // Alias is the output column name — ColSpec.name() is authoritative for
+            // Relation API
             String alias;
             if (lambdaSpec instanceof ClassInstance ci2 && ci2.value() instanceof ColSpec cs2) {
                 alias = cs2.name(); // e.g., "id1" from id1:x|$x.id
@@ -1151,10 +1172,12 @@ public class TypeChecker {
                     if (exprInfo != null && exprInfo.scalarType() != null) {
                         colType = exprInfo.scalarType();
                     }
-                } catch (PureCompileException ignored) { }
+                } catch (PureCompileException ignored) {
+                }
             }
             // Multi-hop property path: resolve type through association chain
-            // e.g., $p.addresses.street → resolve 'addresses' association → look up 'street' in target
+            // e.g., $p.addresses.street → resolve 'addresses' association → look up
+            // 'street' in target
             if (colType == null && propertyPath.size() > 1 && associations != null) {
                 String assocProp = propertyPath.get(0);
                 var assocTarget = associations.get(assocProp);
@@ -1162,14 +1185,16 @@ public class TypeChecker {
                     var targetMapping = assocTarget.targetMapping();
                     // Resolve column name for the property
                     var targetColOpt = (targetMapping instanceof RelationalMapping trm)
-                            ? trm.getColumnForProperty(propertyName) : java.util.Optional.<String>empty();
+                            ? trm.getColumnForProperty(propertyName)
+                            : java.util.Optional.<String>empty();
                     if (targetColOpt.isPresent()) {
                         resolvedColumn = targetColOpt.get();
                     }
                     // Get type from Pure class definition (authoritative)
                     try {
                         colType = targetMapping.typeForProperty(propertyName);
-                    } catch (IllegalArgumentException ignored) { }
+                    } catch (IllegalArgumentException ignored) {
+                    }
                 }
             }
             // Struct multi-hop: resolve nested property via model context
@@ -1341,7 +1366,8 @@ public class TypeChecker {
             List<String> aliasNames = new ArrayList<>();
             if (params.size() > 3 && params.get(3) instanceof PureCollection(List<ValueSpecification> aliasValues)) {
                 for (var v : aliasValues) {
-                    if (v instanceof CString(String value)) aliasNames.add(value);
+                    if (v instanceof CString(String value))
+                        aliasNames.add(value);
                 }
             }
             for (int i = 0; i < values.size(); i++) {
@@ -1354,7 +1380,8 @@ public class TypeChecker {
                                 aggInfo.columnName(), aliasNames.get(aliasIdx),
                                 aggInfo.aggFunction(), aggInfo.extraArgs(), aggInfo.castType());
                     }
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
+                    resultColumns.put(aggInfo.alias(),
+                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1365,7 +1392,8 @@ public class TypeChecker {
             for (var cs : specs) {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
+                    resultColumns.put(aggInfo.alias(),
+                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1374,7 +1402,8 @@ public class TypeChecker {
             for (int i = 2; i < params.size(); i++) {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
+                    resultColumns.put(aggInfo.alias(),
+                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1396,7 +1425,8 @@ public class TypeChecker {
     /**
      * Compiles aggregate(source, aggSpecs).
      * Full-table aggregation (no group columns).
-     * Populates columnSpecs in the sidecar so PlanGenerator can build aggregate SQL.
+     * Populates columnSpecs in the sidecar so PlanGenerator can build aggregate
+     * SQL.
      */
     private TypeInfo compileAggregate(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -1406,7 +1436,8 @@ public class TypeChecker {
 
         TypeInfo source = compileExpr(params.get(0), ctx);
 
-        // Build output columns from aggregate specs (same pattern as groupBy, no group cols)
+        // Build output columns from aggregate specs (same pattern as groupBy, no group
+        // cols)
         Map<String, GenericType> resultColumns = new LinkedHashMap<>();
         List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
 
@@ -1415,7 +1446,8 @@ public class TypeChecker {
             for (var v : values) {
                 var aggInfo = extractAggSpec(v);
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), source.relationType().columns()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
+                            source.relationType().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1425,7 +1457,8 @@ public class TypeChecker {
             for (var cs : specs) {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), source.relationType().columns()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
+                            source.relationType().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1433,7 +1466,8 @@ public class TypeChecker {
             for (int i = 1; i < params.size(); i++) {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), source.relationType().columns()));
+                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
+                            source.relationType().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1497,8 +1531,10 @@ public class TypeChecker {
             }
         }
 
-        // Structural fact: scalar extend has no over() and no function2 (aggregate lambda).
-        // Window extend always has either over() (partition/order spec) or function2 (aggregate).
+        // Structural fact: scalar extend has no over() and no function2 (aggregate
+        // lambda).
+        // Window extend always has either over() (partition/order spec) or function2
+        // (aggregate).
         boolean isScalarExtend = windowColSpec != null
                 && overSpec == null
                 && windowColSpec.function2() == null;
@@ -1521,7 +1557,8 @@ public class TypeChecker {
         }
 
         // For scalar extends, type-check the lambda body so property accesses
-        // get typed from the source RelationType (needed for string concat detection etc.)
+        // get typed from the source RelationType (needed for string concat detection
+        // etc.)
         if (isScalarExtend && windowColSpec.function1() != null && sourceType != null) {
             LambdaFunction lambda = windowColSpec.function1();
             if (!lambda.parameters().isEmpty() && !lambda.body().isEmpty()) {
@@ -1531,7 +1568,8 @@ public class TypeChecker {
             }
         }
 
-        // Also type-check and resolve window specs for ColSpecArray (multi-column extend)
+        // Also type-check and resolve window specs for ColSpecArray (multi-column
+        // extend)
         List<TypeInfo.WindowFunctionSpec> allWindowSpecs = new ArrayList<>();
         if (windowSpec != null) {
             allWindowSpecs.add(windowSpec);
@@ -1594,7 +1632,8 @@ public class TypeChecker {
             String aggFunc = extractPureFuncName(cs.function2());
             // Extract cast type if function2 body is cast(inner, @Type)
             String castType = (cs.function2() != null && !cs.function2().body().isEmpty())
-                    ? extractCastType(cs.function2().body().get(0)) : null;
+                    ? extractCastType(cs.function2().body().get(0))
+                    : null;
             if (column != null && aggFunc != null) {
                 // Special handling for percentile: boolean args control function name
                 if ("percentile".equals(aggFunc) || "percentileCont".equals(aggFunc)
@@ -1726,9 +1765,8 @@ public class TypeChecker {
             }
 
             // Property access pattern: {p,w,r|$p->avg($w,$r).salary}
-            if (!body.isEmpty() && body.get(0) instanceof AppliedProperty(
-                    String property, List<ValueSpecification> parameters
-            )) {
+            if (!body.isEmpty()
+                    && body.get(0) instanceof AppliedProperty(String property, List<ValueSpecification> parameters)) {
                 if (!parameters.isEmpty() && parameters.get(0) instanceof AppliedFunction innerAf) {
                     String innerFunc = simpleName(innerAf.function());
                     // Extract extra literal args (e.g., nth offset 2, joinStrings separator)
@@ -1807,8 +1845,10 @@ public class TypeChecker {
     }
 
     /**
-     * Validates that the window frame lower bound is not greater than the upper bound.
-     * Throws PureCompileException matching the Pure error message for invalid frame boundaries.
+     * Validates that the window frame lower bound is not greater than the upper
+     * bound.
+     * Throws PureCompileException matching the Pure error message for invalid frame
+     * boundaries.
      */
     private void validateFrameBounds(TypeInfo.FrameBound start, TypeInfo.FrameBound end) {
         double startPos = frameBoundPosition(start, true);
@@ -1821,7 +1861,8 @@ public class TypeChecker {
 
     /**
      * Converts a FrameBound to a numeric position for comparison.
-     * UNBOUNDED PRECEDING = -∞, n PRECEDING = -n, CURRENT ROW = 0, n FOLLOWING = n, UNBOUNDED FOLLOWING = +∞.
+     * UNBOUNDED PRECEDING = -∞, n PRECEDING = -n, CURRENT ROW = 0, n FOLLOWING = n,
+     * UNBOUNDED FOLLOWING = +∞.
      */
     private double frameBoundPosition(TypeInfo.FrameBound bound, boolean isStart) {
         return switch (bound.type()) {
@@ -1867,24 +1908,36 @@ public class TypeChecker {
         return TypeInfo.FrameBound.offset(v); // positive = following, negative = preceding
     }
 
-    /** Extracts a numeric literal as double (supports CInteger, CFloat, CDecimal). */
+    /**
+     * Extracts a numeric literal as double (supports CInteger, CFloat, CDecimal).
+     */
     private double extractNumericLiteral(ValueSpecification vs) {
-        if (vs instanceof CInteger(Number value)) return value.doubleValue();
-        if (vs instanceof CFloat(double value)) return value;
-        if (vs instanceof CDecimal(java.math.BigDecimal value)) return value.doubleValue();
-        throw new PureCompileException("Expected numeric literal in frame bound, got: " + vs.getClass().getSimpleName());
+        if (vs instanceof CInteger(Number value))
+            return value.doubleValue();
+        if (vs instanceof CFloat(double value))
+            return value;
+        if (vs instanceof CDecimal(java.math.BigDecimal value))
+            return value.doubleValue();
+        throw new PureCompileException(
+                "Expected numeric literal in frame bound, got: " + vs.getClass().getSimpleName());
     }
 
     /**
      * Resolves the effective aggregate function body, seeing through cast().
-     * In aggregate context (groupBy, aggregate, window), cast is a transparent type-assertion
-     * wrapper — the real aggregate is inside. E.g., cast($x->plus(), @Integer) → returns plus().
+     * In aggregate context (groupBy, aggregate, window), cast is a transparent
+     * type-assertion
+     * wrapper — the real aggregate is inside. E.g., cast($x->plus(), @Integer) →
+     * returns plus().
      * If the body is not an AppliedFunction, returns null.
      *
-     * Special case: when the Pure interpreter serializes `$x->cast(@Integer)->plus()`, the
-     * `plus()` gets rendered as the `+` prefix sign, which our parser treats as a unary no-op
-     * (signedExpression rule). This makes `cast($x, @Integer)` the actual body with a Variable
-     * inside. In this case we return null so the caller defaults to aggFunc = "plus".
+     * Special case: when the Pure interpreter serializes
+     * `$x->cast(@Integer)->plus()`, the
+     * `plus()` gets rendered as the `+` prefix sign, which our parser treats as a
+     * unary no-op
+     * (signedExpression rule). This makes `cast($x, @Integer)` the actual body with
+     * a Variable
+     * inside. In this case we return null so the caller defaults to aggFunc =
+     * "plus".
      */
     private AppliedFunction resolveAggregateFunctionBody(ValueSpecification body) {
         if (!(body instanceof AppliedFunction af)) {
@@ -1895,9 +1948,12 @@ public class TypeChecker {
             if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof AppliedFunction innerAf) {
                 return innerAf;
             }
-            // cast wraps a Variable — this happens when plus() was serialized as the `+` prefix
-            // (signedExpression) making cast the outermost function. Cast on same-type primitives
-            // is a no-op; return null so the caller uses the default aggregate function ("plus").
+            // cast wraps a Variable — this happens when plus() was serialized as the `+`
+            // prefix
+            // (signedExpression) making cast the outermost function. Cast on same-type
+            // primitives
+            // is a no-op; return null so the caller uses the default aggregate function
+            // ("plus").
             return null;
         }
         return af;
@@ -1908,8 +1964,10 @@ public class TypeChecker {
      * E.g., cast($x->plus(), @Integer) → "Integer". Returns null if not a cast.
      */
     private String extractCastType(ValueSpecification body) {
-        if (!(body instanceof AppliedFunction af)) return null;
-        if (!"cast".equals(simpleName(af.function()))) return null;
+        if (!(body instanceof AppliedFunction af))
+            return null;
+        if (!"cast".equals(simpleName(af.function())))
+            return null;
         for (var p : af.parameters()) {
             if (p instanceof GenericTypeInstance(String fullPath)) {
                 return simpleName(fullPath);
@@ -1921,7 +1979,8 @@ public class TypeChecker {
     /**
      * Extracts the Pure function name from an aggregate lambda like {y|$y->plus()}.
      * When the body is cast(Variable) — caused by the parser dropping the + prefix
-     * (signedExpression rule) — defaults to "plus" since the lost function was plus().
+     * (signedExpression rule) — defaults to "plus" since the lost function was
+     * plus().
      */
     private String extractPureFuncName(LambdaFunction lf) {
         if (lf == null || lf.body().isEmpty())
@@ -2061,7 +2120,6 @@ public class TypeChecker {
         throw new PureCompileException("Expected literal value, got: " + vs.getClass().getSimpleName());
     }
 
-
     /**
      * Compiles join(left, right, joinType, condition).
      * Pre-resolves joinType from EnumValue/CString/AppliedProperty.
@@ -2105,8 +2163,8 @@ public class TypeChecker {
         if (!duplicates.isEmpty() && rightPrefix == null) {
             throw new PureCompileException(
                     "Join produces duplicate columns " + duplicates
-                    + ". Supply a right-side prefix parameter to disambiguate: "
-                    + "->join(right, JoinType.INNER, {l, r | ...}, 'prefix')");
+                            + ". Supply a right-side prefix parameter to disambiguate: "
+                            + "->join(right, JoinType.INNER, {l, r | ...}, 'prefix')");
         }
 
         // Merge columns: left stays as-is, right gets prefix on conflicts only
@@ -2123,11 +2181,11 @@ public class TypeChecker {
             }
         }
 
-        // Walk the condition lambda and tag each AppliedProperty with its join-side alias
+        // Walk the condition lambda and tag each AppliedProperty with its join-side
+        // alias
         int conditionIdx = params.size() >= 4 ? 3 : 2;
-        if (conditionIdx < params.size() && params.get(conditionIdx) instanceof LambdaFunction(
-                List<Variable> parameters, List<ValueSpecification> body
-        )) {
+        if (conditionIdx < params.size() && params.get(
+                conditionIdx) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
             String leftParam = parameters.size() > 0 ? parameters.get(0).name() : "l";
             String rightParam = parameters.size() > 1 ? parameters.get(1).name() : "r";
             if (!body.isEmpty()) {
@@ -2146,7 +2204,8 @@ public class TypeChecker {
     }
 
     /**
-     * Recursively tags each AppliedProperty in a join condition with its join-side alias.
+     * Recursively tags each AppliedProperty in a join condition with its join-side
+     * alias.
      * PlanGenerator reads columnAlias from the side table instead of AST-walking.
      */
     private void tagJoinConditionProperties(ValueSpecification vs, String leftParam, String rightParam) {
@@ -2170,7 +2229,8 @@ public class TypeChecker {
                     tagJoinConditionProperties(body, leftParam, rightParam);
                 }
             }
-            default -> { /* literals, variables — no tagging needed */ }
+            default -> {
+                /* literals, variables — no tagging needed */ }
         }
     }
 
@@ -2198,7 +2258,8 @@ public class TypeChecker {
         // Extract optional right-side prefix for duplicate column disambiguation
         // asOfJoin(left, right, matchCond, keyCond?, 'prefix')
         String rightPrefix = null;
-        // Check after key condition (index 4), or after match condition (index 3) if no key lambda
+        // Check after key condition (index 4), or after match condition (index 3) if no
+        // key lambda
         for (int i = 3; i < params.size(); i++) {
             if (params.get(i) instanceof CString(String value)) {
                 rightPrefix = value;
@@ -2220,8 +2281,8 @@ public class TypeChecker {
         if (!duplicates.isEmpty() && rightPrefix == null) {
             throw new PureCompileException(
                     "asOfJoin produces duplicate columns " + duplicates
-                    + ". Supply a right-side prefix parameter to disambiguate: "
-                    + "->asOfJoin(right, {t, q | ...}, {t, q | ...}, 'prefix')");
+                            + ". Supply a right-side prefix parameter to disambiguate: "
+                            + "->asOfJoin(right, {t, q | ...}, {t, q | ...}, 'prefix')");
         }
 
         // Merge columns: left stays as-is, right gets prefix on conflicts only
@@ -2248,9 +2309,8 @@ public class TypeChecker {
         }
 
         // Tag key condition lambda (params[3]) if present
-        if (params.size() >= 4 && params.get(3) instanceof LambdaFunction(
-                List<Variable> parameters, List<ValueSpecification> body
-        )) {
+        if (params.size() >= 4
+                && params.get(3) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
             String leftParam = parameters.size() > 0 ? parameters.get(0).name() : "l";
             String rightParam = parameters.size() > 1 ? parameters.get(1).name() : "r";
             if (!body.isEmpty()) {
@@ -2269,7 +2329,8 @@ public class TypeChecker {
     }
 
     /**
-     * Compiles pivot — extracts pivot columns and aggregate specs into TypeInfo.PivotSpec.
+     * Compiles pivot — extracts pivot columns and aggregate specs into
+     * TypeInfo.PivotSpec.
      * Pure: relation->pivot(~[pivotCols], ~[aggName : x | $x.col : y | $y->sum()])
      */
     private TypeInfo compilePivot(AppliedFunction af, CompilationContext ctx) {
@@ -2347,13 +2408,16 @@ public class TypeChecker {
 
         var pivotSpec = new TypeInfo.PivotSpec(pivotColumns, aggregates);
 
-        // Compute group-by columns: source cols minus pivot cols minus aggregate value cols.
-        // These are the columns the compiler CAN know. Dynamic pivot columns are data-dependent
+        // Compute group-by columns: source cols minus pivot cols minus aggregate value
+        // cols.
+        // These are the columns the compiler CAN know. Dynamic pivot columns are
+        // data-dependent
         // and will be resolved from JDBC ResultSetMetaData at execution time.
         var groupByCols = new java.util.LinkedHashMap<>(source.relationType().columns());
         pivotColumns.forEach(groupByCols::remove);
         for (var agg : aggregates) {
-            if (agg.valueColumn() != null) groupByCols.remove(agg.valueColumn());
+            if (agg.valueColumn() != null)
+                groupByCols.remove(agg.valueColumn());
         }
         // Build dynamic pivot column specs from aggregates.
         // When aggReturnType returns the generic NUMBER, refine to the source column's
@@ -2366,7 +2430,8 @@ public class TypeChecker {
                         if (agg.valueColumn() != null) {
                             // Refine from source column type (e.g., SUM(integerCol) → Integer)
                             GenericType colType = sourceColumns.get(agg.valueColumn());
-                            if (colType != null) returnType = colType;
+                            if (colType != null)
+                                returnType = colType;
                         } else if (agg.valueExpr() != null) {
                             // First try literal type (e.g., count pattern: SUM(1) → Integer)
                             returnType = inferLiteralType(agg.valueExpr(), returnType);
@@ -2410,7 +2475,8 @@ public class TypeChecker {
     /**
      * Compiles ranking window functions: rank(), rowNumber(), denseRank(), ntile(),
      * percentRank(), cumulativeDistribution().
-     * Compiles all params (so lambda variables get scoped) and returns the known scalar type.
+     * Compiles all params (so lambda variables get scoped) and returns the known
+     * scalar type.
      */
     private TypeInfo compileWindowRanking(AppliedFunction af, CompilationContext ctx, GenericType returnType) {
         for (var p : af.parameters()) {
@@ -2427,7 +2493,8 @@ public class TypeChecker {
      */
     private TypeInfo compileWindowNavigation(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) throw new PureCompileException("lag/lead requires at least 1 parameter");
+        if (params.isEmpty())
+            throw new PureCompileException("lag/lead requires at least 1 parameter");
         TypeInfo source = compileExpr(params.get(0), ctx);
         for (int i = 1; i < params.size(); i++) {
             compileExpr(params.get(i), ctx);
@@ -2453,7 +2520,8 @@ public class TypeChecker {
     /** Compiles fold(list, {x,y|body}, init). */
     private TypeInfo compileFold(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3) throw new PureCompileException("fold requires 3 parameters: source, lambda, init");
+        if (params.size() < 3)
+            throw new PureCompileException("fold requires 3 parameters: source, lambda, init");
 
         // 1. Compile source and init
         TypeInfo sourceInfo = compileExpr(params.get(0), ctx);
@@ -2468,7 +2536,8 @@ public class TypeChecker {
                         List.of(params.get(2), params.get(0)));
                 compileExpr(concat, ctx);
                 // Point fold node to the synthetic concatenate via inlinedBody.
-                // Fold produces a single list value (ONE) — concatenate gives MANY, but fold semantics
+                // Fold produces a single list value (ONE) — concatenate gives MANY, but fold
+                // semantics
                 // are ONE. compileLambda reads isMany() to decide whether to UNNEST.
                 TypeInfo concatInfo = types.get(concat);
                 ExpressionType foldType = concatInfo.expressionType() != null
@@ -2492,14 +2561,16 @@ public class TypeChecker {
             // Determine init/accumulator type
             TypeInfo initInfo = types.get(params.get(2));
             GenericType accType = initInfo != null && initInfo.scalarType() != null
-                    ? initInfo.scalarType() : GenericType.Primitive.ANY;
+                    ? initInfo.scalarType()
+                    : GenericType.Primitive.ANY;
 
             String elemParam = parameters.size() >= 1 ? parameters.get(0).name() : "x";
             String accParam = parameters.size() >= 2 ? parameters.get(1).name() : "y";
 
             // --- Cross-type scalar fold ---
             // DuckDB list_reduce requires init type = element type.
-            // When they differ, decompose into: fold(map(source, elem→transform), {__x,acc→acc+__x}, init)
+            // When they differ, decompose into: fold(map(source, elem→transform),
+            // {__x,acc→acc+__x}, init)
             boolean isCrossType = isCrossTypeFold(elemType, accType, params.get(2));
             if (isCrossType && !body.isEmpty()) {
                 // Compile body with params in scope to type-check it
@@ -2538,7 +2609,7 @@ public class TypeChecker {
             // We compile parts directly and set inlinedBody — we do NOT build a new fold
             // AST (that would re-enter compileFold and hit this branch again).
             if (params.get(2) instanceof PureCollection && !body.isEmpty()) {
-                // Build: map(source, {__e → [__e]})  — wraps each element in a list
+                // Build: map(source, {__e → [__e]}) — wraps each element in a list
                 String wrapParam = "__e";
                 var wrapBody = new PureCollection(List.of(new Variable(wrapParam)));
                 var wrapLambda = new LambdaFunction(
@@ -2591,7 +2662,8 @@ public class TypeChecker {
             if (!body.isEmpty()) {
                 compileExpr(body.get(0), lambdaCtx);
             }
-            // Propagate accumulator type — fold result has the same type as init/accumulator.
+            // Propagate accumulator type — fold result has the same type as
+            // init/accumulator.
             return scalarTyped(af, accType);
         }
         return scalar(af);
@@ -2599,7 +2671,8 @@ public class TypeChecker {
 
     /** Checks if a fold lambda body is the add pattern: $acc->add($val) */
     private static boolean isFoldAddPattern(LambdaFunction lf) {
-        if (lf.parameters().size() < 2 || lf.body().isEmpty()) return false;
+        if (lf.parameters().size() < 2 || lf.body().isEmpty())
+            return false;
         String elemParam = lf.parameters().get(0).name();
         String accParam = lf.parameters().get(1).name();
         // Body must be: add(acc, val) — an AppliedFunction named "add"
@@ -2618,35 +2691,46 @@ public class TypeChecker {
     /**
      * Returns true when the fold source element type differs from the init type,
      * indicating list_reduce would fail with a type mismatch in DuckDB.
-     * Does NOT match list-accumulator case (init is a Collection) — that's handled separately.
+     * Does NOT match list-accumulator case (init is a Collection) — that's handled
+     * separately.
      */
     private static boolean isCrossTypeFold(GenericType elemType, GenericType accType,
             ValueSpecification initNode) {
         // List-accumulator is handled separately
-        if (initNode instanceof PureCollection) return false;
-        if (elemType == null || accType == null) return false;
-        if (elemType == GenericType.Primitive.ANY || accType == GenericType.Primitive.ANY) return false;
+        if (initNode instanceof PureCollection)
+            return false;
+        if (elemType == null || accType == null)
+            return false;
+        if (elemType == GenericType.Primitive.ANY || accType == GenericType.Primitive.ANY)
+            return false;
         // Compare type names — different means cross-type
         String elemName = elemType.typeName();
         String accName = accType.isList() ? accType.elementType().typeName() : accType.typeName();
-        if (elemName == null || accName == null) return false;
+        if (elemName == null || accName == null)
+            return false;
         return !elemName.equals(accName);
     }
 
     /**
-     * Extracts the element-only transform from a fold body by stripping the accumulator
+     * Extracts the element-only transform from a fold body by stripping the
+     * accumulator
      * from the left spine of a plus() chain.
      *
-     * <p>Example: body = plus(plus(acc, '; '), p.lastName) → returns plus('; ', p.lastName)
-     * <p>Example: body = plus(acc, length(val)) → returns length(val)
+     * <p>
+     * Example: body = plus(plus(acc, '; '), p.lastName) → returns plus('; ',
+     * p.lastName)
+     * <p>
+     * Example: body = plus(acc, length(val)) → returns length(val)
      *
      * @return element-only subtree, or null if body can't be decomposed
      */
     private static ValueSpecification extractFoldElementTransform(
             ValueSpecification body, String accParam) {
-        if (!(body instanceof AppliedFunction af)) return null;
+        if (!(body instanceof AppliedFunction af))
+            return null;
         String fname = TypeInfo.simpleName(af.function());
-        if (!"plus".equals(fname) || af.parameters().size() != 2) return null;
+        if (!"plus".equals(fname) || af.parameters().size() != 2)
+            return null;
 
         ValueSpecification left = af.parameters().get(0);
         ValueSpecification right = af.parameters().get(1);
@@ -2670,7 +2754,8 @@ public class TypeChecker {
 
     /**
      * Recursively replaces all Variable references matching the given name with a
-     * replacement expression. Used for list-accumulator fold: replace $x with at($x, 0).
+     * replacement expression. Used for list-accumulator fold: replace $x with
+     * at($x, 0).
      */
     private static ValueSpecification substituteVariable(
             ValueSpecification vs, String varName, ValueSpecification replacement) {
@@ -2682,7 +2767,8 @@ public class TypeChecker {
             var newParams = new java.util.ArrayList<ValueSpecification>(af.parameters().size());
             for (var p : af.parameters()) {
                 var sub = substituteVariable(p, varName, replacement);
-                if (sub != p) changed = true;
+                if (sub != p)
+                    changed = true;
                 newParams.add(sub);
             }
             return changed
@@ -2692,13 +2778,15 @@ public class TypeChecker {
         if (vs instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
             // Don't substitute inside lambdas that shadow the variable name
             for (var param : parameters) {
-                if (param.name().equals(varName)) return vs;
+                if (param.name().equals(varName))
+                    return vs;
             }
             boolean changed = false;
             var newBody = new java.util.ArrayList<ValueSpecification>(body.size());
             for (var b : body) {
                 var sub = substituteVariable(b, varName, replacement);
-                if (sub != b) changed = true;
+                if (sub != b)
+                    changed = true;
                 newBody.add(sub);
             }
             return changed ? new LambdaFunction(parameters, newBody) : vs;
@@ -2708,7 +2796,8 @@ public class TypeChecker {
             var newVals = new java.util.ArrayList<ValueSpecification>(values.size());
             for (var v : values) {
                 var sub = substituteVariable(v, varName, replacement);
-                if (sub != v) changed = true;
+                if (sub != v)
+                    changed = true;
                 newVals.add(sub);
             }
             return changed ? new PureCollection(newVals) : vs;
@@ -2722,14 +2811,18 @@ public class TypeChecker {
         List<ValueSpecification> params = af.parameters();
         // Compile all params first
         for (var p : params) {
-            try { compileExpr(p, ctx); }
-            catch (PureCompileException ignored) { }
+            try {
+                compileExpr(p, ctx);
+            } catch (PureCompileException ignored) {
+            }
         }
-        if (params.size() < 2) throw new PureCompileException("match requires at least 2 parameters: value, branches");
+        if (params.size() < 2)
+            throw new PureCompileException("match requires at least 2 parameters: value, branches");
 
         // Determine input type name
         String inputTypeName = inferTypeName(params.get(0));
-        if (inputTypeName == null) throw new PureCompileException("match: cannot infer input type");
+        if (inputTypeName == null)
+            throw new PureCompileException("match: cannot infer input type");
 
         // Extract branches from Collection (params[1])
         List<LambdaFunction> branches;
@@ -2745,14 +2838,17 @@ public class TypeChecker {
         }
 
         // Determine if input is a collection (affects multiplicity matching)
-        boolean inputIsMany = (params.get(0) instanceof PureCollection(List<ValueSpecification> values) && values.size() != 1)
+        boolean inputIsMany = (params.get(0) instanceof PureCollection(List<ValueSpecification> values)
+                && values.size() != 1)
                 || (types.get(params.get(0)) != null && types.get(params.get(0)).isList());
 
         // Find matching branch by type + multiplicity
         for (var branch : branches) {
-            if (branch.parameters().isEmpty()) continue;
+            if (branch.parameters().isEmpty())
+                continue;
             Variable branchParam = branch.parameters().get(0);
-            if (branchParam.typeName() == null) continue;
+            if (branchParam.typeName() == null)
+                continue;
             String branchType = TypeInfo.simpleName(branchParam.typeName());
             if (branchType.equals(inputTypeName)
                     || branchType.equals("Any")
@@ -2761,7 +2857,8 @@ public class TypeChecker {
                 String mult = branchParam.multiplicity();
                 boolean branchAcceptsMany = mult == null || mult.equals("*")
                         || mult.equals("0") || mult.contains("..");
-                if (inputIsMany && !branchAcceptsMany) continue;
+                if (inputIsMany && !branchAcceptsMany)
+                    continue;
                 // Match found — compile the body with params bound as let bindings
                 // so that variable references get substituted with actual values
                 CompilationContext matchCtx = ctx;
@@ -2787,13 +2884,20 @@ public class TypeChecker {
 
     /** Infers the simple type name from an AST node. */
     private String inferTypeName(ValueSpecification vs) {
-        if (vs instanceof CString) return "String";
-        if (vs instanceof CInteger) return "Integer";
-        if (vs instanceof CFloat) return "Float";
-        if (vs instanceof CDecimal) return "Decimal";
-        if (vs instanceof CBoolean) return "Boolean";
-        if (vs instanceof CStrictDate) return "StrictDate";
-        if (vs instanceof CDateTime) return "DateTime";
+        if (vs instanceof CString)
+            return "String";
+        if (vs instanceof CInteger)
+            return "Integer";
+        if (vs instanceof CFloat)
+            return "Float";
+        if (vs instanceof CDecimal)
+            return "Decimal";
+        if (vs instanceof CBoolean)
+            return "Boolean";
+        if (vs instanceof CStrictDate)
+            return "StrictDate";
+        if (vs instanceof CDateTime)
+            return "DateTime";
         if (vs instanceof PureCollection(List<ValueSpecification> values)) {
             // Infer from first element, or fall through to side table
             if (!values.isEmpty()) {
@@ -2805,18 +2909,24 @@ public class TypeChecker {
         if (info != null && info.scalarType() != null) {
             GenericType st = info.scalarType();
             // For list types (e.g. from cast), use the element type
-            if (st.isList() && st.elementType() != null) st = st.elementType();
-            if (st == GenericType.Primitive.STRING) return "String";
-            if (st == GenericType.Primitive.INTEGER) return "Integer";
-            if (st == GenericType.Primitive.FLOAT) return "Float";
-            if (st == GenericType.Primitive.BOOLEAN) return "Boolean";
+            if (st.isList() && st.elementType() != null)
+                st = st.elementType();
+            if (st == GenericType.Primitive.STRING)
+                return "String";
+            if (st == GenericType.Primitive.INTEGER)
+                return "Integer";
+            if (st == GenericType.Primitive.FLOAT)
+                return "Float";
+            if (st == GenericType.Primitive.BOOLEAN)
+                return "Boolean";
         }
         return null;
     }
 
-
-
-    /** Compiles list-producing functions (tail, init, reverse, etc.) — always returns a list. */
+    /**
+     * Compiles list-producing functions (tail, init, reverse, etc.) — always
+     * returns a list.
+     */
     private TypeInfo compileListProducing(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
@@ -2851,7 +2961,8 @@ public class TypeChecker {
     /** Compiles map(source, {x|body}). */
     private TypeInfo compileMap(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) throw new PureCompileException("map requires at least 1 parameter");
+        if (params.isEmpty())
+            throw new PureCompileException("map requires at least 1 parameter");
 
         // 1. Compile source
         TypeInfo sourceInfo = compileExpr(params.get(0), ctx);
@@ -2870,9 +2981,8 @@ public class TypeChecker {
         }
 
         // 3. Register lambda param and compile body with proper context
-        if (params.size() > 1 && params.get(1) instanceof LambdaFunction(
-                List<Variable> parameters, List<ValueSpecification> body
-        )) {
+        if (params.size() > 1
+                && params.get(1) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
             CompilationContext lambdaCtx = ctx;
             if (!parameters.isEmpty()) {
                 String paramName = parameters.get(0).name();
@@ -2901,7 +3011,9 @@ public class TypeChecker {
         return scalar(af);
     }
 
-    /** Compiles find(source, {x|predicate}) — returns element type of source list. */
+    /**
+     * Compiles find(source, {x|predicate}) — returns element type of source list.
+     */
     private TypeInfo compileFind(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
@@ -2940,7 +3052,10 @@ public class TypeChecker {
         return scalarTypedMany(af, GenericType.listOf(GenericType.pairOf(elemA, elemB)));
     }
 
-    /** Compiles forAll(list, {e|predicate}) and exists(list, {e|predicate}) — always BOOLEAN. */
+    /**
+     * Compiles forAll(list, {e|predicate}) and exists(list, {e|predicate}) — always
+     * BOOLEAN.
+     */
     private TypeInfo compileCollectionPredicate(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
@@ -2949,13 +3064,18 @@ public class TypeChecker {
         return scalarTyped(af, GenericType.Primitive.BOOLEAN);
     }
 
-    /** Compiles size(source) — always returns Integer scalar, for both relations and lists. */
+    /**
+     * Compiles size(source) — always returns Integer scalar, for both relations and
+     * lists.
+     */
     private TypeInfo compileSize(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         // Compile source so its TypeInfo is available to PlanGenerator
         for (var p : params) {
-            try { compileExpr(p, ctx); }
-            catch (PureCompileException ignored) { }
+            try {
+                compileExpr(p, ctx);
+            } catch (PureCompileException ignored) {
+            }
         }
         TypeInfo info = TypeInfo.builder().scalarType(GenericType.Primitive.INTEGER)
                 .expressionType(ExpressionType.one(GenericType.Primitive.INTEGER)).build();
@@ -2964,7 +3084,8 @@ public class TypeChecker {
     }
 
     /**
-     * write() is a mutation: operates on relations (needs relational compilation path)
+     * write() is a mutation: operates on relations (needs relational compilation
+     * path)
      * but returns a scalar Integer count. relationType keeps PlanGenerator routing
      * through generateRelation → generateWrite; returnType tells execution layer
      * to extract a ScalarResult.
@@ -2972,8 +3093,10 @@ public class TypeChecker {
     private TypeInfo compileWrite(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
-            try { compileExpr(p, ctx); }
-            catch (PureCompileException ignored) { }
+            try {
+                compileExpr(p, ctx);
+            } catch (PureCompileException ignored) {
+            }
         }
         var writeRelType = RelationType.ofSingle("value", GenericType.Primitive.INTEGER);
         TypeInfo info = TypeInfo.builder()
@@ -3078,14 +3201,19 @@ public class TypeChecker {
         };
     }
 
-    /** Compiles variant get(source, key) — resolves access pattern (index vs field). */
+    /**
+     * Compiles variant get(source, key) — resolves access pattern (index vs field).
+     */
     private TypeInfo compileGet(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        // Compile params that don't already have TypeInfo (avoid overwriting lambda param info)
+        // Compile params that don't already have TypeInfo (avoid overwriting lambda
+        // param info)
         for (var p : params) {
             if (types.get(p) == null) {
-                try { compileExpr(p, ctx); }
-                catch (PureCompileException ignored) { }
+                try {
+                    compileExpr(p, ctx);
+                } catch (PureCompileException ignored) {
+                }
             }
         }
 
@@ -3113,7 +3241,8 @@ public class TypeChecker {
         // get() always returns a variant — default to JSON if no @Type annotation
         GenericType getType = targetType != null ? targetType : GenericType.Primitive.JSON;
         builder.scalarType(getType).expressionType(ExpressionType.one(getType));
-        if (access != null) builder.variantAccess(access);
+        if (access != null)
+            builder.variantAccess(access);
         TypeInfo info = builder.build();
         types.put(af, info);
         return info;
@@ -3128,14 +3257,18 @@ public class TypeChecker {
         String fn = simpleName(af.function());
 
         // Resolve the right overload by arity — this distinguishes e.g.
-        // sum(numbers:Number[*]):Number[1]           (arity 1, scalar)
-        // sum<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1]  (arity 3, window)
+        // sum(numbers:Number[*]):Number[1] (arity 1, scalar)
+        // sum<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1] (arity 3, window)
         var defs = builtinRegistry.resolve(fn);
         NativeFunctionDef def = null;
         for (var d : defs) {
-            if (d.arity() == params.size()) { def = d; break; }
+            if (d.arity() == params.size()) {
+                def = d;
+                break;
+            }
         }
-        if (def == null && !defs.isEmpty()) def = defs.getFirst();
+        if (def == null && !defs.isEmpty())
+            def = defs.getFirst();
 
         if (def != null) {
             PType retType = def.returnType();
@@ -3143,7 +3276,8 @@ public class TypeChecker {
             // Concrete return (Integer, String, Float, etc.) → always return that type
             if (retType instanceof PType.Concrete c) {
                 GenericType gt = c.toGenericType();
-                if (gt != null) return scalarTyped(af, gt);
+                if (gt != null)
+                    return scalarTyped(af, gt);
             }
 
             // TypeVar return (T) in window context → propagate relationType
@@ -3168,7 +3302,8 @@ public class TypeChecker {
             if (sourceInfo != null && sourceInfo.scalarType() != null) {
                 GenericType propType = sourceInfo.scalarType();
                 // List-reducing functions extract a scalar from a list → unwrap element type.
-                // Only list-PRESERVING functions (sort, split, pair, list) keep the List wrapper.
+                // Only list-PRESERVING functions (sort, split, pair, list) keep the List
+                // wrapper.
                 // Also: maxBy/minBy with topK (3 args) return a list, not a scalar.
                 boolean preserveList = isListPreserving(fn)
                         || ((fn.equals("maxBy") || fn.equals("minBy")) && params.size() >= 3);
@@ -3194,7 +3329,8 @@ public class TypeChecker {
     }
 
     /**
-     * Returns true if the function preserves a list — i.e., takes a list and returns a list.
+     * Returns true if the function preserves a list — i.e., takes a list and
+     * returns a list.
      * All other functions that accept a list reduce it to a scalar element type.
      * 
      * Examples: sort([1,2,3]) → [1,2,3] (list), but min([1,2,3]) → 1 (scalar).
@@ -3202,16 +3338,19 @@ public class TypeChecker {
     private static boolean isListPreserving(String fn) {
         return switch (fn) {
             case "sort", "sortBy",
-                 "split",
-                 "pair", "list",
-                 "toVariant" -> true;
+                    "split",
+                    "pair", "list",
+                    "toVariant" ->
+                true;
             default -> false;
         };
     }
 
     /**
-     * True if the function both preserves the list type AND produces N independent values.
-     * sort/sortBy/split return an array of N elements that should each become a row.
+     * True if the function both preserves the list type AND produces N independent
+     * values.
+     * sort/sortBy/split return an array of N elements that should each become a
+     * row.
      * list/pair/toVariant wrap values into a single opaque list → multiplicity [1].
      */
     private static boolean isListProducingMany(String fn) {
@@ -3224,7 +3363,8 @@ public class TypeChecker {
     /**
      * Return type for aggregate functions, resolved from the registry.
      * Uses the scalar (arity-1) overload's parsed return type.
-     * Throws if the aggregate is not registered — all aggregates MUST be in the registry.
+     * Throws if the aggregate is not registered — all aggregates MUST be in the
+     * registry.
      */
     private GenericType aggReturnType(String aggFunc) {
         if (aggFunc == null) {
@@ -3232,27 +3372,32 @@ public class TypeChecker {
             return GenericType.Primitive.NUMBER;
         }
         var defs = builtinRegistry.resolve(aggFunc.toLowerCase());
-        if (defs.isEmpty()) defs = builtinRegistry.resolve(aggFunc);
+        if (defs.isEmpty())
+            defs = builtinRegistry.resolve(aggFunc);
         if (defs.isEmpty()) {
             throw new PureCompileException(
                     "Aggregate function '" + aggFunc + "' is not registered in BuiltinFunctionRegistry");
         }
-        // Find the scalar aggregate overload (arity 1) — not the window overload (arity 3)
+        // Find the scalar aggregate overload (arity 1) — not the window overload (arity
+        // 3)
         for (var d : defs) {
             if (d.arity() == 1 && d.returnType() instanceof PType.Concrete c) {
                 GenericType gt = c.toGenericType();
-                if (gt != null) return gt;
+                if (gt != null)
+                    return gt;
             }
         }
         // Try any overload with a concrete return type
         for (var d : defs) {
             if (d.returnType() instanceof PType.Concrete c) {
                 GenericType gt = c.toGenericType();
-                if (gt != null) return gt;
+                if (gt != null)
+                    return gt;
             }
         }
         // TypeVar return (e.g., minBy<T>→T, maxBy<T>→T): type depends on source column.
-        // Return NUMBER so refinedAggReturnType() can refine to the actual source column type.
+        // Return NUMBER so refinedAggReturnType() can refine to the actual source
+        // column type.
         for (var d : defs) {
             if (d.returnType() instanceof PType.TypeVar) {
                 return GenericType.Primitive.NUMBER;
@@ -3263,42 +3408,57 @@ public class TypeChecker {
     }
 
     /**
-     * Returns a refined aggregate return type: if the generic aggReturnType is NUMBER,
-     * uses the source column's concrete type instead (e.g., SUM(integerCol) → Integer).
+     * Returns a refined aggregate return type: if the generic aggReturnType is
+     * NUMBER,
+     * uses the source column's concrete type instead (e.g., SUM(integerCol) →
+     * Integer).
      */
-    private GenericType refinedAggReturnType(String aggFunc, String sourceColumn, Map<String, GenericType> sourceColumns) {
+    private GenericType refinedAggReturnType(String aggFunc, String sourceColumn,
+            Map<String, GenericType> sourceColumns) {
         GenericType returnType = aggReturnType(aggFunc);
         if (returnType == GenericType.Primitive.NUMBER && sourceColumn != null && sourceColumns != null) {
             GenericType colType = sourceColumns.get(sourceColumn);
-            if (colType != null) returnType = colType;
+            if (colType != null)
+                returnType = colType;
         }
         return returnType;
     }
 
-    /** Infers a GenericType from a literal value expression (pivot count patterns). */
+    /**
+     * Infers a GenericType from a literal value expression (pivot count patterns).
+     */
     private static GenericType inferLiteralType(ValueSpecification expr, GenericType fallback) {
-        if (expr instanceof CInteger) return GenericType.Primitive.INTEGER;
-        if (expr instanceof CFloat) return GenericType.Primitive.FLOAT;
-        if (expr instanceof CDecimal) return GenericType.Primitive.DECIMAL;
-        if (expr instanceof CString) return GenericType.Primitive.STRING;
-        if (expr instanceof CBoolean) return GenericType.Primitive.BOOLEAN;
+        if (expr instanceof CInteger)
+            return GenericType.Primitive.INTEGER;
+        if (expr instanceof CFloat)
+            return GenericType.Primitive.FLOAT;
+        if (expr instanceof CDecimal)
+            return GenericType.Primitive.DECIMAL;
+        if (expr instanceof CString)
+            return GenericType.Primitive.STRING;
+        if (expr instanceof CBoolean)
+            return GenericType.Primitive.BOOLEAN;
         return fallback;
     }
 
     /**
-     * Infers a GenericType from an expression by walking the AST for column references.
+     * Infers a GenericType from an expression by walking the AST for column
+     * references.
      * E.g., $x.treePlanted * $x.coefficient → finds treePlanted:Integer → Integer.
      * Returns the first resolved column type, or the fallback if none found.
      */
-    private static GenericType inferExprType(ValueSpecification expr, Map<String, GenericType> sourceColumns, GenericType fallback) {
+    private static GenericType inferExprType(ValueSpecification expr, Map<String, GenericType> sourceColumns,
+            GenericType fallback) {
         if (expr instanceof AppliedProperty ap) {
             GenericType colType = sourceColumns.get(ap.property());
-            if (colType != null) return colType;
+            if (colType != null)
+                return colType;
         }
         if (expr instanceof AppliedFunction af) {
             for (var p : af.parameters()) {
                 GenericType found = inferExprType(p, sourceColumns, null);
-                if (found != null) return found;
+                if (found != null)
+                    return found;
             }
         }
         return fallback;
@@ -3327,8 +3487,8 @@ public class TypeChecker {
         LambdaFunction lambda = cs.function1();
 
         // Bind ALL lambda parameters to the source RelationType.
-        // Simple extend: {x|$x.prop}            — 1 param, x = row
-        // Window extend: {p,w,r|$p->fn($w,$r)}  — 3 params, all bound to source columns
+        // Simple extend: {x|$x.prop} — 1 param, x = row
+        // Window extend: {p,w,r|$p->fn($w,$r)} — 3 params, all bound to source columns
         CompilationContext bodyCtx = ctx;
         if (sourceType != null) {
             for (var lp : lambda.parameters()) {
@@ -3362,8 +3522,10 @@ public class TypeChecker {
     private TypeInfo compileIf(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         for (var p : params) {
-            try { compileExpr(p, ctx); }
-            catch (PureCompileException ignored) { }
+            try {
+                compileExpr(p, ctx);
+            } catch (PureCompileException ignored) {
+            }
         }
         // Unify then/else branch types
         GenericType resultType = null;
@@ -3398,7 +3560,8 @@ public class TypeChecker {
     /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
     private TypeInfo compileBlock(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> stmts = af.parameters();
-        if (stmts.isEmpty()) return scalar(af);
+        if (stmts.isEmpty())
+            return scalar(af);
 
         CompilationContext blockCtx = ctx;
         // Process all statements; for let stmts, enrich context with binding
@@ -3420,7 +3583,8 @@ public class TypeChecker {
         ValueSpecification lastStmt = stmts.getLast();
         TypeInfo result = compileExpr(lastStmt, blockCtx);
         // Set inlinedBody on the block node → PlanGenerator transparently skips
-        // through block to the result expression (same pattern as user function inlining)
+        // through block to the result expression (same pattern as user function
+        // inlining)
         TypeInfo blockInfo = TypeInfo.from(result).inlinedBody(lastStmt).build();
         types.put(af, blockInfo);
         return blockInfo;
@@ -3452,9 +3616,8 @@ public class TypeChecker {
             return result;
         }
         // eval(lambda, args) — compile lambda body and store as inlinedBody
-        if (params.size() >= 2 && params.get(0) instanceof LambdaFunction(
-                List<Variable> parameters, List<ValueSpecification> body
-        )) {
+        if (params.size() >= 2
+                && params.get(0) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
             if (!body.isEmpty()) {
                 // Bind each lambda param to its corresponding arg value
                 CompilationContext evalCtx = ctx;
@@ -3487,7 +3650,8 @@ public class TypeChecker {
     }
 
     /**
-     * Registry-gated dispatch: checks user-defined functions first, then the builtin
+     * Registry-gated dispatch: checks user-defined functions first, then the
+     * builtin
      * registry. If the function is registered as a builtin, routes to
      * compileTypePropagating (generic type inference). If not found anywhere,
      * throws a compile error — NO more passthrough.
@@ -3510,8 +3674,8 @@ public class TypeChecker {
         // 3. Unknown function → compile error. No more passthrough!
         throw new PureCompileException(
                 "Unknown function '" + funcName + "'. "
-                + "Function is not registered in the builtin registry and no user-defined function found. "
-                + "Available functions: " + builtinRegistry.functionCount() + " registered.");
+                        + "Function is not registered in the builtin registry and no user-defined function found. "
+                        + "Available functions: " + builtinRegistry.functionCount() + " registered.");
     }
 
     /**
@@ -3628,7 +3792,8 @@ public class TypeChecker {
             // Compile the property value expression so Variables etc. are in the side table
             compileExpr(entry.getValue(), ctx);
             // If property is to-many [*] but value is a single element (not a Collection),
-            // tag the value's TypeInfo with list scalarType so PlanGenerator wraps it in [].
+            // tag the value's TypeInfo with list scalarType so PlanGenerator wraps it in
+            // [].
             if (prop.isCollection() && !(entry.getValue() instanceof PureCollection)) {
                 var valInfo = types.get(entry.getValue());
                 if (valInfo != null) {
@@ -3651,9 +3816,10 @@ public class TypeChecker {
                 // Resolve FULL class from modelContext — property genericType may be a
                 // forward-reference stub with no properties
                 var resolvedClass = modelContext != null
-                    ? modelContext.findClass(elementClass.qualifiedName()).orElse(elementClass)
-                    : elementClass;
-                // Build identity mapping for element class so compileProject can resolve leaf properties
+                        ? modelContext.findClass(elementClass.qualifiedName()).orElse(elementClass)
+                        : elementClass;
+                // Build identity mapping for element class so compileProject can resolve leaf
+                // properties
                 var targetMapping = RelationalMapping.identity(resolvedClass);
                 associations.put(prop.name(), new TypeInfo.AssociationTarget(targetMapping, null, true));
             }
@@ -3668,7 +3834,6 @@ public class TypeChecker {
         types.put(ci, info);
         return info;
     }
-
 
     private TypeInfo compileRelationAccessor(ClassInstance ci, CompilationContext ctx) {
         String tableRef = (String) ci.value();
@@ -3689,10 +3854,14 @@ public class TypeChecker {
                 for (var row : tds.rows()) {
                     if (i < row.size() && row.get(i) != null) {
                         Object val = row.get(i);
-                        if (val instanceof Long) colType = GenericType.Primitive.INTEGER;
-                        else if (val instanceof Double) colType = GenericType.Primitive.FLOAT;
-                        else if (val instanceof Boolean) colType = GenericType.Primitive.BOOLEAN;
-                        else colType = GenericType.Primitive.STRING;
+                        if (val instanceof Long)
+                            colType = GenericType.Primitive.INTEGER;
+                        else if (val instanceof Double)
+                            colType = GenericType.Primitive.FLOAT;
+                        else if (val instanceof Boolean)
+                            colType = GenericType.Primitive.BOOLEAN;
+                        else
+                            colType = GenericType.Primitive.STRING;
                         break;
                     }
                 }
@@ -3708,7 +3877,8 @@ public class TypeChecker {
 
     /** Maps a TDS type annotation string to a GenericType. */
     private static GenericType mapTdsColumnType(String typeStr) {
-        if (typeStr == null) return null;
+        if (typeStr == null)
+            return null;
         return switch (typeStr) {
             case "Integer" -> GenericType.Primitive.INTEGER;
             case "Float", "Number" -> GenericType.Primitive.FLOAT;
@@ -3737,7 +3907,8 @@ public class TypeChecker {
                         ClassMapping mapping = ctx.getMapping(v.name());
                         if (mapping != null) {
                             var columnOpt = (mapping instanceof RelationalMapping rm2)
-                                    ? rm2.getColumnForProperty(ap.property()) : java.util.Optional.<String>empty();
+                                    ? rm2.getColumnForProperty(ap.property())
+                                    : java.util.Optional.<String>empty();
                             if (columnOpt.isPresent()) {
                                 // Property is in the mapping — check the property name (alias)
                                 // against projected columns, not the physical column name
@@ -3791,10 +3962,11 @@ public class TypeChecker {
                 }
                 // List-preserving functions: propagate source list type through
                 // filter/sort/reverse produce same list type, map may transform element type
-                // Only set if not already computed by dedicated compile methods (avoids overwrite)
+                // Only set if not already computed by dedicated compile methods (avoids
+                // overwrite)
                 if (types.get(af) == null
                         && ("filter".equals(simple) || "sort".equals(simple)
-                            || "reverse".equals(simple) || "map".equals(simple))
+                                || "reverse".equals(simple) || "map".equals(simple))
                         && !af.parameters().isEmpty()) {
                     TypeInfo sourceType = types.get(af.parameters().get(0));
                     if (sourceType != null) {
@@ -3841,14 +4013,12 @@ public class TypeChecker {
                 return tableOpt.get();
         }
 
-        if (mappingRegistry != null) {
-            var mappingOpt = mappingRegistry.findByTableName(tableKey);
-            if (mappingOpt.isPresent())
-                return mappingOpt.get().table();
-            mappingOpt = mappingRegistry.findByTableName(tableName);
-            if (mappingOpt.isPresent())
-                return mappingOpt.get().table();
-        }
+        var mappingOpt = mappingRegistry().findByTableName(tableKey);
+        if (mappingOpt.isPresent())
+            return mappingOpt.get().table();
+        mappingOpt = mappingRegistry().findByTableName(tableName);
+        if (mappingOpt.isPresent())
+            return mappingOpt.get().table();
 
         throw new PureCompileException("Table not found: " + tableRef);
     }
@@ -4071,7 +4241,8 @@ public class TypeChecker {
                 return extractPropertyChain(ap);
             }
         }
-        // ColSpec — extract property from lambda body if present, cs.name() is the alias
+        // ColSpec — extract property from lambda body if present, cs.name() is the
+        // alias
         if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
             if (cs.function1() != null && !cs.function1().body().isEmpty()) {
                 ValueSpecification body = cs.function1().body().get(0);
@@ -4142,7 +4313,8 @@ public class TypeChecker {
         if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
             return cs.name();
         }
-        // ColSpecArray and AppliedFunction (over()) are handled by compileExtend directly.
+        // ColSpecArray and AppliedFunction (over()) are handled by compileExtend
+        // directly.
         // No recursion — new column names only come from ColSpec.
         return null;
     }
@@ -4154,9 +4326,8 @@ public class TypeChecker {
      * Returns a ColumnSpec with sourceCol, alias, and Pure aggregate function name.
      */
     private TypeInfo.ColumnSpec extractAggSpec(ValueSpecification vs) {
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec(
-                String name, LambdaFunction function1, LambdaFunction function2
-        )) {
+        if (vs instanceof ClassInstance ci
+                && ci.value() instanceof ColSpec(String name, LambdaFunction function1, LambdaFunction function2)) {
             String sourceCol = null;
             String aggFunc = null;
 
@@ -4208,14 +4379,17 @@ public class TypeChecker {
                 }
             }
 
-            // If sourceCol still null, fall back to alias (e.g., ~[total:x|$x.id] with no explicit column)
-            if (sourceCol == null) sourceCol = name;
+            // If sourceCol still null, fall back to alias (e.g., ~[total:x|$x.id] with no
+            // explicit column)
+            if (sourceCol == null)
+                sourceCol = name;
 
             // Extract aggregate function from function2 lambda: y|$y->sum()
             List<String> allExtraArgs = new ArrayList<>(extraArgsFromFunc1);
             if (function2 != null && !function2.body().isEmpty()) {
                 var body = function2.body().get(0);
-                // Resolve through cast(): cast wraps the real aggregate in type-assertion context
+                // Resolve through cast(): cast wraps the real aggregate in type-assertion
+                // context
                 AppliedFunction bodyAf = resolveAggregateFunctionBody(body);
                 if (bodyAf != null) {
                     aggFunc = simpleName(bodyAf.function());
@@ -4227,11 +4401,15 @@ public class TypeChecker {
                         double pValue = 0.5;
                         var pParams = bodyAf.parameters();
                         if (pParams.size() > 1) {
-                            if (pParams.get(1) instanceof CFloat(double value)) pValue = value;
-                            else if (pParams.get(1) instanceof CDecimal(java.math.BigDecimal value)) pValue = value.doubleValue();
+                            if (pParams.get(1) instanceof CFloat(double value))
+                                pValue = value;
+                            else if (pParams.get(1) instanceof CDecimal(java.math.BigDecimal value))
+                                pValue = value.doubleValue();
                         }
-                        if (pParams.size() > 2 && pParams.get(2) instanceof CBoolean(boolean value)) ascending = value;
-                        if (pParams.size() > 3 && pParams.get(3) instanceof CBoolean(boolean value)) continuous = value;
+                        if (pParams.size() > 2 && pParams.get(2) instanceof CBoolean(boolean value))
+                            ascending = value;
+                        if (pParams.size() > 3 && pParams.get(3) instanceof CBoolean(boolean value))
+                            continuous = value;
                         aggFunc = continuous ? "percentileCont" : "percentileDisc";
                         double effectiveValue = ascending ? pValue : (1.0 - pValue);
                         String valStr = effectiveValue == (long) effectiveValue
@@ -4259,11 +4437,13 @@ public class TypeChecker {
             }
 
             // aggFunc must be set by now — either from function1 or function2
-            if (aggFunc == null) aggFunc = "plus"; // only for simple ~[total:x|$x.id] with no agg function
+            if (aggFunc == null)
+                aggFunc = "plus"; // only for simple ~[total:x|$x.id] with no agg function
 
             // Extract cast type if function2 body is cast(inner, @Type)
             String castType = (function2 != null && !function2.body().isEmpty())
-                    ? extractCastType(function2.body().get(0)) : null;
+                    ? extractCastType(function2.body().get(0))
+                    : null;
             if (castType != null) {
                 return TypeInfo.ColumnSpec.aggCast(sourceCol, name, aggFunc, allExtraArgs, castType);
             }
@@ -4404,11 +4584,13 @@ public class TypeChecker {
             return typed(v, varType, null);
         }
         // Let binding → inline the bound expression via inlinedBody
-        // PlanGenerator already handles inlinedBody at both relational and scalar levels
+        // PlanGenerator already handles inlinedBody at both relational and scalar
+        // levels
         ValueSpecification letValue = ctx.getLetBinding(v.name());
         if (letValue != null) {
             TypeInfo letInfo = compileExpr(letValue, ctx);
-            // Create a TypeInfo with the compiled type info AND inlinedBody pointing to the bound value
+            // Create a TypeInfo with the compiled type info AND inlinedBody pointing to the
+            // bound value
             TypeInfo inlined = TypeInfo.from(letInfo).inlinedBody(letValue).build();
             types.put(v, inlined);
             return inlined;
@@ -4497,7 +4679,7 @@ public class TypeChecker {
                 // Extract the column's GenericType for the return type
                 GenericType colType = ownerInfo.relationType().getColumnType(ap.property());
                 ExpressionType propExprType = colType != null
-                        ? ExpressionType.many(GenericType.listOf(colType))   // String[*], Integer[*], etc.
+                        ? ExpressionType.many(GenericType.listOf(colType)) // String[*], Integer[*], etc.
                         : null;
                 var info = TypeInfo.from(projectInfo)
                         .inlinedBody(projectNode)
@@ -4522,7 +4704,8 @@ public class TypeChecker {
     }
 
     /**
-     * Synthesizes structExtract(instance, 'field') for .property on instance literals.
+     * Synthesizes structExtract(instance, 'field') for .property on instance
+     * literals.
      * PlanGenerator handles structExtract → STRUCT_EXTRACT(struct, 'field').
      */
     private TypeInfo inlineStructExtract(AppliedProperty ap, ClassInstance ci,
@@ -4543,7 +4726,8 @@ public class TypeChecker {
         }
         GenericType elementType = unifyElementType(coll.values());
         // For struct collections, carry both list type AND struct column info
-        // so isList() works (for contains/head/find dispatch) AND project() can resolve columns
+        // so isList() works (for contains/head/find dispatch) AND project() can resolve
+        // columns
         if (!coll.values().isEmpty()) {
             TypeInfo firstElem = types.get(coll.values().get(0));
             if (firstElem != null && firstElem.mapping() != null && firstElem.relationType() != null) {
@@ -4591,7 +4775,8 @@ public class TypeChecker {
 
     /**
      * Finds the common supertype for a list of expressions.
-     * All numeric → NUMBER, all temporal → DATE, all same ClassType → that ClassType,
+     * All numeric → NUMBER, all temporal → DATE, all same ClassType → that
+     * ClassType,
      * all ClassTypes with common supertype → LCA ClassType, mixed → ANY.
      */
     private GenericType unifyElementType(java.util.List<ValueSpecification> values) {
@@ -4612,7 +4797,8 @@ public class TypeChecker {
             String current = classTypes.get(0);
             for (int i = 1; i < classTypes.size(); i++) {
                 var lcaOpt = findLowestCommonAncestor(current, classTypes.get(i));
-                if (lcaOpt.isEmpty()) return GenericType.Primitive.ANY;
+                if (lcaOpt.isEmpty())
+                    return GenericType.Primitive.ANY;
                 current = lcaOpt.get().qualifiedName();
             }
             return new GenericType.ClassType(current);
@@ -4712,5 +4898,10 @@ public class TypeChecker {
             return new GenericType.PrecisionDecimal(18, 0);
         }
         return GenericType.Primitive.DECIMAL;
+    }
+
+    /** Convenience accessor — never null (ModelContext guarantees non-null empty registry). */
+    private MappingRegistry mappingRegistry() {
+        return modelContext.getMappingRegistry();
     }
 }
