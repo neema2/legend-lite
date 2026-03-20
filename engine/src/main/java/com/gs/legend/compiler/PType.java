@@ -29,6 +29,20 @@ public sealed interface PType {
      */
     record Concrete(String name) implements PType {
         @Override public String toString() { return name; }
+
+        /**
+         * Bridges parse-time type to compile-time type.
+         * Maps this concrete Pure type name to the corresponding {@link com.gs.legend.plan.GenericType}.
+         * Returns null if the name doesn't map to a known GenericType (e.g., "JoinKind", "DurationUnit").
+         */
+        public com.gs.legend.plan.GenericType toGenericType() {
+            if ("Decimal".equals(name)) return new com.gs.legend.plan.GenericType.PrecisionDecimal(18, 3);
+            try {
+                return com.gs.legend.plan.GenericType.fromTypeName(name);
+            } catch (IllegalArgumentException e) {
+                return null;  // Non-primitive types (JoinKind, DurationUnit, etc.)
+            }
+        }
     }
 
     /**

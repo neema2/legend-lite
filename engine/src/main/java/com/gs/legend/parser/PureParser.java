@@ -2,6 +2,7 @@ package com.gs.legend.parser;
 
 import com.gs.legend.antlr.PackageableElementBuilder;
 import com.gs.legend.antlr.PureLexer;
+import com.gs.legend.compiler.NativeFunctionDef;
 import com.gs.legend.model.def.*;
 import org.antlr.v4.runtime.*;
 
@@ -129,6 +130,14 @@ public final class PureParser {
     public static EnumDefinition parseEnumDefinition(String pureSource) {
         return PackageableElementBuilder.extractFirstEnumDefinition(antlrParse(pureSource))
                 .orElseThrow(() -> new PureParseException("No enum definition found in source"));
+    }
+
+    // ==================== Native Function Parsing ====================
+
+    /** Parses a single native function signature into a structured NativeFunctionDef. */
+    public static NativeFunctionDef parseNativeFunction(String pureSignature) {
+        return PackageableElementBuilder.extractFirstNativeFunctionDefinition(antlrParse(pureSignature))
+                .orElseThrow(() -> new PureParseException("No native function definition found in source"));
     }
 
     // ==================== Internal ====================

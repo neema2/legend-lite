@@ -72,10 +72,11 @@ class BuiltinFunctionRegistryTest {
     }
 
     @Test
-    void absHasMultipleOverloads() {
+    void absHasGenericOverload() {
         var overloads = registry.resolve("abs");
-        assertEquals(4, overloads.size(),
-                "abs should have 4 overloads (Integer, Float, Number, Decimal)");
+        assertEquals(1, overloads.size(),
+                "abs should have 1 generic overload (TypeVar T)");
+        assertInstanceOf(PType.TypeVar.class, overloads.getFirst().returnType());
     }
 
     @Test
@@ -96,35 +97,7 @@ class BuiltinFunctionRegistryTest {
         assertEquals(2, overloads.size());
     }
 
-    // ===== Name extraction =====
 
-    @Test
-    void extractFunctionName_nativeSimple() {
-        assertEquals("filter",
-                BuiltinFunctionRegistry.extractFunctionName(
-                        "native function filter<T>(rel:Relation<T>[1]):Relation<T>[1];"));
-    }
-
-    @Test
-    void extractFunctionName_nativeQualified() {
-        assertEquals("toLower",
-                BuiltinFunctionRegistry.extractFunctionName(
-                        "native function meta::pure::functions::string::toLower(source:String[1]):String[1];"));
-    }
-
-    @Test
-    void extractFunctionName_nonNative() {
-        assertEquals("lag",
-                BuiltinFunctionRegistry.extractFunctionName(
-                        "function lag<T>(w:Relation<T>[1], r:T[1]):T[0..1];"));
-    }
-
-    @Test
-    void extractFunctionName_withAnnotation() {
-        assertEquals("filter",
-                BuiltinFunctionRegistry.extractFunctionName(
-                        "native function <<PCT.function>> filter<T>(rel:Relation<T>[1]):Relation<T>[1];"));
-    }
 
     // ===== NativeFunctionDef =====
 
@@ -132,8 +105,8 @@ class BuiltinFunctionRegistryTest {
     void resolvedDef_hasCorrectArity() {
         var defs = registry.resolve("filter");
         assertEquals(1, defs.size());
-        // Placeholder arity is 0 until parser is wired
-        assertEquals(0, defs.getFirst().arity());
+        // Real parser: filter<T>(rel, f) has arity 2
+        assertEquals(2, defs.getFirst().arity());
     }
 
     @Test

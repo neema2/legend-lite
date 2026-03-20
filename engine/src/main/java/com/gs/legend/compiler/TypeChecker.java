@@ -42,6 +42,8 @@ public class TypeChecker {
     private final ModelContext modelContext;
     /** Per-node type info, consumed by PlanGenerator. */
     private final java.util.IdentityHashMap<ValueSpecification, TypeInfo> types = new java.util.IdentityHashMap<>();
+    /** Built-in function registry — validates function existence, no more passthrough. */
+    private final BuiltinFunctionRegistry builtinRegistry = BuiltinFunctionRegistry.instance();
 
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = modelContext;
@@ -220,61 +222,16 @@ public class TypeChecker {
             // --- GraphFetch / Serialize (M2M JSON output) ---
             case "graphFetch" -> compileGraphFetch(af, ctx);
             case "serialize" -> compileSerialize(af, ctx);
-            // --- Collection / scalar functions (type-propagating) ---
+            // --- Collection / scalar functions ---
             case "range" -> compileRange(af, ctx);
             // List-producing functions: always return a list
             case "tail", "init", "reverse", "removeDuplicates", "removeDuplicatesBy", "add" -> compileListProducing(af, ctx);
-            case "at", "head",
-                 "in", "length", "indexOf",
-                 "last", "isEmpty", "isNotEmpty",
-                 "contains", "startsWith", "endsWith",
-                 "toLower", "toUpper", "trim", "replace",
-                 "parseInteger", "parseFloat", "parseDecimal",
-                 "parseBoolean", "parseDate",
-                 "toString", "substring",
-                 // --- Math ---
-                 "abs", "ceiling", "floor", "round", "sign",
-                 "sqrt", "pow", "exp", "log", "log10",
-                 "sinh", "cosh", "tanh", "cot", "cbrt",
-                 "mod", "rem", "divide",
-                 "bitAnd", "bitOr", "bitXor", "bitShiftLeft", "bitShiftRight",
-                 "plus", "minus", "times",
-                 "toDecimal", "toDegrees", "toRadians", "pi",
-                 // --- String ---
-                 "ascii", "char", "lpad", "rpad", "splitPart",
-                 "left", "right", "ltrim", "rtrim",
-                 "split", "matches",
-                 "toUpperFirstCharacter", "toLowerFirstCharacter",
-                 "jaroWinklerSimilarity", "hashCode",
-                 "reverseString", "format", "joinStrings",
-                 "encodeBase64", "decodeBase64",
-                 "hash", "levenshteinDistance",
-                 // --- Date/Time ---
-                 "now", "today",
-                 "date", "dateDiff", "datePart", "adjust", "timeBucket",
-                 "year", "monthNumber", "dayOfMonth",
-                 "hour", "hasHour", "hasMinute", "hasMonth",
-                 "hasDay", "hasSecond", "hasSubsecond",
-                 "hasSubsecondWithAtLeastPrecision",
-                 // --- Comparison / Boolean ---
-                 "equal", "greaterThan", "lessThan", "between",
-                 "compare", "not", "and", "or", "xor",
-                 "greatest", "least", "coalesce",
-                 // --- Aggregation ---
-                 "count", "sum", "average", "mean", "median", "mode",
-                 "min", "max", "minBy", "maxBy",
-                 "stdDevSample", "variance", "varianceSample",
-                 "variancePopulation", "covarPopulation",
-                 "percentile", "percentileCont", "corr",
-                 // --- Misc ---
-                 "pair", "list",
-                 "type", "generateGuid" -> compileTypePropagating(af, ctx);
             case "eval" -> compileEval(af, ctx);
             case "match" -> compileMatch(af, ctx);
             // --- Conditional ---
             case "if" -> compileIf(af, ctx);
-            // --- Scalar (pass-through — PlanGenerator handles SQL) ---
-            default -> compilePassThrough(af, ctx);
+            // --- Registry-driven: all other functions must be registered ---
+            default -> compileRegistryOrUserFunction(af, funcName, ctx);
         };
     }
 
@@ -3152,22 +3109,43 @@ public class TypeChecker {
             compileExpr(p, ctx);
         }
         String fn = simpleName(af.function());
-        // Known return type takes priority — e.g., count() always returns INTEGER,
-        // even in a window context like $p->count($w,$r).
-        GenericType returnType = knownReturnType(fn);
-        if (returnType != null) {
-            return scalarTyped(af, returnType);
+
+        // Resolve the right overload by arity — this distinguishes e.g.
+        // sum(numbers:Number[*]):Number[1]           (arity 1, scalar)
+        // sum<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1]  (arity 3, window)
+        var defs = builtinRegistry.resolve(fn);
+        NativeFunctionDef def = null;
+        for (var d : defs) {
+            if (d.arity() == params.size()) { def = d; break; }
         }
-        // Window aggregate dispatch: when a known aggregate function is called
-        // in a window context, propagate the source relationType so subsequent
-        // .property access resolves (e.g. $p->sum($w), $p->last($w,$r).salary).
-        if (!params.isEmpty() && isWindowAggregate(fn)) {
-            TypeInfo sourceInfo = types.get(params.get(0));
-            if (sourceInfo != null && sourceInfo.relationType() != null) {
-                return typed(af, sourceInfo.relationType(), sourceInfo.mapping());
+        if (def == null && !defs.isEmpty()) def = defs.getFirst();
+
+        if (def != null) {
+            PType retType = def.returnType();
+
+            // Concrete return (Integer, String, Float, etc.) → always return that type
+            if (retType instanceof PType.Concrete c) {
+                GenericType gt = c.toGenericType();
+                if (gt != null) return scalarTyped(af, gt);
+            }
+
+            // TypeVar return (T) in window context → propagate relationType
+            // Only for window overloads whose first parameter is Relation<T>.
+            // Scalar TypeVar functions (head, at, toOne, sort, etc.) have T[*]
+            // as first param and fall through to the source-propagation fallback.
+            if (retType instanceof PType.TypeVar && !params.isEmpty()
+                    && !def.params().isEmpty()
+                    && def.params().get(0).type() instanceof PType.Parameterized p
+                    && "Relation".equals(p.rawType())) {
+                TypeInfo sourceInfo = types.get(params.get(0));
+                if (sourceInfo != null && sourceInfo.relationType() != null) {
+                    return typed(af, sourceInfo.relationType(), sourceInfo.mapping());
+                }
             }
         }
-        // Propagate scalarType from source (first param)
+
+        // Fallback: propagate scalarType from source (first param)
+        // Handles unregistered functions and list unwrapping
         if (!params.isEmpty()) {
             TypeInfo sourceInfo = types.get(params.get(0));
             if (sourceInfo != null && sourceInfo.scalarType() != null) {
@@ -3194,55 +3172,6 @@ public class TypeChecker {
             }
         }
         return scalar(af);
-    }
-
-    /** Return type for functions whose result type differs from their source type. */
-    private static GenericType knownReturnType(String funcName) {
-        return switch (funcName) {
-            // Integer-producing functions
-            case "length", "indexOf", "size", "count", "ascii",
-                 "parseInteger", "toInteger",
-                 "ceiling", "floor", "round", "mod", "rem", "sign",
-                 "levenshteinDistance",
-                 "hashCode" -> GenericType.Primitive.INTEGER;
-            // Float-producing functions
-            case "toFloat", "parseFloat",
-                 "sinh", "cosh", "tanh", "cot", "cbrt",
-                 "jaroWinklerSimilarity" -> GenericType.Primitive.FLOAT;
-            // Decimal-producing functions
-            case "toDecimal", "parseDecimal" -> new GenericType.PrecisionDecimal(18, 3);
-            // String-producing functions
-            case "toString", "toLower", "toUpper", "trim", "format",
-                 "joinStrings", "replace", "lpad", "rpad", "splitPart",
-                 "left", "right", "ltrim", "rtrim",
-                 "toUpperFirstCharacter", "toLowerFirstCharacter",
-                 "reverseString", "encodeBase64", "decodeBase64", "char",
-                 "hash", "generateGuid" -> GenericType.Primitive.STRING;
-            // Boolean-producing functions
-            case "contains", "in", "startsWith", "endsWith",
-                 "isEmpty", "isNotEmpty", "parseBoolean",
-                 "matches",
-                 "hasDay", "hasSecond", "hasSubsecond",
-                 "hasSubsecondWithAtLeastPrecision" -> GenericType.Primitive.BOOLEAN;
-            // Number-producing (propagate numeric but don't narrow)
-            case "toDegrees", "toRadians" -> GenericType.Primitive.FLOAT;
-            // DateTime / Date standalone functions
-            case "now" -> GenericType.Primitive.DATE_TIME;
-            case "today" -> GenericType.Primitive.STRICT_DATE;
-            default -> null; // propagate source type
-        };
-    }
-
-    /** Returns true if the function is a known aggregate that can be used as a window function. */
-    private static boolean isWindowAggregate(String fn) {
-        return switch (fn) {
-            case "sum", "avg", "average", "mean",
-                 "min", "max", "first", "last",
-                 "variance", "varianceSample", "variancePopulation",
-                 "stdDevSample", "stdDevPopulation",
-                 "median", "percentile", "mode" -> true;
-            default -> false;
-        };
     }
 
     /**
@@ -3514,47 +3443,32 @@ public class TypeChecker {
         return scalar(af);
     }
 
-    private TypeInfo compilePassThrough(AppliedFunction af, CompilationContext ctx) {
-        String funcName = af.function();
-        String simple = simpleName(funcName);
+    /**
+     * Registry-gated dispatch: checks user-defined functions first, then the builtin
+     * registry. If the function is registered as a builtin, routes to
+     * compileTypePropagating (generic type inference). If not found anywhere,
+     * throws a compile error — NO more passthrough.
+     */
+    private TypeInfo compileRegistryOrUserFunction(AppliedFunction af, String funcName, CompilationContext ctx) {
+        String qualifiedName = af.function();
 
-        // === User-defined function inlining ===
-        var fn = functionRegistry.getFunction(funcName)
-                .or(() -> functionRegistry.getFunction(simple));
+        // 1. User-defined function inlining (PureFunctionRegistry)
+        var fn = functionRegistry.getFunction(qualifiedName)
+                .or(() -> functionRegistry.getFunction(funcName));
         if (fn.isPresent()) {
             return inlineUserFunction(af, fn.get(), ctx);
         }
 
-        // Try to compile the first param as a relation source
-        if (!af.parameters().isEmpty()) {
-            try {
-                TypeInfo source = compileExpr(af.parameters().get(0), ctx);
-                // Compile remaining params so lambda variables get scoped
-                for (int i = 1; i < af.parameters().size(); i++) {
-                    try { compileExpr(af.parameters().get(i), ctx); }
-                    catch (PureCompileException ignored) { }
-                }
-                if (source.relationType() != null && !source.relationType().columns().isEmpty()) {
-                    return typed(af, source.relationType(), source.mapping());
-                }
-                // Propagate scalar type from source even for unknown functions
-                if (source.scalarType() != null) {
-                    System.err.println("[COMPILER] Unhandled function '" + simple
-                            + "' — propagating source type (add to dispatch!)");
-                    types.put(af, TypeInfo.scalarOf(source.scalarType()));
-                    return TypeInfo.scalarOf(source.scalarType());
-                }
-            } catch (PureCompileException ignored) {
-                // Not a relation source — still compile remaining params
-                for (int i = 1; i < af.parameters().size(); i++) {
-                    try { compileExpr(af.parameters().get(i), ctx); }
-                    catch (PureCompileException ignored2) { }
-                }
-            }
+        // 2. Builtin function registry — all scalar/aggregate/window DynaFunctions
+        if (builtinRegistry.isRegistered(funcName)) {
+            return compileTypePropagating(af, ctx);
         }
-        System.err.println("[COMPILER] Unhandled function '" + simple
-                + "' — returning scalar (add to dispatch!)");
-        return scalar(af);
+
+        // 3. Unknown function → compile error. No more passthrough!
+        throw new PureCompileException(
+                "Unknown function '" + funcName + "'. "
+                + "Function is not registered in the builtin registry and no user-defined function found. "
+                + "Available functions: " + builtinRegistry.functionCount() + " registered.");
     }
 
     /**

@@ -184,6 +184,12 @@ public abstract class AbstractDatabaseTest {
             {
                 place: String[1];
             }
+
+            Class meta::pure::functions::boolean::tests::equalitymodel::SideClass
+            {
+                stringId: String[1];
+                intId: Integer[1];
+            }
             """;
 
     /**

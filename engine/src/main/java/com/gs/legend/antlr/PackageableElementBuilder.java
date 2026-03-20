@@ -1,17 +1,22 @@
 package com.gs.legend.antlr;
 
+import com.gs.legend.compiler.Mult;
+import com.gs.legend.compiler.NativeFunctionDef;
+import com.gs.legend.compiler.PType;
 import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.ClassDefinition.ConstraintDefinition;
 import com.gs.legend.model.def.ClassDefinition.DerivedPropertyDefinition;
 import com.gs.legend.model.def.ClassDefinition.PropertyDefinition;
 import com.gs.legend.model.def.StereotypeApplication;
 import com.gs.legend.model.def.TaggedValue;
+import com.gs.legend.model.m3.Multiplicity;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.misc.Interval;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * ANTLR visitor that builds ClassDefinition objects from the parse tree.
@@ -1636,6 +1641,263 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
     }
 
+    // ==================== Native Function Parsing ====================
+
+    /** Known type parameter names (declared in <T,V,K,...>). Set during visitNativeFunction. */
+    private Set<String> currentTypeParams = Set.of();
+
+    /**
+     * Visits a native function definition and returns a NativeFunctionDef.
+     *
+     * Grammar rule:
+     * nativeFunction: NATIVE FUNCTION qualifiedName typeAndMultiplicityParameters?
+     *                 functionTypeSignature SEMI_COLON
+     * functionTypeSignature: PAREN_OPEN (functionVariableExpression (COMMA functionVariableExpression)*)?
+     *                       PAREN_CLOSE COLON type multiplicity
+     */
+    public NativeFunctionDef visitNativeFunction(PureParser.NativeFunctionContext ctx) {
+        // Extract simple name
+        String qualifiedName = ctx.qualifiedName().getText();
+        String name = qualifiedName.contains("::")
+                ? qualifiedName.substring(qualifiedName.lastIndexOf("::") + 2)
+                : qualifiedName;
+
+        // Extract type params and multiplicity params from <T,V|m>
+        List<String> typeParams = new ArrayList<>();
+        List<String> multParams = new ArrayList<>();
+        if (ctx.typeAndMultiplicityParameters() != null) {
+            var tmp = ctx.typeAndMultiplicityParameters();
+            if (tmp.typeParameters() != null) {
+                for (var tp : tmp.typeParameters().typeParameter()) {
+                    typeParams.add(tp.getText());
+                }
+            }
+            if (tmp.multiplictyParameters() != null) {
+                for (var id : tmp.multiplictyParameters().identifier()) {
+                    multParams.add(id.getText());
+                }
+            }
+        }
+
+        // Set context for type resolution (so T is recognized as TypeVar)
+        currentTypeParams = Set.copyOf(typeParams);
+
+        // Extract parameters from functionTypeSignature
+        var sigCtx = ctx.functionTypeSignature();
+        List<PType.Param> params = new ArrayList<>();
+        if (sigCtx.functionVariableExpression() != null) {
+            for (var varCtx : sigCtx.functionVariableExpression()) {
+                String paramName = varCtx.identifier().getText();
+                PType paramType = visitPureType(varCtx.type());
+                Mult paramMult = visitPureMult(varCtx.multiplicity());
+                params.add(new PType.Param(paramName, paramType, paramMult));
+            }
+        }
+
+        // Extract return type and multiplicity
+        PType returnType = visitPureType(sigCtx.type());
+        Mult returnMult = visitPureMult(sigCtx.multiplicity());
+
+        // Raw signature text for display/debugging
+        String rawSignature = getOriginalText(ctx);
+
+        currentTypeParams = Set.of();
+
+        return new NativeFunctionDef(
+                name, typeParams, multParams, params, returnType, returnMult, rawSignature);
+    }
+
+    /**
+     * Visits a Pure type node and produces a PType.
+     *
+     * Grammar rule:
+     * type: (qualifiedName (<typeArguments (| multArgs)?>)?) typeVariableValues?
+     *     | ({functionTypePureType (,...)* -> type multiplicity})
+     *     | relationType
+     *     | unitName
+     */
+    public PType visitPureType(PureParser.TypeContext ctx) {
+        // Case 1: Function type — {T[1]->Boolean[1]}
+        if (ctx.BRACE_OPEN() != null) {
+            List<PType.Param> fnParams = new ArrayList<>();
+            for (var ftp : ctx.functionTypePureType()) {
+                PType pType = visitPureType(ftp.type());
+                Mult pMult = visitPureMult(ftp.multiplicity());
+                fnParams.add(new PType.Param("", pType, pMult));
+            }
+            // The return type and multiplicity after the arrow
+            PType retType = visitPureType(ctx.type());
+            Mult retMult = visitPureMult(ctx.multiplicity());
+            return new PType.FunctionType(fnParams, retType, retMult);
+        }
+
+        // Case 2: Relation type — (name:String[1], age:Integer[1])
+        if (ctx.relationType() != null) {
+            List<PType.RelationTypeVar.Column> columns = new ArrayList<>();
+            for (var colCtx : ctx.relationType().columnInfo()) {
+                String colName = colCtx.columnName().getText();
+                PType colType = visitPureType(colCtx.type());
+                Mult colMult = colCtx.multiplicity() != null
+                        ? visitPureMult(colCtx.multiplicity()) : Mult.ONE;
+                columns.add(new PType.RelationTypeVar.Column(colName, colType, colMult));
+            }
+            return new PType.RelationTypeVar(columns);
+        }
+
+        // Case 3: Named type — qualifiedName with optional type arguments
+        if (ctx.qualifiedName() != null) {
+            String rawName = ctx.qualifiedName().getText();
+            // Strip package prefix if present
+            String simpleName = rawName.contains("::")
+                    ? rawName.substring(rawName.lastIndexOf("::") + 2) : rawName;
+
+            // Check for type arguments: Relation<T>, Function<{...}>, ColSpec<Z⊆T>
+            if (ctx.LESS_THAN() != null && ctx.typeArguments() != null) {
+                List<PType> typeArgs = new ArrayList<>();
+                List<PType.Constraint> constraints = new ArrayList<>();
+
+                for (var typeArg : ctx.typeArguments().type()) {
+                    PType arg = visitPureType(typeArg);
+                    typeArgs.add(arg);
+                }
+
+                // Check for constraints in type argument text (Z⊆T, Z=(?:K))
+                // These appear as part of the typeArguments text
+                parseConstraints(ctx.typeArguments(), constraints);
+
+                return new PType.Parameterized(simpleName, typeArgs, constraints);
+            }
+
+            // No type args — concrete type or type variable
+            if (currentTypeParams.contains(simpleName)) {
+                return new PType.TypeVar(simpleName);
+            }
+            return new PType.Concrete(simpleName);
+        }
+
+        // Case 4: Unit name
+        if (ctx.unitName() != null) {
+            return new PType.Concrete(ctx.unitName().getText());
+        }
+
+        // Fallback
+        return new PType.Concrete(ctx.getText());
+    }
+
+    /**
+     * Parses schema constraints from type arguments text.
+     * Handles: Z⊆T (subset), Z=(?:K) (type-match).
+     */
+    private void parseConstraints(PureParser.TypeArgumentsContext ctx, List<PType.Constraint> constraints) {
+        // Walk the raw text looking for ⊆ (subset) and =(?:...) (type-match) patterns
+        String text = getOriginalText(ctx);
+
+        // Subset: Z⊆T — the ⊆ character (U+2286) in the text
+        int subsetIdx = text.indexOf('⊆');
+        while (subsetIdx >= 0) {
+            // Find the variable name before ⊆
+            int varStart = subsetIdx - 1;
+            while (varStart >= 0 && Character.isLetterOrDigit(text.charAt(varStart))) varStart--;
+            varStart++;
+            String subVar = text.substring(varStart, subsetIdx);
+
+            // Find the variable name after ⊆
+            int ofStart = subsetIdx + 1;
+            int ofEnd = ofStart;
+            while (ofEnd < text.length() && Character.isLetterOrDigit(text.charAt(ofEnd))) ofEnd++;
+            String ofVar = text.substring(ofStart, ofEnd);
+
+            if (!subVar.isEmpty() && !ofVar.isEmpty()) {
+                constraints.add(new PType.Constraint.Subset(subVar, ofVar));
+            }
+            subsetIdx = text.indexOf('⊆', ofEnd);
+        }
+
+        // TypeMatch: Z=(?:K) pattern
+        int matchIdx = text.indexOf("=(?:");
+        while (matchIdx >= 0) {
+            int varStart = matchIdx - 1;
+            while (varStart >= 0 && Character.isLetterOrDigit(text.charAt(varStart))) varStart--;
+            varStart++;
+            String matchVar = text.substring(varStart, matchIdx);
+
+            int keyStart = matchIdx + 4; // after "=(?:"
+            int keyEnd = text.indexOf(')', keyStart);
+            if (keyEnd > keyStart) {
+                String keyVar = text.substring(keyStart, keyEnd);
+                if (!matchVar.isEmpty() && !keyVar.isEmpty()) {
+                    constraints.add(new PType.Constraint.TypeMatch(matchVar, keyVar));
+                }
+            }
+            matchIdx = text.indexOf("=(?:", keyEnd > 0 ? keyEnd : matchIdx + 4);
+        }
+    }
+
+    /**
+     * Visits a multiplicity node and produces a Mult.
+     *
+     * Grammar rule:
+     * multiplicity: BRACKET_OPEN multiplicityArgument BRACKET_CLOSE
+     * multiplicityArgument: identifier | ((fromMultiplicity DOT_DOT)? toMultiplicity)
+     */
+    public Mult visitPureMult(PureParser.MultiplicityContext ctx) {
+        if (ctx == null) return Mult.ONE;
+        var arg = ctx.multiplicityArgument();
+
+        // Multiplicity variable: [m]
+        if (arg.identifier() != null) {
+            return new Mult.Var(arg.identifier().getText());
+        }
+
+        // Range: [0..1], [1..*], [1], [*]
+        if (arg.fromMultiplicity() != null) {
+            int from = Integer.parseInt(arg.fromMultiplicity().getText());
+            var toCtx = arg.toMultiplicity();
+            Integer to = toCtx.STAR() != null ? null : Integer.parseInt(toCtx.getText());
+            return new Mult.Fixed(new Multiplicity(from, to));
+        }
+
+        // Just toMultiplicity: [1], [*]
+        if (arg.toMultiplicity() != null) {
+            var toCtx = arg.toMultiplicity();
+            if (toCtx.STAR() != null) {
+                return Mult.ZERO_MANY;
+            }
+            int val = Integer.parseInt(toCtx.getText());
+            if (val == 1) return Mult.ONE;
+            return new Mult.Fixed(new Multiplicity(val, val));
+        }
+
+        return Mult.ONE;
+    }
+
+    // ==================== Native Function Extraction ====================
+
+    /**
+     * Extracts all NativeFunctionDefs from a parsed definition context.
+     */
+    public static List<NativeFunctionDef> extractNativeFunctionDefinitions(
+            PureParser.DefinitionContext definitionCtx) {
+        List<NativeFunctionDef> result = new ArrayList<>();
+        if (definitionCtx == null) return result;
+        PackageableElementBuilder builder = new PackageableElementBuilder();
+        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+            if (elemCtx.nativeFunction() != null) {
+                result.add(builder.visitNativeFunction(elemCtx.nativeFunction()));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Extracts the first NativeFunctionDef from a parsed definition context.
+     */
+    public static Optional<NativeFunctionDef> extractFirstNativeFunctionDefinition(
+            PureParser.DefinitionContext definitionCtx) {
+        List<NativeFunctionDef> defs = extractNativeFunctionDefinitions(definitionCtx);
+        return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
+
     // ==================== Combined Extraction ====================
 
     /**
@@ -1677,8 +1939,8 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             } else if (elemCtx.runtime() != null) {
                 result.add(builder.visitRuntime(elemCtx.runtime()));
             }
-            // singleConnectionRuntime, nativeFunction, instance, measureDefinition ignored
-            // for now
+            // singleConnectionRuntime, instance, measureDefinition ignored for now
+            // nativeFunction handled via extractNativeFunctionDefinitions()
         }
 
         return result;
