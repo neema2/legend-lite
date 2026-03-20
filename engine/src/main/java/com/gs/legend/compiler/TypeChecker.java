@@ -139,14 +139,16 @@ public class TypeChecker {
 
     /** Registers a scalar TypeInfo with a known GenericType. */
     private TypeInfo scalarTyped(ValueSpecification ast, GenericType type) {
-        var info = TypeInfo.scalarOf(type);
+        var info = TypeInfo.builder().scalarType(type)
+                .expressionType(ExpressionType.one(type)).build();
         types.put(ast, info);
         return info;
     }
 
     /** Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent values. */
     private TypeInfo scalarTypedMany(ValueSpecification ast, GenericType type) {
-        var info = TypeInfo.builder().scalarType(type).multiplicity(Multiplicity.MANY).build();
+        var info = TypeInfo.builder().scalarType(type).multiplicity(Multiplicity.MANY)
+                .expressionType(ExpressionType.many(type)).build();
         types.put(ast, info);
         return info;
     }
@@ -165,7 +167,8 @@ public class TypeChecker {
      */
     private TypeInfo typed(ValueSpecification ast, RelationType relationType,
             ClassMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
-        var info = TypeInfo.of(relationType, mapping, associations);
+        var info = TypeInfo.builder().relationType(relationType).mapping(mapping).associations(associations)
+                .expressionType(ExpressionType.many(new GenericType.Relation(relationType))).build();
         types.put(ast, info);
         return info;
     }
@@ -874,7 +877,13 @@ public class TypeChecker {
             throw new PureCompileException("first() requires a source");
         }
         TypeInfo source = compileExpr(params.get(0), ctx);
-        return typed(af, source.relationType(), source.mapping());
+        if (source.relationType() != null) {
+            return typed(af, source.relationType(), source.mapping());
+        }
+        // Scalar source: first([1,2,3]) → element type with [0..1] multiplicity
+        GenericType elemType = source.scalarType() != null ? source.scalarType().elementType()
+                : GenericType.Primitive.ANY;
+        return scalarTyped(af, elemType);
     }
 
     /** Compiles distinct(source, columns?). */
@@ -2422,7 +2431,7 @@ public class TypeChecker {
      */
     private TypeInfo compileWindowNavigation(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) return scalar(af);
+        if (params.isEmpty()) throw new PureCompileException("lag/lead requires at least 1 parameter");
         TypeInfo source = compileExpr(params.get(0), ctx);
         for (int i = 1; i < params.size(); i++) {
             compileExpr(params.get(i), ctx);
@@ -2448,7 +2457,7 @@ public class TypeChecker {
     /** Compiles fold(list, {x,y|body}, init). */
     private TypeInfo compileFold(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3) return scalar(af);
+        if (params.size() < 3) throw new PureCompileException("fold requires 3 parameters: source, lambda, init");
 
         // 1. Compile source and init
         TypeInfo sourceInfo = compileExpr(params.get(0), ctx);
@@ -2716,11 +2725,11 @@ public class TypeChecker {
             try { compileExpr(p, ctx); }
             catch (PureCompileException ignored) { }
         }
-        if (params.size() < 2) return scalar(af);
+        if (params.size() < 2) throw new PureCompileException("match requires at least 2 parameters: value, branches");
 
         // Determine input type name
         String inputTypeName = inferTypeName(params.get(0));
-        if (inputTypeName == null) return scalar(af);
+        if (inputTypeName == null) throw new PureCompileException("match: cannot infer input type");
 
         // Extract branches from Collection (params[1])
         List<LambdaFunction> branches;
@@ -2732,7 +2741,7 @@ public class TypeChecker {
         } else if (params.get(1) instanceof LambdaFunction lf) {
             branches = List.of(lf);
         } else {
-            return scalar(af);
+            throw new PureCompileException("match: second parameter must be a lambda or collection of lambdas");
         }
 
         // Determine if input is a collection (affects multiplicity matching)
@@ -2842,7 +2851,7 @@ public class TypeChecker {
     /** Compiles map(source, {x|body}). */
     private TypeInfo compileMap(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) return scalar(af);
+        if (params.isEmpty()) throw new PureCompileException("map requires at least 1 parameter");
 
         // 1. Compile source
         TypeInfo sourceInfo = compileExpr(params.get(0), ctx);
