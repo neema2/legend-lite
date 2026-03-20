@@ -472,8 +472,13 @@ public class BuiltinFunctionRegistry {
                 "native function covarPopulation(x:Number[*], y:Number[*]):Number[1];");
         reg.registerSignature("corr", "native function corr(x:Number[*], y:Number[*]):Number[1];");
         reg.registerSignature("percentile", "native function percentile(numbers:Number[*], p:Number[1]):Number[1];");
+        reg.registerSignature("wavg", "native function wavg(numbers:Number[*]):Float[1];");
+        reg.registerSignature("covarSample", "native function covarSample(x:Number[*], y:Number[*]):Number[1];");
+        reg.registerSignature("stdDevPopulation", "native function stdDevPopulation(numbers:Number[*]):Number[1];");
         reg.registerSignature("percentileCont",
                 "native function percentileCont(numbers:Number[*], p:Number[1]):Number[1];");
+        reg.registerSignature("percentileDisc",
+                "native function percentileDisc(numbers:Number[*], p:Number[1]):Number[1];");
 
         // ===== Window aggregate overloads =====
         // These model the 3-param window call pattern: (Relation<T>, _Window<T>, T) → T

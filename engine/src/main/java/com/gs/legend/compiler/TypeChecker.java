@@ -3202,28 +3202,52 @@ public class TypeChecker {
         };
     }
 
-    /** Return type for aggregate functions. */
-    private static GenericType aggReturnType(String aggFunc) {
-        if (aggFunc == null) return GenericType.Primitive.NUMBER;
-        return switch (aggFunc.toLowerCase()) {
-            case "count" -> GenericType.Primitive.INTEGER;
-            case "joinstrings" -> GenericType.Primitive.STRING;
-            case "sum", "plus" -> GenericType.Primitive.NUMBER;
-            case "avg", "average", "mean", "wavg" -> GenericType.Primitive.FLOAT;
-            case "min", "max" -> GenericType.Primitive.NUMBER;
-            case "median", "percentile", "percentilecont" -> GenericType.Primitive.FLOAT;
-            case "stddevsample", "stddevpopulation", "variance",
-                 "variancesample", "variancepopulation",
-                 "covarpopulation", "corr" -> GenericType.Primitive.FLOAT;
-            default -> GenericType.Primitive.NUMBER;
-        };
+    /**
+     * Return type for aggregate functions, resolved from the registry.
+     * Uses the scalar (arity-1) overload's parsed return type.
+     * Throws if the aggregate is not registered — all aggregates MUST be in the registry.
+     */
+    private GenericType aggReturnType(String aggFunc) {
+        if (aggFunc == null) {
+            // Inline lambda expression in groupBy — no function name to resolve
+            return GenericType.Primitive.NUMBER;
+        }
+        var defs = builtinRegistry.resolve(aggFunc.toLowerCase());
+        if (defs.isEmpty()) defs = builtinRegistry.resolve(aggFunc);
+        if (defs.isEmpty()) {
+            throw new PureCompileException(
+                    "Aggregate function '" + aggFunc + "' is not registered in BuiltinFunctionRegistry");
+        }
+        // Find the scalar aggregate overload (arity 1) — not the window overload (arity 3)
+        for (var d : defs) {
+            if (d.arity() == 1 && d.returnType() instanceof PType.Concrete c) {
+                GenericType gt = c.toGenericType();
+                if (gt != null) return gt;
+            }
+        }
+        // Try any overload with a concrete return type
+        for (var d : defs) {
+            if (d.returnType() instanceof PType.Concrete c) {
+                GenericType gt = c.toGenericType();
+                if (gt != null) return gt;
+            }
+        }
+        // TypeVar return (e.g., minBy<T>→T, maxBy<T>→T): type depends on source column.
+        // Return NUMBER so refinedAggReturnType() can refine to the actual source column type.
+        for (var d : defs) {
+            if (d.returnType() instanceof PType.TypeVar) {
+                return GenericType.Primitive.NUMBER;
+            }
+        }
+        throw new PureCompileException(
+                "Aggregate function '" + aggFunc + "' has no resolvable return type in its registered signatures");
     }
 
     /**
      * Returns a refined aggregate return type: if the generic aggReturnType is NUMBER,
      * uses the source column's concrete type instead (e.g., SUM(integerCol) → Integer).
      */
-    private static GenericType refinedAggReturnType(String aggFunc, String sourceColumn, Map<String, GenericType> sourceColumns) {
+    private GenericType refinedAggReturnType(String aggFunc, String sourceColumn, Map<String, GenericType> sourceColumns) {
         GenericType returnType = aggReturnType(aggFunc);
         if (returnType == GenericType.Primitive.NUMBER && sourceColumn != null && sourceColumns != null) {
             GenericType colType = sourceColumns.get(sourceColumn);
