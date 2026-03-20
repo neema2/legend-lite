@@ -82,7 +82,12 @@ public record TypeInfo(
          * When non-null, PlanGenerator wraps SQL output in json_group_array(json_object(...)).
          * Compiler-resolved from parsed GraphFetchTree — no parser types cross this boundary.
          */
-        com.gs.legend.plan.GraphFetchSpec graphFetchSpec) {
+        com.gs.legend.plan.GraphFetchSpec graphFetchSpec,
+        /**
+         * Unified type signature: GenericType + Multiplicity bundled together.
+         * Non-null when stamped by TypeChecker. Will replace scalarType/relationType/returnType/multiplicity.
+         */
+        ExpressionType expressionType) {
 
     /**
      * Pre-resolved association navigation target.
@@ -411,6 +416,7 @@ public record TypeInfo(
         private Map<String, String> joinColumnRenames = Map.of();
         private Multiplicity multiplicity;
         private com.gs.legend.plan.GraphFetchSpec graphFetchSpec;
+        private ExpressionType expressionType;
 
         private Builder() {}
 
@@ -433,6 +439,7 @@ public record TypeInfo(
             this.joinColumnRenames = src.joinColumnRenames();
             this.multiplicity = src.multiplicity();
             this.graphFetchSpec = src.graphFetchSpec();
+            this.expressionType = src.expressionType();
         }
 
         public Builder relationType(RelationType v) { this.relationType = v; return this; }
@@ -453,12 +460,13 @@ public record TypeInfo(
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
         public Builder multiplicity(Multiplicity v) { this.multiplicity = v; return this; }
         public Builder graphFetchSpec(com.gs.legend.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
+        public Builder expressionType(ExpressionType v) { this.expressionType = v; return this; }
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
                     columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
                     lambdaParam, columnAlias, pivotSpec, variantAccess, returnType,
-                    joinColumnRenames, multiplicity, graphFetchSpec);
+                    joinColumnRenames, multiplicity, graphFetchSpec, expressionType);
         }
     }
 
