@@ -1,7 +1,6 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.store.Join;
 import com.gs.legend.plan.GenericType;
@@ -57,26 +56,12 @@ public record TypeInfo(
         /** Pre-resolved variant access annotation (for get() calls). */
         VariantAccess variantAccess,
         /**
-         * Pure-level return type of this expression.
-         * Primitive/EnumType → scalar, Parameterized(List) → collection,
-         * Relation → tabular, ClassType → graph/object.
-         * Non-null on root expressions; null on intermediate nodes during
-         * incremental rollout.
-         */
-        GenericType returnType,
-        /**
          * Right-side column renames for join duplicate resolution.
          * Maps original right-side column name → prefixed name.
          * Empty when no conflicts. Used by PlanGenerator to alias right-side columns.
          */
         Map<String, String> joinColumnRenames,
-        /**
-         * Pure-level multiplicity of this expression.
-         * Null means unset (treated as [1] / scalar).
-         * MANY ([*]) signals PlanGenerator to UNNEST list results into N rows.
-         * ONE ([1]) means the list is a single opaque value (e.g., fold result).
-         */
-        Multiplicity multiplicity,
+
         /**
          * Graph fetch specification for JSON output.
          * When non-null, PlanGenerator wraps SQL output in json_group_array(json_object(...)).
@@ -85,7 +70,7 @@ public record TypeInfo(
         com.gs.legend.plan.GraphFetchSpec graphFetchSpec,
         /**
          * Unified type signature: GenericType + Multiplicity bundled together.
-         * Non-null when stamped by TypeChecker. Will replace scalarType/relationType/returnType/multiplicity.
+         * Non-null when stamped by TypeChecker. Replaces scalarType/relationType/returnType.
          */
         ExpressionType expressionType) {
 
@@ -372,9 +357,9 @@ public record TypeInfo(
         private String columnAlias;
         private PivotSpec pivotSpec;
         private VariantAccess variantAccess;
-        private GenericType returnType;
+
         private Map<String, String> joinColumnRenames = Map.of();
-        private Multiplicity multiplicity;
+
         private com.gs.legend.plan.GraphFetchSpec graphFetchSpec;
         private ExpressionType expressionType;
 
@@ -395,9 +380,9 @@ public record TypeInfo(
             this.columnAlias = src.columnAlias();
             this.pivotSpec = src.pivotSpec();
             this.variantAccess = src.variantAccess();
-            this.returnType = src.returnType();
+
             this.joinColumnRenames = src.joinColumnRenames();
-            this.multiplicity = src.multiplicity();
+
             this.graphFetchSpec = src.graphFetchSpec();
             this.expressionType = src.expressionType();
         }
@@ -416,17 +401,17 @@ public record TypeInfo(
         public Builder columnAlias(String v) { this.columnAlias = v; return this; }
         public Builder pivotSpec(PivotSpec v) { this.pivotSpec = v; return this; }
         public Builder variantAccess(VariantAccess v) { this.variantAccess = v; return this; }
-        public Builder returnType(GenericType v) { this.returnType = v; return this; }
+
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
-        public Builder multiplicity(Multiplicity v) { this.multiplicity = v; return this; }
+
         public Builder graphFetchSpec(com.gs.legend.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
         public Builder expressionType(ExpressionType v) { this.expressionType = v; return this; }
 
         public TypeInfo build() {
             return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
                     columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
-                    lambdaParam, columnAlias, pivotSpec, variantAccess, returnType,
-                    joinColumnRenames, multiplicity, graphFetchSpec, expressionType);
+                    lambdaParam, columnAlias, pivotSpec, variantAccess,
+                    joinColumnRenames, graphFetchSpec, expressionType);
         }
     }
 
@@ -454,7 +439,7 @@ public record TypeInfo(
 
     /** True if this expression has multiplicity [*] (produces N independent values). */
     public boolean isMany() {
-        return multiplicity != null && multiplicity.isMany();
+        return expressionType != null && expressionType.isMany();
     }
 
     /** True if the scalar type is a date (StrictDate, DateTime, Date — not StrictTime). */

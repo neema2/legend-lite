@@ -12,11 +12,11 @@ import java.sql.Statement;
  *
  * <p>
  * Stateless — the plan already contains the rendered SQL and the
- * returnType, so no dialect or other state is needed.
+ * expressionType, so no dialect or other state is needed.
  *
  * <p>
  * Returns a typed {@link ExecutionResult} (TabularResult, ScalarResult,
- * CollectionResult) based on the plan's returnType.
+ * CollectionResult) based on the plan's expressionType.
  *
  * <pre>
  * var result = PlanExecutor.execute(plan, connection);
@@ -27,12 +27,12 @@ public class PlanExecutor {
 
     /**
      * Executes the plan and returns a typed ExecutionResult based on the
-     * plan's returnType.
+     * plan's expressionType.
      */
     public static ExecutionResult execute(SingleExecutionPlan plan, Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(plan.sql())) {
-            return ExecutionResult.fromResultSet(plan.returnType(), rs);
+            return ExecutionResult.fromResultSet(plan.expressionType(), rs);
         }
     }
 }

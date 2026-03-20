@@ -1,5 +1,6 @@
 package com.gs.legend.plan;
 
+import com.gs.legend.compiler.ExpressionType;
 import java.util.Objects;
 
 /**
@@ -8,15 +9,15 @@ import java.util.Objects;
  *
  * <p>
  * Contains a single {@link ExecutionNode} tree rooted at
- * {@link #rootExecutionNode} and the Pure-level {@link #returnType}
+ * {@link #rootExecutionNode} and the unified {@link ExpressionType}
  * of the compiled expression.
  */
 public record SingleExecutionPlan(
         ExecutionNode rootExecutionNode,
-        GenericType returnType) {
+        ExpressionType expressionType) {
 
     public SingleExecutionPlan {
-        Objects.requireNonNull(returnType, "returnType must not be null — compiler bug if missing");
+        Objects.requireNonNull(expressionType, "expressionType must not be null — compiler bug if missing");
     }
 
     /**
@@ -33,5 +34,3 @@ public record SingleExecutionPlan(
                 "Plan root is not a SQL node: " + rootExecutionNode.getClass().getSimpleName());
     }
 }
-
-

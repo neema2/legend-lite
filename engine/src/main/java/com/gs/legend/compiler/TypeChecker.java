@@ -4,7 +4,7 @@ import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.PureFunctionRegistry;
-import com.gs.legend.model.m3.Multiplicity;
+
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.mapping.RelationalMapping;
@@ -60,44 +60,15 @@ public class TypeChecker {
      * result and per-node side table.
      */
     public TypeCheckResult check(ValueSpecification vs) {
-        compileExpr(vs, new CompilationContext());
+        TypeInfo rootInfo = compileExpr(vs, new CompilationContext());
 
-        // Stamp returnType on root expression — THE single place this happens.
-        // Interior nodes don't need returnType; only the root matters for plan generation.
-        TypeInfo rootInfo = types.get(vs);
-        if (rootInfo != null && rootInfo.returnType() == null) {
-            GenericType returnType;
-            Multiplicity multiplicity = null;
-            if (rootInfo.inlinedBody() != null) {
-                // User function → check if inlined body has returnType already
-                TypeInfo bodyInfo = types.get(rootInfo.inlinedBody());
-                if (bodyInfo != null && bodyInfo.returnType() != null) {
-                    returnType = bodyInfo.returnType();
-                } else if (bodyInfo != null && bodyInfo.isScalar() && bodyInfo.scalarType() != null) {
-                    returnType = bodyInfo.scalarType();
-                } else if (bodyInfo != null && bodyInfo.relationType() != null) {
-                    returnType = new GenericType.Relation(bodyInfo.relationType());
-                } else {
-                    returnType = GenericType.Primitive.ANY;
-                }
-                // Propagate multiplicity from inlined body
-                if (bodyInfo != null) multiplicity = bodyInfo.multiplicity();
-            } else if (rootInfo.isScalar() && rootInfo.scalarType() != null) {
-                returnType = rootInfo.scalarType();
-                multiplicity = rootInfo.multiplicity();
-            } else if (rootInfo.relationType() != null) {
-                returnType = new GenericType.Relation(rootInfo.relationType());
-            } else {
-                returnType = GenericType.Primitive.ANY;
-            }
-            // Stamp multiplicity onto the GenericType itself (if Parameterized)
-            // so it flows through SingleExecutionPlan.returnType() → fromResultSet.
-            if (multiplicity != null && returnType instanceof GenericType.Parameterized p) {
-                returnType = new GenericType.Parameterized(p.rawType(), p.typeArgs(), multiplicity);
-            }
-            var builder = TypeInfo.from(rootInfo).returnType(returnType);
-            if (multiplicity != null) builder.multiplicity(multiplicity);
-            types.put(vs, builder.build());
+        if (rootInfo == null) {
+            throw new PureCompileException(
+                    "TypeChecker: no TypeInfo stamped for root " + vs.getClass().getSimpleName());
+        }
+        if (rootInfo.expressionType() == null) {
+            throw new PureCompileException(
+                    "TypeChecker: expressionType not stamped for root " + vs.getClass().getSimpleName());
         }
 
         return new TypeCheckResult(vs, types);
@@ -149,7 +120,7 @@ public class TypeChecker {
 
     /** Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent values. */
     private TypeInfo scalarTypedMany(ValueSpecification ast, GenericType type) {
-        var info = TypeInfo.builder().scalarType(type).multiplicity(Multiplicity.MANY)
+        var info = TypeInfo.builder().scalarType(type)
                 .expressionType(ExpressionType.many(type)).build();
         types.put(ast, info);
         return info;
@@ -587,10 +558,10 @@ public class TypeChecker {
             spec = toGraphFetchSpec(gft, targetClass);
         }
 
-        // (2) Stamp returnType = String (JSON serialization produces a string)
+        // (2) Stamp expressionType = JSON (serialized graph output)
         var info = TypeInfo.from(sourceInfo)
                 .graphFetchSpec(spec)
-                .returnType(com.gs.legend.plan.GenericType.Primitive.JSON)
+                .expressionType(ExpressionType.one(com.gs.legend.plan.GenericType.Primitive.JSON))
                 .build();
         types.put(af, info);
         return info;
@@ -730,8 +701,7 @@ public class TypeChecker {
             // Propagate source scalarType (e.g., List<Integer>) so downstream
             // functions like toVariant() can read it.
             var builder = TypeInfo.builder()
-                    .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)))
-                    .multiplicity(Multiplicity.MANY);
+                    .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)));
             if (source.scalarType() != null) {
                 builder.scalarType(source.scalarType())
                        .expressionType(ExpressionType.many(source.scalarType()));
@@ -2498,11 +2468,15 @@ public class TypeChecker {
                         List.of(params.get(2), params.get(0)));
                 compileExpr(concat, ctx);
                 // Point fold node to the synthetic concatenate via inlinedBody.
-                // Fold produces a single list value — stamp ONE so ExecutionResult
-                // unwraps the DuckDB array (vs MANY which treats rows as elements).
-                var info = TypeInfo.from(types.get(concat))
+                // Fold produces a single list value (ONE) — concatenate gives MANY, but fold semantics
+                // are ONE. compileLambda reads isMany() to decide whether to UNNEST.
+                TypeInfo concatInfo = types.get(concat);
+                ExpressionType foldType = concatInfo.expressionType() != null
+                        ? ExpressionType.one(concatInfo.expressionType().type())
+                        : concatInfo.expressionType();
+                var info = TypeInfo.from(concatInfo)
                         .inlinedBody(concat)
-                        .multiplicity(Multiplicity.ONE)
+                        .expressionType(foldType)
                         .build();
                 types.put(af, info);
                 return info;
@@ -2598,7 +2572,6 @@ public class TypeChecker {
                 // unwraps the DuckDB array (vs MANY which treats rows as elements).
                 var info = TypeInfo.builder().scalarType(accType)
                         .inlinedBody(newFold)
-                        .multiplicity(Multiplicity.ONE)
                         .expressionType(ExpressionType.one(accType))
                         .build();
                 types.put(af, info);
@@ -3005,7 +2978,6 @@ public class TypeChecker {
         var writeRelType = RelationType.ofSingle("value", GenericType.Primitive.INTEGER);
         TypeInfo info = TypeInfo.builder()
                 .relationType(writeRelType)
-                .returnType(GenericType.Primitive.INTEGER)
                 .expressionType(ExpressionType.one(GenericType.Primitive.INTEGER))
                 .build();
         types.put(af, info);
@@ -3368,9 +3340,9 @@ public class TypeChecker {
         if (bodyInfo != null && bodyInfo.scalarType() != null) {
             return bodyInfo.scalarType();
         }
-        // Fallback: returnType is List<X> (from property access on relational result)
-        if (bodyInfo != null && bodyInfo.returnType() != null) {
-            GenericType rt = bodyInfo.returnType();
+        // Fallback: expressionType (from property access on relational result)
+        if (bodyInfo != null && bodyInfo.expressionType() != null) {
+            GenericType rt = bodyInfo.expressionType().type();
             if (rt.isList() && rt.elementType() != null) {
                 return rt.elementType();
             }
@@ -4412,12 +4384,11 @@ public class TypeChecker {
             // Mutations (e.g. write()) set relationType for PlanGenerator routing but
             // returnType as scalar (Integer). Propagate that returnType so the root
             // stamping logic doesn't overwrite it with Relation.
-            if (bodyInfo.returnType() != null && !(bodyInfo.returnType() instanceof GenericType.Relation)) {
+            if (bodyInfo.expressionType() != null && !bodyInfo.expressionType().isRelation()) {
                 var info = TypeInfo.builder()
                         .relationType(bodyInfo.relationType())
                         .mapping(bodyInfo.mapping())
-                        .returnType(bodyInfo.returnType())
-                        .expressionType(ExpressionType.one(bodyInfo.returnType()))
+                        .expressionType(bodyInfo.expressionType())
                         .build();
                 types.put(lf, info);
                 return info;
@@ -4525,12 +4496,12 @@ public class TypeChecker {
                 TypeInfo projectInfo = compileExpr(projectNode, ctx);
                 // Extract the column's GenericType for the return type
                 GenericType colType = ownerInfo.relationType().getColumnType(ap.property());
-                GenericType returnType = colType != null
-                        ? GenericType.listOf(colType)   // String[*], Integer[*], etc.
+                ExpressionType propExprType = colType != null
+                        ? ExpressionType.many(GenericType.listOf(colType))   // String[*], Integer[*], etc.
                         : null;
                 var info = TypeInfo.from(projectInfo)
                         .inlinedBody(projectNode)
-                        .returnType(returnType)
+                        .expressionType(propExprType != null ? propExprType : projectInfo.expressionType())
                         .build();
                 types.put(ap, info);
                 return info;
@@ -4581,7 +4552,6 @@ public class TypeChecker {
                         .relationType(firstElem.relationType())
                         .mapping(firstElem.mapping())
                         .associations(firstElem.associations())
-                        .multiplicity(Multiplicity.MANY)
                         .expressionType(ExpressionType.many(GenericType.listOf(elementType)))
                         .build();
                 types.put(coll, info);

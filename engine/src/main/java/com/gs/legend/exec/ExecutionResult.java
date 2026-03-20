@@ -232,15 +232,16 @@ public sealed interface ExecutionResult {
 
     /**
      * Reads a JDBC ResultSet and creates the right ExecutionResult variant
-     * based on the compiler-provided returnType. The ResultSet is fully consumed.
+     * based on the compiler-provided ExpressionType. The ResultSet is fully consumed.
      *
      * Column types come from the compiler's GenericType/RelationType — NOT JDBC metadata.
      * Exception: pivot results use JDBC metadata for column names since pivot
      * output columns are data-dependent and unknown at compile time.
      */
-    static ExecutionResult fromResultSet(GenericType returnType, ResultSet rs) throws SQLException {
-        Objects.requireNonNull(returnType, "returnType must not be null");
+    static ExecutionResult fromResultSet(com.gs.legend.compiler.ExpressionType exprType, ResultSet rs) throws SQLException {
+        java.util.Objects.requireNonNull(exprType, "exprType must not be null");
 
+        GenericType returnType = exprType.type();
         ResultSetMetaData meta = rs.getMetaData();
         int colCount = meta.getColumnCount();
 
@@ -253,15 +254,9 @@ public sealed interface ExecutionResult {
         // Build the right variant using compiler types
         return switch (returnType) {
             case GenericType.Parameterized p when p.isList() -> {
-                // ONE multiplicity = single row with DuckDB array (list(), fold())
-                // MANY or null = N scalar rows (UNNEST'd collection expressions)
-                boolean isSingleArray = p.multiplicity() != null && !p.multiplicity().isMany();
-                @SuppressWarnings("unchecked")
-                List<Object> values = isSingleArray
-                        // Single row with array value (list(), fold()) → Row already unwrapped to List
-                        ? rows.stream().flatMap(r -> ((List<Object>) r.get(0)).stream()).toList()
-                        // N scalar rows (UNNEST'd) → each row is an element
-                        : rows.stream().map(r -> r.get(0)).toList();
+                // The SQL already handles UNNEST (when isMany) vs raw array (when ONE).
+                // By this point, each row has one value — map them directly.
+                List<Object> values = rows.stream().map(r -> r.get(0)).toList();
                 yield new CollectionResult(values, returnType);
             }
             case GenericType.Relation r -> {

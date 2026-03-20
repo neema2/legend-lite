@@ -94,11 +94,11 @@ public class PlanGenerator {
 
         // JSON wrapping now handled inside generateGraphFetch — no top-level intercept needed.
 
-        // returnType MUST be stamped by TypeChecker.check() — no silent fallback.
-        GenericType returnType = info.returnType();
-        if (returnType == null) {
+        // expressionType MUST be stamped by TypeChecker — no silent fallback.
+        var expressionType = info.expressionType();
+        if (expressionType == null) {
             throw new PureCompileException(
-                    "PlanGenerator: returnType not stamped by compiler for root expression "
+                    "PlanGenerator: expressionType not stamped by compiler for root expression "
                             + vs.getClass().getSimpleName()
                             + " — this is a compiler bug, not a query error");
         }
@@ -109,7 +109,7 @@ public class PlanGenerator {
                 info != null ? info.relationType() : null,
                 null // connectionRef resolved by QueryService at execution time
         );
-        return new SingleExecutionPlan(sqlNode, returnType);
+        return new SingleExecutionPlan(sqlNode, expressionType);
     }
 
     /**
