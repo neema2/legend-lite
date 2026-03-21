@@ -334,4 +334,19 @@ public abstract class AbstractChecker {
         throw new PureCompileException(
                 "Cannot extract column name from " + vs.getClass().getSimpleName());
     }
+
+    /**
+     * Extracts column names from a ValueSpecification.
+     * Handles both single ColSpec (~col) and ColSpecArray (~[col1, col2]).
+     */
+    protected static java.util.List<String> extractColumnNames(ValueSpecification vs) {
+        if (vs instanceof com.gs.legend.ast.ClassInstance(String type, Object value)
+                && value instanceof com.gs.legend.ast.ColSpecArray(java.util.List<com.gs.legend.ast.ColSpec> specs)) {
+            return specs.stream().map(com.gs.legend.ast.ColSpec::name).toList();
+        }
+        if (vs instanceof com.gs.legend.ast.PureCollection(java.util.List<ValueSpecification> values)) {
+            return values.stream().map(AbstractChecker::extractColumnName).toList();
+        }
+        return java.util.List.of(extractColumnName(vs));
+    }
 }

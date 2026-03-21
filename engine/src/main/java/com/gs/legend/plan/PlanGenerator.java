@@ -1256,15 +1256,16 @@ public class PlanGenerator {
         SqlBuilder source = generateRelation(af.parameters().get(0));
 
         TypeInfo info = unit.types().get(af);
-        var renameSpec = info.columnSpecs().get(0);
-        String oldName = renameSpec.columnName();
-        String newName = renameSpec.alias();
 
-        // Build SELECT using EXCLUDE + rename pattern (EXCLUDE rendered by SqlBuilder via dialect)
+        // Build SELECT using EXCLUDE + rename pattern for each rename pair
         SqlBuilder builder = new SqlBuilder().fromSubquery(source, "rename_src");
         builder.selectStar();
-        builder.addStarExcept(dialect.quoteIdentifier(oldName));
-        builder.addSelect(new SqlExpr.ColumnRef(oldName), dialect.quoteIdentifier(newName));
+        for (var renameSpec : info.columnSpecs()) {
+            String oldName = renameSpec.columnName();
+            String newName = renameSpec.alias();
+            builder.addStarExcept(dialect.quoteIdentifier(oldName));
+            builder.addSelect(new SqlExpr.ColumnRef(oldName), dialect.quoteIdentifier(newName));
+        }
         return builder;
     }
 

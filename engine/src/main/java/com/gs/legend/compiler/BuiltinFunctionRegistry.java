@@ -169,6 +169,8 @@ public class BuiltinFunctionRegistry {
         // Rename
         reg.registerSignature("rename",
                 "native function rename<T,Z,K,V>(r:Relation<T>[1], old:ColSpec<Z=(?:K)⊆T>[1], new:ColSpec<V=(?:K)>[1]):Relation<T-Z+V>[1];");
+        reg.registerSignature("rename",
+                "native function rename<T,Z,V>(r:Relation<T>[1], oldCols:ColSpecArray<Z⊆T>[1], newCols:ColSpecArray<V>[1]):Relation<T-Z+V>[1];");
 
         // Extend — scalar
         reg.registerSignature("extend",

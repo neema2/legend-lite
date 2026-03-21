@@ -873,23 +873,9 @@ public class TypeChecker implements TypeCheckEnv {
         if (params.size() < 3) {
             throw new PureCompileException("rename() requires source, old column, and new column");
         }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
-        GenericType.Relation.Schema sourceSchema = source.schema();
-        if (sourceSchema == null) {
-            throw new PureCompileException("rename() requires a relational source");
-        }
-
-        String oldName = extractColumnName(params.get(1));
-        String newName = extractColumnName(params.get(2));
-        sourceSchema.assertHasColumn(oldName);
-
-        GenericType.Relation.Schema outputSchema = sourceSchema.renameColumn(oldName, newName);
-        var info = TypeInfo.builder()
-                .mapping(source.mapping())
-                .columnSpecs(List.of(TypeInfo.ColumnSpec.renamed(oldName, newName)))
-                .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)))
-                .build();
+        NativeFunctionDef def = resolveSignature("rename", params.size(), source);
+        var info = new com.gs.legend.compiler.checkers.RenameChecker(this).check(af, source, ctx, def);
         types.put(af, info);
         return info;
     }
