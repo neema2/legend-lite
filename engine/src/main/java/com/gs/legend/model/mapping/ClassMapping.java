@@ -56,4 +56,17 @@ public sealed interface ClassMapping permits RelationalMapping, PureClassMapping
      * Whether this mapping has an expression for the given property.
      */
     boolean hasProperty(String propertyName);
+
+    /**
+     * Resolves a Pure property name to its physical column name.
+     *
+     * <p>Relational: property→column map lookup (e.g., "firstName" → "FIRST_NAME").
+     * <p>M2M: property name IS the column name.
+     *
+     * @return physical column name, or null if property is unknown
+     */
+    default String resolveColumn(String propertyName) {
+        if (propertyName == null) return null;
+        return hasProperty(propertyName) ? propertyName : null;
+    }
 }

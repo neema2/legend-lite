@@ -4,7 +4,7 @@ import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.store.Join;
 import com.gs.legend.plan.GenericType;
-import com.gs.legend.plan.RelationType;
+
 
 import java.util.List;
 import java.util.Map;
@@ -19,26 +19,22 @@ import java.util.Map;
  * resolve property→column mappings, and validate references.
  *
  * <p>
+ * <b>expressionType is always non-null</b>. It is the single source of truth
+ * for the type and multiplicity of every expression. Use {@link #type()} and
+ * {@link #schema()} convenience accessors.
+ *
+ * <p>
  * Designed for Rust portability: side table pattern
  * ({@code HashMap<NodeId, TypeInfo>}) works cleanly in both Java and Rust.
  *
- * @param relationType The output columns of this expression (null for scalars)
  * @param mapping      Resolved class→table mapping (null when no class context)
- * @param associations Pre-resolved association targets (property name →
- *                     target).
- *                     Populated by TypeChecker when multi-hop property paths
- *                     are detected in project/filter lambdas. Empty for most
- *                     nodes.
- * @param inlinedBody  If this node is a user-defined function call, the
- *                     expanded
- *                     body AST (after param substitution + re-parse).
- *                     PlanGenerator
- *                     processes this instead of the original function call
- *                     node.
- *                     Null for all standard nodes.
+ * @param associations Pre-resolved association targets (property name → target)
+ * @param inlinedBody  If this node is a user-defined function call, the expanded
+ *                     body AST. PlanGenerator processes this instead of the
+ *                     original function call node. Null for all standard nodes.
+ * @param expressionType The type + multiplicity of this expression. Always non-null.
  */
 public record TypeInfo(
-        RelationType relationType,
         ClassMapping mapping,
         Map<String, AssociationTarget> associations,
         List<SortSpec> sortSpecs,
@@ -47,8 +43,6 @@ public record TypeInfo(
         String joinType,
         List<WindowFunctionSpec> windowSpecs,
         ValueSpecification inlinedBody,
-        GenericType scalarType,
-        boolean lambdaParam,
         /** Table alias prefix for property accesses (e.g. "left_src" in join conditions). */
         String columnAlias,
         /** Pre-resolved pivot specification. */
@@ -69,10 +63,24 @@ public record TypeInfo(
          */
         com.gs.legend.plan.GraphFetchSpec graphFetchSpec,
         /**
-         * Unified type signature: GenericType + Multiplicity bundled together.
-         * Non-null when stamped by TypeChecker. Replaces scalarType/relationType/returnType.
+         * The type + multiplicity of this expression. Always non-null.
+         * This is the single source of truth — no scalarType or relationType fields.
          */
-        ExpressionType expressionType) {
+        ExpressionType expressionType,
+        /** True if this variable is lambda-bound (fold accumulator, map param, etc). */
+        boolean lambdaParam) {
+
+    // ===== Convenience type accessors (delegate to expressionType) =====
+
+    /** The GenericType of this expression. Never null. */
+    public GenericType type() {
+        return expressionType.type();
+    }
+
+    /** The GenericType.Relation.Schema schema if this is a relational expression, otherwise null. */
+    public GenericType.Relation.Schema schema() {
+        return expressionType.schema();
+    }
 
     /**
      * Pre-resolved association navigation target.
@@ -98,25 +106,43 @@ public record TypeInfo(
 
     /**
      * Pre-resolved sort specification.
-     * Computed by TypeChecker from various AST patterns (asc/desc, sortInfo,
-     * etc).
+     * Two modes:
+     * <ul>
+     *   <li>Relation sort: column name + direction (ascending/descending ~col)</li>
+     *   <li>Collection sort: lambda body + param name + direction ({p|$p.age})</li>
+     * </ul>
+     * PlanGenerator dispatches on {@link #hasLambda()}: generateScalar for lambdas,
+     * ColumnRef for column names.
+     *
+     * @param column      Column name for Relation sort (null for Collection sort)
+     * @param direction   ASC or DESC
+     * @param sortExpr    Lambda body AST for Collection sort (null for Relation sort)
+     * @param lambdaParam Lambda param name for Collection sort (null for Relation sort)
      */
-    public record SortSpec(String column, SortDirection direction) {
+    public record SortSpec(String column, SortDirection direction,
+                           ValueSpecification sortExpr, String lambdaParam) {
+        /** Relation sort: column name + direction */
+        public SortSpec(String column, SortDirection direction) {
+            this(column, direction, null, null);
+        }
+        /** Collection sort: lambda body + param name + direction */
+        public static SortSpec fromLambda(ValueSpecification body, String param,
+                                          SortDirection direction) {
+            return new SortSpec(null, direction, body, param);
+        }
+        /** True if this is a Collection sort with a lambda body. */
+        public boolean hasLambda() { return sortExpr != null; }
     }
 
     /**
      * Pre-resolved projection column.
-     * Computed by TypeChecker from project() lambda paths and mapping resolution.
+     * Carries type-level info only: which model properties are traversed
+     * and the output column alias. PlanGenerator walks the AST directly
+     * for code generation (Pattern A).
      */
     public record ProjectionSpec(
             List<String> propertyPath,
-            String resolvedColumn,
-            String alias,
-            ValueSpecification computedExpr) {
-        /** Simple property projection (no computed expression). */
-        public ProjectionSpec(List<String> propertyPath, String resolvedColumn, String alias) {
-            this(propertyPath, resolvedColumn, alias, null);
-        }
+            String alias) {
 
         public boolean isAssociation() {
             return propertyPath.size() > 1;
@@ -328,7 +354,7 @@ public record TypeInfo(
 
     // ===== Builder =====
 
-    /** Creates a fresh builder with all defaults (nulls, empty lists, false booleans). */
+    /** Creates a fresh builder with all defaults (nulls, empty lists). */
     public static Builder builder() {
         return new Builder();
     }
@@ -339,11 +365,10 @@ public record TypeInfo(
     }
 
     /**
-     * Mutable builder for TypeInfo. All fields default to null/empty/false.
+     * Mutable builder for TypeInfo. All fields default to null/empty.
      * Adding a new field to the record only requires updating this class.
      */
     public static final class Builder {
-        private RelationType relationType;
         private ClassMapping mapping;
         private Map<String, AssociationTarget> associations = Map.of();
         private List<SortSpec> sortSpecs = List.of();
@@ -352,21 +377,17 @@ public record TypeInfo(
         private String joinType;
         private List<WindowFunctionSpec> windowSpecs = List.of();
         private ValueSpecification inlinedBody;
-        private GenericType scalarType;
-        private boolean lambdaParam;
         private String columnAlias;
         private PivotSpec pivotSpec;
         private VariantAccess variantAccess;
-
         private Map<String, String> joinColumnRenames = Map.of();
-
         private com.gs.legend.plan.GraphFetchSpec graphFetchSpec;
         private ExpressionType expressionType;
+        private boolean lambdaParam;
 
         private Builder() {}
 
         private Builder(TypeInfo src) {
-            this.relationType = src.relationType();
             this.mapping = src.mapping();
             this.associations = src.associations();
             this.sortSpecs = src.sortSpecs();
@@ -375,19 +396,15 @@ public record TypeInfo(
             this.joinType = src.joinType();
             this.windowSpecs = src.windowSpecs();
             this.inlinedBody = src.inlinedBody();
-            this.scalarType = src.scalarType();
-            this.lambdaParam = src.lambdaParam();
             this.columnAlias = src.columnAlias();
             this.pivotSpec = src.pivotSpec();
             this.variantAccess = src.variantAccess();
-
             this.joinColumnRenames = src.joinColumnRenames();
-
             this.graphFetchSpec = src.graphFetchSpec();
             this.expressionType = src.expressionType();
+            this.lambdaParam = src.lambdaParam();
         }
 
-        public Builder relationType(RelationType v) { this.relationType = v; return this; }
         public Builder mapping(ClassMapping v) { this.mapping = v; return this; }
         public Builder associations(Map<String, AssociationTarget> v) { this.associations = v; return this; }
         public Builder sortSpecs(List<SortSpec> v) { this.sortSpecs = v; return this; }
@@ -396,26 +413,28 @@ public record TypeInfo(
         public Builder joinType(String v) { this.joinType = v; return this; }
         public Builder windowSpecs(List<WindowFunctionSpec> v) { this.windowSpecs = v; return this; }
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
-        public Builder scalarType(GenericType v) { this.scalarType = v; return this; }
-        public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
         public Builder columnAlias(String v) { this.columnAlias = v; return this; }
         public Builder pivotSpec(PivotSpec v) { this.pivotSpec = v; return this; }
         public Builder variantAccess(VariantAccess v) { this.variantAccess = v; return this; }
-
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
-
         public Builder graphFetchSpec(com.gs.legend.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
         public Builder expressionType(ExpressionType v) { this.expressionType = v; return this; }
+        public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
 
         public TypeInfo build() {
-            return new TypeInfo(relationType, mapping, associations, sortSpecs, projections,
-                    columnSpecs, joinType, windowSpecs, inlinedBody, scalarType,
-                    lambdaParam, columnAlias, pivotSpec, variantAccess,
-                    joinColumnRenames, graphFetchSpec, expressionType);
+            if (expressionType == null) {
+                throw new IllegalStateException(
+                        "TypeInfo.expressionType must not be null — every expression must have a type");
+            }
+            return new TypeInfo(mapping, associations, sortSpecs, projections,
+                    columnSpecs, joinType, windowSpecs, inlinedBody,
+                    columnAlias, pivotSpec, variantAccess,
+                    joinColumnRenames, graphFetchSpec, expressionType,
+                    lambdaParam);
         }
     }
 
-    // ===== Derived checks — no SourceKind enum needed =====
+    // ===== Derived checks =====
 
     /** True if backed by a class mapping (Person.all()). */
     public boolean isClassBased() {
@@ -424,43 +443,32 @@ public record TypeInfo(
 
     /** True if this produces a relational (table-like) result with columns. */
     public boolean isRelational() {
-        return relationType != null && !relationType.columns().isEmpty();
+        return expressionType.isRelation();
     }
 
-    /** True if this is a scalar expression (no columns). */
+    /** True if this is a scalar expression (not relational). */
     public boolean isScalar() {
-        return relationType == null || relationType.columns().isEmpty();
-    }
-
-    /** True if the scalar type is a list/collection. */
-    public boolean isList() {
-        return scalarType != null && scalarType.isList();
+        return expressionType.isScalar();
     }
 
     /** True if this expression has multiplicity [*] (produces N independent values). */
     public boolean isMany() {
-        return expressionType != null && expressionType.isMany();
+        return expressionType.isMany();
     }
 
-    /** True if the scalar type is a date (StrictDate, DateTime, Date — not StrictTime). */
+    /** True if the type is a date (StrictDate, DateTime, Date — not StrictTime). */
     public boolean isDateType() {
-        return scalarType != null && scalarType.isDate();
-    }
-
-    /** True if this is a List with mixed element types (element type is ANY). */
-    public boolean isMixedList() {
-        return scalarType != null && scalarType.isList()
-                && scalarType.elementType() == GenericType.Primitive.ANY;
+        return type().isDate();
     }
 
     /**
-     * True if this is a List with heterogeneous elements that need VARIANT wrapping
-     * for type preservation. Matches List&lt;Number&gt; (Integer+Float/Decimal) and
-     * List&lt;Date&gt; (StrictDate+DateTime).
+     * True if this is a List with heterogeneous elements that need VARIANT wrapping.
+     * Matches List&lt;Number&gt; (Integer+Float/Decimal) and List&lt;Date&gt; (StrictDate+DateTime).
      */
     public boolean isHeterogeneousList() {
-        if (scalarType == null || !scalarType.isList()) return false;
-        GenericType elem = scalarType.elementType();
+        GenericType t = type();
+        if (!t.isList()) return false;
+        GenericType elem = t.elementType();
         return elem == GenericType.Primitive.NUMBER
                 || elem == GenericType.Primitive.DATE
                 || elem == GenericType.Primitive.ANY;
@@ -468,16 +476,20 @@ public record TypeInfo(
 
     /** True if this is a heterogeneous list of date/temporal types (List&lt;Date&gt;). */
     public boolean isDateList() {
-        return scalarType != null && scalarType.isList()
-                && scalarType.elementType() == GenericType.Primitive.DATE;
+        return type().isList()
+                && type().elementType() == GenericType.Primitive.DATE;
+    }
+
+    /** True if this is a List with mixed element types (element type is ANY). */
+    public boolean isMixedList() {
+        return type().isList()
+                && type().elementType() == GenericType.Primitive.ANY;
     }
 
     /** True if this node has pre-resolved association targets. */
     public boolean hasAssociations() {
         return associations != null && !associations.isEmpty();
     }
-
-
 
     /** True if this node has pre-resolved sort specs. */
     public boolean hasSortSpecs() {
@@ -500,15 +512,16 @@ public record TypeInfo(
         int idx = qualifiedName.lastIndexOf("::");
         return idx >= 0 ? qualifiedName.substring(idx + 2) : qualifiedName;
     }
+
     /**
      * For variant typed extraction: returns the SQL type name if the compiler
      * resolved a concrete target type (e.g., "BIGINT" for @Integer), or null if untyped.
      * Used by PlanGenerator for get(@Type), to(@Type).
      */
     public String variantScalarSqlType(com.gs.legend.sqlgen.SQLDialect dialect) {
-        if (scalarType == null) return null;
-        if (scalarType == GenericType.Primitive.ANY || scalarType == GenericType.Primitive.JSON) return null;
-        return dialect.sqlTypeName(scalarType.typeName());
+        GenericType t = type();
+        if (t == GenericType.Primitive.ANY || t == GenericType.Primitive.JSON) return null;
+        return dialect.sqlTypeName(t.typeName());
     }
 
     /**
@@ -517,8 +530,9 @@ public record TypeInfo(
      * Used by PlanGenerator for toMany(@Type).
      */
     public String variantArrayElementSqlType(com.gs.legend.sqlgen.SQLDialect dialect) {
-        if (scalarType == null || !scalarType.isList()) return null;
-        GenericType elemType = scalarType.elementType();
+        GenericType t = type();
+        if (!t.isList()) return null;
+        GenericType elemType = t.elementType();
         if (elemType == null || elemType == GenericType.Primitive.ANY) return null;
         return dialect.sqlTypeName(elemType.typeName());
     }

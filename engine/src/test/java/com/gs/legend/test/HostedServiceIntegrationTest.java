@@ -1,6 +1,7 @@
 package com.gs.legend.test;
 
 import com.gs.legend.model.def.ServiceDefinition;
+import com.gs.legend.plan.GenericType;
 import com.gs.legend.parser.PureParser;
 import com.gs.legend.service.ServiceRegistry;
 import com.gs.legend.service.ServiceServer;
@@ -338,7 +339,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 new com.gs.legend.exec.Column("value", "Float", "Float"));
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.List.of(1, "test", true, 42.5)));
-        var schema = new com.gs.legend.plan.RelationType(
+        var schema = new GenericType.Relation.Schema(
                 java.util.Map.of("id", com.gs.legend.plan.GenericType.Primitive.INTEGER,
                         "name", com.gs.legend.plan.GenericType.Primitive.STRING,
                         "active", com.gs.legend.plan.GenericType.Primitive.BOOLEAN,
@@ -364,7 +365,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 new com.gs.legend.exec.Column("street", "String", "String"));
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.Arrays.asList("NoAddress", null)));
-        var schema = new com.gs.legend.plan.RelationType(
+        var schema = new GenericType.Relation.Schema(
                 java.util.Map.of("firstName", com.gs.legend.plan.GenericType.Primitive.STRING,
                         "street", com.gs.legend.plan.GenericType.Primitive.STRING),
                 java.util.List.of());
@@ -386,7 +387,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 new com.gs.legend.exec.Column("lastName", "String", "String"));
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.List.of("Quote\"Test", "Tab\tPerson")));
-        var schema = new com.gs.legend.plan.RelationType(
+        var schema = new GenericType.Relation.Schema(
                 java.util.Map.of("firstName", com.gs.legend.plan.GenericType.Primitive.STRING,
                         "lastName", com.gs.legend.plan.GenericType.Primitive.STRING),
                 java.util.List.of());

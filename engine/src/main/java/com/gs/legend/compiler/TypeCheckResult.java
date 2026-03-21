@@ -20,9 +20,15 @@ public record TypeCheckResult(
         ValueSpecification root,
         IdentityHashMap<ValueSpecification, TypeInfo> types) {
 
-    /** Looks up the TypeInfo for a specific AST node. */
+    /** Looks up the TypeInfo for a specific AST node. Throws if not stamped — that's a compiler bug. */
     public TypeInfo typeInfoFor(ValueSpecification node) {
-        return types.get(node);
+        TypeInfo info = types.get(node);
+        if (info == null) {
+            throw new PureCompileException(
+                    "PlanGenerator: no TypeInfo for " + node.getClass().getSimpleName()
+                            + " — TypeChecker must stamp every node that PlanGenerator reads");
+        }
+        return info;
     }
 }
 

@@ -69,39 +69,8 @@ public class BuiltinFunctionRegistry {
      */
     public void registerSignature(String name, String pureSignature) {
         String rawSignature = pureSignature.trim();
-        String parseable = normalizeSignature(rawSignature);
-        var def = com.gs.legend.parser.PureParser.parseNativeFunction(parseable);
-        // Reconstruct with original raw signature for display/constraint analysis
-        var defWithRaw = new NativeFunctionDef(
-                def.name(), def.typeParams(), def.multParams(), def.params(),
-                def.returnType(), def.returnMult(), rawSignature);
-        register(defWithRaw);
-    }
-
-    /**
-     * Pre-processes a Pure native function signature to make it parseable by ANTLR.
-     * Strips constraint annotations and schema algebra that the grammar doesn't
-     * handle.
-     */
-    static String normalizeSignature(String sig) {
-        String s = sig;
-
-        // 1. Strip type-match + subset combo: Z=(?:K)⊆T → Z
-        s = s.replaceAll("(\\w+)=\\(\\?:\\w+\\)⊆\\w+", "$1");
-
-        // 2. Strip type-match only: V=(?:K) → V
-        s = s.replaceAll("(\\w+)=\\(\\?:\\w+\\)", "$1");
-
-        // 3. Strip subset only: Z⊆T → Z (but not inside already-stripped text)
-        s = s.replaceAll("(\\w+)⊆\\w+", "$1");
-
-        // 4. Schema algebra in type args: Relation<T-Z+V> → Relation<T>
-        // T+V → T (keep first, drop algebra — schema is inferred from rawSignature)
-        // T-Z+V → T
-        // Z+R → Z
-        s = s.replaceAll("<(\\w+)[-+]\\w+(?:[+-]\\w+)*>", "<$1>");
-
-        return s;
+        var def = com.gs.legend.parser.PureParser.parseNativeFunction(rawSignature);
+        register(def);
     }
 
     /**
@@ -459,10 +428,14 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("mode", "native function mode(values:Any[*]):Any[0..1];");
         reg.registerSignature("min", "native function min(numbers:Number[*]):Number[0..1];");
         reg.registerSignature("max", "native function max(numbers:Number[*]):Number[0..1];");
-        reg.registerSignature("minBy",
-                "native function minBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
         reg.registerSignature("maxBy",
                 "native function maxBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
+        reg.registerSignature("maxBy",
+                "native function maxBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1], count:Integer[1]):T[*];");
+        reg.registerSignature("minBy",
+                "native function minBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
+        reg.registerSignature("minBy",
+                "native function minBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1], count:Integer[1]):T[*];");
         reg.registerSignature("stdDev", "native function stdDev(numbers:Number[*]):Number[1];");
         reg.registerSignature("stdDevSample", "native function stdDevSample(numbers:Number[*]):Number[1];");
         reg.registerSignature("variance", "native function variance(numbers:Number[*]):Number[1];");
@@ -521,6 +494,8 @@ public class BuiltinFunctionRegistry {
                 "native function forAll<T>(value:T[*], func:Function<{T[1]->Boolean[1]}>[1]):Boolean[1];");
         reg.registerSignature("find",
                 "native function find<T>(value:T[*], func:Function<{T[1]->Boolean[1]}>[1]):T[0..1];");
+        reg.registerSignature("filter",
+                "native function filter<T>(value:T[*], func:Function<{T[1]->Boolean[1]}>[1]):T[*];");
         reg.registerSignature("map", "native function map<T,V>(value:T[*], func:Function<{T[1]->V[*]}>[1]):V[*];");
         reg.registerSignature("map",
                 "native function map<T,V>(value:T[0..1], func:Function<{T[1]->V[0..1]}>[1]):V[0..1];");
@@ -529,6 +504,40 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("removeAllOptimized",
                 "native function removeAllOptimized<T>(set:T[*], other:T[*]):T[*];");
         reg.registerSignature("size", "native function size<T>(col:T[*]):Integer[1];");
+        reg.registerSignature("range", "native function range(start:Integer[1], stop:Integer[1], step:Integer[1]):Integer[*];");
+        reg.registerSignature("range", "native function range(start:Integer[1], stop:Integer[1]):Integer[*];");
+        reg.registerSignature("range", "native function range(stop:Integer[1]):Integer[*];");
+        reg.registerSignature("init", "native function init<T>(set:T[*]):T[*];");
+        reg.registerSignature("tail", "native function tail<T>(set:T[*]):T[*];");
+        reg.registerSignature("add", "native function add<T>(set:T[*], val:T[1]):T[*];");
+        reg.registerSignature("add", "native function add<T>(set:T[*], index:Integer[1], val:T[1]):T[*];");
+        reg.registerSignature("removeDuplicates", "native function removeDuplicates<T>(col:T[*]):T[*];");
+        reg.registerSignature("removeDuplicates",
+                "native function removeDuplicates<T>(col:T[*], eql:Function<{T[1],T[1]->Boolean[1]}>[0..1]):T[*];");
+        reg.registerSignature("removeDuplicatesBy",
+                "native function removeDuplicatesBy<T,V>(col:T[*], key:Function<{T[1]->V[1]}>[1]):T[*];");
+        reg.registerSignature("first", "native function first<T>(set:T[*]):T[0..1];");
+
+        // ===== Relation overloads for limit/take/drop/slice/first =====
+        reg.registerSignature("limit",
+                "native function limit<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1];");
+        reg.registerSignature("take",
+                "native function take<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1];");
+        reg.registerSignature("drop",
+                "native function drop<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1];");
+        reg.registerSignature("slice",
+                "native function slice<T>(rel:Relation<T>[1], start:Integer[1], stop:Integer[1]):Relation<T>[1];");
+        reg.registerSignature("first",
+                "native function first<T>(rel:Relation<T>[1]):Relation<T>[0..1];");
+        // Scalar overloads for drop/slice (array operations)
+        reg.registerSignature("drop",
+                "native function drop<T>(set:T[*], count:Integer[1]):T[*];");
+        reg.registerSignature("slice",
+                "native function slice<T>(set:T[*], start:Integer[1], end:Integer[1]):T[*];");
+        reg.registerSignature("limit",
+                "native function limit<T>(set:T[*], size:Integer[1]):T[*];");
+        reg.registerSignature("take",
+                "native function take<T>(set:T[*], size:Integer[1]):T[*];");
 
         // ===== Boolean / Meta =====
         reg.registerSignature("instanceOf", "native function instanceOf(instance:Any[1], type:Type[1]):Boolean[1];");

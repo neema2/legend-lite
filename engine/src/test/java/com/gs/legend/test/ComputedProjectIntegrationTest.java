@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Integration test reproducing the real PCT testSimpleProjectList failure.
  *
  * The source is a Collection of struct instances (^TypeForProjectTest(...)),
- * and compileCollection must propagate the struct's RelationType so that
+ * and compileCollection must propagate the struct's GenericType.Relation.Schema so that
  * compileProject can resolve columns.
  *
  * Without the fix, this fails with:

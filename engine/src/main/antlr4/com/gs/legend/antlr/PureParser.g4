@@ -345,7 +345,13 @@ relationType :  PAREN_OPEN
                 PAREN_CLOSE
 ;
 
-columnInfo: columnName COLON type multiplicity?
+columnInfo: mayColumnName COLON mayColumnType multiplicity?
+;
+
+mayColumnName: QUESTION | columnName
+;
+
+mayColumnType: QUESTION | type
 ;
 
 columnName: identifier
@@ -371,7 +377,19 @@ contravarianceTypeParameter:                    MINUS? identifier
 ;
 multiplicityArguments:                          multiplicityArgument (COMMA multiplicityArgument)*
 ;
-typeArguments:                                  type (COMMA type)*
+typeArguments:                                  typeWithOperation (COMMA typeWithOperation)*
+;
+typeWithOperation:                              type equalType? (typeAddSubOperation)* subsetType?
+;
+typeAddSubOperation:                            typeAdd | typeSubtract
+;
+typeAdd:                                        PLUS type
+;
+typeSubtract:                                   MINUS type
+;
+subsetType:                                     SUBSET type
+;
+equalType:                                      EQUAL type
 ;
 multiplictyParameters:                          PIPE identifier (COMMA identifier)*
 ;

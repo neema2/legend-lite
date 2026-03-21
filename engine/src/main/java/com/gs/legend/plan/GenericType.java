@@ -203,13 +203,158 @@ public sealed interface GenericType
      * Relational type: Relation<(col1:Type1, col2:Type2, ...)>.
      * Represents tabular query results with a column schema.
      */
-    record Relation(RelationType schema) implements GenericType {
+    record Relation(Schema schema) implements GenericType {
         public Relation {
             java.util.Objects.requireNonNull(schema, "Relation schema must not be null");
         }
 
         @Override
         public String typeName() { return "Relation"; }
+
+        /**
+         * Tracks available columns and their types through a relation compilation
+         * pipeline. Immutable — every mutation returns a new {@code Schema}.
+         * Column order is preserved (insertion order via {@link java.util.LinkedHashMap}).
+         *
+         * @param columns Ordered map of column name to {@link GenericType}
+         * @param dynamicPivotColumns Specs for data-dependent pivot columns; empty for non-pivot queries
+         */
+        public record Schema(java.util.Map<String, GenericType> columns,
+                             java.util.List<DynamicPivotColumn> dynamicPivotColumns) {
+
+            public record DynamicPivotColumn(String aliasSuffix, GenericType returnType) {
+                public static final String SEPARATOR = "__|__";
+            }
+
+            public Schema {
+                columns = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(columns));
+                dynamicPivotColumns = dynamicPivotColumns != null
+                        ? java.util.List.copyOf(dynamicPivotColumns) : java.util.List.of();
+            }
+
+            public static Schema withoutPivot(java.util.Map<String, GenericType> columns) {
+                return new Schema(columns, java.util.List.of());
+            }
+
+            public Schema withColumn(String name, GenericType type) {
+                var newCols = new java.util.LinkedHashMap<>(columns);
+                newCols.put(name, type);
+                return new Schema(newCols, dynamicPivotColumns);
+            }
+
+            public Schema withColumns(java.util.Map<String, GenericType> additionalColumns) {
+                var newCols = new java.util.LinkedHashMap<>(columns);
+                newCols.putAll(additionalColumns);
+                return new Schema(newCols, dynamicPivotColumns);
+            }
+
+            public Schema onlyColumns(java.util.List<String> names) {
+                var newCols = new java.util.LinkedHashMap<String, GenericType>();
+                for (String name : names) {
+                    GenericType type = columns.get(name);
+                    if (type == null) {
+                        throw new com.gs.legend.compiler.PureCompileException(
+                                "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
+                    }
+                    newCols.put(name, type);
+                }
+                return new Schema(newCols, dynamicPivotColumns);
+            }
+
+            public Schema withoutColumns(java.util.Set<String> names) {
+                var newCols = new java.util.LinkedHashMap<>(columns);
+                names.forEach(newCols::remove);
+                return new Schema(newCols, dynamicPivotColumns);
+            }
+
+            public Schema renameColumn(String oldName, String newName) {
+                GenericType type = columns.get(oldName);
+                if (type == null) {
+                    throw new com.gs.legend.compiler.PureCompileException(
+                            "Cannot rename: column '" + oldName + "' does not exist. Available: " + columns.keySet());
+                }
+                var newCols = new java.util.LinkedHashMap<String, GenericType>();
+                for (var entry : columns.entrySet()) {
+                    if (entry.getKey().equals(oldName)) {
+                        newCols.put(newName, entry.getValue());
+                    } else {
+                        newCols.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                return new Schema(newCols, dynamicPivotColumns);
+            }
+
+            public Schema merge(Schema other) {
+                var newCols = new java.util.LinkedHashMap<>(columns);
+                newCols.putAll(other.columns());
+                return new Schema(newCols, dynamicPivotColumns);
+            }
+
+            public void assertHasColumn(String name) {
+                if (!columns.containsKey(name)) {
+                    throw new com.gs.legend.compiler.PureCompileException(
+                            "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
+                }
+            }
+
+            public void assertHasColumns(java.util.List<String> names) {
+                var missing = names.stream().filter(n -> !columns.containsKey(n)).toList();
+                if (!missing.isEmpty()) {
+                    throw new com.gs.legend.compiler.PureCompileException(
+                            "Columns " + missing + " do not exist. Available columns: " + columns.keySet());
+                }
+            }
+
+            public GenericType getColumnType(String name) { return columns.get(name); }
+
+            public GenericType requireColumnType(String name) {
+                GenericType type = columns.get(name);
+                if (type == null) {
+                    throw new com.gs.legend.compiler.PureCompileException(
+                            "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
+                }
+                return type;
+            }
+
+            public GenericType requireColumn(String name) { return requireColumnType(name); }
+            public boolean hasColumn(String name) { return columns.containsKey(name); }
+            public int size() { return columns.size(); }
+            public java.util.List<String> columnNames() { return java.util.List.copyOf(columns.keySet()); }
+
+            public static Schema empty() { return new Schema(java.util.Map.of(), java.util.List.of()); }
+
+            public static Schema of(java.util.Map<String, GenericType> columns) {
+                return new Schema(columns, java.util.List.of());
+            }
+
+            public static Schema of(java.util.List<String> names, java.util.List<GenericType> types) {
+                if (names.size() != types.size()) {
+                    throw new IllegalArgumentException("Column names and types must have the same size");
+                }
+                var cols = new java.util.LinkedHashMap<String, GenericType>();
+                for (int i = 0; i < names.size(); i++) {
+                    cols.put(names.get(i), types.get(i));
+                }
+                return new Schema(cols, java.util.List.of());
+            }
+
+            public static Schema ofSingle(String name, GenericType type) {
+                return new Schema(java.util.Map.of(name, type), java.util.List.of());
+            }
+
+            @Override
+            public String toString() {
+                var sb = new StringBuilder("Relation<(");
+                boolean first = true;
+                for (var entry : columns.entrySet()) {
+                    if (!first) sb.append(", ");
+                    sb.append(entry.getKey()).append(":").append(entry.getValue().typeName());
+                    first = false;
+                }
+                sb.append(")>");
+                return sb.toString();
+            }
+        }
     }
 
     // ========== Factory methods ==========

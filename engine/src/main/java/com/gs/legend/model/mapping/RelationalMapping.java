@@ -202,4 +202,10 @@ public record RelationalMapping(
         return propertyMappings.stream()
                 .anyMatch(pm -> pm.propertyName().equals(propertyName));
     }
+
+    @Override
+    public String resolveColumn(String propertyName) {
+        if (propertyName == null) return null;
+        return getColumnForProperty(propertyName).orElse(null);
+    }
 }

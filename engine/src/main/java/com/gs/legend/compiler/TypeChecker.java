@@ -11,7 +11,7 @@ import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.store.Table;
 import com.gs.legend.parser.PureParser;
 import com.gs.legend.plan.GenericType;
-import com.gs.legend.plan.RelationType;
+
 
 import java.util.*;
 
@@ -34,10 +34,10 @@ import java.util.*;
  * <li>Type checking — validate column/property existence</li>
  * <li>Type inference — derive result types for projections and computed
  * columns</li>
- * <li>RelationType propagation — track columns through the pipeline</li>
+ * <li>GenericType.Relation.Schema propagation — track columns through the pipeline</li>
  * </ul>
  */
-public class TypeChecker {
+public class TypeChecker implements TypeCheckEnv {
 
     /**
      * Built-in function registry — validates function existence, no more
@@ -51,6 +51,16 @@ public class TypeChecker {
 
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
+    }
+
+    public ModelContext modelContext() {
+        return modelContext;
+    }
+
+    @Override
+    public java.util.Map<String, TypeInfo.AssociationTarget> resolveAssociations(
+            List<ValueSpecification> body, ClassMapping mapping) {
+        return resolveAssociationsInBody(body, mapping);
     }
 
     /**
@@ -76,7 +86,8 @@ public class TypeChecker {
      * Internal: compiles a ValueSpecification to a typed result.
      * Called recursively for sub-expressions.
      */
-    private TypeInfo compileExpr(ValueSpecification vs, CompilationContext ctx) {
+    @Override
+    public TypeInfo compileExpr(ValueSpecification vs, CompilationContext ctx) {
         return switch (vs) {
             case AppliedFunction af -> compileFunction(af, ctx);
             case ClassInstance ci -> compileClassInstance(ci, ctx);
@@ -111,19 +122,17 @@ public class TypeChecker {
             // --- Relation Sources ---
             case "table", "class" -> compileTableAccess(af, ctx);
             case "getAll" -> compileGetAll(af, ctx);
-            // --- Shape-preserving ---
-            case "filter" -> compileFilter(af, ctx);
+            // --- Shape-preserving (work on both relations and lists) ---
             case "sort", "sortBy" -> compileSort(af, ctx);
-            case "limit", "take" -> compileLimit(af, ctx);
-            case "drop" -> compileDrop(af, ctx);
-            case "slice" -> compileSlice(af, ctx);
-            case "first" -> compileFirst(af, ctx);
+            case "filter" -> compileFilter(af, ctx);
+            case "limit", "take", "drop", "slice", "first", "last" -> compileSlicing(af, ctx);
+            // --- Column operations ---
+            case "rename" -> compileRename(af, ctx);
+            case "select" -> compileSelect(af, ctx);
             case "distinct" -> compileDistinct(af, ctx);
             // --- Shape-changing ---
-            case "rename" -> compileRename(af, ctx);
             case "concatenate" -> compileConcatenate(af, ctx);
             case "project" -> compileProject(af, ctx);
-            case "select" -> compileSelect(af, ctx);
             case "groupBy" -> compileGroupBy(af, ctx);
             case "aggregate" -> compileAggregate(af, ctx);
             case "extend" -> compileExtend(af, ctx);
@@ -132,39 +141,23 @@ public class TypeChecker {
             case "pivot" -> compilePivot(af, ctx);
             case "flatten" -> compileFlatten(af, ctx);
             case "from" -> compileFrom(af, ctx);
-            // --- Window functions (inside extend lambdas) ---
-            case "rowNumber", "rank", "denseRank", "ntile" ->
-                compileWindowRanking(af, ctx, GenericType.Primitive.INTEGER);
-            case "percentRank", "cumulativeDistribution" -> compileWindowRanking(af, ctx, GenericType.Primitive.FLOAT);
-            case "lag", "lead" -> compileWindowNavigation(af, ctx);
             // --- Scalar collection functions with lambdas ---
             case "fold" -> compileFold(af, ctx);
-            case "map" -> compileMap(af, ctx);
-            case "find" -> compileFind(af, ctx);
             case "zip" -> compileZip(af, ctx);
-            case "forAll", "exists" -> compileCollectionPredicate(af, ctx);
-            case "block" -> compileBlock(af, ctx);
             case "letFunction" -> compileLet(af, ctx);
             // --- Type functions (cast, toMany, toOne, toVariant, to) ---
             case "cast", "toMany", "toOne", "toVariant", "to" -> compileTypeFunction(af, ctx);
             // --- Variant access (compiler resolves index vs field) ---
             case "get" -> compileGet(af, ctx);
-            // --- Size (returns Integer scalar for both relations and lists) ---
-            case "size" -> compileSize(af, ctx);
             case "write" -> compileWrite(af, ctx);
             // --- GraphFetch / Serialize (M2M JSON output) ---
             case "graphFetch" -> compileGraphFetch(af, ctx);
             case "serialize" -> compileSerialize(af, ctx);
-            // --- Collection / scalar functions ---
-            case "range" -> compileRange(af, ctx);
-            // List-producing functions: always return a list
-            case "tail", "init", "reverse", "removeDuplicates", "removeDuplicatesBy", "add" ->
-                compileListProducing(af, ctx);
             case "eval" -> compileEval(af, ctx);
             case "match" -> compileMatch(af, ctx);
             // --- Conditional ---
             case "if" -> compileIf(af, ctx);
-            // --- Registry-driven: all other functions must be registered ---
+            // --- Registry-driven: all other functions resolved via NativeFunctionDef ---
             default -> compileRegistryOrUserFunction(af, funcName, ctx);
         };
     }
@@ -189,13 +182,13 @@ public class TypeChecker {
             var mappingOpt = mappingRegistry().findByClassName(className);
             if (mappingOpt.isPresent()) {
                 ClassMapping mapping = mappingOpt.get();
-                RelationType relType = tableToRelationType(mapping.sourceTable());
+                GenericType.Relation.Schema relType = tableToRelationType(mapping.sourceTable());
                 return typed(af, relType, mapping);
             }
         }
 
         Table table = resolveTable(tableRef);
-        RelationType relType = tableToRelationType(table);
+        GenericType.Relation.Schema relType = tableToRelationType(table);
         return typed(af, relType, null);
     }
 
@@ -211,8 +204,10 @@ public class TypeChecker {
             throw new PureCompileException("getAll() requires a class argument");
         }
 
+        String qualifiedName;
         String className;
         if (params.get(0) instanceof PackageableElementPtr(String fullPath)) {
+            qualifiedName = fullPath;
             className = fullPath.contains("::") ? fullPath.substring(fullPath.lastIndexOf("::") + 2)
                     : fullPath;
         } else {
@@ -223,8 +218,14 @@ public class TypeChecker {
         var mappingOpt = mappingRegistry().findByClassName(className);
         if (mappingOpt.isPresent()) {
             ClassMapping mapping = mappingOpt.get();
-            RelationType relType = tableToRelationType(mapping.sourceTable());
-            return typed(af, relType, mapping);
+            // Return ClassType[*] — class instances, not Relation.
+            // Schema comes from project(), not getAll().
+            var info = TypeInfo.builder()
+                    .mapping(mapping)
+                    .expressionType(ExpressionType.many(new GenericType.ClassType(qualifiedName)))
+                    .build();
+            types.put(af, info);
+            return info;
         }
 
         // Try PureClassMapping (M2M) — runtime-driven
@@ -239,7 +240,7 @@ public class TypeChecker {
     /**
      * Compiles getAll() for an M2M-mapped class.
      * Resolves source class → source RelationalMapping → source table.
-     * Builds virtual RelationType from M2M property names.
+     * Builds virtual GenericType.Relation.Schema from M2M property names.
      * Stores PureClassMapping in TypeInfo sidecar for PlanGenerator.
      */
     private TypeInfo compileM2MGetAll(AppliedFunction af,
@@ -319,7 +320,7 @@ public class TypeChecker {
             }
         }
 
-        RelationType virtualRelType = RelationType.withoutPivot(virtualColumns);
+        GenericType.Relation.Schema virtualRelType = GenericType.Relation.Schema.withoutPivot(virtualColumns);
 
         // Type-check M2M property expressions: bind $src to source relationType+mapping
         // so that operands in expressions like `$src.firstName + ' ' + $src.lastName`
@@ -336,7 +337,6 @@ public class TypeChecker {
         // table.
         // ClassMapping.expressionForProperty() returns the M2M expression AST.
         var infoBuilder = TypeInfo.builder()
-                .relationType(virtualRelType)
                 .mapping(resolvedMapping)
                 .expressionType(ExpressionType.many(new GenericType.Relation(virtualRelType)));
         if (!associations.isEmpty()) {
@@ -401,7 +401,7 @@ public class TypeChecker {
             for (var pm : srcRm.propertyMappings()) {
                 srcColumns.put(pm.propertyName(), srcRm.pureTypeForProperty(pm.propertyName()));
             }
-            RelationType srcRelType = RelationType.withoutPivot(srcColumns);
+            GenericType.Relation.Schema srcRelType = GenericType.Relation.Schema.withoutPivot(srcColumns);
             return new CompilationContext()
                     .withRelationType("src", srcRelType)
                     .withMapping("src", srcRm);
@@ -412,7 +412,7 @@ public class TypeChecker {
             for (String propName : srcPcm.propertyExpressions().keySet()) {
                 srcColumns.put(propName, resolveM2MPropertyType(srcPcm.targetClassName(), propName));
             }
-            RelationType srcRelType = RelationType.withoutPivot(srcColumns);
+            GenericType.Relation.Schema srcRelType = GenericType.Relation.Schema.withoutPivot(srcColumns);
             return new CompilationContext()
                     .withRelationType("src", srcRelType)
                     .withMapping("src", srcPcm);
@@ -575,124 +575,97 @@ public class TypeChecker {
 
     // ========== Shape-Preserving Operations ==========
 
+
+    /** Compiles sort(source, sortSpecs). */
     /**
-     * Compiles filter(source, lambda).
-     * Binds lambda param to source's type, validates column refs.
+     * Compiles sort() / sortBy().
+     * Delegates to SortChecker for signature-driven type validation.
+     */
+    private TypeInfo compileSort(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        TypeInfo source = compileExpr(params.get(0), ctx);
+        String funcName = simpleName(af.function());
+        NativeFunctionDef def = resolveSignature(funcName.equals("sortBy") ? "sort" : funcName, params.size(), source);
+        var info = new com.gs.legend.compiler.checkers.SortChecker(this).check(af, source, ctx, def);
+        types.put(af, info);
+        return info;
+    }
+
+    // ========== Overload Resolution ==========
+
+    /**
+     * Resolves the correct NativeFunctionDef overload for a function call.
+     * Matches by arity first, then by source type (relational vs scalar).
+     *
+     * @param fn     Simple function name
+     * @param arity  Number of actual parameters
+     * @param source TypeInfo of the source (first param), or null
+     * @return The matching NativeFunctionDef
+     * @throws PureCompileException if no matching overload found
+     */
+    NativeFunctionDef resolveSignature(String fn, int arity, TypeInfo source) {
+        var defs = builtinRegistry.resolve(fn);
+        if (defs.isEmpty()) {
+            throw new PureCompileException("No signature found for: " + fn);
+        }
+        boolean srcRelational = source != null && source.isRelational();
+
+        // Try exact match: arity + relational/scalar alignment
+        for (var d : defs) {
+            if (d.arity() != arity) continue;
+            boolean defRelational = !d.params().isEmpty()
+                    && d.params().get(0).type() instanceof PType.Parameterized p
+                    && "Relation".equals(p.rawType());
+            if (defRelational == srcRelational) return d;
+        }
+        // Fallback: first matching arity
+        for (var d : defs) {
+            if (d.arity() == arity) return d;
+        }
+        // Last resort: first overload
+        return defs.getFirst();
+    }
+
+    // ========== filter ==========
+
+    /**
+     * Compiles filter(source, predicate).
+     * Delegates to FilterChecker for signature-driven type validation.
      */
     private TypeInfo compileFilter(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            throw new PureCompileException("filter() requires 2 parameters");
-        }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
-        RelationType sourceType = source.relationType();
-
-        // Bind lambda parameter to source type
-        LambdaFunction lambda = extractLambda(params.get(1));
-        CompilationContext lambdaCtx = ctx;
-        if (!lambda.parameters().isEmpty()) {
-            String paramName = lambda.parameters().get(0).name();
-            if (sourceType != null) {
-                // Relational / struct-with-mapping filter: bind param to relation columns
-                lambdaCtx = ctx.withRelationType(paramName, sourceType);
-                if (source.mapping() != null) {
-                    lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
-                }
-            } else {
-                // Collection filter: bind param as lambda variable with element type
-                GenericType elemType = source.scalarType() != null && source.scalarType().isList()
-                        ? source.scalarType().elementType()
-                        : source.scalarType();
-                lambdaCtx = ctx.withLambdaParam(paramName, elemType);
-            }
-        }
-
-        // Type-check lambda body
-        if (!lambda.body().isEmpty()) {
-            typeCheckExpression(lambda.body().get(0), lambdaCtx);
-        }
-
-        // Pre-resolve associations for multi-hop property paths in the filter lambda
-        var associations = resolveAssociationsInBody(
-                lambda.body().isEmpty() ? List.of() : lambda.body(),
-                source.mapping());
-
-        // For collection filters (no relationType), propagate the source's scalar type
-        if (sourceType == null && source.scalarType() != null) {
-            var info = TypeInfo.builder().scalarType(source.scalarType())
-                    .expressionType(ExpressionType.one(source.scalarType())).build();
-            types.put(af, info);
-            return info;
-        }
-
-        return typed(af, sourceType, source.mapping(), associations);
+        NativeFunctionDef def = resolveSignature("filter", params.size(), source);
+        var info = new com.gs.legend.compiler.checkers.FilterChecker(this).check(af, source, ctx, def);
+        types.put(af, info);
+        return info;
     }
 
-    /** Compiles sort(source, sortSpecs). */
-    private TypeInfo compileSort(AppliedFunction af, CompilationContext ctx) {
+    // ========== limit / take / drop / slice / first / last ==========
+
+    /**
+     * Compiles slicing functions: limit, take, drop, slice, first, last.
+     * All preserve the source type — they only change cardinality.
+     * Works on both relations and lists.
+     */
+    private TypeInfo compileSlicing(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         if (params.isEmpty()) {
-            throw new PureCompileException("sort() requires source");
+            throw new PureCompileException(simpleName(af.function()) + "() requires at least a source argument");
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
-        RelationType sourceType = source.relationType();
 
-        // List sort with lambdas: detect compare lambda direction
-        if (sourceType == null || sourceType.columns().isEmpty()) {
-            for (int i = 1; i < params.size(); i++) {
-                compileExpr(params.get(i), ctx);
-            }
-            // Detect direction from compare lambda: {x,y|$y->compare($x)} = DESC
-            TypeInfo.SortDirection direction = TypeInfo.SortDirection.ASC;
-            if (params.size() > 1) {
-                // The compare lambda is always the last lambda with 2 params
-                var lastParam = params.get(params.size() - 1);
-                if (lastParam instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)
-                        && parameters.size() == 2 && !body.isEmpty()) {
-                    var firstBody = body.get(0);
-                    if (firstBody instanceof AppliedFunction af2
-                            && simpleName(af2.function()).equals("compare")
-                            && !af2.parameters().isEmpty()) {
-                        String secondParam = parameters.get(1).name();
-                        if (af2.parameters().get(0) instanceof Variable v
-                                && v.name().equals(secondParam)) {
-                            direction = TypeInfo.SortDirection.DESC;
-                        }
-                    }
-                }
-            }
-            // Propagate source scalarType (e.g., List<Integer>) so downstream
-            // functions like toVariant() can read it.
-            var builder = TypeInfo.builder()
-                    .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)));
-            if (source.scalarType() != null) {
-                builder.scalarType(source.scalarType())
-                        .expressionType(ExpressionType.many(source.scalarType()));
-            }
-            var info = builder.build();
-            types.put(af, info);
-            return info;
+        // Compile integer arguments (count, start, end)
+        for (int i = 1; i < params.size(); i++) {
+            compileExpr(params.get(i), ctx);
         }
 
-        // Relational sort: resolve sort specs
-        List<TypeInfo.SortSpec> sortSpecs = resolveSortSpecs(params.get(1), sourceType);
-
-        // Handle direction override in 3rd param: sort('col', 'DESC') or sortBy({e |
-        // $e.col}, 'desc')
-        if (params.size() > 2 && params.get(2) instanceof CString(String value)) {
-            String dir = value.toUpperCase();
-            if ("DESC".equals(dir) || "DESCENDING".equals(dir)) {
-                sortSpecs = sortSpecs.stream()
-                        .map(s -> new TypeInfo.SortSpec(s.column(), TypeInfo.SortDirection.DESC))
-                        .toList();
-            }
-        }
-
-        var info = TypeInfo.builder().relationType(sourceType).mapping(source.mapping())
-                .sortSpecs(sortSpecs)
-                .expressionType(ExpressionType.many(new GenericType.Relation(sourceType))).build();
+        // Slicing preserves source type unchanged
+        var info = TypeInfo.builder()
+                .mapping(source.mapping())
+                .expressionType(source.expressionType())
+                .build();
         types.put(af, info);
         return info;
     }
@@ -702,181 +675,9 @@ public class TypeChecker {
      * SortSpecs.
      * Handles: asc(~col), desc(~col), sortInfo(~col), bare ~col, legacy CString.
      */
-    private List<TypeInfo.SortSpec> resolveSortSpecs(ValueSpecification vs, RelationType sourceType) {
-        List<TypeInfo.SortSpec> result = new ArrayList<>();
-        List<ValueSpecification> specs = (vs instanceof PureCollection(List<ValueSpecification> values)) ? values
-                : List.of(vs);
-        for (var spec : specs) {
-            result.add(resolveSingleSortSpec(spec, sourceType));
-        }
-        return result;
-    }
 
-    private TypeInfo.SortSpec resolveSingleSortSpec(ValueSpecification vs, RelationType sourceType) {
-        if (vs instanceof ClassInstance(String type, Object value) && "sortInfo".equals(type)) {
-            if (value instanceof ColSpec cs) {
-                if (!sourceType.columns().isEmpty())
-                    sourceType.requireColumn(cs.name());
-                return new TypeInfo.SortSpec(cs.name(), TypeInfo.SortDirection.ASC);
-            }
-        }
-        if (vs instanceof AppliedFunction af) {
-            String funcName = simpleName(af.function());
-            if ("asc".equals(funcName) || "ascending".equals(funcName)
-                    || "desc".equals(funcName) || "descending".equals(funcName)) {
-                String col = extractColumnName(af.parameters().get(0));
-                if (!sourceType.columns().isEmpty())
-                    sourceType.requireColumn(col);
-                TypeInfo.SortDirection dir = ("asc".equals(funcName) || "ascending".equals(funcName))
-                        ? TypeInfo.SortDirection.ASC
-                        : TypeInfo.SortDirection.DESC;
-                return new TypeInfo.SortSpec(col, dir);
-            }
-        }
-        if (vs instanceof CString(String value)) {
-            return new TypeInfo.SortSpec(value, TypeInfo.SortDirection.ASC);
-        }
-        // Old-style lambda sort: sortBy({e | $e.sal}) or sort({x,y | $y->compare($x)})
-        if (vs instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
-            // 2-param compare lambda: detect direction
-            if (parameters.size() == 2 && !body.isEmpty()) {
-                var firstBody = body.get(0);
-                if (firstBody instanceof AppliedFunction af2
-                        && simpleName(af2.function()).equals("compare")
-                        && !af2.parameters().isEmpty()) {
-                    String secondParam = parameters.get(1).name();
-                    TypeInfo.SortDirection dir = TypeInfo.SortDirection.ASC;
-                    if (af2.parameters().get(0) instanceof Variable v
-                            && v.name().equals(secondParam)) {
-                        dir = TypeInfo.SortDirection.DESC;
-                    }
-                    String col = extractColumnName(vs);
-                    return new TypeInfo.SortSpec(col, dir);
-                }
-            }
-            // 1-param key function: sortBy({e | $e.sal})
-            String col = extractColumnName(vs);
-            return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC);
-        }
-        throw new PureCompileException("Unsupported sort spec type: " + vs.getClass().getSimpleName());
-    }
-
-    /** Compiles limit/take(source, count). */
-    private TypeInfo compileLimit(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            throw new PureCompileException("limit/take() requires source and count");
-        }
-
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        compileExpr(params.get(1), ctx);
-        // Scalar list: [1,2,3]->take(2) → List<Integer> with MANY multiplicity
-        if (source.relationType() == null && source.scalarType() != null) {
-            return scalarTypedMany(af, source.scalarType().isList() ? source.scalarType()
-                    : GenericType.listOf(source.scalarType()));
-        }
-        return typed(af, source.relationType(), source.mapping());
-    }
-
-    /** Compiles drop(source, count). */
-    private TypeInfo compileDrop(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            throw new PureCompileException("drop() requires source and count");
-        }
-
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        compileExpr(params.get(1), ctx);
-        // Scalar list: [1,2,3]->drop(1) → List<Integer> with MANY multiplicity
-        if (source.relationType() == null && source.scalarType() != null) {
-            return scalarTypedMany(af, source.scalarType().isList() ? source.scalarType()
-                    : GenericType.listOf(source.scalarType()));
-        }
-        return typed(af, source.relationType(), source.mapping());
-    }
-
-    /** Compiles slice(source, start, end). */
-    private TypeInfo compileSlice(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3) {
-            throw new PureCompileException("slice() requires source, start, and end");
-        }
-
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        compileExpr(params.get(1), ctx);
-        compileExpr(params.get(2), ctx);
-        // Scalar list: [1,2,3,4]->slice(1,3) → List<Integer> with MANY multiplicity
-        if (source.relationType() == null && source.scalarType() != null) {
-            return scalarTypedMany(af, source.scalarType().isList() ? source.scalarType()
-                    : GenericType.listOf(source.scalarType()));
-        }
-        return typed(af, source.relationType(), source.mapping());
-    }
-
-    /** Compiles first(source). */
-    private TypeInfo compileFirst(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) {
-            throw new PureCompileException("first() requires a source");
-        }
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        if (source.relationType() != null) {
-            return typed(af, source.relationType(), source.mapping());
-        }
-        // Scalar source: first([1,2,3]) → element type with [0..1] multiplicity
-        GenericType elemType = source.scalarType() != null ? source.scalarType().elementType()
-                : GenericType.Primitive.ANY;
-        return scalarTyped(af, elemType);
-    }
-
-    /** Compiles distinct(source, columns?). */
-    private TypeInfo compileDistinct(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) {
-            throw new PureCompileException("distinct() requires a source");
-        }
-
-        TypeInfo source = compileExpr(params.get(0), ctx);
-
-        if (params.size() > 1) {
-            List<String> cols = extractColumnNames(params.get(1));
-            List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
-            for (String c : cols) {
-                colSpecs.add(TypeInfo.ColumnSpec.col(c));
-            }
-            var info = TypeInfo.builder().relationType(source.relationType().onlyColumns(cols))
-                    .mapping(source.mapping()).columnSpecs(colSpecs)
-                    .expressionType(
-                            ExpressionType.many(new GenericType.Relation(source.relationType().onlyColumns(cols))))
-                    .build();
-            types.put(af, info);
-            return info;
-        }
-
-        return typed(af, source.relationType(), source.mapping());
-    }
 
     // ========== Shape-Changing Operations ==========
-
-    /** Compiles rename(source, ~oldName, ~newName). */
-    private TypeInfo compileRename(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3) {
-            throw new PureCompileException("rename() requires source, old name, and new name");
-        }
-
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        String oldName = extractColumnName(params.get(1));
-        String newName = extractColumnName(params.get(2));
-
-        RelationType newType = source.relationType().renameColumn(oldName, newName);
-        List<TypeInfo.ColumnSpec> colSpecs = List.of(TypeInfo.ColumnSpec.renamed(oldName, newName));
-        var info = TypeInfo.builder().relationType(newType).mapping(source.mapping())
-                .columnSpecs(colSpecs)
-                .expressionType(ExpressionType.many(new GenericType.Relation(newType))).build();
-        types.put(af, info);
-        return info;
-    }
 
     /** Compiles concatenate(left, right). */
     private TypeInfo compileConcatenate(AppliedFunction af, CompilationContext ctx) {
@@ -890,40 +691,37 @@ public class TypeChecker {
 
         // Scalar list concatenation: [1,2]->concatenate([3,4]) → List<Integer> with
         // MANY multiplicity
-        if (left.relationType() == null && left.scalarType() != null) {
-            GenericType elemType = left.scalarType().isList() && left.scalarType().elementType() != null
-                    ? left.scalarType().elementType()
-                    : left.scalarType();
+        if (!left.isRelational() && left.type() != null) {
+            GenericType elemType = left.type().isList() && left.type().elementType() != null
+                    ? left.type().elementType()
+                    : left.type();
             return scalarTypedMany(af, GenericType.listOf(elemType));
         }
 
-        RelationType leftType = left.relationType();
-        RelationType rightType = right.relationType();
+        GenericType.Relation.Schema leftSchema = left.schema();
+        GenericType.Relation.Schema rightSchema = right.schema();
 
         // For struct/mapped sources with different class types, compute common
         // supertype
         if (left.mapping() != null && right.mapping() != null
-                && leftType != null && rightType != null
-                && !leftType.columns().keySet().equals(rightType.columns().keySet())) {
+                && leftSchema != null && rightSchema != null
+                && !leftSchema.columns().keySet().equals(rightSchema.columns().keySet())) {
             // Try to find a common supertype via class hierarchy
-            GenericType leftScalar = left.scalarType() != null ? left.scalarType().elementType() : null;
-            GenericType rightScalar = right.scalarType() != null ? right.scalarType().elementType() : null;
-            if (leftScalar instanceof GenericType.ClassType(String qualifiedName)
-                    && rightScalar instanceof GenericType.ClassType(String rightQualifiedName)
+            GenericType leftElem = left.type() != null ? left.type().elementType() : null;
+            GenericType rightElem = right.type() != null ? right.type().elementType() : null;
+            if (leftElem instanceof GenericType.ClassType(String qualifiedName)
+                    && rightElem instanceof GenericType.ClassType(String rightQualifiedName)
                     && modelContext != null) {
                 var lcaOpt = findLowestCommonAncestor(qualifiedName, rightQualifiedName);
                 if (lcaOpt.isPresent()) {
                     var lcaClass = lcaOpt.get();
-                    // Build RelationType from the LCA's allProperties
+                    // Build GenericType.Relation.Schema from the LCA's allProperties
                     var lcaCols = new java.util.LinkedHashMap<String, GenericType>();
                     for (var prop : lcaClass.allProperties()) {
                         lcaCols.put(prop.name(), GenericType.fromType(prop.genericType()));
                     }
-                    var lcaRelType = RelationType.withoutPivot(lcaCols);
-                    var lcaGenericType = new GenericType.ClassType(lcaClass.qualifiedName());
+                    var lcaRelType = GenericType.Relation.Schema.withoutPivot(lcaCols);
                     var info = TypeInfo.builder()
-                            .relationType(lcaRelType)
-                            .scalarType(GenericType.listOf(lcaGenericType))
                             .expressionType(ExpressionType.many(new GenericType.Relation(lcaRelType)))
                             .build();
                     types.put(af, info);
@@ -932,7 +730,6 @@ public class TypeChecker {
             }
             // No common supertype found — fall back to variant list
             var info = TypeInfo.builder()
-                    .scalarType(GenericType.listOf(GenericType.Primitive.ANY))
                     .expressionType(ExpressionType.one(GenericType.listOf(GenericType.Primitive.ANY)))
                     .build();
             types.put(af, info);
@@ -940,9 +737,9 @@ public class TypeChecker {
         }
 
         // Relational (non-struct) sources: strict column alignment
-        if (leftType != null && rightType != null) {
-            var leftCols = leftType.columns();
-            var rightCols = rightType.columns();
+        if (leftSchema != null && rightSchema != null) {
+            var leftCols = leftSchema.columns();
+            var rightCols = rightSchema.columns();
             if (leftCols.size() != rightCols.size()) {
                 throw new PureCompileException(
                         "concatenate(): column count mismatch — left has " + leftCols.size()
@@ -956,7 +753,7 @@ public class TypeChecker {
             }
         }
 
-        return typed(af, leftType, left.mapping());
+        return typed(af, leftSchema, left.mapping());
     }
 
     /**
@@ -1014,182 +811,9 @@ public class TypeChecker {
      */
     private TypeInfo compileProject(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            throw new PureCompileException("project() requires source and projection specs");
-        }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
-        RelationType sourceType = source.relationType();
-        ClassMapping mapping = source.mapping();
-
-        // Determine projection specs and aliases based on AST pattern
-        List<ValueSpecification> lambdaSpecs;
-        List<String> aliases;
-
-        if (params.get(1) instanceof PureCollection(List<ValueSpecification> values)) {
-            // Pattern 1: project(source, [lambdas], ['aliases'])
-            lambdaSpecs = values;
-            aliases = params.size() > 2 ? extractStringList(params.get(2)) : List.of();
-        } else if (params.get(1) instanceof ClassInstance ci
-                && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
-            // Pattern 3: project(source, ~[alias1:x|$x.prop, alias2:x|$x.prop])
-            // Unwrap ColSpecArray into individual ColSpec ClassInstances
-            lambdaSpecs = new ArrayList<>();
-            aliases = new ArrayList<>();
-            for (var cs : colSpecs) {
-                lambdaSpecs.add(new ClassInstance("colSpec", cs));
-                aliases.add(cs.name());
-            }
-        } else {
-            // Pattern 2: project(source, ~col1, ~col2, ...)
-            // Individual ColSpec params — aliases extracted inline in loop
-            lambdaSpecs = params.subList(1, params.size());
-            aliases = List.of();
-        }
-
-        // Pre-resolve associations for multi-hop property paths
-        var associations = resolveAssociations(lambdaSpecs, mapping);
-        // Merge: pre-existing associations from source (e.g. struct identity mappings)
-        // take priority
-        if (source.hasAssociations()) {
-            var merged = new java.util.LinkedHashMap<>(source.associations());
-            associations.forEach(merged::putIfAbsent);
-            associations = java.util.Map.copyOf(merged);
-        }
-
-        // Build projected RelationType + ProjectionSpecs
-        Map<String, GenericType> projectedColumns = new LinkedHashMap<>();
-        List<TypeInfo.ProjectionSpec> projections = new ArrayList<>();
-        for (int i = 0; i < lambdaSpecs.size(); i++) {
-            ValueSpecification lambdaSpec = lambdaSpecs.get(i);
-
-            // Extract full property path from lambda body (for type lookup in source)
-            List<String> propertyPath = extractPropertyPathFromLambda(lambdaSpec);
-            String propertyName = propertyPath.isEmpty() ? extractPropertyFromLambda(lambdaSpec)
-                    : propertyPath.getLast();
-            // Alias is the output column name — ColSpec.name() is authoritative for
-            // Relation API
-            String alias;
-            if (lambdaSpec instanceof ClassInstance ci2 && ci2.value() instanceof ColSpec cs2) {
-                alias = cs2.name(); // e.g., "id1" from id1:x|$x.id
-            } else {
-                alias = i < aliases.size() ? aliases.get(i) : propertyName;
-            }
-
-            // Detect function-wrapped lambda bodies: e.g., $e.date->monthNumber()
-            // The lambda body is an AppliedFunction wrapping property access
-            ValueSpecification computedExpr = null;
-            LambdaFunction computedLambda = null;
-            if (lambdaSpec instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-                ValueSpecification body = lf.body().get(0);
-                if (body instanceof AppliedFunction) {
-                    // Function wrapping a property — store body for scalar compilation
-                    computedExpr = body;
-                    computedLambda = lf;
-                }
-            } else if (lambdaSpec instanceof ClassInstance ci2b
-                    && ci2b.value() instanceof ColSpec cs2b
-                    && cs2b.function1() != null && !cs2b.function1().body().isEmpty()) {
-                ValueSpecification body = cs2b.function1().body().get(0);
-                if (body instanceof AppliedFunction) {
-                    computedExpr = body;
-                    computedLambda = cs2b.function1();
-                }
-            }
-
-            // Resolve column via mapping — no fallback, throw on unknown
-            String resolvedColumn = null;
-            GenericType colType = null;
-            if (mapping != null && propertyName != null) {
-                if (mapping instanceof RelationalMapping rm) {
-                    var columnOpt = rm.getColumnForProperty(propertyName);
-                    if (columnOpt.isPresent()) {
-                        resolvedColumn = columnOpt.get();
-                        colType = sourceType.columns().get(resolvedColumn);
-                    }
-                } else if (mapping.hasProperty(propertyName)) {
-                    // M2M: property name IS the virtual column name
-                    resolvedColumn = propertyName;
-                    colType = sourceType.columns().get(propertyName);
-                }
-            } else if (propertyName != null && sourceType.columns().containsKey(propertyName)) {
-                resolvedColumn = propertyName;
-                colType = sourceType.columns().get(propertyName);
-            }
-            // Computed expression (e.g. $e.date->monthNumber()) — infer type from body
-            if (colType == null && computedExpr != null) {
-                try {
-                    CompilationContext exprCtx = ctx;
-                    if (computedLambda != null
-                            && !computedLambda.parameters().isEmpty() && sourceType != null) {
-                        exprCtx = ctx.withRelationType(computedLambda.parameters().get(0).name(), sourceType);
-                    }
-                    TypeInfo exprInfo = compileExpr(computedExpr, exprCtx);
-                    if (exprInfo != null && exprInfo.scalarType() != null) {
-                        colType = exprInfo.scalarType();
-                    }
-                } catch (PureCompileException ignored) {
-                }
-            }
-            // Multi-hop property path: resolve type through association chain
-            // e.g., $p.addresses.street → resolve 'addresses' association → look up
-            // 'street' in target
-            if (colType == null && propertyPath.size() > 1 && associations != null) {
-                String assocProp = propertyPath.get(0);
-                var assocTarget = associations.get(assocProp);
-                if (assocTarget != null) {
-                    var targetMapping = assocTarget.targetMapping();
-                    // Resolve column name for the property
-                    var targetColOpt = (targetMapping instanceof RelationalMapping trm)
-                            ? trm.getColumnForProperty(propertyName)
-                            : java.util.Optional.<String>empty();
-                    if (targetColOpt.isPresent()) {
-                        resolvedColumn = targetColOpt.get();
-                    }
-                    // Get type from Pure class definition (authoritative)
-                    try {
-                        colType = targetMapping.typeForProperty(propertyName);
-                    } catch (IllegalArgumentException ignored) {
-                    }
-                }
-            }
-            // Struct multi-hop: resolve nested property via model context
-            // e.g., $x.addresses.val where addresses is List<StructAddress>
-            if (colType == null && propertyPath.size() > 1 && modelContext != null) {
-                String parentProp = propertyPath.get(0);
-                GenericType parentType = sourceType.columns().get(parentProp);
-                if (parentType != null) {
-                    // Unwrap List<ClassType> → ClassType
-                    GenericType elemType = parentType.elementType();
-                    if (elemType instanceof GenericType.ClassType(String qualifiedName)) {
-                        var classOpt = modelContext.findClass(qualifiedName);
-                        if (classOpt.isPresent()) {
-                            var propOpt = classOpt.get().findProperty(propertyName);
-                            if (propOpt.isPresent()) {
-                                colType = GenericType.fromType(propOpt.get().genericType());
-                            }
-                        }
-                    }
-                }
-            }
-            if (colType == null) {
-                throw new PureCompileException(
-                        "project(): cannot resolve type for column '" + propertyName
-                                + "'. Not found in source columns " + sourceType.columns().keySet()
-                                + (mapping != null ? " or mapping" : ""));
-            }
-
-            projectedColumns.put(alias, colType);
-
-            // Use full path if multi-hop, otherwise single property
-            List<String> specPath = propertyPath.isEmpty() ? List.of(propertyName) : propertyPath;
-            projections.add(new TypeInfo.ProjectionSpec(specPath, resolvedColumn, alias, computedExpr));
-        }
-
-        RelationType resultType = RelationType.withoutPivot(projectedColumns);
-        var info = TypeInfo.builder().relationType(resultType).mapping(mapping)
-                .associations(associations).projections(projections)
-                .expressionType(ExpressionType.many(new GenericType.Relation(resultType))).build();
+        NativeFunctionDef def = resolveSignature("project", params.size(), source);
+        var info = new com.gs.legend.compiler.checkers.ProjectChecker(this).check(af, source, ctx, def);
         types.put(af, info);
         return info;
     }
@@ -1198,44 +822,11 @@ public class TypeChecker {
      * Compiles select(source, ~col1, ~col2, ...).
      * Selects specific columns from a relation by name.
      */
-    private TypeInfo compileSelect(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            // select() with no columns = select all, pass through
-            TypeInfo source = compileExpr(params.get(0), ctx);
-            types.put(af, source);
-            return source;
-        }
 
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        List<String> columnNames = new ArrayList<>();
-        for (int i = 1; i < params.size(); i++) {
-            columnNames.addAll(extractColumnNames(params.get(i)));
-        }
-
-        Map<String, GenericType> selectedColumns = new LinkedHashMap<>();
-        List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
-        for (String col : columnNames) {
-            if (!source.relationType().columns().containsKey(col)) {
-                throw new PureCompileException(
-                        "select(): column '" + col + "' not found in source. Available: "
-                                + source.relationType().columns().keySet());
-            }
-            selectedColumns.put(col, source.relationType().columns().get(col));
-            colSpecs.add(TypeInfo.ColumnSpec.col(col));
-        }
-
-        var selectRelType = new RelationType(selectedColumns, source.relationType().dynamicPivotColumns());
-        var info = TypeInfo.builder().relationType(selectRelType)
-                .mapping(source.mapping()).columnSpecs(colSpecs)
-                .expressionType(ExpressionType.many(new GenericType.Relation(selectRelType))).build();
-        types.put(af, info);
-        return info;
-    }
 
     /**
      * Compiles flatten(source, ~col).
-     * Output RelationType mirrors source but the flattened column changes type
+     * Output GenericType.Relation.Schema mirrors source but the flattened column changes type
      * from list/JSON to its element type. Column name stored in columnSpecs
      * for PlanGenerator to generate UNNEST.
      */
@@ -1257,22 +848,21 @@ public class TypeChecker {
             return source;
         }
 
-        RelationType sourceType = source.relationType();
-        if (sourceType != null && !sourceType.columns().containsKey(colName)) {
+        GenericType.Relation.Schema sourceSchema = source.schema();
+        if (sourceSchema != null && !sourceSchema.columns().containsKey(colName)) {
             throw new PureCompileException(
                     "flatten(): column '" + colName + "' not found in source. Available: "
-                            + sourceType.columns().keySet());
+                            + sourceSchema.columns().keySet());
         }
 
         // Compute output RelationType: same as source, but flattened column
         // changes from list/JSON to element type (JSON for variant arrays)
         Map<String, GenericType> resultColumns = new LinkedHashMap<>(
-                sourceType != null ? sourceType.columns() : Map.of());
+                sourceSchema != null ? sourceSchema.columns() : Map.of());
         resultColumns.put(colName, GenericType.Primitive.JSON);
 
-        var flattenRelType = new RelationType(resultColumns, sourceType.dynamicPivotColumns());
+        var flattenRelType = new GenericType.Relation.Schema(resultColumns, sourceSchema.dynamicPivotColumns());
         var flattenInfo = TypeInfo.builder()
-                .relationType(flattenRelType)
                 .mapping(source.mapping())
                 .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
                 .expressionType(ExpressionType.many(new GenericType.Relation(flattenRelType)))
@@ -1281,9 +871,127 @@ public class TypeChecker {
         return flattenInfo;
     }
 
+    // ========== rename ==========
+
+    /**
+     * Compiles rename(rel, ~oldCol, ~newCol).
+     * Output schema: source schema with oldCol renamed to newCol.
+     * Populates colSpecs with renamed(old, new) for PlanGenerator.
+     */
+    private TypeInfo compileRename(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        if (params.size() < 3) {
+            throw new PureCompileException("rename() requires source, old column, and new column");
+        }
+
+        TypeInfo source = compileExpr(params.get(0), ctx);
+        GenericType.Relation.Schema sourceSchema = source.schema();
+        if (sourceSchema == null) {
+            throw new PureCompileException("rename() requires a relational source");
+        }
+
+        String oldName = extractColumnName(params.get(1));
+        String newName = extractColumnName(params.get(2));
+        sourceSchema.assertHasColumn(oldName);
+
+        GenericType.Relation.Schema outputSchema = sourceSchema.renameColumn(oldName, newName);
+        var info = TypeInfo.builder()
+                .mapping(source.mapping())
+                .columnSpecs(List.of(TypeInfo.ColumnSpec.renamed(oldName, newName)))
+                .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)))
+                .build();
+        types.put(af, info);
+        return info;
+    }
+
+    // ========== select ==========
+
+    /**
+     * Compiles select(rel, ~[cols]).
+     * Output schema: subset of source columns.
+     * Populates colSpecs with column names for PlanGenerator.
+     */
+    private TypeInfo compileSelect(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        TypeInfo source = compileExpr(params.get(0), ctx);
+        GenericType.Relation.Schema sourceSchema = source.schema();
+        if (sourceSchema == null) {
+            throw new PureCompileException("select() requires a relational source");
+        }
+
+        // select() with no column arg = pass through
+        if (params.size() < 2) {
+            types.put(af, source);
+            return source;
+        }
+
+        List<String> cols = extractColumnNames(params.get(1));
+        if (cols.isEmpty()) {
+            types.put(af, source);
+            return source;
+        }
+
+        sourceSchema.assertHasColumns(cols);
+        GenericType.Relation.Schema outputSchema = sourceSchema.onlyColumns(cols);
+        var info = TypeInfo.builder()
+                .mapping(source.mapping())
+                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
+                .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)))
+                .build();
+        types.put(af, info);
+        return info;
+    }
+
+    // ========== distinct ==========
+
+    /**
+     * Compiles distinct(rel) or distinct(rel, ~[cols]).
+     * Without columns: output schema = source schema (just adds DISTINCT).
+     * With columns: output schema = subset of source columns (like select + DISTINCT).
+     */
+    private TypeInfo compileDistinct(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        TypeInfo source = compileExpr(params.get(0), ctx);
+        GenericType.Relation.Schema sourceSchema = source.schema();
+        if (sourceSchema == null) {
+            throw new PureCompileException("distinct() requires a relational source");
+        }
+
+        // distinct() with no column arg = DISTINCT on all columns, schema unchanged
+        if (params.size() < 2) {
+            var info = TypeInfo.builder()
+                    .mapping(source.mapping())
+                    .expressionType(ExpressionType.many(new GenericType.Relation(sourceSchema)))
+                    .build();
+            types.put(af, info);
+            return info;
+        }
+
+        // distinct(rel, ~[cols]) = DISTINCT on specific columns
+        List<String> cols = extractColumnNames(params.get(1));
+        if (cols.isEmpty()) {
+            var info = TypeInfo.builder()
+                    .mapping(source.mapping())
+                    .expressionType(ExpressionType.many(new GenericType.Relation(sourceSchema)))
+                    .build();
+            types.put(af, info);
+            return info;
+        }
+
+        sourceSchema.assertHasColumns(cols);
+        GenericType.Relation.Schema outputSchema = sourceSchema.onlyColumns(cols);
+        var info = TypeInfo.builder()
+                .mapping(source.mapping())
+                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
+                .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)))
+                .build();
+        types.put(af, info);
+        return info;
+    }
+
     /**
      * Compiles groupBy(source, groupCols, aggSpecs).
-     * Output RelationType has group columns + aggregate columns.
+     * Output GenericType.Relation.Schema has group columns + aggregate columns.
      */
     private TypeInfo compileGroupBy(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -1292,7 +1000,7 @@ public class TypeChecker {
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
-        RelationType sourceType = source.relationType();
+        GenericType.Relation.Schema sourceSchema = source.schema();
 
         // Build output columns: group columns + aggregate columns
         Map<String, GenericType> resultColumns = new LinkedHashMap<>();
@@ -1301,12 +1009,12 @@ public class TypeChecker {
         // Group columns (param 1): ~col or [~col1, ~col2] or [{r | $r.col}]
         List<String> groupColNames = extractColumnNames(params.get(1));
         for (String col : groupColNames) {
-            if (!sourceType.columns().containsKey(col)) {
+            if (!sourceSchema.columns().containsKey(col)) {
                 throw new PureCompileException(
                         "groupBy(): group column '" + col + "' not found in source. Available: "
-                                + sourceType.columns().keySet());
+                                + sourceSchema.columns().keySet());
             }
-            GenericType type = sourceType.columns().get(col);
+            GenericType type = sourceSchema.columns().get(col);
             resultColumns.put(col, type);
             colSpecs.add(TypeInfo.ColumnSpec.col(col));
         }
@@ -1337,7 +1045,7 @@ public class TypeChecker {
                                 aggInfo.aggFunction(), aggInfo.extraArgs(), aggInfo.castType());
                     }
                     resultColumns.put(aggInfo.alias(),
-                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
+                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceSchema.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1349,7 +1057,7 @@ public class TypeChecker {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
                     resultColumns.put(aggInfo.alias(),
-                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
+                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceSchema.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1359,7 +1067,7 @@ public class TypeChecker {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
                     resultColumns.put(aggInfo.alias(),
-                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceType.columns()));
+                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceSchema.columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1367,12 +1075,11 @@ public class TypeChecker {
 
         // Fallback: if no columns resolved, use source type so it's never empty
         if (resultColumns.isEmpty()) {
-            return typed(af, sourceType, source.mapping());
+            return typed(af, sourceSchema, source.mapping());
         }
 
-        var groupByRelType = RelationType.withoutPivot(resultColumns);
-        var info = TypeInfo.builder().relationType(groupByRelType)
-                .mapping(source.mapping()).columnSpecs(colSpecs)
+        var groupByRelType = GenericType.Relation.Schema.withoutPivot(resultColumns);
+        var info = TypeInfo.builder().mapping(source.mapping()).columnSpecs(colSpecs)
                 .expressionType(ExpressionType.many(new GenericType.Relation(groupByRelType))).build();
         types.put(af, info);
         return info;
@@ -1403,7 +1110,7 @@ public class TypeChecker {
                 var aggInfo = extractAggSpec(v);
                 if (aggInfo != null) {
                     resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
-                            source.relationType().columns()));
+                            source.schema().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1414,7 +1121,7 @@ public class TypeChecker {
                 var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
                 if (aggInfo != null) {
                     resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
-                            source.relationType().columns()));
+                            source.schema().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
@@ -1423,19 +1130,18 @@ public class TypeChecker {
                 var aggInfo = extractAggSpec(params.get(i));
                 if (aggInfo != null) {
                     resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
-                            source.relationType().columns()));
+                            source.schema().columns()));
                     colSpecs.add(aggInfo);
                 }
             }
         }
 
         if (resultColumns.isEmpty()) {
-            return typed(af, source.relationType(), source.mapping());
+            return typed(af, source.schema(), source.mapping());
         }
 
-        var aggRelType = RelationType.withoutPivot(resultColumns);
-        var info = TypeInfo.builder().relationType(aggRelType)
-                .mapping(source.mapping()).columnSpecs(colSpecs)
+        var aggRelType = GenericType.Relation.Schema.withoutPivot(resultColumns);
+        var info = TypeInfo.builder().mapping(source.mapping()).columnSpecs(colSpecs)
                 .expressionType(ExpressionType.many(new GenericType.Relation(aggRelType))).build();
         types.put(af, info);
         return info;
@@ -1453,23 +1159,23 @@ public class TypeChecker {
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
-        RelationType sourceType = source.relationType();
+        GenericType.Relation.Schema sourceSchema = source.schema();
 
-        // Build new RelationType = source columns + new columns
-        Map<String, GenericType> newColumns = new LinkedHashMap<>(sourceType.columns());
+        // Build new GenericType.Relation.Schema = source columns + new columns
+        Map<String, GenericType> newColumns = new LinkedHashMap<>(sourceSchema.columns());
         for (int i = 1; i < params.size(); i++) {
             var p = params.get(i);
             // ColSpecArray: register ALL columns, not just the first
             if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
                 for (ColSpec cs : colSpecs) {
                     GenericType colType = inferExtendColumnType(
-                            new ClassInstance("colSpec", cs), ctx, sourceType);
+                            new ClassInstance("colSpec", cs), ctx, sourceSchema);
                     newColumns.put(cs.name(), colType);
                 }
             } else {
                 String colName = extractNewColumnName(p);
                 if (colName != null) {
-                    GenericType colType = inferExtendColumnType(p, ctx, sourceType);
+                    GenericType colType = inferExtendColumnType(p, ctx, sourceSchema);
                     newColumns.put(colName, colType);
                 }
             }
@@ -1513,13 +1219,13 @@ public class TypeChecker {
         }
 
         // For scalar extends, type-check the lambda body so property accesses
-        // get typed from the source RelationType (needed for string concat detection
+        // get typed from the source GenericType.Relation.Schema (needed for string concat detection
         // etc.)
-        if (isScalarExtend && windowColSpec.function1() != null && sourceType != null) {
+        if (isScalarExtend && windowColSpec.function1() != null && sourceSchema != null) {
             LambdaFunction lambda = windowColSpec.function1();
             if (!lambda.parameters().isEmpty() && !lambda.body().isEmpty()) {
                 String paramName = lambda.parameters().get(0).name();
-                CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceType);
+                CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceSchema);
                 typeCheckExpression(lambda.body().get(0), lambdaCtx);
             }
         }
@@ -1532,13 +1238,13 @@ public class TypeChecker {
         }
         for (int i = 1; i < params.size(); i++) {
             if (params.get(i) instanceof ClassInstance ci
-                    && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs) && sourceType != null) {
+                    && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs) && sourceSchema != null) {
                 for (ColSpec cs : colSpecs) {
                     if (cs.function1() != null) {
                         LambdaFunction lambda = cs.function1();
                         if (!lambda.parameters().isEmpty() && !lambda.body().isEmpty()) {
                             String paramName = lambda.parameters().get(0).name();
-                            CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceType);
+                            CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceSchema);
                             typeCheckExpression(lambda.body().get(0), lambdaCtx);
                         }
                     }
@@ -1564,9 +1270,8 @@ public class TypeChecker {
             }
         }
 
-        var extendRelType = new RelationType(newColumns, sourceType.dynamicPivotColumns());
-        var info = TypeInfo.builder().relationType(extendRelType)
-                .mapping(source.mapping())
+        var extendRelType = new GenericType.Relation.Schema(newColumns, sourceSchema.dynamicPivotColumns());
+        var info = TypeInfo.builder().mapping(source.mapping())
                 .windowSpecs(allWindowSpecs)
                 .expressionType(ExpressionType.many(new GenericType.Relation(extendRelType))).build();
         types.put(af, info);
@@ -2106,8 +1811,8 @@ public class TypeChecker {
         }
 
         // Detect duplicate column names between left and right
-        Set<String> leftColNames = left.relationType().columns().keySet();
-        Set<String> rightColNames = right.relationType().columns().keySet();
+        Set<String> leftColNames = left.schema().columns().keySet();
+        Set<String> rightColNames = right.schema().columns().keySet();
         Set<String> duplicates = new LinkedHashSet<>();
         for (String name : rightColNames) {
             if (leftColNames.contains(name)) {
@@ -2124,9 +1829,9 @@ public class TypeChecker {
         }
 
         // Merge columns: left stays as-is, right gets prefix on conflicts only
-        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.relationType().columns());
+        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.schema().columns());
         Map<String, String> renames = new LinkedHashMap<>(); // original → prefixed
-        for (var entry : right.relationType().columns().entrySet()) {
+        for (var entry : right.schema().columns().entrySet()) {
             String name = entry.getKey();
             if (duplicates.contains(name)) {
                 String prefixed = rightPrefix + "_" + name;
@@ -2149,9 +1854,8 @@ public class TypeChecker {
             }
         }
 
-        var joinRelType = RelationType.withoutPivot(mergedColumns);
-        var info = TypeInfo.builder().relationType(joinRelType)
-                .mapping(left.mapping()).joinType(joinType)
+        var joinRelType = GenericType.Relation.Schema.withoutPivot(mergedColumns);
+        var info = TypeInfo.builder().mapping(left.mapping()).joinType(joinType)
                 .joinColumnRenames(renames)
                 .expressionType(ExpressionType.many(new GenericType.Relation(joinRelType)))
                 .build();
@@ -2224,8 +1928,8 @@ public class TypeChecker {
         }
 
         // Detect duplicate column names between left and right
-        Set<String> leftColNames = left.relationType().columns().keySet();
-        Set<String> rightColNames = right.relationType().columns().keySet();
+        Set<String> leftColNames = left.schema().columns().keySet();
+        Set<String> rightColNames = right.schema().columns().keySet();
         Set<String> duplicates = new LinkedHashSet<>();
         for (String name : rightColNames) {
             if (leftColNames.contains(name)) {
@@ -2242,9 +1946,9 @@ public class TypeChecker {
         }
 
         // Merge columns: left stays as-is, right gets prefix on conflicts only
-        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.relationType().columns());
+        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.schema().columns());
         Map<String, String> renames = new LinkedHashMap<>(); // original → prefixed
-        for (var entry : right.relationType().columns().entrySet()) {
+        for (var entry : right.schema().columns().entrySet()) {
             String name = entry.getKey();
             if (duplicates.contains(name)) {
                 String prefixed = rightPrefix + "_" + name;
@@ -2274,9 +1978,8 @@ public class TypeChecker {
             }
         }
 
-        var crossJoinRelType = RelationType.withoutPivot(mergedColumns);
-        var info = TypeInfo.builder().relationType(crossJoinRelType)
-                .mapping(left.mapping())
+        var crossJoinRelType = GenericType.Relation.Schema.withoutPivot(mergedColumns);
+        var info = TypeInfo.builder().mapping(left.mapping())
                 .joinColumnRenames(renames)
                 .expressionType(ExpressionType.many(new GenericType.Relation(crossJoinRelType)))
                 .build();
@@ -2369,7 +2072,7 @@ public class TypeChecker {
         // These are the columns the compiler CAN know. Dynamic pivot columns are
         // data-dependent
         // and will be resolved from JDBC ResultSetMetaData at execution time.
-        var groupByCols = new java.util.LinkedHashMap<>(source.relationType().columns());
+        var groupByCols = new java.util.LinkedHashMap<String, GenericType>(source.schema().columns());
         pivotColumns.forEach(groupByCols::remove);
         for (var agg : aggregates) {
             if (agg.valueColumn() != null)
@@ -2378,7 +2081,7 @@ public class TypeChecker {
         // Build dynamic pivot column specs from aggregates.
         // When aggReturnType returns the generic NUMBER, refine to the source column's
         // concrete type (e.g., SUM(Integer col) → Integer, not Number).
-        var sourceColumns = source.relationType().columns();
+        var sourceColumns = source.schema().columns();
         var dynamicCols = aggregates.stream()
                 .map(agg -> {
                     GenericType returnType = aggReturnType(agg.aggFunction());
@@ -2398,14 +2101,13 @@ public class TypeChecker {
                             }
                         }
                     }
-                    return new com.gs.legend.plan.RelationType.DynamicPivotColumn(
+                    return new com.gs.legend.plan.GenericType.Relation.Schema.DynamicPivotColumn(
                             agg.alias(), returnType);
                 })
                 .toList();
-        var partialType = new com.gs.legend.plan.RelationType(groupByCols, dynamicCols);
+        var partialType = new GenericType.Relation.Schema(groupByCols, dynamicCols);
 
-        var info = TypeInfo.builder().relationType(partialType)
-                .mapping(source.mapping()).pivotSpec(pivotSpec)
+        var info = TypeInfo.builder().mapping(source.mapping()).pivotSpec(pivotSpec)
                 .expressionType(ExpressionType.many(new GenericType.Relation(partialType))).build();
         types.put(af, info);
         return info;
@@ -2423,43 +2125,12 @@ public class TypeChecker {
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
-        return typed(af, source.relationType(), source.mapping());
+        return typed(af, source.schema(), source.mapping());
     }
 
     // ========== Window Functions (inside extend lambdas) ==========
 
-    /**
-     * Compiles ranking window functions: rank(), rowNumber(), denseRank(), ntile(),
-     * percentRank(), cumulativeDistribution().
-     * Compiles all params (so lambda variables get scoped) and returns the known
-     * scalar type.
-     */
-    private TypeInfo compileWindowRanking(AppliedFunction af, CompilationContext ctx, GenericType returnType) {
-        for (var p : af.parameters()) {
-            compileExpr(p, ctx);
-        }
-        return scalarTyped(af, returnType);
-    }
 
-    /**
-     * Compiles navigation window functions: lag(), lead().
-     * These return a single row from the source relation, so the result carries
-     * the source's RelationType. This allows {@code $p->lag($r).salary} to resolve
-     * via compileProperty's existing relational-result path.
-     */
-    private TypeInfo compileWindowNavigation(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty())
-            throw new PureCompileException("lag/lead requires at least 1 parameter");
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        for (int i = 1; i < params.size(); i++) {
-            compileExpr(params.get(i), ctx);
-        }
-        if (source.relationType() != null) {
-            return typed(af, source.relationType(), source.mapping());
-        }
-        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-    }
 
     /**
      * Handles unknown/scalar functions — compiles the source (if it's a relation)
@@ -2509,15 +2180,16 @@ public class TypeChecker {
 
             // Determine element type from source
             GenericType elemType = GenericType.Primitive.ANY;
-            if (sourceInfo != null && sourceInfo.isList()
-                    && sourceInfo.scalarType().elementType() != null) {
-                elemType = sourceInfo.scalarType().elementType();
+            if (sourceInfo != null && sourceInfo.isMany()
+                    && sourceInfo.type() != null
+                    && sourceInfo.type().elementType() != null) {
+                elemType = sourceInfo.type().elementType();
             }
 
             // Determine init/accumulator type
             TypeInfo initInfo = types.get(params.get(2));
-            GenericType accType = initInfo != null && initInfo.scalarType() != null
-                    ? initInfo.scalarType()
+            GenericType accType = initInfo != null && initInfo.type() != null
+                    ? initInfo.type()
                     : GenericType.Primitive.ANY;
 
             String elemParam = parameters.size() >= 1 ? parameters.get(0).name() : "x";
@@ -2597,7 +2269,7 @@ public class TypeChecker {
                 // Set scalar TypeInfo directly — do NOT call compileExpr which would re-enter.
                 // Fold produces a single list value — stamp ONE so ExecutionResult
                 // unwraps the DuckDB array (vs MANY which treats rows as elements).
-                var info = TypeInfo.builder().scalarType(accType)
+                var info = TypeInfo.builder()
                         .inlinedBody(newFold)
                         .expressionType(ExpressionType.one(accType))
                         .build();
@@ -2796,7 +2468,7 @@ public class TypeChecker {
         // Determine if input is a collection (affects multiplicity matching)
         boolean inputIsMany = (params.get(0) instanceof PureCollection(List<ValueSpecification> values)
                 && values.size() != 1)
-                || (types.get(params.get(0)) != null && types.get(params.get(0)).isList());
+                || (types.get(params.get(0)) != null && types.get(params.get(0)).isMany());
 
         // Find matching branch by type + multiplicity
         for (var branch : branches) {
@@ -2862,8 +2534,8 @@ public class TypeChecker {
         }
         // Check side table
         TypeInfo info = types.get(vs);
-        if (info != null && info.scalarType() != null) {
-            GenericType st = info.scalarType();
+        if (info != null && info.type() != null) {
+            GenericType st = info.type();
             // For list types (e.g. from cast), use the element type
             if (st.isList() && st.elementType() != null)
                 st = st.elementType();
@@ -2879,113 +2551,6 @@ public class TypeChecker {
         return null;
     }
 
-    /**
-     * Compiles list-producing functions (tail, init, reverse, etc.) — always
-     * returns a list.
-     */
-    private TypeInfo compileListProducing(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            compileExpr(p, ctx);
-        }
-        // Determine element type from source
-        GenericType elemType = GenericType.Primitive.ANY;
-        if (!params.isEmpty()) {
-            TypeInfo sourceInfo = types.get(params.get(0));
-            if (sourceInfo != null && sourceInfo.scalarType() != null) {
-                // If source is already a list, use its element type
-                if (sourceInfo.scalarType().isList() && sourceInfo.scalarType().elementType() != null) {
-                    elemType = sourceInfo.scalarType().elementType();
-                } else {
-                    // Source is a single value — treat as element type
-                    elemType = sourceInfo.scalarType();
-                }
-            }
-        }
-        return scalarTypedMany(af, GenericType.listOf(elemType));
-    }
-
-    /** Compiles range(n) — produces a List&lt;Integer&gt;. */
-    private TypeInfo compileRange(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            compileExpr(p, ctx);
-        }
-        return scalarTypedMany(af, GenericType.listOf(GenericType.Primitive.INTEGER));
-    }
-
-    /** Compiles map(source, {x|body}). */
-    private TypeInfo compileMap(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty())
-            throw new PureCompileException("map requires at least 1 parameter");
-
-        // 1. Compile source
-        TypeInfo sourceInfo = compileExpr(params.get(0), ctx);
-
-        // 2. Determine element type for the lambda param
-        GenericType elemType = GenericType.Primitive.ANY;
-        boolean isVariantArray = false;
-        if (sourceInfo != null && sourceInfo.isList()
-                && sourceInfo.scalarType().elementType() != null) {
-            elemType = sourceInfo.scalarType().elementType();
-        } else if (sourceInfo != null
-                && sourceInfo.scalarType() == GenericType.Primitive.JSON) {
-            // Variant array iteration: map on JSON treats source as JSON[]
-            elemType = GenericType.Primitive.JSON;
-            isVariantArray = true;
-        }
-
-        // 3. Register lambda param and compile body with proper context
-        if (params.size() > 1
-                && params.get(1) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
-            CompilationContext lambdaCtx = ctx;
-            if (!parameters.isEmpty()) {
-                String paramName = parameters.get(0).name();
-                lambdaCtx = ctx.withLambdaParam(paramName, elemType);
-            }
-            // Compile the lambda body with the param in scope
-            if (!body.isEmpty()) {
-                compileExpr(body.get(0), lambdaCtx);
-            }
-        }
-
-        // 4. Infer result type
-        GenericType resultElemType = GenericType.Primitive.ANY;
-        if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf
-                && !lf.body().isEmpty()) {
-            TypeInfo bodyInfo = types.get(lf.body().get(0));
-            if (bodyInfo != null && bodyInfo.scalarType() != null) {
-                resultElemType = bodyInfo.scalarType();
-            }
-        }
-
-        if (sourceInfo != null && (sourceInfo.isList() || isVariantArray)) {
-            var result = scalarTypedMany(af, GenericType.listOf(resultElemType));
-            return result;
-        }
-        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-    }
-
-    /**
-     * Compiles find(source, {x|predicate}) — returns element type of source list.
-     */
-    private TypeInfo compileFind(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            compileExpr(p, ctx);
-        }
-        // Return element type from source list
-        if (!params.isEmpty()) {
-            TypeInfo sourceInfo = types.get(params.get(0));
-            if (sourceInfo != null && sourceInfo.scalarType() != null
-                    && sourceInfo.scalarType().isList()) {
-                return scalarTyped(af, sourceInfo.scalarType().elementType());
-            }
-        }
-        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-    }
-
     /** Compiles zip(list1, list2). */
     private TypeInfo compileZip(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -2998,45 +2563,14 @@ public class TypeChecker {
         if (params.size() >= 2) {
             TypeInfo aInfo = types.get(params.get(0));
             TypeInfo bInfo = types.get(params.get(1));
-            if (aInfo != null && aInfo.scalarType() != null && aInfo.scalarType().isList()) {
-                elemA = aInfo.scalarType().elementType();
+            if (aInfo != null && aInfo.isMany() && aInfo.type() != null) {
+                elemA = aInfo.type().elementType();
             }
-            if (bInfo != null && bInfo.scalarType() != null && bInfo.scalarType().isList()) {
-                elemB = bInfo.scalarType().elementType();
+            if (bInfo != null && bInfo.isMany() && bInfo.type() != null) {
+                elemB = bInfo.type().elementType();
             }
         }
         return scalarTypedMany(af, GenericType.listOf(GenericType.pairOf(elemA, elemB)));
-    }
-
-    /**
-     * Compiles forAll(list, {e|predicate}) and exists(list, {e|predicate}) — always
-     * BOOLEAN.
-     */
-    private TypeInfo compileCollectionPredicate(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            compileExpr(p, ctx);
-        }
-        return scalarTyped(af, GenericType.Primitive.BOOLEAN);
-    }
-
-    /**
-     * Compiles size(source) — always returns Integer scalar, for both relations and
-     * lists.
-     */
-    private TypeInfo compileSize(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        // Compile source so its TypeInfo is available to PlanGenerator
-        for (var p : params) {
-            try {
-                compileExpr(p, ctx);
-            } catch (PureCompileException ignored) {
-            }
-        }
-        TypeInfo info = TypeInfo.builder().scalarType(GenericType.Primitive.INTEGER)
-                .expressionType(ExpressionType.one(GenericType.Primitive.INTEGER)).build();
-        types.put(af, info);
-        return info;
     }
 
     /**
@@ -3054,9 +2588,7 @@ public class TypeChecker {
             } catch (PureCompileException ignored) {
             }
         }
-        var writeRelType = RelationType.ofSingle("value", GenericType.Primitive.INTEGER);
         TypeInfo info = TypeInfo.builder()
-                .relationType(writeRelType)
                 .expressionType(ExpressionType.one(GenericType.Primitive.INTEGER))
                 .build();
         types.put(af, info);
@@ -3088,7 +2620,7 @@ public class TypeChecker {
                 GenericType listType = targetType != null
                         ? GenericType.listOf(targetType)
                         : GenericType.listOf(GenericType.Primitive.ANY);
-                TypeInfo info = TypeInfo.builder().scalarType(listType)
+                TypeInfo info = TypeInfo.builder()
                         .expressionType(ExpressionType.one(listType)).build();
                 types.put(af, info);
                 yield info;
@@ -3096,20 +2628,20 @@ public class TypeChecker {
             case "cast" -> {
                 // cast preserves source shape: if source is relational, propagate relation type
                 TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
-                if (sourceInfo != null && sourceInfo.relationType() != null) {
+                if (sourceInfo != null && sourceInfo.isRelational()) {
                     // Relational cast: propagate source relation type through
                     types.put(af, sourceInfo);
                     yield sourceInfo;
                 }
                 // Scalar cast: if source is list, result is list of target type
-                if (sourceInfo != null && sourceInfo.isList() && targetType != null) {
-                    TypeInfo info = TypeInfo.builder().scalarType(GenericType.listOf(targetType))
+                if (sourceInfo != null && sourceInfo.type() != null && sourceInfo.type().isList() && targetType != null) {
+                    TypeInfo info = TypeInfo.builder()
                             .expressionType(ExpressionType.one(GenericType.listOf(targetType))).build();
                     types.put(af, info);
                     yield info;
                 }
                 if (targetType != null) {
-                    TypeInfo info = TypeInfo.builder().scalarType(targetType)
+                    TypeInfo info = TypeInfo.builder()
                             .expressionType(ExpressionType.one(targetType)).build();
                     types.put(af, info);
                     yield info;
@@ -3119,16 +2651,16 @@ public class TypeChecker {
             case "toOne" -> {
                 // toOne extracts single value — if source has list type, return element type
                 TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
-                if (sourceInfo != null && sourceInfo.scalarType() != null
-                        && sourceInfo.scalarType().isList()
-                        && sourceInfo.scalarType().elementType() != null) {
-                    TypeInfo info = TypeInfo.builder().scalarType(sourceInfo.scalarType().elementType())
-                            .expressionType(ExpressionType.one(sourceInfo.scalarType().elementType())).build();
+                if (sourceInfo != null && sourceInfo.type() != null
+                        && sourceInfo.type().isList()
+                        && sourceInfo.type().elementType() != null) {
+                    TypeInfo info = TypeInfo.builder()
+                            .expressionType(ExpressionType.one(sourceInfo.type().elementType())).build();
                     types.put(af, info);
                     yield info;
                 }
                 // Non-list source: toOne is a no-op, propagate scalar type through
-                if (sourceInfo != null && sourceInfo.scalarType() != null) {
+                if (sourceInfo != null && sourceInfo.type() != null) {
                     types.put(af, sourceInfo);
                     yield sourceInfo;
                 }
@@ -3137,7 +2669,7 @@ public class TypeChecker {
             case "to" -> {
                 // to(@Type) — variant conversion, produces target type
                 if (targetType != null) {
-                    TypeInfo info = TypeInfo.builder().scalarType(targetType)
+                    TypeInfo info = TypeInfo.builder()
                             .expressionType(ExpressionType.one(targetType)).build();
                     types.put(af, info);
                     yield info;
@@ -3147,7 +2679,7 @@ public class TypeChecker {
             case "toVariant" -> {
                 // toVariant produces a variant (pass through source type for list detection)
                 TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
-                if (sourceInfo != null && sourceInfo.scalarType() != null) {
+                if (sourceInfo != null && sourceInfo.type() != null) {
                     types.put(af, sourceInfo);
                     yield sourceInfo;
                 }
@@ -3196,7 +2728,7 @@ public class TypeChecker {
         var builder = TypeInfo.builder();
         // get() always returns a variant — default to JSON if no @Type annotation
         GenericType getType = targetType != null ? targetType : GenericType.Primitive.JSON;
-        builder.scalarType(getType).expressionType(ExpressionType.one(getType));
+        builder.expressionType(ExpressionType.one(getType));
         if (access != null)
             builder.variantAccess(access);
         TypeInfo info = builder.build();
@@ -3204,116 +2736,192 @@ public class TypeChecker {
         return info;
     }
 
-    /** Compiles functions that propagate type from their first param. */
+    /**
+     * Compiles functions driven by their registered signature.
+     * Handles lambda parameters by binding their variables to the resolved type.
+     *
+     * Flow:
+     * 1. Compile source (param 0) to resolve its type
+     * 2. Resolve the right overload by arity + source type
+     * 3. Bind type variables (T, V) from source
+     * 4. For lambda params: bind lambda variable to resolved T, compile body
+     * 5. Return based on signature's return type + multiplicity
+     */
     private TypeInfo compileTypePropagating(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            compileExpr(p, ctx);
-        }
         String fn = simpleName(af.function());
 
-        // Resolve the right overload by arity — this distinguishes e.g.
-        // sum(numbers:Number[*]):Number[1] (arity 1, scalar)
-        // sum<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1] (arity 3, window)
+        // 1. Compile source (param 0) first — we need its type for overload resolution
+        TypeInfo sourceInfo = null;
+        if (!params.isEmpty()) {
+            sourceInfo = compileExpr(params.get(0), ctx);
+        }
+
+        // 2. Resolve the right overload by arity + source type
         var defs = builtinRegistry.resolve(fn);
+        boolean sourceIsRelational = sourceInfo != null && sourceInfo.isRelational();
         NativeFunctionDef def = null;
         for (var d : defs) {
-            if (d.arity() == params.size()) {
+            if (d.arity() != params.size()) continue;
+            boolean defIsRelational = !d.params().isEmpty()
+                    && d.params().get(0).type() instanceof PType.Parameterized p
+                    && "Relation".equals(p.rawType());
+            if (defIsRelational == sourceIsRelational) {
                 def = d;
                 break;
             }
+            if (def == null) def = d;
         }
         if (def == null && !defs.isEmpty())
             def = defs.getFirst();
+        if (def == null) {
+            throw new PureCompileException("Unresolved type for function: " + fn);
+        }
 
-        if (def != null) {
-            PType retType = def.returnType();
-
-            // Concrete return (Integer, String, Float, etc.) → always return that type
-            if (retType instanceof PType.Concrete c) {
-                GenericType gt = c.toGenericType();
-                if (gt != null)
-                    return scalarTyped(af, gt);
-            }
-
-            // TypeVar return (T) in window context → propagate relationType
-            // Only for window overloads whose first parameter is Relation<T>.
-            // Scalar TypeVar functions (head, at, toOne, sort, etc.) have T[*]
-            // as first param and fall through to the source-propagation fallback.
-            if (retType instanceof PType.TypeVar && !params.isEmpty()
-                    && !def.params().isEmpty()
-                    && def.params().get(0).type() instanceof PType.Parameterized p
-                    && "Relation".equals(p.rawType())) {
-                TypeInfo sourceInfo = types.get(params.get(0));
-                if (sourceInfo != null && sourceInfo.relationType() != null) {
-                    return typed(af, sourceInfo.relationType(), sourceInfo.mapping());
+        // 3. Bind type variable T from source
+        GenericType resolvedT = null;
+        if (sourceInfo != null) {
+            if (sourceIsRelational) {
+                resolvedT = new GenericType.Relation(sourceInfo.schema());
+            } else {
+                resolvedT = sourceInfo.type();
+                // If source is List<T>, unwrap to get element type for the lambda param
+                if (resolvedT != null && resolvedT.isList() && resolvedT.elementType() != null) {
+                    resolvedT = resolvedT.elementType();
                 }
             }
         }
 
-        // Fallback: propagate scalarType from source (first param)
-        // Handles unregistered functions and list unwrapping
-        if (!params.isEmpty()) {
-            TypeInfo sourceInfo = types.get(params.get(0));
-            if (sourceInfo != null && sourceInfo.scalarType() != null) {
-                GenericType propType = sourceInfo.scalarType();
-                // List-reducing functions extract a scalar from a list → unwrap element type.
-                // Only list-PRESERVING functions (sort, split, pair, list) keep the List
-                // wrapper.
-                // Also: maxBy/minBy with topK (3 args) return a list, not a scalar.
-                boolean preserveList = isListPreserving(fn)
-                        || ((fn.equals("maxBy") || fn.equals("minBy")) && params.size() >= 3);
-                if (propType.isList() && propType.elementType() != null
-                        && !preserveList) {
+        // 4. Compile remaining params — with lambda binding when signature expects Function<{...}>
+        for (int i = 1; i < params.size(); i++) {
+            var param = params.get(i);
+            PType.Param sigParam = i < def.params().size() ? def.params().get(i) : null;
+
+            // Check if signature param is Function<{T[1]->...}> and actual param is a lambda
+            if (sigParam != null && isLambdaParam(sigParam) && param instanceof LambdaFunction lambda) {
+                // Bind the lambda variable to the resolved source element type
+                CompilationContext lambdaCtx = ctx;
+                if (!lambda.parameters().isEmpty() && resolvedT != null) {
+                    String paramName = lambda.parameters().get(0).name();
+                    if (sourceIsRelational && sourceInfo.schema() != null) {
+                        // Relational: bind to schema so $x.name resolves to column access
+                        lambdaCtx = ctx.withRelationType(paramName, sourceInfo.schema());
+                        if (sourceInfo.mapping() != null) {
+                            lambdaCtx = lambdaCtx.withMapping(paramName, sourceInfo.mapping());
+                        }
+                    } else {
+                        // Scalar: bind to element type
+                        lambdaCtx = ctx.withLambdaParam(paramName, resolvedT);
+                    }
+                }
+                // Compile lambda body with bindings
+                if (!lambda.body().isEmpty()) {
+                    compileExpr(lambda.body().get(0), lambdaCtx);
+                }
+            } else if (param instanceof ClassInstance ci
+                    && ("colSpec".equals(ci.type()) || "colSpecArray".equals(ci.type()))) {
+                // ColSpec params are column name tokens — type safety is in the GenericType.Relation.Schema schema.
+                // No side table entry; PlanGenerator reads ColSpec.name() directly.
+            } else {
+                // Non-lambda param: just compile normally
+                compileExpr(param, ctx);
+            }
+        }
+
+        // 4b. For relational sources with lambdas, resolve associations for multi-hop property paths
+        java.util.Map<String, TypeInfo.AssociationTarget> associations = java.util.Map.of();
+        if (sourceIsRelational && sourceInfo.mapping() != null) {
+            // Collect all lambda bodies
+            List<ValueSpecification> lambdaBodies = new ArrayList<>();
+            for (int i = 1; i < params.size(); i++) {
+                if (params.get(i) instanceof LambdaFunction lf) {
+                    lambdaBodies.addAll(lf.body());
+                }
+            }
+            if (!lambdaBodies.isEmpty()) {
+                associations = resolveAssociationsInBody(lambdaBodies, sourceInfo.mapping())
+                        .entrySet().stream().collect(java.util.stream.Collectors.toMap(
+                                java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
+            }
+        }
+
+        // 4c. For relational sources, output schema = source schema.
+        //     (Functions like rename/select/distinct that transform the schema
+        //      have their own compile methods and never reach here.)
+        GenericType.Relation.Schema outputSchema = sourceIsRelational ? sourceInfo.schema() : null;
+
+        // 5. Determine return type from signature
+        PType retType = def.returnType();
+        boolean returnIsMany = def.returnMult() instanceof Mult.Fixed f
+                && f.value().upperBound() == null
+                || def.returnMult() instanceof Mult.Var;
+
+        // 5a. Concrete return type (Integer, String, Boolean, etc.)
+        if (retType instanceof PType.Concrete c) {
+            GenericType gt = c.toGenericType();
+            if (gt != null) {
+                return returnIsMany ? scalarTypedMany(af, gt) : scalarTyped(af, gt);
+            }
+        }
+
+        // 5b. TypeVar return (T or X) — resolve from source
+        if (retType instanceof PType.TypeVar tv && sourceInfo != null) {
+            // Relational source → propagate output schema + associations
+            if (sourceIsRelational && outputSchema != null) {
+                var builder = TypeInfo.builder()
+                        .mapping(sourceInfo.mapping()).associations(associations)
+                        .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)));
+                var info = builder.build();
+                types.put(af, info);
+                return info;
+            }
+            // Scalar source → propagate type
+            GenericType propType = sourceInfo.type();
+            if (propType != null) {
+                // List-reducing: [1]/[0..1] return → unwrap List<T> to T
+                if (!returnIsMany && propType.isList() && propType.elementType() != null) {
                     propType = propType.elementType();
                 }
-                // List-preserving functions that produce N independent values → MANY
-                // list(), pair(), toVariant() wrap into a single list value → NOT MANY
-                // maxBy/minBy with topK (3+ params) also produce N independent values
-                boolean producesMany = isListProducingMany(fn)
-                        || ((fn.equals("maxBy") || fn.equals("minBy")) && params.size() >= 3);
-                if (preserveList && propType.isList() && producesMany) {
-                    return scalarTypedMany(af, propType);
+                return returnIsMany ? scalarTypedMany(af, propType) : scalarTyped(af, propType);
+            }
+            // V resolved from lambda body (e.g., map returns V, not T)
+            if (!"T".equals(tv.name())) {
+                for (int i = params.size() - 1; i >= 1; i--) {
+                    if (params.get(i) instanceof LambdaFunction lf && !lf.body().isEmpty()) {
+                        TypeInfo bodyInfo = types.get(lf.body().get(0));
+                        if (bodyInfo != null && bodyInfo.type() != null) {
+                            GenericType resultType = bodyInfo.type();
+                            return returnIsMany ? scalarTypedMany(af, resultType)
+                                    : scalarTyped(af, resultType);
+                        }
+                    }
                 }
-                var propInfo = TypeInfo.builder().scalarType(propType)
-                        .expressionType(ExpressionType.one(propType)).build();
-                types.put(af, propInfo);
-                return propInfo;
             }
         }
-        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
+
+        // 5c. Parameterized return (Relation<T>, etc.)
+        if (retType instanceof PType.Parameterized retParam && sourceInfo != null) {
+            if ("Relation".equals(retParam.rawType()) && outputSchema != null) {
+                var builder = TypeInfo.builder()
+                        .mapping(sourceInfo.mapping()).associations(associations)
+                        .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)));
+                var info = builder.build();
+                types.put(af, info);
+                return info;
+            }
+            GenericType propType = sourceInfo.type();
+            if (propType != null) {
+                return returnIsMany ? scalarTypedMany(af, propType) : scalarTyped(af, propType);
+            }
+        }
+
+        throw new PureCompileException("Unresolved type for function: " + fn);
     }
 
-    /**
-     * Returns true if the function preserves a list — i.e., takes a list and
-     * returns a list.
-     * All other functions that accept a list reduce it to a scalar element type.
-     * 
-     * Examples: sort([1,2,3]) → [1,2,3] (list), but min([1,2,3]) → 1 (scalar).
-     */
-    private static boolean isListPreserving(String fn) {
-        return switch (fn) {
-            case "sort", "sortBy",
-                    "split",
-                    "pair", "list",
-                    "toVariant" ->
-                true;
-            default -> false;
-        };
-    }
-
-    /**
-     * True if the function both preserves the list type AND produces N independent
-     * values.
-     * sort/sortBy/split return an array of N elements that should each become a
-     * row.
-     * list/pair/toVariant wrap values into a single opaque list → multiplicity [1].
-     */
-    private static boolean isListProducingMany(String fn) {
-        return switch (fn) {
-            case "sort", "sortBy", "split" -> true;
-            default -> false;
-        };
+    /** Returns true if a signature param is Function<{...}> — i.e., expects a lambda. */
+    private boolean isLambdaParam(PType.Param sigParam) {
+        return sigParam.type() instanceof PType.Parameterized p
+                && "Function".equals(p.rawType());
     }
 
     /**
@@ -3420,9 +3028,11 @@ public class TypeChecker {
         return fallback;
     }
 
+
+
     /** Infers the column type for an extend column from its lambda body. */
     private GenericType inferExtendColumnType(ValueSpecification param, CompilationContext ctx,
-            RelationType sourceType) {
+            GenericType.Relation.Schema sourceType) {
         // Extract the lambda body from ColSpec wrapper
         ColSpec cs = null;
         if (param instanceof ClassInstance ci && ci.value() instanceof ColSpec colSpec) {
@@ -3453,8 +3063,8 @@ public class TypeChecker {
         }
 
         TypeInfo bodyInfo = compileExpr(lambda.body().get(0), bodyCtx);
-        if (bodyInfo != null && bodyInfo.scalarType() != null) {
-            return bodyInfo.scalarType();
+        if (bodyInfo != null && bodyInfo.type() != null) {
+            return bodyInfo.type();
         }
         // Fallback: expressionType (from property access on relational result)
         if (bodyInfo != null && bodyInfo.expressionType() != null) {
@@ -3465,9 +3075,9 @@ public class TypeChecker {
             return rt;
         }
         // Fallback: single-column relationType (from desugared property project)
-        if (bodyInfo != null && bodyInfo.relationType() != null
-                && bodyInfo.relationType().columns().size() == 1) {
-            return bodyInfo.relationType().columns().values().iterator().next();
+        if (bodyInfo != null && bodyInfo.schema() != null
+                && bodyInfo.schema().columns().size() == 1) {
+            return bodyInfo.schema().columns().values().iterator().next();
         }
 
         throw new PureCompileException("cannot infer type for extend column '"
@@ -3487,14 +3097,14 @@ public class TypeChecker {
         GenericType resultType = null;
         if (params.size() >= 2) {
             TypeInfo thenInfo = types.get(params.get(1));
-            if (thenInfo != null && thenInfo.scalarType() != null) {
-                resultType = thenInfo.scalarType();
+            if (thenInfo != null && thenInfo.type() != null) {
+                resultType = thenInfo.type();
             }
         }
         if (params.size() >= 3) {
             TypeInfo elseInfo = types.get(params.get(2));
-            if (elseInfo != null && elseInfo.scalarType() != null) {
-                GenericType elseType = elseInfo.scalarType();
+            if (elseInfo != null && elseInfo.type() != null) {
+                GenericType elseType = elseInfo.type();
                 if (resultType != null && !resultType.equals(elseType)) {
                     // Widen to common supertype: both numeric → NUMBER, otherwise ANY
                     if (resultType.isNumeric() && elseType.isNumeric()) {
@@ -3514,37 +3124,7 @@ public class TypeChecker {
     }
 
     /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
-    private TypeInfo compileBlock(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> stmts = af.parameters();
-        if (stmts.isEmpty())
-            throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
 
-        CompilationContext blockCtx = ctx;
-        // Process all statements; for let stmts, enrich context with binding
-        for (int i = 0; i < stmts.size() - 1; i++) {
-            var stmt = stmts.get(i);
-            if (stmt instanceof AppliedFunction letAf
-                    && simpleName(letAf.function()).equals("letFunction")
-                    && letAf.parameters().size() >= 2
-                    && letAf.parameters().get(0) instanceof CString(String value)) {
-                // let x = valueExpr → store binding in context
-                ValueSpecification valueExpr = letAf.parameters().get(1);
-                compileExpr(valueExpr, blockCtx); // compile value for type info
-                blockCtx = blockCtx.withLetBinding(value, valueExpr);
-            } else {
-                compileExpr(stmt, blockCtx);
-            }
-        }
-        // Compile the final (result) expression with enriched context
-        ValueSpecification lastStmt = stmts.getLast();
-        TypeInfo result = compileExpr(lastStmt, blockCtx);
-        // Set inlinedBody on the block node → PlanGenerator transparently skips
-        // through block to the result expression (same pattern as user function
-        // inlining)
-        TypeInfo blockInfo = TypeInfo.from(result).inlinedBody(lastStmt).build();
-        types.put(af, blockInfo);
-        return blockInfo;
-    }
 
     /**
      * Compiles eval() using the inlinedBody sidecar pattern.
@@ -3672,7 +3252,7 @@ public class TypeChecker {
         TypeInfo bodyResult = compileExpr(inlinedNode, ctx);
         // Store inlined body in TypeInfo — PlanGenerator processes it instead of the
         // original call
-        TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(inlinedNode).lambdaParam(false).build();
+        TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(inlinedNode).build();
         types.put(af, result);
         return result;
     }
@@ -3690,7 +3270,7 @@ public class TypeChecker {
 
     /**
      * Compiles a struct literal ^ClassName(prop=val, ...) with proper type info.
-     * Builds a RelationType where each property becomes a typed column,
+     * Builds a GenericType.Relation.Schema where each property becomes a typed column,
      * so PlanGenerator can distinguish arrays (need UNNEST) from scalars.
      */
     private TypeInfo compileInstanceLiteral(ClassInstance ci, CompilationContext ctx) {
@@ -3754,12 +3334,12 @@ public class TypeChecker {
                 var valInfo = types.get(entry.getValue());
                 if (valInfo != null) {
                     types.put(entry.getValue(),
-                            TypeInfo.from(valInfo).scalarType(propType).build());
+                            TypeInfo.from(valInfo).expressionType(ExpressionType.one(propType)).build());
                 }
             }
         }
 
-        var rt = RelationType.withoutPivot(columns);
+        var rt = GenericType.Relation.Schema.withoutPivot(columns);
 
         // Build identity mapping — scalar primitives get identity PropertyMappings
         var identityMapping = RelationalMapping.identity(pureClass);
@@ -3782,7 +3362,6 @@ public class TypeChecker {
         }
 
         var info = TypeInfo.builder()
-                .relationType(rt)
                 .mapping(identityMapping)
                 .associations(associations.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(associations))
                 .expressionType(ExpressionType.many(new GenericType.Relation(rt)))
@@ -3800,7 +3379,7 @@ public class TypeChecker {
     private TypeInfo compileTdsLiteral(ClassInstance ci, CompilationContext ctx) {
         String raw = (String) ci.value();
         com.gs.legend.ast.TdsLiteral tds = com.gs.legend.ast.TdsLiteral.parse(raw);
-        // Build RelationType from parsed column names and types
+        // Build GenericType.Relation.Schema from parsed column names and types
         Map<String, GenericType> columns = new LinkedHashMap<>();
         for (int i = 0; i < tds.columns().size(); i++) {
             var col = tds.columns().get(i);
@@ -3825,7 +3404,7 @@ public class TypeChecker {
             columns.put(col.name(), colType != null ? colType : GenericType.Primitive.STRING);
         }
         // Register type on the ORIGINAL ci so callers can look it up
-        var info = typed(ci, RelationType.withoutPivot(columns), null);
+        var info = typed(ci, GenericType.Relation.Schema.withoutPivot(columns), null);
         // Also register a parsed-TDS ClassInstance for PlanGenerator
         types.put(new ClassInstance("tdsLiteral", tds), info);
         return info;
@@ -3856,7 +3435,7 @@ public class TypeChecker {
         switch (vs) {
             case AppliedProperty ap -> {
                 if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
-                    RelationType relType = ctx.getRelationType(v.name());
+                    GenericType.Relation.Schema relType = ctx.getRelationType(v.name());
                     if (relType != null && !relType.columns().isEmpty()) {
                         // Mapping exists — verify the property name is a valid column
                         // (projected columns use property names, not physical column names)
@@ -3884,7 +3463,7 @@ public class TypeChecker {
                         // Resolve column type and store in side table
                         GenericType colType = relType.columns().get(ap.property());
                         if (colType != null) {
-                            types.put(ap, TypeInfo.builder().scalarType(colType)
+                            types.put(ap, TypeInfo.builder()
                                     .expressionType(ExpressionType.one(colType)).build());
                         }
                     }
@@ -3911,9 +3490,9 @@ public class TypeChecker {
                     compileGet(af, ctx);
                 } else if ("toOne".equals(simple) && !af.parameters().isEmpty()) {
                     TypeInfo innerType = types.get(af.parameters().get(0));
-                    if (innerType != null && innerType.scalarType() != null) {
-                        types.put(af, TypeInfo.builder().scalarType(innerType.scalarType())
-                                .expressionType(ExpressionType.one(innerType.scalarType())).build());
+                    if (innerType != null && innerType.type() != null) {
+                        types.put(af, TypeInfo.builder()
+                                .expressionType(ExpressionType.one(innerType.type())).build());
                     }
                 }
                 // List-preserving functions: propagate source list type through
@@ -3980,12 +3559,12 @@ public class TypeChecker {
     }
 
     /** Converts a physical Table to a RelationType. */
-    private RelationType tableToRelationType(Table table) {
+    private GenericType.Relation.Schema tableToRelationType(Table table) {
         Map<String, GenericType> columns = new LinkedHashMap<>();
         for (var col : table.columns()) {
             columns.put(col.name(), col.dataType().toGenericType());
         }
-        return RelationType.withoutPivot(columns);
+        return GenericType.Relation.Schema.withoutPivot(columns);
     }
 
     // ========== Extraction Utilities ==========
@@ -3994,11 +3573,7 @@ public class TypeChecker {
         return TypeInfo.simpleName(qualifiedName);
     }
 
-    private LambdaFunction extractLambda(ValueSpecification vs) {
-        if (vs instanceof LambdaFunction lf)
-            return lf;
-        throw new PureCompileException("Expected lambda, got: " + vs.getClass().getSimpleName());
-    }
+
 
     private String extractStringValue(ValueSpecification vs) {
         if (vs instanceof CString(String value))
@@ -4076,48 +3651,6 @@ public class TypeChecker {
         return List.of(extractColumnName(vs));
     }
 
-    /** Extracts a list of strings from a PureCollection. */
-    private List<String> extractStringList(ValueSpecification vs) {
-        if (vs instanceof PureCollection(List<ValueSpecification> values)) {
-            return values.stream()
-                    .filter(v -> v instanceof CString)
-                    .map(v -> ((CString) v).value())
-                    .toList();
-        }
-        if (vs instanceof CString(String value)) {
-            return List.of(value);
-        }
-        return List.of();
-    }
-
-    // ========== Association Pre-Resolution ==========
-
-    /**
-     * Scans projection lambdas for multi-hop property paths and resolves
-     * the association targets. Called during compileProject().
-     *
-     * @param lambdaSpecs The projection lambda specifications
-     * @param mapping     The source mapping (for looking up the source class)
-     * @return Map of association property name → pre-resolved target
-     */
-    private java.util.Map<String, TypeInfo.AssociationTarget> resolveAssociations(
-            List<ValueSpecification> lambdaSpecs, ClassMapping mapping) {
-        if (modelContext == null || mapping == null) {
-            return java.util.Map.of();
-        }
-        var result = new java.util.LinkedHashMap<String, TypeInfo.AssociationTarget>();
-        for (var lambdaSpec : lambdaSpecs) {
-            List<String> path = extractPropertyPathFromLambda(lambdaSpec);
-            if (path.size() > 1) {
-                String assocProp = path.get(0);
-                if (!result.containsKey(assocProp)) {
-                    resolveAndStore(assocProp, mapping, result);
-                }
-            }
-        }
-        return result.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(result);
-    }
-
     /**
      * Scans a filter lambda body for multi-hop property paths and resolves
      * associations. Called during compileFilter().
@@ -4158,6 +3691,17 @@ public class TypeChecker {
                 scanForAssociationPaths(param, mapping, result);
             }
         } else if (vs instanceof AppliedFunction af) {
+            // Detect single-hop association properties used with exists/forAll/map:
+            // $p.addresses->exists(a|$a.city == 'NY')
+            // AST: AppliedFunction("exists", [AppliedProperty("addresses", [$p]), Lambda])
+            if (("exists".equals(af.function()) || "forAll".equals(af.function()) || "map".equals(af.function()))
+                    && !af.parameters().isEmpty()
+                    && af.parameters().get(0) instanceof AppliedProperty assocProp) {
+                String propName = assocProp.property();
+                if (!result.containsKey(propName)) {
+                    resolveAndStore(propName, mapping, result);
+                }
+            }
             for (var param : af.parameters()) {
                 scanForAssociationPaths(param, mapping, result);
             }
@@ -4185,40 +3729,6 @@ public class TypeChecker {
             }
         }
     }
-
-    /**
-     * Extracts the full property path from a lambda, e.g., ["items", "name"].
-     * Returns a single-element list for simple properties.
-     */
-    private List<String> extractPropertyPathFromLambda(ValueSpecification vs) {
-        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            ValueSpecification body = lf.body().get(0);
-            if (body instanceof AppliedProperty ap) {
-                return extractPropertyChain(ap);
-            }
-        }
-        // ColSpec — extract property from lambda body if present, cs.name() is the
-        // alias
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-            if (cs.function1() != null && !cs.function1().body().isEmpty()) {
-                ValueSpecification body = cs.function1().body().get(0);
-                if (body instanceof AppliedProperty ap) {
-                    return extractPropertyChain(ap);
-                }
-                // Function wrapping (e.g. $x.date->monthNumber()) — extract from first param
-                if (body instanceof AppliedFunction af2 && !af2.parameters().isEmpty()) {
-                    if (af2.parameters().get(0) instanceof AppliedProperty ap) {
-                        return extractPropertyChain(ap);
-                    }
-                }
-            }
-            return List.of(cs.name());
-        }
-        // Fallback: single property
-        String prop = extractPropertyFromLambda(vs);
-        return prop != null ? List.of(prop) : List.of();
-    }
-
     /**
      * Recursively extracts property chain from nested AppliedProperty.
      * e.g., $p.items.name → ["items", "name"]
@@ -4232,18 +3742,6 @@ public class TypeChecker {
         return new java.util.ArrayList<>(List.of(ap.property()));
     }
 
-    /**
-     * Extracts the property name from a lambda like {p|$p.firstName}.
-     */
-    private String extractPropertyFromLambda(ValueSpecification vs) {
-        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            String name = extractPropertyName(lf.body().get(0));
-            if (name != null)
-                return name;
-        }
-        // Fallback to extractColumnName which always returns something
-        return extractColumnName(vs);
-    }
 
     private String extractPropertyName(ValueSpecification vs) {
         if (vs instanceof AppliedProperty ap) {
@@ -4507,35 +4005,54 @@ public class TypeChecker {
             }
             lambdaCtx = lambdaCtx.withLambdaParam(p.name(), paramType);
         }
-        if (!lf.body().isEmpty()) {
-            TypeInfo bodyInfo = compileExpr(lf.body().get(0), lambdaCtx);
-            if (bodyInfo.isScalar() && bodyInfo.scalarType() != null) {
-                // Propagate multiplicity from body — if body is MANY (list-producing),
-                // the lambda must also be MANY so UNNEST is applied at the root.
-                if (bodyInfo.isMany()) {
-                    return scalarTypedMany(lf, bodyInfo.scalarType());
-                }
-                return scalarTyped(lf, bodyInfo.scalarType());
-            }
-            // Mutations (e.g. write()) set relationType for PlanGenerator routing but
-            // returnType as scalar (Integer). Propagate that returnType so the root
-            // stamping logic doesn't overwrite it with Relation.
-            if (bodyInfo.expressionType() != null && !bodyInfo.expressionType().isRelation()) {
-                var info = TypeInfo.builder()
-                        .relationType(bodyInfo.relationType())
-                        .mapping(bodyInfo.mapping())
-                        .expressionType(bodyInfo.expressionType())
-                        .build();
-                types.put(lf, info);
-                return info;
-            }
-            return typed(lf, bodyInfo.relationType(), bodyInfo.mapping());
+        if (lf.body().isEmpty()) {
+            throw new PureCompileException("Unresolved type for lambda");
         }
-        throw new PureCompileException("Unresolved type for lambda");
+
+        // Multi-statement body: process let bindings, compile final expression
+        // Matches legend-pure's M3 model: lambda body IS the statement list
+        List<ValueSpecification> body = lf.body();
+        for (int i = 0; i < body.size() - 1; i++) {
+            var stmt = body.get(i);
+            if (stmt instanceof AppliedFunction letAf
+                    && simpleName(letAf.function()).equals("letFunction")
+                    && letAf.parameters().size() >= 2
+                    && letAf.parameters().get(0) instanceof CString(String value)) {
+                // let x = valueExpr → compile value, store binding in context
+                ValueSpecification valueExpr = letAf.parameters().get(1);
+                compileExpr(valueExpr, lambdaCtx);
+                lambdaCtx = lambdaCtx.withLetBinding(value, valueExpr);
+            } else {
+                compileExpr(stmt, lambdaCtx);
+            }
+        }
+
+        // Compile the final (result) expression with enriched context
+        TypeInfo bodyInfo = compileExpr(body.getLast(), lambdaCtx);
+        if (bodyInfo.isScalar() && bodyInfo.type() != null) {
+            // Propagate multiplicity from body — if body is MANY (list-producing),
+            // the lambda must also be MANY so UNNEST is applied at the root.
+            if (bodyInfo.isMany()) {
+                return scalarTypedMany(lf, bodyInfo.type());
+            }
+            return scalarTyped(lf, bodyInfo.type());
+        }
+        // Mutations (e.g. write()) set relationType for PlanGenerator routing but
+        // returnType as scalar (Integer). Propagate that returnType so the root
+        // stamping logic doesn't overwrite it with Relation.
+        if (bodyInfo.expressionType() != null && !bodyInfo.expressionType().isRelation()) {
+            var info = TypeInfo.builder()
+                    .mapping(bodyInfo.mapping())
+                    .expressionType(bodyInfo.expressionType())
+                    .build();
+            types.put(lf, info);
+            return info;
+        }
+        return typed(lf, bodyInfo.schema(), bodyInfo.mapping());
     }
 
     private TypeInfo compileVariable(Variable v, CompilationContext ctx) {
-        RelationType varType = ctx.getRelationType(v.name());
+        GenericType.Relation.Schema varType = ctx.getRelationType(v.name());
         if (varType != null) {
             return typed(v, varType, null);
         }
@@ -4554,22 +4071,22 @@ public class TypeChecker {
         // Lambda parameter — mark in side table with declared type
         GenericType lambdaType = ctx.getLambdaParamType(v.name());
         if (lambdaType != null) {
-            var info = TypeInfo.builder().scalarType(lambdaType).lambdaParam(true)
-                    .expressionType(ExpressionType.one(lambdaType)).build();
+            var info = TypeInfo.builder()
+                    .expressionType(ExpressionType.one(lambdaType)).lambdaParam(true).build();
             types.put(v, info);
             return info;
         }
         if (ctx.isLambdaParam(v.name())) {
-            var info = TypeInfo.builder().lambdaParam(true).build();
-            types.put(v, info);
-            return info;
+            throw new PureCompileException(
+                    "Lambda param '" + v.name() + "' has no resolved type — "
+                            + "upstream must infer type from function signature or annotation");
         }
         throw new PureCompileException("Unresolved type for variable: " + v.name());
     }
 
     private TypeInfo compileProperty(AppliedProperty ap, CompilationContext ctx) {
         if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
-            RelationType relType = ctx.getRelationType(v.name());
+            GenericType.Relation.Schema relType = ctx.getRelationType(v.name());
             if (relType != null) {
                 relType.requireColumn(ap.property());
                 // Resolve the column's type from the RelationType
@@ -4588,6 +4105,24 @@ public class TypeChecker {
                         GenericType fieldType = GenericType.fromType(propOpt.get().genericType());
                         return scalarTyped(ap, fieldType);
                     }
+                }
+                // Association-injected properties (e.g., $p.addresses from Association Person_Address)
+                // These are first-class properties in Pure, just stored on the Association rather than the Class.
+                var assocNav = modelContext.findAssociationByProperty(qualifiedName, ap.property());
+                if (assocNav.isPresent()) {
+                    var nav = assocNav.get();
+                    GenericType targetType = new GenericType.ClassType(nav.targetClassName());
+                    if (nav.isToMany()) {
+                        // To-many: return List<TargetClass> — caller handles exists/map desugaring
+                        targetType = GenericType.listOf(targetType);
+                    }
+                    var info = TypeInfo.builder()
+                            .expressionType(nav.isToMany()
+                                    ? ExpressionType.many(targetType)
+                                    : ExpressionType.one(targetType))
+                            .build();
+                    types.put(ap, info);
+                    return info;
                 }
             }
             // Let-bound variable → resolve inlinedBody to instance ClassInstance
@@ -4611,7 +4146,7 @@ public class TypeChecker {
         // Desugar by building a synthetic map node and pointing via inlinedBody
         if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedFunction ownerFn) {
             TypeInfo ownerInfo = compileExpr(ownerFn, ctx);
-            if (ownerInfo != null && ownerInfo.isList()) {
+            if (ownerInfo != null && ownerInfo.isMany()) {
                 var propVar = new Variable("_prop_x");
                 var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
                 var lambda = new LambdaFunction(List.of(propVar), propAccess);
@@ -4625,7 +4160,7 @@ public class TypeChecker {
             // .prop on a relational result (e.g., filter(...).legalName)
             // → desugar to single-column project so PlanGenerator builds proper FROM clause
             // Pure return type is the column type as a collection (e.g., String[*])
-            if (ownerInfo != null && ownerInfo.relationType() != null) {
+            if (ownerInfo != null && ownerInfo.isRelational()) {
                 var propVar = new Variable("_rel_x");
                 var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
                 var colSpec = new ColSpec(ap.property(), new LambdaFunction(List.of(propVar), propAccess), null);
@@ -4633,7 +4168,7 @@ public class TypeChecker {
                 var projectNode = new AppliedFunction("project", List.of(ownerFn, colSpecCI));
                 TypeInfo projectInfo = compileExpr(projectNode, ctx);
                 // Extract the column's GenericType for the return type
-                GenericType colType = ownerInfo.relationType().getColumnType(ap.property());
+                GenericType colType = ownerInfo.schema().getColumnType(ap.property());
                 ExpressionType propExprType = colType != null
                         ? ExpressionType.many(GenericType.listOf(colType)) // String[*], Integer[*], etc.
                         : null;
@@ -4646,14 +4181,39 @@ public class TypeChecker {
             }
             // .prop on a ClassType result (e.g., at(1) returning a single struct)
             // → synthesize structExtract(ownerFn, 'prop')
-            if (ownerInfo != null && ownerInfo.scalarType() instanceof GenericType.ClassType) {
+            if (ownerInfo != null && ownerInfo.type() instanceof GenericType.ClassType) {
                 var extractNode = new AppliedFunction("structExtract",
                         List.of(ownerFn, new CString(ap.property())));
-                var info = TypeInfo.builder().scalarType(GenericType.Primitive.ANY)
+                var info = TypeInfo.builder()
                         .inlinedBody(extractNode)
                         .expressionType(ExpressionType.one(GenericType.Primitive.ANY)).build();
                 types.put(ap, info);
                 return info;
+            }
+        }
+        // .prop on an AppliedProperty that returns a ClassType (multi-hop association path)
+        // e.g., $p.addresses.city → addresses returns ClassType("Address"), resolve city from Address
+        if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty ownerAp) {
+            TypeInfo ownerInfo = compileExpr(ownerAp, ctx);
+            if (ownerInfo != null && modelContext != null) {
+                // Extract the inner ClassType (unwrap List if to-many)
+                GenericType ownerType = ownerInfo.type();
+                String className = null;
+                if (ownerType instanceof GenericType.ClassType(String qn)) {
+                    className = qn;
+                } else if (ownerType.isList() && ownerType.elementType() instanceof GenericType.ClassType(String qn)) {
+                    className = qn;
+                }
+                if (className != null) {
+                    var classOpt = modelContext.findClass(className);
+                    if (classOpt.isPresent()) {
+                        var propOpt = classOpt.get().findProperty(ap.property());
+                        if (propOpt.isPresent()) {
+                            GenericType fieldType = GenericType.fromType(propOpt.get().genericType());
+                            return scalarTyped(ap, fieldType);
+                        }
+                    }
+                }
             }
         }
         throw new PureCompileException("Unresolved type for property: " + ap.property());
@@ -4668,7 +4228,7 @@ public class TypeChecker {
             CompilationContext ctx) {
         var extractNode = new AppliedFunction("structExtract",
                 List.of(ci, new CString(ap.property())));
-        var info = TypeInfo.builder().scalarType(GenericType.Primitive.ANY)
+        var info = TypeInfo.builder()
                 .inlinedBody(extractNode)
                 .expressionType(ExpressionType.one(GenericType.Primitive.ANY)).build();
         types.put(ap, info);
@@ -4682,14 +4242,11 @@ public class TypeChecker {
         }
         GenericType elementType = unifyElementType(coll.values());
         // For struct collections, carry both list type AND struct column info
-        // so isList() works (for contains/head/find dispatch) AND project() can resolve
-        // columns
+        // so isList() works (for contains/head/find dispatch) AND project() can resolve columns
         if (!coll.values().isEmpty()) {
             TypeInfo firstElem = types.get(coll.values().get(0));
-            if (firstElem != null && firstElem.mapping() != null && firstElem.relationType() != null) {
+            if (firstElem != null && firstElem.mapping() != null && firstElem.schema() != null) {
                 var info = TypeInfo.builder()
-                        .scalarType(GenericType.listOf(elementType))
-                        .relationType(firstElem.relationType())
                         .mapping(firstElem.mapping())
                         .associations(firstElem.associations())
                         .expressionType(ExpressionType.many(GenericType.listOf(elementType)))
@@ -4708,8 +4265,8 @@ public class TypeChecker {
     private GenericType typeOf(ValueSpecification vs) {
         // Check side table first (for compiled sub-expressions)
         TypeInfo info = types.get(vs);
-        if (info != null && info.scalarType() != null)
-            return info.scalarType();
+        if (info != null && info.type() != null)
+            return info.type();
         // Fall back to pattern matching on literal types
         return switch (vs) {
             case CInteger i -> GenericType.Primitive.INTEGER;
@@ -4765,11 +4322,11 @@ public class TypeChecker {
     // ========== Compilation Context ==========
 
     /**
-     * Context for compilation — tracks variable → RelationType and variable →
+     * Context for compilation — tracks variable → GenericType.Relation.Schema and variable →
      * Mapping bindings.
      */
     public record CompilationContext(
-            Map<String, RelationType> relationTypes,
+            Map<String, GenericType.Relation.Schema> relationTypes,
             Map<String, ClassMapping> mappings,
             Map<String, GenericType> lambdaParams,
             Map<String, ValueSpecification> letBindings) {
@@ -4778,7 +4335,7 @@ public class TypeChecker {
             this(Map.of(), Map.of(), Map.of(), Map.of());
         }
 
-        public CompilationContext withRelationType(String paramName, RelationType type) {
+        public CompilationContext withRelationType(String paramName, GenericType.Relation.Schema type) {
             var newTypes = new HashMap<>(relationTypes);
             newTypes.put(paramName, type);
             return new CompilationContext(Map.copyOf(newTypes), mappings, lambdaParams, letBindings);
@@ -4814,7 +4371,7 @@ public class TypeChecker {
             return letBindings.get(name);
         }
 
-        public RelationType getRelationType(String name) {
+        public GenericType.Relation.Schema getRelationType(String name) {
             return relationTypes.get(name);
         }
 
@@ -4866,10 +4423,9 @@ public class TypeChecker {
 
     // ========== Type Registration Utilities ==========
 
-    /** Registers a scalar TypeInfo with a known GenericType. */
+    /** Registers a scalar TypeInfo with a known GenericType (multiplicity ONE). */
     private TypeInfo scalarTyped(ValueSpecification ast, GenericType type) {
-        var info = TypeInfo.builder().scalarType(type)
-                .expressionType(ExpressionType.one(type)).build();
+        var info = TypeInfo.builder().expressionType(ExpressionType.one(type)).build();
         types.put(ast, info);
         return info;
     }
@@ -4879,27 +4435,27 @@ public class TypeChecker {
      * values.
      */
     private TypeInfo scalarTypedMany(ValueSpecification ast, GenericType type) {
-        var info = TypeInfo.builder().scalarType(type)
-                .expressionType(ExpressionType.many(type)).build();
+        var info = TypeInfo.builder().expressionType(ExpressionType.many(type)).build();
         types.put(ast, info);
         return info;
     }
 
     /**
-     * Registers TypeInfo in the side table and returns it.
-     * All type registration in TypeChecker goes through this method.
+     * Registers a relational TypeInfo in the side table and returns it.
+     * All relational type registration in TypeChecker goes through this method.
      */
-    private TypeInfo typed(ValueSpecification ast, RelationType relationType,
+    private TypeInfo typed(ValueSpecification ast, GenericType.Relation.Schema relationType,
             ClassMapping mapping) {
         return typed(ast, relationType, mapping, java.util.Map.of());
     }
 
     /**
-     * Registers TypeInfo with pre-resolved associations in the side table.
+     * Registers relational TypeInfo with pre-resolved associations in the side table.
      */
-    private TypeInfo typed(ValueSpecification ast, RelationType relationType,
+    private TypeInfo typed(ValueSpecification ast, GenericType.Relation.Schema relationType,
             ClassMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
-        var info = TypeInfo.builder().relationType(relationType).mapping(mapping).associations(associations)
+        var info = TypeInfo.builder()
+                .mapping(mapping).associations(associations)
                 .expressionType(ExpressionType.many(new GenericType.Relation(relationType))).build();
         types.put(ast, info);
         return info;

@@ -124,6 +124,8 @@ SEMI_COLON:                             ';';
 NEW_SYMBOL:                             '^';
 PIPE:                                   '|';
 TILDE:                                  '~';
+SUBSET:                                 '⊆';
+QUESTION:                               '?';
 
 AT:                                     '@';
 PLUS:                                   '+';

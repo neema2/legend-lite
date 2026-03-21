@@ -63,6 +63,17 @@ public abstract class AbstractDatabaseTest {
             """;
 
     /**
+     * Pure Association linking Person to primary Address (to-one).
+     */
+    protected static final String PERSON_PRIMARY_ADDRESS_ASSOCIATION = """
+            Association model::Person_PrimaryAddress
+            {
+                personPrimary: Person[1];
+                primaryAddress: Address[0..1];
+            }
+            """;
+
+    /**
      * Pure Database definition with T_PERSON and T_ADDRESS tables.
      */
     protected static final String PERSON_DATABASE = """
@@ -73,7 +84,8 @@ public abstract class AbstractDatabaseTest {
                     ID INTEGER PRIMARY KEY,
                     FIRST_NAME VARCHAR(100) NOT NULL,
                     LAST_NAME VARCHAR(100) NOT NULL,
-                    AGE_VAL INTEGER NOT NULL
+                    AGE_VAL INTEGER NOT NULL,
+                    PRIMARY_ADDR_ID INTEGER
                 )
                 Table T_ADDRESS
                 (
@@ -83,6 +95,7 @@ public abstract class AbstractDatabaseTest {
                     CITY VARCHAR(100) NOT NULL
                 )
                 Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
+                Join Person_PrimaryAddress(T_PERSON.PRIMARY_ADDR_ID = T_ADDRESS.ID)
             )
             """;
 
@@ -198,6 +211,7 @@ public abstract class AbstractDatabaseTest {
     protected static final String COMPLETE_PURE_MODEL = PERSON_CLASS + "\n" +
             ADDRESS_CLASS + "\n" +
             PERSON_ADDRESS_ASSOCIATION + "\n" +
+            PERSON_PRIMARY_ADDRESS_ASSOCIATION + "\n" +
             STRUCT_TEST_CLASSES + "\n" +
             PCT_CLASS_DEFS + "\n" +
             PERSON_DATABASE + "\n" +
@@ -375,7 +389,8 @@ public abstract class AbstractDatabaseTest {
                         ID INTEGER PRIMARY KEY,
                         FIRST_NAME VARCHAR(100) NOT NULL,
                         LAST_NAME VARCHAR(100) NOT NULL,
-                        AGE_VAL INTEGER NOT NULL
+                        AGE_VAL INTEGER NOT NULL,
+                        PRIMARY_ADDR_ID INTEGER
                     )
                     """);
         }
@@ -392,13 +407,14 @@ public abstract class AbstractDatabaseTest {
                     """);
         }
 
-        // Insert person test data
+        // Insert person test data (PRIMARY_ADDR_ID links to T_ADDRESS)
+        // John→addr 1 (New York), Jane→addr 3 (Chicago), Bob→addr 4 (Detroit)
         try (PreparedStatement ps = connection.prepareStatement(
-                "INSERT INTO T_PERSON (ID, FIRST_NAME, LAST_NAME, AGE_VAL) VALUES (?, ?, ?, ?)")) {
+                "INSERT INTO T_PERSON (ID, FIRST_NAME, LAST_NAME, AGE_VAL, PRIMARY_ADDR_ID) VALUES (?, ?, ?, ?, ?)")) {
 
-            insertPerson(ps, 1, "John", "Smith", 30);
-            insertPerson(ps, 2, "Jane", "Smith", 28);
-            insertPerson(ps, 3, "Bob", "Jones", 45);
+            insertPerson(ps, 1, "John", "Smith", 30, 1);   // New York
+            insertPerson(ps, 2, "Jane", "Smith", 28, 3);   // Chicago
+            insertPerson(ps, 3, "Bob", "Jones", 45, 4);    // Detroit
         }
 
         // Insert address test data
@@ -415,12 +431,14 @@ public abstract class AbstractDatabaseTest {
         }
     }
 
-    private void insertPerson(PreparedStatement ps, int id, String firstName, String lastName, int age)
+    private void insertPerson(PreparedStatement ps, int id, String firstName, String lastName, int age,
+                              int primaryAddrId)
             throws SQLException {
         ps.setInt(1, id);
         ps.setString(2, firstName);
         ps.setString(3, lastName);
         ps.setInt(4, age);
+        ps.setInt(5, primaryAddrId);
         ps.executeUpdate();
     }
 

@@ -1,7 +1,7 @@
 package com.gs.legend.exec;
 
 import com.gs.legend.plan.GenericType;
-import com.gs.legend.plan.RelationType;
+
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -13,14 +13,18 @@ import java.util.Objects;
 /**
  * Unified result from executing a Pure query.
  *
- * <p>Each variant carries the {@link GenericType} return type from the plan,
+ * <p>
+ * Each variant carries the {@link GenericType} return type from the plan,
  * enabling consumers to handle results with full type information —
  * no heuristics, no string parsing, no null checks.
  *
- * <p>All variants support {@link #columns()}, {@link #rows()}, {@link #rowCount()},
+ * <p>
+ * All variants support {@link #columns()}, {@link #rows()},
+ * {@link #rowCount()},
  * and {@link #toJsonArray()} so callers can treat any result uniformly.
  *
- * <p>GraalVM native-image compatible.
+ * <p>
+ * GraalVM native-image compatible.
  */
 public sealed interface ExecutionResult {
 
@@ -34,10 +38,14 @@ public sealed interface ExecutionResult {
     List<Row> rows();
 
     /** Number of rows. */
-    default int rowCount() { return rows().size(); }
+    default int rowCount() {
+        return rows().size();
+    }
 
     /** Number of columns. */
-    default int columnCount() { return columns().size(); }
+    default int columnCount() {
+        return columns().size();
+    }
 
     /**
      * Serializes this result as a JSON array of objects.
@@ -49,11 +57,13 @@ public sealed interface ExecutionResult {
         List<Row> rowList = rows();
 
         for (int rowIdx = 0; rowIdx < rowList.size(); rowIdx++) {
-            if (rowIdx > 0) sb.append(",");
+            if (rowIdx > 0)
+                sb.append(",");
             sb.append("{");
             Row row = rowList.get(rowIdx);
             for (int colIdx = 0; colIdx < cols.size(); colIdx++) {
-                if (colIdx > 0) sb.append(",");
+                if (colIdx > 0)
+                    sb.append(",");
                 sb.append("\"").append(escapeJson(cols.get(colIdx).name())).append("\":");
                 sb.append(formatJsonValue(row.get(colIdx)));
             }
@@ -96,13 +106,18 @@ public sealed interface ExecutionResult {
             Objects.requireNonNull(returnType, "returnType must not be null");
         }
 
-        @Override public ScalarResult asScalar() { return this; }
+        @Override
+        public ScalarResult asScalar() {
+            return this;
+        }
 
-        @Override public List<Column> columns() {
+        @Override
+        public List<Column> columns() {
             return List.of(new Column("value", returnType.typeName(), returnType.typeName()));
         }
 
-        @Override public List<Row> rows() {
+        @Override
+        public List<Row> rows() {
             return List.of(new Row(java.util.Collections.singletonList(value)));
         }
     }
@@ -117,15 +132,20 @@ public sealed interface ExecutionResult {
             Objects.requireNonNull(returnType, "returnType must not be null");
         }
 
-        @Override public CollectionResult asCollection() { return this; }
+        @Override
+        public CollectionResult asCollection() {
+            return this;
+        }
 
-        @Override public List<Column> columns() {
+        @Override
+        public List<Column> columns() {
             // Element type from List<T> → T
             GenericType elemType = returnType.elementType();
             return List.of(new Column("value", elemType.typeName(), elemType.typeName()));
         }
 
-        @Override public List<Row> rows() {
+        @Override
+        public List<Row> rows() {
             return values.stream()
                     .map(v -> new Row(java.util.Collections.singletonList(v)))
                     .toList();
@@ -139,16 +159,18 @@ public sealed interface ExecutionResult {
     record TabularResult(
             List<Column> columns,
             List<Row> rows,
-            RelationType schema,
-            GenericType returnType
-    ) implements ExecutionResult {
+            GenericType.Relation.Schema schema,
+            GenericType returnType) implements ExecutionResult {
         public TabularResult {
             Objects.requireNonNull(columns, "columns must not be null");
             Objects.requireNonNull(rows, "rows must not be null");
             Objects.requireNonNull(returnType, "returnType must not be null");
         }
 
-        @Override public TabularResult asTabular() { return this; }
+        @Override
+        public TabularResult asTabular() {
+            return this;
+        }
     }
 
     /**
@@ -159,13 +181,18 @@ public sealed interface ExecutionResult {
             Objects.requireNonNull(returnType, "returnType must not be null");
         }
 
-        @Override public GraphResult asGraph() { return this; }
+        @Override
+        public GraphResult asGraph() {
+            return this;
+        }
 
-        @Override public List<Column> columns() {
+        @Override
+        public List<Column> columns() {
             return List.of(new Column("json", "JSON", "String"));
         }
 
-        @Override public List<Row> rows() {
+        @Override
+        public List<Row> rows() {
             return List.of(new Row(List.of(json != null ? json : "")));
         }
     }
@@ -173,10 +200,10 @@ public sealed interface ExecutionResult {
     // ===== Factory =====
 
     /**
-     * Builds Column metadata from the compiler's RelationType schema.
+     * Builds Column metadata from the compiler's GenericType.Relation.Schema schema.
      * This is the source of truth for non-pivot queries.
      */
-    private static List<Column> columnsFromSchema(RelationType schema) {
+    private static List<Column> columnsFromSchema(GenericType.Relation.Schema schema) {
         List<Column> cols = new ArrayList<>(schema.size());
         for (var entry : schema.columns().entrySet()) {
             String typeName = entry.getValue().typeName();
@@ -192,7 +219,7 @@ public sealed interface ExecutionResult {
      * to compiler-derived aggregate return types.
      */
     private static List<Column> columnsHybrid(
-            RelationType schema, ResultSetMetaData meta, int colCount) throws SQLException {
+            GenericType.Relation.Schema schema, ResultSetMetaData meta, int colCount) throws SQLException {
         // Build lookup: alias suffix → Pure return type
         var dynamicLookup = new java.util.HashMap<String, GenericType>();
         for (var dpc : schema.dynamicPivotColumns()) {
@@ -212,7 +239,7 @@ public sealed interface ExecutionResult {
             }
 
             // Dynamic pivot column: parse suffix after SEPARATOR
-            String sep = RelationType.DynamicPivotColumn.SEPARATOR;
+            String sep = GenericType.Relation.Schema.DynamicPivotColumn.SEPARATOR;
             int sepIdx = name.lastIndexOf(sep);
             if (sepIdx >= 0) {
                 String suffix = name.substring(sepIdx + sep.length());
@@ -225,20 +252,24 @@ public sealed interface ExecutionResult {
             }
 
             throw new IllegalStateException(
-                    "Pivot column '" + name + "' could not be resolved from compiler schema or DynamicPivotColumn lookup");
+                    "Pivot column '" + name
+                            + "' could not be resolved from compiler schema or DynamicPivotColumn lookup");
         }
         return cols;
     }
 
     /**
      * Reads a JDBC ResultSet and creates the right ExecutionResult variant
-     * based on the compiler-provided ExpressionType. The ResultSet is fully consumed.
+     * based on the compiler-provided ExpressionType. The ResultSet is fully
+     * consumed.
      *
-     * Column types come from the compiler's GenericType/RelationType — NOT JDBC metadata.
+     * Column types come from the compiler's GenericType/GenericType.Relation.Schema — NOT JDBC
+     * metadata.
      * Exception: pivot results use JDBC metadata for column names since pivot
      * output columns are data-dependent and unknown at compile time.
      */
-    static ExecutionResult fromResultSet(com.gs.legend.compiler.ExpressionType exprType, ResultSet rs) throws SQLException {
+    static ExecutionResult fromResultSet(com.gs.legend.compiler.ExpressionType exprType, ResultSet rs)
+            throws SQLException {
         java.util.Objects.requireNonNull(exprType, "exprType must not be null");
 
         GenericType returnType = exprType.type();
@@ -251,61 +282,69 @@ public sealed interface ExecutionResult {
             rows.add(Row.fromResultSet(rs, colCount));
         }
 
-        // Build the right variant using compiler types
+        // Single dispatch: type determines shape, multiplicity distinguishes scalar vs
+        // collection
         return switch (returnType) {
-            case GenericType.Parameterized p when p.isList() -> {
-                // The SQL already handles UNNEST (when isMany) vs raw array (when ONE).
-                // By this point, each row has one value — map them directly.
-                List<Object> values = rows.stream().map(r -> r.get(0)).toList();
-                yield new CollectionResult(values, returnType);
-            }
             case GenericType.Relation r -> {
                 List<Column> columns;
                 if (r.schema().dynamicPivotColumns().isEmpty()) {
-                    // Non-pivot: compiler schema is the complete source of truth
                     columns = columnsFromSchema(r.schema());
                 } else {
-                    // Pivot: hybrid resolution — static cols from compiler, dynamic cols from JDBC
                     columns = columnsHybrid(r.schema(), meta, colCount);
                 }
                 yield new TabularResult(columns, rows, r.schema(), returnType);
             }
-            // Primitive, EnumType, PrecisionDecimal, ClassType
+            case GenericType.ClassType ct -> {
+                // Class-based query (Person.all()->filter()): tabular result
+                // with columns from JDBC metadata (no compiler schema available)
+                List<Column> columns = new ArrayList<>(colCount);
+                for (int i = 1; i <= colCount; i++) {
+                    String name = meta.getColumnLabel(i);
+                    String typeName = meta.getColumnTypeName(i);
+                    columns.add(new Column(name, typeName, typeName));
+                }
+                yield new TabularResult(columns, rows, null, returnType);
+            }
             case GenericType.Primitive p when p == GenericType.Primitive.JSON -> {
-                // graphFetch/serialize: SQL returns single row with JSON string
                 String json = rows.isEmpty() ? "[]"
                         : (rows.get(0).get(0) != null ? rows.get(0).get(0).toString() : "[]");
                 yield new GraphResult(json, returnType);
             }
             default -> {
+                if (exprType.isMany()) {
+                    List<Object> values = rows.stream().map(r -> r.get(0)).toList();
+                    yield new CollectionResult(values, returnType);
+                }
                 Object value = rows.isEmpty() ? null : rows.get(0).get(0);
                 yield new ScalarResult(value, returnType);
             }
         };
     }
 
-
-
     /**
      * Returns an empty result (no columns, no rows).
      * Use for DDL/DML operations that don't return a result set.
      */
     static ExecutionResult empty() {
-        RelationType schema = new RelationType(java.util.Map.of(), java.util.List.of());
+        GenericType.Relation.Schema schema = GenericType.Relation.Schema.empty();
         return new TabularResult(List.of(), List.of(), schema, new GenericType.Relation(schema));
     }
 
     // ===== JSON helpers =====
 
     private static String formatJsonValue(Object value) {
-        if (value == null) return "null";
-        if (value instanceof Boolean) return value.toString();
-        if (value instanceof Number) return value.toString();
+        if (value == null)
+            return "null";
+        if (value instanceof Boolean)
+            return value.toString();
+        if (value instanceof Number)
+            return value.toString();
         return "\"" + escapeJson(value.toString()) + "\"";
     }
 
     private static String escapeJson(String s) {
-        if (s == null) return "";
+        if (s == null)
+            return "";
         StringBuilder sb = new StringBuilder(s.length());
         for (char c : s.toCharArray()) {
             switch (c) {

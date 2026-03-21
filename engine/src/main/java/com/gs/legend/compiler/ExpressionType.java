@@ -75,8 +75,8 @@ public record ExpressionType(GenericType type, Multiplicity multiplicity) {
         return multiplicity.equals(Multiplicity.ZERO_ONE);
     }
 
-    /** Extract the RelationType if this is a Relation, otherwise null. */
-    public com.gs.legend.plan.RelationType schema() {
+    /** Extract the GenericType.Relation.Schema if this is a Relation, otherwise null. */
+    public com.gs.legend.plan.GenericType.Relation.Schema schema() {
         return type instanceof GenericType.Relation r ? r.schema() : null;
     }
 

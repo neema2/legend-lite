@@ -19,7 +19,7 @@ import java.util.List;
  */
 public record SQLExecutionNode(
         String sqlQuery,
-        RelationType resultType,
+        GenericType.Relation.Schema resultType,
         String connectionRef) implements ExecutionNode {
 
     /**

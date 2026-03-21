@@ -637,12 +637,12 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
         // x|expr or x:Type[1]|expr — single param lambda
         if (ctx.lambdaParam() != null) {
             Variable param = extractVariable(ctx.lambdaParam());
-            ValueSpecification body = visitLambdaBody(ctx.lambdaPipe());
+            List<ValueSpecification> body = lambdaBodyStatements(ctx.lambdaPipe());
             return new LambdaFunction(List.of(param), body);
         }
         // |expr — lambda with no params
         if (ctx.lambdaPipe() != null) {
-            ValueSpecification body = visitLambdaBody(ctx.lambdaPipe());
+            List<ValueSpecification> body = lambdaBodyStatements(ctx.lambdaPipe());
             return new LambdaFunction(List.of(), body);
         }
         throw new PureParseException("Unknown lambda: " + ctx.getText());
@@ -661,7 +661,7 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
             }
         }
 
-        ValueSpecification body = visitLambdaBody(ctx.lambdaPipe());
+        List<ValueSpecification> body = lambdaBodyStatements(ctx.lambdaPipe());
         return new LambdaFunction(params, body);
     }
 
@@ -682,8 +682,26 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
         return new Variable(name);
     }
 
-    private ValueSpecification visitLambdaBody(PureParser.LambdaPipeContext ctx) {
-        return visit(ctx.codeBlock());
+    /**
+     * Returns lambda body as a list of statements.
+     * Matches legend-pure's M3 model: lambda body IS the statement list.
+     * Single-statement bodies return a one-element list; multi-statement
+     * bodies (let x = ...; let y = ...; result) return all statements.
+     */
+    private List<ValueSpecification> lambdaBodyStatements(PureParser.LambdaPipeContext ctx) {
+        return lambdaBodyStatements(ctx.codeBlock());
+    }
+
+    private List<ValueSpecification> lambdaBodyStatements(PureParser.CodeBlockContext ctx) {
+        List<PureParser.ProgramLineContext> lines = ctx.programLine();
+        if (lines.isEmpty()) {
+            return List.of(new CString(""));
+        }
+        List<ValueSpecification> stmts = new ArrayList<>();
+        for (PureParser.ProgramLineContext line : lines) {
+            stmts.add(visit(line));
+        }
+        return stmts;
     }
 
     @Override
@@ -695,16 +713,12 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
         if (lines.size() == 1) {
             return visit(lines.get(0));
         }
-        // Multiple statements: wrap them in a Collection (the adapter/compiler will
-        // handle block semantics)
+        // Multi-statement: this path should only be hit by visitComparatorExpression.
+        // Lambda construction uses codeBlockStatements() instead.
         List<ValueSpecification> stmts = new ArrayList<>();
         for (PureParser.ProgramLineContext line : lines) {
             stmts.add(visit(line));
         }
-        // Return last statement as result, wrapping lets via AppliedFunction("block",
-        // ...)
-        // For now, use a simple approach: create a sequence where the last element is
-        // the result
         return new AppliedFunction("block", stmts);
     }
 
@@ -728,7 +742,7 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
                     return new Variable(name);
                 })
                 .toList();
-        ValueSpecification body = visit(ctx.codeBlock());
+        List<ValueSpecification> body = lambdaBodyStatements(ctx.codeBlock());
         return new LambdaFunction(params, body);
     }
 
@@ -796,8 +810,8 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
 
         // Capture generic type arguments: ^Pair<String, String>(...)
         List<String> typeArgs = List.of();
-        if (ctx.typeArguments() != null && ctx.typeArguments().type() != null) {
-            typeArgs = ctx.typeArguments().type().stream()
+        if (ctx.typeArguments() != null && ctx.typeArguments().typeWithOperation() != null) {
+            typeArgs = ctx.typeArguments().typeWithOperation().stream()
                     .map(t -> t.getText())
                     .collect(java.util.stream.Collectors.toList());
         }

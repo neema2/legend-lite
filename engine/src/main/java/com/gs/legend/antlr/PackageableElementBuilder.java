@@ -1735,8 +1735,12 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         if (ctx.relationType() != null) {
             List<PType.RelationTypeVar.Column> columns = new ArrayList<>();
             for (var colCtx : ctx.relationType().columnInfo()) {
-                String colName = colCtx.columnName().getText();
-                PType colType = visitPureType(colCtx.type());
+                // mayColumnName: QUESTION | columnName
+                String colName = colCtx.mayColumnName().columnName() != null
+                        ? colCtx.mayColumnName().columnName().getText() : "?";
+                // mayColumnType: QUESTION | type
+                PType colType = colCtx.mayColumnType().type() != null
+                        ? visitPureType(colCtx.mayColumnType().type()) : new PType.Concrete("Any");
                 Mult colMult = colCtx.multiplicity() != null
                         ? visitPureMult(colCtx.multiplicity()) : Mult.ONE;
                 columns.add(new PType.RelationTypeVar.Column(colName, colType, colMult));
@@ -1754,18 +1758,13 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             // Check for type arguments: Relation<T>, Function<{...}>, ColSpec<Z⊆T>
             if (ctx.LESS_THAN() != null && ctx.typeArguments() != null) {
                 List<PType> typeArgs = new ArrayList<>();
-                List<PType.Constraint> constraints = new ArrayList<>();
 
-                for (var typeArg : ctx.typeArguments().type()) {
-                    PType arg = visitPureType(typeArg);
+                for (var typeWithOpCtx : ctx.typeArguments().typeWithOperation()) {
+                    PType arg = visitTypeWithOperation(typeWithOpCtx);
                     typeArgs.add(arg);
                 }
 
-                // Check for constraints in type argument text (Z⊆T, Z=(?:K))
-                // These appear as part of the typeArguments text
-                parseConstraints(ctx.typeArguments(), constraints);
-
-                return new PType.Parameterized(simpleName, typeArgs, constraints);
+                return new PType.Parameterized(simpleName, typeArgs);
             }
 
             // No type args — concrete type or type variable
@@ -1785,52 +1784,47 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
     }
 
     /**
-     * Parses schema constraints from type arguments text.
-     * Handles: Z⊆T (subset), Z=(?:K) (type-match).
+     * Visits a typeWithOperation node and produces a PType, potentially
+     * wrapping in SchemaAlgebra nodes for type algebra.
+     *
+     * <p>Grammar rule:
+     * <pre>typeWithOperation: type equalType? (typeAddSubOperation)* subsetType?</pre>
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>{@code T} → {@code TypeVar("T")}</li>
+     *   <li>{@code T-Z+V} → {@code Union(Difference(TypeVar("T"), TypeVar("Z")), TypeVar("V"))}</li>
+     *   <li>{@code Z⊆T} → {@code Subset(TypeVar("Z"), TypeVar("T"))}</li>
+     *   <li>{@code Z=K⊆T} → {@code Subset(Equal(TypeVar("Z"), TypeVar("K")), TypeVar("T"))}</li>
+     * </ul>
      */
-    private void parseConstraints(PureParser.TypeArgumentsContext ctx, List<PType.Constraint> constraints) {
-        // Walk the raw text looking for ⊆ (subset) and =(?:...) (type-match) patterns
-        String text = getOriginalText(ctx);
+    public PType visitTypeWithOperation(PureParser.TypeWithOperationContext ctx) {
+        PType result = visitPureType(ctx.type());
 
-        // Subset: Z⊆T — the ⊆ character (U+2286) in the text
-        int subsetIdx = text.indexOf('⊆');
-        while (subsetIdx >= 0) {
-            // Find the variable name before ⊆
-            int varStart = subsetIdx - 1;
-            while (varStart >= 0 && Character.isLetterOrDigit(text.charAt(varStart))) varStart--;
-            varStart++;
-            String subVar = text.substring(varStart, subsetIdx);
-
-            // Find the variable name after ⊆
-            int ofStart = subsetIdx + 1;
-            int ofEnd = ofStart;
-            while (ofEnd < text.length() && Character.isLetterOrDigit(text.charAt(ofEnd))) ofEnd++;
-            String ofVar = text.substring(ofStart, ofEnd);
-
-            if (!subVar.isEmpty() && !ofVar.isEmpty()) {
-                constraints.add(new PType.Constraint.Subset(subVar, ofVar));
-            }
-            subsetIdx = text.indexOf('⊆', ofEnd);
+        // Handle equalType: Z=K → Equal(Z, K)
+        if (ctx.equalType() != null) {
+            PType eqType = visitPureType(ctx.equalType().type());
+            result = new PType.SchemaAlgebra(result, eqType, PType.SchemaAlgebra.OpType.Equal);
         }
 
-        // TypeMatch: Z=(?:K) pattern
-        int matchIdx = text.indexOf("=(?:");
-        while (matchIdx >= 0) {
-            int varStart = matchIdx - 1;
-            while (varStart >= 0 && Character.isLetterOrDigit(text.charAt(varStart))) varStart--;
-            varStart++;
-            String matchVar = text.substring(varStart, matchIdx);
-
-            int keyStart = matchIdx + 4; // after "=(?:"
-            int keyEnd = text.indexOf(')', keyStart);
-            if (keyEnd > keyStart) {
-                String keyVar = text.substring(keyStart, keyEnd);
-                if (!matchVar.isEmpty() && !keyVar.isEmpty()) {
-                    constraints.add(new PType.Constraint.TypeMatch(matchVar, keyVar));
-                }
+        // Handle add/sub operations: T-Z+V → Union(Difference(T, Z), V)
+        for (var op : ctx.typeAddSubOperation()) {
+            if (op.typeAdd() != null) {
+                PType right = visitPureType(op.typeAdd().type());
+                result = new PType.SchemaAlgebra(result, right, PType.SchemaAlgebra.OpType.Union);
+            } else {
+                PType right = visitPureType(op.typeSubtract().type());
+                result = new PType.SchemaAlgebra(result, right, PType.SchemaAlgebra.OpType.Difference);
             }
-            matchIdx = text.indexOf("=(?:", keyEnd > 0 ? keyEnd : matchIdx + 4);
         }
+
+        // Handle subsetType: Z⊆T → Subset(Z, T)
+        if (ctx.subsetType() != null) {
+            PType superSet = visitPureType(ctx.subsetType().type());
+            result = new PType.SchemaAlgebra(result, superSet, PType.SchemaAlgebra.OpType.Subset);
+        }
+
+        return result;
     }
 
     /**
