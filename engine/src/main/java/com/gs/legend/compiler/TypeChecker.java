@@ -890,30 +890,8 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileSelect(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-        GenericType.Relation.Schema sourceSchema = source.schema();
-        if (sourceSchema == null) {
-            throw new PureCompileException("select() requires a relational source");
-        }
-
-        // select() with no column arg = pass through
-        if (params.size() < 2) {
-            types.put(af, source);
-            return source;
-        }
-
-        List<String> cols = extractColumnNames(params.get(1));
-        if (cols.isEmpty()) {
-            types.put(af, source);
-            return source;
-        }
-
-        sourceSchema.assertHasColumns(cols);
-        GenericType.Relation.Schema outputSchema = sourceSchema.onlyColumns(cols);
-        var info = TypeInfo.builder()
-                .mapping(source.mapping())
-                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
-                .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)))
-                .build();
+        NativeFunctionDef def = resolveSignature("select", params.size(), source);
+        var info = new com.gs.legend.compiler.checkers.SelectChecker(this).check(af, source, ctx, def);
         types.put(af, info);
         return info;
     }
@@ -928,39 +906,8 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileDistinct(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-        GenericType.Relation.Schema sourceSchema = source.schema();
-        if (sourceSchema == null) {
-            throw new PureCompileException("distinct() requires a relational source");
-        }
-
-        // distinct() with no column arg = DISTINCT on all columns, schema unchanged
-        if (params.size() < 2) {
-            var info = TypeInfo.builder()
-                    .mapping(source.mapping())
-                    .expressionType(ExpressionType.many(new GenericType.Relation(sourceSchema)))
-                    .build();
-            types.put(af, info);
-            return info;
-        }
-
-        // distinct(rel, ~[cols]) = DISTINCT on specific columns
-        List<String> cols = extractColumnNames(params.get(1));
-        if (cols.isEmpty()) {
-            var info = TypeInfo.builder()
-                    .mapping(source.mapping())
-                    .expressionType(ExpressionType.many(new GenericType.Relation(sourceSchema)))
-                    .build();
-            types.put(af, info);
-            return info;
-        }
-
-        sourceSchema.assertHasColumns(cols);
-        GenericType.Relation.Schema outputSchema = sourceSchema.onlyColumns(cols);
-        var info = TypeInfo.builder()
-                .mapping(source.mapping())
-                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
-                .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)))
-                .build();
+        NativeFunctionDef def = resolveSignature("distinct", params.size(), source);
+        var info = new com.gs.legend.compiler.checkers.DistinctChecker(this).check(af, source, ctx, def);
         types.put(af, info);
         return info;
     }
