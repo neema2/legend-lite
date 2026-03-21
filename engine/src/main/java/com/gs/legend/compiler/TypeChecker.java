@@ -653,19 +653,9 @@ public class TypeChecker implements TypeCheckEnv {
         if (params.isEmpty()) {
             throw new PureCompileException(simpleName(af.function()) + "() requires at least a source argument");
         }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
-
-        // Compile integer arguments (count, start, end)
-        for (int i = 1; i < params.size(); i++) {
-            compileExpr(params.get(i), ctx);
-        }
-
-        // Slicing preserves source type unchanged
-        var info = TypeInfo.builder()
-                .mapping(source.mapping())
-                .expressionType(source.expressionType())
-                .build();
+        NativeFunctionDef def = resolveSignature(simpleName(af.function()), params.size(), source);
+        var info = new com.gs.legend.compiler.checkers.SlicingChecker(this).check(af, source, ctx, def);
         types.put(af, info);
         return info;
     }

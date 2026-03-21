@@ -1,0 +1,83 @@
+package com.gs.legend.compiler.checkers;
+
+import com.gs.legend.ast.AppliedFunction;
+import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.compiler.*;
+import com.gs.legend.plan.GenericType;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Signature-driven type checker for slicing functions:
+ * {@code limit}, {@code take}, {@code drop}, {@code slice}, {@code first}, {@code last}.
+ *
+ * <p>All slicing functions preserve the source type — they only change cardinality.
+ * Works on both relations and collections.
+ *
+ * <p>Canonical signatures:
+ * <ul>
+ *   <li>Relation: {@code limit<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1]}</li>
+ *   <li>Relation: {@code drop<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1]}</li>
+ *   <li>Relation: {@code slice<T>(rel:Relation<T>[1], start:Integer[1], stop:Integer[1]):Relation<T>[1]}</li>
+ *   <li>Collection: {@code take<T>(set:T[*], count:Integer[1]):T[*]}</li>
+ *   <li>Collection: {@code drop<T>(set:T[*], count:Integer[1]):T[*]}</li>
+ *   <li>Collection: {@code first<T>(set:T[*]):T[0..1]}</li>
+ * </ul>
+ */
+public class SlicingChecker extends AbstractChecker {
+
+    public SlicingChecker(TypeCheckEnv env) {
+        super(env);
+    }
+
+    public TypeInfo check(AppliedFunction af, TypeInfo source,
+                          TypeChecker.CompilationContext ctx, NativeFunctionDef def) {
+        List<ValueSpecification> params = af.parameters();
+        String funcName = simpleName(af.function());
+
+        // 1. Arity from signature
+        if (params.size() != def.arity()) {
+            throw new PureCompileException(
+                    funcName + "() requires " + def.arity() + " arguments, got " + params.size());
+        }
+
+        // 2. Bind type variables from signature (T from source)
+        Map<String, GenericType> bindings = unify(def, source.expressionType());
+
+        // 3. Compile and validate non-source arguments against signature param types
+        for (int i = 1; i < params.size() && i < def.params().size(); i++) {
+            TypeInfo argInfo = env.compileExpr(params.get(i), ctx);
+            // Validate argument type against signature (e.g., Integer[1])
+            GenericType expectedType = resolve(def.params().get(i).type(), bindings,
+                    funcName + "() argument " + i);
+            if (argInfo != null && argInfo.expressionType() != null) {
+                GenericType actualType = argInfo.expressionType().type();
+                if (!isAssignable(actualType, expectedType)) {
+                    throw new PureCompileException(
+                            funcName + "() argument " + i + ": expected "
+                                    + expectedType + ", got " + actualType);
+                }
+            }
+        }
+
+        // 4. Output type from signature (preserves source type, may change multiplicity)
+        ExpressionType outputType = resolveOutput(def, bindings, funcName + "()");
+        return TypeInfo.builder()
+                .mapping(source.mapping())
+                .expressionType(outputType)
+                .build();
+    }
+
+    /** Checks if actualType is assignable to expectedType (same type or ANY). */
+    private boolean isAssignable(GenericType actual, GenericType expected) {
+        if (expected == null || actual == null) return true;
+        if (expected instanceof GenericType.Primitive p && "Any".equals(p.name())) return true;
+        // Integer assignable to Number
+        if (expected instanceof GenericType.Primitive ep && actual instanceof GenericType.Primitive ap) {
+            return ep.name().equals(ap.name())
+                    || "Number".equals(ep.name()) && ("Integer".equals(ap.name()) || "Float".equals(ap.name()));
+        }
+        return expected.equals(actual);
+    }
+}
