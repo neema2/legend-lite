@@ -784,92 +784,13 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo compileGroupBy(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            throw new PureCompileException("groupBy() requires source and group specs");
+        if (params.size() < 3) {
+            throw new PureCompileException("groupBy() requires source, group columns, and aggregate specs");
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
-        GenericType.Relation.Schema sourceSchema = source.schema();
-
-        // Build output columns: group columns + aggregate columns
-        Map<String, GenericType> resultColumns = new LinkedHashMap<>();
-        List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
-
-        // Group columns (param 1): ~col or [~col1, ~col2] or [{r | $r.col}]
-        List<String> groupColNames = extractColumnNames(params.get(1));
-        for (String col : groupColNames) {
-            if (!sourceSchema.columns().containsKey(col)) {
-                throw new PureCompileException(
-                        "groupBy(): group column '" + col + "' not found in source. Available: "
-                                + sourceSchema.columns().keySet());
-            }
-            GenericType type = sourceSchema.columns().get(col);
-            resultColumns.put(col, type);
-            colSpecs.add(TypeInfo.ColumnSpec.col(col));
-        }
-
-        // Aggregate columns: handle three patterns
-        // Pattern 1 (legacy): params[2] is Collection[LambdaFunction]
-        // Pattern 2 (new API, array): params[2] is ClassInstance(ColSpecArray)
-        // Pattern 3 (new API, single): params[2+] are individual ColSpec instances
-        if (params.size() > 2 && params.get(2) instanceof PureCollection(List<ValueSpecification> values)) {
-            // Legacy pattern: unwrap Collection of agg lambdas
-            // Alias names come from params[3] (CString collection): ['dept', 'medianSal']
-            // First N aliases are for group cols, rest for agg cols
-            List<String> aliasNames = new ArrayList<>();
-            if (params.size() > 3 && params.get(3) instanceof PureCollection(List<ValueSpecification> aliasValues)) {
-                for (var v : aliasValues) {
-                    if (v instanceof CString(String value))
-                        aliasNames.add(value);
-                }
-            }
-            for (int i = 0; i < values.size(); i++) {
-                var aggInfo = extractAggSpec(values.get(i));
-                if (aggInfo != null) {
-                    // Override alias from params[3] if available
-                    int aliasIdx = groupColNames.size() + i;
-                    if (aliasIdx < aliasNames.size()) {
-                        aggInfo = new TypeInfo.ColumnSpec(
-                                aggInfo.columnName(), aliasNames.get(aliasIdx),
-                                aggInfo.aggFunction(), aggInfo.extraArgs(), aggInfo.castType());
-                    }
-                    resultColumns.put(aggInfo.alias(),
-                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceSchema.columns()));
-                    colSpecs.add(aggInfo);
-                }
-            }
-        } else if (params.size() > 2
-                && params.get(2) instanceof ClassInstance ci
-                && ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
-            // Relation API array: ~[total:x|$x.id, count:x|$x.id:y|$y->count()]
-            for (var cs : specs) {
-                var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
-                if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(),
-                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceSchema.columns()));
-                    colSpecs.add(aggInfo);
-                }
-            }
-        } else {
-            // New API single: params[2+] are individual ColSpec instances
-            for (int i = 2; i < params.size(); i++) {
-                var aggInfo = extractAggSpec(params.get(i));
-                if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(),
-                            refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(), sourceSchema.columns()));
-                    colSpecs.add(aggInfo);
-                }
-            }
-        }
-
-        // Fallback: if no columns resolved, use source type so it's never empty
-        if (resultColumns.isEmpty()) {
-            return typed(af, sourceSchema, source.mapping());
-        }
-
-        var groupByRelType = GenericType.Relation.Schema.withoutPivot(resultColumns);
-        var info = TypeInfo.builder().mapping(source.mapping()).columnSpecs(colSpecs)
-                .expressionType(ExpressionType.many(new GenericType.Relation(groupByRelType))).build();
+        var info = new com.gs.legend.compiler.checkers.GroupByChecker(this)
+                .check(af, params, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -877,8 +798,7 @@ public class TypeChecker implements TypeCheckEnv {
     /**
      * Compiles aggregate(source, aggSpecs).
      * Full-table aggregation (no group columns).
-     * Populates columnSpecs in the sidecar so PlanGenerator can build aggregate
-     * SQL.
+     * Delegates to {@link com.gs.legend.compiler.checkers.AggregateChecker}.
      */
     private TypeInfo compileAggregate(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -887,54 +807,12 @@ public class TypeChecker implements TypeCheckEnv {
         }
 
         TypeInfo source = compileExpr(params.get(0), ctx);
-
-        // Build output columns from aggregate specs (same pattern as groupBy, no group
-        // cols)
-        Map<String, GenericType> resultColumns = new LinkedHashMap<>();
-        List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
-
-        // Handle three patterns: Collection, ColSpecArray, or individual params
-        if (params.size() > 1 && params.get(1) instanceof PureCollection(List<ValueSpecification> values)) {
-            for (var v : values) {
-                var aggInfo = extractAggSpec(v);
-                if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
-                            source.schema().columns()));
-                    colSpecs.add(aggInfo);
-                }
-            }
-        } else if (params.size() > 1
-                && params.get(1) instanceof ClassInstance ci
-                && ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
-            for (var cs : specs) {
-                var aggInfo = extractAggSpec(new ClassInstance("colSpec", cs));
-                if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
-                            source.schema().columns()));
-                    colSpecs.add(aggInfo);
-                }
-            }
-        } else {
-            for (int i = 1; i < params.size(); i++) {
-                var aggInfo = extractAggSpec(params.get(i));
-                if (aggInfo != null) {
-                    resultColumns.put(aggInfo.alias(), refinedAggReturnType(aggInfo.aggFunction(), aggInfo.columnName(),
-                            source.schema().columns()));
-                    colSpecs.add(aggInfo);
-                }
-            }
-        }
-
-        if (resultColumns.isEmpty()) {
-            return typed(af, source.schema(), source.mapping());
-        }
-
-        var aggRelType = GenericType.Relation.Schema.withoutPivot(resultColumns);
-        var info = TypeInfo.builder().mapping(source.mapping()).columnSpecs(colSpecs)
-                .expressionType(ExpressionType.many(new GenericType.Relation(aggRelType))).build();
+        var info = new com.gs.legend.compiler.checkers.AggregateChecker(this)
+                .check(af, params, source, ctx);
         types.put(af, info);
         return info;
     }
+
 
     /**
      * Compiles extend(source, ~newCol : lambda).
@@ -2760,22 +2638,7 @@ public class TypeChecker implements TypeCheckEnv {
                 "Aggregate function '" + aggFunc + "' has no resolvable return type in its registered signatures");
     }
 
-    /**
-     * Returns a refined aggregate return type: if the generic aggReturnType is
-     * NUMBER,
-     * uses the source column's concrete type instead (e.g., SUM(integerCol) →
-     * Integer).
-     */
-    private GenericType refinedAggReturnType(String aggFunc, String sourceColumn,
-            Map<String, GenericType> sourceColumns) {
-        GenericType returnType = aggReturnType(aggFunc);
-        if (returnType == GenericType.Primitive.NUMBER && sourceColumn != null && sourceColumns != null) {
-            GenericType colType = sourceColumns.get(sourceColumn);
-            if (colType != null)
-                returnType = colType;
-        }
-        return returnType;
-    }
+
 
     /**
      * Infers a GenericType from a literal value expression (pivot count patterns).
@@ -3427,18 +3290,7 @@ public class TypeChecker implements TypeCheckEnv {
                 "extractColumnName: unrecognized VS type: " + vs.getClass().getSimpleName() + " → " + vs);
     }
 
-    private List<String> extractColumnNames(ValueSpecification vs) {
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
-            return colSpecs.stream().map(ColSpec::name).toList();
-        }
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-            return List.of(cs.name());
-        }
-        if (vs instanceof PureCollection(List<ValueSpecification> values)) {
-            return values.stream().map(this::extractColumnName).toList();
-        }
-        return List.of(extractColumnName(vs));
-    }
+
 
     /**
      * Scans a filter lambda body for multi-hop property paths and resolves
@@ -3562,207 +3414,9 @@ public class TypeChecker implements TypeCheckEnv {
         return null;
     }
 
-    /**
-     * Extracts a full aggregate spec from a groupBy aggregate parameter.
-     * Handles ColSpec (new relation API), LambdaFunction (legacy), and agg()
-     * wrappers.
-     * Returns a ColumnSpec with sourceCol, alias, and Pure aggregate function name.
-     */
-    private TypeInfo.ColumnSpec extractAggSpec(ValueSpecification vs) {
-        if (vs instanceof ClassInstance ci
-                && ci.value() instanceof ColSpec(String name, LambdaFunction function1, LambdaFunction function2)) {
-            String sourceCol = null;
-            String aggFunc = null;
+    // extractAggSpec deleted — GroupByChecker/AggregateChecker handle ColSpec extraction.
+    // Legacy LambdaFunction and agg() patterns are no longer supported.
 
-            // Extract source column(s) from function1 lambda
-            List<String> extraArgsFromFunc1 = new ArrayList<>();
-            if (function1 != null && !function1.body().isEmpty()) {
-                var f1Body = function1.body().get(0);
-
-                if (f1Body instanceof AppliedFunction f1Af) {
-                    String f1Func = simpleName(f1Af.function());
-
-                    if (f1Func.endsWith("rowMapper") || "rowMapper".equals(f1Func)) {
-                        // rowMapper($x.col1, $x.col2) — extract two columns
-                        for (var p : f1Af.parameters()) {
-                            if (p instanceof AppliedProperty ap) {
-                                if (sourceCol == null) {
-                                    sourceCol = ap.property();
-                                } else {
-                                    extraArgsFromFunc1.add(ap.property());
-                                }
-                            }
-                        }
-                    } else if (function2 == null) {
-                        // Single-function aggregate: x|$x.name->joinStrings(',')
-                        // The outermost function IS the aggregate
-                        aggFunc = f1Func;
-                        if (!f1Af.parameters().isEmpty()
-                                && f1Af.parameters().get(0) instanceof AppliedProperty ap) {
-                            sourceCol = ap.property();
-                        }
-                        // Extract extra args (separator for joinStrings, etc.)
-                        for (int k = 1; k < f1Af.parameters().size(); k++) {
-                            var extra = f1Af.parameters().get(k);
-                            if (extra instanceof CString(String value)) {
-                                extraArgsFromFunc1.add("'" + value + "'");
-                            } else if (extra instanceof CInteger(Number value)) {
-                                extraArgsFromFunc1.add(String.valueOf(value));
-                            } else if (extra instanceof CFloat(double value)) {
-                                extraArgsFromFunc1.add(String.valueOf(value));
-                            }
-                        }
-                    } else {
-                        // Has function2 — function1 is just value extraction
-                        sourceCol = extractPropertyNameFromLambda(function1);
-                    }
-                } else if (f1Body instanceof AppliedProperty ap) {
-                    // Simple property: x|$x.salary
-                    sourceCol = ap.property();
-                }
-            }
-
-            // If sourceCol still null, fall back to alias (e.g., ~[total:x|$x.id] with no
-            // explicit column)
-            if (sourceCol == null)
-                sourceCol = name;
-
-            // Extract aggregate function from function2 lambda: y|$y->sum()
-            List<String> allExtraArgs = new ArrayList<>(extraArgsFromFunc1);
-            if (function2 != null && !function2.body().isEmpty()) {
-                var body = function2.body().get(0);
-                // Resolve through cast(): cast wraps the real aggregate in type-assertion
-                // context
-                AppliedFunction bodyAf = resolveAggregateFunctionBody(body);
-                if (bodyAf != null) {
-                    aggFunc = simpleName(bodyAf.function());
-
-                    // Special handling for percentile(value, ascending, continuous)
-                    if ("percentile".equals(aggFunc)) {
-                        boolean ascending = true;
-                        boolean continuous = true;
-                        double pValue = 0.5;
-                        var pParams = bodyAf.parameters();
-                        if (pParams.size() > 1) {
-                            if (pParams.get(1) instanceof CFloat(double value))
-                                pValue = value;
-                            else if (pParams.get(1) instanceof CDecimal(java.math.BigDecimal value))
-                                pValue = value.doubleValue();
-                        }
-                        if (pParams.size() > 2 && pParams.get(2) instanceof CBoolean(boolean value))
-                            ascending = value;
-                        if (pParams.size() > 3 && pParams.get(3) instanceof CBoolean(boolean value))
-                            continuous = value;
-                        aggFunc = continuous ? "percentileCont" : "percentileDisc";
-                        double effectiveValue = ascending ? pValue : (1.0 - pValue);
-                        String valStr = effectiveValue == (long) effectiveValue
-                                ? String.valueOf((long) effectiveValue)
-                                : String.valueOf(effectiveValue);
-                        allExtraArgs.add(valStr);
-                    } else {
-                        // Extract extra params (separator for joinStrings, etc.)
-                        for (int k = 1; k < bodyAf.parameters().size(); k++) {
-                            var extra = bodyAf.parameters().get(k);
-                            if (extra instanceof AppliedProperty ap) {
-                                allExtraArgs.add(ap.property());
-                            } else if (extra instanceof CInteger(Number value)) {
-                                allExtraArgs.add(String.valueOf(value));
-                            } else if (extra instanceof CFloat(double value)) {
-                                allExtraArgs.add(String.valueOf(value));
-                            } else if (extra instanceof CDecimal(java.math.BigDecimal value)) {
-                                allExtraArgs.add(value.toPlainString());
-                            } else if (extra instanceof CString(String value)) {
-                                allExtraArgs.add("'" + value + "'");
-                            }
-                        }
-                    }
-                }
-            }
-
-            // aggFunc must be set by now — either from function1 or function2
-            if (aggFunc == null)
-                aggFunc = "plus"; // only for simple ~[total:x|$x.id] with no agg function
-
-            // Extract cast type if function2 body is cast(inner, @Type)
-            String castType = (function2 != null && !function2.body().isEmpty())
-                    ? extractCastType(function2.body().get(0))
-                    : null;
-            if (castType != null) {
-                return TypeInfo.ColumnSpec.aggCast(sourceCol, name, aggFunc, allExtraArgs, castType);
-            }
-            if (!allExtraArgs.isEmpty()) {
-                return TypeInfo.ColumnSpec.aggMulti(sourceCol, name, aggFunc, allExtraArgs);
-            }
-            return TypeInfo.ColumnSpec.agg(sourceCol, name, aggFunc);
-        }
-
-        // Legacy lambda pattern: {r | $r.sal->stdDevSample()} or {r |
-        // $r.sal->covarSample($r.years)}
-        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            var body = lf.body().get(0);
-            if (body instanceof AppliedFunction bodyAf) {
-                String aggFunc = simpleName(bodyAf.function());
-                String sourceCol = null;
-                List<String> extraArgs = new ArrayList<>();
-
-                // First param is the source property: $r.sal
-                if (!bodyAf.parameters().isEmpty()) {
-                    var inner = bodyAf.parameters().get(0);
-                    if (inner instanceof AppliedProperty ap) {
-                        sourceCol = ap.property();
-                    }
-                }
-                // Extra params: column refs or literals (e.g., $r.years or 0.5)
-                for (int k = 1; k < bodyAf.parameters().size(); k++) {
-                    var extra = bodyAf.parameters().get(k);
-                    if (extra instanceof AppliedProperty ap) {
-                        extraArgs.add(ap.property()); // column ref
-                    } else if (extra instanceof CInteger(Number value)) {
-                        extraArgs.add(String.valueOf(value));
-                    } else if (extra instanceof CFloat(double value)) {
-                        extraArgs.add(String.valueOf(value));
-                    } else if (extra instanceof CDecimal(java.math.BigDecimal value)) {
-                        extraArgs.add(value.toPlainString());
-                    } else if (extra instanceof CString(String value)) {
-                        extraArgs.add("'" + value + "'");
-                    }
-                }
-                if (sourceCol != null) {
-                    return TypeInfo.ColumnSpec.aggMulti(sourceCol, sourceCol + "_agg", aggFunc, extraArgs);
-                }
-            } else if (body instanceof AppliedProperty ap) {
-                // Simple property: {r | $r.sal} → default SUM
-                return TypeInfo.ColumnSpec.agg(ap.property(), ap.property() + "_agg", "plus");
-            }
-        }
-
-        // agg() wrapper: agg({r | $r.sal}, {y | $y->sum()})
-        if (vs instanceof AppliedFunction af && "agg".equals(simpleName(af.function()))) {
-            List<ValueSpecification> aggParams = af.parameters();
-            String sourceCol = null;
-            String aggFunc = "plus";
-            if (aggParams.size() > 0) {
-                sourceCol = extractPropertyNameFromLambda(aggParams.get(0));
-            }
-            if (aggParams.size() > 1 && aggParams.get(1) instanceof LambdaFunction lf2
-                    && !lf2.body().isEmpty()) {
-                var body2 = lf2.body().get(0);
-                if (body2 instanceof AppliedFunction af2) {
-                    aggFunc = simpleName(af2.function());
-                }
-            }
-            if (sourceCol != null) {
-                return TypeInfo.ColumnSpec.agg(sourceCol, sourceCol + "_agg", aggFunc);
-            }
-        }
-
-        // Fallback: extract column name as best we can
-        String colName = extractNewColumnName(vs);
-        if (colName != null) {
-            return TypeInfo.ColumnSpec.agg(colName, colName + "_agg", "plus");
-        }
-        return null;
-    }
 
     /**
      * Extracts property name from a lambda body.

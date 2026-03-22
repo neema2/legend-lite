@@ -116,6 +116,33 @@ public class BuiltinFunctionRegistry {
         return totalOverloads;
     }
 
+    // ===== Aggregate convenience accessors =====
+    // Cached at init for identity-based dispatch (==) in PlanGenerator.
+
+    private NativeFunctionDef wavgDef, rowMapperDef, hashCodeDef;
+    private NativeFunctionDef corrDef, covarSampleDef, covarPopulationDef;
+    private NativeFunctionDef maxByDef, minByDef;
+
+    private void cacheConvenienceDefs() {
+        wavgDef = resolve("wavg").get(0);
+        rowMapperDef = resolve("rowMapper").get(0);
+        hashCodeDef = resolve("hashCode").get(0);
+        corrDef = resolve("corr").get(0);
+        covarSampleDef = resolve("covarSample").get(0);
+        covarPopulationDef = resolve("covarPopulation").get(0);
+        maxByDef = resolve("maxBy").get(0);
+        minByDef = resolve("minBy").get(0);
+    }
+
+    public NativeFunctionDef wavg()              { return wavgDef; }
+    public NativeFunctionDef rowMapper()         { return rowMapperDef; }
+    public NativeFunctionDef hashCodeAgg()       { return hashCodeDef; }
+    public NativeFunctionDef corr()              { return corrDef; }
+    public NativeFunctionDef covarSample()       { return covarSampleDef; }
+    public NativeFunctionDef covarPopulation()   { return covarPopulationDef; }
+    public NativeFunctionDef maxBy()             { return maxByDef; }
+    public NativeFunctionDef minBy()             { return minByDef; }
+
     // ===== Singleton =====
 
     private static final BuiltinFunctionRegistry INSTANCE = createDefault();
@@ -133,6 +160,7 @@ public class BuiltinFunctionRegistry {
         var reg = new BuiltinFunctionRegistry();
         registerRelationFunctions(reg);
         registerScalarFunctions(reg);
+        reg.cacheConvenienceDefs();
         return reg;
     }
 

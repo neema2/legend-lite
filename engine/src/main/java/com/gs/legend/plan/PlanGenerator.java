@@ -1290,59 +1290,28 @@ public class PlanGenerator {
                 .fromSubquery(source, "groupby_src");
 
         TypeInfo info = unit.types().get(af);
+
+        // Group columns — from columnSpecs (unchanged)
         for (var cs : info.columnSpecs()) {
-            if (!cs.isAggregate()) {
-                // Group column
-                SqlExpr colRef = new SqlExpr.ColumnRef(cs.columnName());
-                builder.addSelect(colRef, null);
-                builder.addGroupBy(colRef);
-            } else {
-                // Aggregate column
-                String aggFunc = mapPureFuncToSql(cs.aggFunction());
-                if (aggFunc == null)
-                    throw new PureCompileException("PlanGenerator: unknown aggregate function '" + cs.aggFunction() + "'");
-                SqlExpr expr = buildAggExpr(aggFunc, cs);
-                if (cs.hasCast()) expr = new SqlExpr.Cast(expr, cs.castType());
-                builder.addSelect(expr, dialect.quoteIdentifier(cs.alias()));
-            }
+            SqlExpr colRef = new SqlExpr.ColumnRef(cs.columnName());
+            builder.addSelect(colRef, null);
+            builder.addGroupBy(colRef);
+        }
+
+        // Agg columns — sidecar types + AST structure
+        List<ColSpec> astSpecs = com.gs.legend.compiler.checkers.GroupByChecker
+                .extractAggColSpecs(params.get(2));
+        for (int i = 0; i < info.aggColumnSpecs().size(); i++) {
+            var acs = info.aggColumnSpecs().get(i);
+            ColSpec ast = astSpecs.get(i);
+
+            SqlExpr aggExpr = generateAggFromAst(acs, ast);
+            if (acs.castType() != null)
+                aggExpr = new SqlExpr.Cast(aggExpr, dialect.sqlTypeName(acs.castType().typeName()));
+            builder.addSelect(aggExpr, dialect.quoteIdentifier(acs.alias()));
         }
 
         return builder;
-    }
-
-    /**
-     * Builds the SQL expression for an aggregate column.
-     * Handles compound patterns like wavg and hashCode that need
-     * multi-function SQL expansion instead of a simple function call.
-     */
-    private SqlExpr buildAggExpr(String aggFunc, TypeInfo.ColumnSpec cs) {
-        SqlExpr col = new SqlExpr.ColumnRef(cs.columnName());
-
-        // wavg: SUM(col * weight) / SUM(weight)
-        if ("wavg".equals(aggFunc)) {
-            if (cs.extraArgs().isEmpty()) {
-                throw new PureCompileException("wavg requires a weight column");
-            }
-            SqlExpr weight = new SqlExpr.ColumnRef(cs.extraArgs().get(0));
-            SqlExpr product = new SqlExpr.Binary(col, "*", weight);
-            SqlExpr sumProduct = new SqlExpr.FunctionCall("SUM", List.of(product));
-            SqlExpr sumWeight = new SqlExpr.FunctionCall("SUM", List.of(weight));
-            return new SqlExpr.Binary(sumProduct, "/", sumWeight);
-        }
-
-        // hashCode: HASH(LIST(col))
-        if ("hashCode".equals(aggFunc)) {
-            SqlExpr listExpr = new SqlExpr.FunctionCall("LIST", List.of(col));
-            return new SqlExpr.FunctionCall("HASH", List.of(listExpr));
-        }
-
-        // Standard: FUNC(col, extraArgs...)
-        List<SqlExpr> args = new ArrayList<>();
-        args.add(col);
-        for (String extra : cs.extraArgs()) {
-            args.add(parseExtraArg(extra));
-        }
-        return new SqlExpr.FunctionCall(aggFunc, args);
     }
 
     private SqlBuilder generateAggregate(AppliedFunction af) {
@@ -1353,16 +1322,120 @@ public class PlanGenerator {
                 .fromSubquery(source, "agg_src");
 
         TypeInfo info = unit.types().get(af);
-        for (var cs : info.columnSpecs()) {
-            String aggFunc = mapPureFuncToSql(cs.aggFunction());
-            if (aggFunc == null)
-                throw new PureCompileException("PlanGenerator: unknown aggregate function '" + cs.aggFunction() + "'");
-            SqlExpr expr = buildAggExpr(aggFunc, cs);
-            if (cs.hasCast()) expr = new SqlExpr.Cast(expr, cs.castType());
-            builder.addSelect(expr, dialect.quoteIdentifier(cs.alias()));
+        List<ColSpec> astSpecs = com.gs.legend.compiler.checkers.GroupByChecker
+                .extractAggColSpecs(params.get(1));
+        for (int i = 0; i < info.aggColumnSpecs().size(); i++) {
+            var acs = info.aggColumnSpecs().get(i);
+            ColSpec ast = astSpecs.get(i);
+
+            SqlExpr aggExpr = generateAggFromAst(acs, ast);
+            if (acs.castType() != null)
+                aggExpr = new SqlExpr.Cast(aggExpr, dialect.sqlTypeName(acs.castType().typeName()));
+            builder.addSelect(aggExpr, dialect.quoteIdentifier(acs.alias()));
         }
 
         return builder;
+    }
+
+    // ========== Aggregate SQL from AST + resolved function ==========
+
+    /**
+     * Generates SQL for an aggregate column by reading fn1/fn2 from the AST.
+     * Dispatches on resolved function identity (not strings).
+     */
+    private SqlExpr generateAggFromAst(TypeInfo.AggColumnSpec acs, ColSpec ast) {
+        var registry = com.gs.legend.compiler.BuiltinFunctionRegistry.instance();
+        var fn1Body = ast.function1().body().get(0);
+        String fn1Param = ast.function1().parameters().isEmpty() ? null
+                : ast.function1().parameters().get(0).name();
+
+        // Detect rowMapper pattern in fn1: rowMapper($x.col1, $x.col2)
+        // Used by wavg, corr, covarSample, covarPopulation, maxBy, minBy
+        if (fn1Body instanceof AppliedFunction fn1Af
+                && isRowMapperFunc(fn1Af, registry)) {
+            SqlExpr col1 = generateScalar(fn1Af.parameters().get(0), fn1Param, null, null);
+            SqlExpr col2 = generateScalar(fn1Af.parameters().get(1), fn1Param, null, null);
+            return generateRowMapperAgg(acs, col1, col2, registry);
+        }
+
+        // Standard: compile fn1 body as scalar expression
+        SqlExpr mapExpr = generateScalar(fn1Body, fn1Param, null, null);
+
+        // Special: hashCode → HASH(LIST(col))
+        if (acs.resolvedFunc() == registry.hashCodeAgg()) {
+            return new SqlExpr.FunctionCall("HASH",
+                    List.of(new SqlExpr.FunctionCall("LIST", List.of(mapExpr))));
+        }
+
+        // Get SQL function name
+        String sqlName = mapPureFuncToSql(acs.resolvedFunc().name());
+        if (sqlName == null) sqlName = acs.resolvedFunc().name().toUpperCase();
+
+        // Standard: FUNC(mapExpr, extraArgs from fn2...)
+        List<SqlExpr> args = new ArrayList<>();
+        args.add(mapExpr);
+        // Extra args from fn2 AST params (skip param 0 = the variable)
+        var fn2Body = ast.function2().body().get(0);
+        if (fn2Body instanceof AppliedFunction fn2Af) {
+            // Unwrap cast() wrapper if present
+            if ("cast".equals(simpleName(fn2Af.function()))
+                    && !fn2Af.parameters().isEmpty()
+                    && fn2Af.parameters().get(0) instanceof AppliedFunction innerAf) {
+                fn2Af = innerAf;
+            }
+            for (int i = 1; i < fn2Af.parameters().size(); i++) {
+                args.add(generateScalar(fn2Af.parameters().get(i), null, null, null));
+            }
+        }
+        return new SqlExpr.FunctionCall(sqlName, args);
+    }
+
+    /**
+     * Handles rowMapper-based aggregates: wavg, corr, covarSample, etc.
+     * rowMapper bundles two columns from fn1 into a paired expression.
+     */
+    private SqlExpr generateRowMapperAgg(TypeInfo.AggColumnSpec acs,
+                                          SqlExpr col1, SqlExpr col2,
+                                          com.gs.legend.compiler.BuiltinFunctionRegistry registry) {
+        // wavg: SUM(col1 * col2) / SUM(col2)
+        if (acs.resolvedFunc() == registry.wavg()) {
+            SqlExpr product = new SqlExpr.Binary(col1, "*", col2);
+            SqlExpr sumProduct = new SqlExpr.FunctionCall("SUM", List.of(product));
+            SqlExpr sumWeight = new SqlExpr.FunctionCall("SUM", List.of(col2));
+            return new SqlExpr.Binary(sumProduct, "/", sumWeight);
+        }
+        // corr: CORR(col1, col2)
+        if (acs.resolvedFunc() == registry.corr()) {
+            return new SqlExpr.FunctionCall("CORR", List.of(col1, col2));
+        }
+        // covarSample: COVAR_SAMP(col1, col2)
+        if (acs.resolvedFunc() == registry.covarSample()) {
+            return new SqlExpr.FunctionCall("COVAR_SAMP", List.of(col1, col2));
+        }
+        // covarPopulation: COVAR_POP(col1, col2)
+        if (acs.resolvedFunc() == registry.covarPopulation()) {
+            return new SqlExpr.FunctionCall("COVAR_POP", List.of(col1, col2));
+        }
+        // maxBy/minBy: ARG_MAX/ARG_MIN(col1, col2)
+        if (acs.resolvedFunc() == registry.maxBy()) {
+            return new SqlExpr.FunctionCall("ARG_MAX", List.of(col1, col2));
+        }
+        if (acs.resolvedFunc() == registry.minBy()) {
+            return new SqlExpr.FunctionCall("ARG_MIN", List.of(col1, col2));
+        }
+        throw new PureCompileException(
+                "PlanGenerator: unknown rowMapper aggregate: " + acs.resolvedFunc().name());
+    }
+
+    /**
+     * Checks if an AppliedFunction is a rowMapper call by comparing
+     * the resolved function against the registry's cached rowMapper def.
+     */
+    private boolean isRowMapperFunc(AppliedFunction af,
+                                     com.gs.legend.compiler.BuiltinFunctionRegistry registry) {
+        String name = simpleName(af.function());
+        var defs = registry.resolve(name);
+        return !defs.isEmpty() && defs.get(0) == registry.rowMapper();
     }
 
     // ========== extend (window functions) ==========

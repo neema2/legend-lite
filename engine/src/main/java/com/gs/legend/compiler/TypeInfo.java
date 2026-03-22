@@ -40,6 +40,7 @@ public record TypeInfo(
         List<SortSpec> sortSpecs,
         List<ProjectionSpec> projections,
         List<ColumnSpec> columnSpecs,
+        List<AggColumnSpec> aggColumnSpecs,
         String joinType,
         List<WindowFunctionSpec> windowSpecs,
         ValueSpecification inlinedBody,
@@ -201,6 +202,22 @@ public record TypeInfo(
         public boolean hasCast() {
             return castType != null;
         }
+    }
+
+    /**
+     * Pre-resolved aggregate column specification for groupBy/aggregate.
+     * Carries only types + resolved function — PlanGenerator reads fn1/fn2 from AST.
+     *
+     * @param alias        Output column name
+     * @param resolvedFunc Resolved aggregate function from registry (identity dispatch key)
+     * @param returnType   Compiled return type from fn2 body
+     * @param castType     Resolved cast type (null if no cast wrapper)
+     */
+    public record AggColumnSpec(
+            String alias,
+            NativeFunctionDef resolvedFunc,
+            GenericType returnType,
+            GenericType castType) {
     }
 
     /**
@@ -374,6 +391,7 @@ public record TypeInfo(
         private List<SortSpec> sortSpecs = List.of();
         private List<ProjectionSpec> projections = List.of();
         private List<ColumnSpec> columnSpecs = List.of();
+        private List<AggColumnSpec> aggColumnSpecs = List.of();
         private String joinType;
         private List<WindowFunctionSpec> windowSpecs = List.of();
         private ValueSpecification inlinedBody;
@@ -393,6 +411,7 @@ public record TypeInfo(
             this.sortSpecs = src.sortSpecs();
             this.projections = src.projections();
             this.columnSpecs = src.columnSpecs();
+            this.aggColumnSpecs = src.aggColumnSpecs();
             this.joinType = src.joinType();
             this.windowSpecs = src.windowSpecs();
             this.inlinedBody = src.inlinedBody();
@@ -410,6 +429,7 @@ public record TypeInfo(
         public Builder sortSpecs(List<SortSpec> v) { this.sortSpecs = v; return this; }
         public Builder projections(List<ProjectionSpec> v) { this.projections = v; return this; }
         public Builder columnSpecs(List<ColumnSpec> v) { this.columnSpecs = v; return this; }
+        public Builder aggColumnSpecs(List<AggColumnSpec> v) { this.aggColumnSpecs = v; return this; }
         public Builder joinType(String v) { this.joinType = v; return this; }
         public Builder windowSpecs(List<WindowFunctionSpec> v) { this.windowSpecs = v; return this; }
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
@@ -427,7 +447,7 @@ public record TypeInfo(
                         "TypeInfo.expressionType must not be null — every expression must have a type");
             }
             return new TypeInfo(mapping, associations, sortSpecs, projections,
-                    columnSpecs, joinType, windowSpecs, inlinedBody,
+                    columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
                     columnAlias, pivotSpec, variantAccess,
                     joinColumnRenames, graphFetchSpec, expressionType,
                     lambdaParam);
