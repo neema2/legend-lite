@@ -1397,34 +1397,35 @@ public class PlanGenerator {
     private SqlExpr generateRowMapperAgg(TypeInfo.AggColumnSpec acs,
                                           SqlExpr col1, SqlExpr col2,
                                           com.gs.legend.compiler.BuiltinFunctionRegistry registry) {
+        String funcName = acs.resolvedFunc().name();
         // wavg: SUM(col1 * col2) / SUM(col2)
-        if (acs.resolvedFunc() == registry.wavg()) {
+        if ("wavg".equals(funcName)) {
             SqlExpr product = new SqlExpr.Binary(col1, "*", col2);
             SqlExpr sumProduct = new SqlExpr.FunctionCall("SUM", List.of(product));
             SqlExpr sumWeight = new SqlExpr.FunctionCall("SUM", List.of(col2));
             return new SqlExpr.Binary(sumProduct, "/", sumWeight);
         }
         // corr: CORR(col1, col2)
-        if (acs.resolvedFunc() == registry.corr()) {
+        if ("corr".equals(funcName)) {
             return new SqlExpr.FunctionCall("CORR", List.of(col1, col2));
         }
         // covarSample: COVAR_SAMP(col1, col2)
-        if (acs.resolvedFunc() == registry.covarSample()) {
+        if ("covarSample".equals(funcName)) {
             return new SqlExpr.FunctionCall("COVAR_SAMP", List.of(col1, col2));
         }
         // covarPopulation: COVAR_POP(col1, col2)
-        if (acs.resolvedFunc() == registry.covarPopulation()) {
+        if ("covarPopulation".equals(funcName)) {
             return new SqlExpr.FunctionCall("COVAR_POP", List.of(col1, col2));
         }
         // maxBy/minBy: ARG_MAX/ARG_MIN(col1, col2)
-        if (acs.resolvedFunc() == registry.maxBy()) {
+        if ("maxBy".equals(funcName)) {
             return new SqlExpr.FunctionCall("ARG_MAX", List.of(col1, col2));
         }
-        if (acs.resolvedFunc() == registry.minBy()) {
+        if ("minBy".equals(funcName)) {
             return new SqlExpr.FunctionCall("ARG_MIN", List.of(col1, col2));
         }
         throw new PureCompileException(
-                "PlanGenerator: unknown rowMapper aggregate: " + acs.resolvedFunc().name());
+                "PlanGenerator: unknown rowMapper aggregate: " + funcName);
     }
 
     /**

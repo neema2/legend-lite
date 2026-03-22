@@ -26,11 +26,12 @@ public class AggregateChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, List<ValueSpecification> params,
-                          TypeInfo source, TypeChecker.CompilationContext ctx) {
-        if (params.size() < 2) {
-            throw new PureCompileException("aggregate() requires source and aggregate specs");
-        }
+    @Override
+    public TypeInfo check(AppliedFunction af, TypeInfo source,
+                          TypeChecker.CompilationContext ctx) {
+        NativeFunctionDef def = resolveOverload("aggregate", af.parameters(), source);
+        unify(def, source.expressionType()); // validate source matches signature generics
+        List<ValueSpecification> params = af.parameters();
 
         GenericType.Relation.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {

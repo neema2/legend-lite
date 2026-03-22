@@ -31,22 +31,19 @@ public class SortChecker extends AbstractChecker {
     }
 
     public TypeInfo check(AppliedFunction af, TypeInfo source,
-                          TypeChecker.CompilationContext ctx, NativeFunctionDef def) {
-        // Branch on the SIGNATURE's first param type, not the source.
-        // Relation sort is strictly for Relation<T> (TDS).
-        // Class-based mapped sources use Collection sort.
-        if (isRelationSignature(def)) {
+                          TypeChecker.CompilationContext ctx) {
+        var params = af.parameters();
+        String funcName = simpleName(af.function());
+        if ("sortBy".equals(funcName)) funcName = "sort";
+        NativeFunctionDef def = resolveOverload(funcName, params, source);
+
+        if (source.isRelational()) {
             return checkRelationSort(af, source, def);
         }
         return checkCollectionSort(af, source, ctx, def);
     }
 
-    /** Check if the resolved signature's first param is Relation<T>. */
-    private boolean isRelationSignature(NativeFunctionDef def) {
-        if (def.params().isEmpty()) return false;
-        return def.params().get(0).type() instanceof PType.Parameterized p
-                && "Relation".equals(p.rawType());
-    }
+
 
     // ========== Relation Sort ==========
 

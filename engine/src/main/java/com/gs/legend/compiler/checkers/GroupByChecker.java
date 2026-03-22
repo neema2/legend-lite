@@ -29,12 +29,12 @@ public class GroupByChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, List<ValueSpecification> params,
-                          TypeInfo source, TypeChecker.CompilationContext ctx) {
-        if (params.size() < 3) {
-            throw new PureCompileException(
-                    "groupBy() requires source, group columns, and aggregate specs");
-        }
+    @Override
+    public TypeInfo check(AppliedFunction af, TypeInfo source,
+                          TypeChecker.CompilationContext ctx) {
+        NativeFunctionDef def = resolveOverload("groupBy", af.parameters(), source);
+        unify(def, source.expressionType()); // validate source matches signature generics
+        List<ValueSpecification> params = af.parameters();
 
         GenericType.Relation.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
@@ -125,14 +125,9 @@ public class GroupByChecker extends AbstractChecker {
         // --- Resolve aggregate function from fn2 body ---
         var fn2Body = fn2.body().get(0);
         AppliedFunction fn2Af = unwrapCast(fn2Body);
+        // Resolve aggregate function through proper type checking
         String funcName = simpleName(fn2Af.function());
-        var registry = BuiltinFunctionRegistry.instance();
-        var defs = registry.resolve(funcName);
-        if (defs.isEmpty()) {
-            throw new PureCompileException(
-                    "groupBy(): unknown aggregate function '" + funcName + "' in spec '" + alias + "'");
-        }
-        NativeFunctionDef resolved = defs.get(0);
+        NativeFunctionDef resolved = resolveOverload(funcName, fn2Af.parameters(), null);
 
         // --- Extract cast type (if fn2 is wrapped in cast()) ---
         GenericType castType = extractCastGenericType(fn2Body);

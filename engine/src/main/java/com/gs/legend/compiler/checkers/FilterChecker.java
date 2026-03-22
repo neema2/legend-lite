@@ -28,14 +28,9 @@ public class FilterChecker extends AbstractChecker {
     }
 
     public TypeInfo check(AppliedFunction af, TypeInfo source,
-                          TypeChecker.CompilationContext ctx, NativeFunctionDef def) {
+                          TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // 1. Arity (from signature)
-        if (params.size() != def.arity()) {
-            throw new PureCompileException(
-                    "filter() requires " + def.arity() + " arguments, got " + params.size());
-        }
+        NativeFunctionDef def = resolveOverload("filter", params, source);
 
         // 2. Validate source + bind type variables (one pass)
         Map<String, GenericType> bindings = unify(def, source.expressionType());

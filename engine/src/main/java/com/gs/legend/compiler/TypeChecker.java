@@ -584,47 +584,12 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileSort(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-        String funcName = simpleName(af.function());
-        NativeFunctionDef def = resolveSignature(funcName.equals("sortBy") ? "sort" : funcName, params.size(), source);
-        var info = new com.gs.legend.compiler.checkers.SortChecker(this).check(af, source, ctx, def);
+        var info = new com.gs.legend.compiler.checkers.SortChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
 
-    // ========== Overload Resolution ==========
 
-    /**
-     * Resolves the correct NativeFunctionDef overload for a function call.
-     * Matches by arity first, then by source type (relational vs scalar).
-     *
-     * @param fn     Simple function name
-     * @param arity  Number of actual parameters
-     * @param source TypeInfo of the source (first param), or null
-     * @return The matching NativeFunctionDef
-     * @throws PureCompileException if no matching overload found
-     */
-    NativeFunctionDef resolveSignature(String fn, int arity, TypeInfo source) {
-        var defs = builtinRegistry.resolve(fn);
-        if (defs.isEmpty()) {
-            throw new PureCompileException("No signature found for: " + fn);
-        }
-        boolean srcRelational = source != null && source.isRelational();
-
-        // Try exact match: arity + relational/scalar alignment
-        for (var d : defs) {
-            if (d.arity() != arity) continue;
-            boolean defRelational = !d.params().isEmpty()
-                    && d.params().get(0).type() instanceof PType.Parameterized p
-                    && "Relation".equals(p.rawType());
-            if (defRelational == srcRelational) return d;
-        }
-        // Fallback: first matching arity
-        for (var d : defs) {
-            if (d.arity() == arity) return d;
-        }
-        // Last resort: first overload
-        return defs.getFirst();
-    }
 
     // ========== filter ==========
 
@@ -635,8 +600,7 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileFilter(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-        NativeFunctionDef def = resolveSignature("filter", params.size(), source);
-        var info = new com.gs.legend.compiler.checkers.FilterChecker(this).check(af, source, ctx, def);
+        var info = new com.gs.legend.compiler.checkers.FilterChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -650,12 +614,8 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo compileSlicing(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) {
-            throw new PureCompileException(simpleName(af.function()) + "() requires at least a source argument");
-        }
         TypeInfo source = compileExpr(params.get(0), ctx);
-        NativeFunctionDef def = resolveSignature(simpleName(af.function()), params.size(), source);
-        var info = new com.gs.legend.compiler.checkers.SlicingChecker(this).check(af, source, ctx, def);
+        var info = new com.gs.legend.compiler.checkers.SlicingChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -672,14 +632,9 @@ public class TypeChecker implements TypeCheckEnv {
     /** Compiles concatenate(left, right). */
     private TypeInfo compileConcatenate(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            throw new PureCompileException("concatenate() requires two sources");
-        }
-        TypeInfo left = compileExpr(params.get(0), ctx);
-        TypeInfo right = compileExpr(params.get(1), ctx);
-        NativeFunctionDef def = resolveSignature("concatenate", params.size(), left);
+        TypeInfo source = compileExpr(params.get(0), ctx);
         var info = new com.gs.legend.compiler.checkers.ConcatenateChecker(this)
-                .check(af, left, right, ctx, def);
+                .check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -700,8 +655,7 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileProject(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-        NativeFunctionDef def = resolveSignature("project", params.size(), source);
-        var info = new com.gs.legend.compiler.checkers.ProjectChecker(this).check(af, source, ctx, def);
+        var info = new com.gs.legend.compiler.checkers.ProjectChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -721,8 +675,7 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileFlatten(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-        NativeFunctionDef def = resolveSignature("flatten", params.size(), source);
-        var info = new com.gs.legend.compiler.checkers.FlattenChecker(this).check(af, source, ctx, def);
+        var info = new com.gs.legend.compiler.checkers.FlattenChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -736,12 +689,8 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo compileRename(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3) {
-            throw new PureCompileException("rename() requires source, old column, and new column");
-        }
         TypeInfo source = compileExpr(params.get(0), ctx);
-        NativeFunctionDef def = resolveSignature("rename", params.size(), source);
-        var info = new com.gs.legend.compiler.checkers.RenameChecker(this).check(af, source, ctx, def);
+        var info = new com.gs.legend.compiler.checkers.RenameChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -756,8 +705,7 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileSelect(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-        NativeFunctionDef def = resolveSignature("select", params.size(), source);
-        var info = new com.gs.legend.compiler.checkers.SelectChecker(this).check(af, source, ctx, def);
+        var info = new com.gs.legend.compiler.checkers.SelectChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -772,8 +720,7 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileDistinct(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-        NativeFunctionDef def = resolveSignature("distinct", params.size(), source);
-        var info = new com.gs.legend.compiler.checkers.DistinctChecker(this).check(af, source, ctx, def);
+        var info = new com.gs.legend.compiler.checkers.DistinctChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -784,13 +731,9 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo compileGroupBy(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3) {
-            throw new PureCompileException("groupBy() requires source, group columns, and aggregate specs");
-        }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
         var info = new com.gs.legend.compiler.checkers.GroupByChecker(this)
-                .check(af, params, source, ctx);
+                .check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -802,652 +745,25 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo compileAggregate(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) {
-            throw new PureCompileException("aggregate() requires a source");
-        }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
         var info = new com.gs.legend.compiler.checkers.AggregateChecker(this)
-                .check(af, params, source, ctx);
+                .check(af, source, ctx);
         types.put(af, info);
         return info;
     }
-
 
     /**
      * Compiles extend(source, ~newCol : lambda).
-     * Adds computed column to the source's RelationType.
-     * Pre-resolves window function specification into the sidecar.
+     * Delegates to {@link com.gs.legend.compiler.checkers.ExtendChecker}.
      */
     private TypeInfo compileExtend(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2) {
-            throw new PureCompileException("extend() requires source and column specs");
-        }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
-        GenericType.Relation.Schema sourceSchema = source.schema();
-
-        // Build new GenericType.Relation.Schema = source columns + new columns
-        Map<String, GenericType> newColumns = new LinkedHashMap<>(sourceSchema.columns());
-        for (int i = 1; i < params.size(); i++) {
-            var p = params.get(i);
-            // ColSpecArray: register ALL columns, not just the first
-            if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
-                for (ColSpec cs : colSpecs) {
-                    GenericType colType = inferExtendColumnType(
-                            new ClassInstance("colSpec", cs), ctx, sourceSchema);
-                    newColumns.put(cs.name(), colType);
-                }
-            } else {
-                String colName = extractNewColumnName(p);
-                if (colName != null) {
-                    GenericType colType = inferExtendColumnType(p, ctx, sourceSchema);
-                    newColumns.put(colName, colType);
-                }
-            }
-        }
-
-        // Pre-resolve window function spec from ColSpec + over() params
-        AppliedFunction overSpec = null;
-        ColSpec windowColSpec = null;
-        for (int i = 1; i < params.size(); i++) {
-            var p = params.get(i);
-            if (p instanceof AppliedFunction paf && "over".equals(simpleName(paf.function()))) {
-                overSpec = paf;
-            } else if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-                windowColSpec = cs;
-            }
-        }
-
-        // Structural fact: scalar extend has no over() and no function2 (aggregate
-        // lambda).
-        // Window extend always has either over() (partition/order spec) or function2
-        // (aggregate).
-        boolean isScalarExtend = windowColSpec != null
-                && overSpec == null
-                && windowColSpec.function2() == null;
-
-        TypeInfo.WindowFunctionSpec windowSpec = null;
-        if (windowColSpec != null && !isScalarExtend) {
-            // Resolve partition/order/frame from over() if present
-            List<String> partitionBy = new ArrayList<>();
-            List<TypeInfo.SortSpec> orderBy = new ArrayList<>();
-            TypeInfo.FrameSpec frame = null;
-            if (overSpec != null) {
-                var overResult = resolveOverClause(overSpec);
-                partitionBy = overResult.partitionBy;
-                orderBy = overResult.orderBy;
-                frame = overResult.frame;
-            }
-
-            String alias = windowColSpec.name();
-            windowSpec = resolveWindowFunc(windowColSpec, partitionBy, orderBy, frame, alias);
-        }
-
-        // For scalar extends, type-check the lambda body so property accesses
-        // get typed from the source GenericType.Relation.Schema (needed for string concat detection
-        // etc.)
-        if (isScalarExtend && windowColSpec.function1() != null && sourceSchema != null) {
-            LambdaFunction lambda = windowColSpec.function1();
-            if (!lambda.parameters().isEmpty() && !lambda.body().isEmpty()) {
-                String paramName = lambda.parameters().get(0).name();
-                CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceSchema);
-                typeCheckExpression(lambda.body().get(0), lambdaCtx);
-            }
-        }
-
-        // Also type-check and resolve window specs for ColSpecArray (multi-column
-        // extend)
-        List<TypeInfo.WindowFunctionSpec> allWindowSpecs = new ArrayList<>();
-        if (windowSpec != null) {
-            allWindowSpecs.add(windowSpec);
-        }
-        for (int i = 1; i < params.size(); i++) {
-            if (params.get(i) instanceof ClassInstance ci
-                    && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs) && sourceSchema != null) {
-                for (ColSpec cs : colSpecs) {
-                    if (cs.function1() != null) {
-                        LambdaFunction lambda = cs.function1();
-                        if (!lambda.parameters().isEmpty() && !lambda.body().isEmpty()) {
-                            String paramName = lambda.parameters().get(0).name();
-                            CompilationContext lambdaCtx = ctx.withRelationType(paramName, sourceSchema);
-                            typeCheckExpression(lambda.body().get(0), lambdaCtx);
-                        }
-                    }
-                    // Resolve window spec if this ColSpec has function2 (aggregate) or
-                    // if there's an overSpec (non-aggregate window fns like LEAD/FIRST_VALUE)
-                    if (cs.function2() != null || overSpec != null) {
-                        // Use the same overSpec (partition/order) for all columns in the array
-                        List<String> partBy = new ArrayList<>();
-                        List<TypeInfo.SortSpec> ordBy = new ArrayList<>();
-                        TypeInfo.FrameSpec fr = null;
-                        if (overSpec != null) {
-                            var overResult = resolveOverClause(overSpec);
-                            partBy = overResult.partitionBy;
-                            ordBy = overResult.orderBy;
-                            fr = overResult.frame;
-                        }
-                        TypeInfo.WindowFunctionSpec ws = resolveWindowFunc(cs, partBy, ordBy, fr, cs.name());
-                        if (ws != null) {
-                            allWindowSpecs.add(ws);
-                        }
-                    }
-                }
-            }
-        }
-
-        var extendRelType = new GenericType.Relation.Schema(newColumns, sourceSchema.dynamicPivotColumns());
-        var info = TypeInfo.builder().mapping(source.mapping())
-                .windowSpecs(allWindowSpecs)
-                .expressionType(ExpressionType.many(new GenericType.Relation(extendRelType))).build();
+        var info = new com.gs.legend.compiler.checkers.ExtendChecker(this)
+                .check(af, source, ctx);
         types.put(af, info);
         return info;
     }
-
-    /**
-     * Resolves window function from a ColSpec's function1/function2 lambdas.
-     * Stores Pure function names only — no SQL mapping here.
-     */
-    private TypeInfo.WindowFunctionSpec resolveWindowFunc(ColSpec cs,
-            List<String> partitionBy, List<TypeInfo.SortSpec> orderBy, TypeInfo.FrameSpec frame,
-            String alias) {
-
-        // Pattern 1: Aggregate window with function2 = aggregate lambda
-        // ~alias:x|$x.prop:y|$y->plus()
-        if (cs.function2() != null) {
-            String column = extractPropertyNameFromLambda(cs.function1());
-            String aggFunc = extractPureFuncName(cs.function2());
-            // Extract cast type if function2 body is cast(inner, @Type)
-            String castType = (cs.function2() != null && !cs.function2().body().isEmpty())
-                    ? extractCastType(cs.function2().body().get(0))
-                    : null;
-            if (column != null && aggFunc != null) {
-                // Special handling for percentile: boolean args control function name
-                if ("percentile".equals(aggFunc) || "percentileCont".equals(aggFunc)
-                        || "percentileDisc".equals(aggFunc)) {
-                    var percentileResult = resolvePercentileArgs(cs.function2(), aggFunc);
-                    return TypeInfo.WindowFunctionSpec.aggregateMulti(percentileResult.funcName,
-                            column, alias, partitionBy, orderBy, frame,
-                            List.of(String.valueOf(percentileResult.value)));
-                }
-                // General: extract non-boolean extra args from function2
-                List<String> fn2ExtraArgs = extractFuncExtraArgs(cs.function2());
-                if (castType != null) {
-                    return TypeInfo.WindowFunctionSpec.aggregateCast(aggFunc, column, alias,
-                            partitionBy, orderBy, frame, fn2ExtraArgs, castType);
-                }
-                if (!fn2ExtraArgs.isEmpty()) {
-                    return TypeInfo.WindowFunctionSpec.aggregateMulti(aggFunc, column, alias,
-                            partitionBy, orderBy, frame, fn2ExtraArgs);
-                }
-                return TypeInfo.WindowFunctionSpec.aggregate(aggFunc, column, alias,
-                        partitionBy, orderBy, frame);
-            }
-            // rowMapper pattern: {p,w,r|rowMapper($r.valA, $r.valB)}:y|$y->corr()
-            if (column == null && aggFunc != null && cs.function1() != null) {
-                var body = cs.function1().body();
-                if (!body.isEmpty() && body.get(0) instanceof AppliedFunction rmAf) {
-                    String rmFunc = simpleName(rmAf.function());
-                    if (rmFunc.endsWith("rowMapper") || "rowMapper".equals(rmFunc)) {
-                        // Extract two columns from rowMapper params
-                        String col1 = null, col2 = null;
-                        if (rmAf.parameters().size() >= 1) {
-                            col1 = extractColumnName(rmAf.parameters().get(0));
-                        }
-                        if (rmAf.parameters().size() >= 2) {
-                            col2 = extractColumnName(rmAf.parameters().get(1));
-                        }
-                        if (col1 != null) {
-                            List<String> extra = col2 != null ? List.of(col2) : List.of();
-                            return TypeInfo.WindowFunctionSpec.aggregateMulti(aggFunc, col1, alias,
-                                    partitionBy, orderBy, frame, extra);
-                        }
-                    }
-                    // Non-rowMapper function in function1 body — extract source column
-                    String sourceCol = rmAf.parameters().size() > 0
-                            ? extractColumnName(rmAf.parameters().get(0))
-                            : null;
-                    if (sourceCol != null) {
-                        return TypeInfo.WindowFunctionSpec.aggregate(aggFunc, sourceCol, alias,
-                                partitionBy, orderBy, frame);
-                    }
-                }
-            }
-        }
-
-        // Pattern 2: Function in function1 lambda body
-        if (cs.function1() != null) {
-            var body = cs.function1().body();
-            if (!body.isEmpty() && body.get(0) instanceof AppliedFunction af) {
-                String funcName = simpleName(af.function());
-
-                // Post-processor wrapping: round(cumulativeDistribution($w,$r), 2)
-                if (isWrapperFunc(funcName) && !af.parameters().isEmpty()
-                        && af.parameters().get(0) instanceof AppliedFunction innerAf) {
-                    String innerFuncName = simpleName(innerAf.function());
-                    if (isRankingFunc(innerFuncName)) {
-                        List<String> extraArgs = new ArrayList<>();
-                        for (int i = 1; i < af.parameters().size(); i++) {
-                            extraArgs.add(extractLiteralValue(af.parameters().get(i)));
-                        }
-                        return TypeInfo.WindowFunctionSpec.wrapped(innerFuncName,
-                                funcName, extraArgs, alias, partitionBy, orderBy, frame);
-                    }
-                }
-
-                // Zero-arg ranking functions: rowNumber, rank, denseRank, etc.
-                if (isRankingFunc(funcName)) {
-                    return TypeInfo.WindowFunctionSpec.ranking(funcName, alias,
-                            partitionBy, orderBy, frame);
-                }
-
-                // NTILE: bucket arg may be at various positions
-                if ("ntile".equals(funcName)) {
-                    int buckets = 1;
-                    for (int pi = 0; pi < af.parameters().size(); pi++) {
-                        var p = af.parameters().get(pi);
-                        if (p instanceof CInteger(Number value)) {
-                            buckets = value.intValue();
-                            break;
-                        }
-                    }
-                    return TypeInfo.WindowFunctionSpec.ntile(buckets, alias,
-                            partitionBy, orderBy, frame);
-                }
-
-                // LAG/LEAD: always pass offset 1
-                if ("lag".equals(funcName) || "lead".equals(funcName)) {
-                    String sourceCol = extractColumnNameDeep(af);
-                    return TypeInfo.WindowFunctionSpec.aggregateMulti(funcName, sourceCol, alias,
-                            partitionBy, orderBy, frame, List.of("1"));
-                }
-
-                // COUNT: use * instead of column name
-                if ("count".equals(funcName) || "size".equals(funcName)) {
-                    return TypeInfo.WindowFunctionSpec.aggregate("count", "*", alias,
-                            partitionBy, orderBy, frame);
-                }
-
-                // NTH_VALUE: extract offset arg
-                if ("nth".equals(funcName) || "nthValue".equals(funcName)) {
-                    String sourceCol = extractColumnNameDeep(af);
-                    int offset = 1;
-                    for (int pi = 0; pi < af.parameters().size(); pi++) {
-                        var p = af.parameters().get(pi);
-                        if (p instanceof CInteger(Number value)) {
-                            offset = value.intValue();
-                            break;
-                        }
-                    }
-                    return TypeInfo.WindowFunctionSpec.aggregateMulti(funcName, sourceCol, alias,
-                            partitionBy, orderBy, frame, List.of(String.valueOf(offset)));
-                }
-
-                // Aggregate/value functions with arguments: sum($w.salary)
-                String sourceCol = af.parameters().size() > 1
-                        ? extractColumnName(af.parameters().get(1))
-                        : null;
-                return TypeInfo.WindowFunctionSpec.aggregate(funcName, sourceCol, alias,
-                        partitionBy, orderBy, frame);
-            }
-
-            // Property access pattern: {p,w,r|$p->avg($w,$r).salary}
-            if (!body.isEmpty()
-                    && body.get(0) instanceof AppliedProperty(String property, List<ValueSpecification> parameters)) {
-                if (!parameters.isEmpty() && parameters.get(0) instanceof AppliedFunction innerAf) {
-                    String innerFunc = simpleName(innerAf.function());
-                    // Extract extra literal args (e.g., nth offset 2, joinStrings separator)
-                    List<String> innerExtras = new ArrayList<>();
-                    for (int ei = 1; ei < innerAf.parameters().size(); ei++) {
-                        var px = innerAf.parameters().get(ei);
-                        if (px instanceof CInteger(Number value)) {
-                            innerExtras.add(String.valueOf(value));
-                        } else if (px instanceof CFloat(double value)) {
-                            innerExtras.add(String.valueOf(value));
-                        } else if (px instanceof CString(String value)) {
-                            innerExtras.add("'" + value + "'");
-                        }
-                        // Skip variable references ($p, $w, $r)
-                    }
-                    if (!innerExtras.isEmpty()) {
-                        return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, property, alias,
-                                partitionBy, orderBy, frame, innerExtras);
-                    }
-                    // LAG/LEAD always need offset=1
-                    if ("lag".equals(innerFunc) || "lead".equals(innerFunc)) {
-                        return TypeInfo.WindowFunctionSpec.aggregateMulti(innerFunc, property, alias,
-                                partitionBy, orderBy, frame, List.of("1"));
-                    }
-                    return TypeInfo.WindowFunctionSpec.aggregate(innerFunc, property, alias,
-                            partitionBy, orderBy, frame);
-                }
-            }
-        }
-
-        // Fallback: no window function resolved
-        return null;
-    }
-
-    /** Resolves partition, order, and frame from over() parameters. */
-    private record OverClauseResult(List<String> partitionBy, List<TypeInfo.SortSpec> orderBy,
-            TypeInfo.FrameSpec frame) {
-    }
-
-    private OverClauseResult resolveOverClause(AppliedFunction overSpec) {
-        List<String> partitionBy = new ArrayList<>();
-        List<TypeInfo.SortSpec> orderBy = new ArrayList<>();
-        TypeInfo.FrameSpec frame = null;
-
-        for (var p : overSpec.parameters()) {
-            if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-                partitionBy.add(cs.name());
-            } else if (p instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
-                for (ColSpec cs : colSpecs) {
-                    partitionBy.add(cs.name());
-                }
-            } else if (p instanceof PureCollection(List<ValueSpecification> values)) {
-                // Collection of sort specs: [~o->ascending(), ~i->ascending()]
-                for (var elem : values) {
-                    var sortSpec = tryResolveSortSpec(elem);
-                    if (sortSpec != null)
-                        orderBy.add(sortSpec);
-                }
-            } else if (p instanceof AppliedFunction paf) {
-                String funcName = simpleName(paf.function());
-                var sortSpec = tryResolveSortSpec(p);
-                if (sortSpec != null) {
-                    orderBy.add(sortSpec);
-                } else if ("rows".equals(funcName) || "range".equals(funcName) || "_range".equals(funcName)) {
-                    String frameType = funcName.startsWith("_") ? funcName.substring(1) : funcName;
-                    TypeInfo.FrameBound start = resolveFrameBoundPure(paf.parameters(), true);
-                    TypeInfo.FrameBound end = resolveFrameBoundPure(paf.parameters(), false);
-                    // Validate: lower bound must not exceed upper bound
-                    validateFrameBounds(start, end);
-                    frame = new TypeInfo.FrameSpec(frameType, start, end);
-                }
-            }
-        }
-
-        return new OverClauseResult(partitionBy, orderBy, frame);
-    }
-
-    /**
-     * Validates that the window frame lower bound is not greater than the upper
-     * bound.
-     * Throws PureCompileException matching the Pure error message for invalid frame
-     * boundaries.
-     */
-    private void validateFrameBounds(TypeInfo.FrameBound start, TypeInfo.FrameBound end) {
-        double startPos = frameBoundPosition(start, true);
-        double endPos = frameBoundPosition(end, false);
-        if (startPos > endPos) {
-            throw new PureCompileException(
-                    "Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!");
-        }
-    }
-
-    /**
-     * Converts a FrameBound to a numeric position for comparison.
-     * UNBOUNDED PRECEDING = -∞, n PRECEDING = -n, CURRENT ROW = 0, n FOLLOWING = n,
-     * UNBOUNDED FOLLOWING = +∞.
-     */
-    private double frameBoundPosition(TypeInfo.FrameBound bound, boolean isStart) {
-        return switch (bound.type()) {
-            case UNBOUNDED -> isStart ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-            case CURRENT_ROW -> 0;
-            case OFFSET -> bound.offset(); // negative = preceding, positive = following
-        };
-    }
-
-    /** Try to resolve a single ascending/descending sort spec from an AST node. */
-    private TypeInfo.SortSpec tryResolveSortSpec(ValueSpecification vs) {
-        if (vs instanceof AppliedFunction af) {
-            String funcName = simpleName(af.function());
-            if ("asc".equals(funcName) || "ascending".equals(funcName)) {
-                String col = extractColumnName(af.parameters().get(0));
-                return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC);
-            } else if ("desc".equals(funcName) || "descending".equals(funcName)) {
-                String col = extractColumnName(af.parameters().get(0));
-                return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.DESC);
-            }
-        }
-        return null;
-    }
-
-    /** Resolves a frame bound into a structured FrameBound (no SQL text). */
-    private TypeInfo.FrameBound resolveFrameBoundPure(List<ValueSpecification> params, boolean isStart) {
-        int idx = isStart ? 0 : 1;
-        if (idx >= params.size())
-            return isStart ? TypeInfo.FrameBound.unbounded() : TypeInfo.FrameBound.currentRow();
-        var param = params.get(idx);
-        if (param instanceof AppliedFunction af && "unbounded".equals(simpleName(af.function()))) {
-            return TypeInfo.FrameBound.unbounded();
-        }
-        if (param instanceof AppliedFunction af && "minus".equals(simpleName(af.function()))) {
-            if (!af.parameters().isEmpty()) {
-                double v = extractNumericLiteral(af.parameters().get(af.parameters().size() - 1));
-                return TypeInfo.FrameBound.offset(-v); // negative = preceding
-            }
-        }
-        double v = extractNumericLiteral(param);
-        if (v == 0)
-            return TypeInfo.FrameBound.currentRow();
-        return TypeInfo.FrameBound.offset(v); // positive = following, negative = preceding
-    }
-
-    /**
-     * Extracts a numeric literal as double (supports CInteger, CFloat, CDecimal).
-     */
-    private double extractNumericLiteral(ValueSpecification vs) {
-        if (vs instanceof CInteger(Number value))
-            return value.doubleValue();
-        if (vs instanceof CFloat(double value))
-            return value;
-        if (vs instanceof CDecimal(java.math.BigDecimal value))
-            return value.doubleValue();
-        throw new PureCompileException(
-                "Expected numeric literal in frame bound, got: " + vs.getClass().getSimpleName());
-    }
-
-    /**
-     * Resolves the effective aggregate function body, seeing through cast().
-     * In aggregate context (groupBy, aggregate, window), cast is a transparent
-     * type-assertion
-     * wrapper — the real aggregate is inside. E.g., cast($x->plus(), @Integer) →
-     * returns plus().
-     * If the body is not an AppliedFunction, returns null.
-     *
-     * Special case: when the Pure interpreter serializes
-     * `$x->cast(@Integer)->plus()`, the
-     * `plus()` gets rendered as the `+` prefix sign, which our parser treats as a
-     * unary no-op
-     * (signedExpression rule). This makes `cast($x, @Integer)` the actual body with
-     * a Variable
-     * inside. In this case we return null so the caller defaults to aggFunc =
-     * "plus".
-     */
-    private AppliedFunction resolveAggregateFunctionBody(ValueSpecification body) {
-        if (!(body instanceof AppliedFunction af)) {
-            return null;
-        }
-        if ("cast".equals(simpleName(af.function()))) {
-            // cast(innerExpr, @Type) — the first param is the real aggregate expression
-            if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof AppliedFunction innerAf) {
-                return innerAf;
-            }
-            // cast wraps a Variable — this happens when plus() was serialized as the `+`
-            // prefix
-            // (signedExpression) making cast the outermost function. Cast on same-type
-            // primitives
-            // is a no-op; return null so the caller uses the default aggregate function
-            // ("plus").
-            return null;
-        }
-        return af;
-    }
-
-    /**
-     * Extracts the cast target type from a cast() expression in aggregate context.
-     * E.g., cast($x->plus(), @Integer) → "Integer". Returns null if not a cast.
-     */
-    private String extractCastType(ValueSpecification body) {
-        if (!(body instanceof AppliedFunction af))
-            return null;
-        if (!"cast".equals(simpleName(af.function())))
-            return null;
-        for (var p : af.parameters()) {
-            if (p instanceof GenericTypeInstance(String fullPath)) {
-                return simpleName(fullPath);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Extracts the Pure function name from an aggregate lambda like {y|$y->plus()}.
-     * When the body is cast(Variable) — caused by the parser dropping the + prefix
-     * (signedExpression rule) — defaults to "plus" since the lost function was
-     * plus().
-     */
-    private String extractPureFuncName(LambdaFunction lf) {
-        if (lf == null || lf.body().isEmpty())
-            return null;
-        var body = lf.body().get(0);
-        AppliedFunction af = resolveAggregateFunctionBody(body);
-        if (af != null) {
-            return simpleName(af.function());
-        }
-        // When resolveAggregateFunctionBody returns null for cast(Variable),
-        // the + prefix (plus) was lost by the parser. Default to "plus".
-        if (body instanceof AppliedFunction castAf && "cast".equals(simpleName(castAf.function()))) {
-            return "plus";
-        }
-        return null;
-    }
-
-    /**
-     * Extracts extra literal/column args from aggregate lambda body.
-     * E.g., {y|$y->percentile(0.6, true, true)} → ["0.6", "true", "true"]
-     * {y|$y->joinStrings('')} → ["''"]
-     */
-    private List<String> extractFuncExtraArgs(LambdaFunction lf) {
-        List<String> extras = new ArrayList<>();
-        if (lf == null || lf.body().isEmpty())
-            return extras;
-        var body = lf.body().get(0);
-        if (body instanceof AppliedFunction af) {
-            // Params: [0] = $y (variable), [1+] = extra args
-            for (int i = 1; i < af.parameters().size(); i++) {
-                var p = af.parameters().get(i);
-                if (p instanceof CInteger(Number value)) {
-                    extras.add(String.valueOf(value));
-                } else if (p instanceof CFloat(double value)) {
-                    extras.add(String.valueOf(value));
-                } else if (p instanceof CDecimal(java.math.BigDecimal value)) {
-                    extras.add(value.toPlainString());
-                } else if (p instanceof CString(String value)) {
-                    extras.add("'" + value + "'");
-                } else if (p instanceof AppliedProperty ap) {
-                    extras.add(ap.property());
-                }
-            }
-        }
-        return extras;
-    }
-
-    /**
-     * Result of resolving percentile boolean args to function name + numeric value.
-     */
-    private record PercentileResult(String funcName, double value) {
-    }
-
-    /**
-     * Resolves percentile function args: percentile(0.6, ascending, continuous).
-     * Boolean arg2: ascending — if false, value becomes 1.0 - value.
-     * Boolean arg3: continuous — if false, function is DISC; if true, CONT.
-     * Matches old pipeline AstAdapter lines 1126-1143.
-     */
-    private PercentileResult resolvePercentileArgs(LambdaFunction lf, String baseFuncName) {
-        String funcName = "percentileCont"; // default: continuous
-        double value = 0.5;
-
-        if (lf != null && !lf.body().isEmpty() && lf.body().get(0) instanceof AppliedFunction af) {
-            // Extract percentile value (arg1, after $y variable at index 0)
-            if (af.parameters().size() > 1) {
-                var valParam = af.parameters().get(1);
-                if (valParam instanceof CFloat(double value1))
-                    value = value1;
-                else if (valParam instanceof CDecimal(java.math.BigDecimal value1))
-                    value = value1.doubleValue();
-                else if (valParam instanceof CInteger(Number value1))
-                    value = value1.doubleValue();
-            }
-            // arg2: ascending (index 2)
-            if (af.parameters().size() > 2 && af.parameters().get(2) instanceof CBoolean(boolean value1)) {
-                if (!value1) {
-                    value = 1.0 - value;
-                }
-            }
-            // arg3: continuous (index 3)
-            if (af.parameters().size() > 3 && af.parameters().get(3) instanceof CBoolean(boolean value1)) {
-                if (!value1) {
-                    funcName = "percentileDisc";
-                }
-            }
-        }
-        // If base function already specifies disc
-        if ("percentileDisc".equals(baseFuncName)) {
-            funcName = "percentileDisc";
-        }
-        return new PercentileResult(funcName, value);
-    }
-
-    /**
-     * Extracts source column from a window function call like lag($p, $w, $r).
-     * Scans params for AppliedProperty, skipping Variable refs ($p, $w, $r).
-     */
-    private String extractColumnNameDeep(AppliedFunction af) {
-        for (var p : af.parameters()) {
-            if (p instanceof AppliedProperty ap)
-                return ap.property();
-        }
-        // Fallback to first non-variable param
-        for (var p : af.parameters()) {
-            String col = extractColumnName(p);
-            if (col != null)
-                return col;
-        }
-        return null;
-    }
-
-    /** Returns true for zero-arg ranking Pure functions. */
-    private boolean isRankingFunc(String funcName) {
-        return switch (funcName) {
-            case "rowNumber", "rank", "denseRank", "percentRank", "cumulativeDistribution" -> true;
-            default -> false;
-        };
-    }
-
-    /** Returns true for Pure math functions that wrap a window function. */
-    private boolean isWrapperFunc(String funcName) {
-        return switch (funcName) {
-            case "round", "abs", "ceil", "floor", "truncate" -> true;
-            default -> false;
-        };
-    }
-
-    /** Extracts a literal value as string from a ValueSpecification. */
-    private String extractLiteralValue(ValueSpecification vs) {
-        if (vs instanceof CInteger(Number value))
-            return String.valueOf(value);
-        if (vs instanceof CFloat(double value))
-            return String.valueOf(value);
-        if (vs instanceof CString(String value))
-            return value;
-        throw new PureCompileException("Expected literal value, got: " + vs.getClass().getSimpleName());
-    }
-
     /**
      * Compiles join(left, right, joinType, condition).
      * Pre-resolves joinType from EnumValue/CString/AppliedProperty.
@@ -2682,60 +1998,6 @@ public class TypeChecker implements TypeCheckEnv {
 
 
 
-    /** Infers the column type for an extend column from its lambda body. */
-    private GenericType inferExtendColumnType(ValueSpecification param, CompilationContext ctx,
-            GenericType.Relation.Schema sourceType) {
-        // Extract the lambda body from ColSpec wrapper
-        ColSpec cs = null;
-        if (param instanceof ClassInstance ci && ci.value() instanceof ColSpec colSpec) {
-            cs = colSpec;
-        } else if (param instanceof AppliedFunction paf) {
-            // over() wrapping: dig into first param
-            for (var p : paf.parameters()) {
-                if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec colSpec) {
-                    cs = colSpec;
-                    break;
-                }
-            }
-        }
-        if (cs == null || cs.function1() == null || cs.function1().body().isEmpty()) {
-            throw new PureCompileException("extend column spec has no lambda body");
-        }
-
-        LambdaFunction lambda = cs.function1();
-
-        // Bind ALL lambda parameters to the source RelationType.
-        // Simple extend: {x|$x.prop} — 1 param, x = row
-        // Window extend: {p,w,r|$p->fn($w,$r)} — 3 params, all bound to source columns
-        CompilationContext bodyCtx = ctx;
-        if (sourceType != null) {
-            for (var lp : lambda.parameters()) {
-                bodyCtx = bodyCtx.withRelationType(lp.name(), sourceType);
-            }
-        }
-
-        TypeInfo bodyInfo = compileExpr(lambda.body().get(0), bodyCtx);
-        if (bodyInfo != null && bodyInfo.type() != null) {
-            return bodyInfo.type();
-        }
-        // Fallback: expressionType (from property access on relational result)
-        if (bodyInfo != null && bodyInfo.expressionType() != null) {
-            GenericType rt = bodyInfo.expressionType().type();
-            if (rt.isList() && rt.elementType() != null) {
-                return rt.elementType();
-            }
-            return rt;
-        }
-        // Fallback: single-column relationType (from desugared property project)
-        if (bodyInfo != null && bodyInfo.schema() != null
-                && bodyInfo.schema().columns().size() == 1) {
-            return bodyInfo.schema().columns().values().iterator().next();
-        }
-
-        throw new PureCompileException("cannot infer type for extend column '"
-                + (cs.name() != null ? cs.name() : "?") + "'");
-    }
-
     /** Compiles if(condition, then-lambda, else-lambda) with type unification. */
     private TypeInfo compileIf(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -3233,64 +2495,6 @@ public class TypeChecker implements TypeCheckEnv {
         throw new PureCompileException("Expected string, got: " + vs.getClass().getSimpleName());
     }
 
-    private String extractColumnName(ValueSpecification vs) {
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-            return cs.name();
-        }
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpecArray) {
-            throw new PureCompileException(
-                    "ColSpecArray passed to single-column extractColumnName(); caller must handle arrays");
-        }
-        if (vs instanceof CString(String value))
-            return value;
-        // Column index (old-style groupBy): groupBy([0, 1], ...)
-        if (vs instanceof CInteger(Number value))
-            return "col" + value;
-        // Old-style lambda: {r | $r.colName} → extract property name
-        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            var body = lf.body().get(0);
-            if (body instanceof AppliedProperty ap) {
-                return ap.property();
-            }
-            if (body instanceof AppliedFunction af && !af.parameters().isEmpty()) {
-                if (af.parameters().get(0) instanceof AppliedProperty ap) {
-                    return ap.property();
-                }
-                // Receiver-style calls like $x.name->toLower() — recurse into first param
-                String nested = extractPropertyName(af.parameters().get(0));
-                if (nested != null)
-                    return nested;
-            }
-            // Use the function name itself as last resort for lambdas
-            if (body instanceof AppliedFunction af2) {
-                return simpleName(af2.function());
-            }
-            // Lambda body we can't extract a property name from — throw
-            throw new PureCompileException(
-                    "extractColumnName: unrecognized lambda body: " + body.getClass().getSimpleName() + " → " + body);
-        }
-        // Direct property reference: $r.col
-        if (vs instanceof AppliedProperty ap)
-            return ap.property();
-        // Function application: $r.col->sum()
-        if (vs instanceof AppliedFunction af) {
-            if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof AppliedProperty ap) {
-                return ap.property();
-            }
-            return simpleName(af.function());
-        }
-        // Variable reference: $x
-        if (vs instanceof Variable v)
-            return v.name();
-        // Type annotation: GenericTypeInstance(Integer) in project specs
-        if (vs instanceof GenericTypeInstance(String fullPath))
-            return fullPath;
-        // No fallback — throw so we can fix the root cause
-        throw new PureCompileException(
-                "extractColumnName: unrecognized VS type: " + vs.getClass().getSimpleName() + " → " + vs);
-    }
-
-
 
     /**
      * Scans a filter lambda body for multi-hop property paths and resolves
@@ -3400,36 +2604,6 @@ public class TypeChecker implements TypeCheckEnv {
         return null;
     }
 
-    /**
-     * Extracts the new column name from an extend spec.
-     * Handles: ~newCol : lambda, ColSpec, ClassInstance.
-     */
-    private String extractNewColumnName(ValueSpecification vs) {
-        if (vs instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
-            return cs.name();
-        }
-        // ColSpecArray and AppliedFunction (over()) are handled by compileExtend
-        // directly.
-        // No recursion — new column names only come from ColSpec.
-        return null;
-    }
-
-    // extractAggSpec deleted — GroupByChecker/AggregateChecker handle ColSpec extraction.
-    // Legacy LambdaFunction and agg() patterns are no longer supported.
-
-
-    /**
-     * Extracts property name from a lambda body.
-     * E.g., from {x|$x.salary} extracts "salary".
-     */
-    private String extractPropertyNameFromLambda(ValueSpecification vs) {
-        if (vs instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            ValueSpecification body = lf.body().get(0);
-            if (body instanceof AppliedProperty ap)
-                return ap.property();
-        }
-        return null;
-    }
 
     // ========== Other AST Nodes ==========
 

@@ -28,8 +28,13 @@ public class ConcatenateChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo left, TypeInfo right,
-                          TypeChecker.CompilationContext ctx, NativeFunctionDef def) {
+    @Override
+    public TypeInfo check(AppliedFunction af, TypeInfo source,
+                          TypeChecker.CompilationContext ctx) {
+        var params = af.parameters();
+        NativeFunctionDef def = resolveOverload("concatenate", params, source);
+        TypeInfo left = source;
+        TypeInfo right = env.compileExpr(params.get(1), ctx);
 
         // 1. Scalar list concatenation: [1,2]->concatenate([3,4])
         if (!left.isRelational()) {

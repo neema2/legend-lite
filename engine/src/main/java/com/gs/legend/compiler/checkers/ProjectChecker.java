@@ -34,8 +34,9 @@ public class ProjectChecker extends AbstractChecker {
     }
 
     public TypeInfo check(AppliedFunction af, TypeInfo source,
-                          TypeChecker.CompilationContext ctx, NativeFunctionDef def) {
+                          TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
+        NativeFunctionDef def = resolveOverload("project", params, source);
         ClassMapping mapping = source.mapping();
 
         // 1. Bind type variables from signature

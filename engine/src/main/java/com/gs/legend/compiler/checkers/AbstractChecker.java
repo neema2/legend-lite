@@ -1,12 +1,12 @@
 package com.gs.legend.compiler.checkers;
 
-import com.gs.legend.ast.LambdaFunction;
-import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.plan.GenericType;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,12 +25,150 @@ import java.util.Map;
  * in {@link #unifyType} and {@link #resolve} — the bridge between parse-time
  * PTypes and compile-time GenericTypes. TODO: replace with proper type algebra.
  */
-public abstract class AbstractChecker {
+public abstract class AbstractChecker implements FunctionChecker {
 
     protected final TypeCheckEnv env;
 
     protected AbstractChecker(TypeCheckEnv env) {
         this.env = env;
+    }
+
+    // ========== Overload resolution ==========
+
+    /**
+     * Resolves the correct function overload by matching the AST param structure
+     * against registered signature param types.
+     *
+     * <p>Resolution strategy (no silent fallbacks):
+     * <ol>
+     *   <li>Get all overloads by name</li>
+     *   <li>Filter by arity — throw if none match</li>
+     *   <li>If exactly one — return it</li>
+     *   <li>Structurally match each candidate's PType params against AST nodes</li>
+     *   <li>Exactly one must match — throw if zero or ambiguous</li>
+     * </ol>
+     *
+     * @param funcName   Simple function name
+     * @param params     AST parameters (not yet compiled, except source)
+     * @param source     Compiled TypeInfo for param[0], or null
+     * @return The single matching NativeFunctionDef
+     * @throws PureCompileException on no match or ambiguity
+     */
+    protected NativeFunctionDef resolveOverload(String funcName,
+                                                 List<ValueSpecification> params,
+                                                 TypeInfo source) {
+        var defs = BuiltinFunctionRegistry.instance().resolve(funcName);
+        if (defs.isEmpty()) {
+            throw new PureCompileException("Unknown function: '" + funcName + "'");
+        }
+
+        // Step 1: filter by arity
+        var arityMatches = defs.stream()
+                .filter(d -> d.arity() == params.size())
+                .toList();
+        if (arityMatches.isEmpty()) {
+            throw new PureCompileException(
+                    "No overload of '" + funcName + "' accepts " + params.size() + " arguments"
+                    + " (registered arities: " + defs.stream()
+                            .map(d -> String.valueOf(d.arity())).distinct().toList() + ")");
+        }
+        if (arityMatches.size() == 1) {
+            return arityMatches.get(0);
+        }
+
+        // Step 2: structural matching against AST nodes
+        var matches = arityMatches.stream()
+                .filter(d -> matchesStructurally(d, params, source))
+                .toList();
+        if (matches.size() == 1) {
+            return matches.get(0);
+        }
+        if (matches.isEmpty()) {
+            throw new PureCompileException(
+                    "No overload of '" + funcName + "' matches the given argument types"
+                    + " (tried " + arityMatches.size() + " candidates with arity " + params.size() + ")");
+        }
+
+        // Ambiguous — multiple candidates matched
+        throw new PureCompileException(
+                "Ambiguous overload: " + matches.size() + " overloads of '"
+                + funcName + "' match the given argument types");
+    }
+
+    /**
+     * Checks if a def's param types structurally match the AST param nodes.
+     * No compilation needed — only inspects AST node types.
+     */
+    private boolean matchesStructurally(NativeFunctionDef def,
+                                        List<ValueSpecification> params,
+                                        TypeInfo source) {
+        for (int i = 0; i < def.params().size() && i < params.size(); i++) {
+            PType expected = def.params().get(i).type();
+            ValueSpecification actual = params.get(i);
+            if (!structuralMatch(expected, actual, source, i == 0)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Matches a single PType against an AST node.
+     * Returns false (reject) for unknown types — no silent pass-through.
+     */
+    private boolean structuralMatch(PType expected, ValueSpecification actual,
+                                    TypeInfo source, boolean isSource) {
+        // PureCollection wraps multiple elements (e.g., [ascending(~id), ascending(~name)])
+        // Check if elements match the expected type
+        if (actual instanceof PureCollection(java.util.List<ValueSpecification> elements)
+                && !elements.isEmpty()) {
+            return elements.stream().allMatch(e -> structuralMatch(expected, e, source, false));
+        }
+        if (expected instanceof PType.Parameterized p) {
+            return switch (p.rawType()) {
+                case "Relation" -> isSource
+                        ? (source != null && source.isRelational())
+                        : actual instanceof ClassInstance ci && "relation".equals(ci.type());
+                case "ColSpec"
+                        -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type());
+                case "FuncColSpec"
+                        -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type())
+                            && ci.value() instanceof com.gs.legend.ast.ColSpec cs && cs.function2() == null;
+                case "AggColSpec"
+                        -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type())
+                            && ci.value() instanceof com.gs.legend.ast.ColSpec cs && cs.function2() != null;
+                case "ColSpecArray"
+                        -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type());
+                case "FuncColSpecArray"
+                        -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type())
+                            && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa
+                            && csa.colSpecs().stream().allMatch(s -> s.function2() == null);
+                case "AggColSpecArray"
+                        -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type())
+                            && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa
+                            && csa.colSpecs().stream().allMatch(s -> s.function2() != null);
+                case "Function" -> actual instanceof LambdaFunction;
+                case "SortInfo" -> actual instanceof AppliedFunction;
+                case "_Window" -> actual instanceof AppliedFunction;
+                case "Rows", "_Range" -> actual instanceof AppliedFunction;
+                default -> false;
+            };
+        }
+        if (expected instanceof PType.TypeVar) {
+            // TypeVar (T, V, etc.) matches anything EXCEPT Relation sources
+            return !isSource || source == null || !source.isRelational();
+        }
+        if (expected instanceof PType.Concrete c) {
+            return switch (c.name()) {
+                case "Integer" -> actual instanceof CInteger;
+                case "String" -> actual instanceof CString;
+                case "Float" -> actual instanceof CFloat;
+                case "Decimal" -> actual instanceof CDecimal;
+                case "Boolean" -> actual instanceof CBoolean;
+                default -> false;
+            };
+        }
+        return false;
     }
 
     // ========== Type variable unification ==========

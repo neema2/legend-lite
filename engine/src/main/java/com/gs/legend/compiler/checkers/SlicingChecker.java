@@ -32,15 +32,10 @@ public class SlicingChecker extends AbstractChecker {
     }
 
     public TypeInfo check(AppliedFunction af, TypeInfo source,
-                          TypeChecker.CompilationContext ctx, NativeFunctionDef def) {
+                          TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         String funcName = simpleName(af.function());
-
-        // 1. Arity from signature
-        if (params.size() != def.arity()) {
-            throw new PureCompileException(
-                    funcName + "() requires " + def.arity() + " arguments, got " + params.size());
-        }
+        NativeFunctionDef def = resolveOverload(funcName, params, source);
 
         // 2. Bind type variables from signature (T from source)
         Map<String, GenericType> bindings = unify(def, source.expressionType());

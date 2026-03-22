@@ -31,8 +31,9 @@ public class FlattenChecker extends AbstractChecker {
     }
 
     public TypeInfo check(AppliedFunction af, TypeInfo source,
-                          TypeChecker.CompilationContext ctx, NativeFunctionDef def) {
+                          TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
+        NativeFunctionDef def = resolveOverload("flatten", params, source);
 
         // 1. Bind type variables from signature (T from source)
         Map<String, GenericType> bindings = unify(def, source.expressionType());

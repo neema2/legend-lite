@@ -1,5 +1,6 @@
 package com.gs.legend.compiler;
 
+
 import java.util.*;
 
 /**
@@ -79,6 +80,69 @@ public class BuiltinFunctionRegistry {
      */
     public List<NativeFunctionDef> resolve(String name) {
         return functions.getOrDefault(name, List.of());
+    }
+
+    /**
+     * Resolve a function signature by name, arity, and source type.
+     *
+     * <p>Strict matching — no silent fallbacks:
+     * <ol>
+     *   <li>Filter by arity — throw if no overload matches</li>
+     *   <li>If exactly one match — return it</li>
+     *   <li>If multiple — disambiguate by relational/scalar context</li>
+     *   <li>If still ambiguous — throw</li>
+     * </ol>
+     *
+     * @param fn     Simple function name
+     * @param arity  Number of actual parameters
+     * @param source TypeInfo of the source (first param), or null for no-source calls
+     * @return The single matching NativeFunctionDef
+     * @throws PureCompileException if not registered, no arity match, or ambiguous
+     */
+    public NativeFunctionDef resolveSignature(String fn, int arity, TypeInfo source) {
+        var defs = resolve(fn);
+        if (defs.isEmpty()) {
+            throw new PureCompileException("Unknown function: '" + fn + "'");
+        }
+
+        // Step 1: filter by arity
+        var arityMatches = defs.stream().filter(d -> d.arity() == arity).toList();
+        if (arityMatches.isEmpty()) {
+            throw new PureCompileException(
+                    "No overload of '" + fn + "' accepts " + arity + " arguments "
+                    + "(registered arities: " + defs.stream().map(d -> String.valueOf(d.arity())).distinct().toList() + ")");
+        }
+        if (arityMatches.size() == 1) {
+            return arityMatches.get(0);
+        }
+
+        // Step 2: disambiguate by relational/scalar
+        boolean srcRelational = source != null && source.isRelational();
+        var contextMatches = arityMatches.stream()
+                .filter(d -> isRelationalOverload(d) == srcRelational)
+                .toList();
+        if (contextMatches.size() == 1) {
+            return contextMatches.get(0);
+        }
+        if (contextMatches.isEmpty()) {
+            throw new PureCompileException(
+                    "No " + (srcRelational ? "relational" : "scalar") + " overload of '"
+                    + fn + "' with arity " + arity);
+        }
+
+        // Multiple matches even after disambiguation — ambiguous
+        throw new PureCompileException(
+                "Ambiguous overload: " + contextMatches.size() + " overloads of '"
+                + fn + "' match arity " + arity + " in " + (srcRelational ? "relational" : "scalar") + " context");
+    }
+
+    /**
+     * Whether a function def's first parameter expects a Relation type.
+     */
+    private static boolean isRelationalOverload(NativeFunctionDef def) {
+        return !def.params().isEmpty()
+                && def.params().get(0).type() instanceof PType.Parameterized p
+                && "Relation".equals(p.rawType());
     }
 
     /**
@@ -174,10 +238,7 @@ public class BuiltinFunctionRegistry {
                 "native function filter<T>(rel:Relation<T>[1], f:Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1];");
         reg.registerSignature("sort",
                 "native function sort<X,T>(rel:Relation<T>[1], sortInfo:SortInfo<X⊆T>[*]):Relation<T>[1];");
-        reg.registerSignature("limit", "native function limit<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1];");
-        reg.registerSignature("drop", "native function drop<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1];");
-        reg.registerSignature("slice",
-                "native function slice<T>(rel:Relation<T>[1], start:Integer[1], stop:Integer[1]):Relation<T>[1];");
+        // limit, drop, slice registered in registerScalarFunctions (relation + scalar overloads)
         reg.registerSignature("concatenate",
                 "native function concatenate<T>(rel1:Relation<T>[1], rel2:Relation<T>[1]):Relation<T>[1];");
         reg.registerSignature("size", "native function size<T>(rel:Relation<T>[1]):Integer[1];");
@@ -215,6 +276,49 @@ public class BuiltinFunctionRegistry {
                 "native function extend<T,Z,W,R>(r:Relation<T>[1], window:_Window<T>[1], f:FuncColSpec<{Relation<T>[1],_Window<T>[1],T[1]->Any[0..1]},R>[1]):Relation<T+R>[1];");
         reg.registerSignature("extend",
                 "native function extend<T,Z,W,R>(r:Relation<T>[1], window:_Window<T>[1], f:FuncColSpecArray<{Relation<T>[1],_Window<T>[1],T[1]->Any[*]},R>[1]):Relation<T+R>[1];");
+        // Extend — window aggregate
+        reg.registerSignature("extend",
+                "native function extend<T,K,V,R>(r:Relation<T>[1], window:_Window<T>[1], agg:AggColSpec<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
+        reg.registerSignature("extend",
+                "native function extend<T,K,V,R>(r:Relation<T>[1], window:_Window<T>[1], agg:AggColSpecArray<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
+
+        // ========== Sort direction constructors ==========
+        reg.registerSignature("ascending",
+                "native function ascending<T>(column:ColSpec<T>[1]):SortInfo<T>[1];");
+        reg.registerSignature("descending",
+                "native function descending<T>(column:ColSpec<T>[1]):SortInfo<T>[1];");
+        reg.registerSignature("asc",
+                "native function asc<T>(column:ColSpec<T>[1]):SortInfo<T>[1];");
+        reg.registerSignature("desc",
+                "native function desc<T>(column:ColSpec<T>[1]):SortInfo<T>[1];");
+
+        // ========== Window specification constructors ==========
+        // over() — constructs _Window<T> from partition cols, sort info, and optional frame
+        reg.registerSignature("over",
+                "native function over<T>(cols:ColSpec<T>[1]):_Window<T>[1];");
+        reg.registerSignature("over",
+                "native function over<T>(cols:ColSpecArray<T>[1]):_Window<T>[1];");
+        reg.registerSignature("over",
+                "native function over<T>(cols:ColSpec<T>[1], sortInfo:SortInfo<T>[*]):_Window<T>[1];");
+        reg.registerSignature("over",
+                "native function over<T>(cols:ColSpecArray<T>[1], sortInfo:SortInfo<T>[*]):_Window<T>[1];");
+        reg.registerSignature("over",
+                "native function over<T>(cols:ColSpec<T>[1], sortInfo:SortInfo<T>[*], rows:Rows[1]):_Window<T>[1];");
+        reg.registerSignature("over",
+                "native function over<T>(cols:ColSpec<T>[1], sortInfo:SortInfo<T>[*], range:_Range[1]):_Window<T>[1];");
+        reg.registerSignature("over",
+                "native function over<T>(sortInfo:SortInfo<T>[*]):_Window<T>[1];");
+
+        // ========== Frame constructors ==========
+        // rows() — physical row offsets
+        reg.registerSignature("rows",
+                "native function rows(offsetFrom:Integer[1], offsetTo:Integer[1]):Rows[1];");
+        // unbounded() — unbounded frame bound
+        reg.registerSignature("unbounded",
+                "native function unbounded():UnboundedFrameValue[1];");
+        // _range() — logical range offsets
+        reg.registerSignature("_range",
+                "native function _range(offsetFrom:Number[1], offsetTo:Number[1]):_Range[1];");
 
         // GroupBy
         reg.registerSignature("groupBy",
@@ -462,10 +566,14 @@ public class BuiltinFunctionRegistry {
                 "native function maxBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
         reg.registerSignature("maxBy",
                 "native function maxBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1], count:Integer[1]):T[*];");
+        // Aggregate spec overload: $y->maxBy() (rowMapper bundles value+key columns)
+        reg.registerSignature("maxBy", "native function maxBy<T>(values:T[*]):T[0..1];");
         reg.registerSignature("minBy",
                 "native function minBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
         reg.registerSignature("minBy",
                 "native function minBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1], count:Integer[1]):T[*];");
+        // Aggregate spec overload: $y->minBy() (rowMapper bundles value+key columns)
+        reg.registerSignature("minBy", "native function minBy<T>(values:T[*]):T[0..1];");
         reg.registerSignature("stdDev", "native function stdDev(numbers:Number[*]):Number[1];");
         reg.registerSignature("stdDevSample", "native function stdDevSample(numbers:Number[*]):Number[1];");
         reg.registerSignature("variance", "native function variance(numbers:Number[*]):Number[1];");
@@ -473,10 +581,18 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("variancePopulation", "native function variancePopulation(numbers:Number[*]):Number[1];");
         reg.registerSignature("covarPopulation",
                 "native function covarPopulation(x:Number[*], y:Number[*]):Number[1];");
+        // Aggregate spec overload: $y->covarPopulation() (rowMapper bundles both columns)
+        reg.registerSignature("covarPopulation",
+                "native function covarPopulation(values:Number[*]):Number[1];");
         reg.registerSignature("corr", "native function corr(x:Number[*], y:Number[*]):Number[1];");
+        // Aggregate spec overload: $y->corr() (rowMapper bundles both columns)
+        reg.registerSignature("corr", "native function corr(values:Number[*]):Number[1];");
         reg.registerSignature("percentile", "native function percentile(numbers:Number[*], p:Number[1]):Number[1];");
         reg.registerSignature("wavg", "native function wavg(numbers:Number[*]):Float[1];");
         reg.registerSignature("covarSample", "native function covarSample(x:Number[*], y:Number[*]):Number[1];");
+        // Aggregate spec overload: $y->covarSample() (rowMapper bundles both columns)
+        reg.registerSignature("covarSample",
+                "native function covarSample(values:Number[*]):Number[1];");
         reg.registerSignature("stdDevPopulation", "native function stdDevPopulation(numbers:Number[*]):Number[1];");
         reg.registerSignature("percentileCont",
                 "native function percentileCont(numbers:Number[*], p:Number[1]):Number[1];");
@@ -515,9 +631,7 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("head", "native function head<T>(set:T[*]):T[0..1];");
         reg.registerSignature("at", "native function at<T>(set:T[*], index:Integer[1]):T[1];");
         reg.registerSignature("reverse", "native function reverse<T|m>(set:T[m]):T[m];");
-        reg.registerSignature("slice", "native function slice<T>(set:T[*], start:Integer[1], end:Integer[1]):T[*];");
-        reg.registerSignature("take", "native function take<T>(set:T[*], count:Integer[1]):T[*];");
-        reg.registerSignature("drop", "native function drop<T>(set:T[*], count:Integer[1]):T[*];");
+        // slice, take, drop registered below alongside relation overloads
         reg.registerSignature("exists",
                 "native function exists<T>(value:T[*], func:Function<{T[1]->Boolean[1]}>[1]):Boolean[1];");
         reg.registerSignature("forAll",
