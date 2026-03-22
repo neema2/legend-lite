@@ -476,9 +476,14 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("pi", "native function pi():Float[1];");
 
         // ===== Arithmetic =====
+        // legend-pure: fold form (values:T[*]):T[1] — parser wraps $a+$b → plus([$a,$b])
         reg.registerSignature("plus", "native function plus<T>(values:T[*]):T[1];");
         reg.registerSignature("minus", "native function minus<T>(values:T[*]):T[1];");
         reg.registerSignature("times", "native function times<T>(values:T[*]):T[1];");
+        // legend-lite extension: our parser emits binary form plus(a,b) not plus([a,b])
+        reg.registerSignature("plus", "native function plus<T>(left:T[1], right:T[1]):T[1];");
+        reg.registerSignature("minus", "native function minus<T>(left:T[1], right:T[1]):T[1];");
+        reg.registerSignature("times", "native function times<T>(left:T[1], right:T[1]):T[1];");
         reg.registerSignature("divide", "native function divide(dividend:Number[1], divisor:Number[1]):Float[1];");
 
         // ===== Comparison =====
@@ -566,14 +571,18 @@ public class BuiltinFunctionRegistry {
                 "native function maxBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
         reg.registerSignature("maxBy",
                 "native function maxBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1], count:Integer[1]):T[*];");
-        // Aggregate spec overload: $y->maxBy() (rowMapper bundles value+key columns)
-        reg.registerSignature("maxBy", "native function maxBy<T>(values:T[*]):T[0..1];");
+        // Aggregate spec overload: $y->maxBy() where $y is RowMapper<value,key> from fn1
+        // legend-engine: maxBy_RowMapper_MANY__T_$0_1$ — returns first type arg
+        reg.registerSignature("maxBy",
+                "native function maxBy<T,U>(values:RowMapper<T,U>[*]):T[0..1];");
         reg.registerSignature("minBy",
                 "native function minBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
         reg.registerSignature("minBy",
                 "native function minBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1], count:Integer[1]):T[*];");
-        // Aggregate spec overload: $y->minBy() (rowMapper bundles value+key columns)
-        reg.registerSignature("minBy", "native function minBy<T>(values:T[*]):T[0..1];");
+        // Aggregate spec overload: $y->minBy() where $y is RowMapper<value,key> from fn1
+        // legend-engine: minBy_RowMapper_MANY__T_$0_1$ — returns first type arg
+        reg.registerSignature("minBy",
+                "native function minBy<T,U>(values:RowMapper<T,U>[*]):T[0..1];");
         reg.registerSignature("stdDev", "native function stdDev(numbers:Number[*]):Number[1];");
         reg.registerSignature("stdDevSample", "native function stdDevSample(numbers:Number[*]):Number[1];");
         reg.registerSignature("variance", "native function variance(numbers:Number[*]):Number[1];");
@@ -581,18 +590,24 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("variancePopulation", "native function variancePopulation(numbers:Number[*]):Number[1];");
         reg.registerSignature("covarPopulation",
                 "native function covarPopulation(x:Number[*], y:Number[*]):Number[1];");
-        // Aggregate spec overload: $y->covarPopulation() (rowMapper bundles both columns)
+        // Aggregate spec overload: $y->covarPopulation() where $y is RowMapper from fn1
+        // legend-engine: covarPopulation_RowMapper_MANY__Number_$0_1$
         reg.registerSignature("covarPopulation",
-                "native function covarPopulation(values:Number[*]):Number[1];");
+                "native function covarPopulation<T,U>(values:RowMapper<T,U>[*]):Number[0..1];");
         reg.registerSignature("corr", "native function corr(x:Number[*], y:Number[*]):Number[1];");
-        // Aggregate spec overload: $y->corr() (rowMapper bundles both columns)
-        reg.registerSignature("corr", "native function corr(values:Number[*]):Number[1];");
+        // Aggregate spec overload: $y->corr() where $y is RowMapper from fn1
+        // legend-engine: corr_RowMapper_MANY__Number_$0_1$
+        reg.registerSignature("corr",
+                "native function corr<T,U>(values:RowMapper<T,U>[*]):Number[0..1];");
         reg.registerSignature("percentile", "native function percentile(numbers:Number[*], p:Number[1]):Number[1];");
-        reg.registerSignature("wavg", "native function wavg(numbers:Number[*]):Float[1];");
+        // legend-engine: wavg_RowMapper_MANY__Float_1_
+        reg.registerSignature("wavg",
+                "native function wavg<T,U>(values:RowMapper<T,U>[*]):Float[1];");
         reg.registerSignature("covarSample", "native function covarSample(x:Number[*], y:Number[*]):Number[1];");
-        // Aggregate spec overload: $y->covarSample() (rowMapper bundles both columns)
+        // Aggregate spec overload: $y->covarSample() where $y is RowMapper from fn1
+        // legend-engine: covarSample_RowMapper_MANY__Number_$0_1$
         reg.registerSignature("covarSample",
-                "native function covarSample(values:Number[*]):Number[1];");
+                "native function covarSample<T,U>(values:RowMapper<T,U>[*]):Number[0..1];");
         reg.registerSignature("stdDevPopulation", "native function stdDevPopulation(numbers:Number[*]):Number[1];");
         reg.registerSignature("percentileCont",
                 "native function percentileCont(numbers:Number[*], p:Number[1]):Number[1];");
@@ -662,7 +677,7 @@ public class BuiltinFunctionRegistry {
                 "native function removeDuplicatesBy<T,V>(col:T[*], key:Function<{T[1]->V[1]}>[1]):T[*];");
         reg.registerSignature("first", "native function first<T>(set:T[*]):T[0..1];");
 
-        // ===== Relation overloads for limit/take/drop/slice/first =====
+        // ===== Relation overloads for limit/take/drop/slice =====
         reg.registerSignature("limit",
                 "native function limit<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1];");
         reg.registerSignature("take",
@@ -671,8 +686,6 @@ public class BuiltinFunctionRegistry {
                 "native function drop<T>(rel:Relation<T>[1], size:Integer[1]):Relation<T>[1];");
         reg.registerSignature("slice",
                 "native function slice<T>(rel:Relation<T>[1], start:Integer[1], stop:Integer[1]):Relation<T>[1];");
-        reg.registerSignature("first",
-                "native function first<T>(rel:Relation<T>[1]):Relation<T>[0..1];");
         // Scalar overloads for drop/slice (array operations)
         reg.registerSignature("drop",
                 "native function drop<T>(set:T[*], count:Integer[1]):T[*];");
@@ -698,6 +711,8 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("list", "native function list<T>(values:T[*]):List<T>[1];");
         reg.registerSignature("type", "native function type(any:Any[1]):Type[1];");
         reg.registerSignature("generateGuid", "native function generateGuid():String[1];");
-        reg.registerSignature("rowMapper", "native function rowMapper<T>(rel:Relation<T>[1], row:T[1]):T[0..1];");
+        // rowMapper: matches legend-engine rowMapper_T_$0_1$__U_$0_1$__RowMapper_1_
+        reg.registerSignature("rowMapper",
+                "native function rowMapper<T,U>(value:T[0..1], key:U[0..1]):RowMapper<T,U>[1];");
     }
 }

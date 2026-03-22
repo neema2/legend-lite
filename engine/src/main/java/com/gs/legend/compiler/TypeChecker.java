@@ -1730,182 +1730,7 @@ public class TypeChecker implements TypeCheckEnv {
      * 4. For lambda params: bind lambda variable to resolved T, compile body
      * 5. Return based on signature's return type + multiplicity
      */
-    private TypeInfo compileTypePropagating(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        String fn = simpleName(af.function());
-
-        // 1. Compile source (param 0) first — we need its type for overload resolution
-        TypeInfo sourceInfo = null;
-        if (!params.isEmpty()) {
-            sourceInfo = compileExpr(params.get(0), ctx);
-        }
-
-        // 2. Resolve the right overload by arity + source type
-        var defs = builtinRegistry.resolve(fn);
-        boolean sourceIsRelational = sourceInfo != null && sourceInfo.isRelational();
-        NativeFunctionDef def = null;
-        for (var d : defs) {
-            if (d.arity() != params.size()) continue;
-            boolean defIsRelational = !d.params().isEmpty()
-                    && d.params().get(0).type() instanceof PType.Parameterized p
-                    && "Relation".equals(p.rawType());
-            if (defIsRelational == sourceIsRelational) {
-                def = d;
-                break;
-            }
-            if (def == null) def = d;
-        }
-        if (def == null && !defs.isEmpty())
-            def = defs.getFirst();
-        if (def == null) {
-            throw new PureCompileException("Unresolved type for function: " + fn);
-        }
-
-        // 3. Bind type variable T from source
-        GenericType resolvedT = null;
-        if (sourceInfo != null) {
-            if (sourceIsRelational) {
-                resolvedT = new GenericType.Relation(sourceInfo.schema());
-            } else {
-                resolvedT = sourceInfo.type();
-                // If source is List<T>, unwrap to get element type for the lambda param
-                if (resolvedT != null && resolvedT.isList() && resolvedT.elementType() != null) {
-                    resolvedT = resolvedT.elementType();
-                }
-            }
-        }
-
-        // 4. Compile remaining params — with lambda binding when signature expects Function<{...}>
-        for (int i = 1; i < params.size(); i++) {
-            var param = params.get(i);
-            PType.Param sigParam = i < def.params().size() ? def.params().get(i) : null;
-
-            // Check if signature param is Function<{T[1]->...}> and actual param is a lambda
-            if (sigParam != null && isLambdaParam(sigParam) && param instanceof LambdaFunction lambda) {
-                // Bind the lambda variable to the resolved source element type
-                CompilationContext lambdaCtx = ctx;
-                if (!lambda.parameters().isEmpty() && resolvedT != null) {
-                    String paramName = lambda.parameters().get(0).name();
-                    if (sourceIsRelational && sourceInfo.schema() != null) {
-                        // Relational: bind to schema so $x.name resolves to column access
-                        lambdaCtx = ctx.withRelationType(paramName, sourceInfo.schema());
-                        if (sourceInfo.mapping() != null) {
-                            lambdaCtx = lambdaCtx.withMapping(paramName, sourceInfo.mapping());
-                        }
-                    } else {
-                        // Scalar: bind to element type
-                        lambdaCtx = ctx.withLambdaParam(paramName, resolvedT);
-                    }
-                }
-                // Compile lambda body with bindings
-                if (!lambda.body().isEmpty()) {
-                    compileExpr(lambda.body().get(0), lambdaCtx);
-                }
-            } else if (param instanceof ClassInstance ci
-                    && ("colSpec".equals(ci.type()) || "colSpecArray".equals(ci.type()))) {
-                // ColSpec params are column name tokens — type safety is in the GenericType.Relation.Schema schema.
-                // No side table entry; PlanGenerator reads ColSpec.name() directly.
-            } else {
-                // Non-lambda param: just compile normally
-                compileExpr(param, ctx);
-            }
-        }
-
-        // 4b. For relational sources with lambdas, resolve associations for multi-hop property paths
-        java.util.Map<String, TypeInfo.AssociationTarget> associations = java.util.Map.of();
-        if (sourceIsRelational && sourceInfo.mapping() != null) {
-            // Collect all lambda bodies
-            List<ValueSpecification> lambdaBodies = new ArrayList<>();
-            for (int i = 1; i < params.size(); i++) {
-                if (params.get(i) instanceof LambdaFunction lf) {
-                    lambdaBodies.addAll(lf.body());
-                }
-            }
-            if (!lambdaBodies.isEmpty()) {
-                associations = resolveAssociationsInBody(lambdaBodies, sourceInfo.mapping())
-                        .entrySet().stream().collect(java.util.stream.Collectors.toMap(
-                                java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
-            }
-        }
-
-        // 4c. For relational sources, output schema = source schema.
-        //     (Functions like rename/select/distinct that transform the schema
-        //      have their own compile methods and never reach here.)
-        GenericType.Relation.Schema outputSchema = sourceIsRelational ? sourceInfo.schema() : null;
-
-        // 5. Determine return type from signature
-        PType retType = def.returnType();
-        boolean returnIsMany = def.returnMult() instanceof Mult.Fixed f
-                && f.value().upperBound() == null
-                || def.returnMult() instanceof Mult.Var;
-
-        // 5a. Concrete return type (Integer, String, Boolean, etc.)
-        if (retType instanceof PType.Concrete c) {
-            GenericType gt = c.toGenericType();
-            if (gt != null) {
-                return returnIsMany ? scalarTypedMany(af, gt) : scalarTyped(af, gt);
-            }
-        }
-
-        // 5b. TypeVar return (T or X) — resolve from source
-        if (retType instanceof PType.TypeVar tv && sourceInfo != null) {
-            // Relational source → propagate output schema + associations
-            if (sourceIsRelational && outputSchema != null) {
-                var builder = TypeInfo.builder()
-                        .mapping(sourceInfo.mapping()).associations(associations)
-                        .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)));
-                var info = builder.build();
-                types.put(af, info);
-                return info;
-            }
-            // Scalar source → propagate type
-            GenericType propType = sourceInfo.type();
-            if (propType != null) {
-                // List-reducing: [1]/[0..1] return → unwrap List<T> to T
-                if (!returnIsMany && propType.isList() && propType.elementType() != null) {
-                    propType = propType.elementType();
-                }
-                return returnIsMany ? scalarTypedMany(af, propType) : scalarTyped(af, propType);
-            }
-            // V resolved from lambda body (e.g., map returns V, not T)
-            if (!"T".equals(tv.name())) {
-                for (int i = params.size() - 1; i >= 1; i--) {
-                    if (params.get(i) instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-                        TypeInfo bodyInfo = types.get(lf.body().get(0));
-                        if (bodyInfo != null && bodyInfo.type() != null) {
-                            GenericType resultType = bodyInfo.type();
-                            return returnIsMany ? scalarTypedMany(af, resultType)
-                                    : scalarTyped(af, resultType);
-                        }
-                    }
-                }
-            }
-        }
-
-        // 5c. Parameterized return (Relation<T>, etc.)
-        if (retType instanceof PType.Parameterized retParam && sourceInfo != null) {
-            if ("Relation".equals(retParam.rawType()) && outputSchema != null) {
-                var builder = TypeInfo.builder()
-                        .mapping(sourceInfo.mapping()).associations(associations)
-                        .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)));
-                var info = builder.build();
-                types.put(af, info);
-                return info;
-            }
-            GenericType propType = sourceInfo.type();
-            if (propType != null) {
-                return returnIsMany ? scalarTypedMany(af, propType) : scalarTyped(af, propType);
-            }
-        }
-
-        throw new PureCompileException("Unresolved type for function: " + fn);
-    }
-
-    /** Returns true if a signature param is Function<{...}> — i.e., expects a lambda. */
-    private boolean isLambdaParam(PType.Param sigParam) {
-        return sigParam.type() instanceof PType.Parameterized p
-                && "Function".equals(p.rawType());
-    }
+    // compileTypePropagating — replaced by ScalarChecker
 
     /**
      * Return type for aggregate functions, resolved from the registry.
@@ -2083,8 +1908,12 @@ public class TypeChecker implements TypeCheckEnv {
                 return result;
             }
         }
-        // Fallback: type-propagating
-        return compileTypePropagating(af, ctx);
+        // Fallback: route through ScalarChecker
+        List<ValueSpecification> evalParams = af.parameters();
+        TypeInfo evalSource = !evalParams.isEmpty() ? compileExpr(evalParams.get(0), ctx) : null;
+        var evalInfo = new com.gs.legend.compiler.checkers.ScalarChecker(this).check(af, evalSource, ctx);
+        types.put(af, evalInfo);
+        return evalInfo;
     }
 
     /** Compiles letFunction('x', valueExpr) — standalone let. */
@@ -2101,10 +1930,8 @@ public class TypeChecker implements TypeCheckEnv {
 
     /**
      * Registry-gated dispatch: checks user-defined functions first, then the
-     * builtin
-     * registry. If the function is registered as a builtin, routes to
-     * compileTypePropagating (generic type inference). If not found anywhere,
-     * throws a compile error — NO more passthrough.
+     * builtin registry via ScalarChecker. If not found anywhere, throws a
+     * compile error — NO passthrough.
      */
     private TypeInfo compileRegistryOrUserFunction(AppliedFunction af, String funcName, CompilationContext ctx) {
         String qualifiedName = af.function();
@@ -2116,12 +1943,16 @@ public class TypeChecker implements TypeCheckEnv {
             return inlineUserFunction(af, fn.get(), ctx);
         }
 
-        // 2. Builtin function registry — all scalar/aggregate/window DynaFunctions
+        // 2. Builtin function registry — strict type checking via ScalarChecker
         if (builtinRegistry.isRegistered(funcName)) {
-            return compileTypePropagating(af, ctx);
+            List<ValueSpecification> params = af.parameters();
+            TypeInfo source = !params.isEmpty() ? compileExpr(params.get(0), ctx) : null;
+            var info = new com.gs.legend.compiler.checkers.ScalarChecker(this).check(af, source, ctx);
+            types.put(af, info);
+            return info;
         }
 
-        // 3. Unknown function → compile error. No more passthrough!
+        // 3. Unknown function → compile error. No passthrough!
         throw new PureCompileException(
                 "Unknown function '" + funcName + "'. "
                         + "Function is not registered in the builtin registry and no user-defined function found. "

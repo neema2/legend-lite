@@ -151,7 +151,11 @@ public abstract class AbstractChecker implements FunctionChecker {
                 case "SortInfo" -> actual instanceof AppliedFunction;
                 case "_Window" -> actual instanceof AppliedFunction;
                 case "Rows", "_Range" -> actual instanceof AppliedFunction;
-                default -> false;
+                // Generic parameterized: RowMapper<T,U>, Pair<T,U>, etc.
+                // Match when the source carries a Parameterized type with matching rawType
+                default -> isSource && source != null
+                        && source.type() instanceof GenericType.Parameterized gp
+                        && p.rawType().equals(gp.rawType());
             };
         }
         if (expected instanceof PType.TypeVar) {
@@ -215,6 +219,16 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
+     * Unifies a compiled parameter's type against its signature type, binding type variables.
+     * Called by subclasses (e.g., ScalarChecker) for source-less functions like rowMapper(val, key)
+     * where type vars must be bound from the argument types rather than from a source expression.
+     */
+    protected void unifyParam(PType.Param sigParam, GenericType actualType,
+                               Map<String, GenericType> bindings, String context) {
+        unifyType(sigParam.type(), actualType, bindings, context);
+    }
+
+    /**
      * Recursively matches a PType against a GenericType, populating type variable bindings.
      * No silent skips — every case either binds, validates, or throws.
      */
@@ -242,18 +256,36 @@ public abstract class AbstractChecker implements FunctionChecker {
                     for (var typeArg : p.typeArgs()) {
                         unifyType(typeArg, actual, bindings, context);
                     }
+                } else if (actual instanceof GenericType.Parameterized gp
+                        && p.rawType().equals(gp.rawType())) {
+                    // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc.
+                    // Unify type arguments pairwise
+                    for (int i = 0; i < p.typeArgs().size() && i < gp.typeArgs().size(); i++) {
+                        unifyType(p.typeArgs().get(i), gp.typeArgs().get(i), bindings, context);
+                    }
                 } else {
                     throw new PureCompileException(
-                            context + ": unexpected parameterized type: " + p.rawType());
+                            context + ": expected " + p.rawType() + ", got " + actual.typeName());
                 }
             }
             case PType.Concrete c -> {
                 GenericType g = c.toGenericType();
                 if (g == null) {
-                    throw new PureCompileException(
-                            context + ": unresolvable concrete type in signature: " + c.name());
+                    // Non-primitive types (JoinKind, DurationUnit, etc.) — skip validation
+                    return;
                 }
-                if (!g.typeName().equals(actual.typeName())) {
+                // Use subtype hierarchy: Integer is subtype of Number, Number of Any, etc.
+                // Any is the top type — accepts everything
+                if (g == GenericType.Primitive.ANY) {
+                    return; // Any accepts all types
+                }
+                if (g instanceof GenericType.Primitive expectedPrim
+                        && actual instanceof GenericType.Primitive actualPrim) {
+                    if (!actualPrim.isSubtypeOf(expectedPrim)) {
+                        throw new PureCompileException(
+                                context + ": expected " + c.name() + ", got " + actual.typeName());
+                    }
+                } else if (!g.typeName().equals(actual.typeName())) {
                     throw new PureCompileException(
                             context + ": expected " + c.name() + ", got " + actual.typeName());
                 }
@@ -295,8 +327,10 @@ public abstract class AbstractChecker implements FunctionChecker {
                 if ("Relation".equals(p.rawType()) && !p.typeArgs().isEmpty()) {
                     yield resolve(p.typeArgs().get(0), bindings, context);
                 }
-                throw new PureCompileException(
-                        context + ": cannot resolve parameterized type: " + p);
+                // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc.
+                List<GenericType> resolvedArgs = p.typeArgs().stream()
+                        .map(a -> resolve(a, bindings, context)).toList();
+                yield new GenericType.Parameterized(p.rawType(), resolvedArgs);
             }
             case PType.SchemaAlgebra sa -> throw new PureCompileException(
                     context + ": schema algebra resolution not yet supported");
@@ -373,19 +407,19 @@ public abstract class AbstractChecker implements FunctionChecker {
 
     /**
      * Validates actual multiplicity against expected.
+     * Only rejects [*] → [1] (can't squeeze many into single).
+     * Accepts [1] → [*] (a single value is a valid collection).
      */
     private void validateMult(Mult expected, Multiplicity actual, String context) {
         switch (expected) {
             case Mult.Fixed f -> {
                 Multiplicity exp = f.value();
+                // Only reject: expected [1] but got [*]
                 if (exp.equals(Multiplicity.ONE) && actual.isMany()) {
                     throw new PureCompileException(
                             context + ": expected multiplicity [1], got [*]");
                 }
-                if (exp.equals(Multiplicity.MANY) && !actual.isMany()) {
-                    throw new PureCompileException(
-                            context + ": expected multiplicity [*], got " + actual);
-                }
+                // [*] accepts [1] — a single value is a valid collection
             }
             // Multiplicity variable — skip validation (can't check against unknown)
             case Mult.Var v -> { /* pass */ }
@@ -447,6 +481,88 @@ public abstract class AbstractChecker implements FunctionChecker {
 
         // Validate return multiplicity
         validateMult(ft.returnMult(), bodyType.expressionType().multiplicity(), context);
+    }
+
+    /**
+     * Returns true if a signature param expects a lambda ({@code Function<{...}>}).
+     * Useful for generic checkers that iterate params and need to distinguish
+     * lambda args from scalar args.
+     */
+    protected static boolean isLambdaParam(PType.Param sigParam) {
+        return sigParam.type() instanceof PType.Parameterized p
+                && "Function".equals(p.rawType());
+    }
+
+    /**
+     * Full lambda argument compilation: extract FunctionType from signature,
+     * bind lambda param, compile body, optionally validate return type.
+     *
+     * <p>Skips return validation when the return type is an unbound TypeVar
+     * (e.g., V in {@code map<T,V>}) since the return type is resolved
+     * FROM the body, not checked against it.
+     *
+     * @return The TypeInfo of the lambda body (last statement)
+     */
+    protected TypeInfo compileLambdaArg(LambdaFunction lambda, PType.Param sigParam,
+                                        Map<String, GenericType> bindings, TypeInfo source,
+                                        TypeChecker.CompilationContext ctx, String funcName) {
+        PType.FunctionType ft = extractFunctionType(sigParam);
+
+        // Bind lambda param
+        TypeChecker.CompilationContext lambdaCtx = ctx;
+        if (!lambda.parameters().isEmpty() && !ft.paramTypes().isEmpty()) {
+            String paramName = lambda.parameters().get(0).name();
+            GenericType resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+                    funcName + "() lambda param");
+            lambdaCtx = bindLambdaParam(ctx, paramName, resolvedParamType, source);
+        }
+
+        // Compile body
+        if (lambda.body().isEmpty()) {
+            return null;
+        }
+        TypeInfo bodyResult = compileLambdaBody(lambda, lambdaCtx);
+
+        // Bind unbound return TypeVar from body result (e.g., V in map<T,V>)
+        // This lets resolveOutput work without special-case logic downstream.
+        if (ft.returnType() instanceof PType.TypeVar tv && !bindings.containsKey(tv.name())) {
+            if (bodyResult.type() != null) {
+                bindings.put(tv.name(), bodyResult.type());
+            }
+        }
+
+        // Validate return type — skip for TypeVars we just bound from the body
+        // (they ARE the body result, so validation is tautological)
+        if (!(ft.returnType() instanceof PType.TypeVar tv2) || !bindings.containsKey(tv2.name())
+                || bindings.get(tv2.name()) != bodyResult.type()) {
+            validateLambdaReturn(bodyResult, ft, bindings, funcName);
+        }
+
+        return bodyResult;
+    }
+
+    /**
+     * Resolves associations for all lambda bodies in function parameters.
+     * Collects lambda bodies from params[1..N] and delegates to
+     * {@link TypeCheckEnv#resolveAssociations}.
+     *
+     * @return Empty map if source has no mapping or no lambdas present
+     */
+    protected Map<String, TypeInfo.AssociationTarget> resolveAssociationsFromParams(
+            List<ValueSpecification> params, TypeInfo source) {
+        if (source == null || source.mapping() == null) {
+            return Map.of();
+        }
+        java.util.List<ValueSpecification> lambdaBodies = new java.util.ArrayList<>();
+        for (int i = 1; i < params.size(); i++) {
+            if (params.get(i) instanceof LambdaFunction lf) {
+                lambdaBodies.addAll(lf.body());
+            }
+        }
+        if (lambdaBodies.isEmpty()) {
+            return Map.of();
+        }
+        return env.resolveAssociations(lambdaBodies, source.mapping());
     }
 
     // ========== Shared utilities ==========

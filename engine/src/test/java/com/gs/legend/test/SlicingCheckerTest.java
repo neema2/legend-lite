@@ -259,16 +259,17 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
     class SlicingErrors {
 
         @Test
-        @DisplayName("first()→project() rejects (first returns T[0..1], not relation)")
-        void testFirstThenProjectRejects() {
-            // first() returns T[0..1] — a single element, not a relation
-            // project() requires T[*] or Relation<T>[1] as source
-            assertThrows(Exception.class, () ->
-                    executeRelation("""
+        @DisplayName("first()→project() works on class-based source (first matches collection overload)")
+        void testFirstThenProjectRejects() throws SQLException {
+            // first(T[*]):T[0..1] matches class-based sources (isRelational=false)
+            // project() works because class mapping is preserved in TypeInfo
+            var result = executeRelation("""
                             Person.all()
                               ->sortBy({p|$p.age})
                               ->first()
-                              ->project(~[name:p|$p.firstName])"""));
+                              ->project(~[name:p|$p.firstName])""");
+            assertNotNull(result);
+            assertEquals(1, result.rows().size());
         }
     }
 }
