@@ -25,4 +25,7 @@ public interface TypeCheckEnv {
      */
     Map<String, TypeInfo.AssociationTarget> resolveAssociations(
             List<ValueSpecification> body, ClassMapping mapping);
+
+    /** Access model context for class hierarchy resolution (e.g., LCA in concatenate). */
+    com.gs.legend.model.ModelContext modelContext();
 }

@@ -118,4 +118,43 @@ public interface ModelContext {
             return targetEnd.targetClass();
         }
     }
+
+    /**
+     * Finds the lowest common ancestor (LCA) of two classes using BFS on the
+     * superclass hierarchy. Returns empty if no common ancestor is found.
+     *
+     * <p>Uses BFS for now (sufficient for single-inheritance and simple diamonds).
+     * TODO: Upgrade to C3 linearization for proper MRO in complex hierarchies.
+     */
+    default Optional<PureClass> findLowestCommonAncestor(String className1, String className2) {
+        var class1Opt = findClass(className1);
+        var class2Opt = findClass(className2);
+        if (class1Opt.isEmpty() || class2Opt.isEmpty())
+            return Optional.empty();
+
+        // Collect all ancestors of class1 (including itself)
+        var ancestors1 = new java.util.LinkedHashSet<String>();
+        var queue = new java.util.ArrayDeque<PureClass>();
+        queue.add(class1Opt.get());
+        while (!queue.isEmpty()) {
+            var cls = queue.poll();
+            if (ancestors1.add(cls.qualifiedName())) {
+                queue.addAll(cls.superClasses());
+            }
+        }
+
+        // BFS class2's ancestor chain, return first match
+        queue.add(class2Opt.get());
+        var visited = new java.util.HashSet<String>();
+        while (!queue.isEmpty()) {
+            var cls = queue.poll();
+            if (!visited.add(cls.qualifiedName()))
+                continue;
+            if (ancestors1.contains(cls.qualifiedName())) {
+                return Optional.of(cls);
+            }
+            queue.addAll(cls.superClasses());
+        }
+        return Optional.empty();
+    }
 }

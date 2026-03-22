@@ -299,6 +299,10 @@ public class SqlBuilder {
         return !joins.isEmpty();
     }
 
+    public boolean hasSetOperation() {
+        return setOperation != null;
+    }
+
     public String getFromTable() {
         return fromTable;
     }

@@ -349,4 +349,59 @@ public abstract class AbstractChecker {
         }
         return java.util.List.of(extractColumnName(vs));
     }
+
+    // ========== Class hierarchy utilities ==========
+
+    /**
+     * Convenience: find a class in the model context.
+     * Returns empty if modelContext is null or class not found.
+     */
+    protected java.util.Optional<com.gs.legend.model.m3.PureClass> findClass(String className) {
+        var mc = env.modelContext();
+        if (mc == null) return java.util.Optional.empty();
+        return mc.findClass(className);
+    }
+
+    /**
+     * Convenience: LCA via this checker's model context.
+     * Delegates to {@link com.gs.legend.model.ModelContext#findLowestCommonAncestor}.
+     */
+    protected java.util.Optional<com.gs.legend.model.m3.PureClass> findLowestCommonAncestor(
+            String className1, String className2) {
+        var mc = env.modelContext();
+        if (mc == null) return java.util.Optional.empty();
+        return mc.findLowestCommonAncestor(className1, className2);
+    }
+
+    /**
+     * Resolves the LCA of two class-typed sources into a TypeInfo.
+     *
+     * <p>Given left and right TypeInfos with ClassType element types, finds their
+     * lowest common ancestor and builds a relational schema from its properties.
+     * Returns null if the element types are not ClassTypes or no LCA exists.
+     *
+     * <p>Reusable by any checker that combines two class sources (concatenate, join, etc.).
+     */
+    protected TypeInfo resolveClassLCA(TypeInfo left, TypeInfo right) {
+        com.gs.legend.plan.GenericType leftElem = left.type() != null ? left.type().elementType() : null;
+        com.gs.legend.plan.GenericType rightElem = right.type() != null ? right.type().elementType() : null;
+
+        if (leftElem instanceof com.gs.legend.plan.GenericType.ClassType(String leftClass)
+                && rightElem instanceof com.gs.legend.plan.GenericType.ClassType(String rightClass)) {
+            var lcaOpt = findLowestCommonAncestor(leftClass, rightClass);
+            if (lcaOpt.isPresent()) {
+                var lcaClass = lcaOpt.get();
+                var lcaCols = new java.util.LinkedHashMap<String, com.gs.legend.plan.GenericType>();
+                for (var prop : lcaClass.allProperties()) {
+                    lcaCols.put(prop.name(), com.gs.legend.plan.GenericType.fromType(prop.genericType()));
+                }
+                var lcaRelType = com.gs.legend.plan.GenericType.Relation.Schema.withoutPivot(lcaCols);
+                return TypeInfo.builder()
+                        .expressionType(ExpressionType.many(
+                                new com.gs.legend.plan.GenericType.Relation(lcaRelType)))
+                        .build();
+            }
+        }
+        return null;
+    }
 }

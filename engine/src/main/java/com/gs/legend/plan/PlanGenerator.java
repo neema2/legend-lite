@@ -1056,9 +1056,11 @@ public class PlanGenerator {
         // Resolve table alias for generateScalar (must be unquoted)
         String tableAlias = unquote(source.getFromAlias());
 
-        // Minimize wrapping: if source has no ORDER BY, add directly
+        // Minimize wrapping: if source has no ORDER BY, add directly.
+        // CRITICAL: UNION ALL must be wrapped — ORDER BY after UNION applies
+        // only to the left branch unless the whole thing is in a subquery.
         SqlBuilder target = source;
-        if (source.hasOrderBy()) {
+        if (source.hasOrderBy() || source.hasSetOperation()) {
             target = new SqlBuilder()
                     .selectStar()
                     .fromSubquery(source, "sort_src");

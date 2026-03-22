@@ -675,115 +675,13 @@ public class TypeChecker implements TypeCheckEnv {
         if (params.size() < 2) {
             throw new PureCompileException("concatenate() requires two sources");
         }
-
         TypeInfo left = compileExpr(params.get(0), ctx);
         TypeInfo right = compileExpr(params.get(1), ctx);
-
-        // Scalar list concatenation: [1,2]->concatenate([3,4]) → List<Integer> with
-        // MANY multiplicity
-        if (!left.isRelational() && left.type() != null) {
-            GenericType elemType = left.type().isList() && left.type().elementType() != null
-                    ? left.type().elementType()
-                    : left.type();
-            return scalarTypedMany(af, GenericType.listOf(elemType));
-        }
-
-        GenericType.Relation.Schema leftSchema = left.schema();
-        GenericType.Relation.Schema rightSchema = right.schema();
-
-        // For struct/mapped sources with different class types, compute common
-        // supertype
-        if (left.mapping() != null && right.mapping() != null
-                && leftSchema != null && rightSchema != null
-                && !leftSchema.columns().keySet().equals(rightSchema.columns().keySet())) {
-            // Try to find a common supertype via class hierarchy
-            GenericType leftElem = left.type() != null ? left.type().elementType() : null;
-            GenericType rightElem = right.type() != null ? right.type().elementType() : null;
-            if (leftElem instanceof GenericType.ClassType(String qualifiedName)
-                    && rightElem instanceof GenericType.ClassType(String rightQualifiedName)
-                    && modelContext != null) {
-                var lcaOpt = findLowestCommonAncestor(qualifiedName, rightQualifiedName);
-                if (lcaOpt.isPresent()) {
-                    var lcaClass = lcaOpt.get();
-                    // Build GenericType.Relation.Schema from the LCA's allProperties
-                    var lcaCols = new java.util.LinkedHashMap<String, GenericType>();
-                    for (var prop : lcaClass.allProperties()) {
-                        lcaCols.put(prop.name(), GenericType.fromType(prop.genericType()));
-                    }
-                    var lcaRelType = GenericType.Relation.Schema.withoutPivot(lcaCols);
-                    var info = TypeInfo.builder()
-                            .expressionType(ExpressionType.many(new GenericType.Relation(lcaRelType)))
-                            .build();
-                    types.put(af, info);
-                    return info;
-                }
-            }
-            // No common supertype found — fall back to variant list
-            var info = TypeInfo.builder()
-                    .expressionType(ExpressionType.one(GenericType.listOf(GenericType.Primitive.ANY)))
-                    .build();
-            types.put(af, info);
-            return info;
-        }
-
-        // Relational (non-struct) sources: strict column alignment
-        if (leftSchema != null && rightSchema != null) {
-            var leftCols = leftSchema.columns();
-            var rightCols = rightSchema.columns();
-            if (leftCols.size() != rightCols.size()) {
-                throw new PureCompileException(
-                        "concatenate(): column count mismatch — left has " + leftCols.size()
-                                + " columns, right has " + rightCols.size());
-            }
-            for (String colName : leftCols.keySet()) {
-                if (!rightCols.containsKey(colName)) {
-                    throw new PureCompileException(
-                            "concatenate(): column '" + colName + "' exists in left but not in right");
-                }
-            }
-        }
-
-        return typed(af, leftSchema, left.mapping());
-    }
-
-    /**
-     * Finds the lowest common ancestor (LCA) of two classes using BFS on the
-     * superclass hierarchy.
-     * Returns empty if no common ancestor is found (other than implicit Any).
-     */
-    private java.util.Optional<com.gs.legend.model.m3.PureClass> findLowestCommonAncestor(
-            String className1, String className2) {
-        if (modelContext == null)
-            return java.util.Optional.empty();
-        var class1Opt = modelContext.findClass(className1);
-        var class2Opt = modelContext.findClass(className2);
-        if (class1Opt.isEmpty() || class2Opt.isEmpty())
-            return java.util.Optional.empty();
-
-        // Collect all ancestors of class1 (including itself)
-        var ancestors1 = new java.util.LinkedHashSet<String>();
-        var queue = new java.util.ArrayDeque<com.gs.legend.model.m3.PureClass>();
-        queue.add(class1Opt.get());
-        while (!queue.isEmpty()) {
-            var cls = queue.poll();
-            if (ancestors1.add(cls.qualifiedName())) {
-                queue.addAll(cls.superClasses());
-            }
-        }
-
-        // BFS class2's ancestor chain, return first match
-        queue.add(class2Opt.get());
-        var visited = new java.util.HashSet<String>();
-        while (!queue.isEmpty()) {
-            var cls = queue.poll();
-            if (!visited.add(cls.qualifiedName()))
-                continue;
-            if (ancestors1.contains(cls.qualifiedName())) {
-                return java.util.Optional.of(cls);
-            }
-            queue.addAll(cls.superClasses());
-        }
-        return java.util.Optional.empty();
+        NativeFunctionDef def = resolveSignature("concatenate", params.size(), left);
+        var info = new com.gs.legend.compiler.checkers.ConcatenateChecker(this)
+                .check(af, left, right, ctx, def);
+        types.put(af, info);
+        return info;
     }
 
     /**
@@ -823,42 +721,10 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileFlatten(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo source = compileExpr(params.get(0), ctx);
-
-        // Extract column name from second param: ClassInstance(ColSpec)
-        String colName = null;
-        if (params.size() >= 2) {
-            List<String> names = extractColumnNames(params.get(1));
-            if (!names.isEmpty()) {
-                colName = names.get(0);
-            }
-        }
-        if (colName == null) {
-            // No column specified — pass through source type
-            types.put(af, source);
-            return source;
-        }
-
-        GenericType.Relation.Schema sourceSchema = source.schema();
-        if (sourceSchema != null && !sourceSchema.columns().containsKey(colName)) {
-            throw new PureCompileException(
-                    "flatten(): column '" + colName + "' not found in source. Available: "
-                            + sourceSchema.columns().keySet());
-        }
-
-        // Compute output RelationType: same as source, but flattened column
-        // changes from list/JSON to element type (JSON for variant arrays)
-        Map<String, GenericType> resultColumns = new LinkedHashMap<>(
-                sourceSchema != null ? sourceSchema.columns() : Map.of());
-        resultColumns.put(colName, GenericType.Primitive.JSON);
-
-        var flattenRelType = new GenericType.Relation.Schema(resultColumns, sourceSchema.dynamicPivotColumns());
-        var flattenInfo = TypeInfo.builder()
-                .mapping(source.mapping())
-                .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
-                .expressionType(ExpressionType.many(new GenericType.Relation(flattenRelType)))
-                .build();
-        types.put(af, flattenInfo);
-        return flattenInfo;
+        NativeFunctionDef def = resolveSignature("flatten", params.size(), source);
+        var info = new com.gs.legend.compiler.checkers.FlattenChecker(this).check(af, source, ctx, def);
+        types.put(af, info);
+        return info;
     }
 
     // ========== rename ==========
@@ -4232,7 +4098,7 @@ public class TypeChecker implements TypeCheckEnv {
             // Pairwise LCA reduction
             String current = classTypes.get(0);
             for (int i = 1; i < classTypes.size(); i++) {
-                var lcaOpt = findLowestCommonAncestor(current, classTypes.get(i));
+                var lcaOpt = modelContext.findLowestCommonAncestor(current, classTypes.get(i));
                 if (lcaOpt.isEmpty())
                     return GenericType.Primitive.ANY;
                 current = lcaOpt.get().qualifiedName();
