@@ -28,7 +28,7 @@ public enum SqlDataType {
             case DATE -> com.gs.legend.plan.GenericType.Primitive.STRICT_DATE;
             case TIMESTAMP -> com.gs.legend.plan.GenericType.Primitive.DATE_TIME;
             case DOUBLE -> com.gs.legend.plan.GenericType.Primitive.FLOAT;
-            case DECIMAL -> com.gs.legend.plan.GenericType.Primitive.DECIMAL;
+            case DECIMAL -> com.gs.legend.plan.GenericType.DEFAULT_DECIMAL;
             case SEMISTRUCTURED -> com.gs.legend.plan.GenericType.Primitive.JSON;
         };
     }

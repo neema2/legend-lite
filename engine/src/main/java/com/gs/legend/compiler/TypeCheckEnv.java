@@ -28,4 +28,7 @@ public interface TypeCheckEnv {
 
     /** Access model context for class hierarchy resolution (e.g., LCA in concatenate). */
     com.gs.legend.model.ModelContext modelContext();
+
+    /** Look up the TypeInfo for a previously compiled AST node (by identity). */
+    TypeInfo lookupCompiled(ValueSpecification vs);
 }

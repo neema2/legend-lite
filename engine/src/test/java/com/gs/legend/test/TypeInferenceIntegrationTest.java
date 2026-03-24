@@ -1177,7 +1177,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|8->toDecimal()",
                                 "test::TestRuntime", connection);
-                assertEquals("Decimal(18,3)", result.returnType().typeName(), "toDecimal should produce Decimal(18,3) Pure type");
+                assertEquals("Decimal(38,18)", result.returnType().typeName(), "toDecimal should produce Decimal(38,18) Pure type");
                 assertEquals(8.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.001);
         }
 
@@ -1258,7 +1258,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|'3.14159d'->parseDecimal()",
                                 "test::TestRuntime", connection);
-                assertEquals("Decimal(18,3)", result.returnType().typeName(), "parseDecimal should produce Decimal(18,3) Pure type");
+                assertEquals("Decimal(38,18)", result.returnType().typeName(), "parseDecimal should produce Decimal(38,18) Pure type");
                 // DuckDB DECIMAL(18,3) truncates to 3.142 - known limitation
             assertInstanceOf(BigDecimal.class, result.rows().get(0).get(0));
         }
@@ -1270,7 +1270,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|'3.14'->parseDecimal()",
                                 "test::TestRuntime", connection);
-                assertEquals("Decimal(18,3)", result.returnType().typeName(), "parseDecimal should produce Decimal(18,3) Pure type");
+                assertEquals("Decimal(38,18)", result.returnType().typeName(), "parseDecimal should produce Decimal(38,18) Pure type");
                 assertEquals(3.14, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }
 

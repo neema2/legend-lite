@@ -331,11 +331,39 @@ public class PlanGenerator {
                 .map(c -> dialect.quoteIdentifier(c.name())).toList();
 
         var columns = tds.columns();
+
+        // Empty TDS: generate a single NULL row with WHERE 1=0 to produce
+        // zero rows while preserving the column schema (VALUES () is invalid SQL)
+        if (tds.rows().isEmpty()) {
+            List<SqlExpr> nullRow = columns.stream()
+                    .map(c -> (SqlExpr) new SqlExpr.NullLiteral())
+                    .collect(java.util.stream.Collectors.toList());
+            return new SqlBuilder()
+                    .selectStar()
+                    .fromValues(List.of(nullRow), "_tds", quotedCols)
+                    .addWhere(new SqlExpr.Binary(
+                            new SqlExpr.NumericLiteral(1), "=", new SqlExpr.NumericLiteral(0)));
+        }
+
         List<List<SqlExpr>> rows = tds.rows().stream()
                 .map(row -> {
                     List<SqlExpr> cells = new java.util.ArrayList<>();
                     for (int i = 0; i < row.size(); i++) {
-                        SqlExpr cell = formatTdsValue(row.get(i));
+                        Object val = row.get(i);
+                        String colType = i < columns.size() ? columns.get(i).type() : null;
+                        SqlExpr cell;
+                        // Date/DateTime columns: strip % prefix and emit DATE/TIMESTAMP literal
+                        if (val instanceof String sv && colType != null
+                                && ("StrictDate".equals(colType) || "Date".equals(colType))) {
+                            String dateStr = sv.startsWith("%") ? sv.substring(1) : sv;
+                            cell = new SqlExpr.DateLiteral(dateStr);
+                        } else if (val instanceof String sv && colType != null
+                                && "DateTime".equals(colType)) {
+                            String tsStr = sv.startsWith("%") ? sv.substring(1) : sv;
+                            cell = new SqlExpr.TimestampLiteral(tsStr);
+                        } else {
+                            cell = formatTdsValue(val);
+                        }
                         // Variant columns need dialect-specific variant literal wrapping
                         if (i < columns.size() && columns.get(i).isVariant()) {
                             cell = new SqlExpr.VariantLiteral(cell);
@@ -1346,8 +1374,11 @@ public class PlanGenerator {
     private SqlExpr generateAggFromAst(TypeInfo.AggColumnSpec acs, ColSpec ast) {
         var registry = com.gs.legend.compiler.BuiltinFunctionRegistry.instance();
         var fn1Body = ast.function1().body().get(0);
-        String fn1Param = ast.function1().parameters().isEmpty() ? null
-                : ast.function1().parameters().get(0).name();
+        // For window context, fn1 has 3 params {p,w,r|...}: use last param (row variable)
+        // For groupBy/aggregate, fn1 has 1 param {c|...}: use first (only) param
+        var fn1Params = ast.function1().parameters();
+        String fn1Param = fn1Params.isEmpty() ? null
+                : fn1Params.get(fn1Params.size() - 1).name();
 
         // Detect rowMapper pattern in fn1: rowMapper($x.col1, $x.col2)
         // Used by wavg, corr, covarSample, covarPopulation, maxBy, minBy
@@ -1439,6 +1470,28 @@ public class PlanGenerator {
         return !defs.isEmpty() && defs.get(0) == registry.rowMapper();
     }
 
+    /**
+     * Recursively wraps aggregate FunctionCall nodes inside a composite expression
+     * with OVER(window), so expressions like SUM(x*y) / SUM(y) become
+     * SUM(x*y) OVER(...) / SUM(y) OVER(...).
+     * Leaves non-aggregate nodes (column refs, literals, etc.) untouched.
+     */
+    private SqlExpr windowifyAggExpr(SqlExpr expr, SqlExpr.WindowSpec window) {
+        if (expr instanceof SqlExpr.FunctionCall fc) {
+            return new SqlExpr.WindowFunction(fc, window);
+        }
+        if (expr instanceof SqlExpr.Binary bin) {
+            return new SqlExpr.Binary(
+                    windowifyAggExpr(bin.left(), window), bin.op(),
+                    windowifyAggExpr(bin.right(), window));
+        }
+        if (expr instanceof SqlExpr.Cast cast) {
+            return new SqlExpr.Cast(
+                    windowifyAggExpr(cast.expr(), window), cast.pureTypeName());
+        }
+        return expr;
+    }
+
     // ========== extend (window functions) ==========
 
     private SqlBuilder generateExtend(AppliedFunction af) {
@@ -1448,59 +1501,47 @@ public class PlanGenerator {
         // Read pre-resolved window specs from sidecar
         TypeInfo info = unit.types().get(af);
         if (info != null && !info.windowSpecs().isEmpty()) {
+            // --- Window extend: WindowSpec (sidecar) + ColSpec (AST) ---
             SqlBuilder b = new SqlBuilder().selectStar().fromSubquery(source, "window_src");
+            List<ColSpec> astSpecs = com.gs.legend.compiler.checkers.ExtendChecker
+                    .extractAllColSpecs(params);
 
-            for (var ws : info.windowSpecs()) {
+            for (int i = 0; i < info.windowSpecs().size(); i++) {
+                var ws = info.windowSpecs().get(i);
+                ColSpec ast = astSpecs.get(i);
                 String quotedAlias = dialect.quoteIdentifier(ws.alias());
 
-                // Build partition/order SqlExprs from sidecar specs
-                List<SqlExpr> partitionCols = ws.partitionBy().stream()
-                        .map(c -> (SqlExpr) new SqlExpr.ColumnRef(c))
-                        .toList();
-                List<SqlExpr> orderParts = ws.orderBy().stream()
-                        .map(s -> {
-                            String dir = s.direction() == TypeInfo.SortDirection.ASC ? "ASC" : "DESC";
-                            String nullOrder = "DESC".equals(dir) ? "NULLS FIRST" : "NULLS LAST";
-                            return (SqlExpr) new SqlExpr.OrderByTerm(
-                                    new SqlExpr.ColumnRef(s.column()), dir, nullOrder);
-                        }).toList();
-                String frameClause = ws.frame() != null ? formatFrameSpec(ws.frame()) : null;
-                SqlExpr.WindowSpec windowSpec = new SqlExpr.WindowSpec(partitionCols, orderParts, frameClause);
+                // Build SQL OVER(...) from compiled OverSpec
+                SqlExpr.WindowSpec sqlWindow = buildSqlWindowSpec(ws.over());
 
-                // Map Pure function name to SQL (fall back to uppercase for non-aggregate window fns)
-                String sqlFunc = mapPureFuncToSql(ws.pureFunctionName());
-                if (sqlFunc == null) sqlFunc = ws.pureFunctionName().toUpperCase();
+                // Build function call from AST (like generateAggFromAst)
+                SqlExpr funcExpr = generateWindowFuncFromAst(ws, ast, sqlWindow);
 
-                // Build the window function SqlExpr
-                SqlExpr windowFunc = buildWindowFunc(ws, sqlFunc);
-
-                if (ws.isWrapped()) {
-                    String sqlWrapper = mapPureFuncToSql(ws.wrapperFuncName());
-                    if (sqlWrapper == null) sqlWrapper = ws.wrapperFuncName().toUpperCase();
-                    SqlExpr windowedInner = new SqlExpr.WindowFunction(windowFunc, windowSpec);
-                    List<SqlExpr> wrapperArgs = new java.util.ArrayList<>();
-                    wrapperArgs.add(windowedInner);
-                    for (String arg : ws.wrapperArgs()) {
-                        wrapperArgs.add(parseExtraArg(arg));
-                    }
-                    SqlExpr wrappedExpr = new SqlExpr.FunctionCall(sqlWrapper, wrapperArgs);
-                    if (ws.hasCast()) wrappedExpr = new SqlExpr.Cast(wrappedExpr, ws.castType());
-                    b.addWindowColumn(wrappedExpr, null, quotedAlias);
-                } else {
-                    SqlExpr windowExpr = ws.hasCast()
-                            ? new SqlExpr.Cast(new SqlExpr.WindowFunction(windowFunc, windowSpec), ws.castType())
-                            : windowFunc;
-                    if (ws.hasCast()) {
-                        b.addWindowColumn(windowExpr, null, quotedAlias);
+                // Apply cast if present
+                if (ws.castType() != null) {
+                    if (funcExpr instanceof SqlExpr.WindowFunction) {
+                        // Already windowed (shouldn't happen normally)
+                        SqlExpr cast = new SqlExpr.Cast(funcExpr,
+                                dialect.sqlTypeName(ws.castType().typeName()));
+                        b.addWindowColumn(cast, null, quotedAlias);
                     } else {
-                        b.addWindowColumn(windowFunc, windowSpec, quotedAlias);
+                        SqlExpr windowed = new SqlExpr.WindowFunction(funcExpr, sqlWindow);
+                        SqlExpr cast = new SqlExpr.Cast(windowed,
+                                dialect.sqlTypeName(ws.castType().typeName()));
+                        b.addWindowColumn(cast, null, quotedAlias);
                     }
+                } else if (funcExpr instanceof SqlExpr.FunctionCall) {
+                    // Standard: FUNC(...) OVER(...) — let addWindowColumn add the OVER
+                    b.addWindowColumn(funcExpr, sqlWindow, quotedAlias);
+                } else {
+                    // Pre-windowed (wrapper pattern): already has OVER inside
+                    b.addWindowColumn(funcExpr, null, quotedAlias);
                 }
             }
             return b;
         }
 
-        // Simple extend (computed column): extract ColSpec lambda(s) and compile as scalar
+        // --- Scalar extend: read AST directly (unchanged) ---
         List<ColSpec> colSpecs = new java.util.ArrayList<>();
         for (int i = 1; i < params.size(); i++) {
             if (params.get(i) instanceof ClassInstance ci) {
@@ -1511,8 +1552,6 @@ public class PlanGenerator {
                 }
             }
         }
-        // Pivot/window sources can't have selects appended — wrap in subquery first.
-        // Window wrap is also required so the window alias is available for reference.
         if (source.hasPivot() || source.hasWindowColumns()) {
             source = new SqlBuilder().selectStar().fromSubquery(source, "extend_src");
         }
@@ -1528,25 +1567,112 @@ public class PlanGenerator {
         return source;
     }
 
-    /** Builds the SqlExpr for a window function call from its spec. */
-    private SqlExpr buildWindowFunc(TypeInfo.WindowFunctionSpec ws, String sqlFunc) {
-        if (ws.isNtile()) {
-            return new SqlExpr.FunctionCall("NTILE",
-                    List.of(new SqlExpr.NumericLiteral(ws.ntileArg())));
+    /** Builds SQL OVER(...) from compiled OverSpec — pure data, no string sniffing. */
+    private SqlExpr.WindowSpec buildSqlWindowSpec(TypeInfo.OverSpec over) {
+        List<SqlExpr> partCols = over.partitionBy().stream()
+                .map(c -> (SqlExpr) new SqlExpr.ColumnRef(c)).toList();
+        List<SqlExpr> orderParts = over.orderBy().stream()
+                .map(s -> {
+                    String dir = s.direction() == TypeInfo.SortDirection.ASC ? "ASC" : "DESC";
+                    String nullOrder = "DESC".equals(dir) ? "NULLS FIRST" : "NULLS LAST";
+                    return (SqlExpr) new SqlExpr.OrderByTerm(
+                            new SqlExpr.ColumnRef(s.column()), dir, nullOrder);
+                }).toList();
+        String frame = over.frame() != null ? formatFrameSpec(over.frame()) : null;
+        return new SqlExpr.WindowSpec(partCols, orderParts, frame);
+    }
+
+    /**
+     * Generates window function SQL by reading fn1/fn2 from AST.
+     * Dispatches on resolvedFunc identity (not strings).
+     * Follows generateAggFromAst pattern.
+     */
+    private SqlExpr generateWindowFuncFromAst(TypeInfo.WindowSpec ws, ColSpec ast,
+                                               SqlExpr.WindowSpec sqlWindow) {
+        String sqlFunc = mapPureFuncToSql(ws.resolvedFunc().name());
+        if (sqlFunc == null) sqlFunc = ws.resolvedFunc().name().toUpperCase();
+
+        // --- Aggregate window (fn1 + fn2): reuse generateAggFromAst ---
+        // Then wrap each inner aggregate FunctionCall with OVER() so
+        // composite expressions like wavg's SUM(x*y)/SUM(y) become
+        // SUM(x*y) OVER(...) / SUM(y) OVER(...) instead of bare GROUP BY.
+        if (ast.function2() != null) {
+            var acs = new TypeInfo.AggColumnSpec(ws.alias(), ws.resolvedFunc(),
+                    ws.returnType(), ws.castType());
+            SqlExpr aggExpr = generateAggFromAst(acs, ast);
+            return windowifyAggExpr(aggExpr, sqlWindow);
         }
-        if (ws.hasSourceColumn()) {
+
+        // --- fn1-only: read function structure from AST body ---
+        var body = ast.function1().body().get(0);
+
+        // Pattern: $p->func($w,$r).property → FUNC(property) OVER(...)
+        // Used by: lag, lead, first, last, sum, avg, stdDev, variance
+        if (body instanceof AppliedProperty ap && !ap.parameters().isEmpty()
+                && ap.parameters().get(0) instanceof AppliedFunction innerAf) {
+            String innerSql = mapPureFuncToSql(simpleName(innerAf.function()));
+            if (innerSql == null) innerSql = simpleName(innerAf.function()).toUpperCase();
             List<SqlExpr> args = new ArrayList<>();
-            if ("*".equals(ws.sourceColumn())) {
-                args.add(new SqlExpr.Star());
-            } else {
-                args.add(new SqlExpr.ColumnRef(ws.sourceColumn()));
+            args.add(new SqlExpr.ColumnRef(ap.property()));
+            // Extra args from inner function (e.g., lag offset, nth offset)
+            for (int i = 1; i < innerAf.parameters().size(); i++) {
+                var param = innerAf.parameters().get(i);
+                // Skip lambda params ($p, $w, $r) — they're not SQL args
+                if (!(param instanceof Variable)) {
+                    args.add(generateScalar(param, null, null, null));
+                }
             }
-            for (String extra : ws.extraArgs()) {
-                args.add(parseExtraArg(extra));
+            return new SqlExpr.FunctionCall(innerSql, args);
+        }
+
+        // Pattern: wrapper(innerFunc($w,$r), args) → WRAPPER(INNER() OVER(...), args)
+        // Used by: round(cumulativeDistribution($w,$r), 2)
+        if (body instanceof AppliedFunction af && !af.parameters().isEmpty()
+                && af.parameters().get(0) instanceof AppliedFunction innerAf) {
+            String innerFuncName = simpleName(innerAf.function());
+            String innerSql = mapPureFuncToSql(innerFuncName);
+            if (innerSql == null) innerSql = innerFuncName.toUpperCase();
+            // Check if inner is a known window function (not just any function)
+            var innerDefs = com.gs.legend.compiler.BuiltinFunctionRegistry.instance()
+                    .resolve(innerFuncName);
+            if (!innerDefs.isEmpty()) {
+                SqlExpr innerFunc = new SqlExpr.FunctionCall(innerSql, List.of());
+                SqlExpr windowed = new SqlExpr.WindowFunction(innerFunc, sqlWindow);
+                List<SqlExpr> wrapperArgs = new ArrayList<>();
+                wrapperArgs.add(windowed);
+                for (int i = 1; i < af.parameters().size(); i++) {
+                    var param = af.parameters().get(i);
+                    if (!(param instanceof Variable)) {
+                        wrapperArgs.add(generateScalar(param, null, null, null));
+                    }
+                }
+                // Return pre-windowed — caller must NOT add another OVER()
+                return new SqlExpr.FunctionCall(sqlFunc, wrapperArgs);
+            }
+        }
+
+        // Pattern: func($r), func($w,$r), func($r,2) → FUNC(args) OVER(...)
+        // Used by: rowNumber, rank, denseRank, percentRank, cumulativeDistribution, ntile, count
+        if (body instanceof AppliedFunction af) {
+            List<SqlExpr> args = new ArrayList<>();
+            for (var p : af.parameters()) {
+                // Include only literal args (e.g., ntile bucket count)
+                // Skip Variable params ($p, $w, $r — these are lambda params)
+                if (p instanceof CInteger ci) {
+                    args.add(new SqlExpr.NumericLiteral(ci.value()));
+                } else if (p instanceof CFloat cf) {
+                    args.add(new SqlExpr.NumericLiteral(cf.value()));
+                } else if (p instanceof CString cs) {
+                    args.add(new SqlExpr.StringLiteral(cs.value()));
+                }
             }
             return new SqlExpr.FunctionCall(sqlFunc, args);
         }
-        return new SqlExpr.FunctionCall(sqlFunc, List.of());
+
+        // Fallback: compile fn1 body as scalar expression
+        String fn1Param = ast.function1().parameters().isEmpty() ? null
+                : ast.function1().parameters().get(0).name();
+        return generateScalar(body, fn1Param, null, null);
     }
 
     /** Maps a Pure function name to a semantic function name for SQL generation.
@@ -2326,12 +2452,14 @@ public class PlanGenerator {
             }
             case "parseDecimal" -> {
                 // parseDecimal: strip d/D suffix then CAST — read type from TypeInfo
+                // Must CAST input to VARCHAR first for REGEXP_REPLACE compatibility
                 TypeInfo castInfo = unit.types().get(af);
                 String castType = (castInfo != null && castInfo.isScalar())
-                        ? castInfo.type().typeName() : "Decimal";
+                        ? castInfo.type().typeName() : "Decimal(38,18)";
+                SqlExpr input = new SqlExpr.Cast(c.apply(params.get(0)), "String");
                 yield new SqlExpr.Cast(
                         new SqlExpr.FunctionCall("regexpReplace",
-                                List.of(c.apply(params.get(0)), new SqlExpr.StringLiteral("[dD]$"),
+                                List.of(input, new SqlExpr.StringLiteral("[dD]$"),
                                         new SqlExpr.StringLiteral(""))),
                         castType);
             }
@@ -2571,9 +2699,13 @@ public class PlanGenerator {
             case "ascii" -> new SqlExpr.FunctionCall("ASCII", List.of(c.apply(params.get(0))));
             case "char" -> new SqlExpr.FunctionCall("CHR", List.of(c.apply(params.get(0))));
             case "hash" -> {
-                // Dispatch on HashType enum: MD5, SHA256, etc.
+                // Dispatch on algorithm: may arrive as EnumValue, CString, or PackageableElementPtr
                 if (params.size() > 1 && params.get(1) instanceof EnumValue ev) {
                     String hashAlgo = ev.value().toUpperCase();
+                    yield new SqlExpr.FunctionCall(hashAlgo, List.of(c.apply(params.get(0))));
+                }
+                if (params.size() > 1 && params.get(1) instanceof CString(String algoStr)) {
+                    String hashAlgo = algoStr.toUpperCase();
                     yield new SqlExpr.FunctionCall(hashAlgo, List.of(c.apply(params.get(0))));
                 }
                 if (params.size() > 1 && params.get(1) instanceof PackageableElementPtr(String fullPath)) {
@@ -3676,30 +3808,7 @@ public class PlanGenerator {
         return TypeInfo.simpleName(qualifiedName);
     }
 
-    /**
-     * Parses an extra arg string (from window function sidecar) into a type-safe SqlExpr.
-     * Numeric strings → NumericLiteral, quoted strings → StringLiteral, else → ColumnRef.
-     */
-    private static SqlExpr parseExtraArg(String s) {
-        if (s == null || s.isEmpty()) return new SqlExpr.ColumnRef(s);
-        // Quoted string literal: 'value'
-        if (s.startsWith("'") && s.endsWith("'")) {
-            return new SqlExpr.StringLiteral(s.substring(1, s.length() - 1));
-        }
-        // Numeric literal
-        char first = s.charAt(0);
-        if ((first >= '0' && first <= '9') || first == '-' || first == '.') {
-            try {
-                if (s.contains(".")) {
-                    return new SqlExpr.DecimalLiteral(new java.math.BigDecimal(s));
-                }
-                return new SqlExpr.NumericLiteral(Long.parseLong(s));
-            } catch (NumberFormatException ignored) {
-                // Fall through to column ref
-            }
-        }
-        return new SqlExpr.ColumnRef(s);
-    }
+
     /**
      * Wraps individual elements of a Collection in ::VARIANT for cross-type LIST_CONCAT.
      * VARIANT preserves original types through UNNEST — getObject() returns native Java types.

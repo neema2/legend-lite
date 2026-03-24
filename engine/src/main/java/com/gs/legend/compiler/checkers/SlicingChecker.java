@@ -35,24 +35,31 @@ public class SlicingChecker extends AbstractChecker {
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         String funcName = simpleName(af.function());
-        NativeFunctionDef def = resolveOverload(funcName, params, source);
+
+        // Pre-compile non-source arguments so resolveOverload has compiled types
+        // for Concrete params (e.g., Integer[1] in limit/take/drop/slice)
+        Map<Integer, GenericType> compiledTypes = new java.util.HashMap<>();
+        for (int i = 1; i < params.size(); i++) {
+            TypeInfo argInfo = env.compileExpr(params.get(i), ctx);
+            if (argInfo != null && argInfo.type() != null) {
+                compiledTypes.put(i, argInfo.type());
+            }
+        }
+
+        NativeFunctionDef def = resolveOverload(funcName, params, source, compiledTypes);
 
         // 2. Bind type variables from signature (T from source)
         Map<String, GenericType> bindings = unify(def, source.expressionType());
 
-        // 3. Compile and validate non-source arguments against signature param types
+        // 3. Validate pre-compiled argument types against signature param types
         for (int i = 1; i < params.size() && i < def.params().size(); i++) {
-            TypeInfo argInfo = env.compileExpr(params.get(i), ctx);
-            // Validate argument type against signature (e.g., Integer[1])
             GenericType expectedType = resolve(def.params().get(i).type(), bindings,
                     funcName + "() argument " + i);
-            if (argInfo != null && argInfo.expressionType() != null) {
-                GenericType actualType = argInfo.expressionType().type();
-                if (!isAssignable(actualType, expectedType)) {
-                    throw new PureCompileException(
-                            funcName + "() argument " + i + ": expected "
-                                    + expectedType + ", got " + actualType);
-                }
+            GenericType actualType = compiledTypes.get(i);
+            if (actualType != null && !isAssignable(actualType, expectedType)) {
+                throw new PureCompileException(
+                        funcName + "() argument " + i + ": expected "
+                                + expectedType + ", got " + actualType);
             }
         }
 

@@ -122,12 +122,16 @@ public class GroupByChecker extends AbstractChecker {
         TypeChecker.CompilationContext fn2Ctx = ctx.withLambdaParam(fn2Param, fn1Result.type());
         TypeInfo fn2Result = compileLambdaBody(fn2, fn2Ctx);
 
-        // --- Resolve aggregate function from fn2 body ---
+        // --- Resolve aggregate function from fn2 body (stamped by ScalarChecker) ---
         var fn2Body = fn2.body().get(0);
-        AppliedFunction fn2Af = unwrapCast(fn2Body);
-        // Resolve aggregate function through proper type checking
-        String funcName = simpleName(fn2Af.function());
-        NativeFunctionDef resolved = resolveOverload(funcName, fn2Af.parameters(), null);
+        AppliedFunction innerAf = unwrapCast(fn2Body, "groupBy()");
+        TypeInfo innerInfo = env.lookupCompiled(innerAf);
+        if (innerInfo == null || innerInfo.resolvedFunc() == null) {
+            throw new PureCompileException(
+                    "groupBy(): aggregate function in '" + alias
+                    + "' did not resolve — fn2 body must be a registered function");
+        }
+        NativeFunctionDef resolved = innerInfo.resolvedFunc();
 
         // --- Extract cast type (if fn2 is wrapped in cast()) ---
         GenericType castType = extractCastGenericType(fn2Body);
@@ -160,45 +164,5 @@ public class GroupByChecker extends AbstractChecker {
         throw new PureCompileException(
                 "groupBy() aggregate parameter must be ~col:... or ~[...], got: "
                         + vs.getClass().getSimpleName());
-    }
-
-    /**
-     * Unwraps a cast() wrapper to get the inner AppliedFunction.
-     * E.g., cast($y->plus(), @Integer) → the plus() AppliedFunction.
-     * Returns the body as-is if no cast wrapper.
-     */
-    private AppliedFunction unwrapCast(ValueSpecification body) {
-        if (body instanceof AppliedFunction af) {
-            if ("cast".equals(simpleName(af.function()))) {
-                // cast(innerFunc, @Type) — unwrap to inner
-                if (!af.parameters().isEmpty()
-                        && af.parameters().get(0) instanceof AppliedFunction inner) {
-                    return inner;
-                }
-                // cast(Variable, @Type) — parser quirk, default to plus()
-                return af;
-            }
-            return af;
-        }
-        throw new PureCompileException(
-                "groupBy(): fn2 body must be a function call, got: "
-                        + body.getClass().getSimpleName());
-    }
-
-    /**
-     * Extracts cast target as GenericType from a cast() wrapper.
-     * Returns null if body is not wrapped in cast().
-     */
-    private GenericType extractCastGenericType(ValueSpecification body) {
-        if (body instanceof AppliedFunction af
-                && "cast".equals(simpleName(af.function()))) {
-            for (var p : af.parameters()) {
-                if (p instanceof GenericTypeInstance(String fullPath)) {
-                    String typeName = simpleName(fullPath);
-                    return GenericType.fromTypeName(typeName);
-                }
-            }
-        }
-        return null;
     }
 }

@@ -42,7 +42,7 @@ public record TypeInfo(
         List<ColumnSpec> columnSpecs,
         List<AggColumnSpec> aggColumnSpecs,
         String joinType,
-        List<WindowFunctionSpec> windowSpecs,
+        List<WindowSpec> windowSpecs,
         ValueSpecification inlinedBody,
         /** Table alias prefix for property accesses (e.g. "left_src" in join conditions). */
         String columnAlias,
@@ -69,7 +69,13 @@ public record TypeInfo(
          */
         ExpressionType expressionType,
         /** True if this variable is lambda-bound (fold accumulator, map param, etc). */
-        boolean lambdaParam) {
+        boolean lambdaParam,
+        /**
+         * The definitively resolved NativeFunctionDef, stamped by ScalarChecker.
+         * Downstream callers read this instead of re-resolving overloads.
+         * Null for non-function expressions.
+         */
+        NativeFunctionDef resolvedFunc) {
 
     // ===== Convenience type accessors (delegate to expressionType) =====
 
@@ -221,84 +227,32 @@ public record TypeInfo(
     }
 
     /**
-     * Pre-resolved window function specification for extend().
-     * Stores <b>Pure-level semantics only</b> — no SQL names or SQL syntax.
-     * PlanGenerator maps Pure function names to SQL at generation time.
+     * Pre-resolved window extend specification.
+     * Follows AggColumnSpec pattern: checker resolves types + function,
+     * PlanGenerator reads fn1/fn2 structure from AST.
+     *
+     * @param resolvedFunc Registry-resolved function (identity dispatch — not a string)
+     * @param over         Compiled over() clause (partition/sort/frame)
+     * @param alias        Output column name
+     * @param returnType   Compiled from fn1 (or fn2 if aggregate)
+     * @param castType     Optional cast wrapping (null if none)
      */
-    public record WindowFunctionSpec(
-            String pureFunctionName,
-            String sourceColumn,
+    public record WindowSpec(
+            NativeFunctionDef resolvedFunc,
+            OverSpec over,
+            String alias,
+            GenericType returnType,
+            GenericType castType) {
+    }
+
+    /**
+     * Compiled over() clause — validated against source schema by ExtendChecker.
+     * Pure column names only (no expressions — over() accepts ColSpec, not lambdas).
+     */
+    public record OverSpec(
             List<String> partitionBy,
             List<SortSpec> orderBy,
-            FrameSpec frame,
-            String alias,
-            String wrapperFuncName,
-            List<String> wrapperArgs,
-            int ntileArg,
-            List<String> extraArgs,
-            String castType) {
-
-        /** Simple zero-arg window function (rowNumber, rank, etc). */
-        public static WindowFunctionSpec ranking(String pureFunc, String alias,
-                List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
-            return new WindowFunctionSpec(pureFunc, null, partitionBy, orderBy, frame, alias, null, List.of(), 0,
-                    List.of(), null);
-        }
-
-        /** Aggregate window function (plus, average, count, etc). */
-        public static WindowFunctionSpec aggregate(String pureFunc, String sourceCol, String alias,
-                List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
-            return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0,
-                    List.of(), null);
-        }
-
-        /**
-         * Multi-arg aggregate window function (corr, covar, percentile, nthValue,
-         * joinStrings).
-         */
-        public static WindowFunctionSpec aggregateMulti(String pureFunc, String sourceCol, String alias,
-                List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame, List<String> extraArgs) {
-            return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0,
-                    extraArgs, null);
-        }
-
-        /** Aggregate window function with outer CAST (e.g., CAST(SUM(x) OVER(...) AS INTEGER)). */
-        public static WindowFunctionSpec aggregateCast(String pureFunc, String sourceCol, String alias,
-                List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame, List<String> extraArgs, String castType) {
-            return new WindowFunctionSpec(pureFunc, sourceCol, partitionBy, orderBy, frame, alias, null, List.of(), 0,
-                    extraArgs, castType);
-        }
-
-        /** Wrapped window function (e.g. round(cumulativeDistribution(), 2)). */
-        public static WindowFunctionSpec wrapped(String innerPureFunc, String wrapperPureFunc,
-                List<String> extraArgs, String alias,
-                List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
-            return new WindowFunctionSpec(innerPureFunc, null, partitionBy, orderBy, frame, alias,
-                    wrapperPureFunc, extraArgs, 0, List.of(), null);
-        }
-
-        /** NTILE window function. */
-        public static WindowFunctionSpec ntile(int buckets, String alias,
-                List<String> partitionBy, List<SortSpec> orderBy, FrameSpec frame) {
-            return new WindowFunctionSpec("ntile", null, partitionBy, orderBy, frame, alias, null, List.of(), buckets,
-                    List.of(), null);
-        }
-
-        public boolean isWrapped() {
-            return wrapperFuncName != null;
-        }
-
-        public boolean isNtile() {
-            return "ntile".equals(pureFunctionName);
-        }
-
-        public boolean hasSourceColumn() {
-            return sourceColumn != null;
-        }
-
-        public boolean hasCast() {
-            return castType != null;
-        }
+            FrameSpec frame) {
     }
 
     /**
@@ -393,7 +347,7 @@ public record TypeInfo(
         private List<ColumnSpec> columnSpecs = List.of();
         private List<AggColumnSpec> aggColumnSpecs = List.of();
         private String joinType;
-        private List<WindowFunctionSpec> windowSpecs = List.of();
+        private List<WindowSpec> windowSpecs = List.of();
         private ValueSpecification inlinedBody;
         private String columnAlias;
         private PivotSpec pivotSpec;
@@ -402,6 +356,7 @@ public record TypeInfo(
         private com.gs.legend.plan.GraphFetchSpec graphFetchSpec;
         private ExpressionType expressionType;
         private boolean lambdaParam;
+        private NativeFunctionDef resolvedFunc;
 
         private Builder() {}
 
@@ -422,6 +377,7 @@ public record TypeInfo(
             this.graphFetchSpec = src.graphFetchSpec();
             this.expressionType = src.expressionType();
             this.lambdaParam = src.lambdaParam();
+            this.resolvedFunc = src.resolvedFunc();
         }
 
         public Builder mapping(ClassMapping v) { this.mapping = v; return this; }
@@ -431,7 +387,7 @@ public record TypeInfo(
         public Builder columnSpecs(List<ColumnSpec> v) { this.columnSpecs = v; return this; }
         public Builder aggColumnSpecs(List<AggColumnSpec> v) { this.aggColumnSpecs = v; return this; }
         public Builder joinType(String v) { this.joinType = v; return this; }
-        public Builder windowSpecs(List<WindowFunctionSpec> v) { this.windowSpecs = v; return this; }
+        public Builder windowSpecs(List<WindowSpec> v) { this.windowSpecs = v; return this; }
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
         public Builder columnAlias(String v) { this.columnAlias = v; return this; }
         public Builder pivotSpec(PivotSpec v) { this.pivotSpec = v; return this; }
@@ -440,6 +396,7 @@ public record TypeInfo(
         public Builder graphFetchSpec(com.gs.legend.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
         public Builder expressionType(ExpressionType v) { this.expressionType = v; return this; }
         public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
+        public Builder resolvedFunc(NativeFunctionDef v) { this.resolvedFunc = v; return this; }
 
         public TypeInfo build() {
             if (expressionType == null) {
@@ -450,7 +407,7 @@ public record TypeInfo(
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
                     columnAlias, pivotSpec, variantAccess,
                     joinColumnRenames, graphFetchSpec, expressionType,
-                    lambdaParam);
+                    lambdaParam, resolvedFunc);
         }
     }
 

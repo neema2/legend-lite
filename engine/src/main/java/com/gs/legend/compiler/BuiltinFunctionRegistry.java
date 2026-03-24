@@ -276,7 +276,7 @@ public class BuiltinFunctionRegistry {
                 "native function extend<T,Z,W,R>(r:Relation<T>[1], window:_Window<T>[1], f:FuncColSpec<{Relation<T>[1],_Window<T>[1],T[1]->Any[0..1]},R>[1]):Relation<T+R>[1];");
         reg.registerSignature("extend",
                 "native function extend<T,Z,W,R>(r:Relation<T>[1], window:_Window<T>[1], f:FuncColSpecArray<{Relation<T>[1],_Window<T>[1],T[1]->Any[*]},R>[1]):Relation<T+R>[1];");
-        // Extend — window aggregate
+        // Extend — window aggregate (3-arity fn1: {p,w,r|...})
         reg.registerSignature("extend",
                 "native function extend<T,K,V,R>(r:Relation<T>[1], window:_Window<T>[1], agg:AggColSpec<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
         reg.registerSignature("extend",
@@ -480,10 +480,24 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("plus", "native function plus<T>(values:T[*]):T[1];");
         reg.registerSignature("minus", "native function minus<T>(values:T[*]):T[1];");
         reg.registerSignature("times", "native function times<T>(values:T[*]):T[1];");
-        // legend-lite extension: our parser emits binary form plus(a,b) not plus([a,b])
-        reg.registerSignature("plus", "native function plus<T>(left:T[1], right:T[1]):T[1];");
-        reg.registerSignature("minus", "native function minus<T>(left:T[1], right:T[1]):T[1];");
-        reg.registerSignature("times", "native function times<T>(left:T[1], right:T[1]):T[1];");
+        // legend-lite extension: concrete binary forms (our parser emits plus(a,b) not plus([a,b]))
+        // Concrete overloads carry the correct return type (Integer+Integer→Integer).
+        // With compile-then-resolve, the resolver scores ALL params:
+        // - Homogeneous (Integer+Integer) → picks Integer×Integer (score 4 > Number×Number score 2)
+        // - Mixed (Integer+Float) → Integer×Integer fails param[1], Number×Number wins
+        reg.registerSignature("plus", "native function plus(left:Integer[1], right:Integer[1]):Integer[1];");
+        reg.registerSignature("plus", "native function plus(left:Float[1], right:Float[1]):Float[1];");
+        reg.registerSignature("plus", "native function plus(left:Decimal[1], right:Decimal[1]):Decimal[1];");
+        reg.registerSignature("plus", "native function plus(left:Number[1], right:Number[1]):Number[1];");
+        reg.registerSignature("plus", "native function plus(left:String[1], right:String[1]):String[1];");
+        reg.registerSignature("minus", "native function minus(left:Integer[1], right:Integer[1]):Integer[1];");
+        reg.registerSignature("minus", "native function minus(left:Float[1], right:Float[1]):Float[1];");
+        reg.registerSignature("minus", "native function minus(left:Decimal[1], right:Decimal[1]):Decimal[1];");
+        reg.registerSignature("minus", "native function minus(left:Number[1], right:Number[1]):Number[1];");
+        reg.registerSignature("times", "native function times(left:Integer[1], right:Integer[1]):Integer[1];");
+        reg.registerSignature("times", "native function times(left:Float[1], right:Float[1]):Float[1];");
+        reg.registerSignature("times", "native function times(left:Decimal[1], right:Decimal[1]):Decimal[1];");
+        reg.registerSignature("times", "native function times(left:Number[1], right:Number[1]):Number[1];");
         reg.registerSignature("divide", "native function divide(dividend:Number[1], divisor:Number[1]):Float[1];");
 
         // ===== Comparison =====
@@ -502,6 +516,7 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("greatest", "native function greatest(values:Any[*]):Any[0..1];");
         reg.registerSignature("least", "native function least(values:Any[*]):Any[0..1];");
         reg.registerSignature("coalesce", "native function coalesce(values:Any[*]):Any[0..1];");
+        reg.registerSignature("coalesce", "native function coalesce(value:Any[0..1], defaultValue:Any[1]):Any[1];");
         reg.registerSignature("in", "native function in(value:Any[1], collection:Any[*]):Boolean[1];");
 
         // ===== Boolean =====

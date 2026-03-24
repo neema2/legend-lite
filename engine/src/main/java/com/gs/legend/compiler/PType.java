@@ -36,9 +36,12 @@ public sealed interface PType {
          * Returns null if the name doesn't map to a known GenericType (e.g., "JoinKind", "DurationUnit").
          */
         public com.gs.legend.plan.GenericType toGenericType() {
-            if ("Decimal".equals(name)) return new com.gs.legend.plan.GenericType.PrecisionDecimal(18, 3);
+            if ("Decimal".equals(name)) return com.gs.legend.plan.GenericType.DEFAULT_DECIMAL;
             try {
-                return com.gs.legend.plan.GenericType.fromTypeName(name);
+                // Use Primitive.fromTypeName — it throws for non-primitive types
+                // (DurationUnit, JoinKind, etc.) which are enum-like signature markers.
+                // GenericType.fromTypeName would silently return ClassType, hiding the distinction.
+                return com.gs.legend.plan.GenericType.Primitive.fromTypeName(name);
             } catch (IllegalArgumentException e) {
                 return null;  // Non-primitive types (JoinKind, DurationUnit, etc.)
             }

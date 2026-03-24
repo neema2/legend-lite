@@ -63,6 +63,11 @@ public class TypeChecker implements TypeCheckEnv {
         return resolveAssociationsInBody(body, mapping);
     }
 
+    @Override
+    public TypeInfo lookupCompiled(ValueSpecification vs) {
+        return types.get(vs);
+    }
+
     /**
      * Top-level compile: returns a {@link TypeCheckResult} bundling the typed
      * result and per-node side table.
@@ -108,7 +113,7 @@ public class TypeChecker implements TypeCheckEnv {
             case CStrictTime st -> scalarTyped(st, GenericType.Primitive.STRICT_TIME);
             case CLatestDate ld -> scalarTyped(ld, GenericType.Primitive.DATE_TIME);
             case CByteArray ba -> scalarTyped(ba, GenericType.Primitive.STRING);
-            case EnumValue ev -> scalarTyped(ev, GenericType.Primitive.STRING);
+            case EnumValue ev -> scalarTyped(ev, new GenericType.EnumType(ev.fullPath()));
             case UnitInstance ui -> scalarTyped(ui, GenericType.Primitive.FLOAT);
         };
     }
@@ -1790,7 +1795,7 @@ public class TypeChecker implements TypeCheckEnv {
         if (expr instanceof CFloat)
             return GenericType.Primitive.FLOAT;
         if (expr instanceof CDecimal)
-            return GenericType.Primitive.DECIMAL;
+            return GenericType.DEFAULT_DECIMAL;
         if (expr instanceof CString)
             return GenericType.Primitive.STRING;
         if (expr instanceof CBoolean)
@@ -2162,7 +2167,7 @@ public class TypeChecker implements TypeCheckEnv {
         return switch (typeStr) {
             case "Integer" -> GenericType.Primitive.INTEGER;
             case "Float", "Number" -> GenericType.Primitive.FLOAT;
-            case "Decimal" -> GenericType.Primitive.DECIMAL;
+            case "Decimal" -> GenericType.DEFAULT_DECIMAL;
             case "Boolean" -> GenericType.Primitive.BOOLEAN;
             case "String" -> GenericType.Primitive.STRING;
             case "Date", "StrictDate" -> GenericType.Primitive.STRICT_DATE;
@@ -2543,8 +2548,17 @@ public class TypeChecker implements TypeCheckEnv {
                     return scalarTyped(ap, colType);
                 }
             }
-            // Lambda param with ClassType: resolve field type from model context
+            // Lambda param with Tuple: resolve column type from Schema
+            // Tuple = T in Relation<T> = row schema type
             GenericType paramType = ctx.getLambdaParamType(v.name());
+            if (paramType instanceof GenericType.Tuple t) {
+                t.schema().requireColumn(ap.property());
+                GenericType colType = t.schema().columns().get(ap.property());
+                if (colType != null) {
+                    return scalarTyped(ap, colType);
+                }
+            }
+            // Lambda param with ClassType: resolve field type from model context
             if (paramType instanceof GenericType.ClassType(String qualifiedName) && modelContext != null) {
                 var classOpt = modelContext.findClass(qualifiedName);
                 if (classOpt.isPresent()) {
@@ -2604,6 +2618,14 @@ public class TypeChecker implements TypeCheckEnv {
                 var info = TypeInfo.from(mapInfo).inlinedBody(mapNode).build();
                 types.put(ap, info);
                 return info;
+            }
+            // .prop on a Tuple (row from offset functions like lead/lag/nth/first):
+            // Resolve column type directly — no project() desugaring needed.
+            if (ownerInfo != null && ownerInfo.type() instanceof GenericType.Tuple rt) {
+                GenericType colType = rt.schema().getColumnType(ap.property());
+                if (colType != null) {
+                    return scalarTyped(ap, colType);
+                }
             }
             // .prop on a relational result (e.g., filter(...).legalName)
             // → desugar to single-column project so PlanGenerator builds proper FROM clause
@@ -2719,7 +2741,7 @@ public class TypeChecker implements TypeCheckEnv {
         return switch (vs) {
             case CInteger i -> GenericType.Primitive.INTEGER;
             case CFloat f -> GenericType.Primitive.FLOAT;
-            case CDecimal d -> GenericType.Primitive.DECIMAL;
+            case CDecimal d -> GenericType.DEFAULT_DECIMAL;
             case CString s -> GenericType.Primitive.STRING;
             case CBoolean b -> GenericType.Primitive.BOOLEAN;
             case CDateTime dt -> GenericType.Primitive.DATE_TIME;
@@ -2856,9 +2878,9 @@ public class TypeChecker implements TypeCheckEnv {
     private static GenericType classifyDecimal(CDecimal d) {
         String plain = d.value().toPlainString();
         if (!plain.contains(".")) {
-            return new GenericType.PrecisionDecimal(18, 0);
+            return new GenericType.PrecisionDecimal(38, 0);
         }
-        return GenericType.Primitive.DECIMAL;
+        return GenericType.DEFAULT_DECIMAL;
     }
 
     /**

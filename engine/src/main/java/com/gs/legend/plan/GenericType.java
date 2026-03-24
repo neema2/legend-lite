@@ -16,7 +16,8 @@ import java.util.Objects;
 public sealed interface GenericType
         permits GenericType.Primitive, GenericType.Parameterized,
                 GenericType.ClassType, GenericType.EnumType,
-                GenericType.PrecisionDecimal, GenericType.Relation {
+                GenericType.PrecisionDecimal, GenericType.Relation,
+                GenericType.Tuple {
 
     String typeName();
 
@@ -188,7 +189,7 @@ public sealed interface GenericType
     }
 
     /**
-     * Decimal type with explicit precision and scale: DECIMAL(18, 0).
+     * Decimal type with explicit precision and scale: DECIMAL(38, 18).
      * Subtype of DECIMAL and NUMBER in the type hierarchy.
      * Used when the compiler knows the exact precision (e.g., integer-valued decimals).
      */
@@ -198,6 +199,14 @@ public sealed interface GenericType
             return "Decimal(" + precision + "," + scale + ")";
         }
     }
+
+    /**
+     * Universal default for unparameterized Decimal types.
+     * Pure's Decimal maps to Java's BigDecimal (arbitrary precision).
+     * DECIMAL(38,18) is the closest SQL approximation: max total width (38 digits),
+     * 18 digits after the decimal point. Uses INT128 in DuckDB.
+     */
+    PrecisionDecimal DEFAULT_DECIMAL = new PrecisionDecimal(38, 18);
 
     /**
      * Relational type: Relation<(col1:Type1, col2:Type2, ...)>.
@@ -357,6 +366,21 @@ public sealed interface GenericType
         }
     }
 
+    /**
+     * Tuple type: the row schema that T binds to in Relation<T>.
+     * In relational algebra, a Relation is a set of Tuples.
+     * This is NOT a Relation — it represents a single row's column structure.
+     * Used when offset functions (lead/lag/nth/first) return T[0..1].
+     */
+    record Tuple(Relation.Schema schema) implements GenericType {
+        public Tuple {
+            java.util.Objects.requireNonNull(schema, "Tuple schema must not be null");
+        }
+
+        @Override
+        public String typeName() { return "Tuple"; }
+    }
+
     // ========== Factory methods ==========
 
     static GenericType listOf(GenericType elementType) {
@@ -382,7 +406,7 @@ public sealed interface GenericType
         return switch (simpleName) {
             case "Integer" -> Primitive.INTEGER;
             case "Float" -> Primitive.FLOAT;
-            case "Decimal" -> Primitive.DECIMAL;
+            case "Decimal" -> DEFAULT_DECIMAL;
             case "Number" -> Primitive.NUMBER;
             case "String" -> Primitive.STRING;
             case "Boolean" -> Primitive.BOOLEAN;

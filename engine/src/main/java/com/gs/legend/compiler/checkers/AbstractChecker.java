@@ -39,24 +39,40 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Resolves the correct function overload by matching the AST param structure
      * against registered signature param types.
      *
-     * <p>Resolution strategy (no silent fallbacks):
+     * <p>Backward-compatible entry point — delegates to the compile-then-resolve
+     * overload with an empty compiled-types map. Used by ExtendChecker, FilterChecker,
+     * and other checkers that don't pre-compile params.
+     */
+    protected NativeFunctionDef resolveOverload(String funcName,
+                                                 List<ValueSpecification> params,
+                                                 TypeInfo source) {
+        return resolveOverload(funcName, params, source, Map.of());
+    }
+
+    /**
+     * Compile-then-resolve overload resolution.
+     *
+     * <p>Resolution strategy (JLS §15.12-style, no silent fallbacks):
      * <ol>
-     *   <li>Get all overloads by name</li>
      *   <li>Filter by arity — throw if none match</li>
      *   <li>If exactly one — return it</li>
-     *   <li>Structurally match each candidate's PType params against AST nodes</li>
-     *   <li>Exactly one must match — throw if zero or ambiguous</li>
+     *   <li>Structural match: use compiled param types when available,
+     *       fall back to AST-shape matching otherwise</li>
+     *   <li>If still ambiguous — score by type specificity (exact &gt; subtype &gt; TypeVar)</li>
+     *   <li>Exactly one must win — throw if zero or ambiguous</li>
      * </ol>
      *
-     * @param funcName   Simple function name
-     * @param params     AST parameters (not yet compiled, except source)
-     * @param source     Compiled TypeInfo for param[0], or null
+     * @param funcName       Simple function name
+     * @param params         AST parameters
+     * @param source         Compiled TypeInfo for param[0], or null
+     * @param compiledTypes  Pre-compiled types keyed by param index (may be empty)
      * @return The single matching NativeFunctionDef
      * @throws PureCompileException on no match or ambiguity
      */
     protected NativeFunctionDef resolveOverload(String funcName,
                                                  List<ValueSpecification> params,
-                                                 TypeInfo source) {
+                                                 TypeInfo source,
+                                                 Map<Integer, GenericType> compiledTypes) {
         var defs = BuiltinFunctionRegistry.instance().resolve(funcName);
         if (defs.isEmpty()) {
             throw new PureCompileException("Unknown function: '" + funcName + "'");
@@ -76,9 +92,9 @@ public abstract class AbstractChecker implements FunctionChecker {
             return arityMatches.get(0);
         }
 
-        // Step 2: structural matching against AST nodes
+        // Step 2: structural matching — uses compiled types when available
         var matches = arityMatches.stream()
-                .filter(d -> matchesStructurally(d, params, source))
+                .filter(d -> matchesStructurally(d, params, source, compiledTypes))
                 .toList();
         if (matches.size() == 1) {
             return matches.get(0);
@@ -89,6 +105,15 @@ public abstract class AbstractChecker implements FunctionChecker {
                     + " (tried " + arityMatches.size() + " candidates with arity " + params.size() + ")");
         }
 
+        // Step 3: type-based scoring across ALL compiled params.
+        // Pick the most specific overload (JLS §15.12.2.5: prefer Integer over Number).
+        if (!compiledTypes.isEmpty()) {
+            var scored = scoreOverloads(matches, compiledTypes);
+            if (scored != null) {
+                return scored;
+            }
+        }
+
         // Ambiguous — multiple candidates matched
         throw new PureCompileException(
                 "Ambiguous overload: " + matches.size() + " overloads of '"
@@ -96,16 +121,94 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
+     * Scores overload candidates against ALL compiled param types.
+     * Returns the most specific candidate, or null if no unique winner.
+     *
+     * <p>Per candidate: sum score across all params with compiled types.
+     * Exact match = 2, subtype = 1, TypeVar/untyped = 0, incompatible = -1.
+     * A single -1 eliminates the candidate.
+     *
+     * <p>Mirrors JLS §15.12.2.5: among applicable methods, prefer the one
+     * with more specific parameter types.
+     */
+    private NativeFunctionDef scoreOverloads(List<NativeFunctionDef> candidates,
+                                              Map<Integer, GenericType> compiledTypes) {
+        NativeFunctionDef best = null;
+        int bestScore = -1;
+        boolean ambiguous = false;
+
+        for (var def : candidates) {
+            int score = scoreCandidate(def, compiledTypes);
+            if (score < 0) continue; // not applicable
+            if (score > bestScore) {
+                best = def;
+                bestScore = score;
+                ambiguous = false;
+            } else if (score == bestScore) {
+                ambiguous = true;
+            }
+        }
+
+        if (ambiguous || best == null) return null;
+        return best;
+    }
+
+    /**
+     * Scores a single candidate against all compiled param types.
+     * Returns -1 if any param is incompatible, otherwise sum of per-param scores.
+     * Exact match = 2, subtype = 1, TypeVar/untyped = 0.
+     */
+    private int scoreCandidate(NativeFunctionDef def, Map<Integer, GenericType> compiledTypes) {
+        int totalScore = 0;
+        for (var entry : compiledTypes.entrySet()) {
+            int paramIdx = entry.getKey();
+            GenericType actualType = entry.getValue();
+            if (paramIdx >= def.params().size()) continue;
+
+            PType declaredType = def.params().get(paramIdx).type();
+            int paramScore = scoreParam(declaredType, actualType);
+            if (paramScore < 0) return -1; // incompatible — eliminate
+            totalScore += paramScore;
+        }
+        return totalScore;
+    }
+
+    /**
+     * Scores a single param: declared type vs actual compiled type.
+     * Returns 2 for exact, 1 for subtype, 0 for TypeVar/Any, -1 for incompatible.
+     */
+    private int scoreParam(PType declaredType, GenericType actualType) {
+        if (declaredType instanceof PType.Concrete c) {
+            if (!(actualType instanceof GenericType.Primitive actualPrim)) {
+                return "Any".equals(c.name()) ? 0 : -1;
+            }
+            try {
+                GenericType.Primitive declared = GenericType.Primitive.fromTypeName(c.name());
+                if (actualPrim == declared) return 2;           // exact match
+                if (actualPrim.isSubtypeOf(declared)) return 1; // subtype match
+                return -1; // incompatible
+            } catch (IllegalArgumentException e) {
+                return -1;
+            }
+        }
+        // TypeVar or Parameterized — always applicable but lowest priority
+        return 0;
+    }
+
+    /**
      * Checks if a def's param types structurally match the AST param nodes.
-     * No compilation needed — only inspects AST node types.
+     * Uses compiled types for Concrete matching when available, falls back
+     * to AST-shape matching otherwise.
      */
     private boolean matchesStructurally(NativeFunctionDef def,
                                         List<ValueSpecification> params,
-                                        TypeInfo source) {
+                                        TypeInfo source,
+                                        Map<Integer, GenericType> compiledTypes) {
         for (int i = 0; i < def.params().size() && i < params.size(); i++) {
             PType expected = def.params().get(i).type();
             ValueSpecification actual = params.get(i);
-            if (!structuralMatch(expected, actual, source, i == 0)) {
+            GenericType compiledType = compiledTypes.get(i);
+            if (!structuralMatch(expected, actual, source, i == 0, compiledType)) {
                 return false;
             }
         }
@@ -113,16 +216,19 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Matches a single PType against an AST node.
-     * Returns false (reject) for unknown types — no silent pass-through.
+     * Matches a single PType against an AST node + optional compiled type.
+     *
+     * <p>For Concrete types: if a compiled type is available, uses subtype
+     * checking for precise matching. Otherwise falls back to AST-shape
+     * filtering (reject lambdas and class instances).
      */
     private boolean structuralMatch(PType expected, ValueSpecification actual,
-                                    TypeInfo source, boolean isSource) {
+                                    TypeInfo source, boolean isSource,
+                                    GenericType compiledType) {
         // PureCollection wraps multiple elements (e.g., [ascending(~id), ascending(~name)])
-        // Check if elements match the expected type
         if (actual instanceof PureCollection(java.util.List<ValueSpecification> elements)
                 && !elements.isEmpty()) {
-            return elements.stream().allMatch(e -> structuralMatch(expected, e, source, false));
+            return elements.stream().allMatch(e -> structuralMatch(expected, e, source, false, null));
         }
         if (expected instanceof PType.Parameterized p) {
             return switch (p.rawType()) {
@@ -151,8 +257,6 @@ public abstract class AbstractChecker implements FunctionChecker {
                 case "SortInfo" -> actual instanceof AppliedFunction;
                 case "_Window" -> actual instanceof AppliedFunction;
                 case "Rows", "_Range" -> actual instanceof AppliedFunction;
-                // Generic parameterized: RowMapper<T,U>, Pair<T,U>, etc.
-                // Match when the source carries a Parameterized type with matching rawType
                 default -> isSource && source != null
                         && source.type() instanceof GenericType.Parameterized gp
                         && p.rawType().equals(gp.rawType());
@@ -163,16 +267,42 @@ public abstract class AbstractChecker implements FunctionChecker {
             return !isSource || source == null || !source.isRelational();
         }
         if (expected instanceof PType.Concrete c) {
-            return switch (c.name()) {
-                case "Integer" -> actual instanceof CInteger;
-                case "String" -> actual instanceof CString;
-                case "Float" -> actual instanceof CFloat;
-                case "Decimal" -> actual instanceof CDecimal;
-                case "Boolean" -> actual instanceof CBoolean;
-                default -> false;
-            };
+            // Reject lambdas and class instances — never match scalar Concrete types
+            if (actual instanceof LambdaFunction || actual instanceof ClassInstance) {
+                return false;
+            }
+            // If we have a compiled type for this param, use precise subtype checking
+            if (compiledType != null) {
+                return isConcreteCompatible(c.name(), compiledType);
+            }
+            // No compiled type → can't match Concrete types.
+            // All callers that need Concrete matching go through ScalarChecker
+            // which always provides compiled types. 3-arg callers resolve via
+            // arity or Parameterized matching before reaching this point.
+            return false;
         }
         return false;
+    }
+
+    /**
+     * Checks if a compiled type is compatible with a declared Concrete type name.
+     * Compatible means: exact match or the actual type is a subtype of the declared type.
+     */
+    private boolean isConcreteCompatible(String declaredName, GenericType actualType) {
+        // EnumType: match if the enum's simple name equals the declared name
+        if (actualType instanceof GenericType.EnumType et) {
+            return et.typeName().equals(declaredName);
+        }
+        if (!(actualType instanceof GenericType.Primitive actualPrim)) {
+            // Non-primitive (ClassType, Relation, etc.) — only "Any" accepts these
+            return "Any".equals(declaredName);
+        }
+        try {
+            GenericType.Primitive declared = GenericType.Primitive.fromTypeName(declaredName);
+            return actualPrim == declared || actualPrim.isSubtypeOf(declared);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     // ========== Type variable unification ==========
@@ -237,6 +367,9 @@ public abstract class AbstractChecker implements FunctionChecker {
         switch (expected) {
             case PType.TypeVar v -> {
                 GenericType existing = bindings.get(v.name());
+                System.out.println("[DEBUG unifyType] TypeVar '" + v.name() + "' existing="
+                        + (existing != null ? existing + "(" + existing.getClass().getSimpleName() + ")" : "null")
+                        + " actual=" + actual + "(" + actual.getClass().getSimpleName() + ") context=" + context);
                 if (existing != null) {
                     if (!existing.typeName().equals(actual.typeName())) {
                         throw new PureCompileException(
@@ -249,12 +382,15 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             case PType.Parameterized p -> {
                 if ("Relation".equals(p.rawType())) {
-                    if (!(actual instanceof GenericType.Relation)) {
+                    if (!(actual instanceof GenericType.Relation rel)) {
                         throw new PureCompileException(
                                 context + ": expected Relation, got " + actual.typeName());
                     }
+                    // Bind T to Tuple (row schema), NOT to the Relation container.
+                    // In Pure/relational algebra, T in Relation<T> is a single tuple's shape,
+                    // so lead<T>() returning T[0..1] gives Tuple[0..1] (a row), not Relation[0..1].
                     for (var typeArg : p.typeArgs()) {
-                        unifyType(typeArg, actual, bindings, context);
+                        unifyType(typeArg, new GenericType.Tuple(rel.schema()), bindings, context);
                     }
                 } else if (actual instanceof GenericType.Parameterized gp
                         && p.rawType().equals(gp.rawType())) {
@@ -271,7 +407,17 @@ public abstract class AbstractChecker implements FunctionChecker {
             case PType.Concrete c -> {
                 GenericType g = c.toGenericType();
                 if (g == null) {
-                    // Non-primitive types (JoinKind, DurationUnit, etc.) — skip validation
+                    // Non-primitive signature type (DurationUnit, JoinKind, etc.)
+                    // — validate that the actual is an EnumType with matching simple name
+                    if (actual instanceof GenericType.EnumType et) {
+                        if (!et.typeName().equals(c.name())) {
+                            throw new PureCompileException(
+                                    context + ": expected " + c.name() + ", got " + et.typeName());
+                        }
+                    } else {
+                        throw new PureCompileException(
+                                context + ": expected " + c.name() + ", got " + actual.typeName());
+                    }
                     return;
                 }
                 // Use subtype hierarchy: Integer is subtype of Number, Number of Any, etc.
@@ -325,7 +471,13 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             case PType.Parameterized p -> {
                 if ("Relation".equals(p.rawType()) && !p.typeArgs().isEmpty()) {
-                    yield resolve(p.typeArgs().get(0), bindings, context);
+                    GenericType inner = resolve(p.typeArgs().get(0), bindings, context);
+                    // Reconstruct Relation from Tuple: Relation<T> where T=Tuple(schema)
+                    // → GenericType.Relation(schema). Functions like filter() return Relation<T>[1].
+                    if (inner instanceof GenericType.Tuple t) {
+                        yield new GenericType.Relation(t.schema());
+                    }
+                    yield inner; // fallback: already a Relation from direct binding
                 }
                 // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc.
                 List<GenericType> resolvedArgs = p.typeArgs().stream()
@@ -379,9 +531,21 @@ public abstract class AbstractChecker implements FunctionChecker {
             throw new PureCompileException(
                     "Cannot bind lambda param '" + paramName + "': resolved type is null");
         }
+        System.out.println("[DEBUG bindLambdaParam] '" + paramName + "' resolvedType=" + resolvedType
+                + " (" + resolvedType.getClass().getSimpleName() + ")");
         if (resolvedType instanceof GenericType.Relation rel) {
             // Relation row: bind schema columns for property access
             TypeChecker.CompilationContext lambdaCtx = ctx.withRelationType(paramName, rel.schema());
+            if (source.mapping() != null) {
+                lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
+            }
+            return lambdaCtx;
+        } else if (resolvedType instanceof GenericType.Tuple) {
+            // Tuple = T in Relation<T> = row schema type (our RelationType).
+            // Bind as lambdaParam so compileVariable returns Tuple type,
+            // preserving type identity for unification (e.g., rowNumber<T>(rel, row:T)).
+            // Column property access ($r.id) is handled by compileProperty.
+            TypeChecker.CompilationContext lambdaCtx = ctx.withLambdaParam(paramName, resolvedType);
             if (source.mapping() != null) {
                 lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
             }
@@ -440,7 +604,11 @@ public abstract class AbstractChecker implements FunctionChecker {
                 && fp.typeArgs().get(0) instanceof PType.FunctionType ft) {
             // Both Function<{T[1]->Boolean[1]}> and FuncColSpecArray<{C[1]->Any[*]},T>
             // have the FunctionType as their first type argument
-            if ("Function".equals(fp.rawType()) || "FuncColSpecArray".equals(fp.rawType())) {
+            if ("Function".equals(fp.rawType())
+                    || "FuncColSpec".equals(fp.rawType())
+                    || "AggColSpec".equals(fp.rawType())
+                    || "FuncColSpecArray".equals(fp.rawType())
+                    || "AggColSpecArray".equals(fp.rawType())) {
                 return ft;
             }
         }
@@ -566,6 +734,46 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     // ========== Shared utilities ==========
+
+    /**
+     * Unwraps a cast() wrapper to get the inner AppliedFunction.
+     * E.g., cast($y→plus(), @Integer) → the plus() AppliedFunction.
+     * Returns the body as-is if no cast wrapper.
+     * Shared by GroupByChecker and ExtendChecker for fn2 body processing.
+     */
+    protected AppliedFunction unwrapCast(ValueSpecification body, String funcContext) {
+        if (body instanceof AppliedFunction af) {
+            if ("cast".equals(simpleName(af.function()))) {
+                if (!af.parameters().isEmpty()
+                        && af.parameters().get(0) instanceof AppliedFunction inner) {
+                    return inner;
+                }
+                return af;
+            }
+            return af;
+        }
+        throw new PureCompileException(
+                funcContext + ": fn2 body must be a function call, got: "
+                        + body.getClass().getSimpleName());
+    }
+
+    /**
+     * Extracts cast target as GenericType from a cast() wrapper.
+     * Returns null if body is not wrapped in cast().
+     * Shared by GroupByChecker and ExtendChecker.
+     */
+    protected GenericType extractCastGenericType(ValueSpecification body) {
+        if (body instanceof AppliedFunction af
+                && "cast".equals(simpleName(af.function()))) {
+            for (var p : af.parameters()) {
+                if (p instanceof GenericTypeInstance(String fullPath)) {
+                    String typeName = simpleName(fullPath);
+                    return GenericType.fromTypeName(typeName);
+                }
+            }
+        }
+        return null;
+    }
 
     /** Extracts simple function name from qualified name (e.g. "meta::pure::...::sort" → "sort"). */
     protected static String simpleName(String qualifiedName) {

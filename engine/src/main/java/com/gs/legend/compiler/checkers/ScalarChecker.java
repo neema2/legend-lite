@@ -12,11 +12,9 @@ import java.util.Map;
  * Generic strict type checker for all registered builtin functions
  * that don't have a dedicated checker.
  *
- * <p>Replaces the old {@code compileTypePropagating} in TypeChecker with
- * zero-fallback, signature-driven type checking. Uses shared helpers from
- * {@link AbstractChecker}: {@link #resolveOverload}, {@link #unify},
- * {@link #compileLambdaArg}, {@link #resolveAssociationsFromParams},
- * {@link #resolveOutput}.
+ * <p>Uses compile-then-resolve: compiles all non-lambda params first,
+ * passes their types into overload resolution for precise matching,
+ * then compiles lambda params with the resolved signature.
  *
  * <p>Handles all function shapes: no-arg ({@code now()}), unary ({@code abs()}),
  * lambda-taking ({@code map()}, {@code exists()}), multi-param ({@code if()}).
@@ -32,48 +30,74 @@ public class ScalarChecker extends AbstractChecker {
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         String funcName = simpleName(af.function());
+        int startIdx = source != null ? 1 : 0;
 
-        // 1. Resolve overload — strict structural match, no fallbacks
-        NativeFunctionDef def = resolveOverload(funcName, params, source);
+        // 1. Pre-compile all non-lambda, non-colspec params to get their types.
+        //    These types feed into overload resolution for precise matching.
+        Map<Integer, GenericType> compiledTypes = new LinkedHashMap<>();
+        Map<Integer, TypeInfo> compiledInfos = new LinkedHashMap<>();
 
-        // 2. Unify source to bind type variables
+        if (source != null && source.type() != null) {
+            compiledTypes.put(0, source.type());
+        }
+        for (int i = startIdx; i < params.size(); i++) {
+            var param = params.get(i);
+            if (param instanceof LambdaFunction || isColSpec(param)) {
+                continue; // lambdas need target-typing; colspecs are structural tokens
+            }
+            TypeInfo paramInfo = env.compileExpr(param, ctx);
+            if (paramInfo != null && paramInfo.type() != null) {
+                compiledTypes.put(i, paramInfo.type());
+                compiledInfos.put(i, paramInfo);
+            }
+        }
+
+        // 2. Resolve overload — uses compiled types for structural match + scoring
+        NativeFunctionDef def = resolveOverload(funcName, params, source, compiledTypes);
+
+        // 3. Unify source to bind type variables
         Map<String, GenericType> bindings = new LinkedHashMap<>();
         if (source != null && !def.params().isEmpty()) {
             bindings = unify(def, source.expressionType());
         }
 
-        // 3. Compile remaining params — signature-driven dispatch
-        //    compileLambdaArg binds unbound return TypeVars (e.g., V in map<T,V>)
-        //    into bindings, so resolveOutput works for all cases.
-        for (int i = (source != null ? 1 : 0); i < params.size(); i++) {
+        // 4. Process remaining params: unify pre-compiled ones, compile lambdas
+        for (int i = startIdx; i < params.size(); i++) {
             var param = params.get(i);
             PType.Param sigParam = i < def.params().size() ? def.params().get(i) : null;
 
             if (sigParam != null && isLambdaParam(sigParam) && param instanceof LambdaFunction lambda) {
+                // Lambdas are compiled AFTER resolution — they need the resolved signature
                 compileLambdaArg(lambda, sigParam, bindings, source, ctx, funcName);
-            } else if (param instanceof ClassInstance ci
-                    && ("colSpec".equals(ci.type()) || "colSpecArray".equals(ci.type()))) {
+            } else if (isColSpec(param)) {
                 // ColSpec params are column name tokens — no compilation needed
             } else {
-                TypeInfo paramInfo = env.compileExpr(param, ctx);
-                // Unify param type against signature to bind type vars (e.g., T,U in rowMapper<T,U>)
+                // Already compiled in step 1 — just unify against the signature
+                TypeInfo paramInfo = compiledInfos.get(i);
                 if (sigParam != null && paramInfo != null && paramInfo.type() != null) {
                     unifyParam(sigParam, paramInfo.type(), bindings, funcName + "() param " + i);
                 }
             }
         }
 
-        // 4. Resolve associations
+        // 5. Resolve associations
         Map<String, TypeInfo.AssociationTarget> associations = resolveAssociationsFromParams(params, source);
 
-        // 5. Output type from signature + bindings (V already bound by compileLambdaArg)
+        // 6. Output type from signature + bindings
         ExpressionType outputType = resolveOutput(def, bindings, funcName + "()");
 
-        // 6. Build TypeInfo
+        // 7. Build TypeInfo
         return TypeInfo.builder()
                 .mapping(source != null ? source.mapping() : null)
                 .associations(associations)
                 .expressionType(outputType)
+                .resolvedFunc(def)
                 .build();
     }
+
+    private static boolean isColSpec(ValueSpecification param) {
+        return param instanceof ClassInstance ci
+                && ("colSpec".equals(ci.type()) || "colSpecArray".equals(ci.type()));
+    }
 }
+
