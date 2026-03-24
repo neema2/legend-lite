@@ -71,7 +71,13 @@ public record TypeInfo(
          * Downstream callers read this instead of re-resolving overloads.
          * Null for non-function expressions.
          */
-        NativeFunctionDef resolvedFunc) {
+        NativeFunctionDef resolvedFunc,
+        /**
+         * Pre-resolved fold lowering strategy.
+         * Stamped by FoldChecker, consumed by PlanGenerator via exhaustive switch.
+         * Null for non-fold expressions.
+         */
+        FoldSpec foldSpec) {
 
     // ===== Convenience type accessors (delegate to expressionType) =====
 
@@ -105,6 +111,36 @@ public record TypeInfo(
         record IndexAccess(int index) implements VariantAccess {}
         /** Field name access: get(source, "key") → source->>'key' */
         record FieldAccess(String key) implements VariantAccess {}
+    }
+
+    /**
+     * Pre-resolved fold lowering strategy.
+     * Computed by FoldChecker, consumed by PlanGenerator via exhaustive switch.
+     * Each variant carries exactly the data PlanGenerator needs — zero AST inspection.
+     */
+    public sealed interface FoldSpec {
+        /** Body is add(acc, elem) → SQL: listConcat(init, source). */
+        record Concatenation() implements FoldSpec {}
+
+        /** T == V → SQL: listReduce(source, lambda, init). */
+        record SameType() implements FoldSpec {}
+
+        /**
+         * T ≠ V with decomposable body → SQL: listReduce(listTransform(...), reducer, init).
+         * @param elementTransform  f(elem) subtree (acc stripped from body)
+         * @param reducerBody       Pre-compiled combineOp(acc, fresh) — fully stamped by FoldChecker
+         * @param accParam          Accumulator lambda param name
+         * @param freshParam        Fresh element lambda param name
+         */
+        record MapReduce(ValueSpecification elementTransform,
+                         ValueSpecification reducerBody,
+                         String accParam, String freshParam) implements FoldSpec {}
+
+        /**
+         * T ≠ V, V = List&lt;T&gt;, non-decomposable body → wrap + SQL-level unwrap + listReduce.
+         * Marker only — no payload. PlanGenerator handles wrapping/unwrapping.
+         */
+        record CollectionBuild() implements FoldSpec {}
     }
 
     /**
@@ -326,6 +362,7 @@ public record TypeInfo(
         private ExpressionType expressionType;
         private boolean lambdaParam;
         private NativeFunctionDef resolvedFunc;
+        private FoldSpec foldSpec;
 
         private Builder() {}
 
@@ -345,6 +382,7 @@ public record TypeInfo(
             this.expressionType = src.expressionType();
             this.lambdaParam = src.lambdaParam();
             this.resolvedFunc = src.resolvedFunc();
+            this.foldSpec = src.foldSpec();
         }
 
         public Builder mapping(ClassMapping v) { this.mapping = v; return this; }
@@ -362,6 +400,7 @@ public record TypeInfo(
         public Builder expressionType(ExpressionType v) { this.expressionType = v; return this; }
         public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
         public Builder resolvedFunc(NativeFunctionDef v) { this.resolvedFunc = v; return this; }
+        public Builder foldSpec(FoldSpec v) { this.foldSpec = v; return this; }
 
         public TypeInfo build() {
             if (expressionType == null) {
@@ -372,7 +411,7 @@ public record TypeInfo(
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
                     variantAccess,
                     joinColumnRenames, graphFetchSpec, expressionType,
-                    lambdaParam, resolvedFunc);
+                    lambdaParam, resolvedFunc, foldSpec);
         }
     }
 

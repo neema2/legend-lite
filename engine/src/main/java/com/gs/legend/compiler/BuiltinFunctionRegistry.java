@@ -686,6 +686,8 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("map", "native function map<T,V>(value:T[*], func:Function<{T[1]->V[*]}>[1]):V[*];");
         reg.registerSignature("map",
                 "native function map<T,V>(value:T[0..1], func:Function<{T[1]->V[0..1]}>[1]):V[0..1];");
+        reg.registerSignature("fold",
+                "native function fold<T,V>(source:T[*], lambda:Function<{T[1],V[1]->V[1]}>[1], init:V[1]):V[1];");
         reg.registerSignature("zip", "native function zip<T,U>(set1:T[*], set2:U[*]):Pair<T,U>[*];");
         reg.registerSignature("indexOf", "native function indexOf<T>(set:T[*], value:T[1]):Integer[1];");
         reg.registerSignature("removeAllOptimized",

@@ -3580,7 +3580,14 @@ public class PlanGenerator {
             case "toMany" -> {
                 SqlExpr source = c.apply(params.get(0));
                 TypeInfo info = unit.types().get(af);
-                String elemType = info != null ? info.variantArrayElementSqlType(dialect) : null;
+                // toMany's ExpressionType is now many(elemType) — use scalar type name
+                String elemType = info != null ? info.variantScalarSqlType(dialect) : null;
+                // For toMany(@Variant), type is JSON — variantScalarSqlType returns null,
+                // but we still need CAST(source AS JSON[]) to unnest the JSON array
+                if (elemType == null && info != null
+                        && info.type() == GenericType.Primitive.JSON) {
+                    elemType = "JSON";
+                }
                 yield elemType != null ? new SqlExpr.VariantArrayCast(source, elemType) : source;
             }
             case "toVariant" -> {
@@ -3653,37 +3660,78 @@ public class PlanGenerator {
                 throw new PureCompileException("map: no parameters");
             }
             case "fold" -> {
-                // fold(source, {elem,acc|body}, init) → list_reduce(source, ((acc,elem)->body), init)
-                // Note: fold+add is handled by compiler desugar (inlinedBody → concatenate)
+                // fold(source, {elem,acc|body}, init)
+                // Exhaustive switch on FoldSpec — stamped by FoldChecker.
                 if (params.size() >= 3
                         && params.get(1) instanceof LambdaFunction(
                         List<Variable> parameters, List<ValueSpecification> body
                 )) {
-                    SqlExpr list = c.apply(params.get(0));
-                    // Wrap single values in list for list_reduce
-                    if (!firstArgIsList) {
-                        list = new SqlExpr.FunctionCall("wrapList", List.of(list));
-                    }
+                    String elemParam = parameters.get(0).name();
+                    String accParam = parameters.get(1).name();
+
+                    SqlExpr source = c.apply(params.get(0));
+                    if (!firstArgIsList)
+                        source = new SqlExpr.FunctionCall("wrapList", List.of(source));
                     SqlExpr init = c.apply(params.get(2));
-                    // Extract lambda params: x=element (1st), y=accumulator (2nd)
-                    String elemParam = parameters.isEmpty() ? "x"
-                            : parameters.get(0).name();
-                    String accParam = parameters.size() < 2 ? "y"
-                            : parameters.get(1).name();
-                    // Compile body
-                    SqlExpr lambdaBody = !body.isEmpty()
-                            ? c.apply(body.getLast()) : new SqlExpr.NullLiteral();
-                    // Emit LambdaExpr: ((acc, elem) -> body)
-                    SqlExpr lambda = new SqlExpr.LambdaExpr(
-                            List.of(accParam, elemParam), lambdaBody);
-                    yield new SqlExpr.FunctionCall("listReduce",
-                            List.of(list, lambda, init));
+
+                    TypeInfo foldInfo = unit.types().get(af);
+                    TypeInfo.FoldSpec spec = foldInfo != null ? foldInfo.foldSpec() : null;
+
+                    if (spec == null)
+                        throw new PureCompileException("fold: no FoldSpec stamped by FoldChecker");
+
+                    yield switch (spec) {
+                        // Path 1: fold+add → listConcat(init, source)
+                        case TypeInfo.FoldSpec.Concatenation() ->
+                            new SqlExpr.FunctionCall("listConcat", List.of(init, source));
+
+                        // Path 2: T == V → listReduce(source, lambda, init)
+                        case TypeInfo.FoldSpec.SameType() -> {
+                            SqlExpr lambdaBody = c.apply(body.getLast());
+                            SqlExpr lambda = new SqlExpr.LambdaExpr(
+                                    List.of(accParam, elemParam), lambdaBody);
+                            yield new SqlExpr.FunctionCall("listReduce",
+                                    List.of(source, lambda, init));
+                        }
+
+                        // Path 3: T ≠ V, decomposable → listTransform + listReduce
+                        case TypeInfo.FoldSpec.MapReduce(var transform, var reducerBody,
+                                var mrAccParam, var mrFreshParam) -> {
+                            // listTransform(source, elem -> transform)
+                            SqlExpr transformBody = c.apply(transform);
+                            SqlExpr transformLambda = new SqlExpr.LambdaExpr(
+                                    List.of(elemParam), transformBody);
+                            SqlExpr mapped = new SqlExpr.FunctionCall("listTransform",
+                                    List.of(source, transformLambda));
+                            // listReduce(mapped, (acc, __mr_x) -> reducerBody, init)
+                            SqlExpr compiledReducer = c.apply(reducerBody);
+                            SqlExpr reducerLambda = new SqlExpr.LambdaExpr(
+                                    List.of(mrAccParam, mrFreshParam), compiledReducer);
+                            yield new SqlExpr.FunctionCall("listReduce",
+                                    List.of(mapped, reducerLambda, init));
+                        }
+
+                        // Path 4: V = List<T>, non-decomposable → wrap + unwrap + listReduce
+                        case TypeInfo.FoldSpec.CollectionBuild() -> {
+                            // Wrap each source element: listTransform(source, elem -> [elem])
+                            SqlExpr wrapBody = new SqlExpr.FunctionCall("wrapList",
+                                    List.of(new SqlExpr.ColumnRef(elemParam)));
+                            SqlExpr wrapLambda = new SqlExpr.LambdaExpr(
+                                    List.of(elemParam), wrapBody);
+                            SqlExpr wrappedSource = new SqlExpr.FunctionCall("listTransform",
+                                    List.of(source, wrapLambda));
+                            // Compile body as-is, then SQL-level unwrap:
+                            // replace ColumnRef(elemParam) → listExtract(ColumnRef(elemParam), 1)
+                            SqlExpr lambdaBody = c.apply(body.getLast());
+                            SqlExpr unwrapped = unwrapElemRefs(lambdaBody, elemParam);
+                            SqlExpr lambda = new SqlExpr.LambdaExpr(
+                                    List.of(accParam, elemParam), unwrapped);
+                            yield new SqlExpr.FunctionCall("listReduce",
+                                    List.of(wrappedSource, lambda, init));
+                        }
+                    };
                 }
-                // Non-fold (< 3 params): pass through
-                if (!params.isEmpty()) {
-                    yield c.apply(params.get(0));
-                }
-                throw new PureCompileException("fold: no parameters");
+                throw new PureCompileException("fold: requires 3 parameters with lambda");
             }
             case "zip" -> {
                 // zip(list1, list2) → list of pairs
@@ -3816,10 +3864,62 @@ public class PlanGenerator {
         return new SqlExpr.Binary(left, op, right);
     }
 
-    /** Checks if an AST node represents a list value via TypeInfo side table. */
+    /** Checks if an AST node represents a many-valued expression via TypeInfo side table. */
     private boolean isListArg(ValueSpecification vs) {
         TypeInfo info = unit.typeInfoFor(vs);
-        return info.type().isList();
+        return info.expressionType().isMany();
+    }
+
+    /**
+     * SQL-level post-processor for CollectionBuild fold.
+     * Replaces ColumnRef(elemParam) → listExtract(ColumnRef(elemParam), 1)
+     * in the compiled SQL tree so wrapped elements get unwrapped in the body.
+     */
+    private static SqlExpr unwrapElemRefs(SqlExpr expr, String elemParam) {
+        if (expr instanceof SqlExpr.ColumnRef cr && cr.name().equals(elemParam)) {
+            return new SqlExpr.FunctionCall("listExtract",
+                    List.of(expr, new SqlExpr.NumericLiteral(1)));
+        }
+        // Lambda variables compile to Identifier, not ColumnRef
+        if (expr instanceof SqlExpr.Identifier id && id.name().equals(elemParam)) {
+            return new SqlExpr.FunctionCall("listExtract",
+                    List.of(expr, new SqlExpr.NumericLiteral(1)));
+        }
+        if (expr instanceof SqlExpr.FunctionCall fc) {
+            var newArgs = fc.args().stream()
+                    .map(a -> unwrapElemRefs(a, elemParam))
+                    .toList();
+            return new SqlExpr.FunctionCall(fc.name(), newArgs);
+        }
+        if (expr instanceof SqlExpr.Binary b) {
+            return new SqlExpr.Binary(
+                    unwrapElemRefs(b.left(), elemParam), b.op(),
+                    unwrapElemRefs(b.right(), elemParam));
+        }
+        if (expr instanceof SqlExpr.LambdaExpr le) {
+            // Don't unwrap inside nested lambdas that shadow the variable
+            if (le.params().contains(elemParam)) return expr;
+            return new SqlExpr.LambdaExpr(le.params(),
+                    unwrapElemRefs(le.body(), elemParam));
+        }
+        if (expr instanceof SqlExpr.CaseWhen cw) {
+            return new SqlExpr.CaseWhen(
+                    unwrapElemRefs(cw.condition(), elemParam),
+                    unwrapElemRefs(cw.thenExpr(), elemParam),
+                    unwrapElemRefs(cw.elseExpr(), elemParam));
+        }
+        if (expr instanceof SqlExpr.SearchedCase sc) {
+            var newBranches = sc.branches().stream()
+                    .map(b -> new SqlExpr.SearchedCase.WhenBranch(
+                            unwrapElemRefs(b.condition(), elemParam),
+                            unwrapElemRefs(b.result(), elemParam)))
+                    .toList();
+            SqlExpr newElse = sc.elseExpr() != null
+                    ? unwrapElemRefs(sc.elseExpr(), elemParam) : null;
+            return new SqlExpr.SearchedCase(newBranches, newElse);
+        }
+        // Cast, Subquery, literals, etc. — no ColumnRef to unwrap
+        return expr;
     }
 
     // ========== Utility Methods ==========
