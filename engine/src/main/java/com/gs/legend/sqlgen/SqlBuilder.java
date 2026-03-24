@@ -611,16 +611,20 @@ public class SqlBuilder {
             List<PivotAggregate> aggregates
     ) {}
 
-    /** Aggregate spec for PIVOT: AGG(expr) AS alias */
+    /**
+     * Aggregate spec for PIVOT: pre-rendered SQL expression + alias.
+     * PlanGenerator builds the expression via {@code generateAggFromAst().toSql()}.
+     *
+     * @param expressionSql Pre-rendered aggregate SQL, e.g. {@code SUM("treePlanted")}
+     * @param alias         Output alias suffix for pivot column naming
+     */
     public record PivotAggregate(
-            String aggFunction,    // e.g., "SUM"
-            String valueColumn,    // column name, or null if expression
-            String valueExpression, // raw SQL expression, or null if column
-            String alias           // output alias suffix
+            String expressionSql,
+            String alias
     ) {}
 
     /**
-     * Renders PIVOT SQL: PIVOT (source) ON col USING AGG(val) AS alias
+     * Renders PIVOT SQL: PIVOT (source) ON col USING expr AS alias
      */
     private String renderPivot(SQLDialect dialect) {
         StringBuilder sb = new StringBuilder();
@@ -664,22 +668,14 @@ public class SqlBuilder {
             sb.append(dialect.quoteIdentifier(pivotCols.get(0)));
         }
 
-        // USING clause
+        // USING clause — each aggregate is a pre-rendered SQL expression
         sb.append(" USING ");
         boolean first = true;
         for (var agg : pivotClause.aggregates()) {
             if (!first) sb.append(", ");
             first = false;
-            sb.append(agg.aggFunction().toUpperCase());
-            sb.append("(");
-            if (agg.valueColumn() != null) {
-                sb.append(dialect.quoteIdentifier(agg.valueColumn()));
-            } else if (agg.valueExpression() != null) {
-                sb.append(agg.valueExpression());
-            } else {
-                sb.append("1");
-            }
-            sb.append(") AS ");
+            sb.append(agg.expressionSql());
+            sb.append(" AS ");
             sb.append(dialect.quoteIdentifier("_|__" + agg.alias()));
         }
 

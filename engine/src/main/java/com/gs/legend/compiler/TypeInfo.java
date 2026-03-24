@@ -44,8 +44,6 @@ public record TypeInfo(
         String joinType,
         List<WindowSpec> windowSpecs,
         ValueSpecification inlinedBody,
-        /** Pre-resolved pivot specification. */
-        PivotSpec pivotSpec,
         /** Pre-resolved variant access annotation (for get() calls). */
         VariantAccess variantAccess,
         /**
@@ -291,32 +289,7 @@ public record TypeInfo(
         ASC, DESC
     }
 
-    /**
-     * Pre-resolved pivot specification.
-     * Computed by TypeChecker from pivot() AST params.
-     */
-    public record PivotSpec(
-            List<String> pivotColumns,
-            List<PivotAggSpec> aggregates) {
-    }
 
-    /**
-     * Single aggregate in a pivot: AGG(valueCol) AS alias.
-     * @param alias       Output column alias suffix
-     * @param aggFunction Aggregate function name (SUM, COUNT, etc.)
-     * @param valueColumn Column to aggregate (null if expression)
-     * @param valueExpr   Pre-compiled expression AST (null if simple column)
-     * @param lambdaParam Lambda parameter name for valueExpr (null if simple column).
-     *                    PlanGenerator passes this as rowParam so property accesses
-     *                    render as column refs, not struct field access.
-     */
-    public record PivotAggSpec(
-            String alias,
-            String aggFunction,
-            String valueColumn,
-            ValueSpecification valueExpr,
-            String lambdaParam) {
-    }
 
     // All TypeInfo construction goes through builder() or from(). No static shortcuts —
     // this ensures expressionType is always considered at each construction site.
@@ -347,7 +320,6 @@ public record TypeInfo(
         private String joinType;
         private List<WindowSpec> windowSpecs = List.of();
         private ValueSpecification inlinedBody;
-        private PivotSpec pivotSpec;
         private VariantAccess variantAccess;
         private Map<String, String> joinColumnRenames = Map.of();
         private com.gs.legend.plan.GraphFetchSpec graphFetchSpec;
@@ -367,7 +339,6 @@ public record TypeInfo(
             this.joinType = src.joinType();
             this.windowSpecs = src.windowSpecs();
             this.inlinedBody = src.inlinedBody();
-            this.pivotSpec = src.pivotSpec();
             this.variantAccess = src.variantAccess();
             this.joinColumnRenames = src.joinColumnRenames();
             this.graphFetchSpec = src.graphFetchSpec();
@@ -385,7 +356,6 @@ public record TypeInfo(
         public Builder joinType(String v) { this.joinType = v; return this; }
         public Builder windowSpecs(List<WindowSpec> v) { this.windowSpecs = v; return this; }
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
-        public Builder pivotSpec(PivotSpec v) { this.pivotSpec = v; return this; }
         public Builder variantAccess(VariantAccess v) { this.variantAccess = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
         public Builder graphFetchSpec(com.gs.legend.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
@@ -400,7 +370,7 @@ public record TypeInfo(
             }
             return new TypeInfo(mapping, associations, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
-                    pivotSpec, variantAccess,
+                    variantAccess,
                     joinColumnRenames, graphFetchSpec, expressionType,
                     lambdaParam, resolvedFunc);
         }

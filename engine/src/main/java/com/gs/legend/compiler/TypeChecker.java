@@ -12,7 +12,6 @@ import com.gs.legend.model.store.Table;
 import com.gs.legend.parser.PureParser;
 import com.gs.legend.plan.GenericType;
 
-
 import java.util.*;
 
 /**
@@ -34,7 +33,8 @@ import java.util.*;
  * <li>Type checking — validate column/property existence</li>
  * <li>Type inference — derive result types for projections and computed
  * columns</li>
- * <li>GenericType.Relation.Schema propagation — track columns through the pipeline</li>
+ * <li>GenericType.Relation.Schema propagation — track columns through the
+ * pipeline</li>
  * </ul>
  */
 public class TypeChecker implements TypeCheckEnv {
@@ -580,7 +580,6 @@ public class TypeChecker implements TypeCheckEnv {
 
     // ========== Shape-Preserving Operations ==========
 
-
     /** Compiles sort(source, sortSpecs). */
     /**
      * Compiles sort() / sortBy().
@@ -593,8 +592,6 @@ public class TypeChecker implements TypeCheckEnv {
         types.put(af, info);
         return info;
     }
-
-
 
     // ========== filter ==========
 
@@ -630,7 +627,6 @@ public class TypeChecker implements TypeCheckEnv {
      * SortSpecs.
      * Handles: asc(~col), desc(~col), sortInfo(~col), bare ~col, legacy CString.
      */
-
 
     // ========== Shape-Changing Operations ==========
 
@@ -670,10 +666,10 @@ public class TypeChecker implements TypeCheckEnv {
      * Selects specific columns from a relation by name.
      */
 
-
     /**
      * Compiles flatten(source, ~col).
-     * Output GenericType.Relation.Schema mirrors source but the flattened column changes type
+     * Output GenericType.Relation.Schema mirrors source but the flattened column
+     * changes type
      * from list/JSON to its element type. Column name stored in columnSpecs
      * for PlanGenerator to generate UNNEST.
      */
@@ -720,7 +716,8 @@ public class TypeChecker implements TypeCheckEnv {
     /**
      * Compiles distinct(rel) or distinct(rel, ~[cols]).
      * Without columns: output schema = source schema (just adds DISTINCT).
-     * With columns: output schema = subset of source columns (like select + DISTINCT).
+     * With columns: output schema = subset of source columns (like select +
+     * DISTINCT).
      */
     private TypeInfo compileDistinct(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -769,6 +766,7 @@ public class TypeChecker implements TypeCheckEnv {
         types.put(af, info);
         return info;
     }
+
     /**
      * Compiles join(left, right, joinType, condition).
      * Delegates to {@link com.gs.legend.compiler.checkers.JoinChecker}.
@@ -782,7 +780,10 @@ public class TypeChecker implements TypeCheckEnv {
         return info;
     }
 
-    /** Compiles asOfJoin — delegates to {@link com.gs.legend.compiler.checkers.AsOfJoinChecker}. */
+    /**
+     * Compiles asOfJoin — delegates to
+     * {@link com.gs.legend.compiler.checkers.AsOfJoinChecker}.
+     */
     private TypeInfo compileAsOfJoin(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         TypeInfo left = compileExpr(params.get(0), ctx);
@@ -793,127 +794,14 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Compiles pivot — extracts pivot columns and aggregate specs into
-     * TypeInfo.PivotSpec.
-     * Pure: relation->pivot(~[pivotCols], ~[aggName : x | $x.col : y | $y->sum()])
+     * Compiles pivot — delegates to
+     * {@link com.gs.legend.compiler.checkers.PivotChecker}.
      */
     private TypeInfo compilePivot(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) {
-            throw new PureCompileException("pivot() requires a source");
-        }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
-
-        // Extract pivot columns from params[1]: ClassInstance(ColSpecArray)
-        List<String> pivotColumns = new java.util.ArrayList<>();
-        if (params.size() > 1 && params.get(1) instanceof ClassInstance ci) {
-            if (ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
-                for (ColSpec cs : colSpecs) {
-                    pivotColumns.add(cs.name());
-                }
-            } else if (ci.value() instanceof ColSpec cs) {
-                pivotColumns.add(cs.name());
-            }
-        }
-
-        // Extract aggregate specs from params[2]: ClassInstance(ColSpecArray)
-        List<TypeInfo.PivotAggSpec> aggregates = new java.util.ArrayList<>();
-        if (params.size() > 2 && params.get(2) instanceof ClassInstance ci) {
-            List<ColSpec> aggSpecs;
-            if (ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
-                aggSpecs = colSpecs;
-            } else if (ci.value() instanceof ColSpec cs) {
-                aggSpecs = List.of(cs);
-            } else {
-                throw new PureCompileException("pivot(): unsupported aggregate spec: " + ci.value());
-            }
-
-            for (ColSpec cs : aggSpecs) {
-                String alias = cs.name();
-                String aggFunction = "SUM";
-                String valueColumn = null;
-                ValueSpecification valueExpr = null;
-
-                // function2 = aggregate function: y | $y->sum()
-                if (cs.function2() != null && !cs.function2().body().isEmpty()) {
-                    ValueSpecification aggBody = cs.function2().body().get(0);
-                    if (aggBody instanceof AppliedFunction aggFn) {
-                        aggFunction = switch (simpleName(aggFn.function())) {
-                            case "plus", "sum" -> "SUM";
-                            case "count" -> "COUNT";
-                            case "average", "mean" -> "AVG";
-                            case "min" -> "MIN";
-                            case "max" -> "MAX";
-                            default -> simpleName(aggFn.function()).toUpperCase();
-                        };
-                    }
-                }
-
-                // function1 = value extraction: x | $x.col or x | $x.a * $x.b
-                String lambdaParam = null;
-                if (cs.function1() != null && !cs.function1().body().isEmpty()) {
-                    ValueSpecification body = cs.function1().body().get(0);
-                    if (body instanceof AppliedProperty ap) {
-                        valueColumn = ap.property();
-                    } else {
-                        // Complex expression — store AST for PlanGenerator to compile
-                        valueExpr = body;
-                        // Store lambda param name so PlanGenerator can identify row accesses
-                        if (!cs.function1().parameters().isEmpty()) {
-                            lambdaParam = cs.function1().parameters().get(0).name();
-                        }
-                    }
-                }
-
-                aggregates.add(new TypeInfo.PivotAggSpec(alias, aggFunction, valueColumn, valueExpr, lambdaParam));
-            }
-        }
-
-        var pivotSpec = new TypeInfo.PivotSpec(pivotColumns, aggregates);
-
-        // Compute group-by columns: source cols minus pivot cols minus aggregate value
-        // cols.
-        // These are the columns the compiler CAN know. Dynamic pivot columns are
-        // data-dependent
-        // and will be resolved from JDBC ResultSetMetaData at execution time.
-        var groupByCols = new java.util.LinkedHashMap<String, GenericType>(source.schema().columns());
-        pivotColumns.forEach(groupByCols::remove);
-        for (var agg : aggregates) {
-            if (agg.valueColumn() != null)
-                groupByCols.remove(agg.valueColumn());
-        }
-        // Build dynamic pivot column specs from aggregates.
-        // When aggReturnType returns the generic NUMBER, refine to the source column's
-        // concrete type (e.g., SUM(Integer col) → Integer, not Number).
-        var sourceColumns = source.schema().columns();
-        var dynamicCols = aggregates.stream()
-                .map(agg -> {
-                    GenericType returnType = aggReturnType(agg.aggFunction());
-                    if (returnType == GenericType.Primitive.NUMBER) {
-                        if (agg.valueColumn() != null) {
-                            // Refine from source column type (e.g., SUM(integerCol) → Integer)
-                            GenericType colType = sourceColumns.get(agg.valueColumn());
-                            if (colType != null)
-                                returnType = colType;
-                        } else if (agg.valueExpr() != null) {
-                            // First try literal type (e.g., count pattern: SUM(1) → Integer)
-                            returnType = inferLiteralType(agg.valueExpr(), returnType);
-                            // If still NUMBER, try inferring from column references in the expression
-                            // (e.g., SUM($x.treePlanted * $x.coefficient) → Integer from source cols)
-                            if (returnType == GenericType.Primitive.NUMBER) {
-                                returnType = inferExprType(agg.valueExpr(), sourceColumns, returnType);
-                            }
-                        }
-                    }
-                    return new com.gs.legend.plan.GenericType.Relation.Schema.DynamicPivotColumn(
-                            agg.alias(), returnType);
-                })
-                .toList();
-        var partialType = new GenericType.Relation.Schema(groupByCols, dynamicCols);
-
-        var info = TypeInfo.builder().mapping(source.mapping()).pivotSpec(pivotSpec)
-                .expressionType(ExpressionType.many(new GenericType.Relation(partialType))).build();
+        var info = new com.gs.legend.compiler.checkers.PivotChecker(this)
+                .check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -934,8 +822,6 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     // ========== Window Functions (inside extend lambdas) ==========
-
-
 
     /**
      * Handles unknown/scalar functions — compiles the source (if it's a relation)
@@ -1431,15 +1317,23 @@ public class TypeChecker implements TypeCheckEnv {
                 yield info;
             }
             case "cast" -> {
-                // cast preserves source shape: if source is relational, propagate relation type
+                // cast: if target is a Relation type, use the declared schema
                 TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
+                if (targetType instanceof GenericType.Relation) {
+                    // Relational cast with declared schema: use target relation type
+                    TypeInfo info = TypeInfo.builder()
+                            .expressionType(ExpressionType.one(targetType)).build();
+                    types.put(af, info);
+                    yield info;
+                }
                 if (sourceInfo != null && sourceInfo.isRelational()) {
-                    // Relational cast: propagate source relation type through
+                    // Relational cast without explicit schema: propagate source
                     types.put(af, sourceInfo);
                     yield sourceInfo;
                 }
                 // Scalar cast: if source is list, result is list of target type
-                if (sourceInfo != null && sourceInfo.type() != null && sourceInfo.type().isList() && targetType != null) {
+                if (sourceInfo != null && sourceInfo.type() != null && sourceInfo.type().isList()
+                        && targetType != null) {
                     TypeInfo info = TypeInfo.builder()
                             .expressionType(ExpressionType.one(GenericType.listOf(targetType))).build();
                     types.put(af, info);
@@ -1554,97 +1448,6 @@ public class TypeChecker implements TypeCheckEnv {
      */
     // compileTypePropagating — replaced by ScalarChecker
 
-    /**
-     * Return type for aggregate functions, resolved from the registry.
-     * Uses the scalar (arity-1) overload's parsed return type.
-     * Throws if the aggregate is not registered — all aggregates MUST be in the
-     * registry.
-     */
-    private GenericType aggReturnType(String aggFunc) {
-        if (aggFunc == null) {
-            // Inline lambda expression in groupBy — no function name to resolve
-            return GenericType.Primitive.NUMBER;
-        }
-        var defs = builtinRegistry.resolve(aggFunc.toLowerCase());
-        if (defs.isEmpty())
-            defs = builtinRegistry.resolve(aggFunc);
-        if (defs.isEmpty()) {
-            throw new PureCompileException(
-                    "Aggregate function '" + aggFunc + "' is not registered in BuiltinFunctionRegistry");
-        }
-        // Find the scalar aggregate overload (arity 1) — not the window overload (arity
-        // 3)
-        for (var d : defs) {
-            if (d.arity() == 1 && d.returnType() instanceof PType.Concrete c) {
-                GenericType gt = c.toGenericType();
-                if (gt != null)
-                    return gt;
-            }
-        }
-        // Try any overload with a concrete return type
-        for (var d : defs) {
-            if (d.returnType() instanceof PType.Concrete c) {
-                GenericType gt = c.toGenericType();
-                if (gt != null)
-                    return gt;
-            }
-        }
-        // TypeVar return (e.g., minBy<T>→T, maxBy<T>→T): type depends on source column.
-        // Return NUMBER so refinedAggReturnType() can refine to the actual source
-        // column type.
-        for (var d : defs) {
-            if (d.returnType() instanceof PType.TypeVar) {
-                return GenericType.Primitive.NUMBER;
-            }
-        }
-        throw new PureCompileException(
-                "Aggregate function '" + aggFunc + "' has no resolvable return type in its registered signatures");
-    }
-
-
-
-    /**
-     * Infers a GenericType from a literal value expression (pivot count patterns).
-     */
-    private static GenericType inferLiteralType(ValueSpecification expr, GenericType fallback) {
-        if (expr instanceof CInteger)
-            return GenericType.Primitive.INTEGER;
-        if (expr instanceof CFloat)
-            return GenericType.Primitive.FLOAT;
-        if (expr instanceof CDecimal)
-            return GenericType.DEFAULT_DECIMAL;
-        if (expr instanceof CString)
-            return GenericType.Primitive.STRING;
-        if (expr instanceof CBoolean)
-            return GenericType.Primitive.BOOLEAN;
-        return fallback;
-    }
-
-    /**
-     * Infers a GenericType from an expression by walking the AST for column
-     * references.
-     * E.g., $x.treePlanted * $x.coefficient → finds treePlanted:Integer → Integer.
-     * Returns the first resolved column type, or the fallback if none found.
-     */
-    private static GenericType inferExprType(ValueSpecification expr, Map<String, GenericType> sourceColumns,
-            GenericType fallback) {
-        if (expr instanceof AppliedProperty ap) {
-            GenericType colType = sourceColumns.get(ap.property());
-            if (colType != null)
-                return colType;
-        }
-        if (expr instanceof AppliedFunction af) {
-            for (var p : af.parameters()) {
-                GenericType found = inferExprType(p, sourceColumns, null);
-                if (found != null)
-                    return found;
-            }
-        }
-        return fallback;
-    }
-
-
-
     /** Compiles if(condition, then-lambda, else-lambda) with type unification. */
     private TypeInfo compileIf(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
@@ -1685,7 +1488,6 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
-
 
     /**
      * Compiles eval() using the inlinedBody sidecar pattern.
@@ -1837,7 +1639,8 @@ public class TypeChecker implements TypeCheckEnv {
 
     /**
      * Compiles a struct literal ^ClassName(prop=val, ...) with proper type info.
-     * Builds a GenericType.Relation.Schema where each property becomes a typed column,
+     * Builds a GenericType.Relation.Schema where each property becomes a typed
+     * column,
      * so PlanGenerator can distinguish arrays (need UNNEST) from scalars.
      */
     private TypeInfo compileInstanceLiteral(ClassInstance ci, CompilationContext ctx) {
@@ -2140,14 +1943,11 @@ public class TypeChecker implements TypeCheckEnv {
         return TypeInfo.simpleName(qualifiedName);
     }
 
-
-
     private String extractStringValue(ValueSpecification vs) {
         if (vs instanceof CString(String value))
             return value;
         throw new PureCompileException("Expected string, got: " + vs.getClass().getSimpleName());
     }
-
 
     /**
      * Scans a filter lambda body for multi-hop property paths and resolves
@@ -2227,6 +2027,7 @@ public class TypeChecker implements TypeCheckEnv {
             }
         }
     }
+
     /**
      * Recursively extracts property chain from nested AppliedProperty.
      * e.g., $p.items.name → ["items", "name"]
@@ -2239,24 +2040,6 @@ public class TypeChecker implements TypeCheckEnv {
         }
         return new java.util.ArrayList<>(List.of(ap.property()));
     }
-
-
-    private String extractPropertyName(ValueSpecification vs) {
-        if (vs instanceof AppliedProperty ap) {
-            return ap.property();
-        }
-        if (vs instanceof AppliedFunction af) {
-            // For chained property access like $p.date->year(),
-            // extract bottommost property
-            if (!af.parameters().isEmpty()) {
-                return extractPropertyName(af.parameters().get(0));
-            }
-            // Zero-arg function like now(), today() — use the function name
-            return simpleName(af.function());
-        }
-        return null;
-    }
-
 
     // ========== Other AST Nodes ==========
 
@@ -2385,8 +2168,10 @@ public class TypeChecker implements TypeCheckEnv {
                         return scalarTyped(ap, fieldType);
                     }
                 }
-                // Association-injected properties (e.g., $p.addresses from Association Person_Address)
-                // These are first-class properties in Pure, just stored on the Association rather than the Class.
+                // Association-injected properties (e.g., $p.addresses from Association
+                // Person_Address)
+                // These are first-class properties in Pure, just stored on the Association
+                // rather than the Class.
                 var assocNav = modelContext.findAssociationByProperty(qualifiedName, ap.property());
                 if (assocNav.isPresent()) {
                     var nav = assocNav.get();
@@ -2478,8 +2263,10 @@ public class TypeChecker implements TypeCheckEnv {
                 return info;
             }
         }
-        // .prop on an AppliedProperty that returns a ClassType (multi-hop association path)
-        // e.g., $p.addresses.city → addresses returns ClassType("Address"), resolve city from Address
+        // .prop on an AppliedProperty that returns a ClassType (multi-hop association
+        // path)
+        // e.g., $p.addresses.city → addresses returns ClassType("Address"), resolve
+        // city from Address
         if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty ownerAp) {
             TypeInfo ownerInfo = compileExpr(ownerAp, ctx);
             if (ownerInfo != null && modelContext != null) {
@@ -2529,7 +2316,8 @@ public class TypeChecker implements TypeCheckEnv {
         }
         GenericType elementType = unifyElementType(coll.values());
         // For struct collections, carry both list type AND struct column info
-        // so isList() works (for contains/head/find dispatch) AND project() can resolve columns
+        // so isList() works (for contains/head/find dispatch) AND project() can resolve
+        // columns
         if (!coll.values().isEmpty()) {
             TypeInfo firstElem = types.get(coll.values().get(0));
             if (firstElem != null && firstElem.mapping() != null && firstElem.schema() != null) {
@@ -2609,7 +2397,8 @@ public class TypeChecker implements TypeCheckEnv {
     // ========== Compilation Context ==========
 
     /**
-     * Context for compilation — tracks variable → GenericType.Relation.Schema and variable →
+     * Context for compilation — tracks variable → GenericType.Relation.Schema and
+     * variable →
      * Mapping bindings.
      */
     public record CompilationContext(
@@ -2737,7 +2526,8 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Registers relational TypeInfo with pre-resolved associations in the side table.
+     * Registers relational TypeInfo with pre-resolved associations in the side
+     * table.
      */
     private TypeInfo typed(ValueSpecification ast, GenericType.Relation.Schema relationType,
             ClassMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {

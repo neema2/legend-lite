@@ -400,9 +400,15 @@ public sealed interface GenericType
      * Maps a Pure type name string to the best GenericType.
      * Only use for known primitive type names. For property types, use fromType(Type) instead.
      */
-    static GenericType fromTypeName(String name) {
+     static GenericType fromTypeName(String name) {
         // Handle qualified names: strip package prefix for primitive check
         String simpleName = name.contains("::") ? name.substring(name.lastIndexOf("::") + 2) : name;
+
+        // Relation type literal: (col1:Type1, col2:Type2, ...) → Relation with schema
+        if (name.startsWith("(") && name.endsWith(")")) {
+            return parseRelationType(name);
+        }
+
         return switch (simpleName) {
             case "Integer" -> Primitive.INTEGER;
             case "Float" -> Primitive.FLOAT;
@@ -420,6 +426,68 @@ public sealed interface GenericType
             // Non-primitive types (Relation, classes, enums) → ClassType
             default -> new ClassType(name);
         };
+    }
+
+    /**
+     * Parses a relation type literal: {@code (col1:Type1,col2:Type2,'quoted col':Type3)}
+     * into a {@link Relation} with a populated schema.
+     */
+    private static GenericType parseRelationType(String text) {
+        // Strip outer parens
+        String inner = text.substring(1, text.length() - 1).trim();
+        if (inner.isEmpty()) {
+            return new Relation(Relation.Schema.empty());
+        }
+
+        var columns = new java.util.LinkedHashMap<String, GenericType>();
+
+        // Split on commas, but respect quoted column names
+        int i = 0;
+        while (i < inner.length()) {
+            // Skip whitespace
+            while (i < inner.length() && inner.charAt(i) == ' ') i++;
+            if (i >= inner.length()) break;
+
+            // Extract column name (possibly quoted)
+            String colName;
+            if (inner.charAt(i) == '\'') {
+                // Quoted column name: find closing quote
+                int end = inner.indexOf('\'', i + 1);
+                if (end < 0) throw new IllegalArgumentException(
+                        "Unterminated quoted column name in relation type: " + text);
+                colName = inner.substring(i + 1, end);
+                i = end + 1;
+            } else {
+                // Unquoted: read until ':'
+                int end = inner.indexOf(':', i);
+                if (end < 0) throw new IllegalArgumentException(
+                        "Missing ':' after column name in relation type: " + text);
+                colName = inner.substring(i, end).trim();
+                i = end;
+            }
+
+            // Skip ':' separator
+            if (i >= inner.length() || inner.charAt(i) != ':') {
+                throw new IllegalArgumentException(
+                        "Expected ':' after column name '" + colName + "' in relation type: " + text);
+            }
+            i++; // skip ':'
+
+            // Extract type name (until ',' or end)
+            int end = inner.indexOf(',', i);
+            String typeName = (end >= 0 ? inner.substring(i, end) : inner.substring(i)).trim();
+
+            // Strip multiplicity if present (e.g., "Integer[1]" → "Integer")
+            int bracketIdx = typeName.indexOf('[');
+            if (bracketIdx >= 0) {
+                typeName = typeName.substring(0, bracketIdx).trim();
+            }
+
+            columns.put(colName, fromTypeName(typeName));
+            i = (end >= 0) ? end + 1 : inner.length();
+        }
+
+        return new Relation(Relation.Schema.withoutPivot(columns));
     }
 
     /**

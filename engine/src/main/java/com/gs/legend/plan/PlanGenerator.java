@@ -1085,10 +1085,10 @@ public class PlanGenerator {
         String tableAlias = unquote(source.getFromAlias());
 
         // Minimize wrapping: if source has no ORDER BY, add directly.
-        // CRITICAL: UNION ALL must be wrapped — ORDER BY after UNION applies
-        // only to the left branch unless the whole thing is in a subquery.
+        // CRITICAL: UNION ALL and PIVOT must be wrapped — they render with
+        // completely different syntax that can't have ORDER BY appended.
         SqlBuilder target = source;
-        if (source.hasOrderBy() || source.hasSetOperation()) {
+        if (source.hasOrderBy() || source.hasSetOperation() || source.hasPivot()) {
             target = new SqlBuilder()
                     .selectStar()
                     .fromSubquery(source, "sort_src");
@@ -1944,35 +1944,45 @@ public class PlanGenerator {
 
     // ========== pivot ==========
     /**
-     * Generates PIVOT SQL from TypeInfo sidecar (all metadata extracted by TypeChecker).
+     * Generates PIVOT SQL from TypeInfo sidecar — same pattern as groupBy.
+     * Reads pivot column names from {@code columnSpecs} and aggregates from
+     * {@code aggColumnSpecs} + AST fn1/fn2 via {@link #generateAggFromAst}.
+     *
      * SQL: PIVOT (source) ON pivotCol USING AGG(valueCol) AS "_|__alias"
      */
     private SqlBuilder generatePivot(AppliedFunction af) {
         SqlBuilder source = generateRelation(af.parameters().get(0));
 
         TypeInfo info = unit.typeInfoFor(af);
-        if (info == null || info.pivotSpec() == null) {
-            throw new PureCompileException("pivot(): missing PivotSpec in TypeInfo sidecar");
+        if (info == null || info.columnSpecs().isEmpty()) {
+            throw new PureCompileException("pivot(): missing pivot column specs in TypeInfo sidecar");
         }
-        TypeInfo.PivotSpec spec = info.pivotSpec();
 
-        // Convert compiler PivotAggSpecs to SqlBuilder PivotAggregates
+        // Pivot column names from columnSpecs (set by PivotChecker)
+        List<String> pivotColumns = info.columnSpecs().stream()
+                .map(TypeInfo.ColumnSpec::columnName)
+                .toList();
+
+        // Aggregate columns — same pattern as generateGroupBy/generateAggregate
+        int aggParamIdx = af.parameters().size() - 1;
+        List<ColSpec> astSpecs = com.gs.legend.compiler.checkers.GroupByChecker
+                .extractAggColSpecs(af.parameters().get(aggParamIdx));
         List<SqlBuilder.PivotAggregate> aggregates = new java.util.ArrayList<>();
-        for (var agg : spec.aggregates()) {
-            String valueExprSql = null;
-            if (agg.valueExpr() != null) {
-                // Complex expression — compile to SQL with lambda param as rowParam
-                // so property accesses render as column refs, not struct field access
-                SqlExpr expr = generateScalar(agg.valueExpr(), agg.lambdaParam(), null, null);
-                valueExprSql = expr.toSql(dialect);
-            }
-            aggregates.add(new SqlBuilder.PivotAggregate(
-                    agg.aggFunction(), agg.valueColumn(), valueExprSql, agg.alias()));
+        for (int i = 0; i < info.aggColumnSpecs().size(); i++) {
+            var acs = info.aggColumnSpecs().get(i);
+            ColSpec ast = astSpecs.get(i);
+
+            SqlExpr aggExpr = generateAggFromAst(acs, ast);
+            if (acs.castType() != null)
+                aggExpr = new SqlExpr.Cast(aggExpr, dialect.sqlTypeName(acs.castType().typeName()));
+            String exprSql = aggExpr.toSql(dialect);
+            aggregates.add(new SqlBuilder.PivotAggregate(exprSql, acs.alias()));
         }
+
         // Build pivot on a fresh builder — source becomes fromSubquery so
         // renderPivot serializes the full source chain (WHERE, SELECT, etc.)
         SqlBuilder pivotBuilder = new SqlBuilder().fromSubquery(source, null);
-        pivotBuilder.pivot(new SqlBuilder.PivotClause(spec.pivotColumns(), aggregates));
+        pivotBuilder.pivot(new SqlBuilder.PivotClause(pivotColumns, aggregates));
         return pivotBuilder;
     }
 
