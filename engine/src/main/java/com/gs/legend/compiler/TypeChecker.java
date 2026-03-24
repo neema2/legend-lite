@@ -806,19 +806,13 @@ public class TypeChecker implements TypeCheckEnv {
         return info;
     }
 
-    /**
-     * Compiles from(source, runtimeRef).
-     * Passes through the source's type — from() is a runtime binding, not a type
-     * change.
-     */
+    /** Compiles from(source, runtimeRef). Delegates to FromChecker. */
     private TypeInfo compileFrom(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) {
-            throw new PureCompileException("from() requires a source");
-        }
-
         TypeInfo source = compileExpr(params.get(0), ctx);
-        return typed(af, source.schema(), source.mapping());
+        var info = new com.gs.legend.compiler.checkers.FromChecker(this).check(af, source, ctx);
+        types.put(af, info);
+        return info;
     }
 
     // ========== Window Functions (inside extend lambdas) ==========
@@ -984,24 +978,11 @@ public class TypeChecker implements TypeCheckEnv {
         return scalarTypedMany(af, GenericType.listOf(GenericType.pairOf(elemA, elemB)));
     }
 
-    /**
-     * write() is a mutation: operates on relations (needs relational compilation
-     * path)
-     * but returns a scalar Integer count. relationType keeps PlanGenerator routing
-     * through generateRelation → generateWrite; returnType tells execution layer
-     * to extract a ScalarResult.
-     */
+    /** Compiles write(source). Delegates to WriteChecker. */
     private TypeInfo compileWrite(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            try {
-                compileExpr(p, ctx);
-            } catch (PureCompileException ignored) {
-            }
-        }
-        TypeInfo info = TypeInfo.builder()
-                .expressionType(ExpressionType.one(GenericType.Primitive.INTEGER))
-                .build();
+        TypeInfo source = !params.isEmpty() ? compileExpr(params.get(0), ctx) : null;
+        var info = new com.gs.legend.compiler.checkers.WriteChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -1259,16 +1240,11 @@ public class TypeChecker implements TypeCheckEnv {
         return evalInfo;
     }
 
-    /** Compiles letFunction('x', valueExpr) — standalone let. */
+    /** Compiles letFunction('x', valueExpr). Delegates to LetChecker. */
     private TypeInfo compileLet(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.size() >= 2) {
-            return compileExpr(params.get(1), ctx);
-        }
-        if (!params.isEmpty()) {
-            return compileExpr(params.get(0), ctx);
-        }
-        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
+        var info = new com.gs.legend.compiler.checkers.LetChecker(this).check(af, null, ctx);
+        types.put(af, info);
+        return info;
     }
 
     /**

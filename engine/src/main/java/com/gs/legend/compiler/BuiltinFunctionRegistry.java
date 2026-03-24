@@ -736,6 +736,33 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("sort",
                 "native function sort<T|m>(col:T[m], comp:Function<{T[1],T[1]->Integer[1]}>[0..1]):T[m];");
 
+        // ===== letFunction =====
+        // Standard form: letFunction('varName', valueExpr) → propagates value type
+        reg.registerSignature("letFunction",
+                "native function letFunction<T>(name:String[1], value:T[1]):T[1];");
+        // Single-param form (expression-only let, no variable binding)
+        reg.registerSignature("letFunction",
+                "native function letFunction<T>(value:T[*]):T[*];");
+
+        // ===== from (runtime binding) =====
+        // Relational: from(source:Relation<T>, runtime) — passthrough, just binds runtime
+        reg.registerSignature("from",
+                "native function from<T>(source:Relation<T>[1], runtime:Any[1]):Relation<T>[1];");
+        // Single-arg: from(source:Relation<T>) — identity passthrough
+        reg.registerSignature("from",
+                "native function from<T>(source:Relation<T>[1]):Relation<T>[1];");
+        // Scalar from: from(source:T, mapping, runtime) — M2M / non-relational
+        reg.registerSignature("from",
+                "native function from<T>(source:T[*], mapping:Any[1], runtime:Any[1]):T[*];");
+
+        // ===== write =====
+        // write(source:Relation<T>, target) → Integer[1] (count of rows written)
+        reg.registerSignature("write",
+                "native function write<T>(source:Relation<T>[1], target:Any[1]):Integer[1];");
+        // write(source:Relation<T>) — single-arg form
+        reg.registerSignature("write",
+                "native function write<T>(source:Relation<T>[1]):Integer[1];");
+
         // ===== Misc =====
         reg.registerSignature("pair", "native function pair<T,U>(first:T[1], second:U[1]):Pair<T,U>[1];");
         reg.registerSignature("list", "native function list<T>(values:T[*]):List<T>[1];");
