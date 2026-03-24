@@ -44,8 +44,6 @@ public record TypeInfo(
         String joinType,
         List<WindowSpec> windowSpecs,
         ValueSpecification inlinedBody,
-        /** Table alias prefix for property accesses (e.g. "left_src" in join conditions). */
-        String columnAlias,
         /** Pre-resolved pivot specification. */
         PivotSpec pivotSpec,
         /** Pre-resolved variant access annotation (for get() calls). */
@@ -349,7 +347,6 @@ public record TypeInfo(
         private String joinType;
         private List<WindowSpec> windowSpecs = List.of();
         private ValueSpecification inlinedBody;
-        private String columnAlias;
         private PivotSpec pivotSpec;
         private VariantAccess variantAccess;
         private Map<String, String> joinColumnRenames = Map.of();
@@ -370,7 +367,6 @@ public record TypeInfo(
             this.joinType = src.joinType();
             this.windowSpecs = src.windowSpecs();
             this.inlinedBody = src.inlinedBody();
-            this.columnAlias = src.columnAlias();
             this.pivotSpec = src.pivotSpec();
             this.variantAccess = src.variantAccess();
             this.joinColumnRenames = src.joinColumnRenames();
@@ -389,7 +385,6 @@ public record TypeInfo(
         public Builder joinType(String v) { this.joinType = v; return this; }
         public Builder windowSpecs(List<WindowSpec> v) { this.windowSpecs = v; return this; }
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
-        public Builder columnAlias(String v) { this.columnAlias = v; return this; }
         public Builder pivotSpec(PivotSpec v) { this.pivotSpec = v; return this; }
         public Builder variantAccess(VariantAccess v) { this.variantAccess = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
@@ -405,7 +400,7 @@ public record TypeInfo(
             }
             return new TypeInfo(mapping, associations, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
-                    columnAlias, pivotSpec, variantAccess,
+                    pivotSpec, variantAccess,
                     joinColumnRenames, graphFetchSpec, expressionType,
                     lambdaParam, resolvedFunc);
         }

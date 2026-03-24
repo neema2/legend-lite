@@ -314,9 +314,10 @@ public abstract class AbstractChecker implements FunctionChecker {
      * <p>This replaces the need for a separate validate() call on the source
      * parameter — unify does both validation and binding.
      *
-     * <p>Currently unifies only the source parameter (param[0]). Sufficient
-     * for single-TypeVar functions (filter, sort, exists, map, etc.).
-     * Multi-param unification needed for join<T,V,K,R> — extend when needed.
+     * <p>Unifies only the source parameter (param[0]). Sufficient for
+     * single-TypeVar functions (filter, sort, exists, map, etc.).
+     * For multi-TypeVar functions (join, asOfJoin), use
+     * {@link #unify(NativeFunctionDef, List)}.
      */
     protected Map<String, GenericType> unify(NativeFunctionDef def, ExpressionType source) {
         var bindings = new LinkedHashMap<String, GenericType>();
@@ -325,14 +326,6 @@ public abstract class AbstractChecker implements FunctionChecker {
                     def.name() + "(): signature has no parameters");
         }
         PType.Param param0 = def.params().get(0);
-
-        // TODO: Currently unifies only param[0] (the source). This works for
-        //   single-TypeVar functions (filter, sort, exists, map, forAll) where T
-        //   is fully determined by the source. For multi-TypeVar functions like
-        //   join<T,V,K,R>, we need to iterate all params and unify each against
-        //   its corresponding actual argument. When we hit join, extend this to:
-        //     for (int i = 0; i < def.params().size(); i++)
-        //       unifyType(def.params().get(i).type(), actuals[i].type(), bindings, ctx)
 
         // Validate + bind type
         unifyType(param0.type(), source.type(), bindings, def.name() + "() source");
@@ -345,6 +338,41 @@ public abstract class AbstractChecker implements FunctionChecker {
             validateMult(param0.mult(), source.multiplicity(), def.name() + "() source");
         }
 
+        return bindings;
+    }
+
+    /**
+     * Multi-parameter unification: validates + binds type variables from
+     * multiple actual arguments against the signature.
+     *
+     * <p>Required for multi-TypeVar functions like:
+     * <pre>
+     * join&lt;T,V&gt;(rel1:Relation&lt;T&gt;, rel2:Relation&lt;V&gt;, ...)
+     * </pre>
+     * where T must be bound from param[0] and V from param[1].
+     *
+     * <p>Null entries in {@code actuals} are skipped — callers pass null
+     * for params that are not yet compiled (lambdas, enum literals, etc.)
+     * and handle those params separately.
+     *
+     * @param def     The resolved function signature
+     * @param actuals Compiled ExpressionTypes, indexed by param position.
+     *                Null entries are skipped.
+     * @return Map of type variable name → resolved GenericType
+     */
+    protected Map<String, GenericType> unify(NativeFunctionDef def,
+                                              List<ExpressionType> actuals) {
+        var bindings = new LinkedHashMap<String, GenericType>();
+        if (def.params().isEmpty()) {
+            throw new PureCompileException(
+                    def.name() + "(): signature has no parameters");
+        }
+        for (int i = 0; i < def.params().size() && i < actuals.size(); i++) {
+            if (actuals.get(i) == null) continue;
+            PType.Param param = def.params().get(i);
+            unifyType(param.type(), actuals.get(i).type(), bindings,
+                      def.name() + "() param[" + i + "]");
+        }
         return bindings;
     }
 
@@ -436,8 +464,11 @@ public abstract class AbstractChecker implements FunctionChecker {
                             context + ": expected " + c.name() + ", got " + actual.typeName());
                 }
             }
-            case PType.SchemaAlgebra sa -> throw new PureCompileException(
-                    context + ": schema algebra unification not yet supported");
+            case PType.SchemaAlgebra sa -> {
+                // Schema algebra (T+V, T-Z) doesn't appear during source unification.
+                // If encountered (e.g., in a FunctionType param), skip — the algebra
+                // only matters during return-type resolution via resolve().
+            }
             case PType.FunctionType ft -> throw new PureCompileException(
                     context + ": FunctionType should not appear in source unification");
             case PType.RelationTypeVar rtv -> throw new PureCompileException(
@@ -484,12 +515,55 @@ public abstract class AbstractChecker implements FunctionChecker {
                         .map(a -> resolve(a, bindings, context)).toList();
                 yield new GenericType.Parameterized(p.rawType(), resolvedArgs);
             }
-            case PType.SchemaAlgebra sa -> throw new PureCompileException(
-                    context + ": schema algebra resolution not yet supported");
+            case PType.SchemaAlgebra sa -> {
+                GenericType left = resolve(sa.left(), bindings, context);
+                GenericType right = resolve(sa.right(), bindings, context);
+                yield resolveSchemaAlgebra(left, right, sa.op(), context);
+            }
             case PType.FunctionType ft -> throw new PureCompileException(
                     context + ": cannot resolve FunctionType to GenericType");
             case PType.RelationTypeVar rtv -> throw new PureCompileException(
                     context + ": cannot resolve RelationTypeVar to GenericType");
+        };
+    }
+
+    /**
+     * Resolves a SchemaAlgebra node to a {@link GenericType.Tuple} by performing
+     * the schema operation (Union, Difference) on the resolved left/right Tuples.
+     *
+     * <p>Operations supported:
+     * <ul>
+     *   <li>{@code Union (T+V)} — merges all columns from both schemas</li>
+     *   <li>{@code Difference (T-Z)} — removes Z's column names from T's schema</li>
+     * </ul>
+     *
+     * <p>The result is always a {@code Tuple} — callers like the {@code Relation<T+V>}
+     * case in {@link #resolve} unwrap it back into a {@code Relation}.
+     */
+    private GenericType resolveSchemaAlgebra(GenericType left, GenericType right,
+                                            PType.SchemaAlgebra.OpType op, String context) {
+        GenericType.Relation.Schema leftSchema = extractSchema(left, context + " (left)");
+        GenericType.Relation.Schema rightSchema = extractSchema(right, context + " (right)");
+
+        return switch (op) {
+            case Union -> new GenericType.Tuple(leftSchema.merge(rightSchema));
+            case Difference -> new GenericType.Tuple(leftSchema.withoutColumns(
+                    rightSchema.columns().keySet()));
+            case Subset, Equal -> throw new PureCompileException(
+                    context + ": schema algebra op " + op + " not yet supported in resolution");
+        };
+    }
+
+    /**
+     * Extracts the column schema from a resolved GenericType.
+     * Handles both Tuple (row type from type-var binding) and Relation.
+     */
+    private GenericType.Relation.Schema extractSchema(GenericType type, String context) {
+        return switch (type) {
+            case GenericType.Tuple t -> t.schema();
+            case GenericType.Relation r -> r.schema();
+            default -> throw new PureCompileException(
+                    context + ": expected Tuple or Relation schema, got " + type.typeName());
         };
     }
 

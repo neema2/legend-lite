@@ -339,10 +339,16 @@ public class BuiltinFunctionRegistry {
         // Join
         reg.registerSignature("join",
                 "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], joinKind:JoinKind[1], f:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<T+V>[1];");
+        // Join with right-side prefix (syntactic sugar for rename on right source)
+        reg.registerSignature("join",
+                "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], joinKind:JoinKind[1], f:Function<{T[1],V[1]->Boolean[1]}>[1], prefix:String[1]):Relation<T+V>[1];");
         reg.registerSignature("asOfJoin",
                 "native function asOfJoin<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], match:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<T+V>[1];");
         reg.registerSignature("asOfJoin",
                 "native function asOfJoin<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], match:Function<{T[1],V[1]->Boolean[1]}>[1], join:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<T+V>[1];");
+        // asOfJoin with prefix (requires both match + join lambdas)
+        reg.registerSignature("asOfJoin",
+                "native function asOfJoin<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], match:Function<{T[1],V[1]->Boolean[1]}>[1], join:Function<{T[1],V[1]->Boolean[1]}>[1], prefix:String[1]):Relation<T+V>[1];");
 
         // Pivot
         reg.registerSignature("pivot",
@@ -505,11 +511,18 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("eq", "native function eq(left:Any[1], right:Any[1]):Boolean[1];");
         reg.registerSignature("greaterThan",
                 "native function greaterThan(left:Number[1], right:Number[1]):Boolean[1];");
+        reg.registerSignature("greaterThan",
+                "native function greaterThan(left:Date[1], right:Date[1]):Boolean[1];");
         reg.registerSignature("lessThan", "native function lessThan(left:Number[1], right:Number[1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:Date[1], right:Date[1]):Boolean[1];");
         reg.registerSignature("greaterThanEqual",
                 "native function greaterThanEqual(left:Number[1], right:Number[1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual",
+                "native function greaterThanEqual(left:Date[1], right:Date[1]):Boolean[1];");
         reg.registerSignature("lessThanEqual",
                 "native function lessThanEqual(left:Number[1], right:Number[1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual",
+                "native function lessThanEqual(left:Date[1], right:Date[1]):Boolean[1];");
         reg.registerSignature("between",
                 "native function between(value:Number[1], low:Number[1], high:Number[1]):Boolean[1];");
         reg.registerSignature("compare", "native function compare(left:Any[1], right:Any[1]):Integer[1];");

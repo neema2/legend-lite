@@ -1786,12 +1786,13 @@ public class PlanGenerator {
             conditionIdx = -1; // cross join, no condition
         }
 
-        // Build ON condition from lambda — properties pre-tagged by TypeChecker
+        // Build ON condition from lambda — derive param→alias mapping from AST
         SqlExpr onCondition = null;
         if (conditionIdx >= 0 && conditionIdx < params.size()) {
             var condSpec = params.get(conditionIdx);
             if (condSpec instanceof LambdaFunction lf) {
-                onCondition = generateScalar(lf.body().get(0), null, null);
+                Map<String, String> aliases = buildJoinAliases(lf);
+                onCondition = generateScalar(lf.body().get(0), null, null, null, aliases);
             }
         }
         String leftAlias = dialect.quoteIdentifier("left_src");
@@ -1850,13 +1851,15 @@ public class PlanGenerator {
         // Match condition: {t, q | $t.time > $q.time}
         SqlExpr matchCondition = null;
         if (params.get(2) instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            matchCondition = generateScalar(lf.body().get(0), null, null);
+            Map<String, String> aliases = buildJoinAliases(lf);
+            matchCondition = generateScalar(lf.body().get(0), null, null, null, aliases);
         }
 
         // Optional key condition: {t, q | $t.symbol == $q.symbol}
         SqlExpr keyCondition = null;
         if (params.size() >= 4 && params.get(3) instanceof LambdaFunction lf && !lf.body().isEmpty()) {
-            keyCondition = generateScalar(lf.body().get(0), null, null);
+            Map<String, String> aliases = buildJoinAliases(lf);
+            keyCondition = generateScalar(lf.body().get(0), null, null, null, aliases);
         }
 
         // Build ON clause: key AND match (key first if present)
@@ -1910,7 +1913,20 @@ public class PlanGenerator {
         return result;
     }
 
-    // (generateJoinCondition and resolveJoinColumn — DELETED: replaced by sidecar-based columnAlias)
+    /**
+     * Builds lambda param → table alias mapping for join conditions.
+     * First lambda param → "left_src", second → "right_src".
+     */
+    private static Map<String, String> buildJoinAliases(LambdaFunction lf) {
+        var params = lf.parameters();
+        if (params.size() >= 2) {
+            return Map.of(params.get(0).name(), "left_src",
+                          params.get(1).name(), "right_src");
+        } else if (params.size() == 1) {
+            return Map.of(params.get(0).name(), "left_src");
+        }
+        return Map.of();
+    }
 
     private String unquote(String s) {
         if (s != null && s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
@@ -1963,28 +1979,42 @@ public class PlanGenerator {
     // ========== Scalar Expression Compilation ==========
 
     /**
-     * Compiles a scalar expression to SqlExpr. Delegates to 4-arg with null
-     * tableAlias.
+     * Compiles a scalar expression to SqlExpr. Delegates to 5-arg with null
+     * tableAlias and varAliases.
      */
     SqlExpr generateScalar(ValueSpecification vs, String rowParam, ClassMapping mapping) {
-        return generateScalar(vs, rowParam, mapping, null);
+        return generateScalar(vs, rowParam, mapping, null, null);
     }
 
     /**
-     * Canonical 4-arg version: compiles scalar with optional table alias prefix.
+     * Compiles scalar with optional table alias prefix. Delegates to 5-arg.
      */
     SqlExpr generateScalar(ValueSpecification vs, String rowParam, ClassMapping mapping, String tableAlias) {
+        return generateScalar(vs, rowParam, mapping, tableAlias, null);
+    }
+
+    /**
+     * Canonical 5-arg version: compiles scalar with optional table alias prefix
+     * and optional variable→alias mapping for join condition lambda params.
+     *
+     * @param varAliases Maps lambda param names to table aliases (e.g., "l" → "left_src").
+     *                   Used by join/asOfJoin to qualify column references without
+     *                   compiler-side tagging. Null outside join conditions.
+     */
+    SqlExpr generateScalar(ValueSpecification vs, String rowParam, ClassMapping mapping,
+                           String tableAlias, Map<String, String> varAliases) {
         // Compiler-driven inlining: follow inlinedBody pointers (let bindings, blocks, user functions)
         TypeInfo vsInfo = unit.types().get(vs);
         if (vsInfo != null && vsInfo.inlinedBody() != null) {
-            return generateScalar(vsInfo.inlinedBody(), rowParam, mapping, tableAlias);
+            return generateScalar(vsInfo.inlinedBody(), rowParam, mapping, tableAlias, varAliases);
         }
         return switch (vs) {
             case AppliedProperty ap -> {
-                // Join condition: TypeChecker tagged this with columnAlias ("left_src" or "right_src")
-                TypeInfo apInfo = unit.types().get(ap);
-                if (apInfo != null && apInfo.columnAlias() != null) {
-                    yield new SqlExpr.Column(apInfo.columnAlias(), ap.property());
+                // Join condition: resolve variable→alias from lambda param mapping
+                if (varAliases != null && !ap.parameters().isEmpty()
+                        && ap.parameters().get(0) instanceof Variable v
+                        && varAliases.containsKey(v.name())) {
+                    yield new SqlExpr.Column(varAliases.get(v.name()), ap.property());
                 }
                 // Check for association path: $p.addresses.street
                 if (tableAlias != null && !ap.parameters().isEmpty()
@@ -2063,9 +2093,9 @@ public class PlanGenerator {
                         throw new PureCompileException(
                                 "Inlined function '" + af.function() + "' returns a relation in scalar context");
                     }
-                    yield generateScalar(afInfo.inlinedBody(), rowParam, mapping, tableAlias);
+                    yield generateScalar(afInfo.inlinedBody(), rowParam, mapping, tableAlias, varAliases);
                 }
-                yield generateScalarFunction(af, rowParam, mapping, tableAlias);
+                yield generateScalarFunction(af, rowParam, mapping, tableAlias, varAliases);
             }
             case CInteger i -> {
                 // Check compiler type annotation for precision
@@ -2163,13 +2193,13 @@ public class PlanGenerator {
      * and comparisons may produce EXISTS subqueries for association paths.
      */
     private SqlExpr generateScalarFunction(AppliedFunction af, String rowParam, ClassMapping mapping,
-            String tableAlias) {
+            String tableAlias, Map<String, String> varAliases) {
         String funcName = simpleName(af.function());
         List<ValueSpecification> params = af.parameters();
 
         // Helper: recursively compile with same context
         java.util.function.Function<ValueSpecification, SqlExpr> c = v -> generateScalar(v, rowParam, mapping,
-                tableAlias);
+                tableAlias, varAliases);
 
         // Helper: check if first param is a list via TypeInfo side table
         boolean firstArgIsList = !params.isEmpty() && isListArg(params.get(0));

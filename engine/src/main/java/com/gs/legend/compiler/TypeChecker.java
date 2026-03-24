@@ -771,206 +771,23 @@ public class TypeChecker implements TypeCheckEnv {
     }
     /**
      * Compiles join(left, right, joinType, condition).
-     * Pre-resolves joinType from EnumValue/CString/AppliedProperty.
+     * Delegates to {@link com.gs.legend.compiler.checkers.JoinChecker}.
      */
     private TypeInfo compileJoin(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3) {
-            throw new PureCompileException("join() requires left source, right source, and condition");
-        }
-
         TypeInfo left = compileExpr(params.get(0), ctx);
-        TypeInfo right = compileExpr(params.get(1), ctx);
-
-        // Pre-resolve join type from params
-        String joinType = "INNER"; // default
-        if (params.size() >= 4) {
-            joinType = extractJoinTypeName(params.get(2));
-        } else if (params.get(2) instanceof EnumValue) {
-            joinType = extractJoinTypeName(params.get(2));
-        }
-
-        // Extract optional right-side prefix for duplicate column disambiguation
-        // join(left, right, JoinType, condition, 'prefix')
-        String rightPrefix = null;
-        int prefixIdx = params.size() >= 4 ? 4 : 3; // after condition
-        if (prefixIdx < params.size() && params.get(prefixIdx) instanceof CString(String value)) {
-            rightPrefix = value;
-        }
-
-        // Detect duplicate column names between left and right
-        Set<String> leftColNames = left.schema().columns().keySet();
-        Set<String> rightColNames = right.schema().columns().keySet();
-        Set<String> duplicates = new LinkedHashSet<>();
-        for (String name : rightColNames) {
-            if (leftColNames.contains(name)) {
-                duplicates.add(name);
-            }
-        }
-
-        // If duplicates found and no prefix supplied → throw with helpful message
-        if (!duplicates.isEmpty() && rightPrefix == null) {
-            throw new PureCompileException(
-                    "Join produces duplicate columns " + duplicates
-                            + ". Supply a right-side prefix parameter to disambiguate: "
-                            + "->join(right, JoinType.INNER, {l, r | ...}, 'prefix')");
-        }
-
-        // Merge columns: left stays as-is, right gets prefix on conflicts only
-        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.schema().columns());
-        Map<String, String> renames = new LinkedHashMap<>(); // original → prefixed
-        for (var entry : right.schema().columns().entrySet()) {
-            String name = entry.getKey();
-            if (duplicates.contains(name)) {
-                String prefixed = rightPrefix + "_" + name;
-                mergedColumns.put(prefixed, entry.getValue());
-                renames.put(name, prefixed);
-            } else {
-                mergedColumns.put(name, entry.getValue());
-            }
-        }
-
-        // Walk the condition lambda and tag each AppliedProperty with its join-side
-        // alias
-        int conditionIdx = params.size() >= 4 ? 3 : 2;
-        if (conditionIdx < params.size() && params.get(
-                conditionIdx) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
-            String leftParam = parameters.size() > 0 ? parameters.get(0).name() : "l";
-            String rightParam = parameters.size() > 1 ? parameters.get(1).name() : "r";
-            if (!body.isEmpty()) {
-                tagJoinConditionProperties(body.get(0), leftParam, rightParam);
-            }
-        }
-
-        var joinRelType = GenericType.Relation.Schema.withoutPivot(mergedColumns);
-        var info = TypeInfo.builder().mapping(left.mapping()).joinType(joinType)
-                .joinColumnRenames(renames)
-                .expressionType(ExpressionType.many(new GenericType.Relation(joinRelType)))
-                .build();
+        var info = new com.gs.legend.compiler.checkers.JoinChecker(this)
+                .check(af, left, ctx);
         types.put(af, info);
         return info;
     }
 
-    /**
-     * Recursively tags each AppliedProperty in a join condition with its join-side
-     * alias.
-     * PlanGenerator reads columnAlias from the side table instead of AST-walking.
-     */
-    private void tagJoinConditionProperties(ValueSpecification vs, String leftParam, String rightParam) {
-        switch (vs) {
-            case AppliedProperty ap -> {
-                if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
-                    if (v.name().equals(leftParam)) {
-                        types.put(ap, TypeInfo.builder().columnAlias("left_src").build());
-                    } else if (v.name().equals(rightParam)) {
-                        types.put(ap, TypeInfo.builder().columnAlias("right_src").build());
-                    }
-                }
-            }
-            case AppliedFunction afn -> {
-                for (var p : afn.parameters()) {
-                    tagJoinConditionProperties(p, leftParam, rightParam);
-                }
-            }
-            case LambdaFunction lf -> {
-                for (var body : lf.body()) {
-                    tagJoinConditionProperties(body, leftParam, rightParam);
-                }
-            }
-            default -> {
-                /* literals, variables — no tagging needed */ }
-        }
-    }
-
-    /** Extracts join type name from EnumValue, CString, or AppliedProperty. */
-    private String extractJoinTypeName(ValueSpecification vs) {
-        String typeName = switch (vs) {
-            case EnumValue ev -> ev.value();
-            case CString cs -> cs.value();
-            case AppliedProperty ap -> ap.property();
-            default -> "INNER";
-        };
-        return typeName.toUpperCase().replace(" ", "_");
-    }
-
-    /** Compiles asOfJoin — tags BOTH match and key condition lambdas. */
+    /** Compiles asOfJoin — delegates to {@link com.gs.legend.compiler.checkers.AsOfJoinChecker}. */
     private TypeInfo compileAsOfJoin(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3) {
-            throw new PureCompileException("asOfJoin() requires left, right, and match condition");
-        }
-
         TypeInfo left = compileExpr(params.get(0), ctx);
-        TypeInfo right = compileExpr(params.get(1), ctx);
-
-        // Extract optional right-side prefix for duplicate column disambiguation
-        // asOfJoin(left, right, matchCond, keyCond?, 'prefix')
-        String rightPrefix = null;
-        // Check after key condition (index 4), or after match condition (index 3) if no
-        // key lambda
-        for (int i = 3; i < params.size(); i++) {
-            if (params.get(i) instanceof CString(String value)) {
-                rightPrefix = value;
-                break;
-            }
-        }
-
-        // Detect duplicate column names between left and right
-        Set<String> leftColNames = left.schema().columns().keySet();
-        Set<String> rightColNames = right.schema().columns().keySet();
-        Set<String> duplicates = new LinkedHashSet<>();
-        for (String name : rightColNames) {
-            if (leftColNames.contains(name)) {
-                duplicates.add(name);
-            }
-        }
-
-        // If duplicates found and no prefix supplied → throw with helpful message
-        if (!duplicates.isEmpty() && rightPrefix == null) {
-            throw new PureCompileException(
-                    "asOfJoin produces duplicate columns " + duplicates
-                            + ". Supply a right-side prefix parameter to disambiguate: "
-                            + "->asOfJoin(right, {t, q | ...}, {t, q | ...}, 'prefix')");
-        }
-
-        // Merge columns: left stays as-is, right gets prefix on conflicts only
-        Map<String, GenericType> mergedColumns = new LinkedHashMap<>(left.schema().columns());
-        Map<String, String> renames = new LinkedHashMap<>(); // original → prefixed
-        for (var entry : right.schema().columns().entrySet()) {
-            String name = entry.getKey();
-            if (duplicates.contains(name)) {
-                String prefixed = rightPrefix + "_" + name;
-                mergedColumns.put(prefixed, entry.getValue());
-                renames.put(name, prefixed);
-            } else {
-                mergedColumns.put(name, entry.getValue());
-            }
-        }
-
-        // Tag match condition lambda (params[2])
-        if (params.get(2) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
-            String leftParam = parameters.size() > 0 ? parameters.get(0).name() : "l";
-            String rightParam = parameters.size() > 1 ? parameters.get(1).name() : "r";
-            if (!body.isEmpty()) {
-                tagJoinConditionProperties(body.get(0), leftParam, rightParam);
-            }
-        }
-
-        // Tag key condition lambda (params[3]) if present
-        if (params.size() >= 4
-                && params.get(3) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
-            String leftParam = parameters.size() > 0 ? parameters.get(0).name() : "l";
-            String rightParam = parameters.size() > 1 ? parameters.get(1).name() : "r";
-            if (!body.isEmpty()) {
-                tagJoinConditionProperties(body.get(0), leftParam, rightParam);
-            }
-        }
-
-        var crossJoinRelType = GenericType.Relation.Schema.withoutPivot(mergedColumns);
-        var info = TypeInfo.builder().mapping(left.mapping())
-                .joinColumnRenames(renames)
-                .expressionType(ExpressionType.many(new GenericType.Relation(crossJoinRelType)))
-                .build();
+        var info = new com.gs.legend.compiler.checkers.AsOfJoinChecker(this)
+                .check(af, left, ctx);
         types.put(af, info);
         return info;
     }
