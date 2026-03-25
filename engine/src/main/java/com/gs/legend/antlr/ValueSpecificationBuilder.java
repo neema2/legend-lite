@@ -348,8 +348,31 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
             return visit(ctx.columnBuilders());
         }
         if (ctx.type() != null) {
-            String typeName = getTypeText(ctx.type());
-            return new GenericTypeInstance(typeName);
+            PureParser.TypeContext typeCtx = ctx.type();
+
+            // Reject bare relationType shorthand: @(col:Type) is NOT legend-engine syntax
+            if (typeCtx.relationType() != null && typeCtx.qualifiedName() == null) {
+                throw new PureParseException(
+                        "Non-standard relation type syntax: @" + typeCtx.getText()
+                        + ". Use the canonical form: @Relation<" + typeCtx.getText() + ">");
+            }
+
+            // Canonical @Relation<(col:Type, ...)> — structurally walk the parse tree
+            if (typeCtx.qualifiedName() != null
+                    && "Relation".equals(typeCtx.qualifiedName().getText())
+                    && typeCtx.typeArguments() != null) {
+                // Walk typeArguments → typeWithOperation → type → relationType → columnInfo*
+                for (var twa : typeCtx.typeArguments().typeWithOperation()) {
+                    if (twa.type() != null && twa.type().relationType() != null) {
+                        com.gs.legend.plan.GenericType resolved = buildRelationType(twa.type().relationType());
+                        return new GenericTypeInstance("Relation", resolved);
+                    }
+                }
+            }
+
+            // Simple types: @Integer, @Person, etc. — resolve here too
+            String typeName = getTypeText(typeCtx);
+            return new GenericTypeInstance(typeName, com.gs.legend.plan.GenericType.fromTypeName(typeName));
         }
         if (ctx.tdsLiteral() != null) {
             return visitTdsLiteral(ctx.tdsLiteral());
@@ -913,6 +936,39 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
         if (ctx == null)
             return "";
         return ctx.getText();
+    }
+
+    /**
+     * Structurally walks the ANTLR parse tree for a relationType rule
+     * to build a {@link com.gs.legend.plan.GenericType.Relation}.
+     *
+     * <p>Grammar: {@code relationType: '(' columnInfo (',' columnInfo)* ')'}
+     * <br>{@code columnInfo: mayColumnName ':' mayColumnType multiplicity?}
+     */
+    private com.gs.legend.plan.GenericType buildRelationType(PureParser.RelationTypeContext ctx) {
+        var columns = new java.util.LinkedHashMap<String, com.gs.legend.plan.GenericType>();
+        for (var col : ctx.columnInfo()) {
+            // mayColumnName: QUESTION | columnName (columnName: identifier)
+            String colName;
+            if (col.mayColumnName().columnName() != null) {
+                colName = getIdentifierText(col.mayColumnName().columnName().identifier());
+            } else {
+                colName = "?"; // wildcard column — preserves grammar semantics
+            }
+
+            // mayColumnType: QUESTION | type
+            com.gs.legend.plan.GenericType colType;
+            if (col.mayColumnType().type() != null) {
+                colType = com.gs.legend.plan.GenericType.fromTypeName(
+                        col.mayColumnType().type().getText());
+            } else {
+                colType = com.gs.legend.plan.GenericType.Primitive.ANY; // wildcard type
+            }
+
+            columns.put(colName, colType);
+        }
+        return new com.gs.legend.plan.GenericType.Relation(
+                com.gs.legend.plan.GenericType.Relation.Schema.withoutPivot(columns));
     }
 
     private String unquote(String s) {

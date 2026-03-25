@@ -44,8 +44,6 @@ public record TypeInfo(
         String joinType,
         List<WindowSpec> windowSpecs,
         ValueSpecification inlinedBody,
-        /** Pre-resolved variant access annotation (for get() calls). */
-        VariantAccess variantAccess,
         /**
          * Right-side column renames for join duplicate resolution.
          * Maps original right-side column name → prefixed name.
@@ -101,17 +99,7 @@ public record TypeInfo(
             boolean isToMany) {
     }
 
-    /**
-     * Pre-resolved variant access pattern.
-     * Computed by TypeChecker from get() argument types.
-     * PlanGenerator reads this — never inspects AST node types.
-     */
-    public sealed interface VariantAccess {
-        /** Array index access: get(source, 0) → source[0] */
-        record IndexAccess(int index) implements VariantAccess {}
-        /** Field name access: get(source, "key") → source->>'key' */
-        record FieldAccess(String key) implements VariantAccess {}
-    }
+
 
     /**
      * Pre-resolved fold lowering strategy.
@@ -356,7 +344,6 @@ public record TypeInfo(
         private String joinType;
         private List<WindowSpec> windowSpecs = List.of();
         private ValueSpecification inlinedBody;
-        private VariantAccess variantAccess;
         private Map<String, String> joinColumnRenames = Map.of();
         private com.gs.legend.plan.GraphFetchSpec graphFetchSpec;
         private ExpressionType expressionType;
@@ -376,7 +363,6 @@ public record TypeInfo(
             this.joinType = src.joinType();
             this.windowSpecs = src.windowSpecs();
             this.inlinedBody = src.inlinedBody();
-            this.variantAccess = src.variantAccess();
             this.joinColumnRenames = src.joinColumnRenames();
             this.graphFetchSpec = src.graphFetchSpec();
             this.expressionType = src.expressionType();
@@ -394,7 +380,6 @@ public record TypeInfo(
         public Builder joinType(String v) { this.joinType = v; return this; }
         public Builder windowSpecs(List<WindowSpec> v) { this.windowSpecs = v; return this; }
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
-        public Builder variantAccess(VariantAccess v) { this.variantAccess = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
         public Builder graphFetchSpec(com.gs.legend.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
         public Builder expressionType(ExpressionType v) { this.expressionType = v; return this; }
@@ -409,7 +394,6 @@ public record TypeInfo(
             }
             return new TypeInfo(mapping, associations, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
-                    variantAccess,
                     joinColumnRenames, graphFetchSpec, expressionType,
                     lambdaParam, resolvedFunc, foldSpec);
         }
@@ -494,27 +478,5 @@ public record TypeInfo(
         return idx >= 0 ? qualifiedName.substring(idx + 2) : qualifiedName;
     }
 
-    /**
-     * For variant typed extraction: returns the SQL type name if the compiler
-     * resolved a concrete target type (e.g., "BIGINT" for @Integer), or null if untyped.
-     * Used by PlanGenerator for get(@Type), to(@Type).
-     */
-    public String variantScalarSqlType(com.gs.legend.sqlgen.SQLDialect dialect) {
-        GenericType t = type();
-        if (t == GenericType.Primitive.ANY || t == GenericType.Primitive.JSON) return null;
-        return dialect.sqlTypeName(t.typeName());
-    }
 
-    /**
-     * For variant array cast: returns the element SQL type name if the compiler
-     * resolved a list target type (e.g., "BIGINT" for toMany(@Integer)), or null.
-     * Used by PlanGenerator for toMany(@Type).
-     */
-    public String variantArrayElementSqlType(com.gs.legend.sqlgen.SQLDialect dialect) {
-        GenericType t = type();
-        if (!t.isList()) return null;
-        GenericType elemType = t.elementType();
-        if (elemType == null || elemType == GenericType.Primitive.ANY) return null;
-        return dialect.sqlTypeName(elemType.typeName());
-    }
 }

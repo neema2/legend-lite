@@ -475,7 +475,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                     SAN, USA, 2011, 2600
                     LDN, UK, 2011, 3000
                 #->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
-                ->cast(@(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer))
+                ->cast(@Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)
                 ->groupBy(~[country], ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->plus()])
                 """);
 

@@ -84,6 +84,40 @@ public sealed interface GenericType
             };
         }
 
+        /**
+         * Returns the direct parent type in the hierarchy.
+         * ANY is the root (returns itself). NIL has no meaningful parent.
+         */
+        public Primitive parent() {
+            return switch (this) {
+                case ANY -> ANY;
+                case NIL -> ANY;
+                case NUMBER, STRING, BOOLEAN, DATE, STRICT_TIME, JSON -> ANY;
+                case INTEGER, FLOAT, DECIMAL -> NUMBER;
+                case INT64, INT128 -> INTEGER;
+                case STRICT_DATE, DATE_TIME -> DATE;
+            };
+        }
+
+        /**
+         * Finds the lowest common ancestor of two primitive types.
+         * Walks both parent chains to find the closest shared ancestor.
+         * Examples: (INTEGER, FLOAT) → NUMBER, (STRICT_DATE, DATE_TIME) → DATE,
+         *           (INTEGER, STRING) → ANY.
+         */
+        public static Primitive commonSupertype(Primitive a, Primitive b) {
+            if (a == b) return a;
+            if (a.isSubtypeOf(b)) return b;
+            if (b.isSubtypeOf(a)) return a;
+            // Walk 'a' up until we find an ancestor of 'b'
+            Primitive cursor = a;
+            while (cursor != ANY) {
+                cursor = cursor.parent();
+                if (b.isSubtypeOf(cursor)) return cursor;
+            }
+            return ANY;
+        }
+
         public boolean isNumeric() {
             return this == INTEGER || this == INT64 || this == INT128
                     || this == FLOAT || this == DECIMAL || this == NUMBER;
@@ -398,16 +432,13 @@ public sealed interface GenericType
 
     /**
      * Maps a Pure type name string to the best GenericType.
-     * Only use for known primitive type names. For property types, use fromType(Type) instead.
+     * Resolves a simple type name to a GenericType.
+     * Only handles primitives and class names — relation types are resolved
+     * structurally in the builder via ANTLR parse tree walking.
      */
      static GenericType fromTypeName(String name) {
         // Handle qualified names: strip package prefix for primitive check
         String simpleName = name.contains("::") ? name.substring(name.lastIndexOf("::") + 2) : name;
-
-        // Relation type literal: (col1:Type1, col2:Type2, ...) → Relation with schema
-        if (name.startsWith("(") && name.endsWith(")")) {
-            return parseRelationType(name);
-        }
 
         return switch (simpleName) {
             case "Integer" -> Primitive.INTEGER;
@@ -428,67 +459,6 @@ public sealed interface GenericType
         };
     }
 
-    /**
-     * Parses a relation type literal: {@code (col1:Type1,col2:Type2,'quoted col':Type3)}
-     * into a {@link Relation} with a populated schema.
-     */
-    private static GenericType parseRelationType(String text) {
-        // Strip outer parens
-        String inner = text.substring(1, text.length() - 1).trim();
-        if (inner.isEmpty()) {
-            return new Relation(Relation.Schema.empty());
-        }
-
-        var columns = new java.util.LinkedHashMap<String, GenericType>();
-
-        // Split on commas, but respect quoted column names
-        int i = 0;
-        while (i < inner.length()) {
-            // Skip whitespace
-            while (i < inner.length() && inner.charAt(i) == ' ') i++;
-            if (i >= inner.length()) break;
-
-            // Extract column name (possibly quoted)
-            String colName;
-            if (inner.charAt(i) == '\'') {
-                // Quoted column name: find closing quote
-                int end = inner.indexOf('\'', i + 1);
-                if (end < 0) throw new IllegalArgumentException(
-                        "Unterminated quoted column name in relation type: " + text);
-                colName = inner.substring(i + 1, end);
-                i = end + 1;
-            } else {
-                // Unquoted: read until ':'
-                int end = inner.indexOf(':', i);
-                if (end < 0) throw new IllegalArgumentException(
-                        "Missing ':' after column name in relation type: " + text);
-                colName = inner.substring(i, end).trim();
-                i = end;
-            }
-
-            // Skip ':' separator
-            if (i >= inner.length() || inner.charAt(i) != ':') {
-                throw new IllegalArgumentException(
-                        "Expected ':' after column name '" + colName + "' in relation type: " + text);
-            }
-            i++; // skip ':'
-
-            // Extract type name (until ',' or end)
-            int end = inner.indexOf(',', i);
-            String typeName = (end >= 0 ? inner.substring(i, end) : inner.substring(i)).trim();
-
-            // Strip multiplicity if present (e.g., "Integer[1]" → "Integer")
-            int bracketIdx = typeName.indexOf('[');
-            if (bracketIdx >= 0) {
-                typeName = typeName.substring(0, bracketIdx).trim();
-            }
-
-            columns.put(colName, fromTypeName(typeName));
-            i = (end >= 0) ? end + 1 : inner.length();
-        }
-
-        return new Relation(Relation.Schema.withoutPivot(columns));
-    }
 
     /**
      * Converts a Pure m3 Type to a GenericType, preserving class/enum identity.
@@ -500,6 +470,35 @@ public sealed interface GenericType
             case com.gs.legend.model.m3.PureClass pc -> new ClassType(pc.qualifiedName());
             case com.gs.legend.model.m3.PureEnumType et -> new EnumType(et.qualifiedName());
         };
+    }
+
+    // ========== Common supertype ==========
+
+    /**
+     * Finds the closest common supertype of two types.
+     * <ul>
+     *   <li>Both Primitive → walks hierarchy via {@link Primitive#commonSupertype}</li>
+     *   <li>PrecisionDecimal treated as DECIMAL for hierarchy purposes</li>
+     *   <li>Same type (equal) → returns it directly</li>
+     *   <li>Mixed / no common ancestor → ANY</li>
+     * </ul>
+     */
+    static GenericType commonSupertype(GenericType a, GenericType b) {
+        if (a.equals(b)) return a;
+        // Normalize PrecisionDecimal to DECIMAL for hierarchy walk
+        Primitive pa = toPrimitive(a);
+        Primitive pb = toPrimitive(b);
+        if (pa != null && pb != null) {
+            return Primitive.commonSupertype(pa, pb);
+        }
+        return Primitive.ANY;
+    }
+
+    /** Maps a GenericType to its Primitive equivalent, or null if not primitive-like. */
+    private static Primitive toPrimitive(GenericType t) {
+        if (t instanceof Primitive p) return p;
+        if (t instanceof PrecisionDecimal) return Primitive.DECIMAL;
+        return null;
     }
 
     // ========== Helper methods ==========

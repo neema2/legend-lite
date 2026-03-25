@@ -147,13 +147,17 @@ public class TypeChecker implements TypeCheckEnv {
             case "flatten" -> compileFlatten(af, ctx);
             case "from" -> compileFrom(af, ctx);
             // --- Scalar collection functions with lambdas ---
+            case "map" -> compileMap(af, ctx);
             case "fold" -> compileFold(af, ctx);
             case "zip" -> compileZip(af, ctx);
+            case "if" -> compileIf(af, ctx);
             case "letFunction" -> compileLet(af, ctx);
-            // --- Type functions (cast, toMany, toOne, toVariant, to) ---
-            case "cast", "toMany", "toOne", "toVariant", "to" -> compileTypeFunction(af, ctx);
+            // --- Type functions ---
+            case "cast" -> compileCast(af, ctx);
+            case "toMany", "toOne", "toVariant", "to" -> compileTypeFunction(af, ctx);
             // --- Variant access (compiler resolves index vs field) ---
             case "get" -> compileGet(af, ctx);
+            // (if is handled above with zip)
             case "write" -> compileWrite(af, ctx);
             // --- GraphFetch / Serialize (M2M JSON output) ---
             case "graphFetch" -> compileGraphFetch(af, ctx);
@@ -161,7 +165,7 @@ public class TypeChecker implements TypeCheckEnv {
             case "eval" -> compileEval(af, ctx);
             case "match" -> compileMatch(af, ctx);
             // --- Conditional ---
-            case "if" -> compileIf(af, ctx);
+            // if — moved above to group with scalar collection functions
             // --- Registry-driven: all other functions resolved via NativeFunctionDef ---
             default -> compileRegistryOrUserFunction(af, funcName, ctx);
         };
@@ -607,6 +611,19 @@ public class TypeChecker implements TypeCheckEnv {
         return info;
     }
 
+    /**
+     * Compiles map(source, func).
+     * Delegates to MapChecker for signature-driven type validation.
+     * Correctly resolves output type V[*] or V[0..1] from the lambda body.
+     */
+    private TypeInfo compileMap(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        TypeInfo source = compileExpr(params.get(0), ctx);
+        var info = new com.gs.legend.compiler.checkers.MapChecker(this).check(af, source, ctx);
+        types.put(af, info);
+        return info;
+    }
+
     // ========== limit / take / drop / slice / first / last ==========
 
     /**
@@ -957,25 +974,13 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /** Compiles zip(list1, list2). */
+    /** Compiles zip(list1, list2). Delegates to ZipChecker. */
     private TypeInfo compileZip(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            compileExpr(p, ctx);
-        }
-        // zip(list1, list2) → List<Pair<A,B>>
-        GenericType elemA = GenericType.Primitive.ANY;
-        GenericType elemB = GenericType.Primitive.ANY;
-        if (params.size() >= 2) {
-            TypeInfo aInfo = types.get(params.get(0));
-            TypeInfo bInfo = types.get(params.get(1));
-            if (aInfo != null && aInfo.isMany() && aInfo.type() != null) {
-                elemA = aInfo.type().elementType();
-            }
-            if (bInfo != null && bInfo.isMany() && bInfo.type() != null) {
-                elemB = bInfo.type().elementType();
-            }
-        }
-        return scalarTypedMany(af, GenericType.listOf(GenericType.pairOf(elemA, elemB)));
+        TypeInfo source = !params.isEmpty() ? compileExpr(params.get(0), ctx) : null;
+        var info = new com.gs.legend.compiler.checkers.ZipChecker(this).check(af, source, ctx);
+        types.put(af, info);
+        return info;
     }
 
     /** Compiles write(source). Delegates to WriteChecker. */
@@ -987,7 +992,19 @@ public class TypeChecker implements TypeCheckEnv {
         return info;
     }
 
-    /** Compiles type conversion functions: cast, toMany, toOne, toVariant, to. */
+    /**
+     * Compiles cast(source, @Type).
+     * Delegates to CastChecker for signature-driven type validation.
+     */
+    private TypeInfo compileCast(AppliedFunction af, CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        TypeInfo source = compileExpr(params.get(0), ctx);
+        var info = new com.gs.legend.compiler.checkers.CastChecker(this).check(af, source, ctx);
+        types.put(af, info);
+        return info;
+    }
+
+    /** Compiles type conversion functions: toMany, toOne, toVariant, to. */
     private TypeInfo compileTypeFunction(AppliedFunction af, CompilationContext ctx) {
         String func = simpleName(af.function());
         List<ValueSpecification> params = af.parameters();
@@ -1000,8 +1017,8 @@ public class TypeChecker implements TypeCheckEnv {
         // Resolve target type from @Type argument (GenericTypeInstance)
         GenericType targetType = null;
         for (var p : params) {
-            if (p instanceof GenericTypeInstance(String fullPath)) {
-                targetType = GenericType.fromTypeName(simpleName(fullPath));
+            if (p instanceof GenericTypeInstance gti) {
+                targetType = gti.resolvedType();
                 break;
             }
         }
@@ -1016,37 +1033,6 @@ public class TypeChecker implements TypeCheckEnv {
                 types.put(af, info);
                 yield info;
             }
-            case "cast" -> {
-                // cast: if target is a Relation type, use the declared schema
-                TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
-                if (targetType instanceof GenericType.Relation) {
-                    // Relational cast with declared schema: use target relation type
-                    TypeInfo info = TypeInfo.builder()
-                            .expressionType(ExpressionType.one(targetType)).build();
-                    types.put(af, info);
-                    yield info;
-                }
-                if (sourceInfo != null && sourceInfo.isRelational()) {
-                    // Relational cast without explicit schema: propagate source
-                    types.put(af, sourceInfo);
-                    yield sourceInfo;
-                }
-                // Scalar cast: if source is a collection, result is many of target type
-                if (sourceInfo != null && sourceInfo.type() != null && sourceInfo.type().isList()
-                        && targetType != null) {
-                    TypeInfo info = TypeInfo.builder()
-                            .expressionType(ExpressionType.many(targetType)).build();
-                    types.put(af, info);
-                    yield info;
-                }
-                if (targetType != null) {
-                    TypeInfo info = TypeInfo.builder()
-                            .expressionType(ExpressionType.one(targetType)).build();
-                    types.put(af, info);
-                    yield info;
-                }
-                throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-            }
             case "toOne" -> {
                 // toOne extracts single value — if source has list type, return element type
                 TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
@@ -1058,18 +1044,21 @@ public class TypeChecker implements TypeCheckEnv {
                     types.put(af, info);
                     yield info;
                 }
-                // Non-list source: toOne is a no-op, propagate scalar type through
+                // Non-list source: toOne asserts exactly one value → always return [1]
+                // Critical for [0..1] → [1] conversion (e.g., get()->to(@Integer)->toOne())
                 if (sourceInfo != null && sourceInfo.type() != null) {
-                    types.put(af, sourceInfo);
-                    yield sourceInfo;
+                    TypeInfo info = TypeInfo.builder()
+                            .expressionType(ExpressionType.one(sourceInfo.type())).build();
+                    types.put(af, info);
+                    yield info;
                 }
                 throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
             }
             case "to" -> {
-                // to(@Type) — variant conversion, produces target type
+                // to(@Type) → T[0..1] — variant scalar conversion (nullable)
                 if (targetType != null) {
                     TypeInfo info = TypeInfo.builder()
-                            .expressionType(ExpressionType.one(targetType)).build();
+                            .expressionType(ExpressionType.zeroOrOne(targetType)).build();
                     types.put(af, info);
                     yield info;
                 }
@@ -1091,46 +1080,11 @@ public class TypeChecker implements TypeCheckEnv {
     /**
      * Compiles variant get(source, key) — resolves access pattern (index vs field).
      */
+    /** Compiles get(source, key) or get(source, key, @Type). Delegates to GetChecker. */
     private TypeInfo compileGet(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        // Compile params that don't already have TypeInfo (avoid overwriting lambda
-        // param info)
-        for (var p : params) {
-            if (types.get(p) == null) {
-                try {
-                    compileExpr(p, ctx);
-                } catch (PureCompileException ignored) {
-                }
-            }
-        }
-
-        // Resolve access pattern from key argument
-        TypeInfo.VariantAccess access = null;
-        if (params.size() > 1) {
-            ValueSpecification keyVs = params.get(1);
-            if (keyVs instanceof CInteger(Number value)) {
-                access = new TypeInfo.VariantAccess.IndexAccess(value.intValue());
-            } else if (keyVs instanceof CString(String value)) {
-                access = new TypeInfo.VariantAccess.FieldAccess(value);
-            }
-        }
-
-        // Resolve target type from @Type annotation (3rd param)
-        GenericType targetType = null;
-        for (var pi : params) {
-            if (pi instanceof GenericTypeInstance(String fullPath)) {
-                targetType = GenericType.fromTypeName(simpleName(fullPath));
-                break;
-            }
-        }
-
-        var builder = TypeInfo.builder();
-        // get() always returns a variant — default to JSON if no @Type annotation
-        GenericType getType = targetType != null ? targetType : GenericType.Primitive.JSON;
-        builder.expressionType(ExpressionType.one(getType));
-        if (access != null)
-            builder.variantAccess(access);
-        TypeInfo info = builder.build();
+        TypeInfo source = !params.isEmpty() ? compileExpr(params.get(0), ctx) : null;
+        var info = new com.gs.legend.compiler.checkers.GetChecker(this).check(af, source, ctx);
         types.put(af, info);
         return info;
     }
@@ -1149,42 +1103,11 @@ public class TypeChecker implements TypeCheckEnv {
     // compileTypePropagating — replaced by ScalarChecker
 
     /** Compiles if(condition, then-lambda, else-lambda) with type unification. */
+    /** Compiles if(cond, thenLambda, elseLambda). Delegates to IfChecker. */
     private TypeInfo compileIf(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        for (var p : params) {
-            try {
-                compileExpr(p, ctx);
-            } catch (PureCompileException ignored) {
-            }
-        }
-        // Unify then/else branch types
-        GenericType resultType = null;
-        if (params.size() >= 2) {
-            TypeInfo thenInfo = types.get(params.get(1));
-            if (thenInfo != null && thenInfo.type() != null) {
-                resultType = thenInfo.type();
-            }
-        }
-        if (params.size() >= 3) {
-            TypeInfo elseInfo = types.get(params.get(2));
-            if (elseInfo != null && elseInfo.type() != null) {
-                GenericType elseType = elseInfo.type();
-                if (resultType != null && !resultType.equals(elseType)) {
-                    // Widen to common supertype: both numeric → NUMBER, otherwise ANY
-                    if (resultType.isNumeric() && elseType.isNumeric()) {
-                        resultType = GenericType.Primitive.NUMBER;
-                    } else {
-                        resultType = GenericType.Primitive.ANY;
-                    }
-                } else if (resultType == null) {
-                    resultType = elseType;
-                }
-            }
-        }
-        if (resultType != null) {
-            return scalarTyped(af, resultType);
-        }
-        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
+        var info = new com.gs.legend.compiler.checkers.IfChecker(this).check(af, null, ctx);
+        types.put(af, info);
+        return info;
     }
 
     /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
@@ -1566,7 +1489,7 @@ public class TypeChecker implements TypeCheckEnv {
                 // overwrite)
                 if (types.get(af) == null
                         && ("filter".equals(simple) || "sort".equals(simple)
-                                || "reverse".equals(simple) || "map".equals(simple))
+                                || "reverse".equals(simple))
                         && !af.parameters().isEmpty()) {
                     TypeInfo sourceType = types.get(af.parameters().get(0));
                     if (sourceType != null) {

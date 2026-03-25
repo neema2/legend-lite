@@ -65,14 +65,14 @@ public abstract class AbstractChecker implements FunctionChecker {
      * @param funcName       Simple function name
      * @param params         AST parameters
      * @param source         Compiled TypeInfo for param[0], or null
-     * @param compiledTypes  Pre-compiled types keyed by param index (may be empty)
+     * @param compiledTypes  Pre-compiled expression types keyed by param index (may be empty)
      * @return The single matching NativeFunctionDef
      * @throws PureCompileException on no match or ambiguity
      */
     protected NativeFunctionDef resolveOverload(String funcName,
                                                  List<ValueSpecification> params,
                                                  TypeInfo source,
-                                                 Map<Integer, GenericType> compiledTypes) {
+                                                 Map<Integer, ExpressionType> compiledTypes) {
         var defs = BuiltinFunctionRegistry.instance().resolve(funcName);
         if (defs.isEmpty()) {
             throw new PureCompileException("Unknown function: '" + funcName + "'");
@@ -92,7 +92,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             return arityMatches.get(0);
         }
 
-        // Step 2: structural matching — uses compiled types when available
+        // Step 2: structural matching — uses compiled types (type + multiplicity) when available
         var matches = arityMatches.stream()
                 .filter(d -> matchesStructurally(d, params, source, compiledTypes))
                 .toList();
@@ -121,18 +121,19 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Scores overload candidates against ALL compiled param types.
+     * Scores overload candidates against ALL compiled expression types.
      * Returns the most specific candidate, or null if no unique winner.
      *
      * <p>Per candidate: sum score across all params with compiled types.
-     * Exact match = 2, subtype = 1, TypeVar/untyped = 0, incompatible = -1.
-     * A single -1 eliminates the candidate.
+     * Type: exact = 2, subtype = 1, TypeVar = 0, incompatible = -1.
+     * Multiplicity: exact = 5, graduated subsumption 1–4, Var = 0, incompatible = -1.
+     * A single -1 on either axis eliminates the candidate.
      *
      * <p>Mirrors JLS §15.12.2.5: among applicable methods, prefer the one
-     * with more specific parameter types.
+     * with more specific parameter types and multiplicities.
      */
     private NativeFunctionDef scoreOverloads(List<NativeFunctionDef> candidates,
-                                              Map<Integer, GenericType> compiledTypes) {
+                                              Map<Integer, ExpressionType> compiledTypes) {
         NativeFunctionDef best = null;
         int bestScore = -1;
         boolean ambiguous = false;
@@ -154,21 +155,31 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Scores a single candidate against all compiled param types.
+     * Scores a single candidate against all compiled expression types.
      * Returns -1 if any param is incompatible, otherwise sum of per-param scores.
-     * Exact match = 2, subtype = 1, TypeVar/untyped = 0.
+     *
+     * <p>Each param contributes: {@code typeScore * 10 + multScore}.
+     * Type specificity always dominates (exact=2, subtype=1, TypeVar=0).
+     * Multiplicity matching compares declared vs actual:
+     * exact = 5, graduated subsumption 1–4, Var = 0, incompatible = -1.
+     *
+     * <p>This correctly prefers {@code map(T[0..1],...)} for {@code JSON[1]}
+     * sources over {@code map(T[*],...)} because {@code [0..1]} is a tighter
+     * fit than {@code [*]} for a {@code [1]} actual.
      */
-    private int scoreCandidate(NativeFunctionDef def, Map<Integer, GenericType> compiledTypes) {
+    private int scoreCandidate(NativeFunctionDef def, Map<Integer, ExpressionType> compiledTypes) {
         int totalScore = 0;
         for (var entry : compiledTypes.entrySet()) {
             int paramIdx = entry.getKey();
-            GenericType actualType = entry.getValue();
+            ExpressionType actual = entry.getValue();
             if (paramIdx >= def.params().size()) continue;
 
-            PType declaredType = def.params().get(paramIdx).type();
-            int paramScore = scoreParam(declaredType, actualType);
-            if (paramScore < 0) return -1; // incompatible — eliminate
-            totalScore += paramScore;
+            PType.Param sigParam = def.params().get(paramIdx);
+            int typeScore = scoreParamType(sigParam.type(), actual.type());
+            if (typeScore < 0) return -1; // incompatible type — eliminate
+            int multScore = scoreParamMult(sigParam.mult(), actual.multiplicity());
+            if (multScore < 0) return -1; // incompatible multiplicity — eliminate
+            totalScore += typeScore * 10 + multScore;
         }
         return totalScore;
     }
@@ -177,7 +188,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Scores a single param: declared type vs actual compiled type.
      * Returns 2 for exact, 1 for subtype, 0 for TypeVar/Any, -1 for incompatible.
      */
-    private int scoreParam(PType declaredType, GenericType actualType) {
+    private int scoreParamType(PType declaredType, GenericType actualType) {
         if (declaredType instanceof PType.Concrete c) {
             if (!(actualType instanceof GenericType.Primitive actualPrim)) {
                 return "Any".equals(c.name()) ? 0 : -1;
@@ -196,20 +207,88 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Checks if a def's param types structurally match the AST param nodes.
+     * Scores declared multiplicity vs actual source multiplicity.
+     *
+     * <p>Scoring uses graduated tightness: tighter declared multiplicities
+     * score higher within subsumption, so the most specific applicable
+     * overload wins.
+     *
+     * <p>Score table:
+     * <ul>
+     *   <li>Exact match (declared == actual) → 5</li>
+     *   <li>Declared subsumes actual with tightness ranking:
+     *       {@code [1]}=4, {@code [0..1]}=3, {@code [1..*]}=2, {@code [*]}=1</li>
+     *   <li>Mult.Var (unresolved variable) → 0 (always applicable, lowest priority)</li>
+     *   <li>Incompatible (actual doesn't fit declared) → -1 (eliminates candidate)</li>
+     * </ul>
+     *
+     * <p>Example: actual={@code [1]}, both {@code map(T[*],...)} (score 1) and
+     * {@code map(T[0..1],...)} (score 3) subsume it, but {@code [0..1]} wins.
+     */
+    private int scoreParamMult(Mult declared, Multiplicity actual) {
+        if (declared instanceof Mult.Var) {
+            return 0; // multiplicity variable — always applicable, lowest priority
+        }
+        if (declared instanceof Mult.Fixed f) {
+            Multiplicity decl = f.value();
+            if (decl.equals(actual)) return 5; // exact match — highest
+            if (subsumes(decl, actual)) return multiplicityTightness(decl); // graduated
+            return -1; // incompatible
+        }
+        return 0;
+    }
+
+    /**
+     * Ranks how tight a declared multiplicity is.
+     * Tighter = higher score = preferred when both subsume the actual.
+     *
+     * <p>Ranking: {@code [1]} (4) > {@code [0..1]} (3) > {@code [1..*]} (2) > {@code [*]} (1).
+     */
+    private static int multiplicityTightness(Multiplicity m) {
+        if (m.isSingular() && m.isRequired()) return 4;  // [1]
+        if (m.isSingular())                    return 3;  // [0..1]
+        if (m.isRequired())                    return 2;  // [1..*]
+        return 1;                                         // [*]
+    }
+
+    /**
+     * True if {@code declared} multiplicity can accept values with {@code actual} multiplicity.
+     * {@code [*]} subsumes everything. {@code [0..1]} subsumes {@code [1]}.
+     * {@code [1..*]} subsumes {@code [1]}. {@code [0..1]} does NOT subsume {@code [*]} or {@code [1..*]}.
+     */
+    private static boolean subsumes(Multiplicity declared, Multiplicity actual) {
+        return declared.lowerBound() <= actual.lowerBound()
+                && (declared.upperBound() == null
+                    || (actual.upperBound() != null && declared.upperBound() >= actual.upperBound()));
+    }
+
+
+
+    /**
+     * Checks if a def's param types AND multiplicities structurally match the AST param nodes.
      * Uses compiled types for Concrete matching when available, falls back
      * to AST-shape matching otherwise.
+     * Multiplicity: [0..1] actual never matches [1] declared.
      */
     private boolean matchesStructurally(NativeFunctionDef def,
                                         List<ValueSpecification> params,
                                         TypeInfo source,
-                                        Map<Integer, GenericType> compiledTypes) {
+                                        Map<Integer, ExpressionType> compiledTypes) {
         for (int i = 0; i < def.params().size() && i < params.size(); i++) {
-            PType expected = def.params().get(i).type();
+            PType.Param sigParam = def.params().get(i);
+            PType expected = sigParam.type();
             ValueSpecification actual = params.get(i);
-            GenericType compiledType = compiledTypes.get(i);
+            ExpressionType compiledExpr = compiledTypes.get(i);
+            GenericType compiledType = compiledExpr != null ? compiledExpr.type() : null;
             if (!structuralMatch(expected, actual, source, i == 0, compiledType)) {
                 return false;
+            }
+            // Multiplicity check: if we have compiled multiplicity, verify it
+            // fits the declared multiplicity. [0..1] must NOT match [1].
+            if (compiledExpr != null && sigParam.mult() instanceof Mult.Fixed f) {
+                if (!subsumes(f.value(), compiledExpr.multiplicity())) {
+                    return false;
+                }
             }
         }
         return true;
@@ -840,9 +919,8 @@ public abstract class AbstractChecker implements FunctionChecker {
         if (body instanceof AppliedFunction af
                 && "cast".equals(simpleName(af.function()))) {
             for (var p : af.parameters()) {
-                if (p instanceof GenericTypeInstance(String fullPath)) {
-                    String typeName = simpleName(fullPath);
-                    return GenericType.fromTypeName(typeName);
+                if (p instanceof GenericTypeInstance gti) {
+                    return gti.resolvedType();
                 }
             }
         }

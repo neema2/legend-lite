@@ -3423,27 +3423,21 @@ public class PlanGenerator {
                 }
             }
 
-            // --- Variant access (compiler resolves access pattern) ---
+            // --- Variant access (read key literal directly from AST) ---
+            // get() always returns untyped variant — type conversion via to()/toMany()
             case "get" -> {
                 SqlExpr source = c.apply(params.get(0));
-                TypeInfo info = unit.types().get(af);
-                String targetSqlType = info != null ? info.variantScalarSqlType(dialect) : null;
-                TypeInfo.VariantAccess access = info != null ? info.variantAccess() : null;
+                ValueSpecification key = params.get(1);
 
-                if (access instanceof TypeInfo.VariantAccess.IndexAccess(int index)) {
-                    SqlExpr indexExpr = new SqlExpr.VariantIndex(source, index);
-                    yield targetSqlType != null
-                            ? new SqlExpr.VariantScalarCast(indexExpr, targetSqlType) : indexExpr;
+                if (key instanceof CInteger(Number v)) {
+                    yield new SqlExpr.VariantIndex(source, v.intValue());
                 }
-                if (access instanceof TypeInfo.VariantAccess.FieldAccess(String key)) {
-                    if (targetSqlType != null) {
-                        yield new SqlExpr.VariantScalarCast(
-                                new SqlExpr.VariantTextAccess(source, key), targetSqlType);
-                    }
-                    yield new SqlExpr.VariantAccess(source, key);
+                if (key instanceof CString(String k)) {
+                    yield new SqlExpr.VariantAccess(source, k);
                 }
-                // Compiler should always provide access pattern
-                throw new IllegalStateException("get() missing VariantAccess annotation from compiler");
+                // Dynamic key — compile as expression
+                SqlExpr keyExpr = c.apply(key);
+                yield new SqlExpr.VariantAccess(source, keyExpr.toSql(dialect));
             }
 
             // --- List/array operations ---
@@ -3580,9 +3574,8 @@ public class PlanGenerator {
             case "toMany" -> {
                 SqlExpr source = c.apply(params.get(0));
                 TypeInfo info = unit.types().get(af);
-                // toMany's ExpressionType is now many(elemType) — use scalar type name
-                String elemType = info != null ? info.variantScalarSqlType(dialect) : null;
-                // For toMany(@Variant), type is JSON — variantScalarSqlType returns null,
+                String elemType = resolveVariantSqlType(info);
+                // For toMany(@Variant), type is JSON — resolveVariantSqlType returns null,
                 // but we still need CAST(source AS JSON[]) to unnest the JSON array
                 if (elemType == null && info != null
                         && info.type() == GenericType.Primitive.JSON) {
@@ -3596,8 +3589,16 @@ public class PlanGenerator {
             case "to" -> {
                 SqlExpr source = c.apply(params.get(0));
                 TypeInfo info = unit.types().get(af);
-                String sqlType = info != null ? info.variantScalarSqlType(dialect) : null;
-                yield sqlType != null ? new SqlExpr.VariantScalarCast(source, sqlType) : source;
+                String sqlType = resolveVariantSqlType(info);
+                if (sqlType != null) {
+                    // Convert VariantAccess (->) to VariantTextAccess (->>) before CAST
+                    // so JSON string quotes are stripped before type conversion
+                    if (source instanceof SqlExpr.VariantAccess va) {
+                        source = new SqlExpr.VariantTextAccess(va.expr(), va.key());
+                    }
+                    yield new SqlExpr.VariantScalarCast(source, sqlType);
+                }
+                yield source;
             }
 
             // --- Pass-through for non-SQL functions ---
@@ -3690,8 +3691,17 @@ public class PlanGenerator {
                             SqlExpr lambdaBody = c.apply(body.getLast());
                             SqlExpr lambda = new SqlExpr.LambdaExpr(
                                     List.of(accParam, elemParam), lambdaBody);
+                            // Cast init to match list element type — DuckDB list_reduce
+                            // requires init type == list child type (e.g., INTEGER 0 vs BIGINT[])
+                            SqlExpr castInit = init;
+                            if (foldInfo != null && foldInfo.type() != null) {
+                                String sqlType = dialect.sqlTypeName(foldInfo.type().typeName());
+                                if (sqlType != null) {
+                                    castInit = new SqlExpr.Cast(init, foldInfo.type().typeName());
+                                }
+                            }
                             yield new SqlExpr.FunctionCall("listReduce",
-                                    List.of(source, lambda, init));
+                                    List.of(source, lambda, castInit));
                         }
 
                         // Path 3: T ≠ V, decomposable → listTransform + listReduce
@@ -3836,6 +3846,18 @@ public class PlanGenerator {
         // Partial: YYYY (0 dashes) or YYYY-MM (1 dash)
         long dashes = dateValue.chars().filter(ch -> ch == '-').count();
         return dashes < 2;
+    }
+
+    /**
+     * Resolves the SQL type name for a variant-typed expression.
+     * Returns the dialect-specific SQL type (e.g., "BIGINT" for Integer) if the
+     * compiler resolved a concrete target type, or null if untyped (Any/JSON).
+     */
+    private String resolveVariantSqlType(TypeInfo info) {
+        if (info == null) return null;
+        GenericType t = info.type();
+        if (t == GenericType.Primitive.ANY || t == GenericType.Primitive.JSON) return null;
+        return dialect.sqlTypeName(t.typeName());
     }
 
     /**

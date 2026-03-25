@@ -38,11 +38,11 @@ public class SlicingChecker extends AbstractChecker {
 
         // Pre-compile non-source arguments so resolveOverload has compiled types
         // for Concrete params (e.g., Integer[1] in limit/take/drop/slice)
-        Map<Integer, GenericType> compiledTypes = new java.util.HashMap<>();
+        Map<Integer, ExpressionType> compiledTypes = new java.util.HashMap<>();
         for (int i = 1; i < params.size(); i++) {
             TypeInfo argInfo = env.compileExpr(params.get(i), ctx);
             if (argInfo != null && argInfo.type() != null) {
-                compiledTypes.put(i, argInfo.type());
+                compiledTypes.put(i, argInfo.expressionType());
             }
         }
 
@@ -55,7 +55,8 @@ public class SlicingChecker extends AbstractChecker {
         for (int i = 1; i < params.size() && i < def.params().size(); i++) {
             GenericType expectedType = resolve(def.params().get(i).type(), bindings,
                     funcName + "() argument " + i);
-            GenericType actualType = compiledTypes.get(i);
+            ExpressionType actualExpr = compiledTypes.get(i);
+            GenericType actualType = actualExpr != null ? actualExpr.type() : null;
             if (actualType != null && !isAssignable(actualType, expectedType)) {
                 throw new PureCompileException(
                         funcName + "() argument " + i + ": expected "

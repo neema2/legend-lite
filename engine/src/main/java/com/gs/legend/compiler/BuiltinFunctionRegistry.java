@@ -763,6 +763,63 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("write",
                 "native function write<T>(source:Relation<T>[1]):Integer[1];");
 
+        // ===== if (conditional) =====
+        // if(condition, thenLambda, elseLambda) → T
+        reg.registerSignature("if",
+                "native function if<T>(test:Boolean[1], then:Function<{->T[*]}>[1], else:Function<{->T[*]}>[1]):T[*];");
+
+        // ===== get (variant/map access) =====
+        // get(source, key) → Variant[0..1] — navigation only, untyped
+        reg.registerSignature("get",
+                "native function get<T>(source:T[1], key:Any[1]):Any[0..1];");
+
+        // ===== Variant conversion (legend-engine aligned) =====
+        // to(@Type) → T[0..1] — scalar conversion
+        reg.registerSignature("to",
+                "native function to<T,V>(source:T[0..1], type:V[0..1]):V[0..1];");
+        // toMany(@Type) → T[*] — array conversion
+        reg.registerSignature("toMany",
+                "native function toMany<T,V>(source:T[0..1], type:V[0..1]):V[*];");
+
+        // ===== Type Conversion =====
+        // cast: preserves source multiplicity via mult var |m
+        reg.registerSignature("cast",
+                "native function cast<T|m>(source:Any[m], type:T[1]):T[m];");
+        // toVariant: lossy conversion to untyped Variant (returns Variant, NOT input type)
+        reg.registerSignature("toVariant",
+                "native function toVariant(source:Any[*]):Variant[1];");
+
+        // ===== Data Access =====
+        // getAll: class-based data query — T from Class type argument
+        reg.registerSignature("getAll",
+                "native function getAll<T>(class:Class<T>[1]):T[*];");
+        reg.registerSignature("getAll",
+                "native function getAll<T>(class:Class<T>[1], date:Date[1]):T[*];");
+        reg.registerSignature("getAll",
+                "native function getAll<T>(class:Class<T>[1], from:Date[1], to:Date[1]):T[*];");
+
+        // ===== Meta Functions =====
+        // eval: function application — return type from compiled body, not signature
+        reg.registerSignature("eval",
+                "native function eval(func:Function<Any>[1]):Any[*];");
+        reg.registerSignature("eval",
+                "native function eval<T>(func:Function<Any>[1], param:T[*]):Any[*];");
+        // match: type dispatch — return type from matching branch body
+        reg.registerSignature("match",
+                "native function match(value:Any[*], branches:Function<Any>[1..*]):Any[*];");
+        reg.registerSignature("match",
+                "native function match<P>(value:Any[*], branches:Function<Any>[1..*], extra:P[*]):Any[*];");
+
+        // ===== Graph Fetch =====
+        reg.registerSignature("graphFetch",
+                "native function graphFetch<T>(source:T[*], tree:RootGraphFetchTree<T>[1]):T[*];");
+        reg.registerSignature("graphFetch",
+                "native function graphFetch<T>(source:T[*], tree:RootGraphFetchTree<T>[1], batchSize:Integer[1]):T[*];");
+        reg.registerSignature("serialize",
+                "native function serialize<T>(source:T[*], tree:RootGraphFetchTree<T>[1]):String[1];");
+        reg.registerSignature("serialize",
+                "native function serialize<T>(source:T[*], tree:RootGraphFetchTree<T>[1], config:Any[1]):String[1];");
+
         // ===== Misc =====
         reg.registerSignature("pair", "native function pair<T,U>(first:T[1], second:U[1]):Pair<T,U>[1];");
         reg.registerSignature("list", "native function list<T>(values:T[*]):List<T>[1];");

@@ -33,12 +33,13 @@ public class ScalarChecker extends AbstractChecker {
         int startIdx = source != null ? 1 : 0;
 
         // 1. Pre-compile all non-lambda, non-colspec params to get their types.
-        //    These types feed into overload resolution for precise matching.
-        Map<Integer, GenericType> compiledTypes = new LinkedHashMap<>();
+        //    These expression types (type + multiplicity) feed into overload
+        //    resolution for precise matching on both axes.
+        Map<Integer, ExpressionType> compiledTypes = new LinkedHashMap<>();
         Map<Integer, TypeInfo> compiledInfos = new LinkedHashMap<>();
 
         if (source != null && source.type() != null) {
-            compiledTypes.put(0, source.type());
+            compiledTypes.put(0, source.expressionType());
         }
         for (int i = startIdx; i < params.size(); i++) {
             var param = params.get(i);
@@ -47,7 +48,7 @@ public class ScalarChecker extends AbstractChecker {
             }
             TypeInfo paramInfo = env.compileExpr(param, ctx);
             if (paramInfo != null && paramInfo.type() != null) {
-                compiledTypes.put(i, paramInfo.type());
+                compiledTypes.put(i, paramInfo.expressionType());
                 compiledInfos.put(i, paramInfo);
             }
         }
