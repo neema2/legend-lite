@@ -22,7 +22,32 @@ public record Multiplicity(int lowerBound, Integer upperBound) {
     
     /** One or more [1..*] */
     public static final Multiplicity ONE_MANY = new Multiplicity(1, null);
-    
+
+    /**
+     * Parses a multiplicity string from a Variable annotation.
+     *
+     * <p>Examples: {@code "1"} → [1], {@code "*"} → [*], {@code "0..1"} → [0..1],
+     * {@code "1..*"} → [1..*], {@code "1..4"} → [1..4], {@code "0"} → [0..0].
+     *
+     * @return Multiplicity for the given string, or MANY if null/empty
+     */
+    public static Multiplicity parse(String mult) {
+        if (mult == null || mult.isEmpty()) return MANY;
+        mult = mult.trim();
+        if (mult.startsWith("[") && mult.endsWith("]")) {
+            mult = mult.substring(1, mult.length() - 1);
+        }
+        if ("*".equals(mult)) return MANY;
+        if (mult.contains("..")) {
+            String[] parts = mult.split("\\.\\.");
+            int lower = Integer.parseInt(parts[0]);
+            Integer upper = "*".equals(parts[1]) ? null : Integer.parseInt(parts[1]);
+            return new Multiplicity(lower, upper);
+        }
+        int val = Integer.parseInt(mult);
+        return new Multiplicity(val, val);
+    }
+
     public Multiplicity {
         if (lowerBound < 0) {
             throw new IllegalArgumentException("Lower bound cannot be negative");

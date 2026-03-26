@@ -6,16 +6,18 @@ import com.gs.legend.compiler.*;
 import java.util.List;
 
 /**
- * Checker for {@code eval()} — meta-function that inlines function bodies.
+ * Checker for {@code eval()} — meta-function that applies a function or lambda.
  *
- * <p>Handles two patterns:
+ * <p>Eval is a meta-function: its return type comes from the compiled body,
+ * not the signature ({@code Any[*]}). Both branches store the compiled body
+ * as {@code inlinedBody} so PlanGenerator processes the resolved expression.
+ *
+ * <p>Patterns:
  * <ul>
- *   <li>{@code eval(functionRef, args...)} — rewrites to normal function call</li>
- *   <li>{@code eval(lambda, args...)} — binds lambda params to args and compiles body</li>
+ *   <li>{@code funcRef->eval(args...)} — rewrite to direct function call</li>
+ *   <li>{@code eval(lambda, args...)} — bind lambda params, compile body</li>
+ *   <li>{@code eval(lambda)} — compile body with no arg bindings</li>
  * </ul>
- *
- * <p>Both cases store the compiled body as {@code inlinedBody} so PlanGenerator
- * processes the resolved expression instead of the original eval call.
  */
 public class EvalChecker extends AbstractChecker {
 
@@ -26,42 +28,58 @@ public class EvalChecker extends AbstractChecker {
     public TypeInfo check(AppliedFunction af, TypeInfo source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // eval(functionRef, args...) — rewrite to normal function call
-        if (params.size() >= 2 && params.get(0) instanceof PackageableElementPtr(String fullPath)) {
-            String lastSegment = fullPath.contains("::")
-                    ? fullPath.substring(fullPath.lastIndexOf("::") + 2)
-                    : fullPath;
-            String funcName = lastSegment.contains("_")
-                    ? lastSegment.substring(0, lastSegment.indexOf('_'))
-                    : lastSegment;
-            // Create resolved function node and compile it via compileExpr dispatch
-            List<ValueSpecification> evalArgs = params.subList(1, params.size());
-            AppliedFunction resolved = new AppliedFunction(funcName, evalArgs);
-            TypeInfo bodyResult = env.compileExpr(resolved, ctx);
-            // Store as inlinedBody — PlanGenerator follows this pointer
-            return TypeInfo.from(bodyResult).inlinedBody(resolved).build();
+        if (params.isEmpty()) {
+            throw new PureCompileException("eval() requires at least one argument");
         }
 
-        // eval(lambda, args) — compile lambda body and store as inlinedBody
-        if (params.size() >= 2
-                && params.get(0) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
-            if (!body.isEmpty()) {
-                // Bind each lambda param to its corresponding arg value
-                TypeChecker.CompilationContext evalCtx = ctx;
+        return switch (params.get(0)) {
+            // funcRef->eval(args...) — rewrite to direct function call
+            case PackageableElementPtr(String fullPath) -> {
+                String funcName = stripTypeSignature(simpleName(fullPath));
                 List<ValueSpecification> args = params.subList(1, params.size());
-                for (int i = 0; i < parameters.size() && i < args.size(); i++) {
-                    env.compileExpr(args.get(i), ctx);
-                    evalCtx = evalCtx.withLetBinding(parameters.get(i).name(), args.get(i));
-                }
-                ValueSpecification evalBody = body.get(0);
-                TypeInfo bodyResult = env.compileExpr(evalBody, evalCtx);
-                return TypeInfo.from(bodyResult).inlinedBody(evalBody).build();
+                AppliedFunction resolved = new AppliedFunction(funcName, args);
+                TypeInfo bodyResult = env.compileExpr(resolved, ctx);
+                yield TypeInfo.from(bodyResult).inlinedBody(resolved).build();
             }
-        }
+            // eval(lambda, args...) or eval(lambda)
+            case LambdaFunction lambda -> {
+                TypeChecker.CompilationContext evalCtx = params.size() > 1
+                        ? bindLambdaArgs(lambda, params.subList(1, params.size()), ctx)
+                        : ctx;
+                TypeInfo bodyResult = compileLambdaBody(lambda, evalCtx);
+                ValueSpecification lastStmt = lambda.body().get(lambda.body().size() - 1);
+                yield TypeInfo.from(bodyResult).inlinedBody(lastStmt).build();
+            }
+            default -> throw new PureCompileException(
+                    "eval(): first argument must be a function reference or lambda, got "
+                            + params.get(0).getClass().getSimpleName());
+        };
+    }
 
-        // Fallback: route through ScalarChecker
-        TypeInfo evalSource = !params.isEmpty() ? env.compileExpr(params.get(0), ctx) : null;
-        return new ScalarChecker(env).check(af, evalSource, ctx);
+    /**
+     * Binds each lambda parameter to its corresponding eval argument as a
+     * let binding, compiling each arg along the way.
+     */
+    private TypeChecker.CompilationContext bindLambdaArgs(
+            LambdaFunction lambda, List<ValueSpecification> args,
+            TypeChecker.CompilationContext ctx) {
+        TypeChecker.CompilationContext result = ctx;
+        int bound = Math.min(lambda.parameters().size(), args.size());
+        for (int i = 0; i < bound; i++) {
+            env.compileExpr(args.get(i), result);
+            result = result.withLetBinding(lambda.parameters().get(i).name(), args.get(i));
+        }
+        return result;
+    }
+
+    /**
+     * Strips the Pure type-signature suffix from a function name.
+     * E.g., {@code sinh_Number_1__Float_1_} → {@code sinh}.
+     *
+     * <p>Assumes Pure function names are camelCase (no underscores).
+     */
+    private static String stripTypeSignature(String name) {
+        int idx = name.indexOf('_');
+        return idx > 0 ? name.substring(0, idx) : name;
     }
 }

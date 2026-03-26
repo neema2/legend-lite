@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.plan.GenericType;
 
 import java.util.List;
@@ -9,8 +10,10 @@ import java.util.List;
 /**
  * Checker for {@code match(input, [branches], extraParams...)} — static type dispatch.
  *
- * <p>Finds matching branch by type + multiplicity, compiles matched body with
- * params bound as let bindings, and stores as inlinedBody for PlanGenerator.
+ * <p>Finds the first matching branch by type + multiplicity, compiles the matched body
+ * with params bound as let bindings, and stores as {@code inlinedBody} for PlanGenerator.
+ *
+ * <p>Return type comes from the compiled branch body, not the signature ({@code Any[*]}).
  */
 public class MatchChecker extends AbstractChecker {
 
@@ -21,100 +24,104 @@ public class MatchChecker extends AbstractChecker {
     public TypeInfo check(AppliedFunction af, TypeInfo source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // Compile all params first (failures swallowed — branch matching is lenient)
-        for (var p : params) {
-            try {
-                env.compileExpr(p, ctx);
-            } catch (PureCompileException ignored) {
-            }
-        }
         if (params.size() < 2)
             throw new PureCompileException("match requires at least 2 parameters: value, branches");
 
-        // Determine input type name
-        String inputTypeName = inferTypeName(params.get(0));
-        if (inputTypeName == null)
+        // 1. Compile input value — let errors propagate (no silent swallowing)
+        TypeInfo inputInfo = env.compileExpr(params.get(0), ctx);
+
+        // 2. Get input type from compiled result
+        GenericType inputType = resolveElementType(inputInfo);
+        if (inputType == null)
             throw new PureCompileException("match: cannot infer input type");
 
-        // Extract branches from Collection (params[1])
-        List<LambdaFunction> branches;
-        if (params.get(1) instanceof PureCollection(List<ValueSpecification> values)) {
-            branches = values.stream()
+        // 3. Extract branches from Collection or single lambda (params[1])
+        List<LambdaFunction> branches = extractBranches(params.get(1));
+
+        // 4. Determine if input is a collection (affects multiplicity matching)
+        boolean inputIsMany = inputInfo.isMany();
+
+        // 5. Find first matching branch by type + multiplicity, compile its body
+        for (var branch : branches) {
+            if (branch.parameters().isEmpty()) continue;
+            Variable branchParam = branch.parameters().get(0);
+            if (branchParam.typeName() == null) continue;
+
+            String branchTypeName = TypeInfo.simpleName(branchParam.typeName());
+            if (!typeMatches(branchTypeName, inputType)) continue;
+
+            // Check multiplicity: if input is many, branch must accept many
+            if (inputIsMany) {
+                Multiplicity branchMult = Multiplicity.parse(branchParam.multiplicity());
+                if (!branchMult.isMany() && !branchMult.equals(Multiplicity.parse("0"))) continue;
+            }
+
+            // Match found — compile body with branch params bound as let bindings
+            TypeChecker.CompilationContext matchCtx = ctx
+                    .withLetBinding(branchParam.name(), params.get(0));
+
+            // Bind extra param (params[2]) if branch expects it
+            if (branch.parameters().size() > 1 && params.size() > 2) {
+                matchCtx = matchCtx.withLetBinding(
+                        branch.parameters().get(1).name(), params.get(2));
+            }
+
+            if (!branch.body().isEmpty()) {
+                ValueSpecification body = branch.body().get(0);
+                TypeInfo bodyInfo = env.compileExpr(body, matchCtx);
+                return TypeInfo.from(bodyInfo).inlinedBody(body).build();
+            }
+        }
+
+        throw new PureCompileException(
+                "match: no branch matches input type '" + inputType.typeName() + "'");
+    }
+
+    // ==================== Helpers ====================
+
+    /**
+     * Unwraps the element type from a compiled TypeInfo.
+     * For List types, returns the element type; otherwise returns the type directly.
+     */
+    private static GenericType resolveElementType(TypeInfo info) {
+        if (info == null || info.type() == null) return null;
+        GenericType t = info.type();
+        if (t.isList() && t.elementType() != null) return t.elementType();
+        return t;
+    }
+
+    /**
+     * Type-matches using GenericType hierarchy instead of string comparison.
+     * Supports exact match, subtype matching (Integer matches Number), and Any wildcard.
+     */
+    private static boolean typeMatches(String branchTypeName, GenericType inputType) {
+        if ("Any".equals(branchTypeName)) return true;
+
+        // Try primitive type matching with subtype hierarchy
+        try {
+            GenericType.Primitive branchPrimitive = GenericType.Primitive.fromTypeName(branchTypeName);
+            if (inputType instanceof GenericType.Primitive inputPrim) {
+                return inputPrim == branchPrimitive || inputPrim.isSubtypeOf(branchPrimitive);
+            }
+            // ANY input matches any branch
+            return branchPrimitive == GenericType.Primitive.ANY;
+        } catch (IllegalArgumentException e) {
+            // Non-primitive type (Date, class, etc.) — fall back to name comparison
+            return branchTypeName.equals(inputType.typeName());
+        }
+    }
+
+    /** Extracts branch lambdas from a PureCollection or a single LambdaFunction. */
+    private static List<LambdaFunction> extractBranches(ValueSpecification branchParam) {
+        if (branchParam instanceof PureCollection(List<ValueSpecification> values)) {
+            return values.stream()
                     .filter(v -> v instanceof LambdaFunction)
                     .map(v -> (LambdaFunction) v)
                     .toList();
-        } else if (params.get(1) instanceof LambdaFunction lf) {
-            branches = List.of(lf);
-        } else {
-            throw new PureCompileException("match: second parameter must be a lambda or collection of lambdas");
         }
-
-        // Determine if input is a collection (affects multiplicity matching)
-        boolean inputIsMany = (params.get(0) instanceof PureCollection(List<ValueSpecification> values)
-                && values.size() != 1)
-                || (env.lookupCompiled(params.get(0)) != null && env.lookupCompiled(params.get(0)).isMany());
-
-        // Find matching branch by type + multiplicity
-        for (var branch : branches) {
-            if (branch.parameters().isEmpty())
-                continue;
-            Variable branchParam = branch.parameters().get(0);
-            if (branchParam.typeName() == null)
-                continue;
-            String branchType = TypeInfo.simpleName(branchParam.typeName());
-            if (branchType.equals(inputTypeName)
-                    || branchType.equals("Any")
-                    || inputTypeName.equals("Any")) {
-                // Check multiplicity compatibility
-                String mult = branchParam.multiplicity();
-                boolean branchAcceptsMany = mult == null || mult.equals("*")
-                        || mult.equals("0") || mult.contains("..");
-                if (inputIsMany && !branchAcceptsMany)
-                    continue;
-                // Match found — compile the body with params bound as let bindings
-                TypeChecker.CompilationContext matchCtx = ctx;
-                matchCtx = matchCtx.withLetBinding(branchParam.name(), params.get(0));
-                // If there's an extra param (params[2]), bind it similarly
-                if (branch.parameters().size() > 1 && params.size() > 2) {
-                    Variable extraParam = branch.parameters().get(1);
-                    matchCtx = matchCtx.withLetBinding(extraParam.name(), params.get(2));
-                }
-                if (!branch.body().isEmpty()) {
-                    ValueSpecification body = branch.body().get(0);
-                    TypeInfo bodyInfo = env.compileExpr(body, matchCtx);
-                    return TypeInfo.from(bodyInfo).inlinedBody(body).build();
-                }
-            }
+        if (branchParam instanceof LambdaFunction lf) {
+            return List.of(lf);
         }
-        throw new PureCompileException("Unresolved type for function: " + TypeInfo.simpleName(af.function()));
-    }
-
-    /** Infers the simple type name from an AST node. */
-    private String inferTypeName(ValueSpecification vs) {
-        if (vs instanceof CString)       return "String";
-        if (vs instanceof CInteger)      return "Integer";
-        if (vs instanceof CFloat)        return "Float";
-        if (vs instanceof CDecimal)      return "Decimal";
-        if (vs instanceof CBoolean)      return "Boolean";
-        if (vs instanceof CStrictDate)   return "StrictDate";
-        if (vs instanceof CDateTime)     return "DateTime";
-        if (vs instanceof PureCollection(List<ValueSpecification> values)) {
-            if (!values.isEmpty()) {
-                return inferTypeName(values.get(0));
-            }
-        }
-        // Check side table
-        TypeInfo info = env.lookupCompiled(vs);
-        if (info != null && info.type() != null) {
-            GenericType st = info.type();
-            if (st.isList() && st.elementType() != null)
-                st = st.elementType();
-            if (st == GenericType.Primitive.STRING)   return "String";
-            if (st == GenericType.Primitive.INTEGER)  return "Integer";
-            if (st == GenericType.Primitive.FLOAT)    return "Float";
-            if (st == GenericType.Primitive.BOOLEAN)  return "Boolean";
-        }
-        return null;
+        throw new PureCompileException("match: second parameter must be a lambda or collection of lambdas");
     }
 }

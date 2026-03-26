@@ -1133,21 +1133,14 @@ public class TypeChecker implements TypeCheckEnv {
                 for (var param : af.parameters()) {
                     typeCheckExpression(param, ctx);
                 }
-                // Dispatch type functions properly (toMany, to, toVariant, cast)
-                // so they populate correct TypeInfo with @Type arguments
+                // Dispatch type functions properly
                 if ("cast".equals(simple)) {
                     compileCast(af, ctx);
                 } else if ("toMany".equals(simple) || "to".equals(simple)
-                        || "toVariant".equals(simple)) {
+                        || "toVariant".equals(simple) || "toOne".equals(simple)) {
                     compileTypeConversion(af, ctx);
                 } else if ("get".equals(simple)) {
                     compileGet(af, ctx);
-                } else if ("toOne".equals(simple) && !af.parameters().isEmpty()) {
-                    TypeInfo innerType = types.get(af.parameters().get(0));
-                    if (innerType != null && innerType.type() != null) {
-                        types.put(af, TypeInfo.builder()
-                                .expressionType(ExpressionType.one(innerType.type())).build());
-                    }
                 }
                 // List-preserving functions: propagate source list type through
                 // filter/sort/reverse produce same list type, map may transform element type
