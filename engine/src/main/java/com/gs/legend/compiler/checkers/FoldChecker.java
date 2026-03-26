@@ -47,7 +47,7 @@ public class FoldChecker extends AbstractChecker {
                 && "List".equals(p.rawType())) {
             sourceTypeForUnify = p.elementType();  // List<X> → X
         }
-        Map<String, GenericType> bindings = unify(def, Arrays.asList(
+        var bindings = unify(def, Arrays.asList(
                 new ExpressionType(sourceTypeForUnify, sourceExprType.multiplicity()),  // param[0]: T[*]
                 null,                                                // param[1]: lambda — skip
                 initInfo.expressionType()                           // param[2]: V[1]

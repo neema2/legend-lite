@@ -3,11 +3,10 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+
 
 /**
  * Signature-driven type checker for {@code zip()}.
@@ -41,7 +40,7 @@ public class ZipChecker extends AbstractChecker {
         }
 
         // 3. Unify type variables — bind T from set1, U from set2
-        Map<String, GenericType> bindings = unify(def, actuals);
+        var bindings = unify(def, actuals);
 
         // 4. Output type from signature — Pair<T,U>[*]
         ExpressionType outputType = resolveOutput(def, bindings, "zip()");

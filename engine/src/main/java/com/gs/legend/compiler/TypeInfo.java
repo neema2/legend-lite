@@ -136,30 +136,13 @@ public record TypeInfo(
      * Two modes:
      * <ul>
      *   <li>Relation sort: column name + direction (ascending/descending ~col)</li>
-     *   <li>Collection sort: lambda body + param name + direction ({p|$p.age})</li>
+     *   <li>Collection sort: direction only (PlanGenerator reads key lambda from AST)</li>
      * </ul>
-     * PlanGenerator dispatches on {@link #hasLambda()}: generateScalar for lambdas,
-     * ColumnRef for column names.
      *
-     * @param column      Column name for Relation sort (null for Collection sort)
-     * @param direction   ASC or DESC
-     * @param sortExpr    Lambda body AST for Collection sort (null for Relation sort)
-     * @param lambdaParam Lambda param name for Collection sort (null for Relation sort)
+     * @param column    Column name for Relation sort (null for Collection sort)
+     * @param direction ASC or DESC
      */
-    public record SortSpec(String column, SortDirection direction,
-                           ValueSpecification sortExpr, String lambdaParam) {
-        /** Relation sort: column name + direction */
-        public SortSpec(String column, SortDirection direction) {
-            this(column, direction, null, null);
-        }
-        /** Collection sort: lambda body + param name + direction */
-        public static SortSpec fromLambda(ValueSpecification body, String param,
-                                          SortDirection direction) {
-            return new SortSpec(null, direction, body, param);
-        }
-        /** True if this is a Collection sort with a lambda body. */
-        public boolean hasLambda() { return sortExpr != null; }
-    }
+    public record SortSpec(String column, SortDirection direction) {}
 
     /**
      * Pre-resolved projection column.

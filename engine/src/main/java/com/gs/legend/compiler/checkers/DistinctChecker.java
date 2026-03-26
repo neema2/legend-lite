@@ -6,7 +6,7 @@ import com.gs.legend.compiler.*;
 import com.gs.legend.plan.GenericType;
 
 import java.util.List;
-import java.util.Map;
+
 
 /**
  * Signature-driven type checker for {@code distinct()}.
@@ -36,7 +36,7 @@ public class DistinctChecker extends AbstractChecker {
         NativeFunctionDef def = resolveOverload("distinct", params, source);
 
         // 1. Bind type variables from signature (T from source)
-        Map<String, GenericType> bindings = unify(def, source.expressionType());
+        var bindings = unify(def, source.expressionType());
 
         // 2. Source must be relational
         GenericType.Relation.Schema sourceSchema = source.schema();

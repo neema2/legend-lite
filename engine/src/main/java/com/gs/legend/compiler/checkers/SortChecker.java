@@ -7,19 +7,26 @@ import com.gs.legend.plan.GenericType;
 import java.util.*;
 
 /**
- * Signature-driven type checker for {@code sort()} and {@code sortBy()}.
+ * Signature-driven type checker for {@code sort()}, {@code sortBy()},
+ * and {@code sortByReversed()}.
  *
- * <p>Canonical Pure signatures only:
+ * <p>Canonical Pure signatures:
  * <ul>
  *   <li>Relation: {@code sort<X,T>(rel:Relation<T>[1], sortInfo:SortInfo<X⊆T>[*]):Relation<T>[1]}</li>
  *   <li>Collection: {@code sort<T,U|m>(col:T[m], key:{T→U}[0..1], comp:{U,U→Int}[0..1]):T[m]}</li>
  *   <li>Collection: {@code sort<T|m>(col:T[m]):T[m]}</li>
  *   <li>Collection: {@code sort<T|m>(col:T[m], comp:{T,T→Int}[0..1]):T[m]}</li>
  *   <li>sortBy: {@code sortBy<T,U|m>(col:T[m], key:{T→U}[0..1]):T[m]}</li>
+ *   <li>sortByReversed: {@code sortByReversed<T,U|m>(col:T[m], key:{T→U}[0..1]):T[m]}</li>
  * </ul>
  *
- * <p>Relation sort uses {@code ascending(~col)} / {@code descending(~col)} which produce
- * SortInfo values. Collection sort uses key/comparator lambdas.
+ * <p>Dispatch:
+ * <ul>
+ *   <li>{@code sort} on Relation → {@link #checkRelationSort}</li>
+ *   <li>{@code sort} on Collection → {@link #checkCollectionSort} (detects direction from compare lambda)</li>
+ *   <li>{@code sortBy} → {@link #checkCollectionSortBy} with ASC</li>
+ *   <li>{@code sortByReversed} → {@link #checkCollectionSortBy} with DESC</li>
+ * </ul>
  *
  * <p>Both paths use {@link #unify} for type variable binding and
  * {@link #resolveOutput} for return type — fully signature-driven.
@@ -32,15 +39,32 @@ public class SortChecker extends AbstractChecker {
 
     public TypeInfo check(AppliedFunction af, TypeInfo source,
                           TypeChecker.CompilationContext ctx) {
-        var params = af.parameters();
         String funcName = simpleName(af.function());
-        if ("sortBy".equals(funcName)) funcName = "sort";
-        NativeFunctionDef def = resolveOverload(funcName, params, source);
+        var params = af.parameters();
 
         if (source.isRelational()) {
+            // Only "sort" is valid for Relation sort
+            NativeFunctionDef def = resolveOverload("sort", params, source);
             return checkRelationSort(af, source, def);
         }
-        return checkCollectionSort(af, source, ctx, def);
+
+        // Collection sort — dispatch by function name
+        return switch (funcName) {
+            case "sort" -> {
+                NativeFunctionDef def = resolveOverload("sort", params, source);
+                yield checkCollectionSort(af, source, ctx, def);
+            }
+            case "sortBy" -> {
+                NativeFunctionDef def = resolveOverload("sortBy", params, source);
+                yield checkCollectionSortBy(af, source, ctx, def, TypeInfo.SortDirection.ASC);
+            }
+            case "sortByReversed" -> {
+                NativeFunctionDef def = resolveOverload("sortByReversed", params, source);
+                yield checkCollectionSortBy(af, source, ctx, def, TypeInfo.SortDirection.DESC);
+            }
+            default -> throw new PureCompileException(
+                    "SortChecker: unexpected function '" + funcName + "'");
+        };
     }
 
 
@@ -55,7 +79,7 @@ public class SortChecker extends AbstractChecker {
         List<ValueSpecification> params = af.parameters();
 
         // 1. Bind type variables from signature
-        Map<String, GenericType> bindings = unify(def, source.expressionType());
+        var bindings = unify(def, source.expressionType());
 
         // 2. Extract sort specs from SortInfo params
         List<TypeInfo.SortSpec> sortSpecs = List.of();
@@ -122,8 +146,10 @@ public class SortChecker extends AbstractChecker {
                         + vs.getClass().getSimpleName());
     }
 
+    // ========== Collection Sort ==========
+
     /**
-     * Collection sort / sortBy: fully signature-driven.
+     * Collection sort: fully signature-driven.
      * Uses extractFunctionType → resolve → bindLambdaParam → compileLambdaBody
      * for each lambda parameter, same as FilterChecker.
      *
@@ -139,7 +165,7 @@ public class SortChecker extends AbstractChecker {
         List<ValueSpecification> params = af.parameters();
 
         // 1. Bind type variables from signature
-        Map<String, GenericType> bindings = unify(def, source.expressionType());
+        var bindings = unify(def, source.expressionType());
 
         // 2. Process lambdas through the signature — key lambda first to bind U
         for (int i = 1; i < params.size() && i < def.params().size(); i++) {
@@ -175,23 +201,13 @@ public class SortChecker extends AbstractChecker {
         // 3. Detect direction from compare lambda
         TypeInfo.SortDirection direction = detectCompareDirection(params);
 
-        // 4. Build SortSpec from key lambda (store body AST for PlanGenerator)
-        List<TypeInfo.SortSpec> sortSpecs;
-        if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf
-                && lf.parameters().size() == 1 && !lf.body().isEmpty()) {
-            String paramName = lf.parameters().get(0).name();
-            sortSpecs = List.of(TypeInfo.SortSpec.fromLambda(
-                    lf.body().get(0), paramName, direction));
-        } else {
-            sortSpecs = List.of(new TypeInfo.SortSpec(null, direction));
-        }
+        // 4. Direction-only SortSpec (PlanGen reads key lambda from AST)
+        List<TypeInfo.SortSpec> sortSpecs = List.of(
+                new TypeInfo.SortSpec(null, direction));
 
         // 5. Resolve associations from key lambda (for association sort support)
-        Map<String, TypeInfo.AssociationTarget> associations = Map.of();
-        if (source.mapping() != null && params.size() > 1
-                && params.get(1) instanceof LambdaFunction lf) {
-            associations = env.resolveAssociations(lf.body(), source.mapping());
-        }
+        Map<String, TypeInfo.AssociationTarget> associations =
+                resolveAssociationsFromParams(params, source);
 
         // 6. Output type from signature (T[m] → same as input)
         ExpressionType outputType = resolveOutput(def, bindings, "sort()");
@@ -199,6 +215,33 @@ public class SortChecker extends AbstractChecker {
                 .mapping(source.mapping())
                 .associations(associations)
                 .sortSpecs(sortSpecs)
+                .expressionType(outputType)
+                .build();
+    }
+
+    /**
+     * sortBy / sortByReversed: key lambda only, fixed direction.
+     * Uses compileLambdaArg — the full pipeline from AbstractChecker.
+     */
+    private TypeInfo checkCollectionSortBy(AppliedFunction af, TypeInfo source,
+                                            TypeChecker.CompilationContext ctx,
+                                            NativeFunctionDef def,
+                                            TypeInfo.SortDirection direction) {
+        var bindings = unify(def, source.expressionType());
+
+        // compileLambdaArg does: extractFunctionType → resolve → bind → compile → bind return TypeVar
+        LambdaFunction lambda = (LambdaFunction) af.parameters().get(1);
+        compileLambdaArg(lambda, def.params().get(1), bindings, source, ctx, "sortBy");
+
+        // Resolve associations (sortBy on class: {p|$p.primaryAddress.city})
+        Map<String, TypeInfo.AssociationTarget> associations =
+                resolveAssociationsFromParams(af.parameters(), source);
+
+        ExpressionType outputType = resolveOutput(def, bindings, "sortBy()");
+        return TypeInfo.builder()
+                .mapping(source.mapping())
+                .associations(associations)
+                .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)))
                 .expressionType(outputType)
                 .build();
     }

@@ -397,7 +397,7 @@ public class PlanGenerator {
             case "table", "tableReference" -> generateTableAccess(af);
             case "filter" -> generateFilter(af);
             case "project" -> generateProject(af);
-            case "sort", "sortBy" -> generateSort(af);
+            case "sort", "sortBy", "sortByReversed" -> generateSort(af);
             case "limit", "take" -> generateLimit(af);
             case "drop" -> generateDrop(af);
             case "slice" -> generateSlice(af);
@@ -1100,38 +1100,10 @@ public class PlanGenerator {
                     ? SqlBuilder.SortDirection.ASC
                     : SqlBuilder.SortDirection.DESC;
             SqlExpr colExpr;
-            if (spec.hasLambda()) {
-                // Collection sort: compile lambda body through mapping
-                // Handles property→column mapping, associations, expressions
-                colExpr = generateScalar(spec.sortExpr(), spec.lambdaParam(),
-                        mapping, tableAlias);
-                // Resolve AssociationRef → correlated scalar subquery
-                // Filter uses EXISTS (boolean), sort needs the actual value
-                SqlExpr.AssociationRef ref = findAssociationRef(colExpr);
-                if (ref != null) {
-                    TypeInfo sortInfo = unit.types().get(af);
-                    TypeInfo.AssociationTarget assocTarget = sortInfo != null && sortInfo.hasAssociations()
-                            ? sortInfo.associations().get(ref.assocProp()) : null;
-                    if (assocTarget == null) assocTarget = findAssociationInSidecar(ref.assocProp());
-                    if (assocTarget != null && assocTarget.join() != null && mapping != null) {
-                        String subAlias = "sort_j" + (tableAliasCounter++);
-                        String targetTableName = assocTarget.targetMapping().sourceTable().name();
-                        var join = assocTarget.join();
-                        String srcTableName = mapping.sourceTable().name();
-                        String leftJoinCol = join.getColumnForTable(srcTableName);
-                        String rightJoinCol = join.getColumnForTable(targetTableName);
-                        SqlExpr targetCol = new SqlExpr.Column(subAlias, ref.targetCol());
-                        SqlExpr correlation = new SqlExpr.Binary(
-                                new SqlExpr.Column(subAlias, rightJoinCol), "=",
-                                new SqlExpr.Column(tableAlias, leftJoinCol));
-                        SqlBuilder subquery = new SqlBuilder()
-                                .addSelect(targetCol, null)
-                                .from(dialect.quoteIdentifier(targetTableName),
-                                        dialect.quoteIdentifier(subAlias))
-                                .addWhere(correlation);
-                        colExpr = new SqlExpr.Subquery(subquery);
-                    }
-                }
+            if (spec.column() == null) {
+                // Collection sort: key lambda lives in the AST, not SortSpec.
+                // Extract from params[1] — same pattern as filter/project/extend.
+                colExpr = extractKeyExprFromAST(af, mapping, tableAlias);
             } else {
                 // Relation sort: column name is already the SQL column name
                 colExpr = new SqlExpr.ColumnRef(spec.column());
@@ -1140,6 +1112,72 @@ public class PlanGenerator {
         }
 
         return target;
+    }
+
+    /**
+     * Extracts and compiles the key lambda expression from a sort/sortBy/sortByReversed AST.
+     * Reads the lambda body from params[1], compiles it through mapping — same pattern
+     * as generateFilter reads its predicate from the AST.
+     *
+     * <p>Falls back to a no-op (first column) if no key lambda is present (natural sort).
+     */
+    private SqlExpr extractKeyExprFromAST(AppliedFunction af, ClassMapping mapping, String tableAlias) {
+        List<ValueSpecification> params = af.parameters();
+        String funcName = simpleName(af.function());
+
+        // Find the key lambda: for sort(col, key, comp) it's the 1-param lambda
+        // For sortBy/sortByReversed it's always params[1]
+        LambdaFunction keyLambda = null;
+        if ("sortBy".equals(funcName) || "sortByReversed".equals(funcName)) {
+            if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf) {
+                keyLambda = lf;
+            }
+        } else {
+            // sort(col, key?, comp?) — key is the 1-param lambda
+            for (int i = 1; i < params.size(); i++) {
+                if (params.get(i) instanceof LambdaFunction lf && lf.parameters().size() == 1) {
+                    keyLambda = lf;
+                    break;
+                }
+            }
+        }
+
+        if (keyLambda == null || keyLambda.body().isEmpty()) {
+            // Natural sort — no key function, pass-through
+            return new SqlExpr.NumericLiteral(1); // ORDER BY 1 (position)
+        }
+
+        String paramName = keyLambda.parameters().get(0).name();
+        SqlExpr colExpr = generateScalar(keyLambda.body().get(0), paramName, mapping, tableAlias);
+
+        // Resolve AssociationRef → correlated scalar subquery
+        // Filter uses EXISTS (boolean), sort needs the actual value
+        SqlExpr.AssociationRef ref = findAssociationRef(colExpr);
+        if (ref != null) {
+            TypeInfo sortInfo = unit.types().get(af);
+            TypeInfo.AssociationTarget assocTarget = sortInfo != null && sortInfo.hasAssociations()
+                    ? sortInfo.associations().get(ref.assocProp()) : null;
+            if (assocTarget == null) assocTarget = findAssociationInSidecar(ref.assocProp());
+            if (assocTarget != null && assocTarget.join() != null && mapping != null) {
+                String subAlias = "sort_j" + (tableAliasCounter++);
+                String targetTableName = assocTarget.targetMapping().sourceTable().name();
+                var join = assocTarget.join();
+                String srcTableName = mapping.sourceTable().name();
+                String leftJoinCol = join.getColumnForTable(srcTableName);
+                String rightJoinCol = join.getColumnForTable(targetTableName);
+                SqlExpr targetCol = new SqlExpr.Column(subAlias, ref.targetCol());
+                SqlExpr correlation = new SqlExpr.Binary(
+                        new SqlExpr.Column(subAlias, rightJoinCol), "=",
+                        new SqlExpr.Column(tableAlias, leftJoinCol));
+                SqlBuilder subquery = new SqlBuilder()
+                        .addSelect(targetCol, null)
+                        .from(dialect.quoteIdentifier(targetTableName),
+                                dialect.quoteIdentifier(subAlias))
+                        .addWhere(correlation);
+                colExpr = new SqlExpr.Subquery(subquery);
+            }
+        }
+        return colExpr;
     }
 
     // ========== limit / drop / slice / first ==========
@@ -3754,23 +3792,38 @@ public class PlanGenerator {
                 }
                 throw new PureCompileException("zip: no parameters");
             }
-            case "sort" -> {
+            case "sort", "sortBy", "sortByReversed" -> {
                 if (firstArgIsList) {
-                    // Read pre-resolved sort direction from sidecar (TypeChecker detected compare lambda)
-                    TypeInfo sortInfo = unit.types().get(af);
-                    String direction = (sortInfo != null && sortInfo.hasSortSpecs()
-                            && sortInfo.sortSpecs().get(0).direction() == TypeInfo.SortDirection.DESC)
-                            ? "DESC" : "ASC";
-                    // Check for key function: sort(keyFn, compareFn)
-                    if (params.size() > 2
+                    // Derive direction from function name or sidecar
+                    String direction;
+                    if ("sortByReversed".equals(funcName)) {
+                        direction = "DESC";
+                    } else if ("sortBy".equals(funcName)) {
+                        direction = "ASC";
+                    } else {
+                        // sort: read from sidecar (TypeChecker detected compare lambda)
+                        TypeInfo sortInfo = unit.types().get(af);
+                        direction = (sortInfo != null && sortInfo.hasSortSpecs()
+                                && sortInfo.sortSpecs().get(0).direction() == TypeInfo.SortDirection.DESC)
+                                ? "DESC" : "ASC";
+                    }
+                    // Check for key function: sort(keyFn, compareFn) or sortBy/sortByReversed(keyFn)
+                    LambdaFunction keyLf = null;
+                    if ("sortBy".equals(funcName) || "sortByReversed".equals(funcName)) {
+                        // sortBy/sortByReversed: key lambda is always params[1]
+                        if (params.size() > 1 && params.get(1) instanceof LambdaFunction lf) {
+                            keyLf = lf;
+                        }
+                    } else if (params.size() > 2
                             || (params.size() == 2 && params.get(1) instanceof LambdaFunction kf
                                     && kf.parameters().size() == 1)) {
-                        // sort with key function → listSort with key
-                        LambdaFunction keyLf = (LambdaFunction) params.get(1);
+                        keyLf = (LambdaFunction) params.get(1);
+                    }
+
+                    if (keyLf != null) {
                         String keyParam = keyLf.parameters().get(0).name();
                         SqlExpr keyBody = !keyLf.body().isEmpty()
                                 ? c.apply(keyLf.body().get(0)) : new SqlExpr.NullLiteral();
-                        // Pass: list, direction, paramName, keyBody
                         yield new SqlExpr.FunctionCall("listSortWithKey",
                                 List.of(c.apply(params.get(0)),
                                         new SqlExpr.StringLiteral(direction),

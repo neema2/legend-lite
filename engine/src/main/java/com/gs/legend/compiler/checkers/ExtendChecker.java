@@ -118,13 +118,12 @@ public class ExtendChecker extends AbstractChecker {
                     "extend(): spec '" + alias + "' is missing expression lambda (fn1)");
         }
         LambdaFunction fn1 = cs.function1();
-        GenericType sourceRelType = new GenericType.Relation(sourceSchema);
 
         // --- Signature-driven target typing ---
         // Extract lambda param types from the resolved extend() signature's FuncColSpec.
         // Uses T→Tuple(schema) bindings so _Window<T> resolves correctly.
         PType.FunctionType sigFnType = findColSpecFunctionType(def, fn1.parameters().size());
-        Map<String, GenericType> bindings = new java.util.LinkedHashMap<>();
+        var bindings = new Bindings();
         bindings.put("T", new GenericType.Tuple(sourceSchema));
 
         TypeChecker.CompilationContext fn1Ctx = ctx;

@@ -33,6 +33,36 @@ public abstract class AbstractChecker implements FunctionChecker {
         this.env = env;
     }
 
+    // ========== Bindings ==========
+
+    /**
+     * Unified container for type-variable and multiplicity-variable bindings.
+     *
+     * <p>Populated by {@link #unify} in one pass — captures both type vars
+     * (T, V, etc.) and mult vars (m) from the source expression. Used by
+     * {@link #resolve} and {@link #resolveOutput} to reconstruct output types
+     * with correct types AND multiplicities.
+     *
+     * <p>Delegate methods ({@code get}, {@code put}, {@code containsKey},
+     * {@code getOrDefault}) forward to the type-var map for backward
+     * compatibility — most callers only interact with type vars directly.
+     */
+    protected static class Bindings {
+        private final Map<String, GenericType> types = new LinkedHashMap<>();
+        private final Map<String, Multiplicity> mults = new LinkedHashMap<>();
+
+        public Map<String, GenericType> types() { return types; }
+        public Map<String, Multiplicity> mults() { return mults; }
+
+        // Delegates to type-var map for zero-churn backward compat
+        public GenericType get(String key) { return types.get(key); }
+        public void put(String key, GenericType value) { types.put(key, value); }
+        public boolean containsKey(String key) { return types.containsKey(key); }
+        public GenericType getOrDefault(String key, GenericType defaultValue) {
+            return types.getOrDefault(key, defaultValue);
+        }
+    }
+
     // ========== Overload resolution ==========
 
     /**
@@ -384,11 +414,11 @@ public abstract class AbstractChecker implements FunctionChecker {
         }
     }
 
-    // ========== Type variable unification ==========
+
 
     /**
-     * Validates the source parameter AND binds type variables in one pass.
-     * Returns a map of type variable name → resolved GenericType.
+     * Validates the source parameter AND binds type + multiplicity variables
+     * in one pass. Returns {@link Bindings} containing both.
      *
      * <p>This replaces the need for a separate validate() call on the source
      * parameter — unify does both validation and binding.
@@ -398,16 +428,21 @@ public abstract class AbstractChecker implements FunctionChecker {
      * For multi-TypeVar functions (join, asOfJoin), use
      * {@link #unify(NativeFunctionDef, List)}.
      */
-    protected Map<String, GenericType> unify(NativeFunctionDef def, ExpressionType source) {
-        var bindings = new LinkedHashMap<String, GenericType>();
+    protected Bindings unify(NativeFunctionDef def, ExpressionType source) {
+        var bindings = new Bindings();
         if (def.params().isEmpty()) {
             throw new PureCompileException(
                     def.name() + "(): signature has no parameters");
         }
         PType.Param param0 = def.params().get(0);
 
-        // Validate + bind type
+        // Validate + bind type vars
         unifyType(param0.type(), source.type(), bindings, def.name() + "() source");
+
+        // Bind mult vars (e.g., m in cast<T|m>, sort<T|m>)
+        if (param0.mult() instanceof Mult.Var v) {
+            bindings.mults().put(v.name(), source.multiplicity());
+        }
 
         // Validate multiplicity — skip for Relation types since our system
         // uses [*] for table()/typed() sources, but signatures say [1].
@@ -420,6 +455,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         return bindings;
     }
 
+    /**
     /**
      * Multi-parameter unification: validates + binds type variables from
      * multiple actual arguments against the signature.
@@ -434,14 +470,17 @@ public abstract class AbstractChecker implements FunctionChecker {
      * for params that are not yet compiled (lambdas, enum literals, etc.)
      * and handle those params separately.
      *
+     * <p>Also binds multiplicity variables from any parameter that uses
+     * a {@code Mult.Var}.
+     *
      * @param def     The resolved function signature
      * @param actuals Compiled ExpressionTypes, indexed by param position.
      *                Null entries are skipped.
-     * @return Map of type variable name → resolved GenericType
+     * @return Bindings containing both type and multiplicity variable bindings
      */
-    protected Map<String, GenericType> unify(NativeFunctionDef def,
-                                              List<ExpressionType> actuals) {
-        var bindings = new LinkedHashMap<String, GenericType>();
+    protected Bindings unify(NativeFunctionDef def,
+                              List<ExpressionType> actuals) {
+        var bindings = new Bindings();
         if (def.params().isEmpty()) {
             throw new PureCompileException(
                     def.name() + "(): signature has no parameters");
@@ -451,6 +490,10 @@ public abstract class AbstractChecker implements FunctionChecker {
             PType.Param param = def.params().get(i);
             unifyType(param.type(), actuals.get(i).type(), bindings,
                       def.name() + "() param[" + i + "]");
+            // Bind mult vars from this param
+            if (param.mult() instanceof Mult.Var v) {
+                bindings.mults().put(v.name(), actuals.get(i).multiplicity());
+            }
         }
         return bindings;
     }
@@ -461,7 +504,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * where type vars must be bound from the argument types rather than from a source expression.
      */
     protected void unifyParam(PType.Param sigParam, GenericType actualType,
-                               Map<String, GenericType> bindings, String context) {
+                               Bindings bindings, String context) {
         unifyType(sigParam.type(), actualType, bindings, context);
     }
 
@@ -470,7 +513,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * No silent skips — every case either binds, validates, or throws.
      */
     private void unifyType(PType expected, GenericType actual,
-                           Map<String, GenericType> bindings, String context) {
+                           Bindings bindings, String context) {
         switch (expected) {
             case PType.TypeVar v -> {
                 GenericType existing = bindings.get(v.name());
@@ -561,7 +604,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Resolves a PType to a GenericType using type variable bindings.
      * Every case either resolves or throws — no null returns.
      */
-    protected GenericType resolve(PType type, Map<String, GenericType> bindings, String context) {
+    protected GenericType resolve(PType type, Bindings bindings, String context) {
         return switch (type) {
             case PType.TypeVar v -> {
                 GenericType resolved = bindings.get(v.name());
@@ -648,25 +691,49 @@ public abstract class AbstractChecker implements FunctionChecker {
 
     /**
      * Resolves a Mult to a Multiplicity.
-     * Fixed multiplicities resolve directly. Var multiplicities are not yet supported.
+     * Fixed multiplicities resolve directly. Var multiplicities default to MANY.
      */
     protected Multiplicity resolveMult(Mult mult, String context) {
+        return resolveMult(mult, Map.of(), context);
+    }
+
+    /**
+     * Resolves a Mult to a Multiplicity with mult-var bindings.
+     * Fixed multiplicities resolve directly. Var multiplicities are looked up
+     * in the bindings map; if unbound, defaults to MANY.
+     *
+     * <p>Used by {@code cast<T|m>(source:Any[m]):T[m]} where {@code m} must
+     * preserve the source's actual multiplicity.
+     */
+    protected Multiplicity resolveMult(Mult mult, Map<String, Multiplicity> multBindings,
+                                       String context) {
         return switch (mult) {
             case Mult.Fixed f -> f.value();
-            // Multiplicity variable (e.g. 'm' in T[m]) — default to MANY.
-            // Sort, filter, etc. preserve cardinality so MANY is always safe.
-            case Mult.Var v -> Multiplicity.MANY;
+            case Mult.Var v -> {
+                Multiplicity bound = multBindings.get(v.name());
+                if (bound == null) {
+                    throw new PureCompileException(
+                            context + ": unbound multiplicity variable '" + v.name()
+                            + "' — caller must bind via unifyMultVars()");
+                }
+                yield bound;
+            }
         };
     }
 
     /**
-     * Constructs the output ExpressionType from the signature's return type + bindings.
-     * This is the generic way to compute return types — no hardcoding.
+     * Constructs the output ExpressionType from the signature's return type
+     * + bindings (both type-var and mult-var).
+     *
+     * <p>Mult-var resolution is automatic — if the return type uses a
+     * multiplicity variable (e.g., {@code T[m]}), the binding populated
+     * by {@link #unify} is used. No caller action needed.
      */
     protected ExpressionType resolveOutput(NativeFunctionDef def,
-                                           Map<String, GenericType> bindings, String context) {
+                                           Bindings bindings, String context) {
         GenericType returnType = resolve(def.returnType(), bindings, context + " return type");
-        Multiplicity returnMult = resolveMult(def.returnMult(), context + " return mult");
+        Multiplicity returnMult = resolveMult(def.returnMult(), bindings.mults(),
+                context + " return mult");
         return new ExpressionType(returnType, returnMult);
     }
 
@@ -789,7 +856,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Uses unifyType internally for type checking and validateMult for multiplicity.
      */
     protected void validateLambdaReturn(TypeInfo bodyType, PType.FunctionType ft,
-                                        Map<String, GenericType> bindings, String funcName) {
+                                        Bindings bindings, String funcName) {
         String context = funcName + "() predicate return";
 
         // Validate return type — use resolve to get expected GenericType from bindings
@@ -825,7 +892,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * @return The TypeInfo of the lambda body (last statement)
      */
     protected TypeInfo compileLambdaArg(LambdaFunction lambda, PType.Param sigParam,
-                                        Map<String, GenericType> bindings, TypeInfo source,
+                                        Bindings bindings, TypeInfo source,
                                         TypeChecker.CompilationContext ctx, String funcName) {
         PType.FunctionType ft = extractFunctionType(sigParam);
 

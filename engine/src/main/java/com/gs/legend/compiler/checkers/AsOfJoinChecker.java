@@ -86,7 +86,7 @@ public class AsOfJoinChecker extends AbstractChecker {
      * Same logic as {@link JoinChecker#applyPrefixToBindings}.
      */
     private Map<String, String> applyPrefixToBindings(
-            Map<String, GenericType> bindings,
+            Bindings bindings,
             GenericType.Relation.Schema leftSchema,
             GenericType.Relation.Schema rightSchema,
             String rightPrefix) {
@@ -137,7 +137,7 @@ public class AsOfJoinChecker extends AbstractChecker {
      */
     private void compileConditionLambda(LambdaFunction lambda,
                                          NativeFunctionDef def, int paramIdx,
-                                         Map<String, GenericType> bindings,
+                                         Bindings bindings,
                                          TypeInfo left, TypeInfo right,
                                          TypeChecker.CompilationContext ctx) {
         if (lambda.parameters().isEmpty() || lambda.body().isEmpty()) return;

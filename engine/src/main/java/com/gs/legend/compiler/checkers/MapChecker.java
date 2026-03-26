@@ -48,7 +48,7 @@ public class MapChecker extends AbstractChecker {
                 Map.of(0, source.expressionType()));
 
         // 2. Unify: bind T from source expression type
-        Map<String, GenericType> bindings = unify(def, source.expressionType());
+        var bindings = unify(def, source.expressionType());
 
         // 3. Extract lambda FunctionType from signature param[1]
         PType.FunctionType ft = extractFunctionType(def.params().get(1));

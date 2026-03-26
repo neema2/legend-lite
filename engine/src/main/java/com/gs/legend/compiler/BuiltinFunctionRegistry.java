@@ -736,6 +736,12 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("sort",
                 "native function sort<T|m>(col:T[m], comp:Function<{T[1],T[1]->Integer[1]}>[0..1]):T[m];");
 
+        // ===== Collection sortBy / sortByReversed (legend-engine) =====
+        reg.registerSignature("sortBy",
+                "native function sortBy<T,U|m>(col:T[m], key:Function<{T[1]->U[1]}>[0..1]):T[m];");
+        reg.registerSignature("sortByReversed",
+                "native function sortByReversed<T,U|m>(col:T[m], key:Function<{T[1]->U[1]}>[0..1]):T[m];");
+
         // ===== letFunction =====
         // Standard form: letFunction('varName', valueExpr) → propagates value type
         reg.registerSignature("letFunction",

@@ -128,7 +128,7 @@ public class TypeChecker implements TypeCheckEnv {
             case "table", "class" -> compileTableAccess(af, ctx);
             case "getAll" -> compileGetAll(af, ctx);
             // --- Shape-preserving (work on both relations and lists) ---
-            case "sort", "sortBy" -> compileSort(af, ctx);
+            case "sort", "sortBy", "sortByReversed" -> compileSort(af, ctx);
             case "filter" -> compileFilter(af, ctx);
             case "limit", "take", "drop", "slice", "first", "last" -> compileSlicing(af, ctx);
             // --- Column operations ---
@@ -154,7 +154,7 @@ public class TypeChecker implements TypeCheckEnv {
             case "letFunction" -> compileLet(af, ctx);
             // --- Type functions ---
             case "cast" -> compileCast(af, ctx);
-            case "toMany", "toOne", "toVariant", "to" -> compileTypeFunction(af, ctx);
+            case "toMany", "toOne", "toVariant", "to" -> compileTypeConversion(af, ctx);
             // --- Variant access (compiler resolves index vs field) ---
             case "get" -> compileGet(af, ctx);
             // (if is handled above with zip)
@@ -448,138 +448,18 @@ public class TypeChecker implements TypeCheckEnv {
         return GenericType.Primitive.STRING;
     }
 
-    // ========== GraphFetch / Serialize ==========
-
-    /**
-     * Compiles graphFetch(source, #{Tree}#).
-     *
-     * <p>
-     * Type-checks:
-     * <ol>
-     * <li>Source must be class-based (has a ClassMapping)</li>
-     * <li>Root class in tree must match source mapping's target class</li>
-     * <li>All properties in tree must exist on the target class</li>
-     * <li>Nested properties must be class-typed (not scalars)</li>
-     * </ol>
-     */
+    /** Compiles graphFetch(). Delegates to GraphFetchChecker. */
     private TypeInfo compileGraphFetch(AppliedFunction af, CompilationContext ctx) {
-        // Compile source (e.g., Person.all())
-        TypeInfo sourceInfo = compileExpr(af.parameters().get(0), ctx);
-
-        // (1) Source must be class-based
-        if (sourceInfo.mapping() == null) {
-            throw new PureCompileException(
-                    "graphFetch() requires a class-based source (e.g., Person.all()), "
-                            + "but source has no ClassMapping");
-        }
-
-        // Extract GraphFetchTree from ClassInstance parameter
-        com.gs.legend.ast.GraphFetchTree tree = null;
-        if (af.parameters().size() > 1 && af.parameters().get(1) instanceof ClassInstance ci
-                && ci.value() instanceof com.gs.legend.ast.GraphFetchTree gft) {
-            tree = gft;
-        }
-        if (tree == null) {
-            throw new PureCompileException("graphFetch() requires a graph fetch tree argument #{...}#");
-        }
-
-        // (2) Root class must match source mapping's target class
-        var targetClass = sourceInfo.mapping().targetClass();
-        if (!tree.rootClass().equals(targetClass.name())
-                && !tree.rootClass().equals(targetClass.qualifiedName())) {
-            throw new PureCompileException(
-                    "graphFetch tree root class '" + tree.rootClass()
-                            + "' does not match source class '" + targetClass.qualifiedName() + "'");
-        }
-
-        // (3+4) Validate all properties exist and nested types are correct
-        var spec = toGraphFetchSpec(tree, targetClass);
-
-        var info = TypeInfo.from(sourceInfo)
-                .graphFetchSpec(spec)
-                .build();
+        var info = new com.gs.legend.compiler.checkers.GraphFetchChecker(this).check(af, null, ctx);
         types.put(af, info);
         return info;
     }
 
-    /**
-     * Compiles serialize(graphFetchSource, #{Tree}#).
-     *
-     * <p>
-     * Type-checks:
-     * <ol>
-     * <li>Source must have a graphFetchSpec (must come from graphFetch())</li>
-     * <li>Stamps returnType = String (JSON output)</li>
-     * </ol>
-     */
+    /** Compiles serialize(). Delegates to SerializeChecker. */
     private TypeInfo compileSerialize(AppliedFunction af, CompilationContext ctx) {
-        // Compile source (must be a graphFetch result)
-        TypeInfo sourceInfo = compileExpr(af.parameters().get(0), ctx);
-
-        // (1) Source must have a graphFetchSpec
-        com.gs.legend.plan.GraphFetchSpec spec = sourceInfo.graphFetchSpec();
-        if (spec == null) {
-            throw new PureCompileException(
-                    "serialize() requires a graphFetch source — "
-                            + "call ->graphFetch(#{...}#) before ->serialize()");
-        }
-
-        // Override with serialize tree if provided
-        if (af.parameters().size() > 1 && af.parameters().get(1) instanceof ClassInstance ci
-                && ci.value() instanceof com.gs.legend.ast.GraphFetchTree gft) {
-            var targetClass = sourceInfo.mapping().targetClass();
-            spec = toGraphFetchSpec(gft, targetClass);
-        }
-
-        // (2) Stamp expressionType = JSON (serialized graph output)
-        var info = TypeInfo.from(sourceInfo)
-                .graphFetchSpec(spec)
-                .expressionType(ExpressionType.one(com.gs.legend.plan.GenericType.Primitive.JSON))
-                .build();
+        var info = new com.gs.legend.compiler.checkers.SerializeChecker(this).check(af, null, ctx);
         types.put(af, info);
         return info;
-    }
-
-    /**
-     * Transforms a parser-level GraphFetchTree into a plan-level GraphFetchSpec.
-     * Validates all properties against the target class:
-     * - Each property must exist on the class (including inherited)
-     * - Nested properties must be class-typed (not scalar/primitive)
-     */
-    private com.gs.legend.plan.GraphFetchSpec toGraphFetchSpec(
-            com.gs.legend.ast.GraphFetchTree tree,
-            com.gs.legend.model.m3.PureClass targetClass) {
-        var properties = tree.properties().stream()
-                .map(pf -> {
-                    // Validate property exists on the class
-                    var propOpt = targetClass.findProperty(pf.name());
-                    if (propOpt.isEmpty()) {
-                        throw new PureCompileException(
-                                "Property '" + pf.name() + "' not found on class '"
-                                        + targetClass.qualifiedName() + "'. Available: "
-                                        + targetClass.allProperties().stream()
-                                                .map(com.gs.legend.model.m3.Property::name)
-                                                .toList());
-                    }
-
-                    if (pf.isNested()) {
-                        // Validate nested property is class-typed
-                        var prop = propOpt.get();
-                        if (!(prop.genericType() instanceof com.gs.legend.model.m3.PureClass nestedClass)) {
-                            throw new PureCompileException(
-                                    "Property '" + pf.name() + "' on class '"
-                                            + targetClass.qualifiedName()
-                                            + "' is not class-typed — cannot nest in graphFetch tree. "
-                                            + "Type: " + prop.genericType().typeName());
-                        }
-                        var nestedSpec = toGraphFetchSpec(pf.subTree(), nestedClass);
-                        return com.gs.legend.plan.GraphFetchSpec.PropertySpec.nested(
-                                pf.name(), nestedSpec);
-                    }
-                    return com.gs.legend.plan.GraphFetchSpec.PropertySpec.scalar(pf.name());
-                })
-                .toList();
-        return new com.gs.legend.plan.GraphFetchSpec(tree.rootClass(), properties);
     }
 
     // ========== Shape-Preserving Operations ==========
@@ -856,122 +736,14 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
 
-    /** Compiles match(input, [branches], extraParams...) — static type dispatch. */
+    /** Compiles match(). Delegates to MatchChecker. */
     private TypeInfo compileMatch(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        // Compile all params first
-        for (var p : params) {
-            try {
-                compileExpr(p, ctx);
-            } catch (PureCompileException ignored) {
-            }
-        }
-        if (params.size() < 2)
-            throw new PureCompileException("match requires at least 2 parameters: value, branches");
-
-        // Determine input type name
-        String inputTypeName = inferTypeName(params.get(0));
-        if (inputTypeName == null)
-            throw new PureCompileException("match: cannot infer input type");
-
-        // Extract branches from Collection (params[1])
-        List<LambdaFunction> branches;
-        if (params.get(1) instanceof PureCollection(List<ValueSpecification> values)) {
-            branches = values.stream()
-                    .filter(v -> v instanceof LambdaFunction)
-                    .map(v -> (LambdaFunction) v)
-                    .toList();
-        } else if (params.get(1) instanceof LambdaFunction lf) {
-            branches = List.of(lf);
-        } else {
-            throw new PureCompileException("match: second parameter must be a lambda or collection of lambdas");
-        }
-
-        // Determine if input is a collection (affects multiplicity matching)
-        boolean inputIsMany = (params.get(0) instanceof PureCollection(List<ValueSpecification> values)
-                && values.size() != 1)
-                || (types.get(params.get(0)) != null && types.get(params.get(0)).isMany());
-
-        // Find matching branch by type + multiplicity
-        for (var branch : branches) {
-            if (branch.parameters().isEmpty())
-                continue;
-            Variable branchParam = branch.parameters().get(0);
-            if (branchParam.typeName() == null)
-                continue;
-            String branchType = TypeInfo.simpleName(branchParam.typeName());
-            if (branchType.equals(inputTypeName)
-                    || branchType.equals("Any")
-                    || inputTypeName.equals("Any")) {
-                // Check multiplicity compatibility
-                String mult = branchParam.multiplicity();
-                boolean branchAcceptsMany = mult == null || mult.equals("*")
-                        || mult.equals("0") || mult.contains("..");
-                if (inputIsMany && !branchAcceptsMany)
-                    continue;
-                // Match found — compile the body with params bound as let bindings
-                // so that variable references get substituted with actual values
-                CompilationContext matchCtx = ctx;
-                // Bind match param → input value as let binding
-                matchCtx = matchCtx.withLetBinding(branchParam.name(), params.get(0));
-                // If there's an extra param (params[2]), bind it similarly
-                if (branch.parameters().size() > 1 && params.size() > 2) {
-                    Variable extraParam = branch.parameters().get(1);
-                    matchCtx = matchCtx.withLetBinding(extraParam.name(), params.get(2));
-                }
-                if (!branch.body().isEmpty()) {
-                    ValueSpecification body = branch.body().get(0);
-                    TypeInfo bodyInfo = compileExpr(body, matchCtx);
-                    // Set inlinedBody so PlanGenerator follows the resolved expression
-                    var info = TypeInfo.from(bodyInfo).inlinedBody(body).build();
-                    types.put(af, info);
-                    return info;
-                }
-            }
-        }
-        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
+        var info = new com.gs.legend.compiler.checkers.MatchChecker(this).check(af, null, ctx);
+        types.put(af, info);
+        return info;
     }
 
-    /** Infers the simple type name from an AST node. */
-    private String inferTypeName(ValueSpecification vs) {
-        if (vs instanceof CString)
-            return "String";
-        if (vs instanceof CInteger)
-            return "Integer";
-        if (vs instanceof CFloat)
-            return "Float";
-        if (vs instanceof CDecimal)
-            return "Decimal";
-        if (vs instanceof CBoolean)
-            return "Boolean";
-        if (vs instanceof CStrictDate)
-            return "StrictDate";
-        if (vs instanceof CDateTime)
-            return "DateTime";
-        if (vs instanceof PureCollection(List<ValueSpecification> values)) {
-            // Infer from first element, or fall through to side table
-            if (!values.isEmpty()) {
-                return inferTypeName(values.get(0));
-            }
-        }
-        // Check side table
-        TypeInfo info = types.get(vs);
-        if (info != null && info.type() != null) {
-            GenericType st = info.type();
-            // For list types (e.g. from cast), use the element type
-            if (st.isList() && st.elementType() != null)
-                st = st.elementType();
-            if (st == GenericType.Primitive.STRING)
-                return "String";
-            if (st == GenericType.Primitive.INTEGER)
-                return "Integer";
-            if (st == GenericType.Primitive.FLOAT)
-                return "Float";
-            if (st == GenericType.Primitive.BOOLEAN)
-                return "Boolean";
-        }
-        return null;
-    }
+
 
     /** Compiles zip(list1, list2). */
     /** Compiles zip(list1, list2). Delegates to ZipChecker. */
@@ -1004,77 +776,13 @@ public class TypeChecker implements TypeCheckEnv {
         return info;
     }
 
-    /** Compiles type conversion functions: toMany, toOne, toVariant, to. */
-    private TypeInfo compileTypeFunction(AppliedFunction af, CompilationContext ctx) {
-        String func = simpleName(af.function());
+    /** Compiles type conversion: toMany, toOne, to, toVariant. Delegates to TypeConversionChecker. */
+    private TypeInfo compileTypeConversion(AppliedFunction af, CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // Compile all params (source + @Type arg)
-        for (var p : params) {
-            compileExpr(p, ctx);
-        }
-
-        // Resolve target type from @Type argument (GenericTypeInstance)
-        GenericType targetType = null;
-        for (var p : params) {
-            if (p instanceof GenericTypeInstance gti) {
-                targetType = gti.resolvedType();
-                break;
-            }
-        }
-
-        return switch (func) {
-            case "toMany" -> {
-                // toMany always produces multiple values of the target type
-                GenericType elemType = targetType != null
-                        ? targetType : GenericType.Primitive.ANY;
-                TypeInfo info = TypeInfo.builder()
-                        .expressionType(ExpressionType.many(elemType)).build();
-                types.put(af, info);
-                yield info;
-            }
-            case "toOne" -> {
-                // toOne extracts single value — if source has list type, return element type
-                TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
-                if (sourceInfo != null && sourceInfo.type() != null
-                        && sourceInfo.type().isList()
-                        && sourceInfo.type().elementType() != null) {
-                    TypeInfo info = TypeInfo.builder()
-                            .expressionType(ExpressionType.one(sourceInfo.type().elementType())).build();
-                    types.put(af, info);
-                    yield info;
-                }
-                // Non-list source: toOne asserts exactly one value → always return [1]
-                // Critical for [0..1] → [1] conversion (e.g., get()->to(@Integer)->toOne())
-                if (sourceInfo != null && sourceInfo.type() != null) {
-                    TypeInfo info = TypeInfo.builder()
-                            .expressionType(ExpressionType.one(sourceInfo.type())).build();
-                    types.put(af, info);
-                    yield info;
-                }
-                throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-            }
-            case "to" -> {
-                // to(@Type) → T[0..1] — variant scalar conversion (nullable)
-                if (targetType != null) {
-                    TypeInfo info = TypeInfo.builder()
-                            .expressionType(ExpressionType.zeroOrOne(targetType)).build();
-                    types.put(af, info);
-                    yield info;
-                }
-                throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-            }
-            case "toVariant" -> {
-                // toVariant produces a variant (pass through source type for list detection)
-                TypeInfo sourceInfo = !params.isEmpty() ? types.get(params.get(0)) : null;
-                if (sourceInfo != null && sourceInfo.type() != null) {
-                    types.put(af, sourceInfo);
-                    yield sourceInfo;
-                }
-                throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-            }
-            default -> throw new PureCompileException("Unresolved type function: " + simpleName(af.function()));
-        };
+        TypeInfo source = compileExpr(params.get(0), ctx);
+        var info = new com.gs.legend.compiler.checkers.TypeConversionChecker(this).check(af, source, ctx);
+        types.put(af, info);
+        return info;
     }
 
     /**
@@ -1112,55 +820,11 @@ public class TypeChecker implements TypeCheckEnv {
 
     /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
 
-    /**
-     * Compiles eval() using the inlinedBody sidecar pattern.
-     * eval(functionRef, arg) → creates AppliedFunction(funcName, [arg]),
-     * compiles it, and stores as inlinedBody so PlanGenerator processes the
-     * resolved function instead of the original eval call.
-     */
+    /** Compiles eval(). Delegates to EvalChecker. */
     private TypeInfo compileEval(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        // eval(functionRef, args...) — rewrite to normal function call
-        if (params.size() >= 2 && params.get(0) instanceof PackageableElementPtr(String fullPath)) {
-            String lastSegment = fullPath.contains("::")
-                    ? fullPath.substring(fullPath.lastIndexOf("::") + 2)
-                    : fullPath;
-            String funcName = lastSegment.contains("_")
-                    ? lastSegment.substring(0, lastSegment.indexOf('_'))
-                    : lastSegment;
-            // Create resolved function node and compile it
-            List<ValueSpecification> evalArgs = params.subList(1, params.size());
-            AppliedFunction resolved = new AppliedFunction(funcName, evalArgs);
-            TypeInfo bodyResult = compileFunction(resolved, ctx);
-            // Store as inlinedBody — PlanGenerator follows this pointer
-            TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(resolved).build();
-            types.put(af, result);
-            return result;
-        }
-        // eval(lambda, args) — compile lambda body and store as inlinedBody
-        if (params.size() >= 2
-                && params.get(0) instanceof LambdaFunction(List<Variable> parameters, List<ValueSpecification> body)) {
-            if (!body.isEmpty()) {
-                // Bind each lambda param to its corresponding arg value
-                CompilationContext evalCtx = ctx;
-                List<ValueSpecification> args = params.subList(1, params.size());
-                for (int i = 0; i < parameters.size() && i < args.size(); i++) {
-                    compileExpr(args.get(i), ctx);
-                    evalCtx = evalCtx.withLetBinding(parameters.get(i).name(), args.get(i));
-                }
-                ValueSpecification evalBody = body.get(0);
-                TypeInfo bodyResult = compileExpr(evalBody, evalCtx);
-                TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(evalBody).build();
-                types.put(af, result);
-                return result;
-            }
-        }
-        // Fallback: route through ScalarChecker
-        List<ValueSpecification> evalParams = af.parameters();
-        TypeInfo evalSource = !evalParams.isEmpty() ? compileExpr(evalParams.get(0), ctx) : null;
-        var evalInfo = new com.gs.legend.compiler.checkers.ScalarChecker(this).check(af, evalSource, ctx);
-        types.put(af, evalInfo);
-        return evalInfo;
+        var info = new com.gs.legend.compiler.checkers.EvalChecker(this).check(af, null, ctx);
+        types.put(af, info);
+        return info;
     }
 
     /** Compiles letFunction('x', valueExpr). Delegates to LetChecker. */
@@ -1471,9 +1135,11 @@ public class TypeChecker implements TypeCheckEnv {
                 }
                 // Dispatch type functions properly (toMany, to, toVariant, cast)
                 // so they populate correct TypeInfo with @Type arguments
-                if ("toMany".equals(simple) || "to".equals(simple)
-                        || "toVariant".equals(simple) || "cast".equals(simple)) {
-                    compileTypeFunction(af, ctx);
+                if ("cast".equals(simple)) {
+                    compileCast(af, ctx);
+                } else if ("toMany".equals(simple) || "to".equals(simple)
+                        || "toVariant".equals(simple)) {
+                    compileTypeConversion(af, ctx);
                 } else if ("get".equals(simple)) {
                     compileGet(af, ctx);
                 } else if ("toOne".equals(simple) && !af.parameters().isEmpty()) {

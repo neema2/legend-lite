@@ -49,7 +49,7 @@ public class SlicingChecker extends AbstractChecker {
         NativeFunctionDef def = resolveOverload(funcName, params, source, compiledTypes);
 
         // 2. Bind type variables from signature (T from source)
-        Map<String, GenericType> bindings = unify(def, source.expressionType());
+        var bindings = unify(def, source.expressionType());
 
         // 3. Validate pre-compiled argument types against signature param types
         for (int i = 1; i < params.size() && i < def.params().size(); i++) {

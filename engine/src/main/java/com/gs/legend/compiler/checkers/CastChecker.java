@@ -4,6 +4,7 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.GenericTypeInstance;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.plan.GenericType;
 
 import java.util.List;
@@ -13,12 +14,14 @@ import java.util.List;
  *
  * <p>Signature: {@code cast<T|m>(source:Any[m], type:T[1]):T[m]}
  *
- * <p>Semantics: changes the type to T (from the @Type arg), preserves the
- * source multiplicity m. That's it — no special cases.
- *
- * <p>T is resolved from the {@code @Type} argument ({@link GenericTypeInstance}).
- * The builder pre-resolves all types at parse time, so {@code resolvedType()}
- * is always available — no string re-parsing needed.
+ * <p>Fully signature-driven flow:
+ * <ol>
+ *   <li>{@code resolveOverload} — validates arity against registered signature</li>
+ *   <li>{@code unify} — validates source (Any accepts all types, binds nothing)</li>
+ *   <li>T bound from {@code @Type} argument ({@link GenericTypeInstance#resolvedType()})</li>
+ *   <li>m bound from source's actual multiplicity (mult-var binding)</li>
+ *   <li>{@code resolveOutput} — computes T[m] from bindings</li>
+ * </ol>
  *
  * <p>Source mapping metadata is propagated through the cast — the type changes
  * but the mapping context (for SQL codegen) survives.
@@ -33,19 +36,26 @@ public class CastChecker extends AbstractChecker {
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
 
-        // Validate arity against signature (exactly 2 params: source + @Type)
-        resolveOverload("cast", params, source);
+        // 1. Validate arity against signature (exactly 2 params: source + @Type)
+        NativeFunctionDef def = resolveOverload("cast", params, source);
 
-        // Compile the @Type arg (param[1]) — registers it in the side table
+        // 2. Validate source — unify binds nothing for Any[m] but validates structure
+        unify(def, source.expressionType());
+
+        // 3. Compile the @Type arg (param[1]) — registers it in the side table
         env.compileExpr(params.get(1), ctx);
 
-        // Resolve T from the @Type argument
+        // 4. Build unified Bindings: T from @Type, m from source multiplicity
         GenericType targetType = resolveTargetType(params.get(1));
+        var bindings = new Bindings();
+        bindings.put("T", targetType);
+        Multiplicity sourceMult = source.expressionType().multiplicity();
+        bindings.mults().put("m", sourceMult);
 
-        // m = source multiplicity (preserved through cast)
-        ExpressionType output = new ExpressionType(targetType, source.expressionType().multiplicity());
+        // 5. Resolve output T[m] from signature + bindings
+        ExpressionType output = resolveOutput(def, bindings, "cast()");
 
-        // Propagate source mapping through the cast
+        // 7. Propagate source mapping through the cast
         return TypeInfo.from(source)
                 .expressionType(output)
                 .build();

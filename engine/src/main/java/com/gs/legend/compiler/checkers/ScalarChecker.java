@@ -2,8 +2,6 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,8 +54,8 @@ public class ScalarChecker extends AbstractChecker {
         // 2. Resolve overload — uses compiled types for structural match + scoring
         NativeFunctionDef def = resolveOverload(funcName, params, source, compiledTypes);
 
-        // 3. Unify source to bind type variables
-        Map<String, GenericType> bindings = new LinkedHashMap<>();
+        // 3. Unify source to bind type + mult variables
+        var bindings = new Bindings();
         if (source != null && !def.params().isEmpty()) {
             bindings = unify(def, source.expressionType());
         }
@@ -85,6 +83,7 @@ public class ScalarChecker extends AbstractChecker {
         Map<String, TypeInfo.AssociationTarget> associations = resolveAssociationsFromParams(params, source);
 
         // 6. Output type from signature + bindings
+        //    Mult-vars (e.g., m in reverse<T|m>) are auto-bound by unify()
         ExpressionType outputType = resolveOutput(def, bindings, funcName + "()");
 
         // 7. Build TypeInfo

@@ -3,11 +3,10 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+
 
 /**
  * Signature-driven type checker for {@code letFunction()}.
@@ -39,7 +38,7 @@ public class LetChecker extends AbstractChecker {
         NativeFunctionDef def = resolveOverload("letFunction", params, source);
 
         // 2. Compile params and unify T from the value expression
-        Map<String, GenericType> bindings;
+        Bindings bindings;
         if (params.size() >= 2) {
             // Standard form: letFunction('varName', valueExpr)
             TypeInfo nameInfo = env.compileExpr(params.get(0), ctx);

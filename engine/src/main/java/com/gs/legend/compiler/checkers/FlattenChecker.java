@@ -36,7 +36,7 @@ public class FlattenChecker extends AbstractChecker {
         NativeFunctionDef def = resolveOverload("flatten", params, source);
 
         // 1. Bind type variables from signature (T from source)
-        Map<String, GenericType> bindings = unify(def, source.expressionType());
+        var bindings = unify(def, source.expressionType());
 
         // 2. Extract column name from second param
         String colName = null;

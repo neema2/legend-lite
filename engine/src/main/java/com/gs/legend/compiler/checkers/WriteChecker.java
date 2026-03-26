@@ -3,11 +3,10 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+
 
 /**
  * Signature-driven type checker for {@code write()}.
@@ -47,7 +46,7 @@ public class WriteChecker extends AbstractChecker {
         }
 
         // 3. Unify type variables — bind T from source relation
-        Map<String, GenericType> bindings = unify(def, actuals);
+        var bindings = unify(def, actuals);
 
         // 4. Output type from signature return type + bindings → Integer[1]
         ExpressionType outputType = resolveOutput(def, bindings, "write()");

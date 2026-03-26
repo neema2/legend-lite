@@ -40,7 +40,7 @@ public class ProjectChecker extends AbstractChecker {
         ClassMapping mapping = source.mapping();
 
         // 1. Bind type variables from signature
-        Map<String, GenericType> bindings = unify(def, source.expressionType());
+        var bindings = unify(def, source.expressionType());
 
         // 2. Extract ColSpecs from FuncColSpecArray param
         List<ColSpec> colSpecs = extractColSpecs(params.get(1));

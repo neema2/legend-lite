@@ -33,7 +33,7 @@ public class FilterChecker extends AbstractChecker {
         NativeFunctionDef def = resolveOverload("filter", params, source);
 
         // 2. Validate source + bind type variables (one pass)
-        Map<String, GenericType> bindings = unify(def, source.expressionType());
+        var bindings = unify(def, source.expressionType());
 
         // 3. Lambda structure (from signature param[1] → FunctionType)
         PType.FunctionType ft = extractFunctionType(def.params().get(1));

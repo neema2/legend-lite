@@ -4,7 +4,7 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.compiler.*;
 import com.gs.legend.plan.GenericType;
 
-import java.util.Map;
+
 import java.util.stream.Collectors;
 
 /**
@@ -50,7 +50,7 @@ public class ConcatenateChecker extends AbstractChecker {
         }
 
         // 2. Bind type variables from signature (T from left source)
-        Map<String, GenericType> bindings = unify(def, left.expressionType());
+        var bindings = unify(def, left.expressionType());
 
         GenericType.Relation.Schema leftSchema = left.schema();
         GenericType.Relation.Schema rightSchema = right.schema();
