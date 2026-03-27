@@ -311,6 +311,93 @@ Joins and filters use a **relational operation expression** language supporting:
 | **in()** | `in(T.region, ['LON', 'NYC'])` | List membership |
 | **Self-join** | `T.parent_id = {target}.id` | `{target}` for self-referential |
 
+### 3.10 Relation Class Mapping (`Relation` keyword — new)
+
+The `Relation` mapping type maps a class to a **Pure function returning `Relation<Any>[1]`**
+rather than a database table. This is a newer addition to Legend, distinct from `Relational`.
+
+```pure
+###Pure
+function my::personRelation(): Relation<(FIRSTNAME:String, AGE:Integer)>[1]
+{
+    #>{my::db.PersonTable}#
+      ->filter(r | $r.active == true)
+      ->project(~[FIRSTNAME: r | $r.first_name, AGE: r | $r.age])
+}
+
+###Mapping
+Mapping my::PersonMapping
+(
+    *Person[person]: Relation
+    {
+        ~func my::personRelation__Relation_1_   // zero-arg function returning Relation
+        firstName : FIRSTNAME,                   // property : COLUMN_NAME
+        age       : AGE
+    }
+)
+```
+
+**Key constraints:**
+- `~func` is required, must be the first line, must reference a named zero-arg function
+- Property mappings are **column-name-only** — no DynaFunction expressions (transforms go in the `~func` body)
+- Only primitive properties supported (no joins, no embedded, no complex navigation)
+- The `~func` function body can contain any Relation-producing expression (including `#SQL`, store accessors, etc.)
+
+| | `Relational` | `Relation` |
+|---|---|---|
+| Data source | `###Relational` database table / view / join | Any Pure function returning `Relation<Any>[1]` |
+| Source declaration | `~mainTable [db]Table` | `~func my::fn__Relation_1_` |
+| Store dependency | Requires a `Database` definition | None — store-agnostic |
+| Property mapping | Column expression `[db]Table.column` + DynaFunctions | Bare column name `COLUMN` only |
+| Complex expressions | Join traversal, DynaFunction transforms | Not supported — transforms go in `~func` body |
+| Non-primitive properties | Supported via joins | Not supported |
+
+> [!NOTE]
+> The existence of `Relation` class mapping is evidence that the Legend team is **already
+> building the bridge** between mappings and Relations upstream. It validates our thesis
+> that mappings can desugar to Relation operations.
+
+### 3.11 Graph Fetch Trees — Object Graph Selection
+
+Graph Fetch Trees define which properties (and sub-properties) to fetch from an object graph.
+They are used with `graphFetch()` and `graphFetchChecked()` queries and are relevant to
+understanding the **object construction gap** between Mappings and Relations.
+
+```pure
+// Basic: fetch Person with firstName and firm.legalName
+#{
+    Person {
+        firstName,
+        firm {
+            legalName
+        }
+    }
+}#
+
+// With aliases
+#{Person { 'displayName': firstName }}#
+
+// With subtype narrowing
+#{Person { firm->subType(@Incorporation) { legalName } }}#
+
+// With qualified property parameters
+#{Product { synonymsByType(ProductSynonymType.CUSIP) { value } }}#
+```
+
+**Graph Fetch execution modes:**
+
+| Mode | Function | Behaviour |
+|---|---|---|
+| Root only, checked | `->checked()` | Validate root objects, return `Checked<T>` |
+| Tree, fail on error | `->graphFetch(tree)` | Fetch tree, fail on first error |
+| Tree, checked | `->graphFetchChecked(tree)` | Fetch tree, return defects in `Checked<T>` |
+| Unexpanded variants | `->graphFetchUnexpanded(tree)` | Tree without constraint expansion |
+
+**Mapping→Relation implication:** Graph Fetch requires multi-query orchestration to
+construct deep object trees. Each level of the tree can be a separate Relation query,
+with the orchestrator assembling the results. This is an **orchestration concern above
+the Relation algebra**, not a gap in the algebra itself.
+
 ---
 
 ## 4. DynaFunction Transforms — The Underdocumented Power Feature
@@ -691,3 +778,9 @@ fetching and computation is identical in both paths.
 **The Relation pipeline can do everything the SQL generator needs.** The Mapping DSL's value
 is ergonomics — implicit joins from association definitions, property-to-column naming, enum
 transforms, scope blocks for conciseness — all of which can be desugared at compile time.
+
+**Upstream is already moving this direction.** The new `Relation` class mapping type (§3.10)
+proves that the Legend team is actively building bridges between the Mapping and Relation
+worlds. In this mapping type, the data source is a `Relation`-producing function rather
+than a database table — exactly the intermediate representation our translation layer
+would produce. The path from our architecture (§7.1) to reality is shorter than it appears.
