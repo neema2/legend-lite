@@ -135,7 +135,15 @@ private TypeInfo compileFunction(AppliedFunction af, CompilationContext ctx) {
                         -> new SortChecker(this).check(af, source, ctx);
         case "map"      -> new MapChecker(this).check(af, source, ctx);
         // ... all 30+ functions, one line each
-        default -> compileUnknownFunction(af, funcName, source, ctx);
+        default -> {
+            // 1. User-defined function (from ModelContext) — most specific
+            var fn = modelContext.findFunction(funcName);
+            if (fn.isPresent()) yield inlineUserFunction(af, fn.get(), ctx);
+            // 2. Builtin function (ScalarChecker) — generic ~225 functions
+            if (builtinRegistry.isRegistered(funcName))
+                yield new ScalarChecker(this).check(af, source, ctx);
+            throw new PureCompileException("Unknown function: " + funcName);
+        }
     };
 
     // Common: stamp TypeInfo
@@ -174,8 +182,8 @@ just like classes, mappings, stores.
 
 - Move `registerPure()` / `getFunction()` into `ModelContext`
 - 4 hardcoded test functions (lines 90-116) → defined in test Pure model strings
-- `compileUnknownFunction()` checks `modelContext.findFunction(name)` first,
-  then falls back to `BuiltinFunctionRegistry`
+- `default` case in `compileFunction` checks `modelContext.findFunction(name)`
+  first, then `BuiltinFunctionRegistry`, else throws
 - Keep `inlineUserFunction()` mechanism (text substitution + re-parse)
 
 #### Concrete changes
