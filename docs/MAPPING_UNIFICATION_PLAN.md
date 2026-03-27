@@ -1,26 +1,26 @@
 # Mapping Unification Plan
 
 > Four-pass compiler architecture for legend-lite:
-> **Parse → Type → Map → Generate**
+> **Parse → Type → Resolve → Generate**
 >
 > Proven by legend-engine's `Compile → Route → Plan → Execute` pipeline.
-> Every claim below is verified against actual codebase with line references.
+> Every claim is verified against actual codebase with line references.
 
 ---
 
 ## 1. Target Architecture
 
 ```
-PureParser  →  TypeChecker  →  MappingTranslator  →  PlanGenerator
- (Pass 1)       (Pass 2)         (Pass 3)             (Pass 4)
- Pure→AST       types only       mapping→store         SQL gen
+PureParser  →  TypeChecker  →  MappingResolver  →  PlanGenerator
+ (Pass 1)       (Pass 2)        (Pass 3)            (Pass 4)
+ Pure→AST       types only      mapping→store        SQL gen
 ```
 
 | Pass | Input | Output | Uses | Doesn't Touch |
 |------|-------|--------|------|----------------|
 | **Parse** | Pure source text | AST + Classes + Mappings + Tables + Joins | Grammar rules | Types, stores, SQL |
 | **Type** | AST + class/assoc defs | Typed AST (`$p.name → String`) | Class model only | Mappings, tables, SQL |
-| **Map** | Typed AST + mapping defs | Resolved AST (tables, columns, joins) | Mapping model | SQL syntax |
+| **Resolve** | Typed AST + mapping defs | Resolved AST (tables, columns, joins) | Mapping model | SQL syntax |
 | **Generate** | Resolved AST | SQL string | SQL dialect | Types, mappings |
 
 ### No Chicken-and-Egg — Proven by Code
@@ -38,297 +38,339 @@ modelContext.findAssociationByProperty(qualifiedName, ap.property())
 → GenericType.ClassType(nav.targetClassName())
 ```
 
-**`ctx.getMapping()` is never called by `compileProperty`.** It is defined at line 1404
-but only consumed by `resolveAssociations` — the join-resolution code that moves to
-MappingTranslator.
+**`ctx.getMapping()` is never called by `compileProperty`.** Defined at line 1404,
+only consumed by `resolveAssociations` — join-resolution code that moves to MappingResolver.
 
 ### Confirmed by Legend-Engine
 
-Legend-engine uses the same architecture ([router_main.pure](file:///Users/neema/legend/legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/router_main.pure)):
-Router runs after compilation, before plan generation. ~1,200 lines across 6 files.
+Legend-engine uses the same architecture. Router runs after compilation, before plan
+generation. ~1,200 lines across 6 files in `core/pure/router/`.
 
 ---
 
-## 2. Current State — Precise Inventory
+## 2. Entry Point Inventory
 
-### 2.1 Checker Classification (Verified by Grep)
+### Pipeline Roots (6 real, 2 fake to delete)
 
-**6 ACTIVE checkers** — call `resolveAssociations` using `source.mapping()`:
+**Family 1 — Class Sources** (need mapping):
 
-| Checker | What it does with mapping | Lines |
-|---------|--------------------------|-------|
-| [GetAllChecker](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/GetAllChecker.java) | Discovers mapping, resolves M2M chains, builds virtual schema | ~200 |
-| [ProjectChecker:40,91](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/ProjectChecker.java#L40-L104) | `mapping = source.mapping()` → `env.resolveAssociations(bodies, mapping)` | ~15 |
-| [FilterChecker:42](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/FilterChecker.java#L42) | `resolveAssociationsFromParams(params, source)` | ~5 |
-| [SortChecker:210,238](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/SortChecker.java#L210-L242) | `resolveAssociationsFromParams` (2 call sites) | ~10 |
-| [MapChecker:84-85](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/MapChecker.java#L84-L91) | `if (source.mapping() != null)` → `env.resolveAssociations(lambda.body(), source.mapping())` | ~5 |
-| [ScalarChecker:83](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/ScalarChecker.java#L83) | `resolveAssociationsFromParams(params, source)` | ~5 |
+| Root | AST Type | Checker | Mapping Source |
+|------|----------|---------|----------------|
+| `Person.all()` | `AppliedFunction("getAll")` | GetAllChecker | Registry lookup |
+| `^Person(name='J')` | `ClassInstance("instance")` | InstanceChecker *(new)* | Identity (built on fly) |
 
-**10 PASSTHROUGH checkers** — only propagate via `.mapping(source.mapping())`:
+`[^P(..), ^P(..)]` is a `PureCollection` of instances → `compileCollection` iterates,
+each `^P()` goes through InstanceChecker. Collection wrapping stays inline.
 
-> GroupByChecker, FromChecker, AggregateChecker, ExtendChecker, DistinctChecker (×3),
-> SelectChecker (×3), RenameChecker, SlicingChecker, FlattenChecker (×2), PivotChecker
+**Family 2 — Relation Sources** (no mapping):
 
-**1 INFRASTRUCTURE** — [AbstractChecker](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/AbstractChecker.java):
-- `resolveAssociationsFromParams` ([lines 939-953](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/AbstractChecker.java#L939-L953)): collects lambda bodies → calls `env.resolveAssociations`
-- `bindLambdaParam` ([lines 747-788](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/compiler/checkers/AbstractChecker.java#L747-L788)): stamps `ctx.withMapping(paramName, source.mapping())` for 3 type branches
+| Root | AST Type | Checker |
+|------|----------|---------|
+| `#>{db.PersonTable}#` | `ClassInstance("relation")` | RelationAccessChecker *(new)* |
+| `TDS [col1:String]` | `ClassInstance("tdsLiteral")` | TdsLiteralChecker *(new)* |
 
-### 2.2 Association Resolution — Two Parts
+**Family 3 — Scalar / Lambda** (no relation, no mapping):
 
-Today `resolveAssociations` does TWO things in one pass:
+| Root | AST Type | Handler |
+|------|----------|---------|
+| `\|1+1`, `{x\|body}` | `LambdaFunction` | `compileLambda` (inline) |
 
-| Part | What | Source of truth | Where it goes |
-|------|------|-----------------|---------------|
-| **Type resolution** | `$p.address → Address[0..1]` | `modelContext.findAssociationByProperty()` (class/assoc defs) | Stays in TypeChecker |
-| **Join resolution** | `$p.address → JOIN(Person.ID = Address.PERSON_ID)` | `MappingRegistry.findJoin()` (mapping defs) | Moves to MappingTranslator |
+**FAKE — Delete**:
 
-### 2.3 PlanGenerator — Mapping-Reading Inventory
+| Root | Why delete |
+|------|-----------|
+| `table('db.T')` | Not a real Pure function. Raw table access → use `#>{db.T}#` |
+| `class('M::P')` | Redundant with `Person.all()` — same mapping lookup |
 
-PlanGenerator reads mapping info at 3 key points:
+### Core Compiler Mechanics (stay inline in TypeChecker)
 
-**Point 1 — `resolveColumnExpr`** ([lines 837-907](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/plan/PlanGenerator.java#L837-L907), 75 lines):
-```java
-// Core property→column resolver. 3 cases:
-if (mapping instanceof PureClassMapping pcm)     // M2M: compile expression AST to SQL
-if (!(mapping instanceof RelationalMapping rm))  // Error
-rm.getPropertyMapping(propertyName)              // Relational: column/enum/expression
-```
-Called from 8 sites: generateProject (×2), generateGraphFetch, generateSort,
-generateFilter, resolveAssociationRefs, generateScalar.
+| Mechanic | Why inline |
+|----------|-----------|
+| `compileLambda` | Scope management (let bindings, multi-statement bodies) |
+| `compileVariable` | Variable lookup (lambda params, let bindings) |
+| `compileProperty` | Property resolution (class model, relation schema, associations) |
+| `compileCollection` | Element type unification |
+| Literals | Trivial one-liners |
 
-**Point 2 — Association JOIN generation** ([lines 975-1010](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/plan/PlanGenerator.java#L975-L1010)):
-```java
-assocTarget.targetMapping().sourceTable().name()  // target table
-mapping.sourceTable().name()                       // source table
-join.getColumnForTable(srcTableName)               // FK columns
-```
-Called from: resolveAssociationRefs, generateProject (step 5), generateSort.
+### Why TypeChecker Doesn't Need Mappings
 
-**Point 3 — `info.tableName()`** (2 call sites):
-```java
-// Line 433: generateGetAll entry point
-String tableName = info != null ? info.tableName() : null;
-// Line 547: generateGraphFetch entry point
-String tableName = info != null ? info.tableName() : null;
-```
+| What TypeChecker checks | Source of truth | Needs mapping? |
+|------------------------|-----------------|----------------|
+| `Person.all()` → `Person[*]` | Class exists? → class definition | **No** |
+| Available properties | Person's property list → class definition | **No** |
+| `$x.name` → `String` | Property type → class definition | **No** |
+| `$x.address.city` → `String` | Association navigation type → association definition | **No** |
 
-### 2.4 PropertyMapping Model Capabilities
-
-| Mode | Example | Supported |
-|------|---------|-----------|
-| Simple column | `firstName → FIRST_NAME` | ✅ |
-| Semi-structured | `price → PAYLOAD→get('price', @Integer)` | ✅ |
-| Enum transform | `gender → GENDER_CODE (CASE WHEN)` | ✅ |
-| DynaFunction | `fullName → concat(T.first, ' ', T.last)` | ❌ |
-| Database View | `CREATE VIEW FullNameView AS ...` | ❌ |
-| Local property (+) | `+fullName: self.first + ' ' + self.last` | ❌ |
+What mapping adds (resolved by MappingResolver, not TypeChecker):
+- `name` → column `FIRST_NAME` (physical column)
+- `address` → `JOIN Person.ID = Address.PERSON_ID` (physical join)
 
 ---
 
-## 3. MappingTranslator Design
+## 3. Phased Implementation
 
-### 3.1 Output Format
+### Phase 0: Clean TypeChecker Architecture
 
-MappingTranslator doesn't create a new AST. It produces a **`StoreResolution`** record
-that PlanGenerator reads alongside the typed AST:
+**Goal**: Eliminate boilerplate, make TypeChecker a clean generic dispatcher,
+unify function resolution.
+
+#### Clean `compileFunction` — one pattern, no boilerplate
+
+Today: 25 wrapper methods + 40-case switch. After: **one method, no wrappers**.
+
+```java
+private TypeInfo compileFunction(AppliedFunction af, CompilationContext ctx) {
+    String funcName = simpleName(af.function());
+
+    // Common: compile first arg (source) — harmless for source-less functions
+    TypeInfo source = !af.parameters().isEmpty()
+        ? compileExpr(af.parameters().get(0), ctx) : null;
+
+    // Switch is pure name → checker, one line each
+    var info = switch (funcName) {
+        case "getAll"   -> new GetAllChecker(this).check(af, source, ctx);
+        case "filter"   -> new FilterChecker(this).check(af, source, ctx);
+        case "project"  -> new ProjectChecker(this).check(af, source, ctx);
+        case "sort", "sortBy", "sortByReversed"
+                        -> new SortChecker(this).check(af, source, ctx);
+        case "map"      -> new MapChecker(this).check(af, source, ctx);
+        // ... all 30+ functions, one line each
+        default -> compileUnknownFunction(af, funcName, source, ctx);
+    };
+
+    // Common: stamp TypeInfo
+    types.put(af, info);
+    return info;
+}
+```
+
+Source-less functions (`getAll`, `match`, `if`, `eval`, `let`) simply ignore the
+pre-compiled `source` and access `af.parameters()` directly. Pre-compiling
+`PackageableElementPtr("Person")` or `CString("x")` is harmless (returns scalar).
+
+#### ClassInstance dispatch — extract to checkers
+
+```java
+case ClassInstance ci -> switch (ci.type()) {
+    case "instance"    -> new InstanceChecker(this).check(ci, ctx);
+    case "relation"    -> new RelationAccessChecker(this).check(ci, ctx);
+    case "tdsLiteral"  -> new TdsLiteralChecker(this).check(ci, ctx);
+    default -> passthrough(ci);  // colSpec, colSpecArray, graphFetchTree
+};
+```
+
+#### Delete `table()` and `class()` — fake functions
+- `table('db.T')` → not a real Pure function. Use `#>{db.T}#` syntax
+- `class('M::P')` → redundant with `Person.all()` — same mapping lookup
+- Remove `compileTableAccess` method (~25 lines)
+- Update any tests that use `table()` to use `#>{db.T}#` syntax
+
+#### Fold `PureFunctionRegistry` into `ModelContext`
+
+Today: user-defined functions live in a separate static
+[PureFunctionRegistry](file:///Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/model/PureFunctionRegistry.java)
+(119 lines, 4 hardcoded PCT test helpers). User functions should be model elements
+just like classes, mappings, stores.
+
+- Move `registerPure()` / `getFunction()` into `ModelContext`
+- 4 hardcoded test functions (lines 90-116) → defined in test Pure model strings
+- `compileUnknownFunction()` checks `modelContext.findFunction(name)` first,
+  then falls back to `BuiltinFunctionRegistry`
+- Keep `inlineUserFunction()` mechanism (text substitution + re-parse)
+
+#### Concrete changes
+- [MODIFY] TypeChecker.java: delete 25 compileX wrappers → clean switch
+- [NEW] InstanceChecker.java: extract from `compileInstanceLiteral` (96 lines)
+- [NEW] RelationAccessChecker.java: extract from `compileRelationAccessor` (5 lines)
+- [NEW] TdsLiteralChecker.java: extract from `compileTdsLiteral` (32 lines)
+- [MODIFY] ModelContext: add `registerFunction()` / `findFunction()` from PureFunctionRegistry
+- [DELETE] PureFunctionRegistry.java (119 lines → absorbed into ModelContext)
+- [DELETE] `compileTableAccess` method (~25 lines)
+
+**TypeChecker shrinks**: ~1,491 → ~1,000 lines.
+
+**Estimate**: 2-3 days. Low risk — pure refactoring.
+
+---
+
+### Phase 1: Explicit Mapping Injection
+
+**Goal**: Mapping enters the pipeline at ONE place, explicitly. No auto-discovery
+hidden inside checkers.
+
+#### The pattern
+
+```java
+// In TypeChecker (or top-level entry point):
+Optional<ClassMapping> mapping = MappingScanner.findExactlyOne(registry, className);
+// If 0: throw "No mapping found for class 'Person'"
+// If >1: throw "Ambiguous: multiple mappings found for class 'Person': [M1, M2]"
+// If 1: pass it explicitly
+
+getAllChecker.check(af, source, ctx, mapping.get());
+```
+
+#### MappingScanner (new, ~30 lines)
+
+```java
+public class MappingScanner {
+    /** Finds exactly one mapping for a class. Throws if 0 or >1. */
+    public static ClassMapping findExactlyOne(MappingRegistry registry, String className) {
+        var mappings = registry.findAllMappings(className);
+        if (mappings.isEmpty())
+            throw new PureCompileException("No mapping for class '" + className + "'");
+        if (mappings.size() > 1)
+            throw new PureCompileException("Ambiguous: " + mappings.size()
+                + " mappings for '" + className + "': " + mappings);
+        return mappings.get(0);
+    }
+}
+```
+
+For `^Person()` / `[^Person()]`: InstanceChecker builds an identity mapping and
+passes it explicitly — same explicit pattern, different mapping source.
+
+#### What changes
+- [MODIFY] GetAllChecker: accept `ClassMapping` parameter instead of auto-discovering
+- [NEW] MappingScanner.java: single-mapping discovery + validation
+- [MODIFY] TypeChecker `compileGetAll` (or checker registry dispatch): call
+  `MappingScanner.findExactlyOne()` before delegating to GetAllChecker
+- [MODIFY] InstanceChecker: build identity mapping, pass explicitly
+
+**Estimate**: 1-2 days. Low risk.
+
+---
+
+### Phase 2: Remove Mapping from TypeInfo + Build MappingResolver
+
+**Goal**: TypeChecker stops propagating mapping. MappingResolver handles all mapping
+resolution as a separate pass.
+
+#### Remove mapping from 16 checkers
+
+**10 PASSTHROUGH checkers** — delete `.mapping(source.mapping())` (1-line each):
+> GroupBy, From, Aggregate, Extend, Distinct, Select, Rename, Slicing, Flatten, Pivot
+
+**6 ACTIVE checkers** — delete `resolveAssociations` calls:
+> Project, Filter, Sort, Map, Scalar, GetAll
+
+**AbstractChecker** — delete `resolveAssociationsFromParams` (lines 939-953),
+remove `ctx.withMapping()` from `bindLambdaParam` (lines 759, 769, 777).
+
+**TypeInfo** — remove `mapping` field, `associations` field, `tableName()`,
+`hasAssociations()`.
+
+#### MappingResolver (new, ~200-300 lines)
+
+Single-pass walker over typed AST. Produces `StoreResolution`:
 
 ```java
 public record StoreResolution(
-    // Per-node resolution: AST node → its resolved store info
-    Map<ValueSpecification, NodeResolution> nodeResolutions,
-    // All association joins discovered in the expression tree
-    Map<String, AssociationJoin> associationJoins
+    Map<ValueSpecification, NodeResolution> nodes,
+    Map<String, AssociationJoin> joins
 ) {
-    // For each AST node that references a class/property:
-    public sealed interface NodeResolution {
-        record TableAccess(String tableName, String alias,
-                           RelationalMapping mapping) implements NodeResolution {}
-        record ColumnRef(String tableName, String columnName,
-                         PropertyMapping pm) implements NodeResolution {}
+    sealed interface NodeResolution {
+        record TableAccess(String table, String alias, RelationalMapping mapping)
+            implements NodeResolution {}
+        record ColumnRef(String table, String column, PropertyMapping pm)
+            implements NodeResolution {}
         record AssociationNav(String joinName, String targetTable,
-                              String leftCol, String rightCol,
-                              boolean isToMany) implements NodeResolution {}
-    }
-
-    public record AssociationJoin(
-        String propertyName, Join join,
-        RelationalMapping targetMapping, boolean isToMany
-    ) {}
-}
-```
-
-### 3.2 How PlanGenerator Consumes It
-
-```java
-// Before (reads mapping from TypeInfo sidecar):
-ClassMapping mapping = info.mapping();
-String tableName = info.tableName();
-SqlExpr col = resolveColumnExpr(propName, mapping, alias);
-
-// After (reads from StoreResolution):
-var resolution = storeResolution.nodeResolutions().get(astNode);
-switch (resolution) {
-    case TableAccess ta -> builder.from(ta.tableName(), ta.alias());
-    case ColumnRef cr   -> new SqlExpr.Column(alias, cr.columnName());
-    case AssociationNav nav -> addJoin(nav);
-}
-```
-
-### 3.3 The Single-Pass Walk
-
-```java
-public class MappingTranslator {
-    public StoreResolution translate(
-            Map<ValueSpecification, TypeInfo> typedAST,
-            MappingRegistry registry) {
-
-        var resolutions = new HashMap<ValueSpecification, NodeResolution>();
-        var joins = new HashMap<String, AssociationJoin>();
-
-        for (var entry : typedAST.entrySet()) {
-            ValueSpecification node = entry.getKey();
-            TypeInfo type = entry.getValue();
-
-            if (node instanceof AppliedFunction af && "getAll".equals(af.function())) {
-                // Resolve class → table
-                String className = extractClassName(af);
-                ClassMapping mapping = registry.findAnyMapping(className).orElseThrow();
-                resolutions.put(node, new TableAccess(
-                    mapping.sourceTable().name(), "t0", (RelationalMapping) mapping));
-            }
-
-            if (node instanceof AppliedProperty ap) {
-                // Check if this is an association navigation
-                // (type was already resolved by TypeChecker to the target class)
-                // Now resolve the JOIN from the mapping
-                scanForAssociationJoins(ap, type, registry, joins);
-            }
-        }
-        return new StoreResolution(resolutions, joins);
+            String leftCol, String rightCol, boolean isToMany)
+            implements NodeResolution {}
     }
 }
 ```
 
----
+#### PlanGenerator reads StoreResolution instead of TypeInfo.mapping()
 
-## 4. Phased Implementation
+```java
+// Before: ClassMapping mapping = info.mapping();
+// After:  var res = storeResolution.nodes().get(astNode);
+```
 
-### Phase 1: Build MappingTranslator + Remove Mapping from TypeChecker
-
-**Concrete changes**:
-
-#### [NEW] `MappingTranslator.java`
-- Single-pass walk over typed AST
-- Resolves: getAll → table, properties → columns, associations → joins
-- Produces `StoreResolution` record
-
-#### [NEW] `StoreResolution.java`
-- Record holding per-node resolutions + association joins
-
-#### [MODIFY] 10 PASSTHROUGH checkers
-- Delete `.mapping(source.mapping())` from each (1-line change each)
-
-#### [MODIFY] 6 ACTIVE checkers
-- Delete `resolveAssociations` calls (Project, Filter, Sort, Map, Scalar)
-- GetAllChecker: remove M2M chain resolution, keep only type resolution (~200 lines → ~25 lines)
-
-#### [MODIFY] `AbstractChecker.java`
-- Delete `resolveAssociationsFromParams` (lines 939-953)
-- Remove `ctx.withMapping()` from `bindLambdaParam` (lines 759, 769, 777)
-
-#### [MODIFY] `TypeInfo.java`
-- Remove `mapping` field and `associations` field from TypeInfo record
-- Remove `Builder.mapping()` and `Builder.associations()` methods
-- Remove `tableName()`, `hasAssociations()` convenience methods
-
-#### [MODIFY] `PlanGenerator.java`
-- `generateGetAll`: read table from `StoreResolution` instead of `info.tableName()`
-- `generateProject`: read associations from `StoreResolution` instead of `info.associations()`
-- `generateSort`: read mapping from `StoreResolution` instead of `info.mapping()`
-- `resolveColumnExpr`: accept `StoreResolution` instead of `ClassMapping`
-
-**Test impact**: All existing tests should pass — behavior is unchanged,
-just responsibility moves from TypeChecker to MappingTranslator.
-
-**Estimate**: 5-7 days. Risk: Medium (largest change, but mostly mechanical deletion).
+**Estimate**: 5-7 days. Medium risk.
 
 ---
 
-### Phase 2: Unify PlanGenerator to One Codepath
+### Phase 3: Unify PlanGenerator to One Codepath
 
-**Goal**: Delete `generateGetAll`. MappingTranslator produces resolved metadata
-that PlanGenerator processes uniformly.
+**Goal**: Delete `generateGetAll`. Both class and relation paths produce the same
+output from MappingResolver. PlanGenerator has one path.
 
-**Concrete changes**:
-- Delete `generateGetAll` method (~15 lines)
-- Delete `generateGraphFetch`'s separate table resolution (~15 lines)
-- All paths use `StoreResolution.nodeResolutions()` for table/column/join info
-- `resolveColumnExpr` simplified: no longer handles M2M case inline (MappingTranslator pre-resolves)
-
-**Estimate**: 3-5 days. Risk: Medium.
+**Estimate**: 3-5 days.
 
 ---
 
-### Phase 3: DynaFunction Transforms
+### Phase 4: DynaFunction + Advanced Mapping Features
 
 **Goal**: Support `fullName: concat(T.first, ' ', T.last)` in property mappings.
-
-**Concrete changes**:
-- Parser: handle DynaFunction expressions in property mapping RHS
-- `PropertyMapping`: add `Optional<ValueSpecification> expression()` for parsed AST
-- `MappingTranslator`: translate DynaFunction → SQL via existing `BuiltinFunctionRegistry` (~225 fns)
 
 **Estimate**: 3-5 days. Independent — can start after Phase 1.
 
 ---
 
-### Phase 4: Mapping as Relation DSL (Endgame)
+### Phase 5: Mapping as Relation DSL (Endgame)
 
-**Goal**: `###Mapping` → syntactic sugar expanded by MappingTranslator into Relation ops.
+**Goal**: `###Mapping` → syntactic sugar expanded by MappingResolver into Relation ops.
 
-**Estimate**: 5-10 days. Depends on Phases 1-3.
-
----
-
-## 5. What PlanGenerator Loses (Line Inventory)
-
-| PlanGenerator code | Lines | What happens |
-|-------------------|-------|--------------|
-| `resolveColumnExpr` (3-way dispatch) | 75 | Simplified: reads pre-resolved columns from StoreResolution |
-| `resolveAssociationRefs` (recursive) | ~40 | Reads pre-resolved joins from StoreResolution |
-| `generateGetAll` (class-based entry) | ~15 | Deleted entirely |
-| `info.tableName()` reads | 2 sites | Reads from StoreResolution instead |
-| `info.mapping()` reads | ~10 sites | Reads from StoreResolution instead |
-| `info.associations()` reads | ~5 sites | Reads from StoreResolution instead |
-| **Est. total reduction** | **~150 lines** | Replaced by StoreResolution reads |
+**Estimate**: 5-10 days. Depends on Phases 1-4.
 
 ---
 
-## 6. Risk Assessment
+## 4. Current Checker Architecture
 
-| Concern | Risk | Mitigation |
-|---------|------|------------|
-| Breaking 16 checkers | Low | 10 are 1-line deletions, 6 are small refactors |
-| MappingTranslator misses edge case | Medium | Same test suite runs against new path |
-| PlanGenerator reads wrong resolution | Medium | StoreResolution is type-safe (sealed interface) |
-| M2M chain resolution in wrong pass | Low | M2M types resolved by TypeChecker (class defs), M2M joins by MappingTranslator |
-| No one-way doors | ✅ | All phases reversible |
+### TypeChecker Breakdown (1,491 lines → ~1,050 after Phase 0)
 
-## 7. Timeline
+| Section | Lines | After Phase 0 |
+|---------|-------|---------------|
+| Core infra (compileExpr switch, dispatch) | 170 | 50 (registry) |
+| 25 boilerplate wrappers | 125 | 0 (deleted) |
+| compileTableAccess | 25 | 0 (deleted) |
+| compileInstanceLiteral | 96 | 0 (→ InstanceChecker) |
+| compileTdsLiteral | 32 | 0 (→ TdsLiteralChecker) |
+| compileRelationAccessor | 5 | 0 (→ RelationAccessChecker) |
+| compileRegistryOrUserFunction + inline | 60 | 60 |
+| compileLambda | 58 | 58 |
+| compileVariable | 31 | 31 |
+| compileProperty | 155 | 155 |
+| compileCollection | 23 | 23 |
+| Association resolution (→ Phase 2) | 80 | 80 (moves in Phase 2) |
+| CompilationContext record | 60 | 40 (remove mapping) |
+| Type helpers + registration | 115 | 115 |
+| Comments/imports/blank | 456 | ~440 |
+
+### Checker Inventory (33 files, 4,727 lines)
+
+- **AbstractChecker** (1,088 lines): shared infra (overload resolution, lambda compilation, bindings)
+- **32 concrete checkers** (3,639 lines): function-specific type validation
+
+---
+
+## 5. Timeline
 
 ```
-Phase 1 ─── MappingTranslator + remove mapping from TypeChecker
-│            5-7 days
+Phase 0 ─── Checker registry + delete fake functions + extract InstanceChecker etc.
+│            2-3 days · LOW RISK
 ▼
-Phase 2 ─── Unify PlanGenerator codepaths
-│            3-5 days
+Phase 1 ─── Explicit mapping injection + MappingScanner
+│            1-2 days · LOW RISK
+▼
+Phase 2 ─── MappingResolver + remove mapping from TypeInfo/checkers
+│            5-7 days · MEDIUM RISK
+▼
+Phase 3 ─── Unify PlanGenerator codepaths
+│            3-5 days · MEDIUM RISK
 ├──────────────────────┐
 ▼                      ▼
-Phase 3 (parallel) ── DynaFunction transforms
+Phase 4 (parallel) ── DynaFunction transforms
 │                      3-5 days
 ▼
-Phase 4 ─── Mapping as Relation DSL
+Phase 5 ─── Mapping as Relation DSL
              5-10 days
 ```
 
-**Total: ~18-27 days**
+**Total: ~20-32 days**
+
+> [!IMPORTANT]
+> No one-way doors. Every phase is reversible. The architecture is proven by
+> legend-engine's 10+ years of production use.
