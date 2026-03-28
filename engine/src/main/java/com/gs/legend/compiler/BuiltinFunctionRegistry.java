@@ -528,6 +528,9 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("times", "native function times(left:Decimal[1], right:Decimal[1]):Decimal[1];");
         reg.registerSignature("times", "native function times(left:Number[1], right:Number[1]):Number[1];");
         reg.registerSignature("divide", "native function divide(dividend:Number[1], divisor:Number[1]):Float[1];");
+        // 3-arg: divide with explicit scale
+        reg.registerSignature("divide",
+                "native function divide(dividend:Number[1], divisor:Number[1], scale:Integer[1]):Decimal[1];");
 
         // ===== Comparison =====
         reg.registerSignature("equal", "native function equal(left:Any[1], right:Any[1]):Boolean[1];");
@@ -562,6 +565,9 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("least", "native function least(values:Any[*]):Any[0..1];");
         reg.registerSignature("coalesce", "native function coalesce(values:Any[*]):Any[0..1];");
         reg.registerSignature("coalesce", "native function coalesce(value:Any[0..1], defaultValue:Any[1]):Any[1];");
+        // 3-arg: coalesce(value, value2, defaultValue)
+        reg.registerSignature("coalesce",
+                "native function coalesce(value:Any[0..1], value2:Any[0..1], defaultValue:Any[1]):Any[1];");
         reg.registerSignature("in", "native function in(value:Any[1], collection:Any[*]):Boolean[1];");
 
         // ===== Boolean =====
@@ -588,8 +594,15 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("dateDiff",
                 "native function dateDiff(d1:Date[1], d2:Date[1], du:DurationUnit[1]):Integer[1];");
         reg.registerSignature("datePart", "native function datePart(d:Date[1]):StrictDate[1];");
+        // date(year) → Date, date(year,month) → Date, date(y,m,d) → StrictDate, etc.
+        reg.registerSignature("date", "native function date(year:Integer[1]):Date[1];");
+        reg.registerSignature("date",
+                "native function date(year:Integer[1], month:Integer[1]):Date[1];");
         reg.registerSignature("date",
                 "native function date(year:Integer[1], month:Integer[1], day:Integer[1]):StrictDate[1];");
+        // 4-arg: date(year, month, day, hour)
+        reg.registerSignature("date",
+                "native function date(year:Integer[1], month:Integer[1], day:Integer[1], hour:Integer[1]):DateTime[1];");
         // 5-arg: date(year, month, day, hour, minute)
         reg.registerSignature("date",
                 "native function date(year:Integer[1], month:Integer[1], day:Integer[1], hour:Integer[1], minute:Integer[1]):DateTime[1];");
@@ -634,7 +647,11 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("firstMillisecondOfSecond", "native function firstMillisecondOfSecond(d:Date[1]):DateTime[1];");
         // Epoch conversion
         reg.registerSignature("toEpochValue", "native function toEpochValue(d:Date[1], unit:DurationUnit[1]):Integer[1];");
+        // 1-arg: defaults to seconds
+        reg.registerSignature("toEpochValue", "native function toEpochValue(d:Date[1]):Integer[1];");
         reg.registerSignature("fromEpochValue", "native function fromEpochValue(epoch:Integer[1], unit:DurationUnit[1]):Date[1];");
+        // 1-arg: defaults to seconds
+        reg.registerSignature("fromEpochValue", "native function fromEpochValue(epoch:Integer[1]):Date[1];");
         // Date comparison predicates
         reg.registerSignature("isAfterDay", "native function isAfterDay(d1:Date[1], d2:Date[1]):Boolean[1];");
         reg.registerSignature("isBeforeDay", "native function isBeforeDay(d1:Date[1], d2:Date[1]):Boolean[1];");
@@ -792,6 +809,8 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("removeDuplicatesBy",
                 "native function removeDuplicatesBy<T,V>(col:T[*], key:Function<{T[1]->V[1]}>[1]):T[*];");
         reg.registerSignature("first", "native function first<T>(set:T[*]):T[0..1];");
+        // 2-arg: first(set, count) — take first N elements
+        reg.registerSignature("first", "native function first<T>(set:T[*], count:Integer[1]):T[*];");
 
         // ===== Relation overloads for limit/take/drop/slice =====
         reg.registerSignature("limit",
