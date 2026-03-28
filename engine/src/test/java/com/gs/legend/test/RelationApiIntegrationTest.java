@@ -72,7 +72,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testProjectSingleColumn() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName})
+                        ->project(~[firstName:p|$p.firstName])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -87,7 +87,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testProjectMultipleColumns() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age})
+                        ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -103,7 +103,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testProjectPreservesRows() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.lastName})
+                        ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -228,7 +228,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.lastName == 'Smith'})
-                        ->project({p | $p.firstName})
+                        ->project(~[firstName:p|$p.firstName])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -242,7 +242,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.lastName != 'Smith'})
-                        ->project({p | $p.firstName})
+                        ->project(~[firstName:p|$p.firstName])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -257,7 +257,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.age > 29})
-                        ->project({p | $p.firstName}, {p | $p.age})
+                        ->project(~[firstName:p|$p.firstName, age:p|$p.age])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -274,7 +274,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.age <= 30})
-                        ->project({p | $p.firstName}, {p | $p.age})
+                        ->project(~[firstName:p|$p.firstName, age:p|$p.age])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -291,7 +291,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.lastName == 'Smith' && $p.age > 29})
-                        ->project({p | $p.firstName})
+                        ->project(~[firstName:p|$p.firstName])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -306,7 +306,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.firstName == 'John' || $p.firstName == 'Bob'})
-                        ->project({p | $p.firstName})
+                        ->project(~[firstName:p|$p.firstName])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -454,8 +454,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             // project() first, then sort() on the resulting Relation
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.age})
-                        ->sort('age')
+                        ->project(~[firstName:p|$p.firstName, age:p|$p.age])
+                        ->sort('age', SortDirection.ASC)
                     """;
 
             var result = executeRelation(pureQuery);
@@ -473,8 +473,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testSortByDescending() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.age})
-                        ->sort('age', 'DESC')
+                        ->project(~[firstName:p|$p.firstName, age:p|$p.age])
+                        ->sort('age', SortDirection.DESC)
                     """;
 
             var result = executeRelation(pureQuery);
@@ -491,8 +491,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testSortByString() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName})
-                        ->sort('firstName')
+                        ->project(~[firstName:p|$p.firstName])
+                        ->sort('firstName', SortDirection.ASC)
                     """;
 
             var result = executeRelation(pureQuery);
@@ -517,8 +517,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             // project first, then sort, then limit on Relation
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.age})
-                        ->sort('age')
+                        ->project(~[firstName:p|$p.firstName, age:p|$p.age])
+                        ->sort('age', SortDirection.ASC)
                         ->limit(2)
                     """;
 
@@ -532,8 +532,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testTake() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName})
-                        ->sort('firstName')
+                        ->project(~[firstName:p|$p.firstName])
+                        ->sort('firstName', SortDirection.ASC)
                         ->take(1)
                     """;
 
@@ -548,8 +548,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testDrop() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName})
-                        ->sort('firstName')
+                        ->project(~[firstName:p|$p.firstName])
+                        ->sort('firstName', SortDirection.ASC)
                         ->drop(1)
                     """;
 
@@ -569,8 +569,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testSlice() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName})
-                        ->sort('firstName')
+                        ->project(~[firstName:p|$p.firstName])
+                        ->sort('firstName', SortDirection.ASC)
                         ->slice(1, 2)
                     """;
 
@@ -594,7 +594,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testLeftJoinViaAssociation() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.addresses.street})
+                        ->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street])
                     """;
 
             String sql = generateSql(pureQuery);
@@ -613,7 +613,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.addresses.city == 'New York'})
-                        ->project({p | $p.firstName})
+                        ->project(~[firstName:p|$p.firstName])
                     """;
 
             String sql = generateSql(pureQuery);
@@ -635,7 +635,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
                     Person.all()
                         ->filter({p | $p.addresses.city == 'New York'
                                   || $p.addresses.city == 'Boston'})
-                        ->project({p | $p.firstName})
+                        ->project(~[firstName:p|$p.firstName])
                     """;
 
             var result = executeRelation(pureQuery);
@@ -657,9 +657,9 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             // Use a realistic join: Person.age == Address.PERSON_ID (which is an integer)
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.age})
+                        ->project(~[firstName:p|$p.firstName, age:p|$p.age])
                         ->join(
-                            Address.all()->project({a | $a.city}, {a | $a.street}),
+                            Address.all()->project(~[city:a|$a.city, street:a|$a.street]),
                             JoinType.INNER,
                             {l, r | $l.firstName == $r.city}
                         )
@@ -681,9 +681,9 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testExplicitLeftOuterJoin() throws SQLException {
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.age})
+                        ->project(~[firstName:p|$p.firstName, age:p|$p.age])
                         ->join(
-                            Address.all()->project({a | $a.city}, {a | $a.street}),
+                            Address.all()->project(~[city:a|$a.city, street:a|$a.street]),
                             JoinType.LEFT_OUTER,
                             {l, r | $l.firstName == $r.city}
                         )
@@ -713,9 +713,9 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
             String pureQuery = """
                     Person.all()
-                        ->project({p | $p.firstName}, {p | $p.lastName})
+                        ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                         ->join(
-                            Person.all()->project({p2 | $p2.firstName}, {p2 | $p2.age}),
+                            Person.all()->project(~[firstName:p2|$p2.firstName, age:p2|$p2.age]),
                             JoinType.INNER,
                             {l, r | $l.firstName == $r.firstName},
                             'right'
@@ -885,8 +885,8 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.age >= 28})
-                        ->project({p | $p.firstName}, {p | $p.age})
-                        ->sort('age', 'DESC')
+                        ->project(~[firstName:p|$p.firstName, age:p|$p.age])
+                        ->sort('age', SortDirection.DESC)
                         ->limit(2)
                     """;
 
@@ -904,7 +904,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String pureQuery = """
                     Person.all()
                         ->filter({p | $p.addresses.city == 'New York'})
-                        ->project({p | $p.firstName}, {p | $p.lastName})
+                        ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                         ->sort('firstName')
                     """;
 

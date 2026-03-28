@@ -238,6 +238,9 @@ public class BuiltinFunctionRegistry {
                 "native function filter<T>(rel:Relation<T>[1], f:Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1];");
         reg.registerSignature("sort",
                 "native function sort<X,T>(rel:Relation<T>[1], sortInfo:SortInfo<X⊆T>[*]):Relation<T>[1];");
+        // Legacy TDS: sort(rel, colName, direction) — desugared in SortChecker
+        reg.registerSignature("sort",
+                "native function sort<T>(rel:Relation<T>[1], col:String[1], direction:SortDirection[1]):Relation<T>[1];");
         // limit, drop, slice registered in registerScalarFunctions (relation + scalar overloads)
         reg.registerSignature("concatenate",
                 "native function concatenate<T>(rel1:Relation<T>[1], rel2:Relation<T>[1]):Relation<T>[1];");
@@ -329,6 +332,9 @@ public class BuiltinFunctionRegistry {
                 "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
         reg.registerSignature("groupBy",
                 "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpec<Z⊆T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+        // Legacy TDS: groupBy(set, keyFns, aggValues, ids) — desugared to arity-3 in GroupByChecker
+        reg.registerSignature("groupBy",
+                "native function groupBy<K,V,U>(set:K[*], fns:Function<{K[1]->Any[*]}>[*], aggs:Any[*], ids:String[*]):Relation<K>[1];");
 
         // Aggregate
         reg.registerSignature("aggregate",
@@ -367,6 +373,9 @@ public class BuiltinFunctionRegistry {
                 "native function project<C,T>(cl:C[*], x:FuncColSpecArray<{C[1]->Any[*]},T>[1]):Relation<T>[1];");
         reg.registerSignature("project",
                 "native function project<T,Z>(r:Relation<T>[1], fs:FuncColSpecArray<{T[1]->Any[*]},Z>[1]):Relation<Z>[1];");
+        // Legacy TDS: project(set, functions, ids) — desugared to arity-2 in ProjectChecker
+        reg.registerSignature("project",
+                "native function project<K>(set:K[*], fns:Function<{K[1]->Any[*]}>[*], ids:String[*]):Relation<K>[1];");
 
         // Flatten
         reg.registerSignature("flatten",
@@ -431,6 +440,7 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("char", "native function char(code:Integer[1]):String[1];");
         reg.registerSignature("lpad", "native function lpad(str:String[1], len:Integer[1], pad:String[1]):String[1];");
         reg.registerSignature("rpad", "native function rpad(str:String[1], len:Integer[1], pad:String[1]):String[1];");
+        reg.registerSignature("rpad", "native function rpad(str:String[1], len:Integer[1]):String[1];");
         reg.registerSignature("splitPart",
                 "native function splitPart(str:String[1], delimiter:String[1], index:Integer[1]):String[1];");
         reg.registerSignature("left", "native function left(str:String[1], len:Integer[1]):String[1];");
@@ -534,6 +544,7 @@ public class BuiltinFunctionRegistry {
 
         // ===== Boolean =====
         reg.registerSignature("and", "native function and(left:Boolean[1], right:Boolean[1]):Boolean[1];");
+        reg.registerSignature("and", "native function and(bools:Boolean[*]):Boolean[1];");
         reg.registerSignature("or", "native function or(left:Boolean[1], right:Boolean[1]):Boolean[1];");
         reg.registerSignature("not", "native function not(value:Boolean[1]):Boolean[1];");
         reg.registerSignature("xor", "native function xor(left:Boolean[1], right:Boolean[1]):Boolean[1];");
@@ -594,7 +605,9 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("median", "native function median(numbers:Number[*]):Number[1];");
         reg.registerSignature("mode", "native function mode(values:Any[*]):Any[0..1];");
         reg.registerSignature("min", "native function min(numbers:Number[*]):Number[0..1];");
+        reg.registerSignature("min", "native function min(left:Number[1], right:Number[1]):Number[1];");
         reg.registerSignature("max", "native function max(numbers:Number[*]):Number[0..1];");
+        reg.registerSignature("max", "native function max(left:Number[1], right:Number[1]):Number[1];");
         reg.registerSignature("maxBy",
                 "native function maxBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
         reg.registerSignature("maxBy",
@@ -628,6 +641,8 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("corr",
                 "native function corr<T,U>(values:RowMapper<T,U>[*]):Number[0..1];");
         reg.registerSignature("percentile", "native function percentile(numbers:Number[*], p:Number[1]):Number[1];");
+        // Official: percentile(Number[*], Float[1], Boolean[1], Boolean[1]):Number[0..1]
+        reg.registerSignature("percentile", "native function percentile(numbers:Number[*], p:Number[1], ascending:Boolean[1], continuous:Boolean[1]):Number[0..1];");
         // legend-engine: wavg_RowMapper_MANY__Float_1_
         reg.registerSignature("wavg",
                 "native function wavg<T,U>(values:RowMapper<T,U>[*]):Float[1];");

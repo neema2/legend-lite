@@ -308,7 +308,7 @@ class LegendHttpServerIntegrationTest {
         String pureCodeWithQuery = buildSampleModel() + """
 
                 Person.all()
-                    ->project({p | $p.firstName}, {p | $p.lastName})
+                    ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
 
         String body = String.format("{\"code\":\"%s\"}", escapeJson(pureCodeWithQuery));
@@ -461,7 +461,7 @@ class LegendHttpServerIntegrationTest {
 
                 Employee.all()
                     ->filter(e | $e.department == 'Engineering')
-                    ->project({e | $e.name}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, salary:e|$e.salary])
                 """;
 
         String queryBody = String.format("{\"code\":\"%s\"}", escapeJson(pureQuery));

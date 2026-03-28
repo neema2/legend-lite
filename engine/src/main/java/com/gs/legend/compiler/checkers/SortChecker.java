@@ -43,8 +43,25 @@ public class SortChecker extends AbstractChecker {
         var params = af.parameters();
 
         if (source.isRelational()) {
-            // Only "sort" is valid for Relation sort
-            NativeFunctionDef def = resolveOverload("sort", params, source);
+            // Compile literal params (CString, EnumValue, etc.) before resolve
+            // so structural matching has real types for disambiguation.
+            // Skip AST-shape params (AppliedFunction, ClassInstance, LambdaFunction)
+            // which are matched structurally without needing compiled types.
+            var compiledTypes = new java.util.HashMap<Integer, ExpressionType>();
+            for (int i = 1; i < params.size(); i++) {
+                ValueSpecification p = params.get(i);
+                if (!(p instanceof AppliedFunction) && !(p instanceof ClassInstance)
+                        && !(p instanceof LambdaFunction) && !(p instanceof PureCollection)) {
+                    TypeInfo ti = env.compileExpr(p, ctx);
+                    compiledTypes.put(i, ti.expressionType());
+                }
+            }
+            NativeFunctionDef def = resolveOverload("sort", params, source, compiledTypes);
+            // Legacy TDS: sort(Relation, String, SortDirection) — arity 3
+            // Rewrite to sort(ascending(~col)) and recompile through modern path
+            if (def.arity() == 3) {
+                return checkLegacySort(af, source, ctx);
+            }
             return checkRelationSort(af, source, def);
         }
 
@@ -94,6 +111,57 @@ public class SortChecker extends AbstractChecker {
                 .sortSpecs(sortSpecs)
                 .expressionType(outputType)
                 .build();
+    }
+
+    /**
+     * Legacy TDS sort: sort(Relation, String, SortDirection)
+     *
+     * <pre>
+     * sort('col', SortDirection.ASC)  → sort(ascending(~col))
+     * sort('col', SortDirection.DESC) → sort(descending(~col))
+     * </pre>
+     *
+     * <p>Pure AST→AST rewrite, then recompile through the modern path.
+     * Same pattern as ProjectChecker.rewriteLegacyProject.
+     */
+    private TypeInfo checkLegacySort(AppliedFunction af, TypeInfo source,
+                                      TypeChecker.CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+
+        // Extract column name from param[1] (CString)
+        if (!(params.get(1) instanceof CString(String colName))) {
+            throw new PureCompileException("sort(): legacy syntax requires column name as String");
+        }
+
+        // Extract direction from param[2] (EnumValue) — required, no defaulting
+        if (!(params.get(2) instanceof EnumValue ev)) {
+            throw new PureCompileException(
+                    "sort(): legacy syntax requires SortDirection enum (e.g., SortDirection.ASC), got "
+                    + params.get(2).getClass().getSimpleName());
+        }
+        String dirFn = switch (ev.value().toUpperCase()) {
+            case "ASC", "ASCENDING" -> "ascending";
+            case "DESC", "DESCENDING" -> "descending";
+            default -> throw new PureCompileException(
+                    "sort(): unknown SortDirection value '" + ev.value()
+                    + "', expected ASC or DESC");
+        };
+
+        // Build: ascending(~col) or descending(~col)
+        var colSpec = new ColSpec(colName, null);
+        var colSpecInstance = new ClassInstance("colSpec", colSpec);
+        var sortInfo = new AppliedFunction(dirFn, List.of(colSpecInstance));
+
+        // Build new arity-2 AF: sort(source, sortInfo)
+        var rewritten = new AppliedFunction(
+                af.function(),
+                List.of(params.get(0), sortInfo),
+                af.hasReceiver(),
+                af.sourceText(),
+                af.argTexts());
+
+        TypeInfo result = env.compileExpr(rewritten, ctx);
+        return TypeInfo.from(result).inlinedBody(rewritten).build();
     }
 
     /**

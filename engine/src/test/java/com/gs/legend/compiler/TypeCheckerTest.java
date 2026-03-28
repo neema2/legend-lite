@@ -74,6 +74,7 @@ class TypeCheckerTest {
         }
 
         public java.util.Optional<com.gs.legend.model.store.Table> findTable(String n) {
+            if (n.contains("T_PERSON")) return java.util.Optional.of(PERSON_TABLE);
             return java.util.Optional.empty();
         }
     };
@@ -84,7 +85,7 @@ class TypeCheckerTest {
 
     @Test
     void tableAccessResolvesTableSchema() {
-        var vs = parse("table('PersonDatabase.T_PERSON')");
+        var vs = parse("#>{PersonDatabase.T_PERSON}");
         var unit = compiler.check(vs);
 
         GenericType.Relation.Schema rt = unit.typeInfoFor(unit.root()).schema();
@@ -99,7 +100,7 @@ class TypeCheckerTest {
 
     @Test
     void filterPreservesSourceType() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.AGE > 25)");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->filter(x|$x.AGE > 25)");
         var unit = compiler.check(vs);
 
         // Filter preserves ALL columns from source
@@ -111,7 +112,7 @@ class TypeCheckerTest {
 
     @Test
     void filterRejectsInvalidColumn() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.NONEXISTENT > 25)");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->filter(x|$x.NONEXISTENT > 25)");
         assertThrows(PureCompileException.class,
                 () -> compiler.check(vs),
                 "Should reject reference to non-existent column");
@@ -119,7 +120,7 @@ class TypeCheckerTest {
 
     @Test
     void sortValidatesColumns() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->sort(asc(~AGE))");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->sort(asc(~AGE))");
         var unit = compiler.check(vs);
 
         assertEquals(6, unit.typeInfoFor(unit.root()).schema().size(), "Sort preserves columns");
@@ -127,7 +128,7 @@ class TypeCheckerTest {
 
     @Test
     void sortRejectsInvalidColumn() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->sort(asc(~NONEXISTENT))");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->sort(asc(~NONEXISTENT))");
         assertThrows(PureCompileException.class,
                 () -> compiler.check(vs),
                 "Should reject sort on non-existent column");
@@ -135,7 +136,7 @@ class TypeCheckerTest {
 
     @Test
     void renameChangesColumnName() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->rename(~FIRST_NAME, ~NAME)");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->rename(~FIRST_NAME, ~NAME)");
         var unit = compiler.check(vs);
 
         GenericType.Relation.Schema rt = unit.typeInfoFor(unit.root()).schema();
@@ -146,14 +147,14 @@ class TypeCheckerTest {
 
     @Test
     void limitPreservesType() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->limit(10)");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->limit(10)");
         var unit = compiler.check(vs);
         assertEquals(6, unit.typeInfoFor(unit.root()).schema().size());
     }
 
     @Test
     void chainedOperationsPreserveType() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.AGE > 18)->sort(asc(~FIRST_NAME))->limit(5)");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->filter(x|$x.AGE > 18)->sort(asc(~FIRST_NAME))->limit(5)");
         var unit = compiler.check(vs);
 
         GenericType.Relation.Schema rt = unit.typeInfoFor(unit.root()).schema();
@@ -165,7 +166,7 @@ class TypeCheckerTest {
 
     @Test
     void filterGeneratesValidSql() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->filter(x|$x.AGE > 25)");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->filter(x|$x.AGE > 25)");
         var unit = compiler.check(vs);
         String sql = compileSql(unit);
 
@@ -177,7 +178,7 @@ class TypeCheckerTest {
 
     @Test
     void limitGeneratesSql() {
-        var vs = parse("table('PersonDatabase.T_PERSON')->limit(10)");
+        var vs = parse("#>{PersonDatabase.T_PERSON}->limit(10)");
         var unit = compiler.check(vs);
         String sql = compileSql(unit);
 

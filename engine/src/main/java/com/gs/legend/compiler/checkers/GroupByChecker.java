@@ -32,9 +32,20 @@ public class GroupByChecker extends AbstractChecker {
     @Override
     public TypeInfo check(AppliedFunction af, TypeInfo source,
                           TypeChecker.CompilationContext ctx) {
-        NativeFunctionDef def = resolveOverload("groupBy", af.parameters(), source);
-        unify(def, source.expressionType()); // validate source matches signature generics
         List<ValueSpecification> params = af.parameters();
+        NativeFunctionDef def = resolveOverload("groupBy", params, source);
+
+        // Legacy TDS desugar: groupBy([keyFns], [agg(mapFn, aggFn)], ['aliases'])
+        //                   → groupBy(~[keyCols], ~[aggAlias:fn1:fn2])
+        if (def.arity() == 4) {
+            AppliedFunction rewritten = rewriteLegacyGroupBy(af,
+                    (PureCollection) params.get(1), (PureCollection) params.get(2),
+                    (PureCollection) params.get(3));
+            TypeInfo result = env.compileExpr(rewritten, ctx);
+            return TypeInfo.from(result).inlinedBody(rewritten).build();
+        }
+
+        unify(def, source.expressionType()); // validate source matches signature generics
 
         GenericType.Relation.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
@@ -145,6 +156,71 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         return new TypeInfo.AggColumnSpec(alias, resolved, returnType, castType);
+    }
+
+    // ========== Legacy TDS Desugaring ==========
+
+    /**
+     * Rewrites legacy TDS arity-4 groupBy to Relation DSL arity-3.
+     *
+     * <pre>
+     * groupBy(source, [{r|$r.dept}], [agg({r|$r.sal}, {y|$y->sum()})], ['dept', 'totalSal'])
+     *   → groupBy(source, ~[dept], ~[totalSal : {r|$r.sal} : {y|$y->sum()}])
+     * </pre>
+     *
+     * <p>Aliases are split: first N for key columns, remaining for agg columns.
+     */
+    private static AppliedFunction rewriteLegacyGroupBy(
+            AppliedFunction af, PureCollection keyFns, PureCollection aggs, PureCollection aliases) {
+        List<ValueSpecification> keyList = keyFns.values();
+        List<ValueSpecification> aggList = aggs.values();
+        List<ValueSpecification> aliasList = aliases.values();
+
+        int expectedAliases = keyList.size() + aggList.size();
+        if (aliasList.size() != expectedAliases) {
+            throw new PureCompileException(
+                    "groupBy() legacy syntax: expected " + expectedAliases + " aliases ("
+                            + keyList.size() + " keys + " + aggList.size() + " aggs), got " + aliasList.size());
+        }
+
+        // Key columns: ColSpec(alias) — bare column references
+        List<ColSpec> keyCols = new ArrayList<>();
+        for (int i = 0; i < keyList.size(); i++) {
+            if (!(aliasList.get(i) instanceof CString cs))
+                throw new PureCompileException(
+                        "groupBy() legacy syntax: key alias[" + i + "] must be a String literal");
+            keyCols.add(new ColSpec(cs.value()));
+        }
+
+        // Agg columns: ColSpec(alias, mapFn, aggFn) — extracted from agg(mapFn, aggFn) calls
+        List<ColSpec> aggCols = new ArrayList<>();
+        for (int i = 0; i < aggList.size(); i++) {
+            int aliasIdx = keyList.size() + i;
+            if (!(aliasList.get(aliasIdx) instanceof CString cs))
+                throw new PureCompileException(
+                        "groupBy() legacy syntax: agg alias[" + i + "] must be a String literal");
+            if (!(aggList.get(i) instanceof AppliedFunction aggCall) || !"agg".equals(aggCall.function()))
+                throw new PureCompileException(
+                        "groupBy() legacy syntax: agg[" + i + "] must be agg(mapFn, aggFn)");
+            List<ValueSpecification> aggParams = aggCall.parameters();
+            if (aggParams.size() != 2
+                    || !(aggParams.get(0) instanceof LambdaFunction mapFn)
+                    || !(aggParams.get(1) instanceof LambdaFunction aggFn))
+                throw new PureCompileException(
+                        "groupBy() legacy syntax: agg[" + i + "] must have exactly 2 lambda params");
+            aggCols.add(new ColSpec(cs.value(), mapFn, aggFn));
+        }
+
+        // Build rewritten arity-3: groupBy(source, ColSpecArray(keyCols), ColSpecArray(aggCols))
+        var keyArray = new ClassInstance("colSpecArray", new ColSpecArray(keyCols));
+        var aggArray = new ClassInstance("colSpecArray", new ColSpecArray(aggCols));
+
+        return new AppliedFunction(
+                af.function(),
+                List.of(af.parameters().get(0), keyArray, aggArray),
+                af.hasReceiver(),
+                af.sourceText(),
+                af.argTexts());
     }
 
     // ========== Helpers ==========

@@ -168,7 +168,7 @@ class InheritanceIntegrationTest {
             String pureQuery = """
                     Employee.all()
                         ->filter({e | $e.firstName == 'John'})
-                        ->project({e | $e.firstName}, {e | $e.lastName}, {e | $e.employeeId})
+                        ->project(~[firstName:e|$e.firstName, lastName:e|$e.lastName, employeeId:e|$e.employeeId])
                     """;
 
             var result = executeQuery(pureQuery);
@@ -188,7 +188,7 @@ class InheritanceIntegrationTest {
             String pureQuery = """
                     Employee.all()
                         ->filter({e | $e.id == 'E001'})
-                        ->project({e | $e.id}, {e | $e.firstName}, {e | $e.employeeId})
+                        ->project(~[id:e|$e.id, firstName:e|$e.firstName, employeeId:e|$e.employeeId])
                     """;
 
             var result = executeQuery(pureQuery);
@@ -209,7 +209,7 @@ class InheritanceIntegrationTest {
         void testProjectMixedProperties() throws Exception {
             String pureQuery = """
                     Employee.all()
-                        ->project({e | $e.id}, {e | $e.firstName}, {e | $e.lastName}, {e | $e.employeeId}, {e | $e.department})
+                        ->project(~[id:e|$e.id, firstName:e|$e.firstName, lastName:e|$e.lastName, employeeId:e|$e.employeeId, department:e|$e.department])
                     """;
 
             var result = executeQuery(pureQuery);
@@ -234,8 +234,8 @@ class InheritanceIntegrationTest {
             String pureQuery = """
                     Employee.all()
                         ->filter({e | $e.salary > 82000})
-                        ->project({e | $e.firstName}, {e | $e.lastName}, {e | $e.salary})
-                        ->sort({r | $r.lastName})
+                        ->project(~[firstName:e|$e.firstName, lastName:e|$e.lastName, salary:e|$e.salary])
+                        ->sort('lastName', SortDirection.ASC)
                     """;
 
             var result = executeQuery(pureQuery);
@@ -259,7 +259,7 @@ class InheritanceIntegrationTest {
             String pureQuery = """
                     Employee.all()
                         ->filter({e | $e.firstName == 'John'})
-                        ->project({e | $e.firstName}, {e | $e.employeeId})
+                        ->project(~[firstName:e|$e.firstName, employeeId:e|$e.employeeId])
                     """;
 
             String sql = generateSql(pureQuery);

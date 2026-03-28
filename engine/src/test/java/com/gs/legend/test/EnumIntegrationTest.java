@@ -412,7 +412,7 @@ class EnumIntegrationTest {
             String pureQuery = """
                     Task.all()
                         ->filter({t | $t.status == 'PENDING'})
-                        ->project({t | $t.name})
+                        ->project(~[name:t|$t.name])
                     """;
 
             var result = queryService.execute(
@@ -483,7 +483,7 @@ class EnumIntegrationTest {
             String pureQuery = """
                     Issue.all()
                         ->filter({i | $i.priority == 'HIGH' || $i.priority == 'CRITICAL'})
-                        ->project({i | $i.title}, {i | $i.priority})
+                        ->project(~[title:i|$i.title, priority:i|$i.priority])
                     """;
 
             var result = queryService.execute(
@@ -552,7 +552,7 @@ class EnumIntegrationTest {
             // WHEN: Query projecting status enum column
             String pureQuery = """
                     Order.all()
-                        ->project({o | $o.customer}, {o | $o.status})
+                        ->project(~[customer:o|$o.customer, status:o|$o.status])
                     """;
 
             var result = queryService.execute(
@@ -646,7 +646,7 @@ class EnumIntegrationTest {
             // WHEN: Query orders
             String pureQuery = """
                     Order.all()
-                        ->project({o | $o.customer}, {o | $o.status})
+                        ->project(~[customer:o|$o.customer, status:o|$o.status])
                     """;
 
             var result = queryService.execute(
@@ -723,7 +723,7 @@ class EnumIntegrationTest {
 
             String pureQuery = """
                     Task.all()
-                        ->project({t | $t.name}, {t | $t.status})
+                        ->project(~[name:t|$t.name, status:t|$t.status])
                     """;
 
             var result = queryService.execute(

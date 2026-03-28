@@ -37,6 +37,17 @@ public class ProjectChecker extends AbstractChecker {
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("project", params, source);
+
+        // Legacy TDS desugar: project([{lambdas}], ['aliases']) → project(~[alias:lambda, ...])
+        // Rewrite to arity-2, compile the rewritten AF (stamps in types map),
+        // return with inlinedBody so PlanGenerator follows to the rewritten node.
+        if (def.arity() == 3) {
+            AppliedFunction rewritten = rewriteLegacyProject(af,
+                    (PureCollection) params.get(1), (PureCollection) params.get(2));
+            TypeInfo result = env.compileExpr(rewritten, ctx);
+            return TypeInfo.from(result).inlinedBody(rewritten).build();
+        }
+
         ClassMapping mapping = source.mapping();
 
         // 1. Bind type variables from signature
@@ -106,6 +117,54 @@ public class ProjectChecker extends AbstractChecker {
                 .projections(projectionSpecs)
                 .expressionType(ExpressionType.many(new GenericType.Relation(resultSchema)))
                 .build();
+    }
+
+    // ========== Legacy TDS Desugaring ==========
+
+    /**
+     * Rewrites legacy TDS arity-3 project() to Relation DSL arity-2.
+     *
+     * <pre>
+     * project([{e|$e.dept}, {e|$e.sal}], ['dept', 'sal'])
+     *   → project(~[dept:e|$e.dept, sal:e|$e.sal])
+     * </pre>
+     *
+     * <p>This is a pure AST→AST transform. The rewritten node flows through
+     * the same signature-driven type checking as the Relation DSL syntax.
+     */
+    private static AppliedFunction rewriteLegacyProject(
+            AppliedFunction af, PureCollection lambdas, PureCollection aliases) {
+        List<ValueSpecification> fns = lambdas.values();
+        List<ValueSpecification> ids = aliases.values();
+
+        if (fns.size() != ids.size()) {
+            throw new PureCompileException(
+                    "project() legacy syntax: lambda count (" + fns.size()
+                            + ") must match alias count (" + ids.size() + ")");
+        }
+
+        // Zip lambdas + aliases → ColSpec nodes
+        List<ColSpec> colSpecs = new ArrayList<>();
+        for (int i = 0; i < fns.size(); i++) {
+            if (!(ids.get(i) instanceof CString cs))
+                throw new PureCompileException(
+                        "project() legacy syntax: alias[" + i + "] must be a String literal");
+            if (!(fns.get(i) instanceof LambdaFunction lf))
+                throw new PureCompileException(
+                        "project() legacy syntax: function[" + i + "] must be a lambda");
+            colSpecs.add(new ColSpec(cs.value(), lf));
+        }
+
+        // Wrap in ClassInstance("colSpecArray", ColSpecArray)
+        var colSpecArray = new ClassInstance("colSpecArray", new ColSpecArray(colSpecs));
+
+        // Build new arity-2 AF: project(source, colSpecArray)
+        return new AppliedFunction(
+                af.function(),
+                List.of(af.parameters().get(0), colSpecArray),
+                af.hasReceiver(),
+                af.sourceText(),
+                af.argTexts());
     }
 
     // ========== Helpers ==========

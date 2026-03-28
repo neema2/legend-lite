@@ -44,6 +44,7 @@ public class TypeChecker implements TypeCheckEnv {
      * passthrough.
      */
     private static final BuiltinFunctionRegistry builtinRegistry = BuiltinFunctionRegistry.instance();
+    private static final PureFunctionRegistry functionRegistry = PureFunctionRegistry.withBuiltins();
 
     private final ModelContext modelContext;
     /** Per-node type info, consumed by PlanGenerator. */
@@ -120,749 +121,83 @@ public class TypeChecker implements TypeCheckEnv {
 
     // ========== Function Dispatch ==========
 
+    /**
+     * Dispatches function calls to the appropriate checker.
+     *
+     * <p>
+     * Pattern: pre-compile source &rarr; switch dispatch &rarr; post-stamp.
+     * Source-less functions (getAll, match, if, eval, let) simply ignore
+     * the pre-compiled source and access af.parameters() directly.
+     */
     private TypeInfo compileFunction(AppliedFunction af, CompilationContext ctx) {
         String funcName = simpleName(af.function());
 
-        return switch (funcName) {
+        // Common: compile first arg (source) — harmless for source-less functions
+        TypeInfo source = !af.parameters().isEmpty()
+                ? compileExpr(af.parameters().get(0), ctx)
+                : null;
+
+        TypeInfo info = switch (funcName) {
             // --- Relation Sources ---
-            case "table", "class" -> compileTableAccess(af, ctx);
-            case "getAll" -> compileGetAll(af, ctx);
-            // --- Shape-preserving (work on both relations and lists) ---
-            case "sort", "sortBy", "sortByReversed" -> compileSort(af, ctx);
-            case "filter" -> compileFilter(af, ctx);
-            case "limit", "take", "drop", "slice", "first", "last" -> compileSlicing(af, ctx);
+            case "getAll" -> new com.gs.legend.compiler.checkers.GetAllChecker(this).check(af, source, ctx);
+            // --- Shape-preserving ---
+            case "sort", "sortBy", "sortByReversed" ->
+                new com.gs.legend.compiler.checkers.SortChecker(this).check(af, source, ctx);
+            case "filter" -> new com.gs.legend.compiler.checkers.FilterChecker(this).check(af, source, ctx);
+            case "limit", "take", "drop", "slice", "first", "last" ->
+                new com.gs.legend.compiler.checkers.SlicingChecker(this).check(af, source, ctx);
             // --- Column operations ---
-            case "rename" -> compileRename(af, ctx);
-            case "select" -> compileSelect(af, ctx);
-            case "distinct" -> compileDistinct(af, ctx);
+            case "rename" -> new com.gs.legend.compiler.checkers.RenameChecker(this).check(af, source, ctx);
+            case "select" -> new com.gs.legend.compiler.checkers.SelectChecker(this).check(af, source, ctx);
+            case "distinct" -> new com.gs.legend.compiler.checkers.DistinctChecker(this).check(af, source, ctx);
             // --- Shape-changing ---
-            case "concatenate" -> compileConcatenate(af, ctx);
-            case "project" -> compileProject(af, ctx);
-            case "groupBy" -> compileGroupBy(af, ctx);
-            case "aggregate" -> compileAggregate(af, ctx);
-            case "extend" -> compileExtend(af, ctx);
-            case "join" -> compileJoin(af, ctx);
-            case "asOfJoin" -> compileAsOfJoin(af, ctx);
-            case "pivot" -> compilePivot(af, ctx);
-            case "flatten" -> compileFlatten(af, ctx);
-            case "from" -> compileFrom(af, ctx);
+            case "concatenate" -> new com.gs.legend.compiler.checkers.ConcatenateChecker(this).check(af, source, ctx);
+            case "project" -> new com.gs.legend.compiler.checkers.ProjectChecker(this).check(af, source, ctx);
+            case "groupBy" -> new com.gs.legend.compiler.checkers.GroupByChecker(this).check(af, source, ctx);
+            case "aggregate" -> new com.gs.legend.compiler.checkers.AggregateChecker(this).check(af, source, ctx);
+            case "extend" -> new com.gs.legend.compiler.checkers.ExtendChecker(this).check(af, source, ctx);
+            case "join" -> new com.gs.legend.compiler.checkers.JoinChecker(this).check(af, source, ctx);
+            case "asOfJoin" -> new com.gs.legend.compiler.checkers.AsOfJoinChecker(this).check(af, source, ctx);
+            case "pivot" -> new com.gs.legend.compiler.checkers.PivotChecker(this).check(af, source, ctx);
+            case "flatten" -> new com.gs.legend.compiler.checkers.FlattenChecker(this).check(af, source, ctx);
+            case "from" -> new com.gs.legend.compiler.checkers.FromChecker(this).check(af, source, ctx);
             // --- Scalar collection functions with lambdas ---
-            case "map" -> compileMap(af, ctx);
-            case "fold" -> compileFold(af, ctx);
-            case "zip" -> compileZip(af, ctx);
-            case "if" -> compileIf(af, ctx);
-            case "letFunction" -> compileLet(af, ctx);
+            case "map" -> new com.gs.legend.compiler.checkers.MapChecker(this).check(af, source, ctx);
+            case "fold" -> new com.gs.legend.compiler.checkers.FoldChecker(this).check(af, source, ctx);
+            case "zip" -> new com.gs.legend.compiler.checkers.ZipChecker(this).check(af, source, ctx);
+            case "if" -> new com.gs.legend.compiler.checkers.IfChecker(this).check(af, source, ctx);
+            case "letFunction" -> new com.gs.legend.compiler.checkers.LetChecker(this).check(af, source, ctx);
             // --- Type functions ---
-            case "cast" -> compileCast(af, ctx);
-            case "toMany", "toOne", "toVariant", "to" -> compileTypeConversion(af, ctx);
-            // --- Variant access (compiler resolves index vs field) ---
-            case "get" -> compileGet(af, ctx);
-            // (if is handled above with zip)
-            case "write" -> compileWrite(af, ctx);
-            // --- GraphFetch / Serialize (M2M JSON output) ---
-            case "graphFetch" -> compileGraphFetch(af, ctx);
-            case "serialize" -> compileSerialize(af, ctx);
-            case "eval" -> compileEval(af, ctx);
-            case "match" -> compileMatch(af, ctx);
-            // --- Conditional ---
-            // if — moved above to group with scalar collection functions
-            // --- Registry-driven: all other functions resolved via NativeFunctionDef ---
-            default -> compileRegistryOrUserFunction(af, funcName, ctx);
+            case "cast" -> new com.gs.legend.compiler.checkers.CastChecker(this).check(af, source, ctx);
+            case "toMany", "toOne", "toVariant", "to" ->
+                new com.gs.legend.compiler.checkers.TypeConversionChecker(this).check(af, source, ctx);
+            // --- Variant access ---
+            case "get" -> new com.gs.legend.compiler.checkers.GetChecker(this).check(af, source, ctx);
+            case "write" -> new com.gs.legend.compiler.checkers.WriteChecker(this).check(af, source, ctx);
+            // --- GraphFetch / Serialize ---
+            case "graphFetch" -> new com.gs.legend.compiler.checkers.GraphFetchChecker(this).check(af, source, ctx);
+            case "serialize" -> new com.gs.legend.compiler.checkers.SerializeChecker(this).check(af, source, ctx);
+            case "eval" -> new com.gs.legend.compiler.checkers.EvalChecker(this).check(af, source, ctx);
+            case "match" -> new com.gs.legend.compiler.checkers.MatchChecker(this).check(af, source, ctx);
+            // --- Unknown: user function → builtin → error ---
+            default -> {
+                String qualifiedName = af.function();
+                var fn = functionRegistry.getFunction(qualifiedName)
+                        .or(() -> functionRegistry.getFunction(funcName));
+                if (fn.isPresent())
+                    yield inlineUserFunction(af, fn.get(), ctx);
+                if (builtinRegistry.isRegistered(funcName))
+                    yield new com.gs.legend.compiler.checkers.ScalarChecker(this).check(af, source, ctx);
+                throw new PureCompileException(
+                        "Unknown function '" + funcName + "'. "
+                                + "Function is not registered and no user-defined function found. "
+                                + "Available functions: " + builtinRegistry.functionCount() + " registered.");
+            }
         };
-    }
 
-    // ========== Relation Sources ==========
-
-    /**
-     * Compiles table('store::db.TABLE') or class('model::MyClass').
-     * Resolves to physical Table and builds RelationType.
-     */
-    private TypeInfo compileTableAccess(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) {
-            throw new PureCompileException("table/class() requires an argument");
-        }
-
-        String tableRef = extractStringValue(params.get(0));
-
-        // For class('model::Person'), resolve via class name
-        if ("class".equals(simpleName(af.function()))) {
-            String className = tableRef.contains("::") ? tableRef.substring(tableRef.lastIndexOf("::") + 2) : tableRef;
-            var mappingOpt = mappingRegistry().findByClassName(className);
-            if (mappingOpt.isPresent()) {
-                ClassMapping mapping = mappingOpt.get();
-                GenericType.Relation.Schema relType = tableToRelationType(mapping.sourceTable());
-                return typed(af, relType, mapping);
-            }
-        }
-
-        Table table = resolveTable(tableRef);
-        GenericType.Relation.Schema relType = tableToRelationType(table);
-        return typed(af, relType, null);
-    }
-
-    /**
-     * Compiles Person.all() → getAll(PackageableElementPtr("Person")).
-     * Resolves class → mapping → table → RelationType.
-     * Stores the mapping in context for property→column resolution in
-     * project/filter.
-     */
-    private TypeInfo compileGetAll(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        if (params.isEmpty()) {
-            throw new PureCompileException("getAll() requires a class argument");
-        }
-
-        String qualifiedName;
-        String className;
-        if (params.get(0) instanceof PackageableElementPtr(String fullPath)) {
-            qualifiedName = fullPath;
-            className = fullPath.contains("::") ? fullPath.substring(fullPath.lastIndexOf("::") + 2)
-                    : fullPath;
-        } else {
-            throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-        }
-
-        // Try relational mapping first
-        var mappingOpt = mappingRegistry().findByClassName(className);
-        if (mappingOpt.isPresent()) {
-            ClassMapping mapping = mappingOpt.get();
-            // Return ClassType[*] — class instances, not Relation.
-            // Schema comes from project(), not getAll().
-            var info = TypeInfo.builder()
-                    .mapping(mapping)
-                    .expressionType(ExpressionType.many(new GenericType.ClassType(qualifiedName)))
-                    .build();
-            types.put(af, info);
-            return info;
-        }
-
-        // Try PureClassMapping (M2M) — runtime-driven
-        var pureMappingOpt = mappingRegistry().findPureClassMapping(className);
-        if (pureMappingOpt.isPresent()) {
-            return compileM2MGetAll(af, pureMappingOpt.get());
-        }
-
-        throw new PureCompileException("Unresolved type for function: " + simpleName(af.function()));
-    }
-
-    /**
-     * Compiles getAll() for an M2M-mapped class.
-     * Resolves source class → source RelationalMapping → source table.
-     * Builds virtual GenericType.Relation.Schema from M2M property names.
-     * Stores PureClassMapping in TypeInfo sidecar for PlanGenerator.
-     */
-    private TypeInfo compileM2MGetAll(AppliedFunction af,
-            com.gs.legend.model.mapping.PureClassMapping pureMapping) {
-        // Resolve source class → its mapping (may be relational or another M2M)
-        String sourceClassName = pureMapping.sourceClassName();
-        var sourceMapping = mappingRegistry().findAnyMapping(sourceClassName);
-
-        if (sourceMapping.isEmpty()) {
-            throw new PureCompileException(
-                    "M2M source class '" + sourceClassName + "' has no mapping. "
-                            + "The source class must be mapped to a database table or another M2M class.");
-        }
-
-        ClassMapping srcMapping = sourceMapping.get();
-
-        // Recursive M2M chain resolution: if source is itself M2M, resolve its source
-        // too.
-        // Each intermediate PureClassMapping gets linked to its own source mapping.
-        // The chain must ultimately terminate at a RelationalMapping.
-        if (srcMapping instanceof com.gs.legend.model.mapping.PureClassMapping srcPcm) {
-            // Recursively resolve the source M2M first (this compiles the intermediate
-            // mapping)
-            resolveM2MChain(srcPcm);
-            // Re-fetch from registry to get the resolved version (records are immutable)
-            srcMapping = mappingRegistry().findAnyMapping(sourceClassName).orElseThrow();
-        }
-
-        // Resolve the PureClassMapping: link it to its source mapping and target class
-        com.gs.legend.model.m3.PureClass targetClass = null;
-        if (modelContext != null) {
-            targetClass = modelContext.findClass(pureMapping.targetClassName()).orElse(null);
-        }
-        var resolvedMapping = pureMapping.withResolved(targetClass, srcMapping);
-
-        // Build virtual RelationType: M2M property names as columns.
-        // Infer types from target class properties (via ModelContext).
-        Map<String, GenericType> virtualColumns = new LinkedHashMap<>();
-        for (String propName : pureMapping.propertyExpressions().keySet()) {
-            // Look up property type from the target class
-            GenericType propType = resolveM2MPropertyType(pureMapping.targetClassName(), propName);
-            virtualColumns.put(propName, propType);
-        }
-        // Also add join reference properties (deep fetch)
-        // Resolve @JoinName references → AssociationTarget for PlanGenerator
-        var associations = new java.util.LinkedHashMap<String, TypeInfo.AssociationTarget>();
-        for (var jrEntry : pureMapping.joinReferences().entrySet()) {
-            String propName = jrEntry.getKey();
-            String joinName = jrEntry.getValue();
-
-            // Join properties are class-typed (nested objects) — mark as ANY for now
-            virtualColumns.put(propName, GenericType.Primitive.ANY);
-
-            // Resolve the join from the registry
-            var joinOpt = mappingRegistry().findJoin(joinName);
-            if (joinOpt.isEmpty())
-                continue;
-            com.gs.legend.model.store.Join join = joinOpt.get();
-
-            // Determine target class from the property type on the target class
-            boolean isToMany = false;
-            ClassMapping targetMapping = null;
-            if (targetClass != null) {
-                var propOpt = targetClass.findProperty(propName);
-                if (propOpt.isPresent()) {
-                    var prop = propOpt.get();
-                    isToMany = !prop.multiplicity().isSingular();
-                    // Find the target class mapping by property type name
-                    String targetClassName = prop.genericType().typeName();
-                    if (targetClassName != null) {
-                        targetMapping = mappingRegistry().findAnyMapping(targetClassName).orElse(null);
-                    }
-                }
-            }
-            if (targetMapping != null) {
-                associations.put(propName, new TypeInfo.AssociationTarget(targetMapping, join, isToMany));
-            }
-        }
-
-        GenericType.Relation.Schema virtualRelType = GenericType.Relation.Schema.withoutPivot(virtualColumns);
-
-        // Type-check M2M property expressions: bind $src to source relationType+mapping
-        // so that operands in expressions like `$src.firstName + ' ' + $src.lastName`
-        // get tagged with their types (String, Integer, etc.) in the sidecar.
-        CompilationContext srcCtx = buildSourceContext(srcMapping);
-        if (srcCtx != null) {
-            for (var entry : pureMapping.propertyExpressions().entrySet()) {
-                typeCheckExpression(entry.getValue(), srcCtx);
-            }
-        }
-
-        // Store resolved mapping in sidecar.
-        // ClassMapping.sourceTable() chains through to the source RelationalMapping's
-        // table.
-        // ClassMapping.expressionForProperty() returns the M2M expression AST.
-        var infoBuilder = TypeInfo.builder()
-                .mapping(resolvedMapping)
-                .expressionType(ExpressionType.many(new GenericType.Relation(virtualRelType)));
-        if (!associations.isEmpty()) {
-            infoBuilder.associations(Map.copyOf(associations));
-        }
-        var info = infoBuilder.build();
+        // Common: stamp TypeInfo
         types.put(af, info);
         return info;
-    }
-
-    /**
-     * Recursively resolves an M2M chain, ensuring each intermediate
-     * PureClassMapping
-     * is linked to its source mapping. Terminates when the source is a
-     * RelationalMapping.
-     */
-    private void resolveM2MChain(com.gs.legend.model.mapping.PureClassMapping pcm) {
-        String srcClassName = pcm.sourceClassName();
-        var srcMappingOpt = mappingRegistry().findAnyMapping(srcClassName);
-        if (srcMappingOpt.isEmpty()) {
-            throw new PureCompileException(
-                    "M2M chain: source class '" + srcClassName + "' has no mapping.");
-        }
-        ClassMapping srcMapping = srcMappingOpt.get();
-
-        // If source is also M2M, resolve recursively first
-        if (srcMapping instanceof com.gs.legend.model.mapping.PureClassMapping innerPcm) {
-            resolveM2MChain(innerPcm);
-            // Re-fetch resolved version
-            srcMapping = mappingRegistry().findAnyMapping(srcClassName).orElseThrow();
-        }
-
-        // Type-check this intermediate M2M's property expressions against its source
-        CompilationContext srcCtx = buildSourceContext(srcMapping);
-        if (srcCtx != null) {
-            for (var entry : pcm.propertyExpressions().entrySet()) {
-                typeCheckExpression(entry.getValue(), srcCtx);
-            }
-        }
-
-        // Resolve this M2M mapping: link to its source
-        com.gs.legend.model.m3.PureClass targetClass = null;
-        if (modelContext != null) {
-            targetClass = modelContext.findClass(pcm.targetClassName()).orElse(null);
-        }
-        var resolved = pcm.withResolved(targetClass, srcMapping);
-
-        // Update the mapping registry with the resolved version
-        mappingRegistry().updatePureClassMapping(pcm.targetClassName(), resolved);
-    }
-
-    /**
-     * Builds a CompilationContext for type-checking M2M expressions against a
-     * source mapping.
-     * Handles both RelationalMapping sources (column types from schema) and
-     * PureClassMapping sources (virtual column types from M2M property
-     * expressions).
-     */
-    private CompilationContext buildSourceContext(ClassMapping srcMapping) {
-        if (srcMapping instanceof RelationalMapping srcRm) {
-            Map<String, GenericType> srcColumns = new LinkedHashMap<>();
-            for (var pm : srcRm.propertyMappings()) {
-                srcColumns.put(pm.propertyName(), srcRm.pureTypeForProperty(pm.propertyName()));
-            }
-            GenericType.Relation.Schema srcRelType = GenericType.Relation.Schema.withoutPivot(srcColumns);
-            return new CompilationContext()
-                    .withRelationType("src", srcRelType)
-                    .withMapping("src", srcRm);
-        }
-        if (srcMapping instanceof com.gs.legend.model.mapping.PureClassMapping srcPcm) {
-            // For M2M→M2M: bind $src to the intermediate M2M's virtual columns
-            Map<String, GenericType> srcColumns = new LinkedHashMap<>();
-            for (String propName : srcPcm.propertyExpressions().keySet()) {
-                srcColumns.put(propName, resolveM2MPropertyType(srcPcm.targetClassName(), propName));
-            }
-            GenericType.Relation.Schema srcRelType = GenericType.Relation.Schema.withoutPivot(srcColumns);
-            return new CompilationContext()
-                    .withRelationType("src", srcRelType)
-                    .withMapping("src", srcPcm);
-        }
-        return null;
-    }
-
-    /**
-     * Resolves the type of an M2M target property from the model.
-     * Falls back to String if class/property not found.
-     */
-    private GenericType resolveM2MPropertyType(String className, String propertyName) {
-        if (modelContext != null) {
-            var classOpt = modelContext.findClass(className);
-            if (classOpt.isPresent()) {
-                for (var prop : classOpt.get().properties()) {
-                    if (prop.name().equals(propertyName)) {
-                        return GenericType.Primitive.fromTypeName(prop.genericType().typeName());
-                    }
-                }
-            }
-        }
-        // Default to String if we can't resolve
-        return GenericType.Primitive.STRING;
-    }
-
-    /** Compiles graphFetch(). Delegates to GraphFetchChecker. */
-    private TypeInfo compileGraphFetch(AppliedFunction af, CompilationContext ctx) {
-        var info = new com.gs.legend.compiler.checkers.GraphFetchChecker(this).check(af, null, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /** Compiles serialize(). Delegates to SerializeChecker. */
-    private TypeInfo compileSerialize(AppliedFunction af, CompilationContext ctx) {
-        var info = new com.gs.legend.compiler.checkers.SerializeChecker(this).check(af, null, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    // ========== Shape-Preserving Operations ==========
-
-    /** Compiles sort(source, sortSpecs). */
-    /**
-     * Compiles sort() / sortBy().
-     * Delegates to SortChecker for signature-driven type validation.
-     */
-    private TypeInfo compileSort(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.SortChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    // ========== filter ==========
-
-    /**
-     * Compiles filter(source, predicate).
-     * Delegates to FilterChecker for signature-driven type validation.
-     */
-    private TypeInfo compileFilter(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.FilterChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles map(source, func).
-     * Delegates to MapChecker for signature-driven type validation.
-     * Correctly resolves output type V[*] or V[0..1] from the lambda body.
-     */
-    private TypeInfo compileMap(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.MapChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    // ========== limit / take / drop / slice / first / last ==========
-
-    /**
-     * Compiles slicing functions: limit, take, drop, slice, first, last.
-     * All preserve the source type — they only change cardinality.
-     * Works on both relations and lists.
-     */
-    private TypeInfo compileSlicing(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.SlicingChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Resolves sort specifications from various AST patterns into normalized
-     * SortSpecs.
-     * Handles: asc(~col), desc(~col), sortInfo(~col), bare ~col, legacy CString.
-     */
-
-    // ========== Shape-Changing Operations ==========
-
-    /** Compiles concatenate(left, right). */
-    private TypeInfo compileConcatenate(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.ConcatenateChecker(this)
-                .check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles project(source, projectionSpecs...).
-     *
-     * <p>
-     * Handles two AST patterns:
-     * <ol>
-     * <li>project(source, [lambdas], ['aliases']) — Collection of lambdas +
-     * aliases</li>
-     * <li>project(source, lambda1, lambda2, ...) — bare lambdas as params</li>
-     * </ol>
-     *
-     * Resolves property names to column names via mapping.
-     */
-    private TypeInfo compileProject(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.ProjectChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles select(source, ~col1, ~col2, ...).
-     * Selects specific columns from a relation by name.
-     */
-
-    /**
-     * Compiles flatten(source, ~col).
-     * Output GenericType.Relation.Schema mirrors source but the flattened column
-     * changes type
-     * from list/JSON to its element type. Column name stored in columnSpecs
-     * for PlanGenerator to generate UNNEST.
-     */
-    private TypeInfo compileFlatten(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.FlattenChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    // ========== rename ==========
-
-    /**
-     * Compiles rename(rel, ~oldCol, ~newCol).
-     * Output schema: source schema with oldCol renamed to newCol.
-     * Populates colSpecs with renamed(old, new) for PlanGenerator.
-     */
-    private TypeInfo compileRename(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.RenameChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    // ========== select ==========
-
-    /**
-     * Compiles select(rel, ~[cols]).
-     * Output schema: subset of source columns.
-     * Populates colSpecs with column names for PlanGenerator.
-     */
-    private TypeInfo compileSelect(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.SelectChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    // ========== distinct ==========
-
-    /**
-     * Compiles distinct(rel) or distinct(rel, ~[cols]).
-     * Without columns: output schema = source schema (just adds DISTINCT).
-     * With columns: output schema = subset of source columns (like select +
-     * DISTINCT).
-     */
-    private TypeInfo compileDistinct(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.DistinctChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles groupBy(source, groupCols, aggSpecs).
-     * Output GenericType.Relation.Schema has group columns + aggregate columns.
-     */
-    private TypeInfo compileGroupBy(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.GroupByChecker(this)
-                .check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles aggregate(source, aggSpecs).
-     * Full-table aggregation (no group columns).
-     * Delegates to {@link com.gs.legend.compiler.checkers.AggregateChecker}.
-     */
-    private TypeInfo compileAggregate(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.AggregateChecker(this)
-                .check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles extend(source, ~newCol : lambda).
-     * Delegates to {@link com.gs.legend.compiler.checkers.ExtendChecker}.
-     */
-    private TypeInfo compileExtend(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.ExtendChecker(this)
-                .check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles join(left, right, joinType, condition).
-     * Delegates to {@link com.gs.legend.compiler.checkers.JoinChecker}.
-     */
-    private TypeInfo compileJoin(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo left = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.JoinChecker(this)
-                .check(af, left, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles asOfJoin — delegates to
-     * {@link com.gs.legend.compiler.checkers.AsOfJoinChecker}.
-     */
-    private TypeInfo compileAsOfJoin(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo left = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.AsOfJoinChecker(this)
-                .check(af, left, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles pivot — delegates to
-     * {@link com.gs.legend.compiler.checkers.PivotChecker}.
-     */
-    private TypeInfo compilePivot(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.PivotChecker(this)
-                .check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /** Compiles from(source, runtimeRef). Delegates to FromChecker. */
-    private TypeInfo compileFrom(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.FromChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    // ========== Window Functions (inside extend lambdas) ==========
-
-    /**
-     * Handles unknown/scalar functions — compiles the source (if it's a relation)
-     * and propagates its type.
-     *
-     * Also checks the PureFunctionRegistry for user-defined functions.
-     * If found, inlines the function body by substituting parameters with
-     * argument source text, re-parsing, and compiling the result.
-     */
-    private static final PureFunctionRegistry functionRegistry = PureFunctionRegistry.withBuiltins();
-
-    // ========== Scalar Collection Functions with Lambdas ==========
-
-    /** Compiles fold(list, {x,y|body}, init). Delegates to FoldChecker. */
-    private TypeInfo compileFold(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.FoldChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-
-    /** Compiles match(). Delegates to MatchChecker. */
-    private TypeInfo compileMatch(AppliedFunction af, CompilationContext ctx) {
-        var info = new com.gs.legend.compiler.checkers.MatchChecker(this).check(af, null, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-
-
-    /** Compiles zip(list1, list2). */
-    /** Compiles zip(list1, list2). Delegates to ZipChecker. */
-    private TypeInfo compileZip(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = !params.isEmpty() ? compileExpr(params.get(0), ctx) : null;
-        var info = new com.gs.legend.compiler.checkers.ZipChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /** Compiles write(source). Delegates to WriteChecker. */
-    private TypeInfo compileWrite(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = !params.isEmpty() ? compileExpr(params.get(0), ctx) : null;
-        var info = new com.gs.legend.compiler.checkers.WriteChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles cast(source, @Type).
-     * Delegates to CastChecker for signature-driven type validation.
-     */
-    private TypeInfo compileCast(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.CastChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /** Compiles type conversion: toMany, toOne, to, toVariant. Delegates to TypeConversionChecker. */
-    private TypeInfo compileTypeConversion(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = compileExpr(params.get(0), ctx);
-        var info = new com.gs.legend.compiler.checkers.TypeConversionChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles variant get(source, key) — resolves access pattern (index vs field).
-     */
-    /** Compiles get(source, key) or get(source, key, @Type). Delegates to GetChecker. */
-    private TypeInfo compileGet(AppliedFunction af, CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        TypeInfo source = !params.isEmpty() ? compileExpr(params.get(0), ctx) : null;
-        var info = new com.gs.legend.compiler.checkers.GetChecker(this).check(af, source, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Compiles functions driven by their registered signature.
-     * Handles lambda parameters by binding their variables to the resolved type.
-     *
-     * Flow:
-     * 1. Compile source (param 0) to resolve its type
-     * 2. Resolve the right overload by arity + source type
-     * 3. Bind type variables (T, V) from source
-     * 4. For lambda params: bind lambda variable to resolved T, compile body
-     * 5. Return based on signature's return type + multiplicity
-     */
-    // compileTypePropagating — replaced by ScalarChecker
-
-    /** Compiles if(condition, then-lambda, else-lambda) with type unification. */
-    /** Compiles if(cond, thenLambda, elseLambda). Delegates to IfChecker. */
-    private TypeInfo compileIf(AppliedFunction af, CompilationContext ctx) {
-        var info = new com.gs.legend.compiler.checkers.IfChecker(this).check(af, null, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /** Compiles block(stmt1, stmt2, ..., stmtN) — let binding scope. */
-
-    /** Compiles eval(). Delegates to EvalChecker. */
-    private TypeInfo compileEval(AppliedFunction af, CompilationContext ctx) {
-        var info = new com.gs.legend.compiler.checkers.EvalChecker(this).check(af, null, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /** Compiles letFunction('x', valueExpr). Delegates to LetChecker. */
-    private TypeInfo compileLet(AppliedFunction af, CompilationContext ctx) {
-        var info = new com.gs.legend.compiler.checkers.LetChecker(this).check(af, null, ctx);
-        types.put(af, info);
-        return info;
-    }
-
-    /**
-     * Registry-gated dispatch: checks user-defined functions first, then the
-     * builtin registry via ScalarChecker. If not found anywhere, throws a
-     * compile error — NO passthrough.
-     */
-    private TypeInfo compileRegistryOrUserFunction(AppliedFunction af, String funcName, CompilationContext ctx) {
-        String qualifiedName = af.function();
-
-        // 1. User-defined function inlining (PureFunctionRegistry)
-        var fn = functionRegistry.getFunction(qualifiedName)
-                .or(() -> functionRegistry.getFunction(funcName));
-        if (fn.isPresent()) {
-            return inlineUserFunction(af, fn.get(), ctx);
-        }
-
-        // 2. Builtin function registry — strict type checking via ScalarChecker
-        if (builtinRegistry.isRegistered(funcName)) {
-            List<ValueSpecification> params = af.parameters();
-            TypeInfo source = !params.isEmpty() ? compileExpr(params.get(0), ctx) : null;
-            var info = new com.gs.legend.compiler.checkers.ScalarChecker(this).check(af, source, ctx);
-            types.put(af, info);
-            return info;
-        }
-
-        // 3. Unknown function → compile error. No passthrough!
-        throw new PureCompileException(
-                "Unknown function '" + funcName + "'. "
-                        + "Function is not registered in the builtin registry and no user-defined function found. "
-                        + "Available functions: " + builtinRegistry.functionCount() + " registered.");
     }
 
     /**
@@ -1078,94 +413,6 @@ public class TypeChecker implements TypeCheckEnv {
         };
     }
 
-    /**
-     * Type-checks a scalar expression, validating column references.
-     * When a mapping is bound (class-based queries), resolves property
-     * names through the mapping before checking column existence.
-     */
-    private void typeCheckExpression(ValueSpecification vs, CompilationContext ctx) {
-        switch (vs) {
-            case AppliedProperty ap -> {
-                if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
-                    GenericType.Relation.Schema relType = ctx.getRelationType(v.name());
-                    if (relType != null && !relType.columns().isEmpty()) {
-                        // Mapping exists — verify the property name is a valid column
-                        // (projected columns use property names, not physical column names)
-                        ClassMapping mapping = ctx.getMapping(v.name());
-                        if (mapping != null) {
-                            var columnOpt = (mapping instanceof RelationalMapping rm2)
-                                    ? rm2.getColumnForProperty(ap.property())
-                                    : java.util.Optional.<String>empty();
-                            if (columnOpt.isPresent()) {
-                                // Property is in the mapping — check the property name (alias)
-                                // against projected columns, not the physical column name
-                                if (relType.columns().containsKey(ap.property())) {
-                                    // OK — property name matches a projected column
-                                } else {
-                                    // Try physical column name as fallback (direct table access)
-                                    relType.requireColumn(columnOpt.get());
-                                }
-                            }
-                            // If property not in mapping, allow it through
-                            // (could be a computed field or direct column access)
-                        } else {
-                            // No mapping — check column name directly
-                            relType.requireColumn(ap.property());
-                        }
-                        // Resolve column type and store in side table
-                        GenericType colType = relType.columns().get(ap.property());
-                        if (colType != null) {
-                            types.put(ap, TypeInfo.builder()
-                                    .expressionType(ExpressionType.one(colType)).build());
-                        }
-                    }
-                }
-            }
-            case AppliedFunction af -> {
-                // Check for user-defined function inlining
-                String funcName = af.function();
-                String simple = simpleName(funcName);
-                var fn = functionRegistry.getFunction(funcName)
-                        .or(() -> functionRegistry.getFunction(simple));
-                if (fn.isPresent()) {
-                    inlineUserFunction(af, fn.get(), ctx);
-                }
-                for (var param : af.parameters()) {
-                    typeCheckExpression(param, ctx);
-                }
-                // Dispatch type functions properly
-                if ("cast".equals(simple)) {
-                    compileCast(af, ctx);
-                } else if ("toMany".equals(simple) || "to".equals(simple)
-                        || "toVariant".equals(simple) || "toOne".equals(simple)) {
-                    compileTypeConversion(af, ctx);
-                } else if ("get".equals(simple)) {
-                    compileGet(af, ctx);
-                }
-                // List-preserving functions: propagate source list type through
-                // filter/sort/reverse produce same list type, map may transform element type
-                // Only set if not already computed by dedicated compile methods (avoids
-                // overwrite)
-                if (types.get(af) == null
-                        && ("filter".equals(simple) || "sort".equals(simple)
-                                || "reverse".equals(simple))
-                        && !af.parameters().isEmpty()) {
-                    TypeInfo sourceType = types.get(af.parameters().get(0));
-                    if (sourceType != null) {
-                        types.put(af, sourceType);
-                    }
-                }
-            }
-            case LambdaFunction lf -> {
-                for (var body : lf.body()) {
-                    typeCheckExpression(body, ctx);
-                }
-            }
-            default -> {
-            }
-        }
-    }
-
     // ========== Table Resolution ==========
 
     /**
@@ -1218,12 +465,6 @@ public class TypeChecker implements TypeCheckEnv {
 
     static String simpleName(String qualifiedName) {
         return TypeInfo.simpleName(qualifiedName);
-    }
-
-    private String extractStringValue(ValueSpecification vs) {
-        if (vs instanceof CString(String value))
-            return value;
-        throw new PureCompileException("Expected string, got: " + vs.getClass().getSimpleName());
     }
 
     /**

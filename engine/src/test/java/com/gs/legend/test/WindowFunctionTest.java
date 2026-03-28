@@ -145,7 +145,7 @@ class WindowFunctionTest {
     void testExecuteRowNumberViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~rowNum:{p,w,r|$p->rowNumber($r)})
                 """;
 
@@ -183,7 +183,7 @@ class WindowFunctionTest {
 
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~salaryRank:{p,w,r|$p->rank($w,$r)})
                 """;
 
@@ -221,7 +221,7 @@ class WindowFunctionTest {
     void testExecuteRunningSumViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending()), ~runningTotal:{p,w,r|$r.salary}:y|$y->plus())
                 """;
 
@@ -257,7 +257,7 @@ class WindowFunctionTest {
 
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
                 """;
 
@@ -285,7 +285,7 @@ class WindowFunctionTest {
     void testExecuteSumWithRowsFrameViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningSum:{p,w,r|$r.salary}:y|$y->plus())
                 """;
 
@@ -306,7 +306,7 @@ class WindowFunctionTest {
     void testExecuteLagViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~prevSalary:{p,w,r|$p->lag($r).salary})
                 """;
 
@@ -334,7 +334,7 @@ class WindowFunctionTest {
     void testExecuteLeadViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~nextSalary:{p,w,r|$p->lead($r).salary})
                 """;
 
@@ -362,7 +362,7 @@ class WindowFunctionTest {
     void testExecuteFirstValueViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~topSalary:{p,w,r|$p->first($w,$r).salary})
                 """;
 
@@ -387,7 +387,7 @@ class WindowFunctionTest {
     void testExecuteLastValueViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~bottomSalary:{p,w,r|$p->last($w,$r).salary})
                 """;
 
@@ -413,7 +413,7 @@ class WindowFunctionTest {
     void testExecuteNtileViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~bucket:{p,w,r|$p->ntile($r,2)})
                 """;
 
@@ -438,7 +438,7 @@ class WindowFunctionTest {
     void testExecuteFirstValueWithUnboundedFrameViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending(), rows(unbounded(), unbounded())), ~topSalary:{p,w,r|$p->first($w,$r).salary})
                 """;
 
@@ -469,7 +469,7 @@ class WindowFunctionTest {
     void testExecuteLastValueWithUnboundedFrameViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending(), rows(unbounded(), unbounded())), ~bottomSalary:{p,w,r|$p->last($w,$r).salary})
                 """;
 
@@ -500,7 +500,7 @@ class WindowFunctionTest {
     void testExecuteSumWithRunningTotalFrame() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningTotal:{p,w,r|$p->sum($w,$r).salary})
                 """;
 
@@ -529,7 +529,7 @@ class WindowFunctionTest {
     void testExecuteAvgWithSlidingWindowFrame() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~movingAvg:{p,w,r|$p->avg($w,$r).salary})
                 """;
 
@@ -558,7 +558,7 @@ class WindowFunctionTest {
     void testExecuteSumWithTrailingWindowFrame() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(-2, 0)), ~trailing3Sum:{p,w,r|$p->sum($w,$r).salary})
                 """;
 
@@ -586,7 +586,7 @@ class WindowFunctionTest {
     void testExecuteSumWithCurrentToEndFrame() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(0, unbounded())), ~remainingSum:{p,w,r|$p->sum($w,$r).salary})
                 """;
 
@@ -614,7 +614,7 @@ class WindowFunctionTest {
     void testExecuteCountWithSlidingWindowFrame() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~neighborCount:{p,w,r|$p->count($w,$r)})
                 """;
 
@@ -692,7 +692,7 @@ class WindowFunctionTest {
     void testExecuteStdDevWindowViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department), ~deptStdDev:{p,w,r|$p->stdDev($w,$r).salary})
                 """;
 
@@ -714,7 +714,7 @@ class WindowFunctionTest {
     void testExecuteVarianceWindowViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department), ~deptVar:{p,w,r|$p->variance($w,$r).salary})
                 """;
 
@@ -732,7 +732,7 @@ class WindowFunctionTest {
     void testExecutePercentRankViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~pctRank:{p,w,r| $p->percentRank($w,$r)})
                 """;
 
@@ -763,7 +763,7 @@ class WindowFunctionTest {
     void testExecuteCumeDistViaPure() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)})
                 """;
 
@@ -794,7 +794,7 @@ class WindowFunctionTest {
     void testExecuteCumeDistWithRound() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.department}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)->round(2)})
                 """;
 
@@ -827,7 +827,7 @@ class WindowFunctionTest {
     void testAggregateExtendNoOver() throws Exception {
         String pureQuery = """
                 Employee.all()
-                    ->project({e | $e.name}, {e | $e.salary})
+                    ->project(~[name:e|$e.name, salary:e|$e.salary])
                     ->extend(~totalSalary:c|$c.salary:y|$y->plus())
                 """;
 

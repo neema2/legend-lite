@@ -201,58 +201,23 @@ just like classes, mappings, stores.
 
 ---
 
-### Phase 1: Explicit Mapping Injection
+### Phase 1: MappingResolver + Remove Mapping from TypeChecker
 
-**Goal**: Mapping enters the pipeline at ONE place, explicitly. No auto-discovery
-hidden inside checkers.
+**Goal**: No checker sees mappings. TypeChecker does pure type-checking using class
+definitions. MappingResolver handles all mapping resolution as a separate pass.
 
-#### The pattern
-
-```java
-// In TypeChecker (or top-level entry point):
-Optional<ClassMapping> mapping = MappingScanner.findExactlyOne(registry, className);
-// If 0: throw "No mapping found for class 'Person'"
-// If >1: throw "Ambiguous: multiple mappings found for class 'Person': [M1, M2]"
-// If 1: pass it explicitly
-
-getAllChecker.check(af, source, ctx, mapping.get());
-```
-
-#### MappingScanner (new, ~30 lines)
+#### GetAllChecker — builds schema from class definitions, not mapping
 
 ```java
-public class MappingScanner {
-    /** Finds exactly one mapping for a class. Throws if 0 or >1. */
-    public static ClassMapping findExactlyOne(MappingRegistry registry, String className) {
-        var mappings = registry.findAllMappings(className);
-        if (mappings.isEmpty())
-            throw new PureCompileException("No mapping for class '" + className + "'");
-        if (mappings.size() > 1)
-            throw new PureCompileException("Ambiguous: " + mappings.size()
-                + " mappings for '" + className + "': " + mappings);
-        return mappings.get(0);
-    }
-}
+// Before: finds mapping, builds schema from mapping properties
+var mapping = registry.findAnyMapping(className);
+// After: finds class, builds schema from class properties
+var pureClass = modelContext.findClass(className)
+    .orElseThrow(() -> new PureCompileException("Class not found: " + className));
+// Schema = {firstName:String, age:Integer} from class properties
 ```
 
-For `^Person()` / `[^Person()]`: InstanceChecker builds an identity mapping and
-passes it explicitly — same explicit pattern, different mapping source.
-
-#### What changes
-- [MODIFY] GetAllChecker: accept `ClassMapping` parameter instead of auto-discovering
-- [NEW] MappingScanner.java: single-mapping discovery + validation
-- [MODIFY] TypeChecker `compileGetAll` (or checker registry dispatch): call
-  `MappingScanner.findExactlyOne()` before delegating to GetAllChecker
-- [MODIFY] InstanceChecker: build identity mapping, pass explicitly
-
-**Estimate**: 1-2 days. Low risk.
-
----
-
-### Phase 2: Remove Mapping from TypeInfo + Build MappingResolver
-
-**Goal**: TypeChecker stops propagating mapping. MappingResolver handles all mapping
-resolution as a separate pass.
+No mapping needed. Types come from class definitions.
 
 #### Remove mapping from 16 checkers
 
@@ -289,6 +254,8 @@ public record StoreResolution(
 }
 ```
 
+Includes mapping discovery (exactly-one validation: 0 → error, >1 → error, 1 → use).
+
 #### PlanGenerator reads StoreResolution instead of TypeInfo.mapping()
 
 ```java
@@ -300,7 +267,7 @@ public record StoreResolution(
 
 ---
 
-### Phase 3: Unify PlanGenerator to One Codepath
+### Phase 2: Unify PlanGenerator to One Codepath
 
 **Goal**: Delete `generateGetAll`. Both class and relation paths produce the same
 output from MappingResolver. PlanGenerator has one path.
@@ -309,7 +276,7 @@ output from MappingResolver. PlanGenerator has one path.
 
 ---
 
-### Phase 4: DynaFunction + Advanced Mapping Features
+### Phase 3: DynaFunction + Advanced Mapping Features
 
 **Goal**: Support `fullName: concat(T.first, ' ', T.last)` in property mappings.
 
@@ -317,32 +284,32 @@ output from MappingResolver. PlanGenerator has one path.
 
 ---
 
-### Phase 5: Mapping as Relation DSL (Endgame)
+### Phase 4: Mapping as Relation DSL (Endgame)
 
 **Goal**: `###Mapping` → syntactic sugar expanded by MappingResolver into Relation ops.
 
-**Estimate**: 5-10 days. Depends on Phases 1-4.
+**Estimate**: 5-10 days. Depends on Phases 1-3.
 
 ---
 
 ## 4. Current Checker Architecture
 
-### TypeChecker Breakdown (1,491 lines → ~1,050 after Phase 0)
+### TypeChecker Breakdown (1,491 lines → ~1,000 after Phase 0)
 
 | Section | Lines | After Phase 0 |
 |---------|-------|---------------|
-| Core infra (compileExpr switch, dispatch) | 170 | 50 (registry) |
+| Core infra (compileExpr switch, dispatch) | 170 | 50 (clean switch) |
 | 25 boilerplate wrappers | 125 | 0 (deleted) |
 | compileTableAccess | 25 | 0 (deleted) |
 | compileInstanceLiteral | 96 | 0 (→ InstanceChecker) |
 | compileTdsLiteral | 32 | 0 (→ TdsLiteralChecker) |
 | compileRelationAccessor | 5 | 0 (→ RelationAccessChecker) |
-| compileRegistryOrUserFunction + inline | 60 | 60 |
+| compileRegistryOrUserFunction + inline | 60 | 30 (inlined in default) |
 | compileLambda | 58 | 58 |
 | compileVariable | 31 | 31 |
 | compileProperty | 155 | 155 |
 | compileCollection | 23 | 23 |
-| Association resolution (→ Phase 2) | 80 | 80 (moves in Phase 2) |
+| Association resolution (→ Phase 1) | 80 | 80 (moves in Phase 1) |
 | CompilationContext record | 60 | 40 (remove mapping) |
 | Type helpers + registration | 115 | 115 |
 | Comments/imports/blank | 456 | ~440 |
@@ -357,28 +324,26 @@ output from MappingResolver. PlanGenerator has one path.
 ## 5. Timeline
 
 ```
-Phase 0 ─── Checker registry + delete fake functions + extract InstanceChecker etc.
+Phase 0 ─── Clean TypeChecker architecture
 │            2-3 days · LOW RISK
 ▼
-Phase 1 ─── Explicit mapping injection + MappingScanner
-│            1-2 days · LOW RISK
-▼
-Phase 2 ─── MappingResolver + remove mapping from TypeInfo/checkers
+Phase 1 ─── MappingResolver + remove mapping from all checkers/TypeInfo
 │            5-7 days · MEDIUM RISK
 ▼
-Phase 3 ─── Unify PlanGenerator codepaths
+Phase 2 ─── Unify PlanGenerator codepaths
 │            3-5 days · MEDIUM RISK
 ├──────────────────────┐
 ▼                      ▼
-Phase 4 (parallel) ── DynaFunction transforms
+Phase 3 (parallel) ── DynaFunction transforms
 │                      3-5 days
 ▼
-Phase 5 ─── Mapping as Relation DSL
+Phase 4 ─── Mapping as Relation DSL
              5-10 days
 ```
 
-**Total: ~20-32 days**
+**Total: ~19-30 days**
 
 > [!IMPORTANT]
 > No one-way doors. Every phase is reversible. The architecture is proven by
 > legend-engine's 10+ years of production use.
+

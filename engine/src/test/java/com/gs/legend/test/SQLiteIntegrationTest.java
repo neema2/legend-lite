@@ -159,7 +159,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         String pureQuery = """
                 Person.all()
                     ->filter({p | $p.lastName == 'Smith'})
-                    ->project({p | $p.firstName}, {p | $p.lastName})
+                    ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
 
         // WHEN: We compile and execute the Pure query
@@ -178,7 +178,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         String pureQuery = """
                 Person.all()
                     ->filter({p | $p.lastName == 'Smith' && $p.age > 25})
-                    ->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age})
+                    ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
 
         // WHEN: We compile and execute
@@ -199,7 +199,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         String pureQuery = """
                 Person.all()
                     ->filter({p | $p.lastName == 'Smith' || $p.lastName == 'Jones'})
-                    ->project({p | $p.firstName}, {p | $p.lastName})
+                    ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
 
         // WHEN: We compile and execute
@@ -215,7 +215,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         // GIVEN: A Pure query to get all people
         String pureQuery = """
                 Person.all()
-                    ->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age})
+                    ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
 
         // WHEN: We compile and execute
@@ -239,19 +239,19 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         // GIVEN: Various integer comparison queries
 
         // age < 30
-        String queryLessThan = "Person.all()->filter({p | $p.age < 30})->project({p | $p.firstName})";
+        String queryLessThan = "Person.all()->filter({p | $p.age < 30})->project(~[firstName:p|$p.firstName])";
         assertEquals(1, executePureQuery(queryLessThan).size()); // Jane only
 
         // age <= 30
-        String queryLessOrEqual = "Person.all()->filter({p | $p.age <= 30})->project({p | $p.firstName})";
+        String queryLessOrEqual = "Person.all()->filter({p | $p.age <= 30})->project(~[firstName:p|$p.firstName])";
         assertEquals(2, executePureQuery(queryLessOrEqual).size()); // Jane and John
 
         // age > 30
-        String queryGreaterThan = "Person.all()->filter({p | $p.age > 30})->project({p | $p.firstName})";
+        String queryGreaterThan = "Person.all()->filter({p | $p.age > 30})->project(~[firstName:p|$p.firstName])";
         assertEquals(1, executePureQuery(queryGreaterThan).size()); // Bob only
 
         // age >= 30
-        String queryGreaterOrEqual = "Person.all()->filter({p | $p.age >= 30})->project({p | $p.firstName})";
+        String queryGreaterOrEqual = "Person.all()->filter({p | $p.age >= 30})->project(~[firstName:p|$p.firstName])";
         assertEquals(2, executePureQuery(queryGreaterOrEqual).size()); // John and Bob
     }
 
@@ -276,7 +276,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         String pureQuery = """
                 Person.all()
                     ->filter({p | $p.lastName != 'Smith'})
-                    ->project({p | $p.firstName}, {p | $p.lastName})
+                    ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
 
         // WHEN: We compile and execute

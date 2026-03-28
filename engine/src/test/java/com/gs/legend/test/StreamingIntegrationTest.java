@@ -116,7 +116,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream JSON: full result set")
     void testStreamJsonFull() throws Exception {
-        String query = "Employee.all()->project({e | $e.name}, {e | $e.salary})";
+        String query = "Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, out, "json");
@@ -131,7 +131,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream JSON: filtered query")
     void testStreamJsonFiltered() throws Exception {
-        String query = "Employee.all()->filter({e | $e.department == 'Sales'})->project({e | $e.name}, {e | $e.salary})";
+        String query = "Employee.all()->filter({e | $e.department == 'Sales'})->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, out, "json");
@@ -145,7 +145,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream JSON: with limit")
     void testStreamJsonLimit() throws Exception {
-        String query = "Employee.all()->project({e | $e.name})->limit(3)";
+        String query = "Employee.all()->project(~[name:e|$e.name])->limit(3)";
 
         var out = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, out, "json");
@@ -158,7 +158,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream JSON: empty result set")
     void testStreamJsonEmpty() throws Exception {
-        String query = "Employee.all()->filter({e | $e.salary > 999999})->project({e | $e.name})";
+        String query = "Employee.all()->filter({e | $e.salary > 999999})->project(~[name:e|$e.name])";
 
         var out = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, out, "json");
@@ -172,7 +172,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream CSV: header + data rows")
     void testStreamCsvFull() throws Exception {
-        String query = "Employee.all()->project({e | $e.name}, {e | $e.department}, {e | $e.salary})->limit(5)";
+        String query = "Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])->limit(5)";
 
         var out = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, out, "csv");
@@ -188,7 +188,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream CSV: all 100 rows")
     void testStreamCsvAllRows() throws Exception {
-        String query = "Employee.all()->project({e | $e.name})";
+        String query = "Employee.all()->project(~[name:e|$e.name])";
 
         var out = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, out, "csv");
@@ -201,7 +201,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream CSV: multiple columns with filter")
     void testStreamCsvFiltered() throws Exception {
-        String query = "Employee.all()->filter({e | $e.department == 'Engineering'})->project({e | $e.name}, {e | $e.salary})";
+        String query = "Employee.all()->filter({e | $e.department == 'Engineering'})->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, out, "csv");

@@ -60,7 +60,7 @@ class MappingTestIntegrationTest {
                 [
                     PersonSuite:
                     {
-                        function: |Person.all()->project({p | $p.firstName}, {p | $p.lastName});
+                        function: |Person.all()->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName]);
                         tests:
                         [
                             TestAllPersons:

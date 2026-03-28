@@ -380,6 +380,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             if (actual instanceof LambdaFunction || actual instanceof ClassInstance) {
                 return false;
             }
+
             // If we have a compiled type for this param, use precise subtype checking
             if (compiledType != null) {
                 return isConcreteCompatible(c.name(), compiledType);
@@ -393,6 +394,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         return false;
     }
 
+
     /**
      * Checks if a compiled type is compatible with a declared Concrete type name.
      * Compatible means: exact match or the actual type is a subtype of the declared type.
@@ -401,6 +403,17 @@ public abstract class AbstractChecker implements FunctionChecker {
         // EnumType: match if the enum's simple name equals the declared name
         if (actualType instanceof GenericType.EnumType et) {
             return et.typeName().equals(declaredName);
+        }
+        // PrecisionDecimal → normalize to Primitive.DECIMAL for subtype checks
+        if (actualType instanceof GenericType.PrecisionDecimal) {
+            actualType = GenericType.Primitive.DECIMAL;
+        }
+        // List<T> → unwrap to element type for collection-to-aggregate matching
+        // e.g., [1,2]->sum() where source is List<Integer> and sig expects Number[*]
+        if (actualType instanceof GenericType.Parameterized p && "List".equals(p.rawType())) {
+            actualType = p.elementType();
+            // Recurse — elementType might itself be PrecisionDecimal, etc.
+            return isConcreteCompatible(declaredName, actualType);
         }
         if (!(actualType instanceof GenericType.Primitive actualPrim)) {
             // Non-primitive (ClassType, Relation, etc.) — only "Any" accepts these
@@ -575,13 +588,27 @@ public abstract class AbstractChecker implements FunctionChecker {
                 if (g == GenericType.Primitive.ANY) {
                     return; // Any accepts all types
                 }
+                // Normalize actual:
+                //   PrecisionDecimal → DECIMAL
+                //   List<T> → element type (for collection-to-aggregate: [1,2]->sum())
+                GenericType norm = actual;
+                if (norm instanceof GenericType.PrecisionDecimal) {
+                    norm = GenericType.Primitive.DECIMAL;
+                }
+                if (norm instanceof GenericType.Parameterized pp && "List".equals(pp.rawType())) {
+                    norm = pp.elementType();
+                    // elementType might be PrecisionDecimal
+                    if (norm instanceof GenericType.PrecisionDecimal) {
+                        norm = GenericType.Primitive.DECIMAL;
+                    }
+                }
                 if (g instanceof GenericType.Primitive expectedPrim
-                        && actual instanceof GenericType.Primitive actualPrim) {
+                        && norm instanceof GenericType.Primitive actualPrim) {
                     if (!actualPrim.isSubtypeOf(expectedPrim)) {
                         throw new PureCompileException(
                                 context + ": expected " + c.name() + ", got " + actual.typeName());
                     }
-                } else if (!g.typeName().equals(actual.typeName())) {
+                } else if (!g.typeName().equals(norm.typeName())) {
                     throw new PureCompileException(
                             context + ": expected " + c.name() + ", got " + actual.typeName());
                 }

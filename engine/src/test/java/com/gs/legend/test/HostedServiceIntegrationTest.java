@@ -66,7 +66,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 documentation: 'Returns all people';
                 execution: Single
                 {
-                    query: |Person.all()->project({p | $p.firstName}, {p | $p.lastName}, {p | $p.age});
+                    query: |Person.all()->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age]);
                 }
             }
             """;
@@ -78,7 +78,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 documentation: 'Returns people by last name';
                 execution: Single
                 {
-                    query: |Person.all()->filter({p | $p.lastName == $lastName})->project({p | $p.firstName}, {p | $p.lastName});
+                    query: |Person.all()->filter({p | $p.lastName == $lastName})->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName]);
                 }
             }
             """;
@@ -90,7 +90,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 documentation: 'Returns all persons with their addresses (LEFT OUTER JOIN)';
                 execution: Single
                 {
-                    query: |Person.all()->project({p | $p.firstName}, {p | $p.addresses.street}, {p | $p.addresses.city});
+                    query: |Person.all()->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street, city:p|$p.addresses.city]);
                 }
             }
             """;
@@ -102,7 +102,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 documentation: 'Returns persons who have an address in the specified city (EXISTS subquery)';
                 execution: Single
                 {
-                    query: |Person.all()->filter({p | $p.addresses.city == $city})->project({p | $p.firstName});
+                    query: |Person.all()->filter({p | $p.addresses.city == $city})->project(~[firstName:p|$p.firstName]);
                 }
             }
             """;
