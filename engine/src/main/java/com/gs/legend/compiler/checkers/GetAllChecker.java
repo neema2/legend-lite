@@ -85,11 +85,13 @@ public class GetAllChecker extends AbstractChecker {
             virtualColumns.putIfAbsent(joinProp, resolvePropertyType(targetClass, joinProp));
         }
 
-        // Type-check M2M property expressions against source context
+        // Type-check M2M property expressions and filter against source context
         TypeChecker.CompilationContext srcCtx = buildSourceContext(srcMapping);
         for (var entry : pureMapping.propertyExpressions().entrySet()) {
             env.compileExpr(entry.getValue(), srcCtx);
         }
+        // Stamp filter expression so PlanGenerator can read $src.property nodes
+        pureMapping.optionalFilter().ifPresent(f -> env.compileExpr(f, srcCtx));
 
         var builder = TypeInfo.builder()
                 .mapping(resolvedMapping)
@@ -133,11 +135,12 @@ public class GetAllChecker extends AbstractChecker {
             srcMapping = registry().findAnyMapping(srcClassName).orElseThrow();
         }
 
-        // Type-check intermediate property expressions
+        // Type-check intermediate property expressions and filter
         TypeChecker.CompilationContext srcCtx = buildSourceContext(srcMapping);
         for (var entry : pcm.propertyExpressions().entrySet()) {
             env.compileExpr(entry.getValue(), srcCtx);
         }
+        pcm.optionalFilter().ifPresent(f -> env.compileExpr(f, srcCtx));
 
         PureClass targetClass = findClass(pcm.targetClassName())
                 .orElseThrow(() -> new PureCompileException(
