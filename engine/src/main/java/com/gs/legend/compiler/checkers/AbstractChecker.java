@@ -670,6 +670,14 @@ public abstract class AbstractChecker implements FunctionChecker {
             case PType.Concrete c -> {
                 GenericType g = c.toGenericType();
                 if (g == null) {
+                    // Non-primitive: look up against model as enum or class
+                    var modelCtx = env.modelContext();
+                    if (modelCtx != null && modelCtx.findEnum(c.name()).isPresent()) {
+                        yield new GenericType.EnumType(c.name());
+                    }
+                    if (modelCtx != null && modelCtx.findClass(c.name()).isPresent()) {
+                        yield new GenericType.ClassType(c.name());
+                    }
                     throw new PureCompileException(
                             context + ": unresolvable concrete type: " + c.name());
                 }

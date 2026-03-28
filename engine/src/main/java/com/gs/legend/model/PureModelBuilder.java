@@ -40,6 +40,36 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, EnumDefinition> enums = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry();
 
+    {
+        // Register Pure platform enums — these are defined in legend-pure/legend-engine
+        // and referenced by built-in function signatures (e.g., month()->Month[1]).
+        // Without this, findEnum("Month") returns empty and the compiler can't resolve
+        // enum return types or validate enum input params against the model.
+        registerPlatformEnums();
+    }
+
+    private void registerPlatformEnums() {
+        // Date enums (legend-pure: essential/date/_structures.pure)
+        addEnum(EnumDefinition.of("meta::pure::functions::date::Month",
+                "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"));
+        addEnum(EnumDefinition.of("meta::pure::functions::date::Quarter",
+                "Q1", "Q2", "Q3", "Q4"));
+        addEnum(EnumDefinition.of("meta::pure::functions::date::DayOfWeek",
+                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"));
+        addEnum(EnumDefinition.of("meta::pure::functions::date::DurationUnit",
+                "YEARS", "MONTHS", "WEEKS", "DAYS", "HOURS", "MINUTES",
+                "SECONDS", "MILLISECONDS", "MICROSECONDS", "NANOSECONDS"));
+        // Relation enums (legend-engine: relation/functions/transformation/)
+        addEnum(EnumDefinition.of("meta::pure::functions::relation::JoinKind",
+                "INNER", "LEFT", "RIGHT", "FULL"));
+        addEnum(EnumDefinition.of("meta::pure::functions::relation::SortType",
+                "ASC", "DESC"));
+        // Hash enum (legend-engine: hash/hash.pure)
+        addEnum(EnumDefinition.of("meta::pure::functions::hash::HashType",
+                "MD5", "SHA1", "SHA256"));
+    }
+
     // Explicit association-to-join mappings from +AssociationName: Relational {
     // prop: @Join } syntax
     // Key: "AssociationName.propertyName", Value: Join
