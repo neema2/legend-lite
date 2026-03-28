@@ -184,7 +184,7 @@ public class GetAllChecker extends AbstractChecker {
      */
     private static GenericType resolvePropertyType(PureClass pureClass, String propertyName) {
         return pureClass.findProperty(propertyName)
-                .map(prop -> GenericType.Primitive.fromTypeName(prop.genericType().typeName()))
+                .map(prop -> GenericType.fromTypeName(prop.genericType().typeName()))
                 .orElseThrow(() -> new PureCompileException(
                         "Property '" + propertyName + "' not found on class '"
                                 + pureClass.qualifiedName() + "'"));
