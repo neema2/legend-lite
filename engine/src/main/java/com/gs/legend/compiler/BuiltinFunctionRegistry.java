@@ -420,6 +420,8 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("rtrim", "native function rtrim(str:String[1]):String[1];");
         reg.registerSignature("substring",
                 "native function substring(str:String[1], start:Integer[1], end:Integer[1]):String[1];");
+        reg.registerSignature("substring",
+                "native function substring(str:String[1], start:Integer[1]):String[1];");
         reg.registerSignature("indexOf", "native function indexOf(str:String[1], toFind:String[1]):Integer[1];");
         reg.registerSignature("indexOf",
                 "native function indexOf(str:String[1], toFind:String[1], fromIndex:Integer[1]):Integer[1];");
@@ -440,11 +442,15 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("format", "native function format(format:String[1], args:Any[*]):String[1];");
         reg.registerSignature("joinStrings",
                 "native function joinStrings(strings:String[*], separator:String[1]):String[1];");
+        // 4-arg form: joinStrings(prefix, separator, suffix)
+        reg.registerSignature("joinStrings",
+                "native function joinStrings(strings:String[*], prefix:String[1], separator:String[1], suffix:String[1]):String[1];");
         reg.registerSignature("split", "native function split(str:String[1], delimiter:String[1]):String[*];");
         reg.registerSignature("matches", "native function matches(str:String[1], regex:String[1]):Boolean[1];");
         reg.registerSignature("ascii", "native function ascii(str:String[1]):Integer[1];");
         reg.registerSignature("char", "native function char(code:Integer[1]):String[1];");
         reg.registerSignature("lpad", "native function lpad(str:String[1], len:Integer[1], pad:String[1]):String[1];");
+        reg.registerSignature("lpad", "native function lpad(str:String[1], len:Integer[1]):String[1];");
         reg.registerSignature("rpad", "native function rpad(str:String[1], len:Integer[1], pad:String[1]):String[1];");
         reg.registerSignature("rpad", "native function rpad(str:String[1], len:Integer[1]):String[1];");
         reg.registerSignature("splitPart",
@@ -458,6 +464,7 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("encodeBase64", "native function encodeBase64(str:String[1]):String[1];");
         reg.registerSignature("decodeBase64", "native function decodeBase64(str:String[1]):String[1];");
         reg.registerSignature("hash", "native function hash(str:String[1], algorithm:String[1]):String[1];");
+        reg.registerSignature("hash", "native function hash(str:String[1]):String[1];");
         reg.registerSignature("levenshteinDistance",
                 "native function levenshteinDistance(s1:String[1], s2:String[1]):Integer[1];");
         reg.registerSignature("jaroWinklerSimilarity",
@@ -561,6 +568,8 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("and", "native function and(left:Boolean[1], right:Boolean[1]):Boolean[1];");
         reg.registerSignature("and", "native function and(bools:Boolean[*]):Boolean[1];");
         reg.registerSignature("or", "native function or(left:Boolean[1], right:Boolean[1]):Boolean[1];");
+        // Fold form: or(values:Boolean[*]) — parser wraps $a || $b → or([$a,$b])
+        reg.registerSignature("or", "native function or(values:Boolean[*]):Boolean[1];");
         reg.registerSignature("not", "native function not(value:Boolean[1]):Boolean[1];");
         reg.registerSignature("xor", "native function xor(left:Boolean[1], right:Boolean[1]):Boolean[1];");
         reg.registerSignature("isEmpty", "native function isEmpty<T>(value:T[*]):Boolean[1];");
@@ -581,6 +590,12 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("datePart", "native function datePart(d:Date[1]):StrictDate[1];");
         reg.registerSignature("date",
                 "native function date(year:Integer[1], month:Integer[1], day:Integer[1]):StrictDate[1];");
+        // 5-arg: date(year, month, day, hour, minute)
+        reg.registerSignature("date",
+                "native function date(year:Integer[1], month:Integer[1], day:Integer[1], hour:Integer[1], minute:Integer[1]):DateTime[1];");
+        // 6-arg: date(year, month, day, hour, minute, second)
+        reg.registerSignature("date",
+                "native function date(year:Integer[1], month:Integer[1], day:Integer[1], hour:Integer[1], minute:Integer[1], second:Number[1]):DateTime[1];");
         reg.registerSignature("adjust",
                 "native function adjust(d:Date[1], amount:Integer[1], unit:DurationUnit[1]):Date[1];");
         reg.registerSignature("timeBucket",
@@ -601,6 +616,34 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("hasSubsecond", "native function hasSubsecond(d:Date[1]):Boolean[1];");
         reg.registerSignature("hasSubsecondWithAtLeastPrecision",
                 "native function hasSubsecondWithAtLeastPrecision(d:Date[1], precision:Integer[1]):Boolean[1];");
+        // Date extraction functions
+        reg.registerSignature("month", "native function month(d:Date[1]):Month[1];");
+        reg.registerSignature("quarter", "native function quarter(d:Date[1]):Quarter[1];");
+        reg.registerSignature("quarterNumber", "native function quarterNumber(d:Date[1]):Integer[1];");
+        reg.registerSignature("weekOfYear", "native function weekOfYear(d:Date[1]):Integer[1];");
+        reg.registerSignature("dayOfWeek", "native function dayOfWeek(d:Date[1]):DayOfWeek[1];");
+        reg.registerSignature("dayOfWeekNumber", "native function dayOfWeekNumber(d:Date[1]):Integer[1];");
+        reg.registerSignature("dayOfYear", "native function dayOfYear(d:Date[1]):Integer[1];");
+        // Date navigation
+        reg.registerSignature("firstDayOfMonth", "native function firstDayOfMonth(d:Date[1]):Date[1];");
+        reg.registerSignature("firstDayOfYear", "native function firstDayOfYear(d:Date[1]):Date[1];");
+        reg.registerSignature("firstDayOfQuarter", "native function firstDayOfQuarter(d:Date[1]):StrictDate[1];");
+        reg.registerSignature("firstHourOfDay", "native function firstHourOfDay(d:Date[1]):DateTime[1];");
+        reg.registerSignature("firstMinuteOfHour", "native function firstMinuteOfHour(d:Date[1]):DateTime[1];");
+        reg.registerSignature("firstSecondOfMinute", "native function firstSecondOfMinute(d:Date[1]):DateTime[1];");
+        reg.registerSignature("firstMillisecondOfSecond", "native function firstMillisecondOfSecond(d:Date[1]):DateTime[1];");
+        // Epoch conversion
+        reg.registerSignature("toEpochValue", "native function toEpochValue(d:Date[1], unit:DurationUnit[1]):Integer[1];");
+        reg.registerSignature("fromEpochValue", "native function fromEpochValue(epoch:Integer[1], unit:DurationUnit[1]):Date[1];");
+        // Date comparison predicates
+        reg.registerSignature("isAfterDay", "native function isAfterDay(d1:Date[1], d2:Date[1]):Boolean[1];");
+        reg.registerSignature("isBeforeDay", "native function isBeforeDay(d1:Date[1], d2:Date[1]):Boolean[1];");
+        reg.registerSignature("isOnDay", "native function isOnDay(d1:Date[1], d2:Date[1]):Boolean[1];");
+        reg.registerSignature("isOnOrAfterDay", "native function isOnOrAfterDay(d1:Date[1], d2:Date[1]):Boolean[1];");
+        reg.registerSignature("isOnOrBeforeDay", "native function isOnOrBeforeDay(d1:Date[1], d2:Date[1]):Boolean[1];");
+        // Min/max dates
+        reg.registerSignature("minDate", "native function minDate(d1:Date[1], d2:Date[1]):Date[1];");
+        reg.registerSignature("maxDate", "native function maxDate(d1:Date[1], d2:Date[1]):Date[1];");
 
         // ===== Conversion =====
         reg.registerSignature("parseInteger", "native function parseInteger(string:String[1]):Integer[1];");
