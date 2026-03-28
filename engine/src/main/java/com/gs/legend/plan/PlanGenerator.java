@@ -173,6 +173,7 @@ public class PlanGenerator {
         return new SqlBuilder().addSelect(scalar, dialect.quoteIdentifier("value"));
     }
 
+
     // ========== Relation Compilation ==========
 
     private SqlBuilder generateRelation(ValueSpecification vs) {
@@ -420,6 +421,7 @@ public class PlanGenerator {
             // --- Pass-through: source-preserving relational functions ---
             case "toString", "toVariant",
                  "eq", "cast", "size",
+                 "newTDSRelationAccessor",
                  "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual" ->
                 generateRelation(af.parameters().get(0));
             default -> throw new PureCompileException("PlanGenerator: unsupported function '" + funcName + "'");
@@ -1452,6 +1454,30 @@ public class PlanGenerator {
                     && fn2Af.parameters().get(0) instanceof AppliedFunction innerAf) {
                 fn2Af = innerAf;
             }
+            // Percentile: interpret ascending/continuous flags from fn2 args
+            // Pure: percentile(values, p, ascending=true, continuous=true)
+            // DuckDB: QUANTILE_CONT(col, p) or QUANTILE_DISC(col, p) — only 2 args
+            String fn2Name = simpleName(fn2Af.function());
+            if ("percentile".equals(fn2Name) || "percentileCont".equals(fn2Name)
+                    || "percentileDisc".equals(fn2Name)) {
+                // param[0]=variable, param[1]=p, param[2]=ascending, param[3]=continuous
+                SqlExpr p = fn2Af.parameters().size() > 1
+                        ? generateScalar(fn2Af.parameters().get(1), null, null, null)
+                        : new SqlExpr.NumericLiteral(0.5);
+                boolean ascending = true;
+                boolean continuous = "percentileCont".equals(fn2Name)
+                        || "percentile".equals(fn2Name);  // default is continuous
+                if ("percentileDisc".equals(fn2Name)) continuous = false;
+                if (fn2Af.parameters().size() > 2
+                        && fn2Af.parameters().get(2) instanceof CBoolean(boolean v)) ascending = v;
+                if (fn2Af.parameters().size() > 3
+                        && fn2Af.parameters().get(3) instanceof CBoolean(boolean v)) continuous = v;
+                if (!ascending) {
+                    p = new SqlExpr.Binary(new SqlExpr.NumericLiteral(1), "-", p);
+                }
+                sqlName = continuous ? "percentileCont" : "percentileDisc";
+                return new SqlExpr.FunctionCall(sqlName, List.of(mapExpr, p));
+            }
             for (int i = 1; i < fn2Af.parameters().size(); i++) {
                 args.add(generateScalar(fn2Af.parameters().get(i), null, null, null));
             }
@@ -1732,8 +1758,8 @@ public class PlanGenerator {
             case "covarSample" -> "covarSample";
             case "covarPopulation" -> "covarPopulation";
             case "median" -> "median";
-            case "percentileCont" -> "percentileCont";
-            case "percentile", "percentileDisc" -> "percentileDisc";
+            case "percentile", "percentileCont" -> "percentileCont";
+            case "percentileDisc" -> "percentileDisc";
             case "joinStrings" -> "joinStrings";
             case "mode" -> "mode";
             case "corr" -> "corr";

@@ -148,7 +148,7 @@ public class TypeChecker implements TypeCheckEnv {
                 new com.gs.legend.compiler.checkers.SlicingChecker(this).check(af, source, ctx);
             // --- Column operations ---
             case "rename" -> new com.gs.legend.compiler.checkers.RenameChecker(this).check(af, source, ctx);
-            case "select" -> new com.gs.legend.compiler.checkers.SelectChecker(this).check(af, source, ctx);
+            case "select", "newTDSRelationAccessor" -> new com.gs.legend.compiler.checkers.SelectChecker(this).check(af, source, ctx);
             case "distinct" -> new com.gs.legend.compiler.checkers.DistinctChecker(this).check(af, source, ctx);
             // --- Shape-changing ---
             case "concatenate" -> new com.gs.legend.compiler.checkers.ConcatenateChecker(this).check(af, source, ctx);

@@ -873,6 +873,9 @@ public class BuiltinFunctionRegistry {
         // write(source:Relation<T>) — single-arg form
         reg.registerSignature("write",
                 "native function write<T>(source:Relation<T>[1]):Integer[1];");
+        // TDS relation accessor — wraps a TDS literal into a target for write()
+        reg.registerSignature("newTDSRelationAccessor",
+                "native function newTDSRelationAccessor<T>(tds:Relation<T>[1]):Relation<T>[1];");
 
         // ===== if (conditional) =====
         // if(condition, thenLambda, elseLambda) → T

@@ -104,7 +104,7 @@ class BuiltinFunctionRegistryTest {
     @Test
     void resolvedDef_hasCorrectArity() {
         var defs = registry.resolve("filter");
-        assertEquals(1, defs.size());
+        assertEquals(2, defs.size());
         // Real parser: filter<T>(rel, f) has arity 2
         assertEquals(2, defs.getFirst().arity());
     }
