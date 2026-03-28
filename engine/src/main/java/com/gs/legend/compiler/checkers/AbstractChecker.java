@@ -220,8 +220,17 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     private int scoreParamType(PType declaredType, GenericType actualType) {
         if (declaredType instanceof PType.Concrete c) {
+            // Normalize PrecisionDecimal → DECIMAL for scoring
+            if (actualType instanceof GenericType.PrecisionDecimal) {
+                actualType = GenericType.Primitive.DECIMAL;
+            }
+            // EnumType: exact match if names equal, else incompatible
+            if (actualType instanceof GenericType.EnumType et) {
+                return et.typeName().equals(c.name()) ? 2 : -1;
+            }
+            if ("Any".equals(c.name())) return 0; // Any accepts everything, lowest priority
             if (!(actualType instanceof GenericType.Primitive actualPrim)) {
-                return "Any".equals(c.name()) ? 0 : -1;
+                return -1;
             }
             try {
                 GenericType.Primitive declared = GenericType.Primitive.fromTypeName(c.name());
@@ -588,9 +597,13 @@ public abstract class AbstractChecker implements FunctionChecker {
                 if (g == GenericType.Primitive.ANY) {
                     return; // Any accepts all types
                 }
-                // Normalize actual:
-                //   PrecisionDecimal → DECIMAL
+                // Normalize actual AND signature type:
+                //   PrecisionDecimal → DECIMAL (for both)
                 //   List<T> → element type (for collection-to-aggregate: [1,2]->sum())
+                GenericType gNorm = g;
+                if (gNorm instanceof GenericType.PrecisionDecimal) {
+                    gNorm = GenericType.Primitive.DECIMAL;
+                }
                 GenericType norm = actual;
                 if (norm instanceof GenericType.PrecisionDecimal) {
                     norm = GenericType.Primitive.DECIMAL;
@@ -602,13 +615,13 @@ public abstract class AbstractChecker implements FunctionChecker {
                         norm = GenericType.Primitive.DECIMAL;
                     }
                 }
-                if (g instanceof GenericType.Primitive expectedPrim
+                if (gNorm instanceof GenericType.Primitive expectedPrim
                         && norm instanceof GenericType.Primitive actualPrim) {
                     if (!actualPrim.isSubtypeOf(expectedPrim)) {
                         throw new PureCompileException(
                                 context + ": expected " + c.name() + ", got " + actual.typeName());
                     }
-                } else if (!g.typeName().equals(norm.typeName())) {
+                } else if (!gNorm.typeName().equals(norm.typeName())) {
                     throw new PureCompileException(
                             context + ": expected " + c.name() + ", got " + actual.typeName());
                 }

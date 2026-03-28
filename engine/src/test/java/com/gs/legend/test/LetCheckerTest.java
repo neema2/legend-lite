@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,29 +17,38 @@ import static org.junit.jupiter.api.Assertions.*;
  * Comprehensive tests for LetChecker — signature-driven type checking
  * for {@code letFunction()}.
  *
- * <p>Covers:
+ * <p>
+ * Covers:
  * <ul>
- *   <li>Standard 2-arg form: {@code let x = expr}</li>
- *   <li>Type propagation: Integer, String, Float, Boolean</li>
- *   <li>Let chaining: multiple let bindings feeding into computation</li>
- *   <li>Let with complex expressions: arithmetic, function calls</li>
- *   <li>Let value into downstream operations: filter, project</li>
- *   <li>Let with relational expressions</li>
+ * <li>Standard 2-arg form: {@code let x = expr}</li>
+ * <li>Type propagation: Integer, String, Float, Boolean</li>
+ * <li>Let chaining: multiple let bindings feeding into computation</li>
+ * <li>Let with complex expressions: arithmetic, function calls</li>
+ * <li>Let value into downstream operations: filter, project</li>
+ * <li>Let with relational expressions</li>
  * </ul>
  *
- * <p><b>Strong Assertion Policy</b>: every test validates exact row counts,
- * exact column names, exact values element-by-element. No {@code assertNotNull}-only.
+ * <p>
+ * <b>Strong Assertion Policy</b>: every test validates exact row counts,
+ * exact column names, exact values element-by-element. No
+ * {@code assertNotNull}-only.
  */
 public class LetCheckerTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() { return "DuckDB"; }
+    protected String getDatabaseType() {
+        return "DuckDB";
+    }
 
     @Override
-    protected SQLDialect getDialect() { return DuckDBDialect.INSTANCE; }
+    protected SQLDialect getDialect() {
+        return DuckDBDialect.INSTANCE;
+    }
 
     @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
+    protected String getJdbcUrl() {
+        return "jdbc:duckdb:";
+    }
 
     @BeforeEach
     void setUp() throws SQLException {
@@ -51,7 +59,8 @@ public class LetCheckerTest extends AbstractDatabaseTest {
 
     @AfterEach
     void tearDown() throws SQLException {
-        if (connection != null) connection.close();
+        if (connection != null)
+            connection.close();
     }
 
     // ==================== Basic let with scalar types ====================
@@ -158,7 +167,8 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("let string chain — concatenation through variables")
         void testLetStringChain() throws SQLException {
-            var result = executeRelation("|let first = 'John'; let last = 'Smith'; let full = $first + ' ' + $last; $full;");
+            var result = executeRelation(
+                    "|let first = 'John'; let last = 'Smith'; let full = $first + ' ' + $last; $full;");
             assertEquals(1, result.rows().size());
             assertEquals("John Smith", result.rows().get(0).values().get(0));
         }
@@ -195,7 +205,8 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== Let feeding into relational operations ====================
+    // ==================== Let feeding into relational operations
+    // ====================
 
     @Nested
     @DisplayName("let feeding relational pipelines")

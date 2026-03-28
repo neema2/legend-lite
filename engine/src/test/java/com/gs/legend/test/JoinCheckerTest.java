@@ -19,25 +19,33 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration tests for JoinChecker — Relation API {@code join()}.
  * <ul>
- *   <li>Join types: INNER, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER</li>
- *   <li>Value assertions: every test verifies actual matched data, not just row counts</li>
- *   <li>NULL verification: outer join tests assert NULL in unmatched columns</li>
- *   <li>Prefix / column deduplication</li>
- *   <li>Complex conditions (AND, OR, inequality)</li>
- *   <li>Chained operations: join→filter, join→select, join→extend, join→sort</li>
- *   <li>Edge cases: empty tables, single rows, many-to-many, string conditions</li>
+ * <li>Join types: INNER, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER</li>
+ * <li>Value assertions: every test verifies actual matched data, not just row
+ * counts</li>
+ * <li>NULL verification: outer join tests assert NULL in unmatched columns</li>
+ * <li>Prefix / column deduplication</li>
+ * <li>Complex conditions (AND, OR, inequality)</li>
+ * <li>Chained operations: join→filter, join→select, join→extend, join→sort</li>
+ * <li>Edge cases: empty tables, single rows, many-to-many, string
+ * conditions</li>
  * </ul>
  */
 public class JoinCheckerTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() { return "DuckDB"; }
+    protected String getDatabaseType() {
+        return "DuckDB";
+    }
 
     @Override
-    protected SQLDialect getDialect() { return DuckDBDialect.INSTANCE; }
+    protected SQLDialect getDialect() {
+        return DuckDBDialect.INSTANCE;
+    }
 
     @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
+    protected String getJdbcUrl() {
+        return "jdbc:duckdb:";
+    }
 
     @BeforeEach
     void setUp() throws SQLException {
@@ -48,7 +56,8 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
 
     @AfterEach
     void tearDown() throws SQLException {
-        if (connection != null) connection.close();
+        if (connection != null)
+            connection.close();
     }
 
     // ==================== INNER JOIN ====================
@@ -61,21 +70,21 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("inner join TDS — verifies matched name-score pairs")
         void testInnerJoinMatchingRows() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                    3, Charlie
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                        4, 70
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                        3, Charlie
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                            4, 70
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Only ids 1 and 2 match");
             var byName = collectResults(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
@@ -87,18 +96,18 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("inner join TDS — no matches returns empty")
         void testInnerJoinNoMatches() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        99, 100
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            99, 100
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertTrue(result.rows().isEmpty(), "No matching ids");
         }
 
@@ -106,19 +115,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("inner join non-overlapping schemas — verifies column schema and values")
         void testInnerJoinNonOverlapping() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount());
             assertEquals(4, result.columns().size(), "id, name, person_id, score");
             var byName = collectResults(result, "name", "score");
@@ -130,18 +139,18 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("inner join — one-to-many produces multiple rows with same name")
         void testInnerJoinOneToMany() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        1, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            1, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Alice matches both score rows");
             int nameIdx = columnIndex(result, "name");
             int scoreIdx = columnIndex(result, "score");
@@ -168,20 +177,20 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("left outer join — unmatched rows have NULL right columns")
         void testLeftOuterJoinPreservesLeft() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                    3, Charlie
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.LEFT_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                        3, Charlie
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.LEFT_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(3, result.rowCount(), "All 3 left rows preserved");
             int nameIdx = columnIndex(result, "name");
             int personIdIdx = columnIndex(result, "person_id");
@@ -203,19 +212,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("left outer join — all match, no NULLs")
         void testLeftOuterJoinAllMatch() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.LEFT_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.LEFT_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount());
             int scoreIdx = columnIndex(result, "score");
             for (var row : result.rows()) {
@@ -227,18 +236,18 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("left outer join — no matches → all right cols NULL")
         void testLeftOuterJoinNoMatches() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        99, 100
-                    #,
-                    meta::pure::functions::relation::JoinKind.LEFT_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            99, 100
+                        #,
+                        meta::pure::functions::relation::JoinKind.LEFT_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Both left rows preserved");
             int scoreIdx = columnIndex(result, "score");
             for (var row : result.rows()) {
@@ -257,19 +266,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("right outer join — unmatched right rows have NULL left columns")
         void testRightOuterJoinPreservesRight() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                        3, 75
-                    #,
-                    meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                            3, 75
+                        #,
+                        meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(3, result.rowCount(), "All 3 right rows preserved");
             int nameIdx = columnIndex(result, "name");
             int scoreIdx = columnIndex(result, "score");
@@ -287,17 +296,17 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("right outer join — empty left → all left cols NULL")
         void testRightOuterJoinEmptyLeft() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Both right rows preserved");
             int nameIdx = columnIndex(result, "name");
             for (var row : result.rows()) {
@@ -309,19 +318,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("right outer join — all match")
         void testRightOuterJoinAllMatch() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount());
             var byName = collectResults(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
@@ -332,19 +341,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("right outer join — no matches → all left cols NULL")
         void testRightOuterJoinNoMatches() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        99, 100
-                        98, 200
-                    #,
-                    meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            99, 100
+                            98, 200
+                        #,
+                        meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Both right rows preserved");
             int nameIdx = columnIndex(result, "name");
             for (var row : result.rows()) {
@@ -363,19 +372,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("full outer join — both sides preserved with NULLs verified")
         void testFullOuterJoinPreservesBoth() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        2, 85
-                        3, 75
-                    #,
-                    meta::pure::functions::relation::JoinKind.FULL_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            2, 85
+                            3, 75
+                        #,
+                        meta::pure::functions::relation::JoinKind.FULL_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(3, result.rowCount(),
                     "Alice(no match) + Bob-85(match) + 3-75(no match)");
             int nameIdx = columnIndex(result, "name");
@@ -401,17 +410,17 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("full outer join — no overlap at all → all rows have NULLs on other side")
         void testFullOuterJoinNoOverlap() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                #->join(
                     #TDS
-                        person_id, score
-                        99, 100
-                    #,
-                    meta::pure::functions::relation::JoinKind.FULL_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                    #->join(
+                        #TDS
+                            person_id, score
+                            99, 100
+                        #,
+                        meta::pure::functions::relation::JoinKind.FULL_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "One from each side, no match");
             int nameIdx = columnIndex(result, "name");
             int scoreIdx = columnIndex(result, "score");
@@ -436,17 +445,17 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("full outer join — empty left preserves right with NULL left cols")
         void testFullOuterJoinEmptyLeft() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.FULL_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.FULL_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Both right rows preserved");
             int nameIdx = columnIndex(result, "name");
             for (var row : result.rows()) {
@@ -458,17 +467,17 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("full outer join — empty right preserves left with NULL right cols")
         void testFullOuterJoinEmptyRight() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                    #,
-                    meta::pure::functions::relation::JoinKind.FULL_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                        #,
+                        meta::pure::functions::relation::JoinKind.FULL_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Both left rows preserved");
             int scoreIdx = columnIndex(result, "score");
             for (var row : result.rows()) {
@@ -487,20 +496,20 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("overlapping column with prefix — verifies values through projected aliases")
         void testOverlappingColumnWithPrefix() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->project(~[id1:x|$x.id, name1:x|$x.name])
-                ->join(
                     #TDS
-                        id, col
-                        1, MoreAlice
-                        2, MoreBob
-                    #->project(~[id2:x|$x.id, col:x|$x.col]),
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {x, y | $x.id1 == $y.id2}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->project(~[id1:x|$x.id, name1:x|$x.name])
+                    ->join(
+                        #TDS
+                            id, col
+                            1, MoreAlice
+                            2, MoreBob
+                        #->project(~[id2:x|$x.id, col:x|$x.col]),
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {x, y | $x.id1 == $y.id2}
+                    )""");
             assertEquals(2, result.rowCount());
             assertEquals(4, result.columns().size());
             var byName = collectResults(result, "name1", "col");
@@ -512,20 +521,20 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("self-join with prefix — verifies self-joined values")
         void testSelfJoinWithPrefix() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name, score
-                    1, Alice, 90
-                    2, Bob, 85
-                #->join(
                     #TDS
                         id, name, score
                         1, Alice, 90
                         2, Bob, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.id},
-                    'r'
-                )""");
+                    #->join(
+                        #TDS
+                            id, name, score
+                            1, Alice, 90
+                            2, Bob, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.id},
+                        'r'
+                    )""");
             assertEquals(2, result.rowCount());
             var colNames = result.columns().stream().map(c -> c.name()).toList();
             assertTrue(colNames.contains("id"), "Left id kept");
@@ -535,10 +544,9 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
             int rScoreIdx = columnIndex(result, "r_score");
             for (var row : result.rows()) {
                 assertEquals(
-                    ((Number) row.get(scoreIdx)).longValue(),
-                    ((Number) row.get(rScoreIdx)).longValue(),
-                    "Self-join: left score == right score"
-                );
+                        ((Number) row.get(scoreIdx)).longValue(),
+                        ((Number) row.get(rScoreIdx)).longValue(),
+                        "Self-join: left score == right score");
             }
         }
 
@@ -546,20 +554,20 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("partial overlap — only overlapping columns get prefix")
         void testPartialOverlapPrefix() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.id},
-                    'right'
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.id},
+                        'right'
+                    )""");
             var colNames = result.columns().stream().map(c -> c.name()).toList();
             assertTrue(colNames.contains("id"), "Left id kept");
             assertTrue(colNames.contains("right_id"), "Overlapping right id prefixed");
@@ -574,18 +582,18 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("duplicate columns without prefix throws compile error")
         void testDuplicateColumnsWithoutPrefixThrows() {
             assertThrows(Exception.class, () -> executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                #->join(
                     #TDS
-                        id, score
-                        1, 90
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.id}
-                )"""),
-                "Duplicate 'id' column without prefix should throw");
+                        id, name
+                        1, Alice
+                    #->join(
+                        #TDS
+                            id, score
+                            1, 90
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.id}
+                    )"""),
+                    "Duplicate 'id' column without prefix should throw");
         }
     }
 
@@ -599,22 +607,22 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join with AND condition — verifies matched values")
         void testJoinWithAndCondition() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name, dept
-                    1, Alice, eng
-                    2, Bob, sales
-                    3, Charlie, eng
-                #->join(
                     #TDS
-                        person_id, level, dept
-                        1, senior, eng
-                        2, junior, sales
-                        3, senior, marketing
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | ($l.id == $r.person_id) && ($l.dept == $r.dept)},
-                    'right'
-                )""");
+                        id, name, dept
+                        1, Alice, eng
+                        2, Bob, sales
+                        3, Charlie, eng
+                    #->join(
+                        #TDS
+                            person_id, level, dept
+                            1, senior, eng
+                            2, junior, sales
+                            3, senior, marketing
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | ($l.id == $r.person_id) && ($l.dept == $r.dept)},
+                        'right'
+                    )""");
             assertEquals(2, result.rowCount(),
                     "Alice(eng-eng) and Bob(sales-sales); Charlie eng≠marketing");
             var byName = collectResults(result, "name", "level");
@@ -627,19 +635,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join with inequality condition (non-equi join) — verifies matched values")
         void testJoinWithInequality() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, val
-                    1, 10
-                    2, 20
-                    3, 30
-                #->join(
                     #TDS
-                        threshold_id, threshold
-                        1, 15
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.val > $r.threshold}
-                )""");
+                        id, val
+                        1, 10
+                        2, 20
+                        3, 30
+                    #->join(
+                        #TDS
+                            threshold_id, threshold
+                            1, 15
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.val > $r.threshold}
+                    )""");
             assertEquals(2, result.rowCount(), "val 20 and 30 > threshold 15");
             int idIdx = columnIndex(result, "id");
             var ids = result.rows().stream()
@@ -653,21 +661,21 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join with OR condition — matches either predicate")
         void testJoinWithOrCondition() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name, dept
-                    1, Alice, eng
-                    2, Bob, sales
-                    3, Charlie, hr
-                #->join(
                     #TDS
-                        dept_name, budget
-                        eng, 100000
-                        marketing, 75000
-                        hr, 30000
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | ($l.dept == $r.dept_name) || ($l.dept == 'sales' && $r.dept_name == 'marketing')}
-                )""");
+                        id, name, dept
+                        1, Alice, eng
+                        2, Bob, sales
+                        3, Charlie, hr
+                    #->join(
+                        #TDS
+                            dept_name, budget
+                            eng, 100000
+                            marketing, 75000
+                            hr, 30000
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | ($l.dept == $r.dept_name) || ($l.dept == 'sales' && $r.dept_name == 'marketing')}
+                    )""");
             // Alice: eng==eng → match (budget=100000)
             // Bob: sales==marketing via OR → match (budget=75000)
             // Charlie: hr==hr → match (budget=30000)
@@ -689,21 +697,21 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join then filter — verifies filtered matched values")
         void testJoinThenFilter() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                    3, Charlie
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 60
-                        3, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )->filter(x | $x.score > 80)""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                        3, Charlie
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 60
+                            3, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )->filter(x | $x.score > 80)""");
             assertEquals(2, result.rowCount(), "Alice(90) and Charlie(85) pass filter");
             var byName = collectResults(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
@@ -715,19 +723,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join then select — verifies selected columns and values")
         void testJoinThenSelect() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )->select(~[name, score])""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )->select(~[name, score])""");
             assertEquals(2, result.columns().size());
             var byName = collectResults(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
@@ -738,22 +746,22 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter then join — only active rows participate")
         void testFilterThenJoin() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name, active
-                    1, Alice, 1
-                    2, Bob, 0
-                    3, Charlie, 1
-                #->filter(x | $x.active == 1)
-                ->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                        3, 75
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name, active
+                        1, Alice, 1
+                        2, Bob, 0
+                        3, Charlie, 1
+                    #->filter(x | $x.active == 1)
+                    ->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                            3, 75
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Only active Alice and Charlie join");
             var byName = collectResults(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
@@ -765,21 +773,21 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project-join-project (PCT pattern) — verifies values through projections")
         void testProjectJoinProject() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, George
-                    4, David
-                #->project(~[id1:x|$x.id, name1:x|$x.name])
-                ->join(
                     #TDS
-                        id, col
-                        1, MoreGeorge
-                        4, MoreDavid
-                    #->project(~[id2:x|$x.id, col:x|$x.col]),
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {x, y|$x.id1 == $y.id2}
-                )
-                ->project(~[resultId:x|$x.id1, resultCol:x|$x.col])""");
+                        id, name
+                        1, George
+                        4, David
+                    #->project(~[id1:x|$x.id, name1:x|$x.name])
+                    ->join(
+                        #TDS
+                            id, col
+                            1, MoreGeorge
+                            4, MoreDavid
+                        #->project(~[id2:x|$x.id, col:x|$x.col]),
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {x, y|$x.id1 == $y.id2}
+                    )
+                    ->project(~[resultId:x|$x.id1, resultCol:x|$x.col])""");
             assertEquals(2, result.rowCount());
             assertEquals(2, result.columns().size());
             var byId = collectResults(result, "resultId", "resultCol");
@@ -791,21 +799,21 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join then sort — verifies sort order and values")
         void testJoinThenSort() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                    3, Charlie
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 60
-                        3, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )->sort(~score->ascending())""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                        3, Charlie
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 60
+                            3, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )->sort(~score->ascending())""");
             assertEquals(3, result.rowCount());
             int scoreIdx = columnIndex(result, "score");
             int nameIdx = columnIndex(result, "name");
@@ -821,19 +829,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join then extend — computes derived column from join result")
         void testJoinThenExtend() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name, qty
-                    1, Alice, 5
-                    2, Bob, 3
-                #->join(
                     #TDS
-                        person_id, price
-                        1, 100
-                        2, 200
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )->extend(~total: x | $x.qty * $x.price)""");
+                        id, name, qty
+                        1, Alice, 5
+                        2, Bob, 3
+                    #->join(
+                        #TDS
+                            person_id, price
+                            1, 100
+                            2, 200
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )->extend(~total: x | $x.qty * $x.price)""");
             assertEquals(2, result.rowCount());
             var byName = collectResults(result, "name", "total");
             assertEquals(500L, ((Number) byName.get("Alice")).longValue(), "Alice: 5*100=500");
@@ -851,17 +859,17 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join with single-row tables — verifies values")
         void testJoinSingleRows() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 100
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 100
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(1, result.rowCount());
             int nameIdx = columnIndex(result, "name");
             int scoreIdx = columnIndex(result, "score");
@@ -873,16 +881,16 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join where left is empty")
         void testJoinEmptyLeft() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 100
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 100
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertTrue(result.rows().isEmpty(), "Empty left → empty inner join");
         }
 
@@ -890,16 +898,16 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join where right is empty")
         void testJoinEmptyRight() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                #->join(
                     #TDS
-                        person_id, score
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                    #->join(
+                        #TDS
+                            person_id, score
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertTrue(result.rows().isEmpty(), "Empty right → empty inner join");
         }
 
@@ -907,17 +915,17 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("left outer join with empty right — preserves left with NULLs")
         void testLeftJoinEmptyRight() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                    #,
-                    meta::pure::functions::relation::JoinKind.LEFT_OUTER,
-                    {l, r | $l.id == $r.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                        #,
+                        meta::pure::functions::relation::JoinKind.LEFT_OUTER,
+                        {l, r | $l.id == $r.person_id}
+                    )""");
             assertEquals(2, result.rowCount(), "Both left rows preserved with NULLs");
             int scoreIdx = columnIndex(result, "score");
             for (var row : result.rows()) {
@@ -929,23 +937,22 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join with many-to-many produces cartesian — verifies all combos")
         void testJoinManyToMany() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    grp, name
-                    1, Alice
-                    1, Bob
-                #->join(
                     #TDS
-                        grp, score
-                        1, 90
-                        1, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.grp == $r.grp},
-                    'right'
-                )""");
+                        grp, name
+                        1, Alice
+                        1, Bob
+                    #->join(
+                        #TDS
+                            grp, score
+                            1, 90
+                            1, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.grp == $r.grp},
+                        'right'
+                    )""");
             assertEquals(4, result.rowCount(), "2×2 = 4 rows (cartesian on grp=1)");
             int nameIdx = columnIndex(result, "name");
-            int scoreIdx = columnIndex(result, "score");
             // Each name should appear with each score
             long aliceCount = result.rows().stream()
                     .filter(r -> "Alice".equals(r.get(nameIdx))).count();
@@ -959,19 +966,19 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join with custom lambda param names")
         void testJoinCustomParamNames() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    id, name
-                    1, Alice
-                    2, Bob
-                #->join(
                     #TDS
-                        person_id, score
-                        1, 90
-                        2, 85
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {left, right | $left.id == $right.person_id}
-                )""");
+                        id, name
+                        1, Alice
+                        2, Bob
+                    #->join(
+                        #TDS
+                            person_id, score
+                            1, 90
+                            2, 85
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {left, right | $left.id == $right.person_id}
+                    )""");
             assertEquals(2, result.rowCount());
             var byName = collectResults(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
@@ -982,20 +989,20 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         @DisplayName("join with string equality condition — verifies values")
         void testJoinStringCondition() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    name, dept
-                    Alice, eng
-                    Bob, sales
-                #->join(
                     #TDS
-                        dept_name, budget
-                        eng, 100000
-                        sales, 50000
-                        marketing, 75000
-                    #,
-                    meta::pure::functions::relation::JoinKind.INNER,
-                    {l, r | $l.dept == $r.dept_name}
-                )""");
+                        name, dept
+                        Alice, eng
+                        Bob, sales
+                    #->join(
+                        #TDS
+                            dept_name, budget
+                            eng, 100000
+                            sales, 50000
+                            marketing, 75000
+                        #,
+                        meta::pure::functions::relation::JoinKind.INNER,
+                        {l, r | $l.dept == $r.dept_name}
+                    )""");
             assertEquals(2, result.rowCount(), "String equality join works");
             var byName = collectResults(result, "name", "budget");
             assertEquals(100000L, ((Number) byName.get("Alice")).longValue());
@@ -1022,7 +1029,8 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
     /** Finds column index by name. */
     private int columnIndex(ExecutionResult result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
-            if (name.equals(result.columns().get(i).name())) return i;
+            if (name.equals(result.columns().get(i).name()))
+                return i;
         }
         throw new AssertionError("Column '" + name + "' not found in " +
                 result.columns().stream().map(c -> c.name()).toList());

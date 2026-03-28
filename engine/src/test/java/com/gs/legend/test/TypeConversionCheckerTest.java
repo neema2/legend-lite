@@ -1,7 +1,6 @@
 package com.gs.legend.test;
 
 import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.exec.Row;
 import com.gs.legend.sqlgen.DuckDBDialect;
 import com.gs.legend.sqlgen.SQLDialect;
 import org.junit.jupiter.api.AfterEach;
@@ -19,20 +18,27 @@ import static org.junit.jupiter.api.Assertions.*;
  * Integration tests for cast() — validates that cast enables meaningful
  * downstream operations that require the target type.
  *
- * <p>Philosophy: every test should DO SOMETHING with the casted value that
+ * <p>
+ * Philosophy: every test should DO SOMETHING with the casted value that
  * would fail without the cast, and assert exact output values — not just
  * row counts or column existence.
  */
 public class TypeConversionCheckerTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() { return "DuckDB"; }
+    protected String getDatabaseType() {
+        return "DuckDB";
+    }
 
     @Override
-    protected SQLDialect getDialect() { return DuckDBDialect.INSTANCE; }
+    protected SQLDialect getDialect() {
+        return DuckDBDialect.INSTANCE;
+    }
 
     @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
+    protected String getJdbcUrl() {
+        return "jdbc:duckdb:";
+    }
 
     @BeforeEach
     void setUp() throws SQLException {
@@ -43,10 +49,12 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
 
     @AfterEach
     void tearDown() throws SQLException {
-        if (connection != null) connection.close();
+        if (connection != null)
+            connection.close();
     }
 
-    // ==================== String → Integer cast + numeric downstream ====================
+    // ==================== String → Integer cast + numeric downstream
+    // ====================
 
     @Nested
     @DisplayName("cast String→Integer: enable numeric operations")
@@ -56,14 +64,14 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("cast column to Integer, then sum — proves cast enables aggregation")
         void testCastThenSum() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    product, amount:String
-                    Widget, 100
-                    Gadget, 250
-                    Widget, 150
-                #->groupBy(~[product], ~[total:x|$x.amount->toOne()->cast(@Integer):y|$y->plus()])
-                ->sort(~product->ascending())
-                """);
+                    #TDS
+                        product, amount:String
+                        Widget, 100
+                        Gadget, 250
+                        Widget, 150
+                    #->groupBy(~[product], ~[total:x|$x.amount->toOne()->cast(@Integer):y|$y->plus()])
+                    ->sort(~product->ascending())
+                    """);
             int prodIdx = columnIndex(result, "product");
             int totalIdx = columnIndex(result, "total");
 
@@ -80,14 +88,14 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("cast to Integer, then filter on numeric comparison — verify surviving rows")
         void testCastThenFilterNumeric() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    item, price:String
-                    A, 50
-                    B, 200
-                    C, 75
-                #->filter(x|$x.price->toOne()->cast(@Integer) > 60)
-                ->sort(~item->ascending())
-                """);
+                    #TDS
+                        item, price:String
+                        A, 50
+                        B, 200
+                        C, 75
+                    #->filter(x|$x.price->toOne()->cast(@Integer) > 60)
+                    ->sort(~item->ascending())
+                    """);
             int itemIdx = columnIndex(result, "item");
             int priceIdx = columnIndex(result, "price");
 
@@ -102,13 +110,13 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("cast to Integer, then extend with arithmetic — verify computed values")
         void testCastThenArithmetic() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    item, qty:String, unitPrice:String
-                    A, 3, 10
-                    B, 5, 20
-                #->extend(~lineTotal:x|$x.qty->toOne()->cast(@Integer) * $x.unitPrice->toOne()->cast(@Integer))
-                ->sort(~item->ascending())
-                """);
+                    #TDS
+                        item, qty:String, unitPrice:String
+                        A, 3, 10
+                        B, 5, 20
+                    #->extend(~lineTotal:x|$x.qty->toOne()->cast(@Integer) * $x.unitPrice->toOne()->cast(@Integer))
+                    ->sort(~item->ascending())
+                    """);
             int itemIdx = columnIndex(result, "item");
             int totalIdx = columnIndex(result, "lineTotal");
 
@@ -120,7 +128,8 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== Pivot → Cast → downstream operations ====================
+    // ==================== Pivot → Cast → downstream operations
+    // ====================
 
     @Nested
     @DisplayName("pivot → cast: unlock dynamic pivot columns for downstream use")
@@ -130,17 +139,17 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("pivot → cast → extend sums pivot columns — verify computed total")
         void testPivotCastExtendSum() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    city, year, trees
-                    NYC, 2011, 5000
-                    NYC, 2012, 7600
-                    SAN, 2011, 2000
-                    SAN, 2012, 3000
-                #->pivot(~[year], ~[total:x|$x.trees:y|$y->plus()])
-                ->cast(@Relation<(city:String, '2011__|__total':Integer, '2012__|__total':Integer)>)
-                ->extend(~allYears:x|$x.'2011__|__total'->toOne() + $x.'2012__|__total'->toOne())
-                ->sort(~city->ascending())
-                """);
+                    #TDS
+                        city, year, trees
+                        NYC, 2011, 5000
+                        NYC, 2012, 7600
+                        SAN, 2011, 2000
+                        SAN, 2012, 3000
+                    #->pivot(~[year], ~[total:x|$x.trees:y|$y->plus()])
+                    ->cast(@Relation<(city:String, '2011__|__total':Integer, '2012__|__total':Integer)>)
+                    ->extend(~allYears:x|$x.'2011__|__total'->toOne() + $x.'2012__|__total'->toOne())
+                    ->sort(~city->ascending())
+                    """);
             int cityIdx = columnIndex(result, "city");
             int y2011Idx = columnIndex(result, "2011__|__total");
             int y2012Idx = columnIndex(result, "2012__|__total");
@@ -166,18 +175,19 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("pivot → cast → groupBy aggregates pivot columns by country")
         void testPivotCastGroupBy() throws SQLException {
-            var result = executeRelation("""
-                #TDS
-                    city, country, year, treePlanted
-                    NYC, USA, 2011, 5000
-                    NYC, USA, 2012, 7600
-                    SAN, USA, 2011, 2600
-                    LDN, UK, 2011, 3000
-                #->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
-                ->cast(@Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)
-                ->groupBy(~[country], ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->plus()])
-                ->sort(~country->ascending())
-                """);
+            var result = executeRelation(
+                    """
+                            #TDS
+                                city, country, year, treePlanted
+                                NYC, USA, 2011, 5000
+                                NYC, USA, 2012, 7600
+                                SAN, USA, 2011, 2600
+                                LDN, UK, 2011, 3000
+                            #->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
+                            ->cast(@Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)
+                            ->groupBy(~[country], ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->plus()])
+                            ->sort(~country->ascending())
+                            """);
             int countryIdx = columnIndex(result, "country");
             int aggIdx = columnIndex(result, "2011__|__newCol");
 
@@ -196,16 +206,16 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("pivot → cast → filter on dynamic pivot column — verify exact surviving row")
         void testPivotCastFilterOnPivotCol() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    city, year, trees
-                    NYC, 2011, 5000
-                    NYC, 2012, 7600
-                    SAN, 2011, 2000
-                    SAN, 2012, 3000
-                #->pivot(~[year], ~[total:x|$x.trees:y|$y->plus()])
-                ->cast(@Relation<(city:String, '2011__|__total':Integer, '2012__|__total':Integer)>)
-                ->filter(x|$x.'2011__|__total' > 3000)
-                """);
+                    #TDS
+                        city, year, trees
+                        NYC, 2011, 5000
+                        NYC, 2012, 7600
+                        SAN, 2011, 2000
+                        SAN, 2012, 3000
+                    #->pivot(~[year], ~[total:x|$x.trees:y|$y->plus()])
+                    ->cast(@Relation<(city:String, '2011__|__total':Integer, '2012__|__total':Integer)>)
+                    ->filter(x|$x.'2011__|__total' > 3000)
+                    """);
             int cityIdx = columnIndex(result, "city");
             int y2011Idx = columnIndex(result, "2011__|__total");
 
@@ -227,12 +237,12 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         void testClassProjectCastAggregate() throws SQLException {
             // Test data: John(30), Jane(28), Bob(45) — two Smiths, one Jones
             var result = executeRelation("""
-                Person.all()
-                    ->project(~[last:p|$p.lastName, age:p|$p.age])
-                    ->cast(@Relation<(last:String, age:Integer)>)
-                    ->groupBy(~[last], ~[maxAge:x|$x.age:y|$y->max()])
-                    ->sort(~last->ascending())
-                """);
+                    Person.all()
+                        ->project(~[last:p|$p.lastName, age:p|$p.age])
+                        ->cast(@Relation<(last:String, age:Integer)>)
+                        ->groupBy(~[last], ~[maxAge:x|$x.age:y|$y->max()])
+                        ->sort(~last->ascending())
+                    """);
             int lastIdx = columnIndex(result, "last");
             int maxIdx = columnIndex(result, "maxAge");
 
@@ -251,11 +261,11 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project → cast schema subset — drops columns, verify remaining data")
         void testClassProjectCastDropColumns() throws SQLException {
             var result = executeRelation("""
-                Person.all()
-                    ->project(~[name:p|$p.firstName, age:p|$p.age])
-                    ->cast(@Relation<(name:String)>)
-                    ->sort(~name->ascending())
-                """);
+                    Person.all()
+                        ->project(~[name:p|$p.firstName, age:p|$p.age])
+                        ->cast(@Relation<(name:String)>)
+                        ->sort(~name->ascending())
+                    """);
             assertEquals(3, result.rows().size());
             assertEquals(1, result.columns().size(), "Only 'name' column survives cast");
             assertEquals("name", result.columns().get(0).name());
@@ -278,14 +288,14 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("double cast narrows schema — verify only final columns and data survive")
         void testDoubleCastNarrows() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    name, age, city
-                    Alice, 30, NYC
-                    Bob, 45, LA
-                #->cast(@Relation<(name:String, age:Integer, city:String)>)
-                ->cast(@Relation<(name:String)>)
-                ->sort(~name->ascending())
-                """);
+                    #TDS
+                        name, age, city
+                        Alice, 30, NYC
+                        Bob, 45, LA
+                    #->cast(@Relation<(name:String, age:Integer, city:String)>)
+                    ->cast(@Relation<(name:String)>)
+                    ->sort(~name->ascending())
+                    """);
             assertEquals(2, result.rows().size());
             assertEquals(1, result.columns().size(), "Only 'name' survives double cast");
             assertEquals("name", result.columns().get(0).name());
@@ -298,14 +308,14 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("identity cast then filter — verify exact filtered values")
         void testIdentityCastThenFilter() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    name, age
-                    Alice, 30
-                    Bob, 45
-                    Charlie, 25
-                #->cast(@Relation<(name:String, age:Integer)>)
-                ->filter(x|$x.age > 30)
-                """);
+                    #TDS
+                        name, age
+                        Alice, 30
+                        Bob, 45
+                        Charlie, 25
+                    #->cast(@Relation<(name:String, age:Integer)>)
+                    ->filter(x|$x.age > 30)
+                    """);
             int nameIdx = columnIndex(result, "name");
             int ageIdx = columnIndex(result, "age");
 
@@ -325,15 +335,15 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("pivot → cast with quoted cols → sort — verify order and all values")
         void testQuotedColumnSort() throws SQLException {
             var result = executeRelation("""
-                #TDS
-                    city, year, value
-                    NYC, 2020, 300
-                    SAN, 2020, 100
-                    LA, 2020, 200
-                #->pivot(~[year], ~[amt:x|$x.value:y|$y->plus()])
-                ->cast(@Relation<(city:String, '2020__|__amt':Integer)>)
-                ->sort(~'2020__|__amt'->ascending())
-                """);
+                    #TDS
+                        city, year, value
+                        NYC, 2020, 300
+                        SAN, 2020, 100
+                        LA, 2020, 200
+                    #->pivot(~[year], ~[amt:x|$x.value:y|$y->plus()])
+                    ->cast(@Relation<(city:String, '2020__|__amt':Integer)>)
+                    ->sort(~'2020__|__amt'->ascending())
+                    """);
             int cityIdx = columnIndex(result, "city");
             int amtIdx = columnIndex(result, "2020__|__amt");
 
@@ -360,11 +370,11 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("cast on TDS generates pass-through SQL — no CAST keyword")
         void testCastSqlNoKeyword() throws SQLException {
             String sql = generateSql("""
-                #TDS
-                    name, age
-                    Alice, 30
-                #->cast(@Relation<(name:String, age:Integer)>)
-                """);
+                    #TDS
+                        name, age
+                        Alice, 30
+                    #->cast(@Relation<(name:String, age:Integer)>)
+                    """);
             assertNotNull(sql);
             assertFalse(sql.isEmpty(), "SQL should not be empty");
             assertFalse(sql.toUpperCase().contains("CAST("),
@@ -375,14 +385,14 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("pivot → cast → filter generates SQL with PIVOT and dynamic column reference")
         void testPivotCastFilterSql() throws SQLException {
             String sql = generateSql("""
-                #TDS
-                    city, year, trees
-                    NYC, 2011, 5000
-                    SAN, 2012, 2000
-                #->pivot(~[year], ~[total:x|$x.trees:y|$y->plus()])
-                ->cast(@Relation<(city:String, '2011__|__total':Integer, '2012__|__total':Integer)>)
-                ->filter(x|$x.'2011__|__total' > 1000)
-                """);
+                    #TDS
+                        city, year, trees
+                        NYC, 2011, 5000
+                        SAN, 2012, 2000
+                    #->pivot(~[year], ~[total:x|$x.trees:y|$y->plus()])
+                    ->cast(@Relation<(city:String, '2011__|__total':Integer, '2012__|__total':Integer)>)
+                    ->filter(x|$x.'2011__|__total' > 1000)
+                    """);
             assertNotNull(sql);
             assertTrue(sql.contains("PIVOT"), "Should contain PIVOT keyword: " + sql);
             assertTrue(sql.contains("2011"), "Should reference 2011 pivot column: " + sql);
@@ -398,7 +408,8 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
 
     private int columnIndex(ExecutionResult result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
-            if (name.equals(result.columns().get(i).name())) return i;
+            if (name.equals(result.columns().get(i).name()))
+                return i;
         }
         throw new AssertionError("Column '" + name + "' not found in " +
                 result.columns().stream().map(c -> c.name()).toList());

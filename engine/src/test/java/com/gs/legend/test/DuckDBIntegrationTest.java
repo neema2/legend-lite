@@ -1128,7 +1128,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // WHEN: Execute a relation query with distinct()
-        String relationQuery = "#>{store::ItemDb.T_ITEMS}->select(~CATEGORY, ~VALUE)->distinct()->from(test::TestRuntime)";
+        String relationQuery = "#>{store::ItemDb.T_ITEMS}->select(~[CATEGORY, VALUE])->distinct()->from(test::TestRuntime)";
 
         var result = queryService.execute(
                 pureSource, relationQuery, "test::TestRuntime", connection);
@@ -1194,8 +1194,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // WHEN: Execute a relation query with concatenate()
         String relationQuery = """
-                #>{store::UserDb.T_ACTIVE_USERS}->select(~ID, ~NAME)
-                    ->concatenate(#>{store::UserDb.T_INACTIVE_USERS}->select(~ID, ~NAME))
+                #>{store::UserDb.T_ACTIVE_USERS}->select(~[ID, NAME])
+                    ->concatenate(#>{store::UserDb.T_INACTIVE_USERS}->select(~[ID, NAME]))
                     ->from(test::TestRuntime)
                 """;
 
@@ -4371,7 +4371,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     5, 2, E
                     6, 1, F
                 #->sort(~name->ascending())
-                ->groupBy(~[grp], ~[total:x|$x.id])
+                ->groupBy(~[grp], ~[total:x|$x.id:y|$y->count()])
                 """;
 
         var result = executeRelation(pureQuery);
@@ -4399,7 +4399,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     2, 1, Bob
                     3, 2, Charlie
                     4, 2, Diana
-                #->groupBy(~[grp], ~[names:x|$x.name->joinStrings(',')])
+                #->groupBy(~[grp], ~[names:x|$x.name:y|$y->joinStrings(',')])
                 """;
 
         var result = executeRelation(pureQuery);
@@ -4445,7 +4445,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     3, 2, C
                     4, 2, D
                 #;
-                $t->groupBy(~[grp], ~[total:x|$x.id]);
+                $t->groupBy(~[grp], ~[total:x|$x.id:y|$y->count()]);
                 """;
 
         var result = executeRelation(pureQuery);

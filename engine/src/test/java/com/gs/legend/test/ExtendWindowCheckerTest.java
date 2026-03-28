@@ -11,32 +11,38 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Comprehensive integration tests for window functions via extend() + over().
  *
- * Uses #TDS inline data — same approach as ExtendCheckerTest and DuckDBIntegrationTest.
+ * Uses #TDS inline data — same approach as ExtendCheckerTest and
+ * DuckDBIntegrationTest.
  *
  * All patterns are taken directly from proven DuckDBIntegrationTest examples:
- *  - Standalone over():  extend(over(~grp), ~col:{p,w,r|$r.field}:y|$y->func())
- *  - Chaining over():    extend(~grp->over(~sort->desc()), ~col:{p,w,r|$p->func($r).field})
- *  - Frame spec:         over(~grp, ~sort->asc(), unbounded()->rows(unbounded()))
- *  - No-window agg:      extend(~col:c|$c.field:y|$y->func())
+ * - Standalone over(): extend(over(~grp), ~col:{p,w,r|$r.field}:y|$y->func())
+ * - Chaining over(): extend(~grp->over(~sort->desc()),
+ * ~col:{p,w,r|$p->func($r).field})
+ * - Frame spec: over(~grp, ~sort->asc(), unbounded()->rows(unbounded()))
+ * - No-window agg: extend(~col:c|$c.field:y|$y->func())
  */
 public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() { return "DuckDB"; }
+    protected String getDatabaseType() {
+        return "DuckDB";
+    }
 
     @Override
-    protected SQLDialect getDialect() { return DuckDBDialect.INSTANCE; }
+    protected SQLDialect getDialect() {
+        return DuckDBDialect.INSTANCE;
+    }
 
     @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
+    protected String getJdbcUrl() {
+        return "jdbc:duckdb:";
+    }
 
     @BeforeEach
     void setUp() throws SQLException {
@@ -47,7 +53,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     @AfterEach
     void tearDown() throws SQLException {
-        if (connection != null) connection.close();
+        if (connection != null)
+            connection.close();
     }
 
     // ==================== Common TDS data ====================
@@ -83,7 +90,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     private int colIdx(ExecutionResult result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
-            if (name.equals(result.columns().get(i).name())) return i;
+            if (name.equals(result.columns().get(i).name()))
+                return i;
         }
         throw new AssertionError("Column '" + name + "' not found in " +
                 result.columns().stream().map(c -> c.name()).toList());
@@ -91,15 +99,16 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     // ========================================================================
     // 1. Window aggregates — fn1+fn2 with standalone over()
-    //    Pattern: extend(over(~partition), ~col:{p,w,r|$r.field}:y|$y->func())
-    //    From DuckDBIntegrationTest line 3475
+    // Pattern: extend(over(~partition), ~col:{p,w,r|$r.field}:y|$y->func())
+    // From DuckDBIntegrationTest line 3475
     // ========================================================================
 
     @Nested
     @DisplayName("Window aggregates — fn1+fn2 with standalone over()")
     class WindowAggregates {
 
-        @Test @DisplayName("sum via plus() — partition by grp")
+        @Test
+        @DisplayName("sum via plus() — partition by grp")
         void testSum() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~newCol:{p,w,r|$r.id}:y|$y->plus())");
@@ -109,15 +118,20 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int grp = ((Number) row.get(1)).intValue();
                 int newCol = ((Number) row.get(3)).intValue();
                 int expected = switch (grp) {
-                    case 0 -> 10; case 1 -> 16; case 2 -> 6;
-                    case 3 -> 10; case 4 -> 4; case 5 -> 9;
+                    case 0 -> 10;
+                    case 1 -> 16;
+                    case 2 -> 6;
+                    case 3 -> 10;
+                    case 4 -> 4;
+                    case 5 -> 9;
                     default -> throw new AssertionError("Unexpected grp: " + grp);
                 };
                 assertEquals(expected, newCol, "Sum for grp=" + grp);
             }
         }
 
-        @Test @DisplayName("count via size() — partition by grp")
+        @Test
+        @DisplayName("count via size() — partition by grp")
         void testCount() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~cnt:{p,w,r|$r.id}:y|$y->size())");
@@ -126,14 +140,17 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int grp = ((Number) row.get(1)).intValue();
                 int cnt = ((Number) row.get(3)).intValue();
                 int expected = switch (grp) {
-                    case 0, 4, 5 -> 1; case 2, 3 -> 2; case 1 -> 3;
+                    case 0, 4, 5 -> 1;
+                    case 2, 3 -> 2;
+                    case 1 -> 3;
                     default -> throw new AssertionError("Unexpected grp: " + grp);
                 };
                 assertEquals(expected, cnt, "Count for grp=" + grp);
             }
         }
 
-        @Test @DisplayName("max via max() — partition by grp")
+        @Test
+        @DisplayName("max via max() — partition by grp")
         void testMax() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~mx:{p,w,r|$r.id}:y|$y->max())");
@@ -142,15 +159,20 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int grp = ((Number) row.get(1)).intValue();
                 int mx = ((Number) row.get(3)).intValue();
                 int expected = switch (grp) {
-                    case 0 -> 10; case 1 -> 8; case 2 -> 5;
-                    case 3 -> 7; case 4 -> 4; case 5 -> 9;
+                    case 0 -> 10;
+                    case 1 -> 8;
+                    case 2 -> 5;
+                    case 3 -> 7;
+                    case 4 -> 4;
+                    case 5 -> 9;
                     default -> throw new AssertionError("Unexpected grp: " + grp);
                 };
                 assertEquals(expected, mx, "Max for grp=" + grp);
             }
         }
 
-        @Test @DisplayName("min via min() — partition by grp")
+        @Test
+        @DisplayName("min via min() — partition by grp")
         void testMin() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~mn:{p,w,r|$r.id}:y|$y->min())");
@@ -159,15 +181,20 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int grp = ((Number) row.get(1)).intValue();
                 int mn = ((Number) row.get(3)).intValue();
                 int expected = switch (grp) {
-                    case 0 -> 10; case 1 -> 2; case 2 -> 1;
-                    case 3 -> 3; case 4 -> 4; case 5 -> 9;
+                    case 0 -> 10;
+                    case 1 -> 2;
+                    case 2 -> 1;
+                    case 3 -> 3;
+                    case 4 -> 4;
+                    case 5 -> 9;
                     default -> throw new AssertionError("Unexpected grp: " + grp);
                 };
                 assertEquals(expected, mn, "Min for grp=" + grp);
             }
         }
 
-        @Test @DisplayName("average via average() — partition by grp")
+        @Test
+        @DisplayName("average via average() — partition by grp")
         void testAverage() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~avg:{p,w,r|$r.id}:y|$y->average())");
@@ -175,17 +202,23 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int grp = ((Number) row.get(1)).intValue();
                 double avg = ((Number) row.get(3)).doubleValue();
-                // grp=0: 10/1=10.0, grp=1: 16/3≈5.33, grp=2: 6/2=3.0, grp=3: 10/2=5.0, grp=4: 4/1=4.0, grp=5: 9/1=9.0
+                // grp=0: 10/1=10.0, grp=1: 16/3≈5.33, grp=2: 6/2=3.0, grp=3: 10/2=5.0, grp=4:
+                // 4/1=4.0, grp=5: 9/1=9.0
                 double expected = switch (grp) {
-                    case 0 -> 10.0; case 1 -> 16.0 / 3; case 2 -> 3.0;
-                    case 3 -> 5.0; case 4 -> 4.0; case 5 -> 9.0;
+                    case 0 -> 10.0;
+                    case 1 -> 16.0 / 3;
+                    case 2 -> 3.0;
+                    case 3 -> 5.0;
+                    case 4 -> 4.0;
+                    case 5 -> 9.0;
                     default -> throw new AssertionError("Unexpected grp: " + grp);
                 };
                 assertEquals(expected, avg, 0.01, "Avg for grp=" + grp);
             }
         }
 
-        @Test @DisplayName("sum with partition+sort — from NUMS")
+        @Test
+        @DisplayName("sum with partition+sort — from NUMS")
         void testSumWithPartitionAndSort() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending()), ~total:{p,w,r|$r.v}:y|$y->plus())");
@@ -196,18 +229,29 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int o = ((Number) row.get(1)).intValue();
                 int total = ((Number) row.get(3)).intValue();
                 if (p == 0) {
-                    int expected = switch (o) { case 1 -> 10; case 2 -> 30; case 3 -> 60; default -> -1; };
+                    int expected = switch (o) {
+                        case 1 -> 10;
+                        case 2 -> 30;
+                        case 3 -> 60;
+                        default -> -1;
+                    };
                     assertEquals(expected, total, "Running sum p=0,o=" + o);
                 } else {
-                    int expected = switch (o) { case 1 -> 100; case 2 -> 300; default -> -1; };
+                    int expected = switch (o) {
+                        case 1 -> 100;
+                        case 2 -> 300;
+                        default -> -1;
+                    };
                     assertEquals(expected, total, "Running sum p=1,o=" + o);
                 }
             }
         }
 
-        @Test @DisplayName("joinStrings with partition+sort+frame — exact PCT pattern")
+        @Test
+        @DisplayName("joinStrings with partition+sort+frame — exact PCT pattern")
         void testJoinStringsWithFrame() throws SQLException {
-            // Exact pattern from DuckDBIntegrationTest.testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow
+            // Exact pattern from
+            // DuckDBIntegrationTest.testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending(), unbounded()->rows(unbounded())), ~newCol:{p,w,r|$r.name}:y|$y->joinStrings(''))");
             assertEquals(10, r.rowCount());
@@ -215,17 +259,23 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int grp = ((Number) row.get(1)).intValue();
                 String newCol = (String) row.get(3);
                 String expected = switch (grp) {
-                    case 0 -> "J"; case 1 -> "BFH"; case 2 -> "AE";
-                    case 3 -> "CG"; case 4 -> "D"; case 5 -> "I";
+                    case 0 -> "J";
+                    case 1 -> "BFH";
+                    case 2 -> "AE";
+                    case 3 -> "CG";
+                    case 4 -> "D";
+                    case 5 -> "I";
                     default -> throw new AssertionError("Unexpected grp: " + grp);
                 };
                 assertEquals(expected, newCol, "For grp=" + grp);
             }
         }
 
-        @Test @DisplayName("multiple window agg columns — exact PCT pattern")
+        @Test
+        @DisplayName("multiple window agg columns — exact PCT pattern")
         void testMultipleWindowAggColumns() throws SQLException {
-            // From DuckDBIntegrationTest.testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns
+            // From
+            // DuckDBIntegrationTest.testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->descending(), unbounded()->rows(unbounded())), ~[newCol:{p,w,r|$r.name}:y|$y->joinStrings(''),other:{p,w,r|$r.id}:y|$y->plus()])");
             assertEquals(10, r.rowCount());
@@ -241,44 +291,49 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("multiple sort columns — exact PCT pattern")
+        @Test
+        @DisplayName("multiple sort columns — exact PCT pattern")
         void testMultipleSortColumns() throws SQLException {
-            // From DuckDBIntegrationTest.testOLAPWithPartitionAndMultipleOrderWindowMultipleColumnsWithFilter
-            var r = executeRelation("""
-                    |#TDS
-                        id, grp, name, height
-                        1, 2, A, 11
-                        2, 1, B, 12
-                        3, 3, C, 12
-                        4, 3, B, 11
-                        5, 2, B, 13
-                        6, 1, C, 12
-                        7, 3, A, 13
-                        8, 1, B, 14
-                    #->extend(over(~grp, [~name->ascending(), ~height->ascending()]), ~newCol:{p,w,r|$r.id}:y|$y->plus())""");
+            // From
+            // DuckDBIntegrationTest.testOLAPWithPartitionAndMultipleOrderWindowMultipleColumnsWithFilter
+            var r = executeRelation(
+                    """
+                            |#TDS
+                                id, grp, name, height
+                                1, 2, A, 11
+                                2, 1, B, 12
+                                3, 3, C, 12
+                                4, 3, B, 11
+                                5, 2, B, 13
+                                6, 1, C, 12
+                                7, 3, A, 13
+                                8, 1, B, 14
+                            #->extend(over(~grp, [~name->ascending(), ~height->ascending()]), ~newCol:{p,w,r|$r.id}:y|$y->plus())""");
             assertEquals(8, r.rowCount());
-            // grp=1 (B12=2, B14=8, C12=6 sorted by name asc, height asc): running sums [2, 10, 16]
+            // grp=1 (B12=2, B14=8, C12=6 sorted by name asc, height asc): running sums [2,
+            // 10, 16]
             // grp=2 (A11=1, B13=5 sorted): running sums [1, 6]
             // grp=3 (A13=7, B11=4, C12=3 sorted): running sums [7, 11, 14]
             for (var row : r.rows()) {
                 int id = ((Number) row.get(0)).intValue();
                 int newCol = ((Number) row.get(4)).intValue();
                 int expected = switch (id) {
-                    case 1 -> 1;   // grp=2, A11 first
-                    case 2 -> 2;   // grp=1, B12 first
-                    case 5 -> 6;   // grp=2, B13 second: 1+5
-                    case 6 -> 16;  // grp=1, C12 third: 2+8+6
-                    case 7 -> 7;   // grp=3, A13 first
-                    case 8 -> 10;  // grp=1, B14 second: 2+8
-                    case 4 -> 11;  // grp=3, B11 second: 7+4
-                    case 3 -> 14;  // grp=3, C12 third: 7+4+3
+                    case 1 -> 1; // grp=2, A11 first
+                    case 2 -> 2; // grp=1, B12 first
+                    case 5 -> 6; // grp=2, B13 second: 1+5
+                    case 6 -> 16; // grp=1, C12 third: 2+8+6
+                    case 7 -> 7; // grp=3, A13 first
+                    case 8 -> 10; // grp=1, B14 second: 2+8
+                    case 4 -> 11; // grp=3, B11 second: 7+4
+                    case 3 -> 14; // grp=3, C12 third: 7+4+3
                     default -> -1;
                 };
                 assertEquals(expected, newCol, "newCol for id=" + id);
             }
         }
 
-        @Test @DisplayName("sum preserves original columns")
+        @Test
+        @DisplayName("sum preserves original columns")
         void testSumPreservesColumns() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~total:{p,w,r|$r.id}:y|$y->plus())");
@@ -292,15 +347,16 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     // ========================================================================
     // 2. No-window aggregates — fn1+fn2 without over()
-    //    Pattern: extend(~col:c|$c.field:y|$y->func())
-    //    From DuckDBIntegrationTest line 3371
+    // Pattern: extend(~col:c|$c.field:y|$y->func())
+    // From DuckDBIntegrationTest line 3371
     // ========================================================================
 
     @Nested
     @DisplayName("No-window aggregates — fn1+fn2 without over()")
     class NoWindowAggregates {
 
-        @Test @DisplayName("sum entire relation via plus()")
+        @Test
+        @DisplayName("sum entire relation via plus()")
         void testSumAll() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~[newCol:c|$c.id:y|$y->plus(), other:c|$c.grp:y|$y->plus()])");
@@ -311,7 +367,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("average entire relation")
+        @Test
+        @DisplayName("average entire relation")
         void testAvgAll() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~avg:c|$c.id:y|$y->average())");
@@ -320,7 +377,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("count entire relation")
+        @Test
+        @DisplayName("count entire relation")
         void testCountAll() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~cnt:c|$c.id:y|$y->size())");
@@ -329,7 +387,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("min entire relation")
+        @Test
+        @DisplayName("min entire relation")
         void testMinAll() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~mn:c|$c.id:y|$y->min())");
@@ -338,7 +397,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("max entire relation")
+        @Test
+        @DisplayName("max entire relation")
         void testMaxAll() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~mx:c|$c.id:y|$y->max())");
@@ -347,7 +407,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("preserves original columns")
+        @Test
+        @DisplayName("preserves original columns")
         void testPreservesColumns() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~total:c|$c.id:y|$y->plus())");
@@ -358,15 +419,16 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     // ========================================================================
     // 3. Ranking functions — chaining over()
-    //    Pattern: extend(~grp->over(~sort->desc()), ~col:{p,w,r|$p->func($r)})
-    //    2-param: rowNumber, ntile
+    // Pattern: extend(~grp->over(~sort->desc()), ~col:{p,w,r|$p->func($r)})
+    // 2-param: rowNumber, ntile
     // ========================================================================
 
     @Nested
     @DisplayName("Ranking window functions")
     class RankingFunctions {
 
-        @Test @DisplayName("rowNumber — desc sort")
+        @Test
+        @DisplayName("rowNumber — desc sort")
         void testRowNumber() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rn:{p,w,r|$p->rowNumber($r)})");
@@ -378,7 +440,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("rowNumber — ascending sort")
+        @Test
+        @DisplayName("rowNumber — ascending sort")
         void testRowNumberAsc() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~rn:{p,w,r|$p->rowNumber($r)})");
@@ -389,7 +452,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("ntile(2) — split into 2 buckets")
+        @Test
+        @DisplayName("ntile(2) — split into 2 buckets")
         void testNtile2() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~bucket:{p,w,r|$p->ntile($r,2)})");
@@ -400,7 +464,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("ntile(3)")
+        @Test
+        @DisplayName("ntile(3)")
         void testNtile3() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~bucket:{p,w,r|$p->ntile($r,3)})");
@@ -411,7 +476,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("rowNumber — single-element partition")
+        @Test
+        @DisplayName("rowNumber — single-element partition")
         void testRowNumberSinglePartition() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rn:{p,w,r|$p->rowNumber($r)})");
@@ -425,7 +491,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("rowNumber preserves all columns")
+        @Test
+        @DisplayName("rowNumber preserves all columns")
         void testRowNumberPreservesColumns() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rn:{p,w,r|$p->rowNumber($r)})");
@@ -433,7 +500,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals("rn", r.columns().get(3).name());
         }
 
-        @Test @DisplayName("rowNumber on NUMS")
+        @Test
+        @DisplayName("rowNumber on NUMS")
         void testRowNumberNums() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~p->over(~o->ascending()), ~rn:{p,w,r|$p->rowNumber($r)})");
@@ -449,15 +517,16 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     // ========================================================================
     // 4. Offset/value window functions — chaining over()
-    //    Pattern: extend(~grp->over(~sort->desc()), ~col:{p,w,r|$p->func($r).field})
-    //    From DuckDBIntegrationTest lines 3787, 5313
+    // Pattern: extend(~grp->over(~sort->desc()), ~col:{p,w,r|$p->func($r).field})
+    // From DuckDBIntegrationTest lines 3787, 5313
     // ========================================================================
 
     @Nested
     @DisplayName("Offset window functions")
     class OffsetFunctions {
 
-        @Test @DisplayName("nth value — 2nd row by id desc")
+        @Test
+        @DisplayName("nth value — 2nd row by id desc")
         void testNth() throws SQLException {
             // Exact pattern from DuckDBIntegrationTest.testNthValueWindowFunction
             var r = executeRelation("""
@@ -473,7 +542,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertTrue(r.columns().stream().anyMatch(c -> "newCol".equals(c.name())));
         }
 
-        @Test @DisplayName("lead — next row's id")
+        @Test
+        @DisplayName("lead — next row's id")
         void testLead() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~next:{p,w,r|$p->lead($r).id})");
@@ -481,7 +551,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertTrue(r.columns().stream().anyMatch(c -> "next".equals(c.name())));
         }
 
-        @Test @DisplayName("lag — previous row's id")
+        @Test
+        @DisplayName("lag — previous row's id")
         void testLag() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~prev:{p,w,r|$p->lag($r).id})");
@@ -489,7 +560,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertTrue(r.columns().stream().anyMatch(c -> "prev".equals(c.name())));
         }
 
-        @Test @DisplayName("lead returns null for last row in partition")
+        @Test
+        @DisplayName("lead returns null for last row in partition")
         void testLeadLastRow() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~next:{p,w,r|$p->lead($r).id})");
@@ -499,7 +571,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertTrue(foundNull, "Last row in each partition should have null lead");
         }
 
-        @Test @DisplayName("lag returns null for first row in partition")
+        @Test
+        @DisplayName("lag returns null for first row in partition")
         void testLagFirstRow() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~prev:{p,w,r|$p->lag($r).id})");
@@ -508,7 +581,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertTrue(foundNull, "First row in each partition should have null lag");
         }
 
-        @Test @DisplayName("first value with window")
+        @Test
+        @DisplayName("first value with window")
         void testFirst() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~fst:{p,w,r|$p->first($w,$r).name})");
@@ -516,7 +590,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertTrue(r.columns().stream().anyMatch(c -> "fst".equals(c.name())));
         }
 
-        @Test @DisplayName("nth on NUMS dataset")
+        @Test
+        @DisplayName("nth on NUMS dataset")
         void testNthNums() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~p->over(~o->ascending()), ~nth:{p,w,r|$p->nth($w, $r, 1).v})");
@@ -526,8 +601,10 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int p = ((Number) row.get(0)).intValue();
                 int nth = ((Number) row.get(3)).intValue();
-                if (p == 0) assertEquals(10, nth, "nth(1) for p=0 should be first value");
-                else assertEquals(100, nth, "nth(1) for p=1 should be first value");
+                if (p == 0)
+                    assertEquals(10, nth, "nth(1) for p=0 should be first value");
+                else
+                    assertEquals(100, nth, "nth(1) for p=1 should be first value");
             }
         }
     }
@@ -540,7 +617,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     @DisplayName("Over clause variants")
     class OverClauseVariants {
 
-        @Test @DisplayName("standalone over — partition only")
+        @Test
+        @DisplayName("standalone over — partition only")
         void testPartitionOnly() throws SQLException {
             // From DuckDBIntegrationTest line 3475
             var r = executeRelation(TDS10 +
@@ -550,12 +628,15 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int grp = ((Number) row.get(1)).intValue();
                 int total = ((Number) row.get(3)).intValue();
-                if (grp == 1) assertEquals(16, total);
-                if (grp == 2) assertEquals(6, total);
+                if (grp == 1)
+                    assertEquals(16, total);
+                if (grp == 2)
+                    assertEquals(6, total);
             }
         }
 
-        @Test @DisplayName("standalone over — partition + sort")
+        @Test
+        @DisplayName("standalone over — partition + sort")
         void testPartitionAndSort() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending()), ~total:{p,w,r|$r.id}:y|$y->plus())");
@@ -570,7 +651,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(16, ((Number) grp1Rows.get(2).get(3)).intValue());
         }
 
-        @Test @DisplayName("standalone over — partition + sort + frame")
+        @Test
+        @DisplayName("standalone over — partition + sort + frame")
         void testPartitionSortFrame() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending(), unbounded()->rows(unbounded())), ~total:{p,w,r|$r.id}:y|$y->plus())");
@@ -579,12 +661,15 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int grp = ((Number) row.get(1)).intValue();
                 int total = ((Number) row.get(3)).intValue();
-                if (grp == 1) assertEquals(16, total);
-                if (grp == 2) assertEquals(6, total);
+                if (grp == 1)
+                    assertEquals(16, total);
+                if (grp == 2)
+                    assertEquals(6, total);
             }
         }
 
-        @Test @DisplayName("chaining over — partition + sort for ranking")
+        @Test
+        @DisplayName("chaining over — partition + sort for ranking")
         void testChainingPartAndSort() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rn:{p,w,r|$p->rowNumber($r)})");
@@ -596,7 +681,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("chaining over — no sort for aggregate")
+        @Test
+        @DisplayName("chaining over — no sort for aggregate")
         void testChainingPartOnly() throws SQLException {
             // From DuckDBIntegrationTest line 4546
             var r = executeRelation(TDS10 +
@@ -609,7 +695,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, ((Number) grp1Row.get(3)).intValue());
         }
 
-        @Test @DisplayName("extend in pipeline: filter → window")
+        @Test
+        @DisplayName("extend in pipeline: filter → window")
         void testFilterThenWindow() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->filter(x | $x.grp > 2)" +
@@ -620,12 +707,18 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int grp = ((Number) row.get(1)).intValue();
                 int total = ((Number) row.get(3)).intValue();
-                int expected = switch (grp) { case 3 -> 10; case 4 -> 4; case 5 -> 9; default -> -1; };
+                int expected = switch (grp) {
+                    case 3 -> 10;
+                    case 4 -> 4;
+                    case 5 -> 9;
+                    default -> -1;
+                };
                 assertEquals(expected, total, "total for grp=" + grp);
             }
         }
 
-        @Test @DisplayName("extend in pipeline: window → filter")
+        @Test
+        @DisplayName("extend in pipeline: window → filter")
         void testWindowThenFilter() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rn:{p,w,r|$p->rowNumber($r)})" +
@@ -637,7 +730,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("extend in pipeline: window → sort")
+        @Test
+        @DisplayName("extend in pipeline: window → sort")
         void testWindowThenSort() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rn:{p,w,r|$p->rowNumber($r)})" +
@@ -651,15 +745,16 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     // ========================================================================
     // 6. Frame specifications
-    //    Frame constructor: unbounded()->rows(N) or N->rows(M)
-    //    From DuckDBIntegrationTest line 3587
+    // Frame constructor: unbounded()->rows(N) or N->rows(M)
+    // From DuckDBIntegrationTest line 3587
     // ========================================================================
 
     @Nested
     @DisplayName("Frame specifications")
     class FrameSpecs {
 
-        @Test @DisplayName("unbounded frame — entire partition")
+        @Test
+        @DisplayName("unbounded frame — entire partition")
         void testUnboundedFrame() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending(), unbounded()->rows(unbounded())), ~total:{p,w,r|$r.v}:y|$y->plus())");
@@ -668,12 +763,15 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int p = ((Number) row.get(0)).intValue();
                 int total = ((Number) row.get(3)).intValue();
-                if (p == 0) assertEquals(60, total);
-                else assertEquals(300, total);
+                if (p == 0)
+                    assertEquals(60, total);
+                else
+                    assertEquals(300, total);
             }
         }
 
-        @Test @DisplayName("running sum — unbounded to current")
+        @Test
+        @DisplayName("running sum — unbounded to current")
         void testRunningSumFrame() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending(), unbounded()->rows(0)), ~rs:{p,w,r|$r.v}:y|$y->plus())");
@@ -684,32 +782,46 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int o = ((Number) row.get(1)).intValue();
                 int rs = ((Number) row.get(3)).intValue();
                 if (p == 0) {
-                    int expected = switch (o) { case 1 -> 10; case 2 -> 30; case 3 -> 60; default -> -1; };
+                    int expected = switch (o) {
+                        case 1 -> 10;
+                        case 2 -> 30;
+                        case 3 -> 60;
+                        default -> -1;
+                    };
                     assertEquals(expected, rs, "Running sum p=0,o=" + o);
                 } else {
-                    int expected = switch (o) { case 1 -> 100; case 2 -> 300; default -> -1; };
+                    int expected = switch (o) {
+                        case 1 -> 100;
+                        case 2 -> 300;
+                        default -> -1;
+                    };
                     assertEquals(expected, rs, "Running sum p=1,o=" + o);
                 }
             }
         }
 
-        @Test @DisplayName("sliding window — previous 1 to next 1")
+        @Test
+        @DisplayName("sliding window — previous 1 to next 1")
         void testSlidingFrame() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending(), (-1)->rows(1)), ~avg3:{p,w,r|$r.v}:y|$y->average())");
             assertEquals(5, r.rowCount());
-            // Sliding avg (-1,+1): p=0: o=1→avg(10,20)=15, o=2→avg(10,20,30)=20, o=3→avg(20,30)=25
+            // Sliding avg (-1,+1): p=0: o=1→avg(10,20)=15, o=2→avg(10,20,30)=20,
+            // o=3→avg(20,30)=25
             // p=1: o=1→avg(100,200)=150, o=2→avg(100,200)=150
             for (var row : r.rows()) {
                 int p = ((Number) row.get(0)).intValue();
                 int o = ((Number) row.get(1)).intValue();
                 double avg3 = ((Number) row.get(3)).doubleValue();
-                if (p == 0 && o == 2) assertEquals(20.0, avg3, 0.01, "Middle of p=0");
-                if (p == 1) assertEquals(150.0, avg3, 0.01, "p=1,o=" + o);
+                if (p == 0 && o == 2)
+                    assertEquals(20.0, avg3, 0.01, "Middle of p=0");
+                if (p == 1)
+                    assertEquals(150.0, avg3, 0.01, "p=1,o=" + o);
             }
         }
 
-        @Test @DisplayName("current row only — 0 to 0")
+        @Test
+        @DisplayName("current row only — 0 to 0")
         void testCurrentRowFrame() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending(), 0->rows(0)), ~cur:{p,w,r|$r.v}:y|$y->plus())");
@@ -721,7 +833,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("running min — unbounded to current")
+        @Test
+        @DisplayName("running min — unbounded to current")
         void testRunningMin() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending(), unbounded()->rows(0)), ~runMin:{p,w,r|$r.v}:y|$y->min())");
@@ -729,12 +842,15 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int p = ((Number) row.get(0)).intValue();
                 int runMin = ((Number) row.get(3)).intValue();
-                if (p == 0) assertEquals(10, runMin);
-                else assertEquals(100, runMin);
+                if (p == 0)
+                    assertEquals(10, runMin);
+                else
+                    assertEquals(100, runMin);
             }
         }
 
-        @Test @DisplayName("running max — unbounded to current")
+        @Test
+        @DisplayName("running max — unbounded to current")
         void testRunningMax() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending(), unbounded()->rows(0)), ~runMax:{p,w,r|$r.v}:y|$y->max())");
@@ -744,12 +860,15 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int p = ((Number) row.get(0)).intValue();
                 int o = ((Number) row.get(1)).intValue();
                 int runMax = ((Number) row.get(3)).intValue();
-                if (p == 0) assertEquals(o * 10, runMax, "Running max p=0,o=" + o);
-                else assertEquals(o * 100, runMax, "Running max p=1,o=" + o);
+                if (p == 0)
+                    assertEquals(o * 10, runMax, "Running max p=0,o=" + o);
+                else
+                    assertEquals(o * 100, runMax, "Running max p=1,o=" + o);
             }
         }
 
-        @Test @DisplayName("running count — unbounded to current")
+        @Test
+        @DisplayName("running count — unbounded to current")
         void testRunningCount() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending(), unbounded()->rows(0)), ~cnt:{p,w,r|$r.v}:y|$y->size())");
@@ -762,7 +881,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("unbounded frame with TDS10")
+        @Test
+        @DisplayName("unbounded frame with TDS10")
         void testUnboundedFrameTDS10() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending(), unbounded()->rows(unbounded())), ~total:{p,w,r|$r.id}:y|$y->plus())");
@@ -770,11 +890,13 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int grp = ((Number) row.get(1)).intValue();
                 int total = ((Number) row.get(3)).intValue();
-                if (grp == 1) assertEquals(16, total, "grp=1 total should be 16");
+                if (grp == 1)
+                    assertEquals(16, total, "grp=1 total should be 16");
             }
         }
 
-        @Test @DisplayName("running sum with TDS10")
+        @Test
+        @DisplayName("running sum with TDS10")
         void testRunningSumTDS10() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending(), unbounded()->rows(0)), ~rs:{p,w,r|$r.id}:y|$y->plus())");
@@ -799,7 +921,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     @DisplayName("Additional ranking functions")
     class AdditionalRankingFunctions {
 
-        @Test @DisplayName("rank — partition by grp, order by id desc")
+        @Test
+        @DisplayName("rank — partition by grp, order by id desc")
         void testRank() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rnk:{p,w,r|$p->rank($w,$r)})");
@@ -811,7 +934,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("denseRank — partition by grp, order by id desc")
+        @Test
+        @DisplayName("denseRank — partition by grp, order by id desc")
         void testDenseRank() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~drnk:{p,w,r|$p->denseRank($w,$r)})");
@@ -823,7 +947,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("percentRank — partition by grp, order by id desc")
+        @Test
+        @DisplayName("percentRank — partition by grp, order by id desc")
         void testPercentRank() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~prnk:{p,w,r|$p->percentRank($w,$r)})");
@@ -834,7 +959,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("cumulativeDistribution — partition by grp, order by id desc")
+        @Test
+        @DisplayName("cumulativeDistribution — partition by grp, order by id desc")
         void testCumeDist() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~cdist:{p,w,r|$p->cumulativeDistribution($w,$r)})");
@@ -845,7 +971,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("rank on ascending sort")
+        @Test
+        @DisplayName("rank on ascending sort")
         void testRankAsc() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~rnk:{p,w,r|$p->rank($w,$r)})");
@@ -856,7 +983,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("denseRank on ascending sort on NUMS")
+        @Test
+        @DisplayName("denseRank on ascending sort on NUMS")
         void testDenseRankNums() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~p->over(~o->ascending()), ~drnk:{p,w,r|$p->denseRank($w,$r)})");
@@ -869,7 +997,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("rank preserves columns")
+        @Test
+        @DisplayName("rank preserves columns")
         void testRankPreservesColumns() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rnk:{p,w,r|$p->rank($w,$r)})");
@@ -886,7 +1015,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     @DisplayName("Additional offset functions")
     class AdditionalOffsetFunctions {
 
-        @Test @DisplayName("last value with window")
+        @Test
+        @DisplayName("last value with window")
         void testLast() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~lst:{p,w,r|$p->last($w,$r).name})");
@@ -894,7 +1024,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertTrue(r.columns().stream().anyMatch(c -> "lst".equals(c.name())));
         }
 
-        @Test @DisplayName("last on NUMS dataset")
+        @Test
+        @DisplayName("last on NUMS dataset")
         void testLastNums() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~p->over(~o->ascending()), ~lst:{p,w,r|$p->last($w,$r).v})");
@@ -908,7 +1039,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("first and last in same extend via array")
+        @Test
+        @DisplayName("first and last in same extend via array")
         void testFirstAndLastArray() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~[fst:{p,w,r|$p->first($w,$r).name}, lst:{p,w,r|$p->last($w,$r).name}])");
@@ -925,7 +1057,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     @DisplayName("Window agg — order-only (no partition)")
     class OrderOnlyWindowAgg {
 
-        @Test @DisplayName("running sum via plus() — order by id ascending")
+        @Test
+        @DisplayName("running sum via plus() — order by id ascending")
         void testRunningSumOrderOnly() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~id->ascending()), ~runSum:{p,w,r|$r.id}:y|$y->plus())");
@@ -939,7 +1072,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("running sum via plus() — order by id descending")
+        @Test
+        @DisplayName("running sum via plus() — order by id descending")
         void testRunningSumOrderDesc() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~id->descending()), ~runSum:{p,w,r|$r.id}:y|$y->plus())");
@@ -953,7 +1087,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("running count via size() — order by id ascending")
+        @Test
+        @DisplayName("running count via size() — order by id ascending")
         void testRunningCountOrderOnly() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~id->ascending()), ~cnt:{p,w,r|$r.id}:y|$y->size())");
@@ -975,7 +1110,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     @DisplayName("Window agg — running aggregates with partition+sort")
     class RunningAggregates {
 
-        @Test @DisplayName("running sum — partition by grp, sort by id asc")
+        @Test
+        @DisplayName("running sum — partition by grp, sort by id asc")
         void testRunningSum() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending()), ~runSum:{p,w,r|$r.id}:y|$y->plus())");
@@ -990,7 +1126,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(16, ((Number) grp1Rows.get(2).get(3)).intValue());
         }
 
-        @Test @DisplayName("running count — partition by grp, sort by id asc")
+        @Test
+        @DisplayName("running count — partition by grp, sort by id asc")
         void testRunningCount() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending()), ~runCnt:{p,w,r|$r.id}:y|$y->size())");
@@ -1005,31 +1142,39 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, ((Number) grp1Rows.get(2).get(3)).intValue());
         }
 
-        @Test @DisplayName("running min — partition by grp, sort by id asc")
+        @Test
+        @DisplayName("running min — partition by grp, sort by id asc")
         void testRunningMin() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending()), ~runMin:{p,w,r|$r.id}:y|$y->min())");
             assertEquals(10, r.rowCount());
             // Running min within each partition is always the first (smallest) id
-            // grp=0: min=10, grp=1: min=2, grp=2: min=1, grp=3: min=3, grp=4: min=4, grp=5: min=9
+            // grp=0: min=10, grp=1: min=2, grp=2: min=1, grp=3: min=3, grp=4: min=4, grp=5:
+            // min=9
             for (var row : r.rows()) {
                 int grp = ((Number) row.get(1)).intValue();
                 int runMin = ((Number) row.get(3)).intValue();
                 int expected = switch (grp) {
-                    case 0 -> 10; case 1 -> 2; case 2 -> 1;
-                    case 3 -> 3; case 4 -> 4; case 5 -> 9;
+                    case 0 -> 10;
+                    case 1 -> 2;
+                    case 2 -> 1;
+                    case 3 -> 3;
+                    case 4 -> 4;
+                    case 5 -> 9;
                     default -> throw new AssertionError("Unexpected grp: " + grp);
                 };
                 assertEquals(expected, runMin, "Running min for grp=" + grp);
             }
         }
 
-        @Test @DisplayName("running max — partition by grp, sort by id asc")
+        @Test
+        @DisplayName("running max — partition by grp, sort by id asc")
         void testRunningMax() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending()), ~runMax:{p,w,r|$r.id}:y|$y->max())");
             assertEquals(10, r.rowCount());
-            // Running max = current id (since sorted ascending, max is always the current row)
+            // Running max = current id (since sorted ascending, max is always the current
+            // row)
             for (var row : r.rows()) {
                 int id = ((Number) row.get(0)).intValue();
                 int runMax = ((Number) row.get(3)).intValue();
@@ -1037,7 +1182,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("running average — partition by grp, sort by id asc")
+        @Test
+        @DisplayName("running average — partition by grp, sort by id asc")
         void testRunningAvg() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending()), ~runAvg:{p,w,r|$r.id}:y|$y->average())");
@@ -1052,7 +1198,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(16.0 / 3, ((Number) grp1Rows.get(2).get(3)).doubleValue(), 0.01);
         }
 
-        @Test @DisplayName("running joinStrings — partition by grp, sort by id asc")
+        @Test
+        @DisplayName("running joinStrings — partition by grp, sort by id asc")
         void testRunningJoinStrings() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->ascending()), ~names:{p,w,r|$r.name}:y|$y->joinStrings(''))");
@@ -1076,7 +1223,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     @DisplayName("Multiple partition columns")
     class MultiplePartitionColumns {
 
-        @Test @DisplayName("over with two partition columns — aggregate")
+        @Test
+        @DisplayName("over with two partition columns — aggregate")
         void testTwoPartitionColumnsAgg() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1096,27 +1244,30 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(5, r.columns().size());
         }
 
-        @Test @DisplayName("over with two partition columns + sort — ranking")
+        @Test
+        @DisplayName("over with two partition columns + sort — ranking")
         void testTwoPartitionColumnsRanking() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                        id, grp, grp2, name
-                        1, 2, 2, A
-                        2, 1, 1, B
-                        3, 3, 3, C
-                        4, 4, 4, D
-                        5, 2, 2, E
-                        6, 1, 2, F
-                        7, 3, 3, G
-                        8, 1, 1, H
-                        9, 5, 5, I
-                        10, 0, 0, J
-                    #->extend(over(~[grp,grp2], ~id->descending()), ~[newCol:{p,w,r|$p->lead($r).id}, other:{p,w,r|$p->first($w,$r).name}])""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                                id, grp, grp2, name
+                                1, 2, 2, A
+                                2, 1, 1, B
+                                3, 3, 3, C
+                                4, 4, 4, D
+                                5, 2, 2, E
+                                6, 1, 2, F
+                                7, 3, 3, G
+                                8, 1, 1, H
+                                9, 5, 5, I
+                                10, 0, 0, J
+                            #->extend(over(~[grp,grp2], ~id->descending()), ~[newCol:{p,w,r|$p->lead($r).id}, other:{p,w,r|$p->first($w,$r).name}])""");
             assertEquals(10, r.rowCount());
             assertEquals(6, r.columns().size());
         }
 
-        @Test @DisplayName("over with two partition columns + sort — row number")
+        @Test
+        @DisplayName("over with two partition columns + sort — row number")
         void testTwoPartitionColumnsRowNumber() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1127,11 +1278,18 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                         4, 2, 1
                     #->extend(over(~[grp,grp2], ~id->ascending()), ~rn:{p,w,r|$p->rowNumber($r)})""");
             assertEquals(4, r.rowCount());
-            // (grp=1,grp2=1): ids 1,2 → rn 1,2; (grp=1,grp2=2): id 3 → rn 1; (grp=2,grp2=1): id 4 → rn 1
+            // (grp=1,grp2=1): ids 1,2 → rn 1,2; (grp=1,grp2=2): id 3 → rn 1;
+            // (grp=2,grp2=1): id 4 → rn 1
             for (var row : r.rows()) {
                 int id = ((Number) row.get(0)).intValue();
                 int rn = ((Number) row.get(colIdx(r, "rn"))).intValue();
-                int expected = switch (id) { case 1 -> 1; case 2 -> 2; case 3 -> 1; case 4 -> 1; default -> -1; };
+                int expected = switch (id) {
+                    case 1 -> 1;
+                    case 2 -> 2;
+                    case 3 -> 1;
+                    case 4 -> 1;
+                    default -> -1;
+                };
                 assertEquals(expected, rn, "rn for id=" + id);
             }
         }
@@ -1145,7 +1303,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     @DisplayName("Mixed window aggregate columns")
     class MixedWindowAggColumns {
 
-        @Test @DisplayName("sum and count together — partition only")
+        @Test
+        @DisplayName("sum and count together — partition only")
         void testSumAndCount() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~[total:{p,w,r|$r.id}:y|$y->plus(), cnt:{p,w,r|$r.id}:y|$y->size()])");
@@ -1162,7 +1321,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("min and max together — partition only")
+        @Test
+        @DisplayName("min and max together — partition only")
         void testMinAndMax() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~[mn:{p,w,r|$r.id}:y|$y->min(), mx:{p,w,r|$r.id}:y|$y->max()])");
@@ -1177,7 +1337,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("sum and average together — partition+sort+frame")
+        @Test
+        @DisplayName("sum and average together — partition+sort+frame")
         void testSumAndAvgWithFrame() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p, ~o->ascending(), unbounded()->rows(unbounded())), " +
@@ -1189,12 +1350,18 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int p = ((Number) row.get(0)).intValue();
                 int total = ((Number) row.get(3)).intValue();
                 double avg = ((Number) row.get(4)).doubleValue();
-                if (p == 0) { assertEquals(60, total); assertEquals(20.0, avg, 0.01); }
-                else { assertEquals(300, total); assertEquals(150.0, avg, 0.01); }
+                if (p == 0) {
+                    assertEquals(60, total);
+                    assertEquals(20.0, avg, 0.01);
+                } else {
+                    assertEquals(300, total);
+                    assertEquals(150.0, avg, 0.01);
+                }
             }
         }
 
-        @Test @DisplayName("joinStrings and plus together — partition+sort")
+        @Test
+        @DisplayName("joinStrings and plus together — partition+sort")
         void testJoinStringsAndPlus() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp, ~id->descending()), ~[names:{p,w,r|$r.name}:y|$y->joinStrings(''), total:{p,w,r|$r.id}:y|$y->plus()])");
@@ -1211,7 +1378,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     @DisplayName("Multi-window pipelines")
     class MultiWindowPipelines {
 
-        @Test @DisplayName("window agg → window ranking")
+        @Test
+        @DisplayName("window agg → window ranking")
         void testAggThenRanking() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~total:{p,w,r|$r.id}:y|$y->plus())" +
@@ -1225,7 +1393,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("window ranking → no-window agg")
+        @Test
+        @DisplayName("window ranking → no-window agg")
         void testRankingThenNoWindowAgg() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rn:{p,w,r|$p->rowNumber($r)})" +
@@ -1238,7 +1407,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("window agg → scalar extend → filter")
+        @Test
+        @DisplayName("window agg → scalar extend → filter")
         void testWindowAggThenScalarThenFilter() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~partSum:{p,w,r|$r.id}:y|$y->plus())" +
@@ -1248,7 +1418,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(5, r.columns().size());
         }
 
-        @Test @DisplayName("two different window aggs in sequence")
+        @Test
+        @DisplayName("two different window aggs in sequence")
         void testTwoWindowAggs() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~partSum:{p,w,r|$r.id}:y|$y->plus())" +
@@ -1265,7 +1436,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             }
         }
 
-        @Test @DisplayName("window ranking → filter → groupBy")
+        @Test
+        @DisplayName("window ranking → filter → groupBy")
         void testRankingFilterGroupBy() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->descending()), ~rn:{p,w,r|$p->rowNumber($r)})" +
@@ -1277,15 +1449,20 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 int grp = ((Number) row.get(0)).intValue();
                 int topId = ((Number) row.get(1)).intValue();
                 int expected = switch (grp) {
-                    case 0 -> 10; case 1 -> 8; case 2 -> 5;
-                    case 3 -> 7; case 4 -> 4; case 5 -> 9;
+                    case 0 -> 10;
+                    case 1 -> 8;
+                    case 2 -> 5;
+                    case 3 -> 7;
+                    case 4 -> 4;
+                    case 5 -> 9;
                     default -> -1;
                 };
                 assertEquals(expected, topId, "topId for grp=" + grp);
             }
         }
 
-        @Test @DisplayName("window lead → lag in sequence")
+        @Test
+        @DisplayName("window lead → lag in sequence")
         void testLeadThenLag() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(~grp->over(~id->ascending()), ~next:{p,w,r|$p->lead($r).id})" +
@@ -1294,7 +1471,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(5, r.columns().size());
         }
 
-        @Test @DisplayName("window extend → sort → slice")
+        @Test
+        @DisplayName("window extend → sort → slice")
         void testWindowSortSlice() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~partSum:{p,w,r|$r.id}:y|$y->plus())" +
@@ -1307,7 +1485,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertTrue(first >= last, "Results should be sorted descending by partSum");
         }
 
-        @Test @DisplayName("window extend → select projection")
+        @Test
+        @DisplayName("window extend → select projection")
         void testWindowThenSelect() throws SQLException {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~total:{p,w,r|$r.id}:y|$y->plus())" +
@@ -1318,14 +1497,16 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
     }
 
     // ========================================================================
-    // 14. Statistical aggregate functions — mean, median, mode, stdDev*, variance*, percentile*
+    // 14. Statistical aggregate functions — mean, median, mode, stdDev*, variance*,
+    // percentile*
     // ========================================================================
 
     @Nested
     @DisplayName("Statistical aggregates in extend")
     class StatisticalAggregates {
 
-        @Test @DisplayName("mean — alias for average (no-window)")
+        @Test
+        @DisplayName("mean — alias for average (no-window)")
         void testMean() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~m:c|$c.v:y|$y->mean())");
@@ -1334,7 +1515,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(72.0, ((Number) r.rows().get(0).get(colIdx(r, "m"))).doubleValue(), 0.01);
         }
 
-        @Test @DisplayName("mean — windowed with partition")
+        @Test
+        @DisplayName("mean — windowed with partition")
         void testMeanWindowed() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p), ~m:{p,w,r|$r.v}:y|$y->mean())");
@@ -1343,12 +1525,15 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int p = ((Number) row.get(0)).intValue();
                 double m = ((Number) row.get(3)).doubleValue();
-                if (p == 0) assertEquals(20.0, m, 0.01);
-                else assertEquals(150.0, m, 0.01);
+                if (p == 0)
+                    assertEquals(20.0, m, 0.01);
+                else
+                    assertEquals(150.0, m, 0.01);
             }
         }
 
-        @Test @DisplayName("median — no-window")
+        @Test
+        @DisplayName("median — no-window")
         void testMedian() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~med:c|$c.v:y|$y->median())");
@@ -1358,7 +1543,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(30.0, med, 0.01);
         }
 
-        @Test @DisplayName("median — windowed with partition")
+        @Test
+        @DisplayName("median — windowed with partition")
         void testMedianWindowed() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p), ~med:{p,w,r|$r.v}:y|$y->median())");
@@ -1367,12 +1553,15 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int p = ((Number) row.get(0)).intValue();
                 double med = ((Number) row.get(3)).doubleValue();
-                if (p == 0) assertEquals(20.0, med, 0.01);
-                else assertEquals(150.0, med, 0.01);
+                if (p == 0)
+                    assertEquals(20.0, med, 0.01);
+                else
+                    assertEquals(150.0, med, 0.01);
             }
         }
 
-        @Test @DisplayName("mode — no-window")
+        @Test
+        @DisplayName("mode — no-window")
         void testMode() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1388,7 +1577,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(10, ((Number) r.rows().get(0).get(colIdx(r, "md"))).intValue());
         }
 
-        @Test @DisplayName("stdDevSample — no-window")
+        @Test
+        @DisplayName("stdDevSample — no-window")
         void testStdDevSample() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~sd:c|$c.v:y|$y->stdDevSample())");
@@ -1398,7 +1588,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(79.81, sd, 0.1);
         }
 
-        @Test @DisplayName("stdDevPopulation — no-window")
+        @Test
+        @DisplayName("stdDevPopulation — no-window")
         void testStdDevPopulation() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~sd:c|$c.v:y|$y->stdDevPopulation())");
@@ -1408,7 +1599,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(71.39, sd, 0.1);
         }
 
-        @Test @DisplayName("varianceSample — no-window")
+        @Test
+        @DisplayName("varianceSample — no-window")
         void testVarianceSample() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~vr:c|$c.v:y|$y->varianceSample())");
@@ -1418,7 +1610,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(6370.0, vr, 1.0);
         }
 
-        @Test @DisplayName("variancePopulation — no-window")
+        @Test
+        @DisplayName("variancePopulation — no-window")
         void testVariancePopulation() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~vr:c|$c.v:y|$y->variancePopulation())");
@@ -1428,7 +1621,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(5096.0, vr, 1.0);
         }
 
-        @Test @DisplayName("percentile — 50th percentile (no-window)")
+        @Test
+        @DisplayName("percentile — 50th percentile (no-window)")
         void testPercentile() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~p50:c|$c.v:y|$y->percentile(0.5))");
@@ -1438,7 +1632,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(30.0, p50, 0.01);
         }
 
-        @Test @DisplayName("percentileCont — continuous 50th percentile (no-window)")
+        @Test
+        @DisplayName("percentileCont — continuous 50th percentile (no-window)")
         void testPercentileCont() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~pc:c|$c.v:y|$y->percentileCont(0.5))");
@@ -1448,7 +1643,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(30.0, pc, 0.01);
         }
 
-        @Test @DisplayName("percentileDisc — discrete 50th percentile (no-window)")
+        @Test
+        @DisplayName("percentileDisc — discrete 50th percentile (no-window)")
         void testPercentileDisc() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(~pd:c|$c.v:y|$y->percentileDisc(0.5))");
@@ -1458,7 +1654,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             assertEquals(30.0, pd, 0.01);
         }
 
-        @Test @DisplayName("stdDevSample — windowed with partition")
+        @Test
+        @DisplayName("stdDevSample — windowed with partition")
         void testStdDevSampleWindowed() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p), ~sd:{p,w,r|$r.v}:y|$y->stdDevSample())");
@@ -1467,12 +1664,15 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int p = ((Number) row.get(0)).intValue();
                 double sd = ((Number) row.get(3)).doubleValue();
-                if (p == 0) assertEquals(10.0, sd, 0.01);
-                else assertEquals(70.71, sd, 0.5);
+                if (p == 0)
+                    assertEquals(10.0, sd, 0.01);
+                else
+                    assertEquals(70.71, sd, 0.5);
             }
         }
 
-        @Test @DisplayName("variancePopulation — windowed with partition")
+        @Test
+        @DisplayName("variancePopulation — windowed with partition")
         void testVariancePopulationWindowed() throws SQLException {
             var r = executeRelation(NUMS +
                     "->extend(over(~p), ~vr:{p,w,r|$r.v}:y|$y->variancePopulation())");
@@ -1481,8 +1681,10 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             for (var row : r.rows()) {
                 int p = ((Number) row.get(0)).intValue();
                 double vr = ((Number) row.get(3)).doubleValue();
-                if (p == 0) assertEquals(66.67, vr, 0.5);
-                else assertEquals(2500.0, vr, 0.01);
+                if (p == 0)
+                    assertEquals(66.67, vr, 0.5);
+                else
+                    assertEquals(2500.0, vr, 0.01);
             }
         }
     }

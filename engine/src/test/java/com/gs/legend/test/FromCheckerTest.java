@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,28 +17,36 @@ import static org.junit.jupiter.api.Assertions.*;
  * Comprehensive tests for FromChecker — signature-driven type checking
  * for {@code from()}.
  *
- * <p>Covers:
+ * <p>
+ * Covers:
  * <ul>
- *   <li>Basic from(): runtime binding with type passthrough</li>
- *   <li>from() after filter, project, sort — type preservation</li>
- *   <li>from() with class-based sources</li>
- *   <li>from() chaining with other operations</li>
- *   <li>Schema preservation through from()</li>
+ * <li>Basic from(): runtime binding with type passthrough</li>
+ * <li>from() after filter, project, sort — type preservation</li>
+ * <li>from() with class-based sources</li>
+ * <li>from() chaining with other operations</li>
+ * <li>Schema preservation through from()</li>
  * </ul>
  *
- * <p><b>Strong Assertion Policy</b>: every test validates exact row counts,
+ * <p>
+ * <b>Strong Assertion Policy</b>: every test validates exact row counts,
  * exact column names, exact values element-by-element.
  */
 public class FromCheckerTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() { return "DuckDB"; }
+    protected String getDatabaseType() {
+        return "DuckDB";
+    }
 
     @Override
-    protected SQLDialect getDialect() { return DuckDBDialect.INSTANCE; }
+    protected SQLDialect getDialect() {
+        return DuckDBDialect.INSTANCE;
+    }
 
     @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
+    protected String getJdbcUrl() {
+        return "jdbc:duckdb:";
+    }
 
     @BeforeEach
     void setUp() throws SQLException {
@@ -50,7 +57,8 @@ public class FromCheckerTest extends AbstractDatabaseTest {
 
     @AfterEach
     void tearDown() throws SQLException {
-        if (connection != null) connection.close();
+        if (connection != null)
+            connection.close();
     }
 
     // ==================== Basic from() ====================

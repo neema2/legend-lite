@@ -11,34 +11,40 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Comprehensive integration tests for ExtendChecker — all overloads.
  * <ul>
- *   <li>Scalar extend: column access, arithmetic, string functions</li>
- *   <li>Window ranking: rowNumber, rank, denseRank, ntile, percentRank, cumeDist</li>
- *   <li>Window offset: lag, lead, first, last</li>
- *   <li>Window aggregate: sum, count, avg, min, max, stdDev, variance with over()</li>
- *   <li>Frame permutations: rows/range × unbounded/offset/currentRow</li>
- *   <li>Over clause permutations: partition/order/frame combos</li>
- *   <li>Chaining: extend→filter, extend→sort, extend→extend, etc.</li>
- *   <li>Edge cases and error handling</li>
+ * <li>Scalar extend: column access, arithmetic, string functions</li>
+ * <li>Window ranking: rowNumber, rank, denseRank, ntile, percentRank,
+ * cumeDist</li>
+ * <li>Window offset: lag, lead, first, last</li>
+ * <li>Window aggregate: sum, count, avg, min, max, stdDev, variance with
+ * over()</li>
+ * <li>Frame permutations: rows/range × unbounded/offset/currentRow</li>
+ * <li>Over clause permutations: partition/order/frame combos</li>
+ * <li>Chaining: extend→filter, extend→sort, extend→extend, etc.</li>
+ * <li>Edge cases and error handling</li>
  * </ul>
  */
 public class ExtendCheckerTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() { return "DuckDB"; }
+    protected String getDatabaseType() {
+        return "DuckDB";
+    }
 
     @Override
-    protected SQLDialect getDialect() { return DuckDBDialect.INSTANCE; }
+    protected SQLDialect getDialect() {
+        return DuckDBDialect.INSTANCE;
+    }
 
     @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
+    protected String getJdbcUrl() {
+        return "jdbc:duckdb:";
+    }
 
     @BeforeEach
     void setUp() throws SQLException {
@@ -49,7 +55,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
 
     @AfterEach
     void tearDown() throws SQLException {
-        if (connection != null) connection.close();
+        if (connection != null)
+            connection.close();
     }
 
     // ========================================================================
@@ -135,8 +142,7 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("extend rejects duplicate column name")
         void testOverrideColumn() {
-            assertThrows(com.gs.legend.compiler.PureCompileException.class, () ->
-                executeRelation("""
+            assertThrows(com.gs.legend.compiler.PureCompileException.class, () -> executeRelation("""
                     |#TDS
                     id, val
                     1, 10
@@ -724,7 +730,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — math extended")
     class MathExtend {
 
-        @Test @DisplayName("cbrt()")
+        @Test
+        @DisplayName("cbrt()")
         void testCbrt() throws SQLException {
             var result = executeRelation("""
                     |#TDS
@@ -737,7 +744,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2.0, ((Number) result.rows().get(1).get(idx)).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("exp()")
+        @Test
+        @DisplayName("exp()")
         void testExp() throws SQLException {
             var result = executeRelation("""
                     |#TDS
@@ -750,7 +758,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(Math.E, ((Number) result.rows().get(1).get(idx)).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("log() — natural log")
+        @Test
+        @DisplayName("log() — natural log")
         void testLog() throws SQLException {
             var result = executeRelation("""
                     |#TDS
@@ -760,7 +769,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(0.0, ((Number) result.rows().get(0).get(colIdx(result, "ln"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("log10()")
+        @Test
+        @DisplayName("log10()")
         void testLog10() throws SQLException {
             var result = executeRelation("""
                     |#TDS
@@ -773,7 +783,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(3.0, ((Number) result.rows().get(1).get(idx)).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("sign()")
+        @Test
+        @DisplayName("sign()")
         void testSign() throws SQLException {
             var result = executeRelation("""
                     |#TDS
@@ -788,7 +799,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(1L, ((Number) result.rows().get(2).get(idx)).longValue());
         }
 
-        @Test @DisplayName("mod()")
+        @Test
+        @DisplayName("mod()")
         void testMod() throws SQLException {
             var result = executeRelation("""
                     |#TDS
@@ -801,7 +813,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(1L, ((Number) result.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("rem()")
+        @Test
+        @DisplayName("rem()")
         void testRem() throws SQLException {
             var result = executeRelation("""
                     |#TDS
@@ -820,79 +833,92 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — trigonometry")
     class TrigExtend {
 
-        @Test @DisplayName("sin(0) = 0")
+        @Test
+        @DisplayName("sin(0) = 0")
         void testSin() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0\n#->extend(~s: x | $x.val->sin())");
             assertEquals(0.0, ((Number) r.rows().get(0).get(colIdx(r, "s"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("cos(0) = 1")
+        @Test
+        @DisplayName("cos(0) = 1")
         void testCos() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0\n#->extend(~c: x | $x.val->cos())");
             assertEquals(1.0, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("tan(0) = 0")
+        @Test
+        @DisplayName("tan(0) = 0")
         void testTan() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0\n#->extend(~t: x | $x.val->tan())");
             assertEquals(0.0, ((Number) r.rows().get(0).get(colIdx(r, "t"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("asin(0) = 0")
+        @Test
+        @DisplayName("asin(0) = 0")
         void testAsin() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0\n#->extend(~a: x | $x.val->asin())");
             assertEquals(0.0, ((Number) r.rows().get(0).get(colIdx(r, "a"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("acos(1) = 0")
+        @Test
+        @DisplayName("acos(1) = 0")
         void testAcos() throws SQLException {
             var r = executeRelation("|#TDS\nval\n1\n#->extend(~a: x | $x.val->acos())");
             assertEquals(0.0, ((Number) r.rows().get(0).get(colIdx(r, "a"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("atan(0) = 0")
+        @Test
+        @DisplayName("atan(0) = 0")
         void testAtan() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0\n#->extend(~a: x | $x.val->atan())");
             assertEquals(0.0, ((Number) r.rows().get(0).get(colIdx(r, "a"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("atan2(0, 1) = 0")
+        @Test
+        @DisplayName("atan2(0, 1) = 0")
         void testAtan2() throws SQLException {
             var r = executeRelation("|#TDS\ny, x\n0, 1\n#->extend(~a: r | $r.y->atan2($r.x))");
             assertEquals(0.0, ((Number) r.rows().get(0).get(colIdx(r, "a"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("sinh(0) = 0")
+        @Test
+        @DisplayName("sinh(0) = 0")
         void testSinh() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0\n#->extend(~s: x | $x.val->sinh())");
             assertEquals(0.0, ((Number) r.rows().get(0).get(colIdx(r, "s"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("cosh(0) = 1")
+        @Test
+        @DisplayName("cosh(0) = 1")
         void testCosh() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0\n#->extend(~c: x | $x.val->cosh())");
             assertEquals(1.0, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("tanh(0) = 0")
+        @Test
+        @DisplayName("tanh(0) = 0")
         void testTanh() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0\n#->extend(~t: x | $x.val->tanh())");
             assertEquals(0.0, ((Number) r.rows().get(0).get(colIdx(r, "t"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("cot — cot(pi/4) ≈ 1")
+        @Test
+        @DisplayName("cot — cot(pi/4) ≈ 1")
         void testCot() throws SQLException {
             var r = executeRelation("|#TDS\nval\n0.785398\n#->extend(~c: x | $x.val->cot())");
             assertEquals(1.0, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.01);
         }
 
-        @Test @DisplayName("toDegrees(pi) ≈ 180")
+        @Test
+        @DisplayName("toDegrees(pi) ≈ 180")
         void testToDegrees() throws SQLException {
             var r = executeRelation("|#TDS\nval\n3.14159265\n#->extend(~d: x | $x.val->toDegrees())");
             assertEquals(180.0, ((Number) r.rows().get(0).get(colIdx(r, "d"))).doubleValue(), 0.01);
         }
 
-        @Test @DisplayName("toRadians(180) ≈ pi")
+        @Test
+        @DisplayName("toRadians(180) ≈ pi")
         void testToRadians() throws SQLException {
             var r = executeRelation("|#TDS\nval\n180\n#->extend(~rad: x | $x.val->toRadians())");
             assertEquals(Math.PI, ((Number) r.rows().get(0).get(colIdx(r, "rad"))).doubleValue(), 0.001);
@@ -908,82 +934,95 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     class ArithmeticOverloads {
 
         // === plus ===
-        @Test @DisplayName("plus(Integer, Integer)")
+        @Test
+        @DisplayName("plus(Integer, Integer)")
         void testPlusIntInt() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 20\n#->extend(~c: x | $x.a + $x.b)");
             assertEquals(30L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("plus(Float, Float)")
+        @Test
+        @DisplayName("plus(Float, Float)")
         void testPlusFloatFloat() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n1.5, 2.5\n#->extend(~c: x | $x.a + $x.b)");
             assertEquals(4.0, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("plus(Integer, Float) — mixed")
+        @Test
+        @DisplayName("plus(Integer, Float) — mixed")
         void testPlusIntFloat() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 2.5\n#->extend(~c: x | $x.a + $x.b)");
             assertEquals(12.5, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("plus(String, String) — concat")
+        @Test
+        @DisplayName("plus(String, String) — concat")
         void testPlusStringString() throws SQLException {
             var r = executeRelation("|#TDS\na, b\nhello, world\n#->extend(~c: x | $x.a + $x.b)");
             assertEquals("helloworld", r.rows().get(0).get(colIdx(r, "c")));
         }
 
-        @Test @DisplayName("plus(Integer, literal)")
+        @Test
+        @DisplayName("plus(Integer, literal)")
         void testPlusIntLiteral() throws SQLException {
             var r = executeRelation("|#TDS\na\n5\n#->extend(~c: x | $x.a + 100)");
             assertEquals(105L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
         // === minus ===
-        @Test @DisplayName("minus(Integer, Integer)")
+        @Test
+        @DisplayName("minus(Integer, Integer)")
         void testMinusIntInt() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n20, 7\n#->extend(~c: x | $x.a - $x.b)");
             assertEquals(13L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("minus(Float, Float)")
+        @Test
+        @DisplayName("minus(Float, Float)")
         void testMinusFloatFloat() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n5.5, 2.0\n#->extend(~c: x | $x.a - $x.b)");
             assertEquals(3.5, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("minus(Integer, Float) — mixed")
+        @Test
+        @DisplayName("minus(Integer, Float) — mixed")
         void testMinusIntFloat() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 3.5\n#->extend(~c: x | $x.a - $x.b)");
             assertEquals(6.5, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
         }
 
         // === times ===
-        @Test @DisplayName("times(Integer, Integer)")
+        @Test
+        @DisplayName("times(Integer, Integer)")
         void testTimesIntInt() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n6, 7\n#->extend(~c: x | $x.a * $x.b)");
             assertEquals(42L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("times(Float, Float)")
+        @Test
+        @DisplayName("times(Float, Float)")
         void testTimesFloatFloat() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n2.5, 4.0\n#->extend(~c: x | $x.a * $x.b)");
             assertEquals(10.0, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("times(Integer, Float) — mixed")
+        @Test
+        @DisplayName("times(Integer, Float) — mixed")
         void testTimesIntFloat() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n3, 2.5\n#->extend(~c: x | $x.a * $x.b)");
             assertEquals(7.5, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
         }
 
         // === divide ===
-        @Test @DisplayName("divide(Number, Number)")
+        @Test
+        @DisplayName("divide(Number, Number)")
         void testDivide() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 4\n#->extend(~c: x | $x.a / $x.b)");
             assertEquals(2L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("divide(Float, Float)")
+        @Test
+        @DisplayName("divide(Float, Float)")
         void testDivideFloat() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n7.5, 2.5\n#->extend(~c: x | $x.a / $x.b)");
             assertEquals(3.0, ((Number) r.rows().get(0).get(colIdx(r, "c"))).doubleValue(), 0.001);
@@ -998,103 +1037,121 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — string advanced")
     class StringExtendAdvanced {
 
-        @Test @DisplayName("ltrim()")
+        @Test
+        @DisplayName("ltrim()")
         void testLtrim() throws SQLException {
             var r = executeRelation("|#TDS\nstr\n   hello\n#->extend(~t: x | $x.str->ltrim())");
             assertEquals("hello", r.rows().get(0).get(colIdx(r, "t")));
         }
 
-        @Test @DisplayName("rtrim()")
+        @Test
+        @DisplayName("rtrim()")
         void testRtrim() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhello   \n#->extend(~t: x | $x.str->rtrim())");
             assertEquals("hello", r.rows().get(0).get(colIdx(r, "t")));
         }
 
-        @Test @DisplayName("reverseString()")
+        @Test
+        @DisplayName("reverseString()")
         void testReverseString() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhello\n#->extend(~rev: x | $x.str->reverseString())");
             assertEquals("olleh", r.rows().get(0).get(colIdx(r, "rev")));
         }
 
-        @Test @DisplayName("ascii()")
+        @Test
+        @DisplayName("ascii()")
         void testAscii() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nA\n#->extend(~code: x | $x.str->ascii())");
             assertEquals(65L, ((Number) r.rows().get(0).get(colIdx(r, "code"))).longValue());
         }
 
-        @Test @DisplayName("char()")
+        @Test
+        @DisplayName("char()")
         void testChar() throws SQLException {
             var r = executeRelation("|#TDS\ncode\n65\n#->extend(~ch: x | $x.code->char())");
             assertEquals("A", r.rows().get(0).get(colIdx(r, "ch")));
         }
 
-        @Test @DisplayName("lpad()")
+        @Test
+        @DisplayName("lpad()")
         void testLpad() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhi\n#->extend(~padded: x | $x.str->lpad(5, '0'))");
             assertEquals("000hi", r.rows().get(0).get(colIdx(r, "padded")));
         }
 
-        @Test @DisplayName("rpad()")
+        @Test
+        @DisplayName("rpad()")
         void testRpad() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhi\n#->extend(~padded: x | $x.str->rpad(5, '0'))");
             assertEquals("hi000", r.rows().get(0).get(colIdx(r, "padded")));
         }
 
-        @Test @DisplayName("splitPart()")
+        @Test
+        @DisplayName("splitPart()")
         void testSplitPart() throws SQLException {
             var r = executeRelation("|#TDS\nstr\na-b-c\n#->extend(~p: x | $x.str->splitPart('-', 1))");
             assertEquals("b", r.rows().get(0).get(colIdx(r, "p")));
         }
 
-        @Test @DisplayName("left()")
+        @Test
+        @DisplayName("left()")
         void testLeft() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhello world\n#->extend(~l: x | $x.str->left(5))");
             assertEquals("hello", r.rows().get(0).get(colIdx(r, "l")));
         }
 
-        @Test @DisplayName("right()")
+        @Test
+        @DisplayName("right()")
         void testRight() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhello world\n#->extend(~r: x | $x.str->right(5))");
             assertEquals("world", r.rows().get(0).get(colIdx(r, "r")));
         }
 
-        @Test @DisplayName("toUpperFirstCharacter()")
+        @Test
+        @DisplayName("toUpperFirstCharacter()")
         void testToUpperFirstChar() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhello\n#->extend(~u: x | $x.str->toUpperFirstCharacter())");
             assertEquals("Hello", r.rows().get(0).get(colIdx(r, "u")));
         }
 
-        @Test @DisplayName("toLowerFirstCharacter()")
+        @Test
+        @DisplayName("toLowerFirstCharacter()")
         void testToLowerFirstChar() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nHello\n#->extend(~l: x | $x.str->toLowerFirstCharacter())");
             assertEquals("hello", r.rows().get(0).get(colIdx(r, "l")));
         }
 
-        @Test @DisplayName("encodeBase64()")
+        @Test
+        @DisplayName("encodeBase64()")
         void testEncodeBase64() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhello\n#->extend(~enc: x | $x.str->encodeBase64())");
             assertEquals("aGVsbG8=", r.rows().get(0).get(colIdx(r, "enc")));
         }
 
-        @Test @DisplayName("decodeBase64()")
+        @Test
+        @DisplayName("decodeBase64()")
         void testDecodeBase64() throws SQLException {
             var r = executeRelation("|#TDS\nstr\naGVsbG8=\n#->extend(~dec: x | $x.str->decodeBase64())");
             assertEquals("hello", r.rows().get(0).get(colIdx(r, "dec")));
         }
 
-        @Test @DisplayName("levenshteinDistance()")
+        @Test
+        @DisplayName("levenshteinDistance()")
         void testLevenshteinDistance() throws SQLException {
             var r = executeRelation("|#TDS\na, b\nkitten, sitting\n#->extend(~d: x | $x.a->levenshteinDistance($x.b))");
             assertEquals(3L, ((Number) r.rows().get(0).get(colIdx(r, "d"))).longValue());
         }
 
-        @Test @DisplayName("jaroWinklerSimilarity()")
+        @Test
+        @DisplayName("jaroWinklerSimilarity()")
         void testJaroWinkler() throws SQLException {
-            var r = executeRelation("|#TDS\na, b\nmartha, marhta\n#->extend(~sim: x | $x.a->jaroWinklerSimilarity($x.b))");
+            var r = executeRelation(
+                    "|#TDS\na, b\nmartha, marhta\n#->extend(~sim: x | $x.a->jaroWinklerSimilarity($x.b))");
             assertTrue(((Number) r.rows().get(0).get(colIdx(r, "sim"))).doubleValue() > 0.9);
         }
 
-        @Test @DisplayName("matches()")
+        @Test
+        @DisplayName("matches()")
         void testMatches() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhello123\nabc\n#->extend(~m: x | $x.str->matches('.*\\\\d+.*'))");
             int idx = colIdx(r, "m");
@@ -1102,7 +1159,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("hash() — MD5")
+        @Test
+        @DisplayName("hash() — MD5")
         void testHash() throws SQLException {
             var r = executeRelation("|#TDS\nstr\nhello\n#->extend(~h: x | $x.str->hash('MD5'))");
             // MD5 of "hello" = 5d41402abc4b2a76b9719d911017c592
@@ -1119,13 +1177,15 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — conversions")
     class ConversionExtend {
 
-        @Test @DisplayName("parseDecimal()")
+        @Test
+        @DisplayName("parseDecimal()")
         void testParseDecimal() throws SQLException {
             var r = executeRelation("|#TDS\nstr:String\n3.14159\n#->extend(~d: x | $x.str->parseDecimal())");
             assertEquals(3.14159, ((Number) r.rows().get(0).get(colIdx(r, "d"))).doubleValue(), 0.00001);
         }
 
-        @Test @DisplayName("parseBoolean()")
+        @Test
+        @DisplayName("parseBoolean()")
         void testParseBoolean() throws SQLException {
             var r = executeRelation("|#TDS\nstr:String\ntrue\nfalse\n#->extend(~b: x | $x.str->parseBoolean())");
             int idx = colIdx(r, "b");
@@ -1133,13 +1193,15 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("toDecimal()")
+        @Test
+        @DisplayName("toDecimal()")
         void testToDecimal() throws SQLException {
             var r = executeRelation("|#TDS\nval\n42\n#->extend(~d: x | $x.val->toDecimal())");
             assertEquals(42.0, ((Number) r.rows().get(0).get(colIdx(r, "d"))).doubleValue(), 0.001);
         }
 
-        @Test @DisplayName("toFloat()")
+        @Test
+        @DisplayName("toFloat()")
         void testToFloat() throws SQLException {
             var r = executeRelation("|#TDS\nval\n42\n#->extend(~f: x | $x.val->toFloat())");
             assertEquals(42.0, ((Number) r.rows().get(0).get(colIdx(r, "f"))).doubleValue(), 0.001);
@@ -1154,7 +1216,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — comparisons")
     class ComparisonExtend {
 
-        @Test @DisplayName("greaterThan (>)")
+        @Test
+        @DisplayName("greaterThan (>)")
         void testGreaterThan() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 5\n3, 7\n#->extend(~gt: x | $x.a > $x.b)");
             int idx = colIdx(r, "gt");
@@ -1162,7 +1225,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("lessThan (<)")
+        @Test
+        @DisplayName("lessThan (<)")
         void testLessThan() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n3, 7\n10, 5\n#->extend(~lt: x | $x.a < $x.b)");
             int idx = colIdx(r, "lt");
@@ -1170,7 +1234,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("greaterThanEqual (>=)")
+        @Test
+        @DisplayName("greaterThanEqual (>=)")
         void testGte() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n5, 5\n3, 7\n#->extend(~gte: x | $x.a >= $x.b)");
             int idx = colIdx(r, "gte");
@@ -1178,7 +1243,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("lessThanEqual (<=)")
+        @Test
+        @DisplayName("lessThanEqual (<=)")
         void testLte() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n5, 5\n10, 3\n#->extend(~lte: x | $x.a <= $x.b)");
             int idx = colIdx(r, "lte");
@@ -1186,7 +1252,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("equal (==)")
+        @Test
+        @DisplayName("equal (==)")
         void testEqual() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n5, 5\n5, 3\n#->extend(~eq: x | $x.a == $x.b)");
             int idx = colIdx(r, "eq");
@@ -1194,7 +1261,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("equal with string")
+        @Test
+        @DisplayName("equal with string")
         void testEqualString() throws SQLException {
             var r = executeRelation("|#TDS\nname\nAlice\nBob\n#->extend(~isAlice: x | $x.name == 'Alice')");
             int idx = colIdx(r, "isAlice");
@@ -1202,13 +1270,15 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("coalesce()")
+        @Test
+        @DisplayName("coalesce()")
         void testCoalesce() throws SQLException {
             var r = executeRelation("|#TDS\nval\n42\n#->extend(~c: x | $x.val->coalesce(0))");
             assertEquals(42L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("greatest()")
+        @Test
+        @DisplayName("greatest()")
         void testGreatest() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n3, 7\n10, 2\n#->extend(~g: x | [$x.a, $x.b]->greatest())");
             int idx = colIdx(r, "g");
@@ -1216,7 +1286,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(10L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("least()")
+        @Test
+        @DisplayName("least()")
         void testLeast() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n3, 7\n10, 2\n#->extend(~l: x | [$x.a, $x.b]->least())");
             int idx = colIdx(r, "l");
@@ -1224,7 +1295,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("compare — greaterThan with float columns")
+        @Test
+        @DisplayName("compare — greaterThan with float columns")
         void testGreaterThanFloat() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n3.5, 2.1\n1.0, 4.0\n#->extend(~gt: x | $x.a > $x.b)");
             int idx = colIdx(r, "gt");
@@ -1232,7 +1304,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("compare — integer vs literal float")
+        @Test
+        @DisplayName("compare — integer vs literal float")
         void testIntVsLiteral() throws SQLException {
             var r = executeRelation("|#TDS\nval\n5\n15\n#->extend(~big: x | $x.val > 10)");
             int idx = colIdx(r, "big");
@@ -1249,7 +1322,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — boolean logic")
     class BooleanExtend {
 
-        @Test @DisplayName("and")
+        @Test
+        @DisplayName("and")
         void testAnd() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 20\n5, 3\n#->extend(~both: x | ($x.a > 3) && ($x.b > 10))");
             int idx = colIdx(r, "both");
@@ -1257,7 +1331,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("or")
+        @Test
+        @DisplayName("or")
         void testOr() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n1, 20\n1, 1\n#->extend(~either: x | ($x.a > 5) || ($x.b > 10))");
             int idx = colIdx(r, "either");
@@ -1265,7 +1340,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("not")
+        @Test
+        @DisplayName("not")
         void testNot() throws SQLException {
             var r = executeRelation("|#TDS\nval\n10\n20\n#->extend(~notBig: x | !($x.val > 15))");
             int idx = colIdx(r, "notBig");
@@ -1273,7 +1349,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("complex boolean: (a > 5) && !(b < 3)")
+        @Test
+        @DisplayName("complex boolean: (a > 5) && !(b < 3)")
         void testComplexBoolean() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 5\n10, 1\n2, 5\n#->extend(~ok: x | ($x.a > 5) && !($x.b < 3))");
             int idx = colIdx(r, "ok");
@@ -1291,31 +1368,36 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — bitwise")
     class BitwiseExtend {
 
-        @Test @DisplayName("bitAnd")
+        @Test
+        @DisplayName("bitAnd")
         void testBitAnd() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n12, 10\n#->extend(~c: x | $x.a->bitAnd($x.b))");
             assertEquals(8L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("bitOr")
+        @Test
+        @DisplayName("bitOr")
         void testBitOr() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n12, 10\n#->extend(~c: x | $x.a->bitOr($x.b))");
             assertEquals(14L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("bitXor")
+        @Test
+        @DisplayName("bitXor")
         void testBitXor() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n12, 10\n#->extend(~c: x | $x.a->bitXor($x.b))");
             assertEquals(6L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("bitShiftLeft")
+        @Test
+        @DisplayName("bitShiftLeft")
         void testBitShiftLeft() throws SQLException {
             var r = executeRelation("|#TDS\nval\n1\n#->extend(~c: x | $x.val->bitShiftLeft(3))");
             assertEquals(8L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
         }
 
-        @Test @DisplayName("bitShiftRight")
+        @Test
+        @DisplayName("bitShiftRight")
         void testBitShiftRight() throws SQLException {
             var r = executeRelation("|#TDS\nval\n8\n#->extend(~c: x | $x.val->bitShiftRight(3))");
             assertEquals(1L, ((Number) r.rows().get(0).get(colIdx(r, "c"))).longValue());
@@ -1330,7 +1412,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — conditional")
     class ConditionalExtend {
 
-        @Test @DisplayName("if-then-else")
+        @Test
+        @DisplayName("if-then-else")
         void testIf() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1343,7 +1426,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals("big", r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("if with numeric result")
+        @Test
+        @DisplayName("if with numeric result")
         void testIfNumeric() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1356,7 +1440,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(15L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("nested if")
+        @Test
+        @DisplayName("nested if")
         void testNestedIf() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1380,7 +1465,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — edge cases")
     class EdgeCaseExtend {
 
-        @Test @DisplayName("extend on empty TDS")
+        @Test
+        @DisplayName("extend on empty TDS")
         void testEmptyTds() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1390,7 +1476,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, r.columns().size());
         }
 
-        @Test @DisplayName("chained extend→extend")
+        @Test
+        @DisplayName("chained extend→extend")
         void testChainedExtend() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1400,7 +1487,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(20L, ((Number) r.rows().get(0).get(colIdx(r, "quadrupled"))).longValue());
         }
 
-        @Test @DisplayName("extend→filter pipeline")
+        @Test
+        @DisplayName("extend→filter pipeline")
         void testExtendThenFilter() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1412,7 +1500,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, r.rowCount());
         }
 
-        @Test @DisplayName("extend→sort pipeline")
+        @Test
+        @DisplayName("extend→sort pipeline")
         void testExtendThenSort() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1426,7 +1515,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(-3L, ((Number) r.rows().get(2).get(colIdx(r, "neg"))).longValue());
         }
 
-        @Test @DisplayName("filter→extend pipeline")
+        @Test
+        @DisplayName("filter→extend pipeline")
         void testFilterThenExtend() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1440,31 +1530,33 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(50L, ((Number) r.rows().get(1).get(colIdx(r, "doubled"))).longValue());
         }
 
-        @Test @DisplayName("extend with many columns (5 columns)")
+        @Test
+        @DisplayName("extend with many columns (5 columns)")
         void testManyColumns() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    v
-                    10
-                    #->extend(~[a: x | $x.v + 1, b: x | $x.v + 2, c: x | $x.v + 3, d: x | $x.v + 4, e: x | $x.v + 5])""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            v
+                            10
+                            #->extend(~[a: x | $x.v + 1, b: x | $x.v + 2, c: x | $x.v + 3, d: x | $x.v + 4, e: x | $x.v + 5])""");
             assertEquals(6, r.columns().size());
             assertEquals(15L, ((Number) r.rows().get(0).get(colIdx(r, "e"))).longValue());
         }
 
-        @Test @DisplayName("extend duplicate column throws — array syntax")
+        @Test
+        @DisplayName("extend duplicate column throws — array syntax")
         void testDuplicateInArray() {
-            assertThrows(com.gs.legend.compiler.PureCompileException.class, () ->
-                executeRelation("""
+            assertThrows(com.gs.legend.compiler.PureCompileException.class, () -> executeRelation("""
                     |#TDS
                     val
                     1
                     #->extend(~[dup: x | $x.val, dup: x | $x.val + 1])"""));
         }
 
-        @Test @DisplayName("extend references nonexistent column throws")
+        @Test
+        @DisplayName("extend references nonexistent column throws")
         void testNonexistentColumn() {
-            assertThrows(Exception.class, () ->
-                executeRelation("""
+            assertThrows(Exception.class, () -> executeRelation("""
                     |#TDS
                     val
                     1
@@ -1480,7 +1572,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — null handling")
     class NullHandlingExtend {
 
-        @Test @DisplayName("isEmpty on nullable column")
+        @Test
+        @DisplayName("isEmpty on nullable column")
         void testIsEmpty() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1492,7 +1585,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(0).get(idx));
         }
 
-        @Test @DisplayName("isNotEmpty on nullable column")
+        @Test
+        @DisplayName("isNotEmpty on nullable column")
         void testIsNotEmpty() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1502,7 +1596,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(true, r.rows().get(0).get(colIdx(r, "present")));
         }
 
-        @Test @DisplayName("toOne on column")
+        @Test
+        @DisplayName("toOne on column")
         void testToOne() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1521,7 +1616,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — pipeline chaining")
     class PipelineExtend {
 
-        @Test @DisplayName("extend→select")
+        @Test
+        @DisplayName("extend→select")
         void testExtendThenSelect() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1534,7 +1630,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals("doubled", r.columns().get(1).name());
         }
 
-        @Test @DisplayName("extend→distinct")
+        @Test
+        @DisplayName("extend→distinct")
         void testExtendThenDistinct() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1546,7 +1643,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, r.rowCount());
         }
 
-        @Test @DisplayName("extend→groupBy with agg")
+        @Test
+        @DisplayName("extend→groupBy with agg")
         void testExtendThenGroupBy() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1559,7 +1657,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, r.rowCount());
         }
 
-        @Test @DisplayName("extend→limit")
+        @Test
+        @DisplayName("extend→limit")
         void testExtendThenLimit() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1571,7 +1670,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, r.rowCount());
         }
 
-        @Test @DisplayName("extend→drop")
+        @Test
+        @DisplayName("extend→drop")
         void testExtendThenDrop() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1583,7 +1683,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, r.rowCount());
         }
 
-        @Test @DisplayName("extend→slice")
+        @Test
+        @DisplayName("extend→slice")
         void testExtendThenSlice() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1596,7 +1697,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, r.rowCount());
         }
 
-        @Test @DisplayName("extend→rename")
+        @Test
+        @DisplayName("extend→rename")
         void testExtendThenRename() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1607,7 +1709,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals("result", r.columns().get(1).name());
         }
 
-        @Test @DisplayName("extend→concatenate")
+        @Test
+        @DisplayName("extend→concatenate")
         void testExtendThenConcatenate() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1621,7 +1724,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, r.rowCount());
         }
 
-        @Test @DisplayName("extend→sort→limit (top-N pattern)")
+        @Test
+        @DisplayName("extend→sort→limit (top-N pattern)")
         void testExtendSortLimit() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1647,7 +1751,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — multi-step chains")
     class MultiStepExtend {
 
-        @Test @DisplayName("3 chained extends: val → doubled → quadrupled")
+        @Test
+        @DisplayName("3 chained extends: val → doubled → quadrupled")
         void testTripleChain() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1660,7 +1765,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(40L, ((Number) r.rows().get(0).get(colIdx(r, "octupled"))).longValue());
         }
 
-        @Test @DisplayName("extend→extend using multiple prior columns")
+        @Test
+        @DisplayName("extend→extend using multiple prior columns")
         void testMultiplePriorColumns() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1673,7 +1779,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(84L, ((Number) r.rows().get(0).get(colIdx(r, "ratio"))).longValue());
         }
 
-        @Test @DisplayName("extend string then extend using string result")
+        @Test
+        @DisplayName("extend string then extend using string result")
         void testStringChained() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1693,7 +1800,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — boolean source columns")
     class BooleanSourceExtend {
 
-        @Test @DisplayName("extend from boolean column with not")
+        @Test
+        @DisplayName("extend from boolean column with not")
         void testBooleanColumnNot() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1706,7 +1814,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(true, r.rows().get(1).get(idx));
         }
 
-        @Test @DisplayName("extend from boolean column with and")
+        @Test
+        @DisplayName("extend from boolean column with and")
         void testBooleanColumnAnd() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1721,7 +1830,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(false, r.rows().get(2).get(idx));
         }
 
-        @Test @DisplayName("if based on boolean column")
+        @Test
+        @DisplayName("if based on boolean column")
         void testIfBooleanColumn() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1743,7 +1853,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — date/time functions")
     class DateTimeExtend {
 
-        @Test @DisplayName("year() — extract year from date literal")
+        @Test
+        @DisplayName("year() — extract year from date literal")
         void testYear() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1756,7 +1867,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(2023L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("monthNumber() — extract month")
+        @Test
+        @DisplayName("monthNumber() — extract month")
         void testMonthNumber() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1769,7 +1881,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(12L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("dayOfMonth() — extract day")
+        @Test
+        @DisplayName("dayOfMonth() — extract day")
         void testDayOfMonth() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1782,7 +1895,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(25L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("hour() — extract hour from datetime")
+        @Test
+        @DisplayName("hour() — extract hour from datetime")
         void testHour() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1795,7 +1909,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(23L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("minute() — extract minute from datetime")
+        @Test
+        @DisplayName("minute() — extract minute from datetime")
         void testMinute() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1808,7 +1923,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(45L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("second() — extract second from datetime")
+        @Test
+        @DisplayName("second() — extract second from datetime")
         void testSecond() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1821,7 +1937,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(15L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("dateDiff() — days between dates")
+        @Test
+        @DisplayName("dateDiff() — days between dates")
         void testDateDiff() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1834,20 +1951,23 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(14L, ((Number) r.rows().get(1).get(idx)).longValue());
         }
 
-        @Test @DisplayName("adjust() — add days to date")
+        @Test
+        @DisplayName("adjust() — add days to date")
         void testAdjust() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    id, d:StrictDate
-                    1, %2024-01-15
-                    #->extend(~adjusted: x | $x.d->meta::pure::functions::date::adjust(10, meta::pure::functions::date::DurationUnit.DAYS))""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            id, d:StrictDate
+                            1, %2024-01-15
+                            #->extend(~adjusted: x | $x.d->meta::pure::functions::date::adjust(10, meta::pure::functions::date::DurationUnit.DAYS))""");
             assertEquals(1, r.rowCount());
             // 2024-01-15 + 10 days = 2024-01-25
             String adjusted = r.rows().get(0).get(colIdx(r, "adjusted")).toString();
             assertTrue(adjusted.contains("2024-01-25"), "Expected 2024-01-25 but got: " + adjusted);
         }
 
-        @Test @DisplayName("today() — current date literal in extend")
+        @Test
+        @DisplayName("today() — current date literal in extend")
         void testToday() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1857,10 +1977,12 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(1, r.rowCount());
             // today() should return a date containing the current year
             String td = r.rows().get(0).get(colIdx(r, "td")).toString();
-            assertTrue(td.startsWith(String.valueOf(java.time.Year.now().getValue())), "today() should start with current year");
+            assertTrue(td.startsWith(String.valueOf(java.time.Year.now().getValue())),
+                    "today() should start with current year");
         }
 
-        @Test @DisplayName("now() — current datetime in extend")
+        @Test
+        @DisplayName("now() — current datetime in extend")
         void testNow() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1870,10 +1992,12 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(1, r.rowCount());
             // now() should return a datetime containing the current year
             String ts = r.rows().get(0).get(colIdx(r, "ts")).toString();
-            assertTrue(ts.startsWith(String.valueOf(java.time.Year.now().getValue())), "now() should start with current year");
+            assertTrue(ts.startsWith(String.valueOf(java.time.Year.now().getValue())),
+                    "now() should start with current year");
         }
 
-        @Test @DisplayName("datePart() — truncate datetime to date")
+        @Test
+        @DisplayName("datePart() — truncate datetime to date")
         void testDatePart() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1886,13 +2010,15 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertTrue(dp.contains("2024-06-15"), "datePart should extract 2024-06-15 but got: " + dp);
         }
 
-        @Test @DisplayName("hasMonth/hasDay/hasHour/hasMinute/hasSecond — date part checks")
+        @Test
+        @DisplayName("hasMonth/hasDay/hasHour/hasMinute/hasSecond — date part checks")
         void testHasDateParts() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    id, dt:DateTime
-                    1, %2024-06-15T10:30:45
-                    #->extend(~[hasM: x | $x.dt->meta::pure::functions::date::hasMonth(), hasD: x | $x.dt->meta::pure::functions::date::hasDay(), hasH: x | $x.dt->meta::pure::functions::date::hasHour(), hasMi: x | $x.dt->meta::pure::functions::date::hasMinute(), hasS: x | $x.dt->meta::pure::functions::date::hasSecond()])""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            id, dt:DateTime
+                            1, %2024-06-15T10:30:45
+                            #->extend(~[hasM: x | $x.dt->meta::pure::functions::date::hasMonth(), hasD: x | $x.dt->meta::pure::functions::date::hasDay(), hasH: x | $x.dt->meta::pure::functions::date::hasHour(), hasMi: x | $x.dt->meta::pure::functions::date::hasMinute(), hasS: x | $x.dt->meta::pure::functions::date::hasSecond()])""");
             assertEquals(1, r.rowCount());
             // DuckDB returns integers for has* functions (1 = true, 0 = false)
             assertTrue(((Number) r.rows().get(0).get(colIdx(r, "hasM"))).intValue() != 0);
@@ -1902,20 +2028,23 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertTrue(((Number) r.rows().get(0).get(colIdx(r, "hasS"))).intValue() != 0);
         }
 
-        @Test @DisplayName("combined: year + month + day in same extend")
+        @Test
+        @DisplayName("combined: year + month + day in same extend")
         void testCombinedDateParts() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    id, dt:StrictDate
-                    1, %2024-06-15
-                    #->extend(~[yr: x | $x.dt->year(), mon: x | $x.dt->monthNumber(), day: x | $x.dt->dayOfMonth()])""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            id, dt:StrictDate
+                            1, %2024-06-15
+                            #->extend(~[yr: x | $x.dt->year(), mon: x | $x.dt->monthNumber(), day: x | $x.dt->dayOfMonth()])""");
             assertEquals(1, r.rowCount());
             assertEquals(2024L, ((Number) r.rows().get(0).get(colIdx(r, "yr"))).longValue());
             assertEquals(6L, ((Number) r.rows().get(0).get(colIdx(r, "mon"))).longValue());
             assertEquals(15L, ((Number) r.rows().get(0).get(colIdx(r, "day"))).longValue());
         }
 
-        @Test @DisplayName("date() — construct date from year/month/day")
+        @Test
+        @DisplayName("date() — construct date from year/month/day")
         void testDateConstructor() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1925,10 +2054,12 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(1, r.rowCount());
             // date(2024, 6, 15) should produce 2024-06-15
             String constructed = r.rows().get(0).get(colIdx(r, "constructed")).toString();
-            assertTrue(constructed.contains("2024-06-15"), "Constructed date should be 2024-06-15 but got: " + constructed);
+            assertTrue(constructed.contains("2024-06-15"),
+                    "Constructed date should be 2024-06-15 but got: " + constructed);
         }
 
-        @Test @DisplayName("timeBucket() — bucket date by days")
+        @Test
+        @DisplayName("timeBucket() — bucket date by days")
         void testTimeBucket() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1943,7 +2074,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertTrue(bucket.contains("2024-01"), "Bucket should be in January 2024 but got: " + bucket);
         }
 
-        @Test @DisplayName("parseDate() — parse string to date")
+        @Test
+        @DisplayName("parseDate() — parse string to date")
         void testParseDate() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -1965,51 +2097,59 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — bivariant RowMapper (fn1+fn2)")
     class BivariantExtend {
 
-        @Test @DisplayName("wavg — weighted average over full relation")
+        @Test
+        @DisplayName("wavg — weighted average over full relation")
         void testWavg() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    id, quantity, weight
-                    1, 100, 0.5
-                    2, 200, 0.5
-                    #->extend(~wa:x|meta::pure::functions::math::mathUtility::rowMapper($x.quantity, $x.weight):y|$y->wavg())""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            id, quantity, weight
+                            1, 100, 0.5
+                            2, 200, 0.5
+                            #->extend(~wa:x|meta::pure::functions::math::mathUtility::rowMapper($x.quantity, $x.weight):y|$y->wavg())""");
             assertEquals(2, r.rowCount());
-            // wavg = (100*0.5 + 200*0.5) / (0.5+0.5) = 150.0 — same for all rows (no-window)
+            // wavg = (100*0.5 + 200*0.5) / (0.5+0.5) = 150.0 — same for all rows
+            // (no-window)
             int idx = colIdx(r, "wa");
             assertEquals(150.0, ((Number) r.rows().get(0).get(idx)).doubleValue(), 0.01);
             assertEquals(150.0, ((Number) r.rows().get(1).get(idx)).doubleValue(), 0.01);
         }
 
-        @Test @DisplayName("maxBy — value column with max of sort column")
+        @Test
+        @DisplayName("maxBy — value column with max of sort column")
         void testMaxBy() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    name, score
-                    Alice, 85
-                    Bob, 92
-                    Charlie, 78
-                    #->extend(~winner:x|meta::pure::functions::math::mathUtility::rowMapper($x.name, $x.score):y|$y->maxBy())""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            name, score
+                            Alice, 85
+                            Bob, 92
+                            Charlie, 78
+                            #->extend(~winner:x|meta::pure::functions::math::mathUtility::rowMapper($x.name, $x.score):y|$y->maxBy())""");
             assertEquals(3, r.rowCount());
             int idx = colIdx(r, "winner");
             // maxBy returns the name of the row with the highest score ("Bob" = 92)
             assertEquals("Bob", r.rows().get(0).get(idx).toString());
         }
 
-        @Test @DisplayName("minBy — value column with min of sort column")
+        @Test
+        @DisplayName("minBy — value column with min of sort column")
         void testMinBy() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    name, score
-                    Alice, 85
-                    Bob, 92
-                    Charlie, 78
-                    #->extend(~loser:x|meta::pure::functions::math::mathUtility::rowMapper($x.name, $x.score):y|$y->minBy())""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            name, score
+                            Alice, 85
+                            Bob, 92
+                            Charlie, 78
+                            #->extend(~loser:x|meta::pure::functions::math::mathUtility::rowMapper($x.name, $x.score):y|$y->minBy())""");
             assertEquals(3, r.rowCount());
             int idx = colIdx(r, "loser");
             assertEquals("Charlie", r.rows().get(0).get(idx).toString());
         }
 
-        @Test @DisplayName("corr — correlation coefficient")
+        @Test
+        @DisplayName("corr — correlation coefficient")
         void testCorr() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -2024,45 +2164,51 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
             assertEquals(1.0, ((Number) r.rows().get(0).get(idx)).doubleValue(), 0.0001);
         }
 
-        @Test @DisplayName("covarSample — sample covariance")
+        @Test
+        @DisplayName("covarSample — sample covariance")
         void testCovarSample() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    a, b
-                    1, 10
-                    2, 20
-                    3, 30
-                    #->extend(~cs:x|meta::pure::functions::math::mathUtility::rowMapper($x.a, $x.b):y|$y->covarSample())""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            a, b
+                            1, 10
+                            2, 20
+                            3, 30
+                            #->extend(~cs:x|meta::pure::functions::math::mathUtility::rowMapper($x.a, $x.b):y|$y->covarSample())""");
             assertEquals(3, r.rowCount());
             int idx = colIdx(r, "cs");
             // covarSample of [1,2,3] and [10,20,30] = 10.0
             assertEquals(10.0, ((Number) r.rows().get(0).get(idx)).doubleValue(), 0.01);
         }
 
-        @Test @DisplayName("covarPopulation — population covariance")
+        @Test
+        @DisplayName("covarPopulation — population covariance")
         void testCovarPopulation() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    a, b
-                    1, 10
-                    2, 20
-                    3, 30
-                    #->extend(~cp:x|meta::pure::functions::math::mathUtility::rowMapper($x.a, $x.b):y|$y->covarPopulation())""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            a, b
+                            1, 10
+                            2, 20
+                            3, 30
+                            #->extend(~cp:x|meta::pure::functions::math::mathUtility::rowMapper($x.a, $x.b):y|$y->covarPopulation())""");
             assertEquals(3, r.rowCount());
             int idx = colIdx(r, "cp");
             // covarPopulation of [1,2,3] and [10,20,30] ≈ 6.667
             assertEquals(6.667, ((Number) r.rows().get(0).get(idx)).doubleValue(), 0.01);
         }
 
-        @Test @DisplayName("wavg with partition — weighted average per group")
+        @Test
+        @DisplayName("wavg with partition — weighted average per group")
         void testWavgWithPartition() throws SQLException {
-            var r = executeRelation("""
-                    |#TDS
-                    grp, qty, wt
-                    1, 100, 0.5
-                    1, 200, 0.5
-                    2, 300, 1.0
-                    #->extend(over(~grp), ~wa:{p,w,r|meta::pure::functions::math::mathUtility::rowMapper($r.qty, $r.wt)}:y|$y->wavg())""");
+            var r = executeRelation(
+                    """
+                            |#TDS
+                            grp, qty, wt
+                            1, 100, 0.5
+                            1, 200, 0.5
+                            2, 300, 1.0
+                            #->extend(over(~grp), ~wa:{p,w,r|meta::pure::functions::math::mathUtility::rowMapper($r.qty, $r.wt)}:y|$y->wavg())""");
             assertEquals(3, r.rowCount());
         }
     }
@@ -2075,7 +2221,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     @DisplayName("extend — misc scalar functions")
     class MiscScalarExtend {
 
-        @Test @DisplayName("xor — exclusive or")
+        @Test
+        @DisplayName("xor — exclusive or")
         void testXor() throws SQLException {
             var r = executeRelation("""
                     |#TDS
@@ -2085,9 +2232,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     false, false
                     #->extend(~xr: x | $x.a->xor($x.b))""");
             int idx = colIdx(r, "xr");
-            assertEquals(true, r.rows().get(0).get(idx));   // true XOR false = true
-            assertEquals(false, r.rows().get(1).get(idx));  // true XOR true = false
-            assertEquals(false, r.rows().get(2).get(idx));  // false XOR false = false
+            assertEquals(true, r.rows().get(0).get(idx)); // true XOR false = true
+            assertEquals(false, r.rows().get(1).get(idx)); // true XOR true = false
+            assertEquals(false, r.rows().get(2).get(idx)); // false XOR false = false
         }
     }
 
@@ -2098,23 +2245,10 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     /** Finds column index by name. */
     private int colIdx(ExecutionResult result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
-            if (name.equals(result.columns().get(i).name())) return i;
+            if (name.equals(result.columns().get(i).name()))
+                return i;
         }
         throw new AssertionError("Column '" + name + "' not found in " +
                 result.columns().stream().map(c -> c.name()).toList());
-    }
-
-    /** Collects results into a map keyed by the specified column value. */
-    private <K> Map<K, Object> collectResults(
-            ExecutionResult result, String keyCol, String valCol) {
-        int keyIdx = colIdx(result, keyCol);
-        int valIdx = colIdx(result, valCol);
-        Map<K, Object> map = new HashMap<>();
-        for (var row : result.rows()) {
-            @SuppressWarnings("unchecked")
-            K key = (K) row.get(keyIdx);
-            map.put(key, row.get(valIdx));
-        }
-        return map;
     }
 }

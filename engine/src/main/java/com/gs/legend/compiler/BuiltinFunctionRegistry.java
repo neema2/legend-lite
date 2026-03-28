@@ -426,6 +426,12 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("startsWith", "native function startsWith(source:String[1], val:String[1]):Boolean[1];");
         reg.registerSignature("endsWith", "native function endsWith(source:String[1], val:String[1]):Boolean[1];");
         reg.registerSignature("contains", "native function contains(source:String[1], val:String[1]):Boolean[1];");
+        // Collection contains: [1,2,3]->contains(2)
+        reg.registerSignature("contains",
+                "native function contains<T>(collection:T[*], val:T[1]):Boolean[1];");
+        // Collection contains with comparator: [...]->contains(elem, {a,b | $a == $b})
+        reg.registerSignature("contains",
+                "native function contains<T>(collection:T[*], val:T[1], comparator:Function<{T[1],T[1]->Boolean[1]}>[1]):Boolean[1];");
         reg.registerSignature("reverseString", "native function reverseString(str:String[1]):String[1];");
         reg.registerSignature("replace",
                 "native function replace(str:String[1], toFind:String[1], replacement:String[1]):String[1];");
@@ -518,21 +524,30 @@ public class BuiltinFunctionRegistry {
 
         // ===== Comparison =====
         reg.registerSignature("equal", "native function equal(left:Any[1], right:Any[1]):Boolean[1];");
+        reg.registerSignature("notEqual", "native function notEqual(left:Any[1], right:Any[1]):Boolean[1];");
         reg.registerSignature("eq", "native function eq(left:Any[1], right:Any[1]):Boolean[1];");
         reg.registerSignature("greaterThan",
                 "native function greaterThan(left:Number[1], right:Number[1]):Boolean[1];");
         reg.registerSignature("greaterThan",
                 "native function greaterThan(left:Date[1], right:Date[1]):Boolean[1];");
+        reg.registerSignature("greaterThan",
+                "native function greaterThan(left:String[1], right:String[1]):Boolean[1];");
         reg.registerSignature("lessThan", "native function lessThan(left:Number[1], right:Number[1]):Boolean[1];");
         reg.registerSignature("lessThan", "native function lessThan(left:Date[1], right:Date[1]):Boolean[1];");
+        reg.registerSignature("lessThan",
+                "native function lessThan(left:String[1], right:String[1]):Boolean[1];");
         reg.registerSignature("greaterThanEqual",
                 "native function greaterThanEqual(left:Number[1], right:Number[1]):Boolean[1];");
         reg.registerSignature("greaterThanEqual",
                 "native function greaterThanEqual(left:Date[1], right:Date[1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual",
+                "native function greaterThanEqual(left:String[1], right:String[1]):Boolean[1];");
         reg.registerSignature("lessThanEqual",
                 "native function lessThanEqual(left:Number[1], right:Number[1]):Boolean[1];");
         reg.registerSignature("lessThanEqual",
                 "native function lessThanEqual(left:Date[1], right:Date[1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual",
+                "native function lessThanEqual(left:String[1], right:String[1]):Boolean[1];");
         reg.registerSignature("between",
                 "native function between(value:Number[1], low:Number[1], high:Number[1]):Boolean[1];");
         reg.registerSignature("compare", "native function compare(left:Any[1], right:Any[1]):Integer[1];");
@@ -616,6 +631,11 @@ public class BuiltinFunctionRegistry {
         // legend-engine: maxBy_RowMapper_MANY__T_$0_1$ — returns first type arg
         reg.registerSignature("maxBy",
                 "native function maxBy<T,U>(values:RowMapper<T,U>[*]):T[0..1];");
+        // List-keyed: [1,2]->maxBy([10,20]) — keys parallel to values
+        reg.registerSignature("maxBy",
+                "native function maxBy<T>(values:T[*], keys:T[*]):T[0..1];");
+        reg.registerSignature("maxBy",
+                "native function maxBy<T>(values:T[*], keys:T[*], count:Integer[1]):T[*];");
         reg.registerSignature("minBy",
                 "native function minBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
         reg.registerSignature("minBy",
@@ -624,9 +644,17 @@ public class BuiltinFunctionRegistry {
         // legend-engine: minBy_RowMapper_MANY__T_$0_1$ — returns first type arg
         reg.registerSignature("minBy",
                 "native function minBy<T,U>(values:RowMapper<T,U>[*]):T[0..1];");
+        // List-keyed: [1,2]->minBy([10,20]) — keys parallel to values
+        reg.registerSignature("minBy",
+                "native function minBy<T>(values:T[*], keys:T[*]):T[0..1];");
+        reg.registerSignature("minBy",
+                "native function minBy<T>(values:T[*], keys:T[*], count:Integer[1]):T[*];");
         reg.registerSignature("stdDev", "native function stdDev(numbers:Number[*]):Number[1];");
         reg.registerSignature("stdDevSample", "native function stdDevSample(numbers:Number[*]):Number[1];");
         reg.registerSignature("variance", "native function variance(numbers:Number[*]):Number[1];");
+        // 2-arg form: variance(numbers, isSample) — PCT uses variance([1,2], false) for population
+        reg.registerSignature("variance",
+                "native function variance(numbers:Number[*], isSample:Boolean[1]):Number[1];");
         reg.registerSignature("varianceSample", "native function varianceSample(numbers:Number[*]):Number[1];");
         reg.registerSignature("variancePopulation", "native function variancePopulation(numbers:Number[*]):Number[1];");
         reg.registerSignature("covarPopulation",
