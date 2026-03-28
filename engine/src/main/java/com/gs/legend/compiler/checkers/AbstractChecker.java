@@ -538,18 +538,31 @@ public abstract class AbstractChecker implements FunctionChecker {
                            Bindings bindings, String context) {
         switch (expected) {
             case PType.TypeVar v -> {
+                // Normalize: unwrap List<T> → element type, PrecisionDecimal → DECIMAL
+                // (PureCollection [1,2,'a'] has type List<Any>, but T should bind to Any)
+                GenericType normalized = actual;
+                if (normalized instanceof GenericType.Parameterized pp && "List".equals(pp.rawType())) {
+                    normalized = pp.elementType();
+                }
+                if (normalized instanceof GenericType.PrecisionDecimal) {
+                    normalized = GenericType.Primitive.DECIMAL;
+                }
                 GenericType existing = bindings.get(v.name());
-                System.out.println("[DEBUG unifyType] TypeVar '" + v.name() + "' existing="
-                        + (existing != null ? existing + "(" + existing.getClass().getSimpleName() + ")" : "null")
-                        + " actual=" + actual + "(" + actual.getClass().getSimpleName() + ") context=" + context);
                 if (existing != null) {
-                    if (!existing.typeName().equals(actual.typeName())) {
+                    // Check compatibility: normalize existing for comparison too
+                    GenericType existNorm = existing;
+                    if (existNorm instanceof GenericType.PrecisionDecimal) {
+                        existNorm = GenericType.Primitive.DECIMAL;
+                    }
+                    if (!existNorm.typeName().equals(normalized.typeName())
+                            && !"Any".equals(existing.typeName())
+                            && !"Any".equals(normalized.typeName())) {
                         throw new PureCompileException(
                                 context + ": type variable " + v.name() + " bound to "
-                                        + existing.typeName() + " but got " + actual.typeName());
+                                        + existing.typeName() + " but got " + normalized.typeName());
                     }
                 } else {
-                    bindings.put(v.name(), actual);
+                    bindings.put(v.name(), normalized);
                 }
             }
             case PType.Parameterized p -> {
