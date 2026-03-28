@@ -402,7 +402,8 @@ public class PlanGenerator {
             case "limit", "take" -> generateLimit(af);
             case "drop" -> generateDrop(af);
             case "slice" -> generateSlice(af);
-            case "first" -> generateFirst(af);
+            case "first", "head" -> generateFirst(af);
+            case "find" -> generateFind(af);
             case "distinct" -> generateDistinct(af);
             case "select" -> generateSelect(af);
             case "rename" -> generateRename(af);
@@ -1243,6 +1244,26 @@ public class PlanGenerator {
                 .selectStar()
                 .fromSubquery(source, "limit_src")
                 .limit(1);
+    }
+
+    /**
+     * find(set, pred) → filter(set, pred)->first()
+     * Returns the first element matching the predicate.
+     */
+    private SqlBuilder generateFind(AppliedFunction af) {
+        List<ValueSpecification> params = af.parameters();
+        SqlBuilder source = generateRelation(params.get(0));
+        LambdaFunction lambda = (LambdaFunction) params.get(1);
+        String paramName = lambda.parameters().isEmpty() ? "x" : lambda.parameters().get(0).name();
+
+        // Apply filter predicate as WHERE clause
+        SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, null);
+        SqlBuilder filtered = new SqlBuilder()
+                .selectStar()
+                .fromSubquery(source, "find_src")
+                .addWhere(whereClause)
+                .limit(1);
+        return filtered;
     }
 
     // ========== distinct ==========
