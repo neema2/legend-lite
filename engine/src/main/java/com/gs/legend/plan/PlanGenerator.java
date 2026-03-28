@@ -1579,28 +1579,15 @@ public class PlanGenerator {
                 SqlExpr.WindowSpec sqlWindow = buildSqlWindowSpec(ws.over());
 
                 // Build function call from AST (like generateAggFromAst)
+                // generateWindowFuncFromAst always returns a complete expression
+                // with OVER() already applied — caller just adds it as a column.
                 SqlExpr funcExpr = generateWindowFuncFromAst(ws, ast, sqlWindow);
 
-                // Apply cast if present
                 if (ws.castType() != null) {
-                    if (funcExpr instanceof SqlExpr.WindowFunction) {
-                        // Already windowed (shouldn't happen normally)
-                        SqlExpr cast = new SqlExpr.Cast(funcExpr,
-                                dialect.sqlTypeName(ws.castType().typeName()));
-                        b.addWindowColumn(cast, null, quotedAlias);
-                    } else {
-                        SqlExpr windowed = new SqlExpr.WindowFunction(funcExpr, sqlWindow);
-                        SqlExpr cast = new SqlExpr.Cast(windowed,
-                                dialect.sqlTypeName(ws.castType().typeName()));
-                        b.addWindowColumn(cast, null, quotedAlias);
-                    }
-                } else if (funcExpr instanceof SqlExpr.FunctionCall) {
-                    // Standard: FUNC(...) OVER(...) — let addWindowColumn add the OVER
-                    b.addWindowColumn(funcExpr, sqlWindow, quotedAlias);
-                } else {
-                    // Pre-windowed (wrapper pattern): already has OVER inside
-                    b.addWindowColumn(funcExpr, null, quotedAlias);
+                    funcExpr = new SqlExpr.Cast(funcExpr,
+                            dialect.sqlTypeName(ws.castType().typeName()));
                 }
+                b.addWindowColumn(funcExpr, null, quotedAlias);
             }
             return b;
         }
@@ -1647,9 +1634,9 @@ public class PlanGenerator {
     }
 
     /**
-     * Generates window function SQL by reading fn1/fn2 from AST.
-     * Dispatches on resolvedFunc identity (not strings).
-     * Follows generateAggFromAst pattern.
+     * Generates a complete windowed SQL expression from AST.
+     * Always returns a fully-formed expression with OVER() already applied.
+     * Caller should NOT add another OVER().
      */
     private SqlExpr generateWindowFuncFromAst(TypeInfo.WindowSpec ws, ColSpec ast,
                                                SqlExpr.WindowSpec sqlWindow) {
@@ -1657,9 +1644,8 @@ public class PlanGenerator {
         if (sqlFunc == null) sqlFunc = ws.resolvedFunc().name().toUpperCase();
 
         // --- Aggregate window (fn1 + fn2): reuse generateAggFromAst ---
-        // Then wrap each inner aggregate FunctionCall with OVER() so
-        // composite expressions like wavg's SUM(x*y)/SUM(y) become
-        // SUM(x*y) OVER(...) / SUM(y) OVER(...) instead of bare GROUP BY.
+        // Composite expressions like wavg's SUM(x*y)/SUM(y) become
+        // SUM(x*y) OVER(...) / SUM(y) OVER(...) — already fully windowed.
         if (ast.function2() != null) {
             var acs = new TypeInfo.AggColumnSpec(ws.alias(), ws.resolvedFunc(),
                     ws.returnType(), ws.castType());
@@ -1671,22 +1657,21 @@ public class PlanGenerator {
         var body = ast.function1().body().get(0);
 
         // Pattern: $p->func($w,$r).property → FUNC(property) OVER(...)
-        // Used by: lag, lead, first, last, sum, avg, stdDev, variance
+        // Used by: lag, lead, first, last
         if (body instanceof AppliedProperty ap && !ap.parameters().isEmpty()
                 && ap.parameters().get(0) instanceof AppliedFunction innerAf) {
             String innerSql = mapPureFuncToSql(simpleName(innerAf.function()));
             if (innerSql == null) innerSql = simpleName(innerAf.function()).toUpperCase();
             List<SqlExpr> args = new ArrayList<>();
             args.add(new SqlExpr.ColumnRef(ap.property()));
-            // Extra args from inner function (e.g., lag offset, nth offset)
             for (int i = 1; i < innerAf.parameters().size(); i++) {
                 var param = innerAf.parameters().get(i);
-                // Skip lambda params ($p, $w, $r) — they're not SQL args
                 if (!(param instanceof Variable)) {
                     args.add(generateScalar(param, null, null, null));
                 }
             }
-            return new SqlExpr.FunctionCall(innerSql, args);
+            SqlExpr func = new SqlExpr.FunctionCall(innerSql, args);
+            return new SqlExpr.WindowFunction(func, sqlWindow);
         }
 
         // Pattern: wrapper(innerFunc($w,$r), args) → WRAPPER(INNER() OVER(...), args)
@@ -1696,7 +1681,6 @@ public class PlanGenerator {
             String innerFuncName = simpleName(innerAf.function());
             String innerSql = mapPureFuncToSql(innerFuncName);
             if (innerSql == null) innerSql = innerFuncName.toUpperCase();
-            // Check if inner is a known window function (not just any function)
             var innerDefs = com.gs.legend.compiler.BuiltinFunctionRegistry.instance()
                     .resolve(innerFuncName);
             if (!innerDefs.isEmpty()) {
@@ -1710,8 +1694,9 @@ public class PlanGenerator {
                         wrapperArgs.add(generateScalar(param, null, null, null));
                     }
                 }
-                // Return pre-windowed — caller must NOT add another OVER()
-                return new SqlExpr.FunctionCall(sqlFunc, wrapperArgs);
+                String outerSql = mapPureFuncToSql(simpleName(af.function()));
+                if (outerSql == null) outerSql = simpleName(af.function()).toUpperCase();
+                return new SqlExpr.FunctionCall(outerSql, wrapperArgs);
             }
         }
 
@@ -1720,8 +1705,6 @@ public class PlanGenerator {
         if (body instanceof AppliedFunction af) {
             List<SqlExpr> args = new ArrayList<>();
             for (var p : af.parameters()) {
-                // Include only literal args (e.g., ntile bucket count)
-                // Skip Variable params ($p, $w, $r — these are lambda params)
                 if (p instanceof CInteger ci) {
                     args.add(new SqlExpr.NumericLiteral(ci.value()));
                 } else if (p instanceof CFloat cf) {
@@ -1730,13 +1713,15 @@ public class PlanGenerator {
                     args.add(new SqlExpr.StringLiteral(cs.value()));
                 }
             }
-            return new SqlExpr.FunctionCall(sqlFunc, args);
+            SqlExpr func = new SqlExpr.FunctionCall(sqlFunc, args);
+            return new SqlExpr.WindowFunction(func, sqlWindow);
         }
 
-        // Fallback: compile fn1 body as scalar expression
+        // Fallback: compile fn1 body as scalar expression, wrap with OVER
         String fn1Param = ast.function1().parameters().isEmpty() ? null
                 : ast.function1().parameters().get(0).name();
-        return generateScalar(body, fn1Param, null, null);
+        SqlExpr scalar = generateScalar(body, fn1Param, null, null);
+        return new SqlExpr.WindowFunction(scalar, sqlWindow);
     }
 
     /** Maps a Pure function name to a semantic function name for SQL generation.
@@ -2136,6 +2121,18 @@ public class PlanGenerator {
                                     condition, new SqlExpr.StringLiteral(enumValue)));
                         }
                         yield new SqlExpr.SearchedCase(branches, new SqlExpr.NullLiteral());
+                    }
+                    // Expression mapping (e.g., DATA->get('customerName', @String))
+                    if (pmOpt.isPresent()) {
+                        var exprAccess = pmOpt.get().expressionAccess();
+                        if (exprAccess.isPresent()) {
+                            var ea = exprAccess.get();
+                            SqlExpr base = new SqlExpr.Column(tableAlias, pmOpt.get().columnName());
+                            SqlExpr variantAccess = new SqlExpr.VariantTextExtract(base, ea.jsonKey());
+                            yield ea.castType() != null
+                                    ? new SqlExpr.Cast(variantAccess, ea.castType())
+                                    : variantAccess;
+                        }
                     }
                     var columnOpt = rm2.getColumnForProperty(colName);
                     if (columnOpt.isPresent())

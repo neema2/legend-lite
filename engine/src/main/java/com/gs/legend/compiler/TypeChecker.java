@@ -144,7 +144,7 @@ public class TypeChecker implements TypeCheckEnv {
             case "sort", "sortBy", "sortByReversed" ->
                 new com.gs.legend.compiler.checkers.SortChecker(this).check(af, source, ctx);
             case "filter" -> new com.gs.legend.compiler.checkers.FilterChecker(this).check(af, source, ctx);
-            case "limit", "take", "drop", "slice", "first", "last" ->
+            case "limit", "take", "drop", "slice" ->
                 new com.gs.legend.compiler.checkers.SlicingChecker(this).check(af, source, ctx);
             // --- Column operations ---
             case "rename" -> new com.gs.legend.compiler.checkers.RenameChecker(this).check(af, source, ctx);
