@@ -4040,6 +4040,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     LDN, UK, 2011, 3000
                     NYC, USA, 2012, 15200
                 #->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
+                ->cast(@Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)
                 ->groupBy(~[country], ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->plus()])
                 ->extend(~combined:x|$x.country->toOne() + '_test')
                 """;
@@ -4232,6 +4233,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 ->filter(x|$x.yr > 10)
                 ->select(~[city,country,year,treePlanted])
                 ->pivot(~[year], ~[newCol:x|$x.treePlanted:y|$y->plus()])
+                ->cast(@Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)
                 ->groupBy(~[country], ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->plus(),'2012__|__newCol':x|$x.'2012__|__newCol':y|$y->plus()])
                 ->extend(~newCol:x|$x.country->toOne() + '_0')
                 """;
@@ -5358,7 +5360,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     SAN, USA, 2011, 2500
                     NYC, USA, 2012, 12000
                     NYC, USA, 2012, 3200
-                #->meta::pure::functions::relation::extend(~yr:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|$x.year - 2000)->meta::pure::functions::relation::filter(x: (city:String, country:String, year:Integer, treePlanted:Integer, yr:Integer)[1]|$x.yr > 10)->meta::pure::functions::relation::select(~[city, country, year, treePlanted])->meta::pure::functions::relation::pivot(~year, ~newCol:x|$x.treePlanted:y|$y->meta::pure::functions::math::sum())->meta::pure::functions::relation::groupBy(~country, ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->meta::pure::functions::math::sum(), '2012__|__newCol':x|$x.'2012__|__newCol':y|$y->meta::pure::functions::math::sum()])->meta::pure::functions::relation::extend(~newCol:x: (country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)[1]|$x.country + '_0')->meta::pure::functions::relation::sort(~country->meta::pure::functions::relation::ascending())
+                #->meta::pure::functions::relation::extend(~yr:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|$x.year - 2000)->meta::pure::functions::relation::filter(x: (city:String, country:String, year:Integer, treePlanted:Integer, yr:Integer)[1]|$x.yr > 10)->meta::pure::functions::relation::select(~[city, country, year, treePlanted])->meta::pure::functions::relation::pivot(~year, ~newCol:x|$x.treePlanted:y|$y->meta::pure::functions::math::sum())->meta::pure::functions::lang::cast(@Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)->meta::pure::functions::relation::groupBy(~country, ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->meta::pure::functions::math::sum(), '2012__|__newCol':x|$x.'2012__|__newCol':y|$y->meta::pure::functions::math::sum()])->meta::pure::functions::relation::extend(~newCol:x: (country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)[1]|$x.country + '_0')->meta::pure::functions::relation::sort(~country->meta::pure::functions::relation::ascending())
                 """;
         var result = executeRelation(pureQuery);
         System.out.println("Pivot composition result: " + result.rows());
