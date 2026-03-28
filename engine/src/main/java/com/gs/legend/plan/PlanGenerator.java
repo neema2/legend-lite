@@ -3741,6 +3741,8 @@ public class PlanGenerator {
 
                     TypeInfo foldInfo = unit.types().get(af);
                     TypeInfo.FoldSpec spec = foldInfo != null ? foldInfo.foldSpec() : null;
+                    System.out.println("[FOLD DEBUG] foldInfo=" + foldInfo);
+                    System.out.println("[FOLD DEBUG] spec=" + spec);
 
                     if (spec == null)
                         throw new PureCompileException("fold: no FoldSpec stamped by FoldChecker");

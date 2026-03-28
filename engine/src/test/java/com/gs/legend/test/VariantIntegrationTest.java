@@ -130,7 +130,7 @@ class VariantIntegrationTest {
         // Note: get('key') returns JSON, get('key', @String) returns text
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
-                    ->extend(~page: _ | $_.PAYLOAD->get('page', @String))
+                    ->extend(~page: _ | $_.PAYLOAD->get('page')->to(@String))
                     ->filter(_ | $_.EVENT_TYPE == 'page_view')
                     ->select(~[ID, page])
                 """;
@@ -146,7 +146,7 @@ class VariantIntegrationTest {
         // Chained get: get('user') returns JSON, get('name', @String) extracts text
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
-                    ->extend(~userName: _ | $_.PAYLOAD->get('user')->get('name', @String))
+                    ->extend(~userName: _ | $_.PAYLOAD->get('user')->get('name')->to(@String))
                     ->filter(_ | $_.EVENT_TYPE == 'page_view')
                     ->select(~[ID, userName])
                 """;
@@ -176,7 +176,7 @@ class VariantIntegrationTest {
     void testMapOnJsonArray() throws SQLException {
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
-                    ->extend(~prices: _ | $_.PAYLOAD->get('items')->map(i | $i->get('price')))
+                    ->extend(~prices: _ | $_.PAYLOAD->get('items')->toMany(@Variant)->map(i | $i->get('price')))
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->select(~[ID, prices])
                 """;
@@ -204,7 +204,8 @@ class VariantIntegrationTest {
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
                     ->extend(~totalPrice: _ | $_.PAYLOAD->get('items')
-                                ->map(i | $i->get('price', @Integer))
+                                ->toMany(@Variant)
+                                ->map(i | $i->get('price')->to(@Integer))
                                 ->fold({a, v | $a + $v}, 0))
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->select(~[ID, totalPrice])
@@ -256,7 +257,8 @@ class VariantIntegrationTest {
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
                     ->extend(~calculatedTotal: _ | $_.PAYLOAD->get('items')
-                                ->map(i | $i->get('price', @Integer) * $i->get('qty', @Integer))
+                                ->toMany(@Variant)
+                                ->map(i | $i->get('price')->to(@Integer)->toOne() * $i->get('qty')->to(@Integer)->toOne())
                                 ->fold({a, v | $a + $v}, 0))
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->select(~[ID, calculatedTotal])
@@ -330,8 +332,8 @@ class VariantIntegrationTest {
                         ~mainTable [EventDatabase] T_EVENTS
                         id: [EventDatabase] T_EVENTS.ID,
                         eventType: [EventDatabase] T_EVENTS.EVENT_TYPE,
-                        price: [EventDatabase] T_EVENTS.PAYLOAD->get('price', @Integer),
-                        qty: [EventDatabase] T_EVENTS.PAYLOAD->get('qty', @Integer)
+                        price: [EventDatabase] T_EVENTS.PAYLOAD->get('price')->to(@Integer),
+                        qty: [EventDatabase] T_EVENTS.PAYLOAD->get('qty')->to(@Integer)
                     }
                 )
 
@@ -402,8 +404,8 @@ class VariantIntegrationTest {
         // With new syntax: get('field', @Type) does both extraction and casting
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
-                    ->extend(~userId: _ | $_.PAYLOAD->get('user')->get('id', @Integer))
-                    ->extend(~page: _ | $_.PAYLOAD->get('page', @String))
+                    ->extend(~userId: _ | $_.PAYLOAD->get('user')->get('id')->to(@Integer))
+                    ->extend(~page: _ | $_.PAYLOAD->get('page')->to(@String))
                     ->filter(_ | $_.EVENT_TYPE == 'page_view')
                     ->select(~[ID, userId, page])
                 """;
@@ -435,7 +437,8 @@ class VariantIntegrationTest {
         String pureQuery = """
                 #>{EventDatabase.T_EVENTS}#
                     ->extend(~totalPrice: _ | $_.PAYLOAD->get('items')
-                        ->map(i | $i->get('price', @Integer))
+                        ->toMany(@Variant)
+                        ->map(i | $i->get('price')->to(@Integer))
                         ->fold({a, v | $a + $v}, 0))
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->select(~[ID, totalPrice])
@@ -480,7 +483,7 @@ class VariantIntegrationTest {
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->extend(~items: _ | $_.PAYLOAD->get('items'))
                     ->flatten(~items)
-                    ->extend(~lineTotal: _ | $_.items->get('price', @Integer) * $_.items->get('qty', @Integer))
+                    ->extend(~lineTotal: _ | $_.items->get('price')->to(@Integer)->toOne() * $_.items->get('qty')->to(@Integer)->toOne())
                     ->select(~[ID, lineTotal])
                 """;
 
