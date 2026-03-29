@@ -3149,6 +3149,17 @@ public class PlanGenerator {
                         new SqlExpr.And(List.of(new SqlExpr.Not(a), b))));
             }
 
+            // --- write: Relation → Integer (row count) ---
+            case "write" -> {
+                // write(source, target) returns row count — compile source as subquery
+                SqlBuilder source = generateRelation(params.get(0));
+                SqlBuilder countQuery = new SqlBuilder()
+                        .addSelect(new SqlExpr.FunctionCall("COUNT",
+                                List.of(new SqlExpr.StringLiteral("*"))), null)
+                        .fromSubquery(source, "write_src");
+                yield new SqlExpr.Subquery(countQuery);
+            }
+
             // --- Collection/list ---
             case "size", "count" -> {
                 // Dispatch based on source type
@@ -3683,7 +3694,7 @@ public class PlanGenerator {
             case "toOne", "eval",
                     "list", "pair", "match",
                     "letWithParam",
-                    "groupBy", "select", "write",
+                    "groupBy", "select",
                     "compare", "comparator" -> {
                 // These are Pure-level functions that should pass through the first arg
                 if (!params.isEmpty()) {
