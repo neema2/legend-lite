@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.plan.GenericType;
 
 import java.util.*;
@@ -75,7 +76,8 @@ public class FoldChecker extends AbstractChecker {
         // 5. Classify strategy from resolved T, V
         GenericType resolvedT = bindings.getOrDefault("T", GenericType.Primitive.ANY);
         GenericType resolvedV = bindings.getOrDefault("V", GenericType.Primitive.ANY);
-        TypeInfo.FoldSpec spec = classifyFold(lambda, resolvedT, resolvedV, ctx, source);
+        TypeInfo.FoldSpec spec = classifyFold(lambda, resolvedT, resolvedV,
+                initInfo.expressionType().multiplicity(), ctx, source);
 
         // 6. Output type + FoldSpec
         ExpressionType outputType = resolveOutput(def, bindings, "fold()");
@@ -90,18 +92,21 @@ public class FoldChecker extends AbstractChecker {
     /**
      * Classifies fold into one of 4 strategies.
      * Order: Concatenation → SameType → MapReduce → CollectionBuild.
-     * Uses resolved T, V from unify() — no null checks, no fallbacks.
+     * Uses resolved T, V from unify() and the init's compiled multiplicity.
      */
     private TypeInfo.FoldSpec classifyFold(LambdaFunction lambda,
                                            GenericType resolvedT, GenericType resolvedV,
+                                           Multiplicity initMultiplicity,
                                            TypeChecker.CompilationContext ctx,
                                            TypeInfo source) {
         // 1. Concatenation: body is add(acc, elem)
         if (isFoldAddPattern(lambda))
             return new TypeInfo.FoldSpec.Concatenation();
 
-        // 2. SameType: T == V
-        if (resolvedT.typeName().equals(resolvedV.typeName()))
+        // 2. SameType: T == V, but only when init is scalar.
+        //    If init is a list (e.g., [-1, 0] → multiplicity [*]),
+        //    accumulator is a collection → must use CollectionBuild.
+        if (resolvedT.typeName().equals(resolvedV.typeName()) && !initMultiplicity.isMany())
             return new TypeInfo.FoldSpec.SameType();
 
         // 3. T ≠ V: try decomposing body → MapReduce
@@ -155,6 +160,8 @@ public class FoldChecker extends AbstractChecker {
         }
         return false;
     }
+
+
 
     /**
      * Extracts element-only transform by stripping the accumulator from
