@@ -85,7 +85,7 @@ class TypeCheckerTest {
 
     @Test
     void tableAccessResolvesTableSchema() {
-        var vs = parse("#>{PersonDatabase.T_PERSON}");
+        var vs = parse("#>{PersonDatabase.T_PERSON}#");
         var unit = compiler.check(vs);
 
         GenericType.Relation.Schema rt = unit.typeInfoFor(unit.root()).schema();
