@@ -68,6 +68,13 @@ public class ScalarChecker extends AbstractChecker {
             if (sigParam != null && isLambdaParam(sigParam) && param instanceof LambdaFunction lambda) {
                 // Lambdas are compiled AFTER resolution — they need the resolved signature
                 compileLambdaArg(lambda, sigParam, bindings, source, ctx, funcName);
+            } else if (param instanceof LambdaFunction lambda && sigParam != null) {
+                // Lambda passed to a non-Function param (e.g., pair(|expr, |expr) where sig is T[1], U[1]).
+                // These are "lazy evaluator" lambdas — {->T} sugar. Compile the body and bind the TypeVar.
+                TypeInfo bodyResult = compileLambdaBody(lambda, ctx);
+                if (bodyResult.type() != null) {
+                    unifyParam(sigParam, bodyResult.type(), bindings, funcName + "() param " + i);
+                }
             } else if (isColSpec(param)) {
                 // ColSpec params are column name tokens — no compilation needed
             } else {

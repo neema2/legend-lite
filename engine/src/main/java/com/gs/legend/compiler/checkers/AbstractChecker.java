@@ -984,13 +984,14 @@ public abstract class AbstractChecker implements FunctionChecker {
                                         TypeChecker.CompilationContext ctx, String funcName) {
         PType.FunctionType ft = extractFunctionType(sigParam);
 
-        // Bind lambda param
+        // Bind lambda params (all of them, not just the first)
         TypeChecker.CompilationContext lambdaCtx = ctx;
-        if (!lambda.parameters().isEmpty() && !ft.paramTypes().isEmpty()) {
-            String paramName = lambda.parameters().get(0).name();
-            GenericType resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
-                    funcName + "() lambda param");
-            lambdaCtx = bindLambdaParam(ctx, paramName, resolvedParamType, source);
+        int paramCount = Math.min(lambda.parameters().size(), ft.paramTypes().size());
+        for (int pi = 0; pi < paramCount; pi++) {
+            String paramName = lambda.parameters().get(pi).name();
+            GenericType resolvedParamType = resolve(ft.paramTypes().get(pi).type(), bindings,
+                    funcName + "() lambda param " + pi);
+            lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
         }
 
         // Compile body
