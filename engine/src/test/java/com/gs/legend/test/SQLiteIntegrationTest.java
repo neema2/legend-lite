@@ -143,7 +143,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
 
         Table personTable = modelBuilder.getTable("T_PERSON");
         assertNotNull(personTable);
-        assertEquals(4, personTable.columns().size());
+        assertEquals(5, personTable.columns().size());
 
         RelationalMapping mapping = mappingRegistry.getByClassName("Person");
         assertEquals(3, mapping.propertyMappings().size());

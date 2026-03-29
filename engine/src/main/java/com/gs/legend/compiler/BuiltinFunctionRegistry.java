@@ -71,7 +71,61 @@ public class BuiltinFunctionRegistry {
     public void registerSignature(String name, String pureSignature) {
         String rawSignature = pureSignature.trim();
         var def = com.gs.legend.parser.PureParser.parseNativeFunction(rawSignature);
-        register(def);
+        register(normalizeConstraints(def));
+    }
+
+    /**
+     * Post-parse normalization: strips SchemaAlgebra constraints from the PType tree,
+     * leaving bare type variables for overload resolution and structural matching.
+     *
+     * <p>Constraints are metadata (e.g., Z⊆T means "Z must be a column subset of T").
+     * For type matching, only the type variable (Z) matters. The constraint is preserved
+     * in {@code rawSignature} for schema inference.
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>{@code ColSpecArray<Z⊆T>} → {@code ColSpecArray<Z>}</li>
+     *   <li>{@code Relation<T+V>} → {@code Relation<T>} (algebra stripped, rawSignature preserved)</li>
+     *   <li>{@code ColSpec<Z=(?:K)⊆T>} → {@code ColSpec<Z>}</li>
+     * </ul>
+     */
+    private static NativeFunctionDef normalizeConstraints(NativeFunctionDef def) {
+        var normalizedParams = def.params().stream()
+                .map(p -> new PType.Param(p.name(), normalizeType(p.type()), p.mult()))
+                .toList();
+        PType normalizedReturn = normalizeType(def.returnType());
+        return new NativeFunctionDef(
+                def.name(), def.typeParams(), def.multParams(),
+                normalizedParams, normalizedReturn, def.returnMult(),
+                def.rawSignature());
+    }
+
+    /**
+     * Recursively normalizes a PType by stripping SchemaAlgebra to its left operand.
+     * Only strips constraint operations (Subset, Equal) — these are validation metadata.
+     * Preserves structural operations (Union, Difference) — these describe actual schema shape
+     * needed for join/rename return types like {@code Relation<T+V>} and {@code Relation<T-Z+V>}.
+     */
+    private static PType normalizeType(PType type) {
+        return switch (type) {
+            case PType.SchemaAlgebra sa -> switch (sa.op()) {
+                // Constraints: strip to left operand (the type variable)
+                case Subset, Equal -> normalizeType(sa.left());
+                // Structural: keep but normalize children
+                case Union, Difference -> new PType.SchemaAlgebra(
+                        normalizeType(sa.left()), normalizeType(sa.right()), sa.op());
+            };
+            case PType.Parameterized p -> new PType.Parameterized(
+                    p.rawType(),
+                    p.typeArgs().stream().map(BuiltinFunctionRegistry::normalizeType).toList());
+            case PType.FunctionType ft -> new PType.FunctionType(
+                    ft.paramTypes().stream()
+                            .map(p -> new PType.Param(p.name(), normalizeType(p.type()), p.mult()))
+                            .toList(),
+                    normalizeType(ft.returnType()),
+                    ft.returnMult());
+            default -> type; // Concrete, TypeVar, RelationTypeVar — already clean
+        };
     }
 
     /**

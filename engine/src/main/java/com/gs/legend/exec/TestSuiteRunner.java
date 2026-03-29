@@ -81,18 +81,10 @@ public class TestSuiteRunner {
                     ? functionBody.substring(1).trim()
                     : functionBody.trim();
 
-            // For now, we'll use a simplified approach - execute a projection query
-            // The full implementation would parse and execute the graphFetch
-            // For this iteration, we extract the class name and run a basic query
-            String className = extractClassNameFromQuery(pureQuery);
-
-            // Build a simple projection query
-            String simpleQuery = className + ".all()->project({x | $x.firstName}, {x | $x.lastName})";
-
-            // Execute the query
+            // Execute the actual query from the test suite function body
             ExecutionResult result = queryService.execute(
                     fullModel,
-                    simpleQuery,
+                    pureQuery,
                     runtimeName,
                     connection);
 
@@ -115,15 +107,7 @@ public class TestSuiteRunner {
         }
     }
 
-    private String extractClassNameFromQuery(String query) {
-        // Extract class name from queries like "Person.all()->..." or
-        // "model::Person.all()->..."
-        int allIdx = query.indexOf(".all()");
-        if (allIdx > 0) {
-            return query.substring(0, allIdx).trim();
-        }
-        return "Person"; // fallback
-    }
+
 
     private String resultToJson(ExecutionResult result) {
         StringBuilder sb = new StringBuilder();
