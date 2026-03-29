@@ -709,6 +709,10 @@ public abstract class AbstractChecker implements FunctionChecker {
                     if (modelCtx != null && modelCtx.findClass(c.name()).isPresent()) {
                         yield new GenericType.ClassType(c.name());
                     }
+                    // Meta-model types that map to String in SQL context
+                    if ("Type".equals(c.name())) {
+                        yield GenericType.Primitive.STRING;
+                    }
                     throw new PureCompileException(
                             context + ": unresolvable concrete type: " + c.name());
                 }
