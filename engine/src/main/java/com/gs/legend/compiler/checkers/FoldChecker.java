@@ -10,15 +10,20 @@ import java.util.*;
 /**
  * Signature-driven type checker + strategy classifier for {@code fold()}.
  *
- * <p>Signature: {@code fold<T,V>(source:T[*], lambda:{T[1],V[1]->V[1]}[1], init:V[1]):V[1]}
+ * <p>
+ * Signature:
+ * {@code fold<T,V>(source:T[*], lambda:{T[1],V[1]->V[1]}[1], init:V[1]):V[1]}
  *
- * <p>Two responsibilities:
+ * <p>
+ * Two responsibilities:
  * <ol>
- *   <li>Type-check via resolveOverload/unify/resolve (standard checker flow)</li>
- *   <li>Classify fold → stamp {@link TypeInfo.FoldSpec} (PlanGenerator reads it)</li>
+ * <li>Type-check via resolveOverload/unify/resolve (standard checker flow)</li>
+ * <li>Classify fold → stamp {@link TypeInfo.FoldSpec} (PlanGenerator reads
+ * it)</li>
  * </ol>
  *
- * <p>Pure type-checking only — no AST rewriting, no dialect awareness.
+ * <p>
+ * Pure type-checking only — no AST rewriting, no dialect awareness.
  * DuckDB-specific lowering is handled downstream in PlanGenerator.
  */
 public class FoldChecker extends AbstractChecker {
@@ -28,7 +33,7 @@ public class FoldChecker extends AbstractChecker {
     }
 
     public TypeInfo check(AppliedFunction af, TypeInfo source,
-                          TypeChecker.CompilationContext ctx) {
+            TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         if (params.size() < 3)
             throw new PureCompileException("fold() requires 3 parameters: source, lambda, init");
@@ -43,17 +48,18 @@ public class FoldChecker extends AbstractChecker {
         ExpressionType sourceExprType = source.expressionType();
         GenericType sourceTypeForUnify = sourceExprType.type();
         var bindings = unify(def, Arrays.asList(
-                new ExpressionType(sourceTypeForUnify, sourceExprType.multiplicity()),  // param[0]: T[*]
-                null,                                                // param[1]: lambda — skip
-                initInfo.expressionType()                           // param[2]: V[1]
+                new ExpressionType(sourceTypeForUnify, sourceExprType.multiplicity()), // param[0]: T[*]
+                null, // param[1]: lambda — skip
+                initInfo.expressionType() // param[2]: V[1]
         ));
 
         // 4. Compile lambda via signature-driven param binding
         if (!(params.get(1) instanceof LambdaFunction lambda))
             throw new PureCompileException("fold() argument 2 must be a lambda");
 
-        // 4a. Early-exit for Concatenation: body is add(acc, elem) — structurally correct,
-        //     skip compileLambdaBody which would fail on add() when T=Any (empty sources).
+        // 4a. Early-exit for Concatenation: body is add(acc, elem) — structurally
+        // correct,
+        // skip compileLambdaBody which would fail on add() when T=Any (empty sources).
         if (isFoldAddPattern(lambda)) {
             ExpressionType outputType = resolveOutput(def, bindings, "fold()");
             return TypeInfo.builder()
@@ -95,27 +101,29 @@ public class FoldChecker extends AbstractChecker {
      * Uses resolved T, V from unify() and the init's compiled multiplicity.
      */
     private TypeInfo.FoldSpec classifyFold(LambdaFunction lambda,
-                                           GenericType resolvedT, GenericType resolvedV,
-                                           Multiplicity initMultiplicity,
-                                           TypeChecker.CompilationContext ctx,
-                                           TypeInfo source) {
+            GenericType resolvedT, GenericType resolvedV,
+            Multiplicity initMultiplicity,
+            TypeChecker.CompilationContext ctx,
+            TypeInfo source) {
         // 1. Concatenation: body is add(acc, elem)
         if (isFoldAddPattern(lambda))
             return new TypeInfo.FoldSpec.Concatenation();
 
         // 2. SameType: T == V, but only when init is scalar.
-        //    If init is a list (e.g., [-1, 0] → multiplicity [*]),
-        //    accumulator is a collection → must use CollectionBuild.
+        // If init is a list (e.g., [-1, 0] → multiplicity [*]),
+        // accumulator is a collection → must use CollectionBuild.
         if (resolvedT.typeName().equals(resolvedV.typeName()) && !initMultiplicity.isMany())
             return new TypeInfo.FoldSpec.SameType();
 
         // 3. T ≠ V: try decomposing body → MapReduce
         String accParam = lambda.parameters().size() >= 2
-                ? lambda.parameters().get(1).name() : "y";
+                ? lambda.parameters().get(1).name()
+                : "y";
         ValueSpecification transform = extractElementTransform(
                 lambda.body().get(0), accParam);
         if (transform != null) {
-            // extractElementTransform creates synthetic wrapper nodes — compile to stamp them
+            // extractElementTransform creates synthetic wrapper nodes — compile to stamp
+            // them
             String elemParam = lambda.parameters().get(0).name();
             var transformCtx = bindLambdaParam(ctx, elemParam, resolvedT, source);
             env.compileExpr(transform, transformCtx);
@@ -123,7 +131,8 @@ public class FoldChecker extends AbstractChecker {
             // Build and compile the reducer: op(acc, __mr_x) with both params bound to V
             String freshParam = "__mr_x";
             String fullFunctionRef = (lambda.body().get(0) instanceof AppliedFunction af)
-                    ? af.function() : "plus";
+                    ? af.function()
+                    : "plus";
             var accVar = new Variable(accParam);
             var freshVar = new Variable(freshParam);
             var reducerBody = new AppliedFunction(fullFunctionRef,
@@ -147,7 +156,8 @@ public class FoldChecker extends AbstractChecker {
      * True if body is the identity-add pattern: {e, a | $a->add($e)}.
      */
     private static boolean isFoldAddPattern(LambdaFunction lf) {
-        if (lf.parameters().size() < 2 || lf.body().isEmpty()) return false;
+        if (lf.parameters().size() < 2 || lf.body().isEmpty())
+            return false;
         String elemParam = lf.parameters().get(0).name();
         String accParam = lf.parameters().get(1).name();
         if (lf.body().get(0) instanceof AppliedFunction bodyAf
@@ -161,21 +171,23 @@ public class FoldChecker extends AbstractChecker {
         return false;
     }
 
-
-
     /**
      * Extracts element-only transform by stripping the accumulator from
      * the left spine of ANY binary op chain (not just plus).
      *
-     * <p>Example: {@code plus(plus(acc, '; '), p.name)} → {@code plus('; ', p.name)}
-     * <p>Example: {@code times(acc, length(x))} → {@code length(x)}
+     * <p>
+     * Example: {@code plus(plus(acc, '; '), p.name)} → {@code plus('; ', p.name)}
+     * <p>
+     * Example: {@code times(acc, length(x))} → {@code length(x)}
      *
      * @return element-only subtree, or null if not decomposable
      */
     private static ValueSpecification extractElementTransform(
             ValueSpecification body, String accParam) {
-        if (!(body instanceof AppliedFunction af)) return null;
-        if (af.parameters().size() != 2) return null;
+        if (!(body instanceof AppliedFunction af))
+            return null;
+        if (af.parameters().size() != 2)
+            return null;
         String op = TypeInfo.simpleName(af.function());
 
         ValueSpecification left = af.parameters().get(0);

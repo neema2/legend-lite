@@ -1162,7 +1162,7 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("hash() — MD5")
         void testHash() throws SQLException {
-            var r = executeRelation("|#TDS\nstr\nhello\n#->extend(~h: x | $x.str->hash('MD5'))");
+            var r = executeRelation("|#TDS\nstr\nhello\n#->extend(~h: x | $x.str->hash(meta::pure::functions::hash::HashType.MD5))");
             // MD5 of "hello" = 5d41402abc4b2a76b9719d911017c592
             assertEquals("5d41402abc4b2a76b9719d911017c592",
                     r.rows().get(0).get(colIdx(r, "h")));
