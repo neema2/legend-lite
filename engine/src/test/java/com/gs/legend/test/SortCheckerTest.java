@@ -468,15 +468,22 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("sort with wrong syntax throws (string column name)")
-        void testSortStringColumnRejects() {
-            // Legacy sort('col') syntax is no longer supported
-            assertThrows(Exception.class, () ->
-                    executeRelation("""
+        @DisplayName("sort with legacy string column name syntax works (TDS backward compat)")
+        void testSortStringColumnRejects() throws SQLException {
+            // Legacy sort('col') syntax is supported via String[*] overload
+            var result = executeRelation("""
                             |#TDS
                             id, name
+                            3, Charlie
                             1, Alice
-                            #->sort('id')"""));
+                            2, Bob
+                            #->sort('id')""");
+            assertNotNull(result);
+            assertEquals(3, result.rows().size());
+            // Sorted ascending by id: 1, 2, 3
+            assertEquals(1, result.rows().get(0).values().get(0));
+            assertEquals(2, result.rows().get(1).values().get(0));
+            assertEquals(3, result.rows().get(2).values().get(0));
         }
 
         @Test

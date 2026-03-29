@@ -526,7 +526,7 @@ public class BuiltinFunctionRegistry {
                 "native function levenshteinDistance(s1:String[1], s2:String[1]):Integer[1];");
         reg.registerSignature("jaroWinklerSimilarity",
                 "native function jaroWinklerSimilarity(s1:String[1], s2:String[1]):Float[1];");
-        reg.registerSignature("hashCode", "native function hashCode(str:String[1]):Integer[1];");
+        reg.registerSignature("hashCode", "native function hashCode(val:Any[*]):Integer[1];");
 
         // ===== Math (basic) =====
         reg.registerSignature("abs", "native function abs<T>(number:T[1]):T[1];");
