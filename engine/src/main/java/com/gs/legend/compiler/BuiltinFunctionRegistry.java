@@ -241,6 +241,9 @@ public class BuiltinFunctionRegistry {
         // Legacy TDS: sort(rel, colName, direction) — desugared in SortChecker
         reg.registerSignature("sort",
                 "native function sort<T>(rel:Relation<T>[1], col:String[1], direction:SortDirection[1]):Relation<T>[1];");
+        // Legacy TDS: sort(rel, colNames) — defaults to ascending (Handlers.java line 1986)
+        reg.registerSignature("sort",
+                "native function sort<T>(rel:Relation<T>[1], cols:String[*]):Relation<T>[1];");
         // limit, drop, slice registered in registerScalarFunctions (relation + scalar overloads)
         reg.registerSignature("concatenate",
                 "native function concatenate<T>(rel1:Relation<T>[1], rel2:Relation<T>[1]):Relation<T>[1];");

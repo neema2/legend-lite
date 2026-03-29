@@ -57,9 +57,10 @@ public class SortChecker extends AbstractChecker {
                 }
             }
             NativeFunctionDef def = resolveOverload("sort", params, source, compiledTypes);
+            // Legacy TDS: sort(Relation, String) — arity 2, default ASC
             // Legacy TDS: sort(Relation, String, SortDirection) — arity 3
             // Rewrite to sort(ascending(~col)) and recompile through modern path
-            if (def.arity() == 3) {
+            if (params.size() >= 2 && params.get(1) instanceof CString) {
                 return checkLegacySort(af, source, ctx);
             }
             return checkRelationSort(af, source, def);
@@ -133,19 +134,22 @@ public class SortChecker extends AbstractChecker {
             throw new PureCompileException("sort(): legacy syntax requires column name as String");
         }
 
-        // Extract direction from param[2] (EnumValue) — required, no defaulting
-        if (!(params.get(2) instanceof EnumValue ev)) {
-            throw new PureCompileException(
-                    "sort(): legacy syntax requires SortDirection enum (e.g., SortDirection.ASC), got "
-                    + params.get(2).getClass().getSimpleName());
+        // Extract direction: 3-arg has explicit SortDirection, 2-arg defaults to ASC
+        String dirFn = "ascending"; // default for 2-arg form
+        if (params.size() >= 3) {
+            if (!(params.get(2) instanceof EnumValue ev)) {
+                throw new PureCompileException(
+                        "sort(): legacy syntax requires SortDirection enum (e.g., SortDirection.ASC), got "
+                        + params.get(2).getClass().getSimpleName());
+            }
+            dirFn = switch (ev.value().toUpperCase()) {
+                case "ASC", "ASCENDING" -> "ascending";
+                case "DESC", "DESCENDING" -> "descending";
+                default -> throw new PureCompileException(
+                        "sort(): unknown SortDirection value '" + ev.value()
+                        + "', expected ASC or DESC");
+            };
         }
-        String dirFn = switch (ev.value().toUpperCase()) {
-            case "ASC", "ASCENDING" -> "ascending";
-            case "DESC", "DESCENDING" -> "descending";
-            default -> throw new PureCompileException(
-                    "sort(): unknown SortDirection value '" + ev.value()
-                    + "', expected ASC or DESC");
-        };
 
         // Build: ascending(~col) or descending(~col)
         var colSpec = new ColSpec(colName, null);
