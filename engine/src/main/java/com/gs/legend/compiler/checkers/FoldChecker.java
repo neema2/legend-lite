@@ -39,14 +39,8 @@ public class FoldChecker extends AbstractChecker {
         TypeInfo initInfo = env.compileExpr(params.get(2), ctx);
 
         // 3. Unify: T from source, V from init
-        // Source expression type may be List<X>[*] — fold signature is T[*],
-        // so T must be the element type (X), not List<X>.
         ExpressionType sourceExprType = source.expressionType();
         GenericType sourceTypeForUnify = sourceExprType.type();
-        if (sourceTypeForUnify instanceof GenericType.Parameterized p
-                && "List".equals(p.rawType())) {
-            sourceTypeForUnify = p.elementType();  // List<X> → X
-        }
         var bindings = unify(def, Arrays.asList(
                 new ExpressionType(sourceTypeForUnify, sourceExprType.multiplicity()),  // param[0]: T[*]
                 null,                                                // param[1]: lambda — skip

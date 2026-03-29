@@ -358,8 +358,11 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
             }
 
             // Canonical @Relation<(col:Type, ...)> — structurally walk the parse tree
-            if (typeCtx.qualifiedName() != null
-                    && "Relation".equals(typeCtx.qualifiedName().getText())
+            // Match both short ("Relation") and fully qualified ("meta::pure::metamodel::relation::Relation")
+            String qnText = typeCtx.qualifiedName() != null ? typeCtx.qualifiedName().getText() : null;
+            String simpleName = qnText != null && qnText.contains("::") ? qnText.substring(qnText.lastIndexOf("::") + 2) : qnText;
+            if (qnText != null
+                    && "Relation".equals(simpleName)
                     && typeCtx.typeArguments() != null) {
                 // Walk typeArguments → typeWithOperation → type → relationType → columnInfo*
                 for (var twa : typeCtx.typeArguments().typeWithOperation()) {

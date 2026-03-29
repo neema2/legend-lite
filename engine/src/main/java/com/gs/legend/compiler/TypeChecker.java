@@ -325,9 +325,6 @@ public class TypeChecker implements TypeCheckEnv {
                 }
             }
         }
-
-        var rt = GenericType.Relation.Schema.withoutPivot(columns);
-
         // Build identity mapping — scalar primitives get identity PropertyMappings
         var identityMapping = RelationalMapping.identity(pureClass);
 
@@ -351,7 +348,7 @@ public class TypeChecker implements TypeCheckEnv {
         var info = TypeInfo.builder()
                 .mapping(identityMapping)
                 .associations(associations.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(associations))
-                .expressionType(ExpressionType.one(new GenericType.Relation(rt)))
+                .expressionType(ExpressionType.one(new GenericType.ClassType(data.className())))
                 .build();
         types.put(ci, info);
         return info;
@@ -760,7 +757,7 @@ public class TypeChecker implements TypeCheckEnv {
                 // Extract the column's GenericType for the return type
                 GenericType colType = ownerInfo.schema().getColumnType(ap.property());
                 ExpressionType propExprType = colType != null
-                        ? ExpressionType.many(GenericType.listOf(colType)) // String[*], Integer[*], etc.
+                        ? ExpressionType.many(colType) // String[*], Integer[*], etc.
                         : null;
                 var info = TypeInfo.from(projectInfo)
                         .inlinedBody(projectNode)
@@ -833,22 +830,21 @@ public class TypeChecker implements TypeCheckEnv {
             compileExpr(v, ctx);
         }
         GenericType elementType = unifyElementType(coll.values());
-        // For struct collections, carry both list type AND struct column info
-        // so isList() works (for contains/head/find dispatch) AND project() can resolve
-        // columns
+        // For struct collections, propagate mapping + associations from first element
+        // so downstream checkers (project, filter) can resolve columns via mapping.
         if (!coll.values().isEmpty()) {
             TypeInfo firstElem = types.get(coll.values().get(0));
-            if (firstElem != null && firstElem.mapping() != null && firstElem.schema() != null) {
+            if (firstElem != null && firstElem.mapping() != null) {
                 var info = TypeInfo.builder()
                         .mapping(firstElem.mapping())
                         .associations(firstElem.associations())
-                        .expressionType(ExpressionType.many(GenericType.listOf(elementType)))
+                        .expressionType(ExpressionType.many(elementType))
                         .build();
                 types.put(coll, info);
                 return info;
             }
         }
-        return scalarTypedMany(coll, GenericType.listOf(elementType));
+        return scalarTypedMany(coll, elementType);
     }
 
     /**
@@ -871,7 +867,7 @@ public class TypeChecker implements TypeCheckEnv {
             case CStrictDate sd -> GenericType.Primitive.STRICT_DATE;
             case CStrictTime st -> GenericType.Primitive.STRICT_TIME;
             case CLatestDate ld -> GenericType.Primitive.DATE_TIME;
-            case PureCollection c -> GenericType.listOf(unifyElementType(c.values()));
+            case PureCollection c -> unifyElementType(c.values());
             case ClassInstance ci when "instance".equals(ci.type())
                     && ci.value() instanceof ValueSpecificationBuilder.InstanceData data ->
                 new GenericType.ClassType(data.className());

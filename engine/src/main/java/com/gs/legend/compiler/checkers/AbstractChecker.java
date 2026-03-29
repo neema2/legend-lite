@@ -124,7 +124,16 @@ public abstract class AbstractChecker implements FunctionChecker {
 
         // Step 2: structural matching — uses compiled types (type + multiplicity) when available
         var matches = arityMatches.stream()
-                .filter(d -> matchesStructurally(d, params, source, compiledTypes))
+                .filter(d -> {
+                    boolean m = matchesStructurally(d, params, source, compiledTypes);
+                    if ("extend".equals(funcName)) {
+                        System.out.println("[DEBUG] extend candidate: " + d
+                            + " matched=" + m
+                            + " source=" + (source != null ? source.expressionType() : "null")
+                            + " compiledTypes=" + compiledTypes);
+                    }
+                    return m;
+                })
                 .toList();
         if (matches.size() == 1) {
             return matches.get(0);
@@ -319,7 +328,15 @@ public abstract class AbstractChecker implements FunctionChecker {
             ValueSpecification actual = params.get(i);
             ExpressionType compiledExpr = compiledTypes.get(i);
             GenericType compiledType = compiledExpr != null ? compiledExpr.type() : null;
-            if (!structuralMatch(expected, actual, source, i == 0, compiledType)) {
+            boolean sm = structuralMatch(expected, actual, source, i == 0, compiledType);
+            if ("extend".equals(def.name())) {
+                System.out.println("[DEBUG]   extend param[" + i + "]: expected=" + expected
+                    + " actual=" + actual.getClass().getSimpleName()
+                    + " compiledType=" + compiledType
+                    + " compiledMult=" + (compiledExpr != null ? compiledExpr.multiplicity() : "null")
+                    + " structMatch=" + sm);
+            }
+            if (!sm) {
                 return false;
             }
             // Multiplicity check: if we have compiled multiplicity, verify it
@@ -350,9 +367,17 @@ public abstract class AbstractChecker implements FunctionChecker {
         }
         if (expected instanceof PType.Parameterized p) {
             return switch (p.rawType()) {
-                case "Relation" -> isSource
+                case "Relation" -> {
+                    if (isSource) {
+                        System.out.println("[DEBUG-SM] Relation isSource=true source=" + source
+                            + " isRel=" + (source != null ? source.isRelational() : "NULL")
+                            + " type=" + (source != null ? source.type() : "NULL")
+                            + " typeClass=" + (source != null ? source.type().getClass().getSimpleName() : "NULL"));
+                    }
+                    yield isSource
                         ? (source != null && source.isRelational())
                         : actual instanceof ClassInstance ci && "relation".equals(ci.type());
+                }
                 case "ColSpec"
                         -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type());
                 case "FuncColSpec"
@@ -538,12 +563,8 @@ public abstract class AbstractChecker implements FunctionChecker {
                            Bindings bindings, String context) {
         switch (expected) {
             case PType.TypeVar v -> {
-                // Normalize: unwrap List<T> → element type, PrecisionDecimal → DECIMAL
-                // (PureCollection [1,2,'a'] has type List<Any>, but T should bind to Any)
+                // Normalize: PrecisionDecimal → DECIMAL
                 GenericType normalized = actual;
-                if (normalized instanceof GenericType.Parameterized pp && "List".equals(pp.rawType())) {
-                    normalized = pp.elementType();
-                }
                 if (normalized instanceof GenericType.PrecisionDecimal) {
                     normalized = GenericType.Primitive.DECIMAL;
                 }
@@ -612,7 +633,6 @@ public abstract class AbstractChecker implements FunctionChecker {
                 }
                 // Normalize actual AND signature type:
                 //   PrecisionDecimal → DECIMAL (for both)
-                //   List<T> → element type (for collection-to-aggregate: [1,2]->sum())
                 GenericType gNorm = g;
                 if (gNorm instanceof GenericType.PrecisionDecimal) {
                     gNorm = GenericType.Primitive.DECIMAL;
@@ -620,13 +640,6 @@ public abstract class AbstractChecker implements FunctionChecker {
                 GenericType norm = actual;
                 if (norm instanceof GenericType.PrecisionDecimal) {
                     norm = GenericType.Primitive.DECIMAL;
-                }
-                if (norm instanceof GenericType.Parameterized pp && "List".equals(pp.rawType())) {
-                    norm = pp.elementType();
-                    // elementType might be PrecisionDecimal
-                    if (norm instanceof GenericType.PrecisionDecimal) {
-                        norm = GenericType.Primitive.DECIMAL;
-                    }
                 }
                 if (gNorm instanceof GenericType.Primitive expectedPrim
                         && norm instanceof GenericType.Primitive actualPrim) {
@@ -840,11 +853,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             return lambdaCtx;
         } else {
-            GenericType elemType = resolvedType;
-            if (elemType.isList()) {
-                elemType = elemType.elementType();
-            }
-            return ctx.withLambdaParam(paramName, elemType);
+            return ctx.withLambdaParam(paramName, resolvedType);
         }
     }
 
