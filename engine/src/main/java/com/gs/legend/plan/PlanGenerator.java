@@ -1396,7 +1396,7 @@ public class PlanGenerator {
 
             SqlExpr aggExpr = generateAggFromAst(acs, ast);
             if (acs.castType() != null)
-                aggExpr = new SqlExpr.Cast(aggExpr, dialect.sqlTypeName(acs.castType().typeName()));
+                aggExpr = new SqlExpr.Cast(aggExpr, acs.castType().typeName());
             builder.addSelect(aggExpr, dialect.quoteIdentifier(acs.alias()));
         }
 
@@ -1419,7 +1419,7 @@ public class PlanGenerator {
 
             SqlExpr aggExpr = generateAggFromAst(acs, ast);
             if (acs.castType() != null)
-                aggExpr = new SqlExpr.Cast(aggExpr, dialect.sqlTypeName(acs.castType().typeName()));
+                aggExpr = new SqlExpr.Cast(aggExpr, acs.castType().typeName());
             builder.addSelect(aggExpr, dialect.quoteIdentifier(acs.alias()));
         }
 
@@ -1606,7 +1606,7 @@ public class PlanGenerator {
 
                 if (ws.castType() != null) {
                     funcExpr = new SqlExpr.Cast(funcExpr,
-                            dialect.sqlTypeName(ws.castType().typeName()));
+                            ws.castType().typeName());
                 }
                 b.addWindowColumn(funcExpr, null, quotedAlias);
             }
@@ -2044,7 +2044,7 @@ public class PlanGenerator {
 
             SqlExpr aggExpr = generateAggFromAst(acs, ast);
             if (acs.castType() != null)
-                aggExpr = new SqlExpr.Cast(aggExpr, dialect.sqlTypeName(acs.castType().typeName()));
+                aggExpr = new SqlExpr.Cast(aggExpr, acs.castType().typeName());
             String exprSql = aggExpr.toSql(dialect);
             aggregates.add(new SqlBuilder.PivotAggregate(exprSql, acs.alias()));
         }

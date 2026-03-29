@@ -466,7 +466,7 @@ public class BuiltinFunctionRegistry {
                 "native function toLowerFirstCharacter(str:String[1]):String[1];");
         reg.registerSignature("encodeBase64", "native function encodeBase64(str:String[1]):String[1];");
         reg.registerSignature("decodeBase64", "native function decodeBase64(str:String[1]):String[1];");
-        reg.registerSignature("hash", "native function hash(str:String[1], algorithm:String[1]):String[1];");
+        reg.registerSignature("hash", "native function hash(str:String[1], algorithm:HashType[1]):String[1];");
         reg.registerSignature("hash", "native function hash(str:String[1]):String[1];");
         reg.registerSignature("levenshteinDistance",
                 "native function levenshteinDistance(s1:String[1], s2:String[1]):Integer[1];");
