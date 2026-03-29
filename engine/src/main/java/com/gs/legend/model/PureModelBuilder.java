@@ -356,7 +356,19 @@ public final class PureModelBuilder implements ModelContext {
                         if (pm.isExpression()) {
                             // Expression-based mapping (e.g., PAYLOAD->get('price', @Integer))
                             String colName = extractColumnNameFromExpression(pm.expressionString());
-                            return PropertyMapping.expression(pm.propertyName(), colName, pm.expressionString());
+                            String expr = pm.expressionString();
+
+                            // Auto-infer cast type from class property when get() lacks @Type
+                            var prop = pureClass.findProperty(pm.propertyName());
+                            if (prop.isPresent() && expr.matches(".*->get\\('[^']+?'\\)\\s*$")) {
+                                String pureType = prop.get().genericType().typeName();
+                                if (!"Any".equals(pureType) && !"Variant".equals(pureType)) {
+                                    expr = expr.replaceFirst(
+                                            "->get\\('([^']+?)'\\)\\s*$",
+                                            "->get('$1', @" + pureType + ")");
+                                }
+                            }
+                            return PropertyMapping.expression(pm.propertyName(), colName, expr);
                         } else if (pm.hasEnumMapping()) {
                             // Enum column mapping with enumeration mapping
                             String columnName = pm.columnReference().columnName();
