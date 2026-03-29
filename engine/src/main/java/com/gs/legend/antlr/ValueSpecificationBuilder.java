@@ -309,7 +309,8 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
             if (signed.MINUS() != null) {
                 return new AppliedFunction("minus", List.of(inner));
             }
-            return inner; // unary + is identity
+            // Unary + preserved as plus() — in aggregate fn2 context, +($x) means sum
+            return new AppliedFunction("plus", List.of(inner));
         }
         if (ctx.expressionsArray() != null) {
             return visit(ctx.expressionsArray());
