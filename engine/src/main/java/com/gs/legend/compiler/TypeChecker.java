@@ -100,7 +100,7 @@ public class TypeChecker implements TypeCheckEnv {
             case LambdaFunction lf -> compileLambda(lf, ctx);
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
-            case PackageableElementPtr pe -> scalarTyped(pe, GenericType.Primitive.STRING);
+            case PackageableElementPtr pe -> resolvePackageableElement(pe);
             case GenericTypeInstance gti -> scalarTyped(gti, GenericType.Primitive.STRING);
             case PureCollection coll -> compileCollection(coll, ctx);
             // Literals — scalar with known type
@@ -117,6 +117,69 @@ public class TypeChecker implements TypeCheckEnv {
             case EnumValue ev -> scalarTyped(ev, new GenericType.EnumType(ev.fullPath()));
             case UnitInstance ui -> scalarTyped(ui, GenericType.Primitive.FLOAT);
         };
+    }
+
+    // ========== PackageableElement Resolution ==========
+
+    /**
+     * Resolves a PackageableElementPtr to the correct GenericType by looking up
+     * the name in all available registries — analogous to legend-engine's
+     * {@code CompileContext.resolvePackageableElement()}.
+     *
+     * <p>Resolution order:
+     * <ol>
+     *   <li>Function registries (builtin + user) → {@link GenericType.FunctionReference}</li>
+     *   <li>Class registry → {@link GenericType.ClassType}</li>
+     *   <li>Mapping registry → {@link GenericType.ClassType} (named element)</li>
+     *   <li>Enum registry → {@link GenericType.EnumType}</li>
+     *   <li>Unresolved → {@link GenericType.ClassType} with full path
+     *       (runtimes, stores — named elements not yet in registries)</li>
+     * </ol>
+     *
+     * <p>Function signature-encoded names (e.g.,
+     * {@code eq_Any_1__Any_1__Boolean_1_}) are decoded by extracting the base
+     * name before the first {@code _} when the name contains {@code __}
+     * (the Pure parameter-group separator).
+     */
+    private TypeInfo resolvePackageableElement(PackageableElementPtr pe) {
+        String path = pe.fullPath();
+        String name = simpleName(path);
+
+        // 1. Check function registries
+        //    Direct match first (e.g., "removeDuplicates")
+        if (builtinRegistry.isRegistered(name) || functionRegistry.hasFunction(path)
+                || functionRegistry.hasFunction(name)) {
+            return scalarTyped(pe, new GenericType.FunctionReference(path));
+        }
+        //    Signature-encoded name (e.g., "eq_Any_1__Any_1__Boolean_1_"):
+        //    Pure encodes function signatures as name_Type_mult__Type_mult__RetType_mult_
+        //    The double-underscore __ separates parameter groups.
+        if (name.contains("__")) {
+            int firstUnderscore = name.indexOf('_');
+            if (firstUnderscore > 0) {
+                String baseName = name.substring(0, firstUnderscore);
+                if (builtinRegistry.isRegistered(baseName)) {
+                    return scalarTyped(pe, new GenericType.FunctionReference(path));
+                }
+            }
+        }
+
+        // 2. Check model registries
+        if (modelContext.findClass(path).isPresent() || modelContext.findClass(name).isPresent()) {
+            return scalarTyped(pe, new GenericType.ClassType(path));
+        }
+        if (modelContext.findMapping(path).isPresent() || modelContext.findMapping(name).isPresent()) {
+            return scalarTyped(pe, new GenericType.ClassType(path));
+        }
+        if (modelContext.findEnum(path).isPresent() || modelContext.findEnum(name).isPresent()) {
+            return scalarTyped(pe, new GenericType.EnumType(path));
+        }
+
+        // 3. Unresolved — named element reference (runtimes, stores, etc.)
+        //    These are valid Pure elements not yet in our registries.
+        //    Type as ClassType (a named reference) rather than STRING.
+        //    TODO: Add findRuntime/findStore to ModelContext for full resolution.
+        return scalarTyped(pe, new GenericType.ClassType(path));
     }
 
     // ========== Function Dispatch ==========

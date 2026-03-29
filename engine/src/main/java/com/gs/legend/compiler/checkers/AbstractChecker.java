@@ -361,8 +361,14 @@ public abstract class AbstractChecker implements FunctionChecker {
                                     TypeInfo source, boolean isSource,
                                     GenericType compiledType) {
         // PureCollection wraps multiple elements (e.g., [ascending(~id), ascending(~name)])
+        // For Concrete types with a compiled collection type, use that directly —
+        // recursing into elements loses the compiled type context.
         if (actual instanceof PureCollection(java.util.List<ValueSpecification> elements)
                 && !elements.isEmpty()) {
+            if (compiledType != null && expected instanceof PType.Concrete) {
+                // Compiled type is definitive — use subtype checking
+                return isConcreteCompatible(((PType.Concrete) expected).name(), compiledType);
+            }
             return elements.stream().allMatch(e -> structuralMatch(expected, e, source, false, null));
         }
         if (expected instanceof PType.Parameterized p) {
@@ -396,7 +402,8 @@ public abstract class AbstractChecker implements FunctionChecker {
                         -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type())
                             && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa
                             && csa.colSpecs().stream().allMatch(s -> s.function2() != null);
-                case "Function" -> actual instanceof LambdaFunction;
+                case "Function" -> actual instanceof LambdaFunction
+                    || actual instanceof PackageableElementPtr; // function reference (e.g., eq_Any_1__Any_1__Boolean_1_)
                 case "SortInfo" -> actual instanceof AppliedFunction;
                 case "_Window" -> actual instanceof AppliedFunction;
                 case "Rows", "_Range" -> actual instanceof AppliedFunction;
@@ -455,6 +462,10 @@ public abstract class AbstractChecker implements FunctionChecker {
         }
         try {
             GenericType.Primitive declared = GenericType.Primitive.fromTypeName(declaredName);
+            // Any (from empty collections []) is covariant with all types
+            if (actualPrim == GenericType.Primitive.ANY) {
+                return true;
+            }
             return actualPrim == declared || actualPrim.isSubtypeOf(declared);
         } catch (IllegalArgumentException e) {
             return false;
@@ -598,6 +609,11 @@ public abstract class AbstractChecker implements FunctionChecker {
                     for (var typeArg : p.typeArgs()) {
                         unifyType(typeArg, new GenericType.Tuple(rel.schema()), bindings, context);
                     }
+                } else if ("Function".equals(p.rawType())
+                        && actual instanceof GenericType.FunctionReference) {
+                    // FunctionReference (bare function name like eq_Any_1__...) is a
+                    // Function value — accept without deep type-arg unification.
+                    // Analogous to legend-engine's isPackageableElementSubtypeOfFunction.
                 } else if (actual instanceof GenericType.Parameterized gp
                         && p.rawType().equals(gp.rawType())) {
                     // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc.
@@ -643,6 +659,10 @@ public abstract class AbstractChecker implements FunctionChecker {
                 }
                 if (gNorm instanceof GenericType.Primitive expectedPrim
                         && norm instanceof GenericType.Primitive actualPrim) {
+                    // Any (from empty collections []) is covariant with all types
+                    if (actualPrim == GenericType.Primitive.ANY) {
+                        return;
+                    }
                     if (!actualPrim.isSubtypeOf(expectedPrim)) {
                         throw new PureCompileException(
                                 context + ": expected " + c.name() + ", got " + actual.typeName());

@@ -4545,7 +4545,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     8, 1, H
                     9, 5, I
                     10, 0, J
-                #->extend(~grp->over(), ~newCol:x|$x.id:y|$y->size())
+                #->extend(over(~grp), ~newCol:{p,w,r|$r.id}:y|$y->size())
                 """;
 
         var result = executeRelation(pureQuery);

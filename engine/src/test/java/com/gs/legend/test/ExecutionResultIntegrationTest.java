@@ -168,7 +168,7 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
         // Tabular
         ExecutionResult tabular = queryService.execute(
                 getCompletePureModelWithRuntime(),
-                "|model::Person.all()->project(~firstName)->from(model::PersonMapping, test::TestRuntime)",
+                "|model::Person.all()->project(~[firstName])->from(model::PersonMapping, test::TestRuntime)",
                 "test::TestRuntime", connection);
         assertNotNull(tabular.returnType(), "Tabular returnType must not be null");
     }

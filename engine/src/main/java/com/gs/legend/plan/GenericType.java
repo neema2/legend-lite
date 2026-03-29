@@ -17,7 +17,7 @@ public sealed interface GenericType
         permits GenericType.Primitive, GenericType.Parameterized,
                 GenericType.ClassType, GenericType.EnumType,
                 GenericType.PrecisionDecimal, GenericType.Relation,
-                GenericType.Tuple {
+                GenericType.Tuple, GenericType.FunctionReference {
 
     String typeName();
 
@@ -413,6 +413,22 @@ public sealed interface GenericType
 
         @Override
         public String typeName() { return "Tuple"; }
+    }
+
+    /**
+     * Function reference type: a bare qualified name pointing to a function definition.
+     * E.g., meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_
+     *
+     * <p>In Pure, function references are first-class values with type Function<...>.
+     * We store the qualified path so the SQL compiler can look up the actual function.
+     */
+    record FunctionReference(String qualifiedPath) implements GenericType {
+        public FunctionReference {
+            java.util.Objects.requireNonNull(qualifiedPath, "Function reference path must not be null");
+        }
+
+        @Override
+        public String typeName() { return "Function"; }
     }
 
     // ========== Factory methods ==========

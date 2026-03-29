@@ -457,7 +457,7 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("rpad", "native function rpad(str:String[1], len:Integer[1], pad:String[1]):String[1];");
         reg.registerSignature("rpad", "native function rpad(str:String[1], len:Integer[1]):String[1];");
         reg.registerSignature("splitPart",
-                "native function splitPart(str:String[1], delimiter:String[1], index:Integer[1]):String[1];");
+                "native function splitPart(str:String[0..1], delimiter:String[1], index:Integer[1]):String[0..1];");
         reg.registerSignature("left", "native function left(str:String[1], len:Integer[1]):String[1];");
         reg.registerSignature("right", "native function right(str:String[1], len:Integer[1]):String[1];");
         reg.registerSignature("toUpperFirstCharacter",
@@ -684,8 +684,32 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("mode", "native function mode(values:Any[*]):Any[0..1];");
         reg.registerSignature("min", "native function min(numbers:Number[*]):Number[0..1];");
         reg.registerSignature("min", "native function min(left:Number[1], right:Number[1]):Number[1];");
+        // Typed numeric overloads (Handlers.java lines 2434-2451)
+        reg.registerSignature("min", "native function min(left:Integer[1], right:Integer[1]):Integer[1];");
+        reg.registerSignature("min", "native function min(left:Float[1], right:Float[1]):Float[1];");
+        reg.registerSignature("min", "native function min(values:Integer[*]):Integer[0..1];");
+        reg.registerSignature("min", "native function min(values:Float[*]):Float[0..1];");
+        // Temporal overloads (Handlers.java)
+        reg.registerSignature("min", "native function min(left:DateTime[1], right:DateTime[1]):DateTime[1];");
+        reg.registerSignature("min", "native function min(left:StrictDate[1], right:StrictDate[1]):StrictDate[1];");
+        reg.registerSignature("min", "native function min(left:Date[1], right:Date[1]):Date[1];");
+        reg.registerSignature("min", "native function min(dates:DateTime[*]):DateTime[0..1];");
+        reg.registerSignature("min", "native function min(dates:StrictDate[*]):StrictDate[0..1];");
+        reg.registerSignature("min", "native function min(dates:Date[*]):Date[0..1];");
         reg.registerSignature("max", "native function max(numbers:Number[*]):Number[0..1];");
         reg.registerSignature("max", "native function max(left:Number[1], right:Number[1]):Number[1];");
+        // Typed numeric overloads
+        reg.registerSignature("max", "native function max(left:Integer[1], right:Integer[1]):Integer[1];");
+        reg.registerSignature("max", "native function max(left:Float[1], right:Float[1]):Float[1];");
+        reg.registerSignature("max", "native function max(values:Integer[*]):Integer[0..1];");
+        reg.registerSignature("max", "native function max(values:Float[*]):Float[0..1];");
+        // Temporal overloads
+        reg.registerSignature("max", "native function max(left:DateTime[1], right:DateTime[1]):DateTime[1];");
+        reg.registerSignature("max", "native function max(left:StrictDate[1], right:StrictDate[1]):StrictDate[1];");
+        reg.registerSignature("max", "native function max(left:Date[1], right:Date[1]):Date[1];");
+        reg.registerSignature("max", "native function max(dates:DateTime[*]):DateTime[0..1];");
+        reg.registerSignature("max", "native function max(dates:StrictDate[*]):StrictDate[0..1];");
+        reg.registerSignature("max", "native function max(dates:Date[*]):Date[0..1];");
         reg.registerSignature("maxBy",
                 "native function maxBy<T>(values:T[*], key:Function<{T[1]->Any[1]}>[1]):T[0..1];");
         reg.registerSignature("maxBy",
@@ -807,8 +831,12 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("add", "native function add<T>(set:T[*], val:T[1]):T[*];");
         reg.registerSignature("add", "native function add<T>(set:T[*], index:Integer[1], val:T[1]):T[*];");
         reg.registerSignature("removeDuplicates", "native function removeDuplicates<T>(col:T[*]):T[*];");
+        // 2-arg convenience form (removeDuplicates.pure line 25): delegates to 3-arg native with [] key
         reg.registerSignature("removeDuplicates",
-                "native function removeDuplicates<T>(col:T[*], eql:Function<{T[1],T[1]->Boolean[1]}>[0..1]):T[*];");
+                "native function removeDuplicates<T>(col:T[*], eql:Function<{T[1],T[1]->Boolean[1]}>[1]):T[*];");
+        // 3-arg native form (removeDuplicates.pure line 23)
+        reg.registerSignature("removeDuplicates",
+                "native function removeDuplicates<T,V>(col:T[*], key:Function<{T[1]->V[1]}>[0..1], eql:Function<{V[1],V[1]->Boolean[1]}>[0..1]):T[*];");
         reg.registerSignature("removeDuplicatesBy",
                 "native function removeDuplicatesBy<T,V>(col:T[*], key:Function<{T[1]->V[1]}>[1]):T[*];");
         reg.registerSignature("first", "native function first<T>(set:T[*]):T[0..1];");
