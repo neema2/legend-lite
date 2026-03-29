@@ -102,7 +102,7 @@ public class PivotChecker extends AbstractChecker {
                 .mapping(source.mapping())
                 .columnSpecs(pivotColSpecs)
                 .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.many(new GenericType.Relation(partialType)))
+                .expressionType(ExpressionType.one(new GenericType.Relation(partialType)))
                 .build();
     }
 }

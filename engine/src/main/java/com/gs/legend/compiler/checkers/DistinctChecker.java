@@ -67,7 +67,7 @@ public class DistinctChecker extends AbstractChecker {
         return TypeInfo.builder()
                 .mapping(source.mapping())
                 .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
-                .expressionType(ExpressionType.many(new GenericType.Relation(outputSchema)))
+                .expressionType(ExpressionType.one(new GenericType.Relation(outputSchema)))
                 .build();
     }
 }

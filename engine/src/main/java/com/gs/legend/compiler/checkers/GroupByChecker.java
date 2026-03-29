@@ -86,7 +86,7 @@ public class GroupByChecker extends AbstractChecker {
                 .mapping(source.mapping())
                 .columnSpecs(groupCols)
                 .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.many(new GenericType.Relation(schema)))
+                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
                 .build();
     }
 

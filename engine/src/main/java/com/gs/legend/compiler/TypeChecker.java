@@ -351,7 +351,7 @@ public class TypeChecker implements TypeCheckEnv {
         var info = TypeInfo.builder()
                 .mapping(identityMapping)
                 .associations(associations.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(associations))
-                .expressionType(ExpressionType.many(new GenericType.Relation(rt)))
+                .expressionType(ExpressionType.one(new GenericType.Relation(rt)))
                 .build();
         types.put(ci, info);
         return info;
@@ -1051,7 +1051,7 @@ public class TypeChecker implements TypeCheckEnv {
             ClassMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
         var info = TypeInfo.builder()
                 .mapping(mapping).associations(associations)
-                .expressionType(ExpressionType.many(new GenericType.Relation(relationType))).build();
+                .expressionType(ExpressionType.one(new GenericType.Relation(relationType))).build();
         types.put(ast, info);
         return info;
     }

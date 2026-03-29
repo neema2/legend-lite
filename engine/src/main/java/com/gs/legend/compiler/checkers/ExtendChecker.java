@@ -76,7 +76,7 @@ public class ExtendChecker extends AbstractChecker {
         return TypeInfo.builder()
                 .mapping(source.mapping())
                 .windowSpecs(windowSpecs)
-                .expressionType(ExpressionType.many(new GenericType.Relation(schema)))
+                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
                 .build();
     }
 

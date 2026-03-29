@@ -76,7 +76,7 @@ public class FlattenChecker extends AbstractChecker {
         return TypeInfo.builder()
                 .mapping(source.mapping())
                 .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
-                .expressionType(ExpressionType.many(new GenericType.Relation(flattenRelType)))
+                .expressionType(ExpressionType.one(new GenericType.Relation(flattenRelType)))
                 .build();
     }
 }

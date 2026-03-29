@@ -115,7 +115,7 @@ public class ProjectChecker extends AbstractChecker {
                 .mapping(mapping)
                 .associations(associations)
                 .projections(projectionSpecs)
-                .expressionType(ExpressionType.many(new GenericType.Relation(resultSchema)))
+                .expressionType(ExpressionType.one(new GenericType.Relation(resultSchema)))
                 .build();
     }
 
