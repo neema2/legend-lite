@@ -1046,11 +1046,14 @@ public class TypeChecker implements TypeCheckEnv {
      * DECIMAL for decimals with fractional parts.
      */
     private static GenericType classifyDecimal(CDecimal d) {
-        String plain = d.value().toPlainString();
-        if (!plain.contains(".")) {
+        java.math.BigDecimal v = d.value();
+        int scale = v.scale();
+        if (scale <= 0) {
+            // Integer-valued decimal (e.g., 17774D) — preserve DECIMAL type
             return new GenericType.PrecisionDecimal(38, 0);
         }
-        return GenericType.DEFAULT_DECIMAL;
+        // Use actual scale from the literal (e.g., 19.905D → scale=3)
+        return new GenericType.PrecisionDecimal(38, scale);
     }
 
     /**
