@@ -161,7 +161,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     }
 
     private CoreInstance handleCollection(CollectionResult result, ProcessorSupport ps) {
-        GenericType elementType = result.returnType().elementType();
+        GenericType elementType = result.returnType();
         var coreInstances = new ArrayList<CoreInstance>();
         for (Object value : result.values()) {
             if (value != null) {
@@ -259,7 +259,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         // List (struct arrays unwrapped by Row.java, e.g. zip → List<Pair>)
         if (value instanceof List<?> list) {
-            GenericType elemType = type.elementType();
+            GenericType elemType = type;
             var coreInstances = new ArrayList<CoreInstance>();
             for (Object elem : list) {
                 if (elem != null) {

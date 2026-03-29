@@ -139,9 +139,8 @@ public sealed interface ExecutionResult {
 
         @Override
         public List<Column> columns() {
-            // Element type from List<T> → T
-            GenericType elemType = returnType.elementType();
-            return List.of(new Column("value", elemType.typeName(), elemType.typeName()));
+            // Return type is already the element type (e.g., Integer for Integer[*])
+            return List.of(new Column("value", returnType.typeName(), returnType.typeName()));
         }
 
         @Override

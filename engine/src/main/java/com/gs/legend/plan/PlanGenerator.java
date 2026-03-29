@@ -274,9 +274,9 @@ public class PlanGenerator {
             var row = new java.util.ArrayList<SqlExpr>();
             for (var entry : data.properties().entrySet()) {
                 SqlExpr value = renderStructValue(entry.getValue());
-                // If compiler tagged as list but AST is a single element, wrap in array
+                // If compiler tagged as many (to-many [*] property) but AST is a single element, wrap in array
                 TypeInfo valInfo = unit.types().get(entry.getValue());
-                if (valInfo != null && valInfo.type().isList()
+                if (valInfo != null && valInfo.isMany()
                         && !(entry.getValue() instanceof PureCollection)) {
                     value = new SqlExpr.ArrayLiteral(java.util.List.of(value));
                 }
@@ -307,10 +307,10 @@ public class PlanGenerator {
                 var fields = new java.util.LinkedHashMap<String, SqlExpr>();
                 for (var entry : data.properties().entrySet()) {
                     SqlExpr rendered = renderStructValue(entry.getValue());
-                    // If the compiler tagged this value as a list (to-many [*] property)
+                    // If the compiler tagged this value as many (to-many [*] property)
                     // but the AST is a single element, wrap it in an array literal.
                     TypeInfo valInfo = unit.types().get(entry.getValue());
-                    if (valInfo != null && valInfo.type().isList()
+                    if (valInfo != null && valInfo.isMany()
                             && !(entry.getValue() instanceof PureCollection)) {
                         rendered = new SqlExpr.ArrayLiteral(java.util.List.of(rendered));
                     }
@@ -2418,7 +2418,7 @@ public class PlanGenerator {
                     TypeInfo searchInfo = unit.typeInfoFor(params.get(1));
                     if (listInfo != null && searchInfo != null
                             && listInfo.type() != null && searchInfo.type() != null) {
-                        GenericType listElemType = listInfo.type().elementType();
+                        GenericType listElemType = listInfo.type();
                         GenericType searchType = searchInfo.type();
                         if (listElemType instanceof GenericType.ClassType
                                 && searchType.isPrimitive()) {
@@ -3163,14 +3163,10 @@ public class PlanGenerator {
                                 .fromSubquery(source, "subq");
                         yield new SqlExpr.Subquery(countQuery);
                     }
-                    // List/array size: use LEN (not aggregate COUNT)
-                    if (sourceInfo.type().isList()) {
-                        yield new SqlExpr.FunctionCall("listLength",
-                                List.of(c.apply(params.get(0))));
-                    }
-                    // Lambda param size (fold accumulator etc.) — also use LEN
-                    if (sourceInfo.lambdaParam()
-                            && !sourceInfo.isRelational()) {
+                    // Collection/list size: use LEN (not aggregate COUNT)
+                    // isMany(): multiplicity [*] expressions (PureCollections, match vars, etc.)
+                    // lambdaParam(): fold accumulator — V[1] in Pure but LIST in SQL
+                    if (sourceInfo.isMany() || sourceInfo.lambdaParam()) {
                         yield new SqlExpr.FunctionCall("listLength",
                                 List.of(c.apply(params.get(0))));
                     }
@@ -3247,7 +3243,7 @@ public class PlanGenerator {
                 if (!(params.get(1) instanceof PureCollection)) {
                     TypeInfo rightInfo = unit.types().get(params.get(1));
                     boolean rightIsList = params.get(1) instanceof PureCollection
-                            || (rightInfo != null && rightInfo.type().isList());
+                            || (rightInfo != null && rightInfo.isMany());
                     if (!rightIsList) {
                         right = new SqlExpr.FunctionCall("wrapList", List.of(right));
                     }
@@ -3701,8 +3697,8 @@ public class PlanGenerator {
                     SqlExpr source = c.apply(params.get(0));
                     // Check compiler type info for typed list cast: cast(@Integer) on a list
                     TypeInfo castInfo = unit.typeInfoFor(af);
-                    if (castInfo != null && castInfo.type().isList()) {
-                        GenericType elemType = castInfo.type().elementType();
+                    if (castInfo != null && castInfo.isMany()) {
+                        GenericType elemType = castInfo.type();
                         if (elemType != null && elemType != GenericType.Primitive.ANY) {
                             String sqlType = dialect.sqlTypeName(elemType.typeName());
                             yield new SqlExpr.VariantArrayCast(source, sqlType);

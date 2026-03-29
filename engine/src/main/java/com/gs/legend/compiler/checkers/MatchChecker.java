@@ -80,14 +80,11 @@ public class MatchChecker extends AbstractChecker {
     // ==================== Helpers ====================
 
     /**
-     * Unwraps the element type from a compiled TypeInfo.
-     * For List types, returns the element type; otherwise returns the type directly.
+     * Returns the element type from a compiled TypeInfo.
      */
     private static GenericType resolveElementType(TypeInfo info) {
         if (info == null || info.type() == null) return null;
-        GenericType t = info.type();
-        if (t.isList() && t.elementType() != null) return t.elementType();
-        return t;
+        return info.type();
     }
 
     /**

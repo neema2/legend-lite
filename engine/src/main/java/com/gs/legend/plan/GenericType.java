@@ -158,7 +158,13 @@ public sealed interface GenericType
     }
 
     /**
-     * Parameterized types: List&lt;Integer&gt;, Pair&lt;String, Integer&gt;, etc.
+     * Parameterized types: Pair&lt;String, Integer&gt;, List&lt;T&gt;, etc.
+     *
+     * <p><b>Invariant:</b> {@code List<T>} is a valid Pure M3 class
+     * ({@code meta::pure::functions::collection::List}) returned by the {@code list()} function.
+     * However, it must <i>never</i> be used as a proxy for collection multiplicity — properties
+     * and associations with {@code T[*]} must use {@code ExpressionType.many(T)}, not
+     * {@code List<T>}.
      *
      * @param multiplicity Pure-level multiplicity (null = unset, treated as [1]).
      *                     Stamped by TypeChecker on root return types so the execution
@@ -433,14 +439,7 @@ public sealed interface GenericType
 
     // ========== Factory methods ==========
 
-    static GenericType listOf(GenericType elementType) {
-        return new Parameterized("List", List.of(elementType));
-    }
 
-    /** Creates a List type with explicit multiplicity. */
-    static GenericType listOf(GenericType elementType, Multiplicity multiplicity) {
-        return new Parameterized("List", List.of(elementType), multiplicity);
-    }
 
     static GenericType pairOf(GenericType first, GenericType second) {
         return new Parameterized("Pair", List.of(first, second));
@@ -553,7 +552,7 @@ public sealed interface GenericType
      * @return true if this type is JSON-related.
      */
     default boolean isJson() {
-        return this == Primitive.JSON || this.isList();
+        return this == Primitive.JSON;
     }
 
     /**
@@ -567,22 +566,7 @@ public sealed interface GenericType
         return null;
     }
 
-    /**
-     * @return true if this is a parameterized List type.
-     */
-    default boolean isList() {
-        return this instanceof Parameterized p && "List".equals(p.rawType());
-    }
 
-    /**
-     * @return The element type if this is a List, or this type itself otherwise.
-     */
-    default GenericType elementType() {
-        if (this instanceof Parameterized p && "List".equals(p.rawType())) {
-            return p.elementType();
-        }
-        return this;
-    }
 
     /**
      * @return true if this is a Primitive type.

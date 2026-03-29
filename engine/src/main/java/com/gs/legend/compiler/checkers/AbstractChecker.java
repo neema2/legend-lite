@@ -454,13 +454,6 @@ public abstract class AbstractChecker implements FunctionChecker {
         if (actualType instanceof GenericType.PrecisionDecimal) {
             actualType = GenericType.Primitive.DECIMAL;
         }
-        // List<T> → unwrap to element type for collection-to-aggregate matching
-        // e.g., [1,2]->sum() where source is List<Integer> and sig expects Number[*]
-        if (actualType instanceof GenericType.Parameterized p && "List".equals(p.rawType())) {
-            actualType = p.elementType();
-            // Recurse — elementType might itself be PrecisionDecimal, etc.
-            return isConcreteCompatible(declaredName, actualType);
-        }
         if (!(actualType instanceof GenericType.Primitive actualPrim)) {
             // Non-primitive (ClassType, Relation, etc.) — only "Any" accepts these
             return "Any".equals(declaredName);
@@ -1159,8 +1152,8 @@ public abstract class AbstractChecker implements FunctionChecker {
      * <p>Reusable by any checker that combines two class sources (concatenate, join, etc.).
      */
     protected TypeInfo resolveClassLCA(TypeInfo left, TypeInfo right) {
-        com.gs.legend.plan.GenericType leftElem = left.type() != null ? left.type().elementType() : null;
-        com.gs.legend.plan.GenericType rightElem = right.type() != null ? right.type().elementType() : null;
+        com.gs.legend.plan.GenericType leftElem = left.type();
+        com.gs.legend.plan.GenericType rightElem = right.type();
 
         if (leftElem instanceof com.gs.legend.plan.GenericType.ClassType(String leftClass)
                 && rightElem instanceof com.gs.legend.plan.GenericType.ClassType(String rightClass)) {

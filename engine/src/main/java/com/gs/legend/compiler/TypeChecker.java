@@ -325,7 +325,6 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo compileInstanceLiteral(ClassInstance ci, CompilationContext ctx) {
         var data = (ValueSpecificationBuilder.InstanceData) ci.value();
-        var columns = new LinkedHashMap<String, GenericType>();
 
         // Built-in Pure standard library types (no model context needed)
         String simpleName = data.className().contains("::")
@@ -370,21 +369,15 @@ public class TypeChecker implements TypeCheckEnv {
             }
             var prop = propOpt.get();
             GenericType propType = GenericType.fromType(prop.genericType());
-            // Wrap in List if multiplicity is [*]
-            if (prop.isCollection()) {
-                propType = GenericType.listOf(propType);
-            }
-            columns.put(propName, propType);
             // Compile the property value expression so Variables etc. are in the side table
             compileExpr(entry.getValue(), ctx);
             // If property is to-many [*] but value is a single element (not a Collection),
-            // tag the value's TypeInfo with list scalarType so PlanGenerator wraps it in
-            // [].
+            // tag the value's TypeInfo with many(propType) so PlanGenerator wraps it in [].
             if (prop.isCollection() && !(entry.getValue() instanceof PureCollection)) {
                 var valInfo = types.get(entry.getValue());
                 if (valInfo != null) {
                     types.put(entry.getValue(),
-                            TypeInfo.from(valInfo).expressionType(ExpressionType.one(propType)).build());
+                            TypeInfo.from(valInfo).expressionType(ExpressionType.many(propType)).build());
                 }
             }
         }
@@ -754,10 +747,6 @@ public class TypeChecker implements TypeCheckEnv {
                 if (assocNav.isPresent()) {
                     var nav = assocNav.get();
                     GenericType targetType = new GenericType.ClassType(nav.targetClassName());
-                    if (nav.isToMany()) {
-                        // To-many: return List<TargetClass> — caller handles exists/map desugaring
-                        targetType = GenericType.listOf(targetType);
-                    }
                     var info = TypeInfo.builder()
                             .expressionType(nav.isToMany()
                                     ? ExpressionType.many(targetType)
@@ -848,12 +837,10 @@ public class TypeChecker implements TypeCheckEnv {
         if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty ownerAp) {
             TypeInfo ownerInfo = compileExpr(ownerAp, ctx);
             if (ownerInfo != null && modelContext != null) {
-                // Extract the inner ClassType (unwrap List if to-many)
+                // Extract the ClassType — type is now directly Address, not List<Address>
                 GenericType ownerType = ownerInfo.type();
                 String className = null;
                 if (ownerType instanceof GenericType.ClassType(String qn)) {
-                    className = qn;
-                } else if (ownerType.isList() && ownerType.elementType() instanceof GenericType.ClassType(String qn)) {
                     className = qn;
                 }
                 if (className != null) {

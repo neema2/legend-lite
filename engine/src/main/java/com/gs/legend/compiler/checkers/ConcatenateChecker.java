@@ -41,11 +41,9 @@ public class ConcatenateChecker extends AbstractChecker {
             if (left.type() == null) {
                 throw new PureCompileException("concatenate(): cannot determine type of left source");
             }
-            GenericType elemType = left.type().isList() && left.type().elementType() != null
-                    ? left.type().elementType()
-                    : left.type();
+            GenericType elemType = left.type();
             return TypeInfo.builder()
-                    .expressionType(ExpressionType.many(GenericType.listOf(elemType)))
+                    .expressionType(ExpressionType.many(elemType))
                     .build();
         }
 
@@ -63,7 +61,7 @@ public class ConcatenateChecker extends AbstractChecker {
             if (lca != null) return lca;
             // No common supertype — variant list fallback
             return TypeInfo.builder()
-                    .expressionType(ExpressionType.one(GenericType.listOf(GenericType.Primitive.ANY)))
+                    .expressionType(ExpressionType.many(GenericType.Primitive.ANY))
                     .build();
         }
 
