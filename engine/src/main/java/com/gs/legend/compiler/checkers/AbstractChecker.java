@@ -417,7 +417,12 @@ public abstract class AbstractChecker implements FunctionChecker {
             return !isSource || source == null || !source.isRelational();
         }
         if (expected instanceof PType.Concrete c) {
-            // Reject lambdas and class instances — never match scalar Concrete types
+            // Any is the top type — accepts everything
+            if ("Any".equals(c.name())) {
+                return true;
+            }
+            // Reject lambdas and class instances for specific Concrete types
+            // (e.g., Number, String) — they are structural, not scalar values
             if (actual instanceof LambdaFunction || actual instanceof ClassInstance) {
                 return false;
             }

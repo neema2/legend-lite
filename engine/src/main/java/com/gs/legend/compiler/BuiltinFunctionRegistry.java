@@ -431,9 +431,9 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("startsWith", "native function startsWith(source:String[1], val:String[1]):Boolean[1];");
         reg.registerSignature("endsWith", "native function endsWith(source:String[1], val:String[1]):Boolean[1];");
         reg.registerSignature("contains", "native function contains(source:String[1], val:String[1]):Boolean[1];");
-        // Collection contains: [1,2,3]->contains(2)
+        // Collection contains: [1,2,3]->contains(2) — uses Any, not T (per legend-pure)
         reg.registerSignature("contains",
-                "native function contains<T>(collection:T[*], val:T[1]):Boolean[1];");
+                "native function contains(collection:Any[*], val:Any[1]):Boolean[1];");
         // Collection contains with comparator: [...]->contains(elem, {a,b | $a == $b})
         reg.registerSignature("contains",
                 "native function contains<T>(collection:T[*], val:T[1], comparator:Function<{T[1],T[1]->Boolean[1]}>[1]):Boolean[1];");

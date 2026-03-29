@@ -414,24 +414,23 @@ public record TypeInfo(
      * Matches List&lt;Number&gt; (Integer+Float/Decimal) and List&lt;Date&gt; (StrictDate+DateTime).
      */
     public boolean isHeterogeneousList() {
-        GenericType t = type();
-        if (!t.isList()) return false;
-        GenericType elem = t.elementType();
+        if (expressionType == null || !expressionType.isMany()) return false;
+        GenericType elem = type();
         return elem == GenericType.Primitive.NUMBER
                 || elem == GenericType.Primitive.DATE
                 || elem == GenericType.Primitive.ANY;
     }
 
-    /** True if this is a heterogeneous list of date/temporal types (List&lt;Date&gt;). */
+    /** True if this is a collection of date/temporal types (Date[*]). */
     public boolean isDateList() {
-        return type().isList()
-                && type().elementType() == GenericType.Primitive.DATE;
+        return expressionType != null && expressionType.isMany()
+                && type() == GenericType.Primitive.DATE;
     }
 
-    /** True if this is a List with mixed element types (element type is ANY). */
+    /** True if this is a collection with mixed element types (Any[*]). */
     public boolean isMixedList() {
-        return type().isList()
-                && type().elementType() == GenericType.Primitive.ANY;
+        return expressionType != null && expressionType.isMany()
+                && type() == GenericType.Primitive.ANY;
     }
 
     /** True if this node has pre-resolved association targets. */
