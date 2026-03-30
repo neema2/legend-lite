@@ -6,9 +6,7 @@ import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.PureFunctionRegistry;
 
 import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.mapping.RelationalMapping;
-import com.gs.legend.model.store.Table;
 import com.gs.legend.parser.PureParser;
 import com.gs.legend.plan.GenericType;
 
@@ -96,7 +94,8 @@ public class TypeChecker implements TypeCheckEnv {
     public TypeInfo compileExpr(ValueSpecification vs, CompilationContext ctx) {
         return switch (vs) {
             case AppliedFunction af -> compileFunction(af, ctx);
-            case ClassInstance ci -> compileClassInstance(ci, ctx);
+            case ClassInstance ci -> throw new PureCompileException(
+                    "Unexpected ClassInstance '" + ci.type() + "' in compileExpr — should be desugared by parser");
             case LambdaFunction lf -> compileLambda(lf, ctx);
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
@@ -196,9 +195,8 @@ public class TypeChecker implements TypeCheckEnv {
         String funcName = simpleName(af.function());
 
         // Compile first arg (source) for most functions.
-        // eval is excluded: it's the application operator — its source is an
-        // "applicable" (colSpec, funcRef, lambda), not a value. EvalChecker
-        // handles its own source compilation via AST rewriting.
+        // eval is excluded: its source is an "applicable" (colSpec, funcRef, lambda),
+        // not a value — EvalChecker handles its own source compilation.
         TypeInfo source = !af.parameters().isEmpty() && !"eval".equals(funcName)
                 ? compileExpr(af.parameters().get(0), ctx)
                 : null;
@@ -206,6 +204,10 @@ public class TypeChecker implements TypeCheckEnv {
         TypeInfo info = switch (funcName) {
             // --- Relation Sources ---
             case "getAll" -> new com.gs.legend.compiler.checkers.GetAllChecker(this).check(af, source, ctx);
+            case "tableReference" -> new com.gs.legend.compiler.checkers.TableReferenceChecker(this).check(af, source, ctx);
+            case "tds" -> new com.gs.legend.compiler.checkers.TdsChecker(this).check(af, source, ctx);
+            // --- Object Construction ---
+            case "new" -> compileNew(af, ctx);
             // --- Shape-preserving ---
             case "sort", "sortBy", "sortByReversed" ->
                 new com.gs.legend.compiler.checkers.SortChecker(this).check(af, source, ctx);
@@ -309,212 +311,42 @@ public class TypeChecker implements TypeCheckEnv {
         return result;
     }
 
-    // ========== ClassInstance (DSL containers) ==========
-
-    private TypeInfo compileClassInstance(ClassInstance ci, CompilationContext ctx) {
-        return switch (ci.type()) {
-            case "relation" -> compileRelationAccessor(ci, ctx);
-            case "tdsLiteral" -> compileTdsLiteral(ci, ctx);
-            case "instance" -> compileInstanceLiteral(ci, ctx);
-            default -> throw new PureCompileException("Unknown ClassInstance type: " + ci.type());
-        };
-    }
     /**
-     * Compiles a struct literal ^ClassName(prop=val, ...) with proper type info.
-     * Builds a GenericType.Relation.Schema where each property becomes a typed
-     * column,
-     * so PlanGenerator can distinguish arrays (need UNNEST) from scalars.
+     * Thin wrapper: delegates to NewChecker, then applies to-many property override.
+     * TODO: Remove override once compiler coerces single→collection for [*] properties (model-driven).
      */
-    private TypeInfo compileInstanceLiteral(ClassInstance ci, CompilationContext ctx) {
+    private TypeInfo compileNew(AppliedFunction af, CompilationContext ctx) {
+        TypeInfo info = new com.gs.legend.compiler.checkers.NewChecker(this).check(af, null, ctx);
+        types.put(af, info);
+
+        // To-many override: if model says [*] but user wrote a single value,
+        // tag the value's TypeInfo as many(propType) so PlanGenerator wraps it in [].
+        // This is a workaround — the correct fix is compiler-driven single→collection coercion.
+        var ci = (ClassInstance) af.parameters().get(1);
         var data = (ValueSpecificationBuilder.InstanceData) ci.value();
-
-        // Built-in Pure standard library types (no model context needed)
-        String simpleName = data.className().contains("::")
-                ? data.className().substring(data.className().lastIndexOf("::") + 2)
-                : data.className();
-
-        com.gs.legend.model.m3.PureClass pureClass = null;
-
-        if ("Pair".equals(simpleName) && data.typeArguments().size() == 2) {
-            // Pair<A, B> → built-in with properties first:A, second:B
-            var firstType = GenericType.fromTypeName(data.typeArguments().get(0));
-            var secondType = GenericType.fromTypeName(data.typeArguments().get(1));
-            pureClass = new com.gs.legend.model.m3.PureClass(
-                    data.className().contains("::")
-                            ? data.className().substring(0, data.className().lastIndexOf("::"))
-                            : "",
-                    "Pair", java.util.List.of(
-                            new com.gs.legend.model.m3.Property("first",
-                                    com.gs.legend.model.m3.PrimitiveType.fromName(firstType.typeName()),
-                                    new com.gs.legend.model.m3.Multiplicity(1, 1)),
-                            new com.gs.legend.model.m3.Property("second",
-                                    com.gs.legend.model.m3.PrimitiveType.fromName(secondType.typeName()),
-                                    new com.gs.legend.model.m3.Multiplicity(1, 1))));
-        }
-
-        // Fall back to model context for user-defined classes
-        if (pureClass == null && modelContext != null) {
-            pureClass = modelContext.findClass(data.className()).orElse(null);
-        }
-        if (pureClass == null) {
-            throw new PureCompileException(
-                    "Struct literal: class '" + data.className() + "' not found in model context");
-        }
-
-        for (var entry : data.properties().entrySet()) {
-            String propName = entry.getKey();
-            var propOpt = pureClass.findProperty(propName);
-            if (propOpt.isEmpty()) {
-                throw new PureCompileException(
-                        "Struct literal: property '" + propName + "' not found in class '"
-                                + data.className() + "'");
-            }
-            var prop = propOpt.get();
-            GenericType propType = GenericType.fromType(prop.genericType());
-            // Compile the property value expression so Variables etc. are in the side table
-            compileExpr(entry.getValue(), ctx);
-            // If property is to-many [*] but value is a single element (not a Collection),
-            // tag the value's TypeInfo with many(propType) so PlanGenerator wraps it in [].
-            if (prop.isCollection() && !(entry.getValue() instanceof PureCollection)) {
-                var valInfo = types.get(entry.getValue());
-                if (valInfo != null) {
-                    types.put(entry.getValue(),
-                            TypeInfo.from(valInfo).expressionType(ExpressionType.many(propType)).build());
-                }
-            }
-        }
-        // Build identity mapping — scalar primitives get identity PropertyMappings
-        var identityMapping = RelationalMapping.identity(pureClass);
-
-        // Synthesize associations for to-many class-typed properties
-        // These get AssociationTarget(null, null, true) — no Join signals UNNEST
-        var associations = new java.util.LinkedHashMap<String, TypeInfo.AssociationTarget>();
-        for (var prop : pureClass.allProperties()) {
-            if (prop.isCollection() && prop.genericType() instanceof com.gs.legend.model.m3.PureClass elementClass) {
-                // Resolve FULL class from modelContext — property genericType may be a
-                // forward-reference stub with no properties
-                var resolvedClass = modelContext != null
-                        ? modelContext.findClass(elementClass.qualifiedName()).orElse(elementClass)
-                        : elementClass;
-                // Build identity mapping for element class so compileProject can resolve leaf
-                // properties
-                var targetMapping = RelationalMapping.identity(resolvedClass);
-                associations.put(prop.name(), new TypeInfo.AssociationTarget(targetMapping, null, true));
-            }
-        }
-
-        var info = TypeInfo.builder()
-                .mapping(identityMapping)
-                .associations(associations.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(associations))
-                .expressionType(ExpressionType.one(new GenericType.ClassType(data.className())))
-                .build();
-        types.put(ci, info);
-        return info;
-    }
-
-    private TypeInfo compileRelationAccessor(ClassInstance ci, CompilationContext ctx) {
-        String tableRef = (String) ci.value();
-        Table table = resolveTable(tableRef);
-        return typed(ci, tableToRelationType(table), null);
-    }
-
-    private TypeInfo compileTdsLiteral(ClassInstance ci, CompilationContext ctx) {
-        String raw = (String) ci.value();
-        com.gs.legend.ast.TdsLiteral tds = com.gs.legend.ast.TdsLiteral.parse(raw);
-        // Build GenericType.Relation.Schema from parsed column names and types
-        Map<String, GenericType> columns = new LinkedHashMap<>();
-        for (int i = 0; i < tds.columns().size(); i++) {
-            var col = tds.columns().get(i);
-            GenericType colType = mapTdsColumnType(col.type());
-            // If no type annotation, infer from first non-null data value
-            if (colType == null && !tds.rows().isEmpty()) {
-                for (var row : tds.rows()) {
-                    if (i < row.size() && row.get(i) != null) {
-                        Object val = row.get(i);
-                        if (val instanceof Long)
-                            colType = GenericType.Primitive.INTEGER;
-                        else if (val instanceof Double)
-                            colType = GenericType.Primitive.FLOAT;
-                        else if (val instanceof Boolean)
-                            colType = GenericType.Primitive.BOOLEAN;
-                        else
-                            colType = GenericType.Primitive.STRING;
-                        break;
+        if (info.mapping() instanceof RelationalMapping rm) {
+            var pureClass = rm.pureClass();
+            if (pureClass != null) {
+                for (var entry : data.properties().entrySet()) {
+                    var propOpt = pureClass.findProperty(entry.getKey());
+                    if (propOpt.isPresent() && propOpt.get().isCollection()
+                            && !(entry.getValue() instanceof PureCollection)) {
+                        GenericType propType = GenericType.fromType(propOpt.get().genericType());
+                        var valInfo = types.get(entry.getValue());
+                        if (valInfo != null) {
+                            types.put(entry.getValue(),
+                                    TypeInfo.from(valInfo).expressionType(ExpressionType.many(propType)).build());
+                        }
                     }
                 }
             }
-            columns.put(col.name(), colType != null ? colType : GenericType.Primitive.STRING);
         }
-        // Register type on the ORIGINAL ci so callers can look it up
-        var info = typed(ci, GenericType.Relation.Schema.withoutPivot(columns), null);
-        // Also register a parsed-TDS ClassInstance for PlanGenerator
-        types.put(new ClassInstance("tdsLiteral", tds), info);
+
         return info;
     }
 
-    /** Maps a TDS type annotation string to a GenericType. */
-    private static GenericType mapTdsColumnType(String typeStr) {
-        if (typeStr == null)
-            return null;
-        return switch (typeStr) {
-            case "Integer" -> GenericType.Primitive.INTEGER;
-            case "Float", "Number" -> GenericType.Primitive.FLOAT;
-            case "Decimal" -> GenericType.DEFAULT_DECIMAL;
-            case "Boolean" -> GenericType.Primitive.BOOLEAN;
-            case "String" -> GenericType.Primitive.STRING;
-            case "Date", "StrictDate" -> GenericType.Primitive.STRICT_DATE;
-            case "DateTime" -> GenericType.Primitive.DATE_TIME;
-            default -> GenericType.Primitive.STRING;
-        };
-    }
-
-    // ========== Table Resolution ==========
-
-    /**
-     * Resolves a table reference string to a physical Table.
-     */
-    private Table resolveTable(String tableRef) {
-        int dotIdx = tableRef.lastIndexOf('.');
-        String simpleDbName = tableRef;
-        String tableName = tableRef;
-
-        if (dotIdx > 0) {
-            String dbRef = tableRef.substring(0, dotIdx);
-            tableName = tableRef.substring(dotIdx + 1);
-            simpleDbName = dbRef.contains("::")
-                    ? dbRef.substring(dbRef.lastIndexOf("::") + 2)
-                    : dbRef;
-        }
-
-        String tableKey = simpleDbName + "." + tableName;
-
-        if (modelContext != null) {
-            var tableOpt = modelContext.findTable(tableKey);
-            if (tableOpt.isPresent())
-                return tableOpt.get();
-            tableOpt = modelContext.findTable(tableName);
-            if (tableOpt.isPresent())
-                return tableOpt.get();
-        }
-
-        var mappingOpt = mappingRegistry().findByTableName(tableKey);
-        if (mappingOpt.isPresent())
-            return mappingOpt.get().table();
-        mappingOpt = mappingRegistry().findByTableName(tableName);
-        if (mappingOpt.isPresent())
-            return mappingOpt.get().table();
-
-        throw new PureCompileException("Table not found: " + tableRef);
-    }
-
-    /** Converts a physical Table to a RelationType. */
-    private GenericType.Relation.Schema tableToRelationType(Table table) {
-        Map<String, GenericType> columns = new LinkedHashMap<>();
-        for (var col : table.columns()) {
-            columns.put(col.name(), col.dataType().toGenericType());
-        }
-        return GenericType.Relation.Schema.withoutPivot(columns);
-    }
+    // compileRelationAccessor, compileTdsLiteral, compileInstanceLiteral
+    // moved to TableReferenceChecker, TdsChecker, NewChecker respectively
 
     // ========== Extraction Utilities ==========
 
@@ -763,17 +595,14 @@ public class TypeChecker implements TypeCheckEnv {
             if (vInfo == null) {
                 vInfo = compileExpr(v, ctx);
             }
-            if (vInfo != null && vInfo.inlinedBody() instanceof ClassInstance ci
-                    && "instance".equals(ci.type())) {
-                return inlineStructExtract(ap, ci, ctx);
+            if (vInfo != null && isInstanceLiteral(vInfo.inlinedBody())) {
+                return inlineStructExtract(ap, vInfo.inlinedBody(), ctx);
             }
         }
         // .prop directly on instance literal: ^Person(firstName='John').firstName
-        if (!ap.parameters().isEmpty()
-                && ap.parameters().get(0) instanceof ClassInstance ci
-                && "instance".equals(ci.type())) {
-            compileExpr(ci, ctx);
-            return inlineStructExtract(ap, ci, ctx);
+        if (!ap.parameters().isEmpty() && isInstanceLiteral(ap.parameters().get(0))) {
+            compileExpr(ap.parameters().get(0), ctx);
+            return inlineStructExtract(ap, ap.parameters().get(0), ctx);
         }
         // .prop on a list-producing function is sugar for ->map(_x | _x.prop)
         // Desugar by building a synthetic map node and pointing via inlinedBody
@@ -860,15 +689,18 @@ public class TypeChecker implements TypeCheckEnv {
         throw new PureCompileException("Unresolved type for property: " + ap.property());
     }
 
-    /**
-     * Synthesizes structExtract(instance, 'field') for .property on instance
-     * literals.
-     * PlanGenerator handles structExtract → STRUCT_EXTRACT(struct, 'field').
-     */
-    private TypeInfo inlineStructExtract(AppliedProperty ap, ClassInstance ci,
+    /** Returns true if the node is a struct instance literal: new(PE(class), ClassInstance("instance", data)). */
+    private static boolean isInstanceLiteral(ValueSpecification vs) {
+        return vs instanceof AppliedFunction af && "new".equals(simpleName(af.function()))
+                && af.parameters().size() >= 2
+                && af.parameters().get(1) instanceof ClassInstance ci
+                && "instance".equals(ci.type());
+    }
+
+    private TypeInfo inlineStructExtract(AppliedProperty ap, ValueSpecification structSource,
             CompilationContext ctx) {
         var extractNode = new AppliedFunction("structExtract",
-                List.of(ci, new CString(ap.property())));
+                List.of(structSource, new CString(ap.property())));
         var info = TypeInfo.builder()
                 .inlinedBody(extractNode)
                 .expressionType(ExpressionType.one(GenericType.Primitive.ANY)).build();
@@ -920,9 +752,6 @@ public class TypeChecker implements TypeCheckEnv {
             case CStrictTime st -> GenericType.Primitive.STRICT_TIME;
             case CLatestDate ld -> GenericType.Primitive.DATE_TIME;
             case PureCollection c -> unifyElementType(c.values());
-            case ClassInstance ci when "instance".equals(ci.type())
-                    && ci.value() instanceof ValueSpecificationBuilder.InstanceData data ->
-                new GenericType.ClassType(data.className());
             default -> GenericType.Primitive.ANY;
         };
     }
@@ -1058,13 +887,6 @@ public class TypeChecker implements TypeCheckEnv {
         return new GenericType.PrecisionDecimal(38, scale);
     }
 
-    /**
-     * Convenience accessor — never null (ModelContext guarantees non-null empty
-     * registry).
-     */
-    private MappingRegistry mappingRegistry() {
-        return modelContext.getMappingRegistry();
-    }
 
     // ========== Type Registration Utilities ==========
 

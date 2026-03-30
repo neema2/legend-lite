@@ -392,9 +392,9 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
     // ========================================
 
     public ValueSpecification visitTdsLiteral(PureParser.TdsLiteralContext ctx) {
-        // TDS literals are DSL constructs → ClassInstance("tdsLiteral", raw content)
+        // TDS literals: #TDS...# → AppliedFunction("tds", [CString("TDS"), CString(raw)])
         String raw = ctx.TDS_LITERAL().getText();
-        return new ClassInstance("tdsLiteral", raw);
+        return new AppliedFunction("tds", List.of(new CString("TDS"), new CString(raw)));
     }
 
     // ========================================
@@ -543,8 +543,8 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
     }
 
     private ValueSpecification parseRelationLiteral(String content) {
-        // Relation literals: store::DB.TABLE → ClassInstance("relation", content)
-        return new ClassInstance("relation", content);
+        // Relation literals: store::DB.TABLE → AppliedFunction("tableReference", [CString(content)])
+        return new AppliedFunction("tableReference", List.of(new CString(content)));
     }
 
     // ========================================
@@ -856,8 +856,11 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
             }
         }
 
-        return new ClassInstance("instance",
-                new InstanceData(className, properties, typeArgs));
+        // ^Class(k=v) → AppliedFunction("new", [PE(className), ClassInstance("instance", InstanceData)])
+        return new AppliedFunction("new",
+                List.of(new PackageableElementPtr(className),
+                        new ClassInstance("instance",
+                                new InstanceData(className, properties, typeArgs))));
     }
 
     /**

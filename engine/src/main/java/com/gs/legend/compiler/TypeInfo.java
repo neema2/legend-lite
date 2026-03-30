@@ -58,6 +58,12 @@ public record TypeInfo(
          */
         com.gs.legend.plan.GraphFetchSpec graphFetchSpec,
         /**
+         * Parsed TDS literal data (columns + rows).
+         * Stamped by TypeChecker for tds() calls, consumed by PlanGenerator to generate VALUES SQL.
+         * Null for non-TDS expressions.
+         */
+        com.gs.legend.ast.TdsLiteral tdsLiteral,
+        /**
          * The type + multiplicity of this expression. Always non-null.
          * This is the single source of truth — no scalarType or relationType fields.
          */
@@ -329,6 +335,7 @@ public record TypeInfo(
         private ValueSpecification inlinedBody;
         private Map<String, String> joinColumnRenames = Map.of();
         private com.gs.legend.plan.GraphFetchSpec graphFetchSpec;
+        private com.gs.legend.ast.TdsLiteral tdsLiteral;
         private ExpressionType expressionType;
         private boolean lambdaParam;
         private NativeFunctionDef resolvedFunc;
@@ -348,6 +355,7 @@ public record TypeInfo(
             this.inlinedBody = src.inlinedBody();
             this.joinColumnRenames = src.joinColumnRenames();
             this.graphFetchSpec = src.graphFetchSpec();
+            this.tdsLiteral = src.tdsLiteral();
             this.expressionType = src.expressionType();
             this.lambdaParam = src.lambdaParam();
             this.resolvedFunc = src.resolvedFunc();
@@ -365,6 +373,7 @@ public record TypeInfo(
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
         public Builder graphFetchSpec(com.gs.legend.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
+        public Builder tdsLiteral(com.gs.legend.ast.TdsLiteral v) { this.tdsLiteral = v; return this; }
         public Builder expressionType(ExpressionType v) { this.expressionType = v; return this; }
         public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
         public Builder resolvedFunc(NativeFunctionDef v) { this.resolvedFunc = v; return this; }
@@ -377,7 +386,7 @@ public record TypeInfo(
             }
             return new TypeInfo(mapping, associations, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
-                    joinColumnRenames, graphFetchSpec, expressionType,
+                    joinColumnRenames, graphFetchSpec, tdsLiteral, expressionType,
                     lambdaParam, resolvedFunc, foldSpec);
         }
     }

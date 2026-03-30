@@ -68,7 +68,29 @@ public record TdsLiteral(
                         rows.add(row);
                 }
 
+                // Infer types for columns without explicit type annotations
+                for (int c = 0; c < columns.size(); c++) {
+                        if (columns.get(c).type() == null) {
+                                String inferred = inferTypeFromData(rows, c);
+                                columns.set(c, TdsColumn.of(columns.get(c).name(), inferred));
+                        }
+                }
+
                 return new TdsLiteral(columns, rows);
+        }
+
+        /** Infers a type string from the first non-null data value in the given column. */
+        private static String inferTypeFromData(List<List<Object>> rows, int colIdx) {
+                for (var row : rows) {
+                        if (colIdx < row.size() && row.get(colIdx) != null) {
+                                Object val = row.get(colIdx);
+                                if (val instanceof Long) return "Integer";
+                                if (val instanceof Double) return "Float";
+                                if (val instanceof Boolean) return "Boolean";
+                                return "String";
+                        }
+                }
+                return "String";
         }
 
         /** Quote-aware CSV line split: commas inside quotes are not delimiters. */

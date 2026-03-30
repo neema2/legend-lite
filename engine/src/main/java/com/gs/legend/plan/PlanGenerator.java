@@ -190,7 +190,8 @@ public class PlanGenerator {
 
                 yield generateRelation(lf.body().getLast());
             }
-            case ClassInstance ci -> generateClassInstance(ci);
+            case ClassInstance ci -> throw new PureCompileException(
+                    "Unexpected ClassInstance '" + ci.type() + "' in generateRelation — should be desugared by parser");
             case PureCollection coll -> generateStructCollection(coll);
             default -> throw new PureCompileException(
                     "PlanGenerator: cannot compile: " + vs.getClass().getSimpleName());
@@ -198,38 +199,7 @@ public class PlanGenerator {
 
     }
 
-    private SqlBuilder generateClassInstance(ClassInstance ci) {
-        return switch (ci.type()) {
-            case "relation" -> {
-                // #>{DB.TABLE}# → SELECT * FROM "TABLE" AS "t0"
-                String tableRef = (String) ci.value();
-                String tableName = tableRef.contains(".")
-                        ? tableRef.substring(tableRef.lastIndexOf('.') + 1)
-                        : tableRef;
-                String alias = nextTableAlias();
-                yield new SqlBuilder()
-                        .selectStar()
-                        .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier(alias));
-            }
-            case "tdsLiteral" -> {
-                // TypeChecker stores parsed TdsLiteral; nested ASTs may still have raw String
-                com.gs.legend.ast.TdsLiteral tds = ci.value() instanceof com.gs.legend.ast.TdsLiteral t
-                        ? t
-                        : com.gs.legend.ast.TdsLiteral.parse((String) ci.value());
-
-                yield generateTdsLiteral(tds);
-            }
-            case "instance" ->
-
-            {
-                var data = (ValueSpecificationBuilder.InstanceData) ci.value();
-
-                yield generateStructLiteral(data);
-            }
-            default -> throw new PureCompileException("PlanGenerator: unsupported ClassInstance type: " + ci.type());
-
-        };
-    }
+    // generateClassInstance removed — parser desugars relation/tdsLiteral/instance to AppliedFunction
 
     /**
      * Compiles a struct literal ^ClassName(field=val, ...) to flat VALUES.
@@ -249,8 +219,11 @@ public class PlanGenerator {
         }
         var rows = new java.util.ArrayList<ValueSpecificationBuilder.InstanceData>();
         for (var v : coll.values()) {
-            if (v instanceof ClassInstance(String type, Object value) && "instance".equals(type)) {
-                rows.add((ValueSpecificationBuilder.InstanceData) value);
+            if (v instanceof AppliedFunction af && "new".equals(simpleName(af.function()))
+                    && af.parameters().size() >= 2
+                    && af.parameters().get(1) instanceof ClassInstance ci
+                    && "instance".equals(ci.type())) {
+                rows.add((ValueSpecificationBuilder.InstanceData) ci.value());
             } else {
                 throw new PureCompileException(
                         "PlanGenerator: struct collection contains non-instance: " + v.getClass().getSimpleName());
@@ -302,13 +275,14 @@ public class PlanGenerator {
                         .toList();
                 yield new SqlExpr.ArrayLiteral(elements);
             }
-            case ClassInstance ci when "instance".equals(ci.type()) -> {
+            case AppliedFunction af when "new".equals(simpleName(af.function()))
+                    && af.parameters().size() >= 2
+                    && af.parameters().get(1) instanceof ClassInstance ci
+                    && "instance".equals(ci.type()) -> {
                 var data = (ValueSpecificationBuilder.InstanceData) ci.value();
                 var fields = new java.util.LinkedHashMap<String, SqlExpr>();
                 for (var entry : data.properties().entrySet()) {
                     SqlExpr rendered = renderStructValue(entry.getValue());
-                    // If the compiler tagged this value as many (to-many [*] property)
-                    // but the AST is a single element, wrap it in an array literal.
                     TypeInfo valInfo = unit.types().get(entry.getValue());
                     if (valInfo != null && valInfo.isMany()
                             && !(entry.getValue() instanceof PureCollection)) {
@@ -396,6 +370,8 @@ public class PlanGenerator {
         return switch (funcName) {
             case "getAll" -> generateGetAll(af);
             case "table", "tableReference" -> generateTableAccess(af);
+            case "tds" -> generateTdsFunction(af);
+            case "new" -> generateNewFunction(af);
             case "filter" -> generateFilter(af);
             case "project" -> generateProject(af);
             case "sort", "sortBy", "sortByReversed" -> generateSort(af);
@@ -560,6 +536,29 @@ public class PlanGenerator {
         return new SqlBuilder()
                 .selectStar()
                 .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier("t0"));
+    }
+
+    /**
+     * Generates VALUES SQL for a tds() function call.
+     * Reads parsed TdsLiteral from TypeInfo sidecar — no string parsing here.
+     */
+    private SqlBuilder generateTdsFunction(AppliedFunction af) {
+        TypeInfo info = unit.typeInfoFor(af);
+        if (info == null || info.tdsLiteral() == null) {
+            throw new PureCompileException("tds: parsed TdsLiteral not found in TypeInfo — compiler bug");
+        }
+        return generateTdsLiteral(info.tdsLiteral());
+    }
+
+    /**
+     * Generates flat VALUES SQL for a new() function call (struct literal).
+     * Extracts InstanceData from param[1] (structural AST access).
+     * Type validation already done by TypeChecker.
+     */
+    private SqlBuilder generateNewFunction(AppliedFunction af) {
+        var ci = (ClassInstance) af.parameters().get(1);
+        var data = (ValueSpecificationBuilder.InstanceData) ci.value();
+        return generateStructLiteral(data);
     }
 
     // ========== flatten ==========
@@ -2230,10 +2229,6 @@ public class PlanGenerator {
             case ClassInstance ci -> {
                 if (ci.value() instanceof ColSpec cs)
                     yield new SqlExpr.ColumnRef(cs.name());
-                // In-memory struct literal: ^Type(prop=val, ...) — render value struct
-                if ("instance".equals(ci.type())) {
-                    yield renderStructValue(ci);
-                }
                 throw new PureCompileException(
                         "PlanGenerator: unsupported ClassInstance in scalar: " + ci.type());
             }
@@ -3931,6 +3926,11 @@ public class PlanGenerator {
                     }
                 }
                 yield new SqlExpr.FunctionCall("format", fmtArgs);
+            }
+
+            // --- Struct literal: new(PE(class), ClassInstance("instance", data)) → StructLiteral ---
+            case "new" -> {
+                yield renderStructValue(af);
             }
 
             default -> throw new PureCompileException(
