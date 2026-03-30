@@ -599,22 +599,62 @@ public class BuiltinFunctionRegistry {
                 "native function greaterThan(left:Date[1], right:Date[1]):Boolean[1];");
         reg.registerSignature("greaterThan",
                 "native function greaterThan(left:String[1], right:String[1]):Boolean[1];");
+        // Nullable overloads for greaterThan (Pure has [0..1] variants for all types)
+        reg.registerSignature("greaterThan", "native function greaterThan(left:Number[0..1], right:Number[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThan", "native function greaterThan(left:Number[1], right:Number[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThan", "native function greaterThan(left:Number[0..1], right:Number[1]):Boolean[1];");
+        reg.registerSignature("greaterThan", "native function greaterThan(left:Date[0..1], right:Date[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThan", "native function greaterThan(left:Date[1], right:Date[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThan", "native function greaterThan(left:Date[0..1], right:Date[1]):Boolean[1];");
+        reg.registerSignature("greaterThan", "native function greaterThan(left:String[0..1], right:String[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThan", "native function greaterThan(left:String[1], right:String[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThan", "native function greaterThan(left:String[0..1], right:String[1]):Boolean[1];");
         reg.registerSignature("lessThan", "native function lessThan(left:Number[1], right:Number[1]):Boolean[1];");
         reg.registerSignature("lessThan", "native function lessThan(left:Date[1], right:Date[1]):Boolean[1];");
         reg.registerSignature("lessThan",
                 "native function lessThan(left:String[1], right:String[1]):Boolean[1];");
+        // Nullable overloads for lessThan
+        reg.registerSignature("lessThan", "native function lessThan(left:Number[0..1], right:Number[0..1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:Number[1], right:Number[0..1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:Number[0..1], right:Number[1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:Date[0..1], right:Date[0..1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:Date[1], right:Date[0..1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:Date[0..1], right:Date[1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:String[0..1], right:String[0..1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:String[1], right:String[0..1]):Boolean[1];");
+        reg.registerSignature("lessThan", "native function lessThan(left:String[0..1], right:String[1]):Boolean[1];");
         reg.registerSignature("greaterThanEqual",
                 "native function greaterThanEqual(left:Number[1], right:Number[1]):Boolean[1];");
         reg.registerSignature("greaterThanEqual",
                 "native function greaterThanEqual(left:Date[1], right:Date[1]):Boolean[1];");
         reg.registerSignature("greaterThanEqual",
                 "native function greaterThanEqual(left:String[1], right:String[1]):Boolean[1];");
+        // Nullable overloads for greaterThanEqual
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:Number[0..1], right:Number[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:Number[1], right:Number[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:Number[0..1], right:Number[1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:Date[0..1], right:Date[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:Date[1], right:Date[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:Date[0..1], right:Date[1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:String[0..1], right:String[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:String[1], right:String[0..1]):Boolean[1];");
+        reg.registerSignature("greaterThanEqual", "native function greaterThanEqual(left:String[0..1], right:String[1]):Boolean[1];");
         reg.registerSignature("lessThanEqual",
                 "native function lessThanEqual(left:Number[1], right:Number[1]):Boolean[1];");
         reg.registerSignature("lessThanEqual",
                 "native function lessThanEqual(left:Date[1], right:Date[1]):Boolean[1];");
         reg.registerSignature("lessThanEqual",
                 "native function lessThanEqual(left:String[1], right:String[1]):Boolean[1];");
+        // Nullable overloads for lessThanEqual
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:Number[0..1], right:Number[0..1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:Number[1], right:Number[0..1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:Number[0..1], right:Number[1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:Date[0..1], right:Date[0..1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:Date[1], right:Date[0..1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:Date[0..1], right:Date[1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:String[0..1], right:String[0..1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:String[1], right:String[0..1]):Boolean[1];");
+        reg.registerSignature("lessThanEqual", "native function lessThanEqual(left:String[0..1], right:String[1]):Boolean[1];");
         reg.registerSignature("between",
                 "native function between(value:Number[1], low:Number[1], high:Number[1]):Boolean[1];");
         reg.registerSignature("compare", "native function compare(left:Any[1], right:Any[1]):Integer[1];");

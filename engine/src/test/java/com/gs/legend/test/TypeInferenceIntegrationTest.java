@@ -4163,4 +4163,24 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertEquals(-4, ((Number) result.rows().get(0).get(1)).intValue(), "code should be -4");
                 assertEquals(-5, ((Number) result.rows().get(0).get(2)).intValue(), "total should be -5");
         }
+
+        // ==================== Nullable comparison (PCT: testVariantColumn_filterOnIndexExtractionValue) ====================
+
+        @Test
+        void testNullableComparisonWithVariantTo() throws SQLException {
+                // to(@Integer) returns Integer[0..1], so lessThan must accept nullable args.
+                // This mirrors the PCT test: $x.payload->get(0)->to(@Integer) < 7
+                var result = queryService.execute(
+                                getCompletePureModelWithRuntime(),
+                                "|#TDS\n" +
+                                "  id, value\n" +
+                                "  1, 3\n" +
+                                "  2, 7\n" +
+                                "  3, 10\n" +
+                                "#->filter(x | $x.value->to(@Integer) < 7)" +
+                                "->select(~[id, value])",
+                                "test::TestRuntime", connection);
+                assertEquals(1, result.rows().size(), "Should have 1 row with value < 7");
+                assertEquals(1, ((Number) result.rows().get(0).get(0)).intValue(), "id should be 1");
+        }
 }
