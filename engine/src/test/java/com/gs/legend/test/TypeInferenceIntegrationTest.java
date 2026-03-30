@@ -4137,4 +4137,30 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                                 + value);
                 assertEquals(expected, ((Number) value).longValue());
         }
+
+        // ==================== ColSpec eval (PCT: testSimpleEval) ====================
+
+        @Test
+        void testColSpecEvalInFilter() throws SQLException {
+                // PCT test: ~colName->eval($row) inside filter lambda
+                // ~total->eval($row)->toOne() extracts column 'total' from the row
+                // This is equivalent to $row.total but uses the ColSpec->eval pattern
+                var result = queryService.execute(
+                                getCompletePureModelWithRuntime(),
+                                "|#TDS\n" +
+                                "  id, code\n" +
+                                "  -1, -4\n" +
+                                "  2, 5\n" +
+                                "  3, 3\n" +
+                                "#->extend(~total : r | $r.id->toOne() + $r.code->toOne())" +
+                                "->filter(row | ~total->eval($row)->toOne() < 0)" +
+                                "->select(~[id, code, total])",
+                                "test::TestRuntime", connection);
+                assertFalse(result.rows().isEmpty(), "Should have filtered rows");
+                // Row with id=-1, code=-4 has total=-5 which is < 0
+                assertEquals(1, result.rows().size(), "Should have exactly 1 row with total < 0");
+                assertEquals(-1, ((Number) result.rows().get(0).get(0)).intValue(), "id should be -1");
+                assertEquals(-4, ((Number) result.rows().get(0).get(1)).intValue(), "code should be -4");
+                assertEquals(-5, ((Number) result.rows().get(0).get(2)).intValue(), "total should be -5");
+        }
 }

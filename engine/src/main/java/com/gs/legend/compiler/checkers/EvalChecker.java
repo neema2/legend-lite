@@ -33,6 +33,22 @@ public class EvalChecker extends AbstractChecker {
         }
 
         return switch (params.get(0)) {
+            // ~colName->eval($row) — column accessor applied to a row
+            // Rewrite to $row.colName (property access on the row)
+            case ClassInstance ci when "colSpec".equals(ci.type()) -> {
+                var colSpec = (ColSpec) ci.value();
+                if (params.size() < 2) {
+                    throw new PureCompileException(
+                            "eval() on ~" + colSpec.name() + " requires a row argument");
+                }
+                // Compile the row argument to ensure it's typed
+                env.compileExpr(params.get(1), ctx);
+                // Rewrite to a property access: $row.colName
+                AppliedProperty propAccess = new AppliedProperty(
+                        colSpec.name(), List.of(params.get(1)));
+                TypeInfo bodyResult = env.compileExpr(propAccess, ctx);
+                yield TypeInfo.from(bodyResult).inlinedBody(propAccess).build();
+            }
             // funcRef->eval(args...) — rewrite to direct function call
             case PackageableElementPtr(String fullPath) -> {
                 String funcName = stripTypeSignature(simpleName(fullPath));
@@ -51,7 +67,7 @@ public class EvalChecker extends AbstractChecker {
                 yield TypeInfo.from(bodyResult).inlinedBody(lastStmt).build();
             }
             default -> throw new PureCompileException(
-                    "eval(): first argument must be a function reference or lambda, got "
+                    "eval(): first argument must be a function reference, column spec, or lambda, got "
                             + params.get(0).getClass().getSimpleName());
         };
     }

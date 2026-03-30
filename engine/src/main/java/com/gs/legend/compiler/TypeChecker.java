@@ -195,8 +195,11 @@ public class TypeChecker implements TypeCheckEnv {
     private TypeInfo compileFunction(AppliedFunction af, CompilationContext ctx) {
         String funcName = simpleName(af.function());
 
-        // Common: compile first arg (source) — harmless for source-less functions
-        TypeInfo source = !af.parameters().isEmpty()
+        // Compile first arg (source) for most functions.
+        // eval is excluded: it's the application operator — its source is an
+        // "applicable" (colSpec, funcRef, lambda), not a value. EvalChecker
+        // handles its own source compilation via AST rewriting.
+        TypeInfo source = !af.parameters().isEmpty() && !"eval".equals(funcName)
                 ? compileExpr(af.parameters().get(0), ctx)
                 : null;
 
@@ -316,7 +319,6 @@ public class TypeChecker implements TypeCheckEnv {
             default -> throw new PureCompileException("Unknown ClassInstance type: " + ci.type());
         };
     }
-
     /**
      * Compiles a struct literal ^ClassName(prop=val, ...) with proper type info.
      * Builds a GenericType.Relation.Schema where each property becomes a typed
