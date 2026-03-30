@@ -84,7 +84,6 @@ public class JoinChecker extends AbstractChecker {
         ExpressionType outputExpr = resolveOutput(def, bindings, "join");
 
         return TypeInfo.builder()
-                .mapping(left.mapping())
                 .joinType(joinType)
                 .joinColumnRenames(renames)
                 .expressionType(outputExpr)

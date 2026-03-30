@@ -54,7 +54,6 @@ public class FromChecker extends AbstractChecker {
         ExpressionType outputType = resolveOutput(def, bindings, "from()");
         return TypeInfo.builder()
                 .expressionType(outputType)
-                .mapping(source.mapping())
                 .build();
     }
 }

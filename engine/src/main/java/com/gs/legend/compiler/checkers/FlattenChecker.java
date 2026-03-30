@@ -49,8 +49,7 @@ public class FlattenChecker extends AbstractChecker {
         if (colName == null) {
             // No column specified — pass through, use signature output
             return TypeInfo.builder()
-                    .mapping(source.mapping())
-                    .expressionType(resolveOutput(def, bindings, "flatten()"))
+                                        .expressionType(resolveOutput(def, bindings, "flatten()"))
                     .build();
         }
 
@@ -74,8 +73,7 @@ public class FlattenChecker extends AbstractChecker {
         var flattenRelType = new GenericType.Relation.Schema(
                 resultColumns, sourceSchema.dynamicPivotColumns());
         return TypeInfo.builder()
-                .mapping(source.mapping())
-                .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
+                                .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
                 .expressionType(ExpressionType.one(new GenericType.Relation(flattenRelType)))
                 .build();
     }

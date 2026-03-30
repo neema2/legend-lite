@@ -73,7 +73,6 @@ public class AsOfJoinChecker extends AbstractChecker {
         ExpressionType outputExpr = resolveOutput(def, bindings, "asOfJoin");
 
         return TypeInfo.builder()
-                .mapping(left.mapping())
                 .joinColumnRenames(renames)
                 .expressionType(outputExpr)
                 .build();

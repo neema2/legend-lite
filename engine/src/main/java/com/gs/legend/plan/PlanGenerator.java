@@ -5,10 +5,8 @@ import com.gs.legend.ast.*;
 import com.gs.legend.compiler.PureCompileException;
 import com.gs.legend.compiler.TypeCheckResult;
 import com.gs.legend.compiler.TypeChecker;
+import com.gs.legend.compiler.StoreResolution;
 import com.gs.legend.compiler.TypeInfo;
-import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.mapping.RelationalMapping;
-import com.gs.legend.model.store.Join;
 import com.gs.legend.sqlgen.SQLDialect;
 import com.gs.legend.sqlgen.SqlBuilder;
 import com.gs.legend.sqlgen.SqlExpr;
@@ -40,11 +38,18 @@ public class PlanGenerator {
 
     private final TypeCheckResult unit;
     private final SQLDialect dialect;
+    private final java.util.IdentityHashMap<com.gs.legend.ast.ValueSpecification, com.gs.legend.compiler.StoreResolution> storeResolutions;
     private int tableAliasCounter = 0;
 
     public PlanGenerator(TypeCheckResult unit, SQLDialect dialect) {
+        this(unit, dialect, new java.util.IdentityHashMap<>());
+    }
+
+    public PlanGenerator(TypeCheckResult unit, SQLDialect dialect,
+            java.util.IdentityHashMap<com.gs.legend.ast.ValueSpecification, com.gs.legend.compiler.StoreResolution> storeResolutions) {
         this.unit = unit;
         this.dialect = dialect;
+        this.storeResolutions = storeResolutions;
     }
 
     /**
@@ -63,7 +68,11 @@ public class PlanGenerator {
         SQLDialect dialect = model.resolveDialect(runtimeName);
         var vs = com.gs.legend.parser.PureParser.parseQuery(query);
         var unit = new TypeChecker(model).check(vs);
-        return new PlanGenerator(unit, dialect).generate();
+        var explicitMappings = com.gs.legend.compiler.MappingResolver.discoverMappings(
+                unit, model.getMappingRegistry());
+        var storeResolutions = new com.gs.legend.compiler.MappingResolver(
+                unit, model, explicitMappings).resolve();
+        return new PlanGenerator(unit, dialect, storeResolutions).generate();
     }
 
     /**
@@ -86,7 +95,7 @@ public class PlanGenerator {
         }
 
         SqlBuilder builder;
-        if (info.isScalar() && !info.isClassBased()) {
+        if (info.isScalar() && storeFor(vs) == null) {
             builder = generateScalarQuery(vs);
         } else {
             builder = generateRelation(vs);
@@ -160,7 +169,7 @@ public class PlanGenerator {
         if (ast instanceof LambdaFunction lf && !lf.body().isEmpty()) {
             body = lf.body().getLast();
         }
-        SqlExpr scalar = generateScalar(body, null, mappingFor(ast));
+        SqlExpr scalar = generateScalar(body, null, storeFor(ast));
 
         // Collection results: UNNEST to produce N scalar rows instead of 1 row with a LIST.
         // Only applied when the compiler explicitly marked this expression with Multiplicity.MANY,
@@ -408,11 +417,11 @@ public class PlanGenerator {
     // ========== getAll / table ==========
 
     private SqlBuilder generateGetAll(AppliedFunction af) {
-        TypeInfo info = unit.typeInfoFor(af);
-        String tableName = info != null ? info.tableName() : null;
-        if (tableName == null) {
-            throw new PureCompileException("getAll: tableName not resolved in sidecar for " + af.function());
+        var store = storeFor(af);
+        if (store == null || store.tableName() == null) {
+            throw new PureCompileException("getAll: StoreResolution not resolved for " + af.function());
         }
+        String tableName = store.tableName();
         String alias = nextTableAlias();
         return new SqlBuilder()
                 .selectStar()
@@ -441,16 +450,14 @@ public class PlanGenerator {
         // Step 1: Build source SQL (e.g., Person.all() → SELECT * FROM T_RAW_PERSON)
         SqlBuilder source = generateRelation(af.parameters().get(0));
 
-        // Step 2: Get table alias and mapping
-        var mapping = mappingFor(af);
+        // Step 2: Get table alias and store resolution
+        var store = storeFor(af);
         String tableAlias = unquote(source.getFromAlias());
 
         // Step 2b: Apply ~filter from M2M mapping (if present)
-        // The filter uses $src which resolves against source columns via sourceMapping
-        if (mapping instanceof com.gs.legend.model.mapping.PureClassMapping pcm
-                && pcm.optionalFilter().isPresent()) {
+        if (store != null && store.hasFilter()) {
             SqlExpr whereClause = generateScalar(
-                    pcm.optionalFilter().get(), "$src", pcm.sourceMapping(), tableAlias);
+                    store.filterExpr(), "$src", store.sourceResolution(), tableAlias);
             source.addWhere(whereClause);
         }
 
@@ -460,46 +467,41 @@ public class PlanGenerator {
         var nestedSubqueries = new java.util.LinkedHashMap<String, SqlExpr>();
         for (var prop : spec.properties()) {
             if (prop.isNested()) {
-                // Resolve association target for this nested property
-                var assocTarget = info.associations().get(prop.name());
-                if (assocTarget == null) {
+                // Resolve join for this nested property
+                var joinRes = store != null && store.hasJoins() ? store.joins().get(prop.name()) : null;
+                if (joinRes == null) {
                     throw new PureCompileException(
-                            "Nested property '" + prop.name() + "' has no resolved association in TypeInfo");
+                            "Nested property '" + prop.name() + "' has no resolved join in StoreResolution");
                 }
-                var childMapping = assocTarget.targetMapping();
-                var join = assocTarget.join();
-                boolean isToMany = assocTarget.isToMany();
 
-                // Ensure parent join column is projected (e.g., ID for T_RAW_PERSON.ID)
-                String parentTable = mapping.sourceTable().name();
-                String parentJoinCol = join.getColumnForTable(parentTable);
+                // Ensure parent join column is projected
+                String parentJoinCol = joinRes.sourceColumn();
                 source.addSelect(
                         new SqlExpr.Column(tableAlias, parentJoinCol),
                         dialect.quoteIdentifier(parentJoinCol));
 
                 // Build correlated subquery for nested object
-                String childTable = join.getOtherTable(parentTable);
-                String childJoinCol = join.getColumnForTable(childTable);
+                String childTable = joinRes.targetTable();
+                String childJoinCol = joinRes.targetColumn();
                 String childAlias = "c_" + prop.name();
 
                 // Build json_object for child properties
                 var childKvPairs = new java.util.ArrayList<SqlExpr>();
                 for (var childProp : prop.nested().properties()) {
                     childKvPairs.add(new SqlExpr.StringLiteral(childProp.name()));
-                    SqlExpr childColExpr = resolveColumnExpr(childProp.name(), childMapping, childAlias);
+                    SqlExpr childColExpr = resolveColumnExpr(childProp.name(), joinRes.targetResolution(), childAlias);
                     childKvPairs.add(childColExpr);
                 }
                 var childJsonObj = new SqlExpr.JsonObject(childKvPairs);
 
                 // Correlated WHERE: child.fk = _sub.parent_pk
-                // Use raw names — Column.toSql() quotes internally
                 SqlExpr correlation = new SqlExpr.Binary(
                         new SqlExpr.Column(childAlias, childJoinCol),
                         "=",
                         new SqlExpr.Column("_sub", parentJoinCol));
 
                 SqlBuilder childQuery = new SqlBuilder();
-                if (isToMany) {
+                if (joinRes.isToMany()) {
                     // 1-to-many: SELECT json_group_array(json_object(...))
                     childQuery.addSelect(new SqlExpr.JsonArrayAgg(childJsonObj),
                             dialect.quoteIdentifier("_arr"));
@@ -512,7 +514,7 @@ public class PlanGenerator {
 
                 nestedSubqueries.put(prop.name(), new SqlExpr.Subquery(childQuery));
             } else {
-                SqlExpr colExpr = resolveColumnExpr(prop.name(), mapping, tableAlias);
+                SqlExpr colExpr = resolveColumnExpr(prop.name(), store, tableAlias);
                 source.addSelect(colExpr, dialect.quoteIdentifier(prop.name()));
             }
         }
@@ -522,8 +524,8 @@ public class PlanGenerator {
     }
 
     private SqlBuilder generateTableAccess(AppliedFunction af) {
-        TypeInfo info = unit.typeInfoFor(af);
-        String tableName = info != null ? info.tableName() : null;
+        var store = storeFor(af);
+        String tableName = store != null ? store.tableName() : null;
         // table('myTable') — tableName comes from the string parameter, not from a mapping
         if (tableName == null && !af.parameters().isEmpty()
                 && af.parameters().get(0) instanceof CString(String value)) {
@@ -617,7 +619,7 @@ public class PlanGenerator {
     // ========== filter ==========
 
     private SqlBuilder generateFilter(AppliedFunction af) {
-        var mapping = mappingFor(af);
+        var store = storeFor(af);
         List<ValueSpecification> params = af.parameters();
         SqlBuilder source = generateRelation(params.get(0));
         LambdaFunction lambda = (LambdaFunction) params.get(1);
@@ -638,11 +640,10 @@ public class PlanGenerator {
             if (source.getFromAlias() == null)
                 throw new PureCompileException("PlanGenerator: source has no FROM alias for filter inlining");
             String tableAlias = unquote(source.getFromAlias());
-            SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, mapping, tableAlias);
+            SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, store, tableAlias);
             // Resolve association paths → EXISTS subqueries
-            TypeInfo filterInfo = unit.types().get(af);
-            if (filterInfo != null && filterInfo.hasAssociations() && mapping != null) {
-                whereClause = resolveAssociationRefs(whereClause, filterInfo.associations(), mapping, tableAlias);
+            if (store != null && store.hasJoins()) {
+                whereClause = resolveAssociationRefs(whereClause, store, tableAlias);
             }
             source.addWhere(whereClause);
             return source;
@@ -652,14 +653,14 @@ public class PlanGenerator {
         if (source.isSelectStar() && source.hasWhere()
                 && !source.hasGroupBy() && !source.hasOrderBy()
                 && !source.hasWindowColumns()) {
-            SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, mapping);
+            SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, store);
             source.addWhere(whereClause);
             return source;
         }
         // Subquery wrapping — columns resolve by name from subquery output.
-        // Don't pass mapping for resolution: the subquery SELECT already computed
+        // Don't pass store for resolution: the subquery SELECT already computed
         // all expressions as named aliases, so WHERE just references those aliases.
-        SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, null);
+        SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, (StoreResolution) null);
         String filterAlias = source.hasGroupBy() ? "grp" : "ext";
         return new SqlBuilder()
                 .selectStar()
@@ -672,17 +673,16 @@ public class PlanGenerator {
     private SqlBuilder generateProject(AppliedFunction af) {
         List<ValueSpecification> params = af.parameters();
 
-        var mapping = mappingFor(af);
+        var store = storeFor(af);
 
         // Step 1: Compile the source (getAll, filter, struct collection, etc.)
         SqlBuilder source = generateRelation(params.get(0));
 
         // Step 1b: Apply ~filter from M2M mapping (if present)
-        if (mapping instanceof com.gs.legend.model.mapping.PureClassMapping pcm
-                && pcm.optionalFilter().isPresent()) {
+        if (store != null && store.hasFilter()) {
             String srcAlias = source.getFromAlias() != null ? unquote(source.getFromAlias()) : "t0";
             SqlExpr whereClause = generateScalar(
-                    pcm.optionalFilter().get(), "$src", pcm.sourceMapping(), srcAlias);
+                    store.filterExpr(), "$src", store.sourceResolution(), srcAlias);
             source.addWhere(whereClause);
         }
 
@@ -716,14 +716,12 @@ public class PlanGenerator {
             builder = new SqlBuilder().fromSubquery(source, tableAlias);
         }
 
-        // Track association joins: assocProperty → cached info
-        record AssocJoinInfo(String alias, ClassMapping mapping, Join join) {
+        // Track association joins: assocProperty → cached alias
+        record AssocJoinInfo(String alias, StoreResolution.JoinResolution joinRes) {
         }
         java.util.Map<String, AssocJoinInfo> assocJoins = new java.util.LinkedHashMap<>();
 
         // Step 4: Build SELECT columns from projections (sidecar) + lambda bodies (AST)
-        // Pattern A: sidecar provides type-level info (propertyPath, alias, associations),
-        // PlanGen walks AST for code generation.
         TypeInfo info = unit.types().get(af);
         List<ColSpec> colSpecs = (params.get(1) instanceof ClassInstance ci
                 && ci.value() instanceof ColSpecArray(List<ColSpec> specs))
@@ -739,44 +737,43 @@ public class PlanGenerator {
 
                 AssocJoinInfo joinInfo = assocJoins.get(assocProp);
                 String targetAlias;
-                ClassMapping targetMapping;
-                Join join;
+                StoreResolution.JoinResolution joinRes;
 
                 if (joinInfo == null) {
-                    var assocTarget = resolveAssociationFromSidecar(af, assocProp);
-                    targetMapping = assocTarget.targetMapping();
+                    joinRes = store != null && store.hasJoins() ? store.joins().get(assocProp) : null;
+                    if (joinRes == null) joinRes = findJoinResolution(assocProp);
+                    if (joinRes == null) {
+                        throw new PureCompileException(
+                                "No join resolution for association '" + assocProp + "' in project");
+                    }
                     targetAlias = "j" + (assocJoins.size() + 1);
-                    join = assocTarget.join();
-                    assocJoins.put(assocProp, new AssocJoinInfo(targetAlias, targetMapping, join));
+                    assocJoins.put(assocProp, new AssocJoinInfo(targetAlias, joinRes));
                 } else {
                     targetAlias = joinInfo.alias();
-                    targetMapping = joinInfo.mapping();
-                    join = joinInfo.join();
+                    joinRes = joinInfo.joinRes();
                 }
 
                 SqlExpr colExpr;
-                if (join == null) {
+                if (joinRes.join() == null) {
                     // UNNEST association (struct array): resolve from unnested element
                     String elemAlias = targetAlias + "_elem";
-                    colExpr = resolveColumnExpr(leafProp, targetMapping, elemAlias);
+                    colExpr = resolveColumnExpr(leafProp, joinRes.targetResolution(), elemAlias);
                 } else {
-                    colExpr = resolveColumnExpr(leafProp, targetMapping, targetAlias);
+                    colExpr = resolveColumnExpr(leafProp, joinRes.targetResolution(), targetAlias);
                 }
                 builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
             } else {
-                // Non-association: walk the ColSpec lambda body directly (Pattern A).
-                // generateScalar handles both simple property access ($p.firstName → column ref)
-                // and computed expressions ($p.date->monthNumber() → SQL expression) uniformly.
+                // Non-association: walk the ColSpec lambda body directly
                 ColSpec cs = colSpecs.get(i);
                 LambdaFunction lambda = cs.function1();
                 if (lambda != null && !lambda.body().isEmpty()) {
                     String paramName = lambda.parameters().isEmpty() ? "x"
                             : lambda.parameters().get(0).name();
-                    SqlExpr colExpr = generateScalar(lambda.body().get(0), paramName, mapping, tableAlias);
+                    SqlExpr colExpr = generateScalar(lambda.body().get(0), paramName, store, tableAlias);
                     builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
                 } else {
                     // Bare ColSpec (~prop) — treat as column reference
-                    SqlExpr colExpr = resolveColumnExpr(proj.property(), mapping, tableAlias);
+                    SqlExpr colExpr = resolveColumnExpr(proj.property(), store, tableAlias);
                     builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
                 }
             }
@@ -785,23 +782,22 @@ public class PlanGenerator {
         // Step 5: Add JOINs for association projections
         for (var entry : assocJoins.entrySet()) {
             AssocJoinInfo joinInfo = entry.getValue();
-            Join join = joinInfo.join();
-            if (join != null && mapping != null) {
+            var joinRes = joinInfo.joinRes();
+            if (joinRes.join() != null) {
                 // Regular FK join
-                String targetTableName = joinInfo.mapping().sourceTable().name();
-                String srcTableName = mapping != null ? mapping.sourceTable().name() : null;
-                String leftCol = srcTableName != null ? join.getColumnForTable(srcTableName) : null;
-                String rightCol = join.getColumnForTable(targetTableName);
+                String targetTableName = joinRes.targetTable();
+                String leftCol = joinRes.sourceColumn();
+                String rightCol = joinRes.targetColumn();
                 SqlExpr onCondition = new SqlExpr.Binary(
                         new SqlExpr.Column(tableAlias, leftCol), "=",
                         new SqlExpr.Column(joinInfo.alias(), rightCol));
                 builder.addJoin(SqlBuilder.JoinType.LEFT,
                         dialect.quoteIdentifier(targetTableName),
                         dialect.quoteIdentifier(joinInfo.alias()), onCondition);
-            } else if (join == null) {
+            } else {
                 // UNNEST for inline array properties (struct literal arrays)
                 String arrayProp = entry.getKey();
-                SqlExpr arrayRef = resolveColumnExpr(arrayProp, mapping, tableAlias);
+                SqlExpr arrayRef = resolveColumnExpr(arrayProp, store, tableAlias);
                 String elemAlias = joinInfo.alias() + "_elem";
 
                 SqlBuilder unnestSubquery = new SqlBuilder()
@@ -834,112 +830,59 @@ public class PlanGenerator {
     }
 
     /**
-     * Resolves a property to its column expression, handling expression mappings.
+     * Resolves a property to its column expression via StoreResolution.
+     * Pattern-matches on PropertyResolution — no ClassMapping dispatch.
      */
-    private SqlExpr resolveColumnExpr(String propertyName, ClassMapping mapping, String alias) {
-        if (mapping == null) {
-            // No mapping (TDS literal, bare relation) — use property name as column directly
+    private SqlExpr resolveColumnExpr(String propertyName, StoreResolution store, String alias) {
+        if (store == null || propertyName == null) {
+            // No store (TDS literal, bare relation) — use property name as column directly
             return alias != null ? new SqlExpr.Column(alias, propertyName) : new SqlExpr.ColumnRef(propertyName);
         }
-        if (propertyName == null)
-            throw new PureCompileException("PlanGenerator: resolveColumnExpr requires non-null property name");
-
-        // M2M mapping: compile the expression AST to SQL using the source mapping
-        if (mapping instanceof com.gs.legend.model.mapping.PureClassMapping pcm) {
-            if (!pcm.hasProperty(propertyName)) {
-                throw new PureCompileException(
-                        "Property '" + propertyName + "' not found in M2M mapping for " + pcm.targetClassName());
+        var resolution = store.resolveProperty(propertyName);
+        if (resolution == null) {
+            // Property not in store — use propertyToColumn or name directly
+            String col = store.columnFor(propertyName);
+            String name = col != null ? col : propertyName;
+            return alias != null ? new SqlExpr.Column(alias, name) : new SqlExpr.ColumnRef(name);
+        }
+        return switch (resolution) {
+            case StoreResolution.PropertyResolution.Column col ->
+                    alias != null ? new SqlExpr.Column(alias, col.columnName())
+                            : new SqlExpr.ColumnRef(col.columnName());
+            case StoreResolution.PropertyResolution.Expression expr -> {
+                SqlExpr base = new SqlExpr.Column(alias, expr.columnName());
+                SqlExpr va = new SqlExpr.VariantTextExtract(base, expr.jsonKey());
+                yield expr.castType() != null ? new SqlExpr.Cast(va, expr.castType()) : va;
             }
-            ValueSpecification expr = pcm.expressionForProperty(propertyName);
-            ClassMapping sourceMapping = pcm.sourceMapping();
-            return generateScalar(expr, "src", sourceMapping, alias);
-        }
-
-        // Relational mapping: use PropertyMapping for column/enum/expression resolution
-        if (!(mapping instanceof RelationalMapping rm)) {
-            throw new PureCompileException(
-                    "Unsupported mapping type: " + mapping.getClass().getSimpleName()
-                    + " for property '" + propertyName + "'");
-        }
-        var pmOpt = rm.getPropertyMapping(propertyName);
-        if (pmOpt.isEmpty()) {
-            throw new PureCompileException(
-                    "Property '" + propertyName + "' not found in relational mapping for "
-                    + rm.pureClass().name() + " (table: " + rm.table().name() + ")"
-                    + " propertyMappings=" + rm.propertyMappings().stream().map(p -> p.propertyName()).toList());
-        }
-        var pm = pmOpt.get();
-        var exprAccess = pm.expressionAccess();
-        if (exprAccess.isPresent()) {
-            var ea = exprAccess.get();
-            SqlExpr base = new SqlExpr.Column(alias, pm.columnName());
-            SqlExpr variantAccess = new SqlExpr.VariantTextExtract(base, ea.jsonKey());
-            return ea.castType() != null
-                    ? new SqlExpr.Cast(variantAccess, ea.castType())
-                    : variantAccess;
-        }
-        // Enum mapping: generate CASE WHEN translation
-        if (pm.hasEnumMapping()) {
-            SqlExpr colExpr = alias != null
-                    ? new SqlExpr.Column(alias, pm.columnName())
-                    : new SqlExpr.ColumnRef(pm.columnName());
-            var branches = new java.util.ArrayList<SqlExpr.SearchedCase.WhenBranch>();
-            for (var entry : pm.enumMapping().entrySet()) {
-                String enumValue = entry.getKey();
-                java.util.List<Object> sourceValues = entry.getValue();
-                java.util.List<SqlExpr> conditions = sourceValues.stream()
-                        .map(sv -> (SqlExpr) new SqlExpr.Binary(colExpr, "=",
-                                new SqlExpr.StringLiteral(sv.toString())))
-                        .toList();
-                SqlExpr condition = conditions.get(0);
-                for (int i = 1; i < conditions.size(); i++) {
-                    condition = new SqlExpr.Grouped(
-                            new SqlExpr.Binary(condition, "OR", conditions.get(i)));
-                }
-                branches.add(new SqlExpr.SearchedCase.WhenBranch(
-                        condition, new SqlExpr.StringLiteral(enumValue)));
-            }
-            return new SqlExpr.SearchedCase(branches, new SqlExpr.NullLiteral());
-        }
-        return new SqlExpr.Column(alias, pm.columnName());
+            case StoreResolution.PropertyResolution.Enum enumRes ->
+                    buildEnumCase(alias, enumRes.columnName(), enumRes.enumMap());
+            case StoreResolution.PropertyResolution.M2MExpression m2m ->
+                    generateScalar(m2m.expression(), "src", m2m.sourceResolution(), alias);
+        };
     }
 
     /**
-     * Looks up a pre-resolved association target from the sidecar.
-     * The TypeChecker pre-resolves all associations during compilation.
-     *
-     * @param contextNode The AST node whose TypeInfo contains the associations
-     * @param assocProp   The association property name to look up
-     * @return The pre-resolved association target
+     * Builds a CASE WHEN expression for enum value translation.
      */
-    private TypeInfo.AssociationTarget resolveAssociationFromSidecar(ValueSpecification contextNode,
-            String assocProp) {
-        TypeInfo info = unit.types().get(contextNode);
-        if (info.hasAssociations()) {
-            var target = info.associations().get(assocProp);
-            if (target != null) {
-                return target;
-            }
+    private SqlExpr buildEnumCase(String alias, String columnName, Map<String, List<Object>> enumMap) {
+        SqlExpr colExpr = alias != null
+                ? new SqlExpr.Column(alias, columnName)
+                : new SqlExpr.ColumnRef(columnName);
+        var branches = new java.util.ArrayList<SqlExpr.SearchedCase.WhenBranch>();
+        for (var entry : enumMap.entrySet()) {
+            String enumValue = entry.getKey();
+            List<Object> sourceValues = entry.getValue();
+            List<SqlExpr> conditions = sourceValues.stream()
+                    .map(sv -> (SqlExpr) new SqlExpr.Binary(colExpr, "=",
+                            new SqlExpr.StringLiteral(sv.toString())))
+                    .toList();
+            SqlExpr condition = conditions.size() == 1
+                    ? conditions.get(0)
+                    : new SqlExpr.Or(conditions);
+            branches.add(new SqlExpr.SearchedCase.WhenBranch(
+                    condition, new SqlExpr.StringLiteral(enumValue)));
         }
-        throw new PureCompileException(
-                "PlanGenerator: association '" + assocProp + "' not pre-resolved in sidecar"
-                        + " — ensure TypeChecker resolves associations for this node");
-    }
-
-    /**
-     * Searches all nodes in the sidecar for a pre-resolved association.
-     * Used by compileScalar/buildComparison which don't have the parent node handy.
-     */
-    private TypeInfo.AssociationTarget findAssociationInSidecar(String assocProp) {
-        for (var info : unit.types().values()) {
-            if (info.hasAssociations()) {
-                var target = info.associations().get(assocProp);
-                if (target != null) {
-                    return target;
-                }
-            }
-        }
-        return null;
+        return new SqlExpr.SearchedCase(branches, new SqlExpr.NullLiteral());
     }
 
     /**
@@ -950,49 +893,43 @@ public class PlanGenerator {
      * 1. Replaces AssociationRef with Column(subAlias, targetCol)
      * 2. Wraps the containing expression in EXISTS with join correlation
      */
-    private SqlExpr resolveAssociationRefs(SqlExpr expr,
-            java.util.Map<String, TypeInfo.AssociationTarget> associations,
-            ClassMapping mapping, String tableAlias) {
+    private SqlExpr resolveAssociationRefs(SqlExpr expr, StoreResolution store, String tableAlias) {
         // Check if this expression tree contains an AssociationRef
         SqlExpr.AssociationRef ref = findAssociationRef(expr);
         if (ref == null) {
             // Recurse into AND/OR to handle mixed predicates
             if (expr instanceof SqlExpr.And(List<SqlExpr> conditions)) {
                 var resolved = conditions.stream()
-                        .map(c -> resolveAssociationRefs(c, associations, mapping, tableAlias))
+                        .map(c -> resolveAssociationRefs(c, store, tableAlias))
                         .toList();
                 return new SqlExpr.And(resolved);
             }
             if (expr instanceof SqlExpr.Or(List<SqlExpr> conditions)) {
                 var resolved = conditions.stream()
-                        .map(c -> resolveAssociationRefs(c, associations, mapping, tableAlias))
+                        .map(c -> resolveAssociationRefs(c, store, tableAlias))
                         .toList();
                 return new SqlExpr.Or(resolved);
             }
             if (expr instanceof SqlExpr.Not(SqlExpr inner)) {
-                return new SqlExpr.Not(resolveAssociationRefs(inner, associations, mapping, tableAlias));
+                return new SqlExpr.Not(resolveAssociationRefs(inner, store, tableAlias));
             }
             if (expr instanceof SqlExpr.Grouped(SqlExpr inner)) {
-                return new SqlExpr.Grouped(resolveAssociationRefs(inner, associations, mapping, tableAlias));
+                return new SqlExpr.Grouped(resolveAssociationRefs(inner, store, tableAlias));
             }
             return expr;
         }
 
         // Found AssociationRef — wrap entire expression in EXISTS
-        TypeInfo.AssociationTarget assocTarget = associations.get(ref.assocProp());
-        if (assocTarget == null) {
-            assocTarget = findAssociationInSidecar(ref.assocProp());
-        }
-        if (assocTarget == null || assocTarget.join() == null) {
+        var joinRes = store.hasJoins() ? store.joins().get(ref.assocProp()) : null;
+        if (joinRes == null) joinRes = findJoinResolution(ref.assocProp());
+        if (joinRes == null || joinRes.join() == null) {
             return expr; // Can't resolve — pass through
         }
 
         String subAlias = "sub" + (tableAliasCounter++);
-        String targetTableName = assocTarget.targetMapping().sourceTable().name();
-        Join join = assocTarget.join();
-        String srcTableName = mapping.sourceTable().name();
-        String leftJoinCol = join.getColumnForTable(srcTableName);
-        String rightJoinCol = join.getColumnForTable(targetTableName);
+        String targetTableName = joinRes.targetTable();
+        String leftJoinCol = joinRes.sourceColumn();
+        String rightJoinCol = joinRes.targetColumn();
 
         // Replace AssociationRef → Column(subAlias, targetCol) in the expression
         SqlExpr resolved = replaceAssociationRef(expr, ref, subAlias);
@@ -1081,7 +1018,7 @@ public class PlanGenerator {
         // Read pre-resolved sort specs from sidecar
         TypeInfo info = unit.types().get(af);
         List<TypeInfo.SortSpec> sortSpecs = info.sortSpecs();
-        ClassMapping mapping = info.mapping();
+        var store = storeFor(af);
 
         // Resolve table alias for generateScalar (must be unquoted)
         String tableAlias = unquote(source.getFromAlias());
@@ -1105,7 +1042,7 @@ public class PlanGenerator {
             if (spec.column() == null) {
                 // Collection sort: key lambda lives in the AST, not SortSpec.
                 // Extract from params[1] — same pattern as filter/project/extend.
-                colExpr = extractKeyExprFromAST(af, mapping, tableAlias);
+                colExpr = extractKeyExprFromAST(af, store, tableAlias);
             } else {
                 // Relation sort: column name is already the SQL column name
                 colExpr = new SqlExpr.ColumnRef(spec.column());
@@ -1123,7 +1060,7 @@ public class PlanGenerator {
      *
      * <p>Falls back to a no-op (first column) if no key lambda is present (natural sort).
      */
-    private SqlExpr extractKeyExprFromAST(AppliedFunction af, ClassMapping mapping, String tableAlias) {
+    private SqlExpr extractKeyExprFromAST(AppliedFunction af, StoreResolution store, String tableAlias) {
         List<ValueSpecification> params = af.parameters();
         String funcName = simpleName(af.function());
 
@@ -1150,23 +1087,18 @@ public class PlanGenerator {
         }
 
         String paramName = keyLambda.parameters().get(0).name();
-        SqlExpr colExpr = generateScalar(keyLambda.body().get(0), paramName, mapping, tableAlias);
+        SqlExpr colExpr = generateScalar(keyLambda.body().get(0), paramName, store, tableAlias);
 
         // Resolve AssociationRef → correlated scalar subquery
         // Filter uses EXISTS (boolean), sort needs the actual value
         SqlExpr.AssociationRef ref = findAssociationRef(colExpr);
         if (ref != null) {
-            TypeInfo sortInfo = unit.types().get(af);
-            TypeInfo.AssociationTarget assocTarget = sortInfo != null && sortInfo.hasAssociations()
-                    ? sortInfo.associations().get(ref.assocProp()) : null;
-            if (assocTarget == null) assocTarget = findAssociationInSidecar(ref.assocProp());
-            if (assocTarget != null && assocTarget.join() != null && mapping != null) {
+            var joinRes = findJoinResolution(ref.assocProp());
+            if (joinRes != null && joinRes.join() != null && store != null) {
                 String subAlias = "sort_j" + (tableAliasCounter++);
-                String targetTableName = assocTarget.targetMapping().sourceTable().name();
-                var join = assocTarget.join();
-                String srcTableName = mapping.sourceTable().name();
-                String leftJoinCol = join.getColumnForTable(srcTableName);
-                String rightJoinCol = join.getColumnForTable(targetTableName);
+                String targetTableName = joinRes.targetTable();
+                String leftJoinCol = joinRes.sourceColumn();
+                String rightJoinCol = joinRes.targetColumn();
                 SqlExpr targetCol = new SqlExpr.Column(subAlias, ref.targetCol());
                 SqlExpr correlation = new SqlExpr.Binary(
                         new SqlExpr.Column(subAlias, rightJoinCol), "=",
@@ -2061,15 +1993,15 @@ public class PlanGenerator {
      * Compiles a scalar expression to SqlExpr. Delegates to 5-arg with null
      * tableAlias and varAliases.
      */
-    SqlExpr generateScalar(ValueSpecification vs, String rowParam, ClassMapping mapping) {
-        return generateScalar(vs, rowParam, mapping, null, null);
+    SqlExpr generateScalar(ValueSpecification vs, String rowParam, StoreResolution store) {
+        return generateScalar(vs, rowParam, store, null, null);
     }
 
     /**
      * Compiles scalar with optional table alias prefix. Delegates to 5-arg.
      */
-    SqlExpr generateScalar(ValueSpecification vs, String rowParam, ClassMapping mapping, String tableAlias) {
-        return generateScalar(vs, rowParam, mapping, tableAlias, null);
+    SqlExpr generateScalar(ValueSpecification vs, String rowParam, StoreResolution store, String tableAlias) {
+        return generateScalar(vs, rowParam, store, tableAlias, null);
     }
 
     /**
@@ -2080,12 +2012,12 @@ public class PlanGenerator {
      *                   Used by join/asOfJoin to qualify column references without
      *                   compiler-side tagging. Null outside join conditions.
      */
-    SqlExpr generateScalar(ValueSpecification vs, String rowParam, ClassMapping mapping,
+    SqlExpr generateScalar(ValueSpecification vs, String rowParam, StoreResolution store,
                            String tableAlias, Map<String, String> varAliases) {
         // Compiler-driven inlining: follow inlinedBody pointers (let bindings, blocks, user functions)
         TypeInfo vsInfo = unit.types().get(vs);
         if (vsInfo != null && vsInfo.inlinedBody() != null) {
-            return generateScalar(vsInfo.inlinedBody(), rowParam, mapping, tableAlias, varAliases);
+            return generateScalar(vsInfo.inlinedBody(), rowParam, store, tableAlias, varAliases);
         }
         return switch (vs) {
             case AppliedProperty ap -> {
@@ -2102,78 +2034,24 @@ public class PlanGenerator {
                     if (path.size() > 1) {
                         String assocProp = path.get(0);
                         String leafProp = path.getLast();
-                        // Look up pre-resolved association from sidecar
-                        TypeInfo.AssociationTarget assocTarget = findAssociationInSidecar(assocProp);
-                        if (assocTarget != null) {
-                            String targetCol = leafProp;
-                            var pmOpt = (assocTarget.targetMapping() instanceof RelationalMapping trm)
-                                    ? trm.getPropertyMapping(leafProp) : java.util.Optional.<com.gs.legend.model.store.PropertyMapping>empty();
-                            if (pmOpt.isPresent())
-                                targetCol = pmOpt.get().columnName();
+                        var joinRes = findJoinResolution(assocProp);
+                        if (joinRes != null) {
+                            String targetCol = joinRes.targetResolution() != null
+                                    ? joinRes.targetResolution().columnFor(leafProp) : null;
+                            if (targetCol == null) targetCol = leafProp;
                             yield new SqlExpr.AssociationRef(assocProp, targetCol);
                         }
                     }
-                }
-                String colName = ap.property();
-                if (mapping != null && mapping instanceof RelationalMapping rm2) {
-                    // Check for enum mapping first
-                    var pmOpt = rm2.getPropertyMapping(colName);
-                    if (pmOpt.isPresent() && pmOpt.get().hasEnumMapping()) {
-                        var pm = pmOpt.get();
-                        String dbCol = pm.columnName();
-                        SqlExpr colExpr = tableAlias != null
-                                ? new SqlExpr.Column(tableAlias, dbCol)
-                                : new SqlExpr.ColumnRef(dbCol);
-                        // Build CASE WHEN branches from enum value mappings
-                        var branches = new java.util.ArrayList<SqlExpr.SearchedCase.WhenBranch>();
-                        for (var entry : pm.enumMapping().entrySet()) {
-                            String enumValue = entry.getKey();
-                            List<Object> sourceValues = entry.getValue();
-                            // Build OR condition for multiple source values
-                            List<SqlExpr> conditions = sourceValues.stream()
-                                    .map(sv -> (SqlExpr) new SqlExpr.Binary(colExpr, "=",
-                                            new SqlExpr.StringLiteral(sv.toString())))
-                                    .toList();
-                            SqlExpr condition = conditions.size() == 1
-                                    ? conditions.get(0)
-                                    : new SqlExpr.Or(conditions);
-                            branches.add(new SqlExpr.SearchedCase.WhenBranch(
-                                    condition, new SqlExpr.StringLiteral(enumValue)));
-                        }
-                        yield new SqlExpr.SearchedCase(branches, new SqlExpr.NullLiteral());
-                    }
-                    // Expression mapping (e.g., DATA->get('customerName', @String))
-                    if (pmOpt.isPresent()) {
-                        var exprAccess = pmOpt.get().expressionAccess();
-                        if (exprAccess.isPresent()) {
-                            var ea = exprAccess.get();
-                            SqlExpr base = new SqlExpr.Column(tableAlias, pmOpt.get().columnName());
-                            SqlExpr variantAccess = new SqlExpr.VariantTextExtract(base, ea.jsonKey());
-                            yield ea.castType() != null
-                                    ? new SqlExpr.Cast(variantAccess, ea.castType())
-                                    : variantAccess;
-                        }
-                    }
-                    var columnOpt = rm2.getColumnForProperty(colName);
-                    if (columnOpt.isPresent())
-                        colName = columnOpt.get();
-                }
-                // M2M mapping: expand the M2M expression inline
-                // e.g., $x.fullName → ($src.firstName || ' ' || $src.lastName)
-                if (mapping instanceof com.gs.legend.model.mapping.PureClassMapping pcm
-                        && pcm.hasProperty(colName)) {
-                    ValueSpecification m2mExpr = pcm.expressionForProperty(colName);
-                    ClassMapping sourceMapping = pcm.sourceMapping();
-                    yield generateScalar(m2mExpr, "src", sourceMapping, tableAlias);
                 }
                 // Struct field access in lambda: $f.legalName → f.legalName
                 // Only when owner is NOT the relational row param (relational row accesses → column ref)
                 if (tableAlias == null && !ap.parameters().isEmpty()
                         && ap.parameters().get(0) instanceof Variable owner
                         && (!owner.name().equals(rowParam))) {
-                    yield new SqlExpr.FieldAccess(new SqlExpr.Identifier(owner.name()), colName);
+                    yield new SqlExpr.FieldAccess(new SqlExpr.Identifier(owner.name()), ap.property());
                 }
-                yield tableAlias != null ? new SqlExpr.Column(tableAlias, colName) : new SqlExpr.ColumnRef(colName);
+                // Delegate to resolveColumnExpr — handles column, expression, enum, M2M uniformly
+                yield resolveColumnExpr(ap.property(), store, tableAlias);
             }
             case AppliedFunction af -> {
                 // Check for inlined user function — process expanded body
@@ -2184,9 +2062,9 @@ public class PlanGenerator {
                         throw new PureCompileException(
                                 "Inlined function '" + af.function() + "' returns a relation in scalar context");
                     }
-                    yield generateScalar(afInfo.inlinedBody(), rowParam, mapping, tableAlias, varAliases);
+                    yield generateScalar(afInfo.inlinedBody(), rowParam, store, tableAlias, varAliases);
                 }
-                yield generateScalarFunction(af, rowParam, mapping, tableAlias, varAliases);
+                yield generateScalarFunction(af, rowParam, store, tableAlias, varAliases);
             }
             case CInteger i -> {
                 // Check compiler type annotation for precision
@@ -2235,7 +2113,7 @@ public class PlanGenerator {
             case EnumValue ev -> new SqlExpr.StringLiteral(ev.value());
             case PureCollection coll -> {
                 var exprs = coll.values().stream()
-                        .map(v -> generateScalar(v, rowParam, mapping, tableAlias))
+                        .map(v -> generateScalar(v, rowParam, store, tableAlias))
                         .collect(Collectors.toList());
                 // Heterogeneous lists (List<Number>, List<Date>) wrap each element with
                 // ::VARIANT to preserve original types through DuckDB operations.
@@ -2260,7 +2138,7 @@ public class PlanGenerator {
             case LambdaFunction lf -> {
                 // Nested lambda in scalar context (predicate arg to find/exists)
                 if (!lf.body().isEmpty()) {
-                    yield generateScalar(lf.body().get(0), rowParam, mapping, tableAlias);
+                    yield generateScalar(lf.body().get(0), rowParam, store, tableAlias);
                 }
                 throw new PureCompileException(
                         "PlanGenerator: empty lambda body in scalar context");
@@ -2279,13 +2157,13 @@ public class PlanGenerator {
      * When tableAlias is non-null, property accesses are prefixed with the alias
      * and comparisons may produce EXISTS subqueries for association paths.
      */
-    private SqlExpr generateScalarFunction(AppliedFunction af, String rowParam, ClassMapping mapping,
+    private SqlExpr generateScalarFunction(AppliedFunction af, String rowParam, StoreResolution store,
             String tableAlias, Map<String, String> varAliases) {
         String funcName = simpleName(af.function());
         List<ValueSpecification> params = af.parameters();
 
         // Helper: recursively compile with same context
-        java.util.function.Function<ValueSpecification, SqlExpr> c = v -> generateScalar(v, rowParam, mapping,
+        java.util.function.Function<ValueSpecification, SqlExpr> c = v -> generateScalar(v, rowParam, store,
                 tableAlias, varAliases);
 
         // Helper: check if first param is a list via TypeInfo side table
@@ -2294,7 +2172,7 @@ public class PlanGenerator {
         return switch (funcName) {
             // --- Struct field access (synthesized by Compiler for .property on instance literals) ---
             case "structExtract" -> {
-                SqlExpr struct = generateScalar(params.get(0), rowParam, mapping, tableAlias);
+                SqlExpr struct = generateScalar(params.get(0), rowParam, store, tableAlias);
                 String field = ((CString) params.get(1)).value();
                 yield new SqlExpr.FieldAccess(struct, field);
             }
@@ -2317,7 +2195,7 @@ public class PlanGenerator {
                     SqlExpr right = renderForDateComparison(params.get(1), c);
                     yield new SqlExpr.Binary(left, op, right);
                 }
-                yield buildComparison(params, op, c, mapping, tableAlias);
+                yield buildComparison(params, op, c, store, tableAlias);
             }
 
             // --- Logical ---
@@ -2588,8 +2466,8 @@ public class PlanGenerator {
                     SqlExpr cond = c.apply(params.get(0));
                     LambdaFunction thenLambda = (LambdaFunction) params.get(1);
                     LambdaFunction elseLambda = (LambdaFunction) params.get(2);
-                    SqlExpr thenVal = generateScalar(thenLambda.body().get(0), rowParam, mapping, tableAlias);
-                    SqlExpr elseVal = generateScalar(elseLambda.body().get(0), rowParam, mapping, tableAlias);
+                    SqlExpr thenVal = generateScalar(thenLambda.body().get(0), rowParam, store, tableAlias);
+                    SqlExpr elseVal = generateScalar(elseLambda.body().get(0), rowParam, store, tableAlias);
                     yield new SqlExpr.CaseWhen(cond, thenVal, elseVal);
                 }
                 // Multi-if: [pair(cond, val), ...] -> if(default) — compile to CASE WHEN
@@ -2604,13 +2482,13 @@ public class PlanGenerator {
                             var valParam = pairAf.parameters().get(1);
                             SqlExpr condExpr;
                             if (condParam instanceof LambdaFunction condLf && !condLf.body().isEmpty()) {
-                                condExpr = generateScalar(condLf.body().get(0), rowParam, mapping, tableAlias);
+                                condExpr = generateScalar(condLf.body().get(0), rowParam, store, tableAlias);
                             } else {
                                 condExpr = c.apply(condParam);
                             }
                             SqlExpr valExpr;
                             if (valParam instanceof LambdaFunction valLf && !valLf.body().isEmpty()) {
-                                valExpr = generateScalar(valLf.body().get(0), rowParam, mapping, tableAlias);
+                                valExpr = generateScalar(valLf.body().get(0), rowParam, store, tableAlias);
                             } else {
                                 valExpr = c.apply(valParam);
                             }
@@ -2620,7 +2498,7 @@ public class PlanGenerator {
                     // else value from params[1] (lambda)
                     SqlExpr elseExpr;
                     if (params.get(1) instanceof LambdaFunction elseLf && !elseLf.body().isEmpty()) {
-                        elseExpr = generateScalar(elseLf.body().get(0), rowParam, mapping, tableAlias);
+                        elseExpr = generateScalar(elseLf.body().get(0), rowParam, store, tableAlias);
                     } else {
                         elseExpr = c.apply(params.get(1));
                     }
@@ -3557,7 +3435,7 @@ public class PlanGenerator {
             case "between" -> new SqlExpr.And(List.of(
                     new SqlExpr.Binary(c.apply(params.get(0)), ">=", c.apply(params.get(1))),
                     new SqlExpr.Binary(c.apply(params.get(0)), "<=", c.apply(params.get(2)))));
-            case "eq" -> buildComparison(params, "=", c, mapping, tableAlias);
+            case "eq" -> buildComparison(params, "=", c, store, tableAlias);
             case "type" -> new SqlExpr.FunctionCall("typeOf", List.of(c.apply(params.get(0))));
 
             // --- forAll / exists ---
@@ -3586,23 +3464,20 @@ public class PlanGenerator {
                         && params.get(1) instanceof LambdaFunction(
                                 List<Variable> parameters, List<ValueSpecification> body)) {
                     String propName = assocProp.property();
-                    TypeInfo.AssociationTarget assocTarget = findAssociationInSidecar(propName);
-                    if (assocTarget != null && assocTarget.join() != null) {
-                        Join join = assocTarget.join();
-                        ClassMapping targetMapping = assocTarget.targetMapping();
-                        String targetTable = targetMapping.sourceTable().name();
+                    var joinRes = findJoinResolution(propName);
+                    if (joinRes != null && joinRes.join() != null) {
+                        String targetTable = joinRes.targetTable();
                         String existsAlias = "_ex";
 
-                        // Build predicate from lambda body using target mapping
+                        // Build predicate from lambda body using target resolution
                         String elemParam = parameters.get(0).name();
                         SqlExpr predBody = !body.isEmpty()
-                                ? generateScalar(body.getLast(), elemParam, targetMapping, existsAlias)
+                                ? generateScalar(body.getLast(), elemParam, joinRes.targetResolution(), existsAlias)
                                 : new SqlExpr.BoolLiteral(true);
 
                         // Build JOIN condition: _ex.FK = t0.PK
-                        String sourceTable = join.getOtherTable(targetTable);
-                        String sourceCol = join.getColumnForTable(sourceTable);
-                        String targetCol = join.getColumnForTable(targetTable);
+                        String sourceCol = joinRes.sourceColumn();
+                        String targetCol = joinRes.targetColumn();
                         SqlExpr joinCond = new SqlExpr.Binary(
                                 new SqlExpr.Column(existsAlias, targetCol), "=",
                                 new SqlExpr.Column(tableAlias, sourceCol));
@@ -3986,7 +3861,7 @@ public class PlanGenerator {
      */
     private SqlExpr buildComparison(List<ValueSpecification> params, String op,
             java.util.function.Function<ValueSpecification, SqlExpr> c,
-            ClassMapping mapping, String tableAlias) {
+            StoreResolution store, String tableAlias) {
         SqlExpr left = c.apply(params.get(0));
         SqlExpr right = c.apply(params.get(1));
         return new SqlExpr.Binary(left, op, right);
@@ -4056,9 +3931,20 @@ public class PlanGenerator {
         return "t" + tableAliasCounter++;
     }
 
-    /** Looks up the mapping for an AST node from the sidecar. */
-    private ClassMapping mappingFor(ValueSpecification vs) {
-        return unit.types().get(vs).mapping();
+    /** Looks up the StoreResolution for an AST node (null if not resolved by MappingResolver). */
+    private StoreResolution storeFor(ValueSpecification vs) {
+        return storeResolutions.get(vs);
+    }
+
+    /** Searches all StoreResolutions for a JoinResolution matching the association property. */
+    private StoreResolution.JoinResolution findJoinResolution(String assocProp) {
+        for (var store : storeResolutions.values()) {
+            if (store != null && store.hasJoins()) {
+                var join = store.joins().get(assocProp);
+                if (join != null) return join;
+            }
+        }
+        return null;
     }
 
     // binaryOp DELETED — was thin wrapper, inlined into generateScalarFunction

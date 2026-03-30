@@ -7,8 +7,7 @@ import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.plan.GenericType;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+
 
 /**
  * Checker for {@code new(PE(className), ClassInstance("instance", InstanceData))}.
@@ -50,26 +49,8 @@ public class NewChecker extends AbstractChecker {
         // Build identity mapping — scalar primitives get identity PropertyMappings
         var identityMapping = RelationalMapping.identity(pureClass);
 
-        // Synthesize associations for to-many class-typed properties
-        // These get AssociationTarget(null, null, true) — no Join signals UNNEST
-        var associations = new LinkedHashMap<String, TypeInfo.AssociationTarget>();
-        var modelCtx = env.modelContext();
-        for (var prop : pureClass.allProperties()) {
-            if (prop.isCollection() && prop.genericType() instanceof PureClass elementClass) {
-                // Resolve FULL class from modelContext — property genericType may be a
-                // forward-reference stub with no properties
-                var resolvedClass = modelCtx != null
-                        ? modelCtx.findClass(elementClass.qualifiedName()).orElse(elementClass)
-                        : elementClass;
-                // Build identity mapping for element class so compileProject can resolve leaf properties
-                var targetMapping = RelationalMapping.identity(resolvedClass);
-                associations.put(prop.name(), new TypeInfo.AssociationTarget(targetMapping, null, true));
-            }
-        }
-
         return TypeInfo.builder()
                 .mapping(identityMapping)
-                .associations(associations.isEmpty() ? Map.of() : Map.copyOf(associations))
                 .expressionType(ExpressionType.one(new GenericType.ClassType(data.className())))
                 .build();
     }

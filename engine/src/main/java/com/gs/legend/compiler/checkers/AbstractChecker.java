@@ -851,29 +851,16 @@ public abstract class AbstractChecker implements FunctionChecker {
                 + " (" + resolvedType.getClass().getSimpleName() + ")");
         if (resolvedType instanceof GenericType.Relation rel) {
             // Relation row: bind schema columns for property access
-            TypeChecker.CompilationContext lambdaCtx = ctx.withRelationType(paramName, rel.schema());
-            if (source.mapping() != null) {
-                lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
-            }
-            return lambdaCtx;
+            return ctx.withRelationType(paramName, rel.schema());
         } else if (resolvedType instanceof GenericType.Tuple) {
             // Tuple = T in Relation<T> = row schema type (our RelationType).
             // Bind as lambdaParam so compileVariable returns Tuple type,
             // preserving type identity for unification (e.g., rowNumber<T>(rel, row:T)).
             // Column property access ($r.id) is handled by compileProperty.
-            TypeChecker.CompilationContext lambdaCtx = ctx.withLambdaParam(paramName, resolvedType);
-            if (source.mapping() != null) {
-                lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
-            }
-            return lambdaCtx;
+            return ctx.withLambdaParam(paramName, resolvedType);
         } else if (resolvedType instanceof GenericType.ClassType) {
             // Class instance: bind type for property resolution via modelContext
-            // + mapping for property→column resolution in SQL generation
-            TypeChecker.CompilationContext lambdaCtx = ctx.withLambdaParam(paramName, resolvedType);
-            if (source.mapping() != null) {
-                lambdaCtx = lambdaCtx.withMapping(paramName, source.mapping());
-            }
-            return lambdaCtx;
+            return ctx.withLambdaParam(paramName, resolvedType);
         } else {
             return ctx.withLambdaParam(paramName, resolvedType);
         }
@@ -1020,30 +1007,6 @@ public abstract class AbstractChecker implements FunctionChecker {
         }
 
         return bodyResult;
-    }
-
-    /**
-     * Resolves associations for all lambda bodies in function parameters.
-     * Collects lambda bodies from params[1..N] and delegates to
-     * {@link TypeCheckEnv#resolveAssociations}.
-     *
-     * @return Empty map if source has no mapping or no lambdas present
-     */
-    protected Map<String, TypeInfo.AssociationTarget> resolveAssociationsFromParams(
-            List<ValueSpecification> params, TypeInfo source) {
-        if (source == null || source.mapping() == null) {
-            return Map.of();
-        }
-        java.util.List<ValueSpecification> lambdaBodies = new java.util.ArrayList<>();
-        for (int i = 1; i < params.size(); i++) {
-            if (params.get(i) instanceof LambdaFunction lf) {
-                lambdaBodies.addAll(lf.body());
-            }
-        }
-        if (lambdaBodies.isEmpty()) {
-            return Map.of();
-        }
-        return env.resolveAssociations(lambdaBodies, source.mapping());
     }
 
     // ========== Shared utilities ==========

@@ -86,17 +86,12 @@ public class ScalarChecker extends AbstractChecker {
             }
         }
 
-        // 5. Resolve associations
-        Map<String, TypeInfo.AssociationTarget> associations = resolveAssociationsFromParams(params, source);
-
-        // 6. Output type from signature + bindings
+        // 5. Output type from signature + bindings
         //    Mult-vars (e.g., m in reverse<T|m>) are auto-bound by unify()
         ExpressionType outputType = resolveOutput(def, bindings, funcName + "()");
 
         // 7. Build TypeInfo
         return TypeInfo.builder()
-                .mapping(source != null ? source.mapping() : null)
-                .associations(associations)
                 .expressionType(outputType)
                 .resolvedFunc(def)
                 .build();

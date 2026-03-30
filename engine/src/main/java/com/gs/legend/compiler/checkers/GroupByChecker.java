@@ -83,7 +83,6 @@ public class GroupByChecker extends AbstractChecker {
 
         var schema = GenericType.Relation.Schema.withoutPivot(resultColumns);
         return TypeInfo.builder()
-                .mapping(source.mapping())
                 .columnSpecs(groupCols)
                 .aggColumnSpecs(aggCols)
                 .expressionType(ExpressionType.one(new GenericType.Relation(schema)))

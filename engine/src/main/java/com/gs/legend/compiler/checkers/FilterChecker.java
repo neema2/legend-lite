@@ -38,14 +38,9 @@ public class FilterChecker extends AbstractChecker {
             compileLambdaArg(lambda, def.params().get(1), bindings, source, ctx, "filter");
         }
 
-        // 6. Resolve associations (class-based or relational with mapping)
-        var associations = resolveAssociationsFromParams(params, source);
-
-        // 7. Output type from signature's return type + bindings
+        // 6. Output type from signature's return type + bindings
         ExpressionType outputType = resolveOutput(def, bindings, "filter()");
         return TypeInfo.builder()
-                .mapping(source.mapping())
-                .associations(associations)
                 .expressionType(outputType)
                 .build();
     }

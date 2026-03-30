@@ -47,8 +47,7 @@ public class DistinctChecker extends AbstractChecker {
         // 3. distinct() with no column arg = output type from signature (Relation<T>[1])
         if (params.size() < 2) {
             return TypeInfo.builder()
-                    .mapping(source.mapping())
-                    .expressionType(resolveOutput(def, bindings, "distinct()"))
+                                        .expressionType(resolveOutput(def, bindings, "distinct()"))
                     .build();
         }
 
@@ -56,8 +55,7 @@ public class DistinctChecker extends AbstractChecker {
         List<String> cols = extractColumnNames(params.get(1));
         if (cols.isEmpty()) {
             return TypeInfo.builder()
-                    .mapping(source.mapping())
-                    .expressionType(resolveOutput(def, bindings, "distinct()"))
+                                        .expressionType(resolveOutput(def, bindings, "distinct()"))
                     .build();
         }
         sourceSchema.assertHasColumns(cols);
@@ -65,8 +63,7 @@ public class DistinctChecker extends AbstractChecker {
         // 5. Output schema is the subset (X from Relation<X>)
         GenericType.Relation.Schema outputSchema = sourceSchema.onlyColumns(cols);
         return TypeInfo.builder()
-                .mapping(source.mapping())
-                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
+                                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
                 .expressionType(ExpressionType.one(new GenericType.Relation(outputSchema)))
                 .build();
     }

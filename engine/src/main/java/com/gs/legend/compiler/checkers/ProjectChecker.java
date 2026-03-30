@@ -2,7 +2,6 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.plan.GenericType;
 
 import java.util.*;
@@ -48,7 +47,6 @@ public class ProjectChecker extends AbstractChecker {
             return TypeInfo.from(result).inlinedBody(rewritten).build();
         }
 
-        ClassMapping mapping = source.mapping();
 
         // 1. Bind type variables from signature
         var bindings = unify(def, source.expressionType());
@@ -92,28 +90,11 @@ public class ProjectChecker extends AbstractChecker {
             projectionSpecs.add(new TypeInfo.ProjectionSpec(propertyPath, alias));
         }
 
-        // 5. Resolve associations (multi-hop property paths)
-        Map<String, TypeInfo.AssociationTarget> associations = Map.of();
-        if (mapping != null) {
-            List<ValueSpecification> bodies = new ArrayList<>();
-            for (var cs : colSpecs) {
-                if (cs.function1() != null) bodies.addAll(cs.function1().body());
-            }
-            associations = env.resolveAssociations(bodies, mapping);
-        }
-        if (source.hasAssociations()) {
-            var merged = new LinkedHashMap<>(source.associations());
-            associations.forEach(merged::putIfAbsent);
-            associations = Map.copyOf(merged);
-        }
-
-        // 6. Build output Relation<Schema>
+        // 5. Build output Relation<Schema>
         GenericType.Relation.Schema resultSchema =
                 GenericType.Relation.Schema.withoutPivot(projectedColumns);
 
         return TypeInfo.builder()
-                .mapping(mapping)
-                .associations(associations)
                 .projections(projectionSpecs)
                 .expressionType(ExpressionType.one(new GenericType.Relation(resultSchema)))
                 .build();

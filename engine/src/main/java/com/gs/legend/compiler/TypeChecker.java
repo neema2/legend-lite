@@ -57,12 +57,6 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     @Override
-    public java.util.Map<String, TypeInfo.AssociationTarget> resolveAssociations(
-            List<ValueSpecification> body, ClassMapping mapping) {
-        return resolveAssociationsInBody(body, mapping);
-    }
-
-    @Override
     public TypeInfo lookupCompiled(ValueSpecification vs) {
         return types.get(vs);
     }
@@ -354,98 +348,6 @@ public class TypeChecker implements TypeCheckEnv {
         return TypeInfo.simpleName(qualifiedName);
     }
 
-    /**
-     * Scans a filter lambda body for multi-hop property paths and resolves
-     * associations. Called during compileFilter().
-     *
-     * @param body    The lambda body expressions
-     * @param mapping The source mapping
-     * @return Map of association property name → pre-resolved target
-     */
-    private java.util.Map<String, TypeInfo.AssociationTarget> resolveAssociationsInBody(
-            List<ValueSpecification> body, ClassMapping mapping) {
-        if (modelContext == null || mapping == null) {
-            return java.util.Map.of();
-        }
-        var result = new java.util.LinkedHashMap<String, TypeInfo.AssociationTarget>();
-        for (var expr : body) {
-            scanForAssociationPaths(expr, mapping, result);
-        }
-        return result.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(result);
-    }
-
-    /**
-     * Recursively scans an expression tree for multi-hop AppliedProperty chains.
-     * When found, resolves the association and stores in the result map.
-     */
-    private void scanForAssociationPaths(ValueSpecification vs, ClassMapping mapping,
-            java.util.Map<String, TypeInfo.AssociationTarget> result) {
-        if (vs instanceof AppliedProperty ap) {
-            // Check if this is a multi-hop chain like $p.items.name
-            List<String> chain = extractPropertyChain(ap);
-            if (chain.size() > 1) {
-                String assocProp = chain.get(0);
-                if (!result.containsKey(assocProp)) {
-                    resolveAndStore(assocProp, mapping, result);
-                }
-            }
-            // Also scan parameters recursively
-            for (var param : ap.parameters()) {
-                scanForAssociationPaths(param, mapping, result);
-            }
-        } else if (vs instanceof AppliedFunction af) {
-            // Detect single-hop association properties used with exists/forAll/map:
-            // $p.addresses->exists(a|$a.city == 'NY')
-            // AST: AppliedFunction("exists", [AppliedProperty("addresses", [$p]), Lambda])
-            if (("exists".equals(af.function()) || "forAll".equals(af.function()) || "map".equals(af.function()))
-                    && !af.parameters().isEmpty()
-                    && af.parameters().get(0) instanceof AppliedProperty assocProp) {
-                String propName = assocProp.property();
-                if (!result.containsKey(propName)) {
-                    resolveAndStore(propName, mapping, result);
-                }
-            }
-            for (var param : af.parameters()) {
-                scanForAssociationPaths(param, mapping, result);
-            }
-        } else if (vs instanceof LambdaFunction lf) {
-            for (var expr : lf.body()) {
-                scanForAssociationPaths(expr, mapping, result);
-            }
-        }
-    }
-
-    /**
-     * Resolves a single association property and stores in the result map.
-     */
-    private void resolveAndStore(String assocProp, ClassMapping mapping,
-            java.util.Map<String, TypeInfo.AssociationTarget> result) {
-        String sourceClassName = mapping.targetClass().name();
-        var assocNav = modelContext.findAssociationByProperty(sourceClassName, assocProp);
-        if (assocNav.isPresent()) {
-            var nav = assocNav.get();
-            String targetClassName = nav.targetClassName();
-            var targetMapping = modelContext.findMapping(targetClassName);
-            if (targetMapping.isPresent()) {
-                result.put(assocProp, new TypeInfo.AssociationTarget(
-                        targetMapping.get(), nav.join(), nav.isToMany()));
-            }
-        }
-    }
-
-    /**
-     * Recursively extracts property chain from nested AppliedProperty.
-     * e.g., $p.items.name → ["items", "name"]
-     */
-    private List<String> extractPropertyChain(AppliedProperty ap) {
-        if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty parent) {
-            var result = new java.util.ArrayList<>(extractPropertyChain(parent));
-            result.add(ap.property());
-            return result;
-        }
-        return new java.util.ArrayList<>(List.of(ap.property()));
-    }
-
     // ========== Other AST Nodes ==========
 
     private TypeInfo compileLambda(LambdaFunction lf, CompilationContext ctx) {
@@ -714,14 +616,13 @@ public class TypeChecker implements TypeCheckEnv {
             compileExpr(v, ctx);
         }
         GenericType elementType = unifyElementType(coll.values());
-        // For struct collections, propagate mapping + associations from first element
-        // so downstream checkers (project, filter) can resolve columns via mapping.
+        // For struct collections, propagate mapping from first element
+        // so downstream checkers (graphFetch, serialize) can resolve class via mapping.
         if (!coll.values().isEmpty()) {
             TypeInfo firstElem = types.get(coll.values().get(0));
             if (firstElem != null && firstElem.mapping() != null) {
                 var info = TypeInfo.builder()
                         .mapping(firstElem.mapping())
-                        .associations(firstElem.associations())
                         .expressionType(ExpressionType.many(elementType))
                         .build();
                 types.put(coll, info);
@@ -798,36 +699,29 @@ public class TypeChecker implements TypeCheckEnv {
      */
     public record CompilationContext(
             Map<String, GenericType.Relation.Schema> relationTypes,
-            Map<String, ClassMapping> mappings,
             Map<String, GenericType> lambdaParams,
             Map<String, ValueSpecification> letBindings) {
 
         public CompilationContext() {
-            this(Map.of(), Map.of(), Map.of(), Map.of());
+            this(Map.of(), Map.of(), Map.of());
         }
 
         public CompilationContext withRelationType(String paramName, GenericType.Relation.Schema type) {
             var newTypes = new HashMap<>(relationTypes);
             newTypes.put(paramName, type);
-            return new CompilationContext(Map.copyOf(newTypes), mappings, lambdaParams, letBindings);
-        }
-
-        public CompilationContext withMapping(String paramName, ClassMapping mapping) {
-            var newMappings = new HashMap<>(mappings);
-            newMappings.put(paramName, mapping);
-            return new CompilationContext(relationTypes, Map.copyOf(newMappings), lambdaParams, letBindings);
+            return new CompilationContext(Map.copyOf(newTypes), lambdaParams, letBindings);
         }
 
         public CompilationContext withLambdaParam(String name, GenericType type) {
             var m = new HashMap<>(lambdaParams);
             m.put(name, type); // type may be null for untyped params (e.g., forAll(e|...))
-            return new CompilationContext(relationTypes, mappings, Collections.unmodifiableMap(m), letBindings);
+            return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings);
         }
 
         public CompilationContext withLetBinding(String name, ValueSpecification value) {
             var m = new HashMap<>(letBindings);
             m.put(name, value);
-            return new CompilationContext(relationTypes, mappings, lambdaParams, Map.copyOf(m));
+            return new CompilationContext(relationTypes, lambdaParams, Map.copyOf(m));
         }
 
         public boolean isLambdaParam(String name) {
@@ -846,9 +740,6 @@ public class TypeChecker implements TypeCheckEnv {
             return relationTypes.get(name);
         }
 
-        public ClassMapping getMapping(String name) {
-            return mappings.get(name);
-        }
     }
 
     // ========== Literal Type Classification ==========
@@ -913,17 +804,8 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo typed(ValueSpecification ast, GenericType.Relation.Schema relationType,
             ClassMapping mapping) {
-        return typed(ast, relationType, mapping, java.util.Map.of());
-    }
-
-    /**
-     * Registers relational TypeInfo with pre-resolved associations in the side
-     * table.
-     */
-    private TypeInfo typed(ValueSpecification ast, GenericType.Relation.Schema relationType,
-            ClassMapping mapping, java.util.Map<String, TypeInfo.AssociationTarget> associations) {
         var info = TypeInfo.builder()
-                .mapping(mapping).associations(associations)
+                .mapping(mapping)
                 .expressionType(ExpressionType.one(new GenericType.Relation(relationType))).build();
         types.put(ast, info);
         return info;

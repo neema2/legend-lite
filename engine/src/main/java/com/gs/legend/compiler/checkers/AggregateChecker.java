@@ -58,7 +58,6 @@ public class AggregateChecker extends AbstractChecker {
         // Output schema = R only (no group columns, unlike groupBy)
         var schema = GenericType.Relation.Schema.withoutPivot(resultColumns);
         return TypeInfo.builder()
-                .mapping(source.mapping())
                 .aggColumnSpecs(aggCols)
                 .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
                 .build();

@@ -79,17 +79,9 @@ public class MapChecker extends AbstractChecker {
             bindings.put("V", bodyGenericType);
         }
 
-        // 7. Resolve associations (for class-based M2M navigation)
-        Map<String, TypeInfo.AssociationTarget> associations = Map.of();
-        if (source.mapping() != null) {
-            associations = env.resolveAssociations(lambda.body(), source.mapping());
-        }
-
-        // 8. Output type from signature return: V[*] or V[0..1]
+        // 7. Output type from signature return: V[*] or V[0..1]
         ExpressionType outputType = resolveOutput(def, bindings, "map()");
         return TypeInfo.builder()
-                .mapping(source.mapping())
-                .associations(associations)
                 .expressionType(outputType)
                 .build();
     }

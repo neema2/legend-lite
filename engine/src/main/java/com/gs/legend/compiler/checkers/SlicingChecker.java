@@ -67,7 +67,6 @@ public class SlicingChecker extends AbstractChecker {
         // 4. Output type from signature (preserves source type, may change multiplicity)
         ExpressionType outputType = resolveOutput(def, bindings, funcName + "()");
         return TypeInfo.builder()
-                .mapping(source.mapping())
                 .expressionType(outputType)
                 .build();
     }

@@ -79,8 +79,7 @@ public class GetAllChecker extends AbstractChecker {
             virtualColumns.put(propName, resolvePropertyType(targetClass, propName));
         }
 
-        // Resolve join references
-        var associations = resolveJoinReferences(pureMapping, targetClass);
+        // Add join-referenced properties to virtual schema
         for (String joinProp : pureMapping.joinReferences().keySet()) {
             virtualColumns.putIfAbsent(joinProp, resolvePropertyType(targetClass, joinProp));
         }
@@ -93,14 +92,11 @@ public class GetAllChecker extends AbstractChecker {
         // Stamp filter expression so PlanGenerator can read $src.property nodes
         pureMapping.optionalFilter().ifPresent(f -> env.compileExpr(f, srcCtx));
 
-        var builder = TypeInfo.builder()
+        return TypeInfo.builder()
                 .mapping(resolvedMapping)
                 .expressionType(ExpressionType.many(
-                        new GenericType.Relation(GenericType.Relation.Schema.withoutPivot(virtualColumns))));
-        if (!associations.isEmpty()) {
-            builder.associations(Map.copyOf(associations));
-        }
-        return builder.build();
+                        new GenericType.Relation(GenericType.Relation.Schema.withoutPivot(virtualColumns))))
+                .build();
     }
 
     /**
@@ -175,8 +171,7 @@ public class GetAllChecker extends AbstractChecker {
         }
 
         return new TypeChecker.CompilationContext()
-                .withRelationType("src", GenericType.Relation.Schema.withoutPivot(srcColumns))
-                .withMapping("src", srcMapping);
+                .withRelationType("src", GenericType.Relation.Schema.withoutPivot(srcColumns));
     }
 
     // ==================== Type Resolution ====================
@@ -191,36 +186,6 @@ public class GetAllChecker extends AbstractChecker {
                 .orElseThrow(() -> new PureCompileException(
                         "Property '" + propertyName + "' not found on class '"
                                 + pureClass.qualifiedName() + "'"));
-    }
-
-    /**
-     * Resolves @JoinName references → AssociationTargets for PlanGenerator.
-     */
-    private Map<String, TypeInfo.AssociationTarget> resolveJoinReferences(
-            PureClassMapping pureMapping, PureClass targetClass) {
-        var associations = new LinkedHashMap<String, TypeInfo.AssociationTarget>();
-
-        for (var entry : pureMapping.joinReferences().entrySet()) {
-            String propName = entry.getKey();
-            String joinName = entry.getValue();
-
-            var join = registry().findJoin(joinName)
-                    .orElseThrow(() -> new PureCompileException(
-                            "Join '" + joinName + "' not found for property '" + propName + "'"));
-
-            var prop = targetClass.findProperty(propName)
-                    .orElseThrow(() -> new PureCompileException(
-                            "Join property '" + propName + "' not found on class '"
-                                    + targetClass.qualifiedName() + "'"));
-
-            boolean isToMany = !prop.multiplicity().isSingular();
-            String targetClassName = prop.genericType().typeName();
-
-            registry().findAnyMapping(targetClassName).ifPresent(targetMapping ->
-                    associations.put(propName,
-                            new TypeInfo.AssociationTarget(targetMapping, join, isToMany)));
-        }
-        return associations;
     }
 
     // ==================== Helpers ====================

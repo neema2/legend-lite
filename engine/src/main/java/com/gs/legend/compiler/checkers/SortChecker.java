@@ -108,8 +108,7 @@ public class SortChecker extends AbstractChecker {
         // 3. Output type from signature (Relation<T>[1] → same as input)
         ExpressionType outputType = resolveOutput(def, bindings, "sort()");
         return TypeInfo.builder()
-                .mapping(source.mapping())
-                .sortSpecs(sortSpecs)
+                                .sortSpecs(sortSpecs)
                 .expressionType(outputType)
                 .build();
     }
@@ -277,16 +276,10 @@ public class SortChecker extends AbstractChecker {
         List<TypeInfo.SortSpec> sortSpecs = List.of(
                 new TypeInfo.SortSpec(null, direction));
 
-        // 5. Resolve associations from key lambda (for association sort support)
-        Map<String, TypeInfo.AssociationTarget> associations =
-                resolveAssociationsFromParams(params, source);
-
-        // 6. Output type from signature (T[m] → same as input)
+        // 5. Output type from signature (T[m] → same as input)
         ExpressionType outputType = resolveOutput(def, bindings, "sort()");
         return TypeInfo.builder()
-                .mapping(source.mapping())
-                .associations(associations)
-                .sortSpecs(sortSpecs)
+                                .sortSpecs(sortSpecs)
                 .expressionType(outputType)
                 .build();
     }
@@ -305,15 +298,9 @@ public class SortChecker extends AbstractChecker {
         LambdaFunction lambda = (LambdaFunction) af.parameters().get(1);
         compileLambdaArg(lambda, def.params().get(1), bindings, source, ctx, "sortBy");
 
-        // Resolve associations (sortBy on class: {p|$p.primaryAddress.city})
-        Map<String, TypeInfo.AssociationTarget> associations =
-                resolveAssociationsFromParams(af.parameters(), source);
-
         ExpressionType outputType = resolveOutput(def, bindings, "sortBy()");
         return TypeInfo.builder()
-                .mapping(source.mapping())
-                .associations(associations)
-                .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)))
+                                .sortSpecs(List.of(new TypeInfo.SortSpec(null, direction)))
                 .expressionType(outputType)
                 .build();
     }

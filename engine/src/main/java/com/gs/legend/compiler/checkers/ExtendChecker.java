@@ -74,7 +74,6 @@ public class ExtendChecker extends AbstractChecker {
 
         var schema = new GenericType.Relation.Schema(newColumns, sourceSchema.dynamicPivotColumns());
         return TypeInfo.builder()
-                .mapping(source.mapping())
                 .windowSpecs(windowSpecs)
                 .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
                 .build();

@@ -680,6 +680,29 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     @Override
+    public java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String className) {
+        var result = new java.util.LinkedHashMap<String, AssociationNavigation>();
+        for (Association assoc : associations.values()) {
+            var prop1 = assoc.property1();
+            var prop2 = assoc.property2();
+
+            if (prop2.targetClass().equals(className)) {
+                boolean isToMany = prop1.multiplicity().isMany();
+                Join join = findJoinForAssociationProperty(assoc.name(), prop1.propertyName());
+                result.putIfAbsent(prop1.propertyName(),
+                        new AssociationNavigation(assoc, prop2, prop1, isToMany, join));
+            }
+            if (prop1.targetClass().equals(className)) {
+                boolean isToMany = prop2.multiplicity().isMany();
+                Join join = findJoinForAssociationProperty(assoc.name(), prop2.propertyName());
+                result.putIfAbsent(prop2.propertyName(),
+                        new AssociationNavigation(assoc, prop1, prop2, isToMany, join));
+            }
+        }
+        return result;
+    }
+
+    @Override
     public Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName) {
         // Search all associations for one that has this property navigating from the
         // given class

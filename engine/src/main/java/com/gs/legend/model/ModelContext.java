@@ -60,6 +60,17 @@ public interface ModelContext {
     Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName);
 
     /**
+     * Returns all association navigations for a given class.
+     * Each entry maps a property name to its AssociationNavigation.
+     *
+     * @param className The class to find association navigations for
+     * @return Map of property name → AssociationNavigation (empty if none)
+     */
+    default java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String className) {
+        return java.util.Map.of();
+    }
+
+    /**
      * Finds a join by name.
      * 
      * @param joinName The join name

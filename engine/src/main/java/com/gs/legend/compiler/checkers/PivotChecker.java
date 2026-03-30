@@ -99,7 +99,6 @@ public class PivotChecker extends AbstractChecker {
                 .toList();
 
         return TypeInfo.builder()
-                .mapping(source.mapping())
                 .columnSpecs(pivotColSpecs)
                 .aggColumnSpecs(aggCols)
                 .expressionType(ExpressionType.one(new GenericType.Relation(partialType)))

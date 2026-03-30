@@ -72,7 +72,6 @@ public class ConcatenateChecker extends AbstractChecker {
 
         // Output from signature: Relation<T>[1]
         return TypeInfo.builder()
-                .mapping(left.mapping())
                 .expressionType(resolveOutput(def, bindings, "concatenate()"))
                 .build();
     }

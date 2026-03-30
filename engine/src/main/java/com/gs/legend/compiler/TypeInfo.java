@@ -2,7 +2,6 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.store.Join;
 import com.gs.legend.plan.GenericType;
 
 
@@ -28,7 +27,6 @@ import java.util.Map;
  * ({@code HashMap<NodeId, TypeInfo>}) works cleanly in both Java and Rust.
  *
  * @param mapping      Resolved class→table mapping (null when no class context)
- * @param associations Pre-resolved association targets (property name → target)
  * @param inlinedBody  If this node is a user-defined function call, the expanded
  *                     body AST. PlanGenerator processes this instead of the
  *                     original function call node. Null for all standard nodes.
@@ -36,7 +34,6 @@ import java.util.Map;
  */
 public record TypeInfo(
         ClassMapping mapping,
-        Map<String, AssociationTarget> associations,
         List<SortSpec> sortSpecs,
         List<ProjectionSpec> projections,
         List<ColumnSpec> columnSpecs,
@@ -94,18 +91,6 @@ public record TypeInfo(
     public GenericType.Relation.Schema schema() {
         return expressionType.schema();
     }
-
-    /**
-     * Pre-resolved association navigation target.
-     * Computed by TypeChecker so PlanGenerator needs no ModelContext.
-     */
-    public record AssociationTarget(
-            ClassMapping targetMapping,
-            Join join,
-            boolean isToMany) {
-    }
-
-
 
     /**
      * Pre-resolved fold lowering strategy.
@@ -325,7 +310,6 @@ public record TypeInfo(
      */
     public static final class Builder {
         private ClassMapping mapping;
-        private Map<String, AssociationTarget> associations = Map.of();
         private List<SortSpec> sortSpecs = List.of();
         private List<ProjectionSpec> projections = List.of();
         private List<ColumnSpec> columnSpecs = List.of();
@@ -345,7 +329,6 @@ public record TypeInfo(
 
         private Builder(TypeInfo src) {
             this.mapping = src.mapping();
-            this.associations = src.associations();
             this.sortSpecs = src.sortSpecs();
             this.projections = src.projections();
             this.columnSpecs = src.columnSpecs();
@@ -363,7 +346,6 @@ public record TypeInfo(
         }
 
         public Builder mapping(ClassMapping v) { this.mapping = v; return this; }
-        public Builder associations(Map<String, AssociationTarget> v) { this.associations = v; return this; }
         public Builder sortSpecs(List<SortSpec> v) { this.sortSpecs = v; return this; }
         public Builder projections(List<ProjectionSpec> v) { this.projections = v; return this; }
         public Builder columnSpecs(List<ColumnSpec> v) { this.columnSpecs = v; return this; }
@@ -384,7 +366,7 @@ public record TypeInfo(
                 throw new IllegalStateException(
                         "TypeInfo.expressionType must not be null — every expression must have a type");
             }
-            return new TypeInfo(mapping, associations, sortSpecs, projections,
+            return new TypeInfo(mapping, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
                     joinColumnRenames, graphFetchSpec, tdsLiteral, expressionType,
                     lambdaParam, resolvedFunc, foldSpec);
@@ -440,11 +422,6 @@ public record TypeInfo(
     public boolean isMixedList() {
         return expressionType != null && expressionType.isMany()
                 && type() == GenericType.Primitive.ANY;
-    }
-
-    /** True if this node has pre-resolved association targets. */
-    public boolean hasAssociations() {
-        return associations != null && !associations.isEmpty();
     }
 
     /** True if this node has pre-resolved sort specs. */

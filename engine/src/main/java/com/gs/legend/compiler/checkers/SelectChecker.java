@@ -48,8 +48,7 @@ public class SelectChecker extends AbstractChecker {
         // 3. select() with no column arg = pass through, output type from signature
         if (params.size() < 2) {
             return TypeInfo.builder()
-                    .mapping(source.mapping())
-                    .expressionType(resolveOutput(def, bindings, "select()"))
+                                        .expressionType(resolveOutput(def, bindings, "select()"))
                     .build();
         }
 
@@ -57,8 +56,7 @@ public class SelectChecker extends AbstractChecker {
         List<String> cols = extractColumnNames(params.get(1));
         if (cols.isEmpty()) {
             return TypeInfo.builder()
-                    .mapping(source.mapping())
-                    .expressionType(resolveOutput(def, bindings, "select()"))
+                                        .expressionType(resolveOutput(def, bindings, "select()"))
                     .build();
         }
         sourceSchema.assertHasColumns(cols);
@@ -66,8 +64,7 @@ public class SelectChecker extends AbstractChecker {
         // 5. Output schema is the subset (Z from Relation<Z>)
         GenericType.Relation.Schema outputSchema = sourceSchema.onlyColumns(cols);
         return TypeInfo.builder()
-                .mapping(source.mapping())
-                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
+                                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
                 .expressionType(ExpressionType.one(new GenericType.Relation(outputSchema)))
                 .build();
     }

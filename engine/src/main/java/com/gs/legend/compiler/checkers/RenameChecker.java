@@ -71,7 +71,6 @@ public class RenameChecker extends AbstractChecker {
         }
 
         return TypeInfo.builder()
-                .mapping(source.mapping())
                 .columnSpecs(colSpecs)
                 .expressionType(ExpressionType.one(new GenericType.Relation(outputSchema)))
                 .build();
