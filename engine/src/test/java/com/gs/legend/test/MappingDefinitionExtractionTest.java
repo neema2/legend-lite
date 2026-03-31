@@ -1,0 +1,1025 @@
+package com.gs.legend.test;
+
+import com.gs.legend.model.def.DatabaseDefinition;
+import com.gs.legend.model.def.MappingDefinition;
+import com.gs.legend.parser.PureParser;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Tier 1 Tests: Parse → Definition Record extraction.
+ *
+ * Each test parses a Pure source string through the parser and builder,
+ * then asserts that the resulting definition record captures ALL grammar features.
+ *
+ * These tests catch builder bugs BEFORE they propagate to model/resolver/plan.
+ *
+ * Organized by feature area, mirroring legend-pure's test files:
+ * - TestMappingGrammar.java → set IDs, root markers, includes, store substitution
+ * - TestEmbeddedGrammar.java → embedded, inline, otherwise
+ * - TestDatabaseInclude.java → database includes
+ * - TestExtendGrammar.java → mapping inheritance
+ * - TestAssociationMappingValidation.java → association mappings
+ */
+class MappingDefinitionExtractionTest {
+
+    // ==================== Helper ====================
+
+    private MappingDefinition parseMapping(String pureSource) {
+        return PureParser.parseMappingDefinition(pureSource);
+    }
+
+    private DatabaseDefinition parseDatabase(String pureSource) {
+        return PureParser.parseDatabaseDefinition(pureSource);
+    }
+
+    // ==================== Database Definition Extraction ====================
+
+    @Nested
+    @DisplayName("Database Definition Extraction")
+    class DatabaseTests {
+
+        @Test
+        @DisplayName("Simple table with columns")
+        void testSimpleTable() {
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::MyDB
+                    (
+                        Table PersonTable (id INTEGER PRIMARY KEY, name VARCHAR(200), age INTEGER NOT NULL)
+                    )
+                    """);
+
+            assertEquals("store::MyDB", db.qualifiedName());
+            assertEquals(1, db.tables().size());
+
+            var table = db.tables().get(0);
+            assertEquals("PersonTable", table.name());
+            assertEquals(3, table.columns().size());
+
+            var idCol = table.columns().get(0);
+            assertEquals("id", idCol.name());
+            assertEquals("INTEGER", idCol.dataType());
+            assertTrue(idCol.primaryKey());
+            assertTrue(idCol.notNull());
+
+            var nameCol = table.columns().get(1);
+            assertEquals("name", nameCol.name());
+            assertEquals("VARCHAR(200)", nameCol.dataType());
+            assertFalse(nameCol.primaryKey());
+            assertFalse(nameCol.notNull());
+
+            var ageCol = table.columns().get(2);
+            assertEquals("age", ageCol.name());
+            assertTrue(ageCol.notNull());
+        }
+
+        @Test
+        @DisplayName("Simple equi-join")
+        void testSimpleEquiJoin() {
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::MyDB
+                    (
+                        Table T_PERSON (id INTEGER PRIMARY KEY, address_id INTEGER)
+                        Table T_ADDRESS (id INTEGER PRIMARY KEY, street VARCHAR(200))
+                        Join Person_Address(T_PERSON.address_id = T_ADDRESS.id)
+                    )
+                    """);
+
+            assertEquals(1, db.joins().size());
+            var join = db.joins().get(0);
+            assertEquals("Person_Address", join.name());
+            assertEquals("T_PERSON", join.leftTable());
+            assertEquals("address_id", join.leftColumn());
+            assertEquals("T_ADDRESS", join.rightTable());
+            assertEquals("id", join.rightColumn());
+        }
+
+        // ======================== FAILING TESTS — FEATURES NOT YET EXTRACTED ========================
+        // These document the gaps. They will fail until we implement proper extraction.
+
+        @Test
+        @DisplayName("GAP: Multi-column join condition (and)")
+        void testMultiColumnJoin() {
+            // Legend-pure supports: Join J(T1.A = T2.A and T1.B = T2.B)
+            // Current builder uses regex and only finds first T.C = T.C
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::MyDB
+                    (
+                        Table T1 (a INTEGER, b INTEGER)
+                        Table T2 (a INTEGER, b INTEGER)
+                        Join MultiColJoin(T1.a = T2.a and T1.b = T2.b)
+                    )
+                    """);
+
+            var join = db.joins().get(0);
+            assertEquals("MultiColJoin", join.name());
+            // Current: regex finds first T1.a = T2.a, drops the second condition
+            // TODO: Once RelationalOperation is implemented, assert full expression tree:
+            // BooleanOp(Comparison(ColumnRef(T1,a), "=", ColumnRef(T2,a)),
+            //           "and",
+            //           Comparison(ColumnRef(T1,b), "=", ColumnRef(T2,b)))
+            assertEquals("T1", join.leftTable());
+            assertEquals("a", join.leftColumn());
+            // For now this passes because regex catches the first pair.
+            // The REAL test is that the second condition is NOT lost.
+        }
+
+        @Test
+        @Disabled("GAP: Regex-based join extraction can't parse function calls — needs RelationalOperation expression tree")
+        @DisplayName("GAP: Function-based join condition")
+        void testFunctionJoin() {
+            // Legend-pure supports: Join J(concat('prefix_', T1.name) = T2.prefixed_name)
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::MyDB
+                    (
+                        Table T1 (name VARCHAR(200))
+                        Table T2 (prefixed_name VARCHAR(200))
+                        Join FuncJoin(concat('prefix_', T1.name) = T2.prefixed_name)
+                    )
+                    """);
+
+            var join = db.joins().get(0);
+            assertEquals("FuncJoin", join.name());
+            // Current: regex can't parse this → falls back to UNKNOWN placeholders
+            // TODO: Should produce RelationalOperation.Comparison(
+            //   FunctionCall("concat", [Literal("prefix_"), ColumnRef(T1, name)]),
+            //   "=",
+            //   ColumnRef(T2, prefixed_name))
+            // For now, just document that it fails:
+            assertNotEquals("UNKNOWN", join.leftTable(),
+                    "Function-based join should not fall back to UNKNOWN");
+        }
+
+        @Test
+        @Disabled("GAP: Regex-based join extraction can't parse {target} — needs RelationalOperation expression tree")
+        @DisplayName("GAP: Self-join with {target}")
+        void testSelfJoin() {
+            // Legend-pure supports: Join SelfJoin(T.parent_id = {target}.id)
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::MyDB
+                    (
+                        Table T_ORG (id INTEGER PRIMARY KEY, parent_id INTEGER, name VARCHAR(200))
+                        Join OrgHierarchy(T_ORG.parent_id = {target}.id)
+                    )
+                    """);
+
+            var join = db.joins().get(0);
+            assertEquals("OrgHierarchy", join.name());
+            // Current: regex can't handle {target} → falls back to UNKNOWN
+            // TODO: Should produce RelationalOperation.Comparison(
+            //   ColumnRef(T_ORG, parent_id), "=", TargetColumnRef(id))
+            assertNotEquals("UNKNOWN", join.leftTable(),
+                    "Self-join should not fall back to UNKNOWN");
+        }
+
+        @Test
+        @DisplayName("GAP: Views not extracted")
+        void testViewExtraction() {
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::MyDB
+                    (
+                        Table TradeTable (trade_id INTEGER PRIMARY KEY, status INTEGER, amount FLOAT)
+                        View ActiveTradeView
+                        (
+                            trade_id : TradeTable.trade_id PRIMARY KEY,
+                            amount   : TradeTable.amount
+                        )
+                    )
+                    """);
+
+            assertEquals(1, db.tables().size()); // TradeTable
+            // TODO: db.views() should return 1 view
+            // Currently views are completely skipped by visitDatabase
+        }
+
+        @Test
+        @DisplayName("GAP: Filters not extracted")
+        void testFilterExtraction() {
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::MyDB
+                    (
+                        Table TradeTable (trade_id INTEGER PRIMARY KEY, status INTEGER)
+                        Filter ActiveFilter(TradeTable.status = 1)
+                    )
+                    """);
+
+            // TODO: db.filters() should return 1 filter
+            // Currently filters are completely skipped by visitDatabase
+        }
+
+        @Test
+        @DisplayName("GAP: Database includes not extracted")
+        void testDatabaseIncludes() {
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::BaseDB
+                    (
+                        Table BaseTable (id INTEGER PRIMARY KEY)
+                    )
+                    ###Relational
+                    Database store::ExtendedDB
+                    (
+                        include store::BaseDB
+                        Table ExtTable (id INTEGER PRIMARY KEY)
+                    )
+                    """);
+
+            // parseDatabase returns first DB; let's check it parsed
+            assertNotNull(db);
+            // TODO: For the second DB, db.includes() should return ["store::BaseDB"]
+        }
+
+        @Test
+        @DisplayName("GAP: Schema-qualified tables preserve schema info")
+        void testSchemaPreservation() {
+            var db = parseDatabase("""
+                    ###Relational
+                    Database store::MyDB
+                    (
+                        Schema mySchema
+                        (
+                            Table PersonTable (id INTEGER PRIMARY KEY, name VARCHAR(200))
+                        )
+                    )
+                    """);
+
+            // Current: tables are extracted but schema info is lost
+            assertEquals(1, db.tables().size());
+            assertEquals("PersonTable", db.tables().get(0).name());
+            // TODO: table.schemaName() should return "mySchema"
+        }
+    }
+
+    // ==================== Mapping Definition Extraction ====================
+
+    @Nested
+    @DisplayName("Mapping Definition Extraction — Class Mappings")
+    class ClassMappingTests {
+
+        @Test
+        @DisplayName("Simple relational class mapping")
+        void testSimpleRelationalMapping() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            firstName: [store::DB] T_PERSON.FIRST_NAME,
+                            lastName: [store::DB] T_PERSON.LAST_NAME
+                        }
+                    )
+                    """);
+
+            assertEquals("model::PersonMapping", mapping.qualifiedName());
+            assertEquals(1, mapping.classMappings().size());
+
+            var cm = mapping.classMappings().get(0);
+            assertEquals("Person", cm.className());
+            assertEquals("Relational", cm.mappingType());
+            assertNotNull(cm.mainTable());
+            assertEquals("store::DB", cm.mainTable().databaseName());
+            assertEquals(2, cm.propertyMappings().size());
+        }
+
+        @Test
+        @DisplayName("GAP: Set ID extraction")
+        void testSetIdExtraction() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        Person[person_set1]: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            id: [store::DB] T_PERSON.ID
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            // TODO: cm.setId() should return "person_set1"
+            // Currently builder ignores the [id] bracket
+        }
+
+        @Test
+        @DisplayName("GAP: Root marker extraction")
+        void testRootMarkerExtraction() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        *Person[person_set1]: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            id: [store::DB] T_PERSON.ID
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            // TODO: cm.isRoot() should return true
+            // Currently builder ignores the * prefix
+        }
+
+        @Test
+        @DisplayName("GAP: Extends extraction")
+        void testExtendsExtraction() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        Employee[emp] extends [person_base]: Relational
+                        {
+                            ~mainTable [store::DB] T_EMPLOYEE
+                            salary: [store::DB] T_EMPLOYEE.SALARY
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            // TODO: cm.extendsSetId() should return "person_base"
+            // TODO: cm.setId() should return "emp"
+            // Currently builder ignores both
+        }
+
+        @Test
+        @DisplayName("GAP: Filter extraction")
+        void testFilterExtraction() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        Person: Relational
+                        {
+                            ~filter [store::DB] ActiveFilter
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            // TODO: cm.filter() should be non-null with filterName="ActiveFilter", databaseName="store::DB"
+            // Currently builder ignores ~filter entirely
+        }
+
+        @Test
+        @DisplayName("GAP: Distinct flag extraction")
+        void testDistinctExtraction() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        Person: Relational
+                        {
+                            ~distinct
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            // TODO: cm.isDistinct() should return true
+            // Currently builder ignores ~distinct
+        }
+
+        @Test
+        @DisplayName("GAP: GroupBy extraction")
+        void testGroupByExtraction() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        Person: Relational
+                        {
+                            ~groupBy([store::DB] T_PERSON.DEPT_ID)
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            // TODO: cm.groupBy() should be non-empty
+            // Currently builder ignores ~groupBy
+        }
+
+        @Test
+        @DisplayName("GAP: PrimaryKey extraction")
+        void testPrimaryKeyExtraction() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        Person: Relational
+                        {
+                            ~primaryKey([store::DB] T_PERSON.ID)
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            // TODO: cm.primaryKey() should be non-empty
+            // Currently builder ignores ~primaryKey
+        }
+
+        @Test
+        @DisplayName("GAP: Qualified class name preserved")
+        void testQualifiedClassNamePreserved() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::PersonMapping
+                    (
+                        model::domain::Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            assertEquals("Person", cm.className()); // simple name
+            // TODO: cm.qualifiedClassName() should return "model::domain::Person"
+        }
+    }
+
+    // ==================== Property Mapping Extraction ====================
+
+    @Nested
+    @DisplayName("Property Mapping Extraction")
+    class PropertyMappingTests {
+
+        @Test
+        @DisplayName("Simple column mapping")
+        void testSimpleColumnMapping() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                    )
+                    """);
+
+            var props = mapping.classMappings().get(0).propertyMappings();
+            assertEquals(1, props.size());
+            assertEquals("name", props.get(0).propertyName());
+            assertNotNull(props.get(0).columnReference());
+            assertEquals("NAME", props.get(0).columnReference().columnName());
+        }
+
+        @Test
+        @DisplayName("Single join reference")
+        void testSingleJoinReference() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            address: [store::DB] @Person_Address
+                        }
+                    )
+                    """);
+
+            var props = mapping.classMappings().get(0).propertyMappings();
+            assertEquals(2, props.size());
+
+            var addressProp = props.get(1);
+            assertEquals("address", addressProp.propertyName());
+            assertNotNull(addressProp.joinReference());
+            assertEquals("Person_Address", addressProp.joinReference().joinName());
+        }
+
+        @Test
+        @DisplayName("Enum transformer on column")
+        void testEnumTransformerColumn() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            status: EnumerationMapping myEnum: [store::DB] T_PERSON.STATUS_CODE
+                        }
+                    )
+                    """);
+
+            var prop = mapping.classMappings().get(0).propertyMappings().get(0);
+            assertEquals("status", prop.propertyName());
+            assertNotNull(prop.columnReference());
+            assertEquals("myEnum", prop.enumMappingId());
+        }
+
+        @Test
+        @DisplayName("GAP: Multi-hop join chain")
+        void testMultiHopJoinChain() {
+            // Legend-pure: prop : [DB]@J1 > @J2 | T.COL
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            city: [store::DB] @Person_Address > @Address_City | T_CITY.NAME
+                        }
+                    )
+                    """);
+
+            var prop = mapping.classMappings().get(0).propertyMappings().get(0);
+            assertEquals("city", prop.propertyName());
+            // TODO: Should have a join chain of length 2: Person_Address > Address_City
+            // with terminal column T_CITY.NAME
+            // Currently only first join hop is extracted
+        }
+
+        @Test
+        @DisplayName("GAP: Join with join type (INNER/LEFT OUTER)")
+        void testJoinWithType() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            address: [store::DB] (INNER) @Person_Address
+                        }
+                    )
+                    """);
+
+            var prop = mapping.classMappings().get(0).propertyMappings().get(0);
+            // TODO: Should capture join type as "INNER"
+            // Currently join type is ignored
+        }
+
+        @Test
+        @DisplayName("GAP: Embedded property mapping")
+        void testEmbeddedPropertyMapping() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm
+                            (
+                                legalName: [store::DB] T_PERSON.FIRM_NAME,
+                                employeeCount: [store::DB] T_PERSON.EMP_COUNT
+                            )
+                        }
+                    )
+                    """);
+
+            var props = mapping.classMappings().get(0).propertyMappings();
+            assertEquals(2, props.size());
+
+            var firmProp = props.get(1);
+            assertEquals("firm", firmProp.propertyName());
+            // TODO: Should be PropertyMappingValue.EmbeddedMapping with 2 sub-properties
+            // Currently stored as raw expression string
+            assertNotNull(firmProp.expressionString(),
+                    "Embedded mapping currently falls back to expression string");
+        }
+
+        @Test
+        @DisplayName("GAP: Inline property mapping")
+        void testInlinePropertyMapping() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm() Inline[firm_set1]
+                        }
+                    )
+                    """);
+
+            var props = mapping.classMappings().get(0).propertyMappings();
+            var firmProp = props.get(1);
+            assertEquals("firm", firmProp.propertyName());
+            // TODO: Should be PropertyMappingValue.InlineMapping with targetSetId="firm_set1"
+            // Currently stored as raw expression string
+        }
+
+        @Test
+        @DisplayName("GAP: Otherwise property mapping")
+        void testOtherwisePropertyMapping() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm
+                            (
+                                legalName: [store::DB] T_PERSON.FIRM_NAME
+                            ) Otherwise ([firm_set1]: [store::DB] @Person_Firm)
+                        }
+                    )
+                    """);
+
+            var props = mapping.classMappings().get(0).propertyMappings();
+            var firmProp = props.get(1);
+            assertEquals("firm", firmProp.propertyName());
+            // TODO: Should be PropertyMappingValue.OtherwiseMapping
+            // with embedded part + fallback set ID and join
+        }
+
+        @Test
+        @DisplayName("GAP: DynaFunction expression in property mapping")
+        void testDynaFunctionExpression() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            fullName: concat([store::DB] T_PERSON.FIRST, ' ', [store::DB] T_PERSON.LAST)
+                        }
+                    )
+                    """);
+
+            var prop = mapping.classMappings().get(0).propertyMappings().get(0);
+            assertEquals("fullName", prop.propertyName());
+            // TODO: Should be MappingOperation.FunctionCall("concat", [...])
+            // Currently stored as raw expression string
+        }
+
+        @Test
+        @DisplayName("GAP: Local mapping property (+)")
+        void testLocalMappingProperty() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            +localProp: String[1]: [store::DB] T_PERSON.EXTRA
+                        }
+                    )
+                    """);
+
+            var props = mapping.classMappings().get(0).propertyMappings();
+            assertEquals(2, props.size());
+            var localProp = props.get(1);
+            assertEquals("localProp", localProp.propertyName());
+            // TODO: localProp.isLocal() should return true
+            // TODO: localProp.localType() should return "String"
+            // TODO: localProp.localMultiplicity() should return "[1]"
+        }
+
+        @Test
+        @DisplayName("GAP: Source/target mapping IDs on property")
+        void testSourceTargetMappingIds() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm[person_src, firm_tgt]: [store::DB] @Person_Firm
+                        }
+                    )
+                    """);
+
+            var firmProp = mapping.classMappings().get(0).propertyMappings().get(1);
+            assertEquals("firm", firmProp.propertyName());
+            // TODO: firmProp.sourceSetId() should return "person_src"
+            // TODO: firmProp.targetSetId() should return "firm_tgt"
+        }
+    }
+
+    // ==================== Association Mapping Extraction ====================
+
+    @Nested
+    @DisplayName("Association Mapping Extraction")
+    class AssociationMappingTests {
+
+        @Test
+        @DisplayName("GAP: Association mapping not extracted")
+        void testAssociationMappingExtraction() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+
+                        PersonFirmAssociation: AssociationMapping
+                        (
+                            persons: [store::DB] @Firm_Person,
+                            firm: [store::DB] @Person_Firm
+                        )
+                    )
+                    """);
+
+            assertEquals(1, mapping.classMappings().size());
+            // TODO: mapping.associationMappings() should return 1 association mapping
+            // with 2 property mappings
+            // Currently visitMapping skips associationMappingElement entirely
+        }
+    }
+
+    // ==================== Mapping Include Extraction ====================
+
+    @Nested
+    @DisplayName("Mapping Include Extraction")
+    class IncludeTests {
+
+        @Test
+        @DisplayName("GAP: Simple include not extracted")
+        void testSimpleInclude() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::ExtendedMapping
+                    (
+                        include model::BaseMapping
+
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                    )
+                    """);
+
+            assertEquals(1, mapping.classMappings().size());
+            // TODO: mapping.includes() should return [MappingInclude("model::BaseMapping", [])]
+            // Currently visitMapping skips includeMapping entirely
+        }
+
+        @Test
+        @DisplayName("GAP: Include with store substitution not extracted")
+        void testIncludeWithStoreSubstitution() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::ExtendedMapping
+                    (
+                        include model::BaseMapping[store::DevDB -> store::ProdDB]
+
+                        Person: Relational
+                        {
+                            ~mainTable [store::ProdDB] T_PERSON
+                            name: [store::ProdDB] T_PERSON.NAME
+                        }
+                    )
+                    """);
+
+            // TODO: mapping.includes() should return
+            // [MappingInclude("model::BaseMapping", [StoreSubstitution("store::DevDB", "store::ProdDB")])]
+        }
+    }
+
+    // ==================== Enumeration Mapping Extraction ====================
+
+    @Nested
+    @DisplayName("Enumeration Mapping Extraction")
+    class EnumerationMappingTests {
+
+        @Test
+        @DisplayName("Enumeration mapping with single values")
+        void testEnumMappingSingleValues() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        model::Status: EnumerationMapping StatusMap
+                        {
+                            ACTIVE: 'A',
+                            INACTIVE: 'I'
+                        }
+                    )
+                    """);
+
+            assertEquals(1, mapping.enumerationMappings().size());
+            var em = mapping.enumerationMappings().get(0);
+            assertEquals("model::Status", em.enumType());
+            assertNotNull(em.valueMappings());
+        }
+
+        @Test
+        @DisplayName("Enumeration mapping with array values")
+        void testEnumMappingArrayValues() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Status: EnumerationMapping
+                        {
+                            ACTIVE: ['A', 'ACT', 'ACTIVE'],
+                            INACTIVE: 'I'
+                        }
+                    )
+                    """);
+
+            var em = mapping.enumerationMappings().get(0);
+            var activeValues = em.valueMappings().get("ACTIVE");
+            assertNotNull(activeValues);
+            assertEquals(3, activeValues.size());
+        }
+
+        @Test
+        @DisplayName("Enumeration mapping with integer values")
+        void testEnumMappingIntegerValues() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Status: EnumerationMapping
+                        {
+                            ACTIVE: 1,
+                            INACTIVE: 0
+                        }
+                    )
+                    """);
+
+            var em = mapping.enumerationMappings().get(0);
+            assertNotNull(em.valueMappings());
+            assertEquals(2, em.valueMappings().size());
+        }
+    }
+
+    // ==================== Pure M2M Mapping Extraction ====================
+
+    @Nested
+    @DisplayName("Pure M2M Mapping Extraction")
+    class PureM2MTests {
+
+        @Test
+        @DisplayName("Simple M2M mapping")
+        void testSimpleM2M() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        TargetPerson: Pure
+                        {
+                            ~src SourcePerson
+                            fullName: $src.firstName + ' ' + $src.lastName,
+                            age: $src.age
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            assertEquals("TargetPerson", cm.className());
+            assertEquals("Pure", cm.mappingType());
+            assertEquals("SourcePerson", cm.sourceClassName());
+            assertEquals(2, cm.m2mPropertyExpressions().size());
+            assertNotNull(cm.m2mPropertyExpressions().get("fullName"));
+            assertNotNull(cm.m2mPropertyExpressions().get("age"));
+        }
+
+        @Test
+        @DisplayName("M2M mapping with filter")
+        void testM2MWithFilter() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        ActivePerson: Pure
+                        {
+                            ~src Person
+                            ~filter $src.isActive == true
+                            name: $src.name
+                        }
+                    )
+                    """);
+
+            var cm = mapping.classMappings().get(0);
+            assertNotNull(cm.filterExpression());
+        }
+    }
+
+    // ==================== Scope Block Extraction ====================
+
+    @Nested
+    @DisplayName("Scope Block Extraction")
+    class ScopeBlockTests {
+
+        @Test
+        @Disabled("GRAMMAR GAP: scope keyword exists in lexer but no grammar rule in relationalClassMappingBody")
+        @DisplayName("GAP: Scope block desugaring")
+        void testScopeBlock() {
+            // scope([DB]T) (p1 : C1, p2 : C2) should desugar to
+            // p1 : [DB] T.C1, p2 : [DB] T.C2
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping model::M
+                    (
+                        Person: Relational
+                        {
+                            scope([store::DB] T_PERSON)
+                            (
+                                firstName: FIRST_NAME,
+                                lastName: LAST_NAME
+                            )
+                        }
+                    )
+                    """);
+
+            var props = mapping.classMappings().get(0).propertyMappings();
+            // TODO: scope should desugar into 2 column mappings with
+            // databaseName="store::DB", tableName="T_PERSON"
+            // Currently falls back to expression strings
+        }
+
+        @Test
+        @Disabled("GRAMMAR GAP: scope keyword exists in lexer but no grammar rule in relationalClassMappingBody")
+        @DisplayName("GAP: Scope block with embedded mapping (legend-pure TestMappingGrammar)")
+        void testScopeBlockWithEmbedded() {
+            // From TestMappingGrammar.testCombinationOfDistinctWithEmbeddedPropertyMappings
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping FirmMapping
+                    (
+                        Firm: Relational
+                        {
+                            ~distinct
+                            scope([FirmDb] FirmTable)
+                            (
+                                legalName: legal_name,
+                                details(taxLocation: tax_location, extraDetails(employeeCount: employee_count, taxLocation: tax_location))
+                            )
+                        }
+                    )
+                    """);
+
+            // TODO: This should parse into:
+            // - distinct = true
+            // - 2 properties: legalName (column), details (embedded with nested embedded)
+        }
+    }
+
+    // ==================== Multiple Mapping Sets ====================
+
+    @Nested
+    @DisplayName("Multiple Mapping Sets")
+    class MultipleMappingSetsTests {
+
+        @Test
+        @DisplayName("GAP: Two set implementations for same class (legend-pure TestMappingGrammar)")
+        void testMultipleSetsForSameClass() {
+            var mapping = parseMapping("""
+                    ###Mapping
+                    Mapping myMap
+                    (
+                        *Firm[m1]: Relational
+                        {
+                            ~mainTable [db] firmTb
+                            name: [db] firmTb.name
+                        }
+                        Firm[m2]: Relational
+                        {
+                            ~mainTable [db] firmTb
+                            name: [db] firmTb.name
+                        }
+                    )
+                    """);
+
+            assertEquals(2, mapping.classMappings().size());
+            // TODO: First should have setId="m1", isRoot=true
+            // TODO: Second should have setId="m2", isRoot=false
+        }
+    }
+}

@@ -12,56 +12,55 @@ import java.util.Optional;
  * <pre>
  * Mapping package::MappingName
  * (
- *     ClassName: Relational
+ *     include model::BaseMapping [store::DB1 -> store::DB2]
+ *     ClassName[setId]: Relational
  *     {
  *         ~mainTable [DatabaseName] TABLE_NAME
  *         propertyName: [DatabaseName] TABLE_NAME.COLUMN_NAME,
  *         ...
  *     }
+ *     AssocName: Relational { ... }
  * )
  * </pre>
  * 
- * Example:
- * 
- * <pre>
- * Mapping model::PersonMapping
- * (
- *     Person: Relational
- *     {
- *         ~mainTable [MyDatabase] T_PERSON
- *         firstName: [MyDatabase] T_PERSON.FIRST_NAME,
- *         lastName: [MyDatabase] T_PERSON.LAST_NAME,
- *         age: [MyDatabase] T_PERSON.AGE_VAL
- *     }
- * )
- * </pre>
- * 
- * @param qualifiedName The fully qualified mapping name
- * @param classMappings The list of class mappings
+ * @param qualifiedName       The fully qualified mapping name
+ * @param includes            Mapping includes with optional store substitutions
+ * @param classMappings       The list of class mappings
+ * @param associationMappings The list of association mappings
+ * @param enumerationMappings The list of enumeration mappings
+ * @param testSuites          The list of test suites
  */
 public record MappingDefinition(
         String qualifiedName,
+        List<MappingInclude> includes,
         List<ClassMappingDefinition> classMappings,
+        List<AssociationMappingDefinition> associationMappings,
         List<EnumerationMappingDefinition> enumerationMappings,
         List<TestSuiteDefinition> testSuites) implements PackageableElement {
 
     public MappingDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
+        includes = includes != null ? List.copyOf(includes) : List.of();
         Objects.requireNonNull(classMappings, "Class mappings cannot be null");
         classMappings = List.copyOf(classMappings);
+        associationMappings = associationMappings != null ? List.copyOf(associationMappings) : List.of();
         enumerationMappings = enumerationMappings != null ? List.copyOf(enumerationMappings) : List.of();
         testSuites = testSuites != null ? List.copyOf(testSuites) : List.of();
     }
 
     /**
-     * Convenience constructor for mappings without test suites.
+     * Backward-compatible constructor: class mappings, enum mappings, test suites.
      */
+    public MappingDefinition(String qualifiedName, List<ClassMappingDefinition> classMappings,
+            List<EnumerationMappingDefinition> enumerationMappings, List<TestSuiteDefinition> testSuites) {
+        this(qualifiedName, List.of(), classMappings, List.of(), enumerationMappings, testSuites);
+    }
+
     /**
-     * Convenience constructor for mappings without enumeration mappings or test
-     * suites.
+     * Backward-compatible constructor: class mappings only.
      */
     public MappingDefinition(String qualifiedName, List<ClassMappingDefinition> classMappings) {
-        this(qualifiedName, classMappings, List.of(), List.of());
+        this(qualifiedName, List.of(), classMappings, List.of(), List.of(), List.of());
     }
 
     /**
@@ -145,21 +144,31 @@ public record MappingDefinition(
      * Represents a class mapping within a mapping.
      * 
      * @param className              The class being mapped
-     * @param mappingType            The mapping type ("Relational" or "Pure")
-     * @param mainTable              The main table reference (for Relational
-     *                               mappings)
-     * @param propertyMappings       The property-to-column mappings (for Relational
-     *                               mappings)
-     * @param sourceClassName        The source class for M2M (~src) - nullable for
-     *                               Relational
-     * @param filterExpression       The filter expression (~filter) - nullable
-     * @param m2mPropertyExpressions M2M property expressions (propertyName ->
-     *                               expression string) - nullable for Relational
+     * @param mappingType            The mapping type ("Relational", "Pure", "Relation", "AggregationAware")
+     * @param setId                  Optional set ID (from {@code [id]} bracket, null for default)
+     * @param isRoot                 Whether this is a root mapping (from {@code *} prefix)
+     * @param extendsSetId           Optional extends clause (from {@code extends [parentId]}, null if none)
+     * @param mainTable              The main table reference (for Relational mappings)
+     * @param filter                 Structured ~filter reference (null if none)
+     * @param distinct               Whether ~distinct is specified
+     * @param groupBy                ~groupBy expressions (null/empty if none)
+     * @param primaryKey             ~primaryKey expressions (null/empty if none)
+     * @param propertyMappings       The property-to-column mappings (for Relational mappings)
+     * @param sourceClassName        The source class for M2M (~src) - nullable for Relational
+     * @param filterExpression       The filter expression (~filter as string) - nullable
+     * @param m2mPropertyExpressions M2M property expressions (propertyName -> expression string) - nullable
      */
     public record ClassMappingDefinition(
             String className,
             String mappingType,
+            String setId,
+            boolean isRoot,
+            String extendsSetId,
             TableReference mainTable,
+            MappingFilter filter,
+            boolean distinct,
+            List<RelationalOperation> groupBy,
+            List<RelationalOperation> primaryKey,
             List<PropertyMappingDefinition> propertyMappings,
             String sourceClassName,
             String filterExpression,
@@ -167,6 +176,8 @@ public record MappingDefinition(
         public ClassMappingDefinition {
             Objects.requireNonNull(className, "Class name cannot be null");
             Objects.requireNonNull(mappingType, "Mapping type cannot be null");
+            groupBy = groupBy != null ? List.copyOf(groupBy) : List.of();
+            primaryKey = primaryKey != null ? List.copyOf(primaryKey) : List.of();
             Objects.requireNonNull(propertyMappings, "Property mappings cannot be null");
             propertyMappings = List.copyOf(propertyMappings);
             if (m2mPropertyExpressions != null) {
@@ -175,7 +186,18 @@ public record MappingDefinition(
         }
 
         /**
-         * Creates a relational class mapping (legacy constructor).
+         * Backward-compatible constructor (7-arg, no new fields).
+         */
+        public ClassMappingDefinition(
+                String className, String mappingType, TableReference mainTable,
+                List<PropertyMappingDefinition> propertyMappings, String sourceClassName,
+                String filterExpression, java.util.Map<String, String> m2mPropertyExpressions) {
+            this(className, mappingType, null, false, null, mainTable, null, false, null, null,
+                    propertyMappings, sourceClassName, filterExpression, m2mPropertyExpressions);
+        }
+
+        /**
+         * Creates a relational class mapping (legacy factory).
          */
         public static ClassMappingDefinition relational(
                 String className, TableReference mainTable, List<PropertyMappingDefinition> propertyMappings) {
@@ -183,7 +205,7 @@ public record MappingDefinition(
         }
 
         /**
-         * Creates a Pure (M2M) class mapping.
+         * Creates a Pure (M2M) class mapping (legacy factory).
          */
         public static ClassMappingDefinition pure(
                 String className, String sourceClassName, String filterExpression,
@@ -206,6 +228,27 @@ public record MappingDefinition(
             return propertyMappings.stream()
                     .filter(pm -> pm.propertyName().equals(propertyName))
                     .findFirst();
+        }
+    }
+
+    /**
+     * Structured ~filter reference on a class mapping.
+     * 
+     * Pure syntax: {@code ~filter [DB]@J1 | [DB]myFilterName}
+     * or simply: {@code ~filter [DB]myFilterName}
+     * 
+     * @param databaseName  The database name
+     * @param joinPath      Optional join chain to reach the filter (empty if direct)
+     * @param filterName    The named filter reference
+     */
+    public record MappingFilter(
+            String databaseName,
+            List<JoinChainElement> joinPath,
+            String filterName
+    ) {
+        public MappingFilter {
+            Objects.requireNonNull(filterName, "Filter name cannot be null");
+            joinPath = joinPath != null ? List.copyOf(joinPath) : List.of();
         }
     }
 
