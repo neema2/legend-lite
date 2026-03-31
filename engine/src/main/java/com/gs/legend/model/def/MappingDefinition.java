@@ -388,17 +388,45 @@ public record MappingDefinition(
      * 
      * <pre>
      * employees: [DB]@PERSON_FIRM
+     * address:   [DB]@PersonAddress > @AddressCity
+     * city:      [DB]@PersonAddress > @AddressCity | CityTable.name
      * </pre>
      * 
-     * @param databaseName The database name
-     * @param joinName     The join name
+     * @param databaseName The database name (from the first [DB] pointer)
+     * @param joinChain    The join chain (one or more hops)
+     * @param terminalColumn Optional terminal column reference after PIPE (null if none)
      */
     public record JoinReference(
             String databaseName,
-            String joinName) {
+            List<JoinChainElement> joinChain,
+            RelationalOperation terminalColumn) {
         public JoinReference {
-            Objects.requireNonNull(databaseName, "Database name cannot be null");
-            Objects.requireNonNull(joinName, "Join name cannot be null");
+            Objects.requireNonNull(joinChain, "Join chain cannot be null");
+            if (joinChain.isEmpty()) throw new IllegalArgumentException("Join chain cannot be empty");
+            joinChain = List.copyOf(joinChain);
+        }
+
+        /**
+         * Backward-compatible constructor for single-hop joins.
+         */
+        public JoinReference(String databaseName, String joinName) {
+            this(databaseName,
+                    List.of(new JoinChainElement(joinName, null, databaseName)),
+                    null);
+        }
+
+        /**
+         * @return The first (or only) join name. For multi-hop, returns the first hop.
+         */
+        public String joinName() {
+            return joinChain.get(0).joinName();
+        }
+
+        /**
+         * @return true if this is a multi-hop join chain
+         */
+        public boolean isMultiHop() {
+            return joinChain.size() > 1;
         }
     }
 

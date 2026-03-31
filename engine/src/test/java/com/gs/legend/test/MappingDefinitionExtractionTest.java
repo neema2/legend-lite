@@ -293,7 +293,7 @@ class MappingDefinitionExtractionTest {
         }
 
         @Test
-        @DisplayName("GAP: Schema-qualified tables preserve schema info")
+        @DisplayName("Schema-qualified tables preserve schema info")
         void testSchemaPreservation() {
             var db = parseDatabase("""
                     ###Relational
@@ -306,10 +306,15 @@ class MappingDefinitionExtractionTest {
                     )
                     """);
 
-            // Current: tables are extracted but schema info is lost
+            // Schema tables also appear in top-level list for backward compat
             assertEquals(1, db.tables().size());
             assertEquals("PersonTable", db.tables().get(0).name());
-            // TODO: table.schemaName() should return "mySchema"
+
+            // Schema is now extracted
+            assertEquals(1, db.schemas().size());
+            assertEquals("mySchema", db.schemas().get(0).name());
+            assertEquals(1, db.schemas().get(0).tables().size());
+            assertEquals("PersonTable", db.schemas().get(0).tables().get(0).name());
         }
     }
 
@@ -347,7 +352,7 @@ class MappingDefinitionExtractionTest {
         }
 
         @Test
-        @DisplayName("GAP: Set ID extraction")
+        @DisplayName("Set ID extraction")
         void testSetIdExtraction() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -362,12 +367,11 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var cm = mapping.classMappings().get(0);
-            // TODO: cm.setId() should return "person_set1"
-            // Currently builder ignores the [id] bracket
+            assertEquals("person_set1", cm.setId());
         }
 
         @Test
-        @DisplayName("GAP: Root marker extraction")
+        @DisplayName("Root marker extraction")
         void testRootMarkerExtraction() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -382,12 +386,12 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var cm = mapping.classMappings().get(0);
-            // TODO: cm.isRoot() should return true
-            // Currently builder ignores the * prefix
+            assertTrue(cm.isRoot());
+            assertEquals("person_set1", cm.setId());
         }
 
         @Test
-        @DisplayName("GAP: Extends extraction")
+        @DisplayName("Extends extraction")
         void testExtendsExtraction() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -402,14 +406,13 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var cm = mapping.classMappings().get(0);
-            // TODO: cm.extendsSetId() should return "person_base"
-            // TODO: cm.setId() should return "emp"
-            // Currently builder ignores both
+            assertEquals("emp", cm.setId());
+            assertEquals("person_base", cm.extendsSetId());
         }
 
         @Test
-        @DisplayName("GAP: Filter extraction")
-        void testFilterExtraction() {
+        @DisplayName("Mapping filter extraction")
+        void testMappingFilterExtraction() {
             var mapping = parseMapping("""
                     ###Mapping
                     Mapping model::PersonMapping
@@ -424,12 +427,14 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var cm = mapping.classMappings().get(0);
-            // TODO: cm.filter() should be non-null with filterName="ActiveFilter", databaseName="store::DB"
-            // Currently builder ignores ~filter entirely
+            assertNotNull(cm.filter());
+            assertEquals("ActiveFilter", cm.filter().filterName());
+            assertEquals("store::DB", cm.filter().databaseName());
+            assertTrue(cm.filter().joinPath().isEmpty());
         }
 
         @Test
-        @DisplayName("GAP: Distinct flag extraction")
+        @DisplayName("Distinct flag extraction")
         void testDistinctExtraction() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -445,12 +450,11 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var cm = mapping.classMappings().get(0);
-            // TODO: cm.isDistinct() should return true
-            // Currently builder ignores ~distinct
+            assertTrue(cm.distinct());
         }
 
         @Test
-        @DisplayName("GAP: GroupBy extraction")
+        @DisplayName("GroupBy extraction")
         void testGroupByExtraction() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -466,12 +470,12 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var cm = mapping.classMappings().get(0);
-            // TODO: cm.groupBy() should be non-empty
-            // Currently builder ignores ~groupBy
+            assertEquals(1, cm.groupBy().size());
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.ColumnRef.class, cm.groupBy().get(0));
         }
 
         @Test
-        @DisplayName("GAP: PrimaryKey extraction")
+        @DisplayName("PrimaryKey extraction")
         void testPrimaryKeyExtraction() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -487,8 +491,8 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var cm = mapping.classMappings().get(0);
-            // TODO: cm.primaryKey() should be non-empty
-            // Currently builder ignores ~primaryKey
+            assertEquals(1, cm.primaryKey().size());
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.ColumnRef.class, cm.primaryKey().get(0));
         }
 
         @Test
@@ -587,7 +591,7 @@ class MappingDefinitionExtractionTest {
         }
 
         @Test
-        @DisplayName("GAP: Multi-hop join chain")
+        @DisplayName("Multi-hop join chain")
         void testMultiHopJoinChain() {
             // Legend-pure: prop : [DB]@J1 > @J2 | T.COL
             var mapping = parseMapping("""
@@ -604,13 +608,16 @@ class MappingDefinitionExtractionTest {
 
             var prop = mapping.classMappings().get(0).propertyMappings().get(0);
             assertEquals("city", prop.propertyName());
-            // TODO: Should have a join chain of length 2: Person_Address > Address_City
-            // with terminal column T_CITY.NAME
-            // Currently only first join hop is extracted
+            assertNotNull(prop.joinReference());
+            assertTrue(prop.joinReference().isMultiHop());
+            assertEquals(2, prop.joinReference().joinChain().size());
+            assertEquals("Person_Address", prop.joinReference().joinChain().get(0).joinName());
+            assertEquals("Address_City", prop.joinReference().joinChain().get(1).joinName());
+            assertNotNull(prop.joinReference().terminalColumn());
         }
 
         @Test
-        @DisplayName("GAP: Join with join type (INNER/LEFT OUTER)")
+        @DisplayName("Join with join type (INNER)")
         void testJoinWithType() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -625,8 +632,9 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var prop = mapping.classMappings().get(0).propertyMappings().get(0);
-            // TODO: Should capture join type as "INNER"
-            // Currently join type is ignored
+            assertNotNull(prop.joinReference());
+            assertEquals("Person_Address", prop.joinReference().joinName());
+            assertEquals("INNER", prop.joinReference().joinChain().get(0).joinType());
         }
 
         @Test
@@ -785,7 +793,7 @@ class MappingDefinitionExtractionTest {
     class AssociationMappingTests {
 
         @Test
-        @DisplayName("GAP: Association mapping not extracted")
+        @DisplayName("Association mapping extraction")
         void testAssociationMappingExtraction() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -806,9 +814,16 @@ class MappingDefinitionExtractionTest {
                     """);
 
             assertEquals(1, mapping.classMappings().size());
-            // TODO: mapping.associationMappings() should return 1 association mapping
-            // with 2 property mappings
-            // Currently visitMapping skips associationMappingElement entirely
+            assertEquals(1, mapping.associationMappings().size());
+
+            var assoc = mapping.associationMappings().get(0);
+            assertEquals("PersonFirmAssociation", assoc.associationName());
+            assertEquals("Relational", assoc.mappingType());
+            assertEquals(2, assoc.properties().size());
+            assertEquals("persons", assoc.properties().get(0).propertyName());
+            assertEquals("Firm_Person", assoc.properties().get(0).joinChain().get(0).joinName());
+            assertEquals("firm", assoc.properties().get(1).propertyName());
+            assertEquals("Person_Firm", assoc.properties().get(1).joinChain().get(0).joinName());
         }
     }
 
@@ -819,7 +834,7 @@ class MappingDefinitionExtractionTest {
     class IncludeTests {
 
         @Test
-        @DisplayName("GAP: Simple include not extracted")
+        @DisplayName("Simple include extraction")
         void testSimpleInclude() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -836,12 +851,13 @@ class MappingDefinitionExtractionTest {
                     """);
 
             assertEquals(1, mapping.classMappings().size());
-            // TODO: mapping.includes() should return [MappingInclude("model::BaseMapping", [])]
-            // Currently visitMapping skips includeMapping entirely
+            assertEquals(1, mapping.includes().size());
+            assertEquals("model::BaseMapping", mapping.includes().get(0).includedMappingPath());
+            assertTrue(mapping.includes().get(0).storeSubstitutions().isEmpty());
         }
 
         @Test
-        @DisplayName("GAP: Include with store substitution not extracted")
+        @DisplayName("Include with store substitution")
         void testIncludeWithStoreSubstitution() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -857,8 +873,12 @@ class MappingDefinitionExtractionTest {
                     )
                     """);
 
-            // TODO: mapping.includes() should return
-            // [MappingInclude("model::BaseMapping", [StoreSubstitution("store::DevDB", "store::ProdDB")])]
+            assertEquals(1, mapping.includes().size());
+            var inc = mapping.includes().get(0);
+            assertEquals("model::BaseMapping", inc.includedMappingPath());
+            assertEquals(1, inc.storeSubstitutions().size());
+            assertEquals("store::DevDB", inc.storeSubstitutions().get(0).originalStore());
+            assertEquals("store::ProdDB", inc.storeSubstitutions().get(0).substituteStore());
         }
     }
 

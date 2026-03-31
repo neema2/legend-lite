@@ -1155,11 +1155,22 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             PureParser.MappingContext ctx) {
         String qualifiedName = ctx.qualifiedName().getText();
 
-        List<com.gs.legend.model.def.MappingDefinition.ClassMappingDefinition> classMappings = new ArrayList<>();
+        // Process includes
+        List<com.gs.legend.model.def.MappingInclude> includes = new ArrayList<>();
+        for (PureParser.IncludeMappingContext incCtx : ctx.includeMapping()) {
+            includes.add(extractMappingInclude(incCtx));
+        }
 
         // Process class mappings
+        List<com.gs.legend.model.def.MappingDefinition.ClassMappingDefinition> classMappings = new ArrayList<>();
         for (PureParser.ClassMappingElementContext classMappingCtx : ctx.classMappingElement()) {
             classMappings.add(visitClassMappingElement(classMappingCtx));
+        }
+
+        // Process association mappings
+        List<com.gs.legend.model.def.AssociationMappingDefinition> associationMappings = new ArrayList<>();
+        for (PureParser.AssociationMappingElementContext assocCtx : ctx.associationMappingElement()) {
+            associationMappings.add(extractAssociationMapping(assocCtx));
         }
 
         // Process enumeration mappings
@@ -1177,7 +1188,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         }
 
         return new com.gs.legend.model.def.MappingDefinition(
-                qualifiedName, classMappings, enumerationMappings, testSuites);
+                qualifiedName, includes, classMappings, associationMappings, enumerationMappings, testSuites);
     }
 
     /**
@@ -1235,6 +1246,72 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             // Enum reference: EnumType.VALUE - return as string
             return ctx.getText();
         }
+    }
+
+    // ==================== Include + Association Mapping Extraction ====================
+
+    /**
+     * Extracts a mapping include.
+     * Grammar: includeMapping: INCLUDE qualifiedName (BRACKET_OPEN (storeSubPath (COMMA storeSubPath)*)? BRACKET_CLOSE)?
+     */
+    private com.gs.legend.model.def.MappingInclude extractMappingInclude(
+            PureParser.IncludeMappingContext ctx) {
+        String includedPath = ctx.qualifiedName().getText();
+        List<com.gs.legend.model.def.MappingInclude.StoreSubstitution> subs = new ArrayList<>();
+        for (PureParser.StoreSubPathContext subCtx : ctx.storeSubPath()) {
+            String source = subCtx.sourceStore().qualifiedName().getText();
+            String target = subCtx.targetStore().qualifiedName().getText();
+            subs.add(new com.gs.legend.model.def.MappingInclude.StoreSubstitution(source, target));
+        }
+        return new com.gs.legend.model.def.MappingInclude(includedPath, subs);
+    }
+
+    /**
+     * Visits an association mapping element.
+     * Grammar: associationMappingElement: qualifiedName COLON ASSOCIATION_MAPPING
+     *     PAREN_OPEN (associationPropertyMapping (COMMA associationPropertyMapping)*)? PAREN_CLOSE
+     */
+    private com.gs.legend.model.def.AssociationMappingDefinition extractAssociationMapping(
+            PureParser.AssociationMappingElementContext ctx) {
+        String associationName = ctx.qualifiedName().getText();
+
+        List<com.gs.legend.model.def.AssociationMappingDefinition.AssociationPropertyMapping> properties = new ArrayList<>();
+        for (PureParser.AssociationPropertyMappingContext propCtx : ctx.associationPropertyMapping()) {
+            String propertyName = propCtx.identifier().getText();
+
+            // Optional [source, target] set IDs
+            String sourceSetId = null;
+            String targetSetId = null;
+            if (propCtx.sourceAndTargetMappingId() != null) {
+                var ids = propCtx.sourceAndTargetMappingId().identifier();
+                sourceSetId = ids.get(0).getText();
+                if (ids.size() > 1) {
+                    targetSetId = ids.get(1).getText();
+                }
+            }
+
+            // Optional database pointer
+            String dbName = propCtx.databasePointer() != null
+                    ? propCtx.databasePointer().qualifiedName().getText() : null;
+
+            // Join chain
+            List<com.gs.legend.model.def.JoinChainElement> joinChain = new ArrayList<>();
+            if (propCtx.mappingJoinSequence() != null) {
+                joinChain = extractMappingJoinChain(propCtx.mappingJoinSequence());
+                // Propagate database name to first element if not set
+                if (dbName != null && !joinChain.isEmpty() && joinChain.get(0).databaseName() == null) {
+                    var first = joinChain.get(0);
+                    joinChain.set(0, new com.gs.legend.model.def.JoinChainElement(
+                            first.joinName(), first.joinType(), dbName));
+                }
+            }
+
+            properties.add(new com.gs.legend.model.def.AssociationMappingDefinition.AssociationPropertyMapping(
+                    propertyName, sourceSetId, targetSetId, joinChain, null));
+        }
+
+        return new com.gs.legend.model.def.AssociationMappingDefinition(
+                associationName, "Relational", properties);
     }
 
     /**
@@ -1387,12 +1464,18 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 ? qualifiedClassName.substring(qualifiedClassName.lastIndexOf("::") + 2)
                 : qualifiedClassName;
 
+        // Extract isRoot (*), setId ([id]), extendsSetId (extends [id])
+        boolean isRoot = ctx.STAR() != null;
+        String setId = ctx.mappingElementId() != null ? ctx.mappingElementId().getText() : null;
+        String extendsSetId = ctx.superClassMappingId() != null ? ctx.superClassMappingId().getText() : null;
+
         String mappingType = ctx.classMappingType().getText();
 
         if ("Pure".equals(mappingType)) {
             return visitPureM2MClassMappingBody(className, ctx.classMappingBody().pureM2MClassMappingBody());
         } else {
-            return visitRelationalClassMappingBody(className, ctx.classMappingBody().relationalClassMappingBody());
+            return visitRelationalClassMappingBody(className, setId, isRoot, extendsSetId,
+                    ctx.classMappingBody().relationalClassMappingBody());
         }
     }
 
@@ -1400,13 +1483,41 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a relational class mapping body.
      */
     public com.gs.legend.model.def.MappingDefinition.ClassMappingDefinition visitRelationalClassMappingBody(
-            String className, PureParser.RelationalClassMappingBodyContext ctx) {
+            String className, String setId, boolean isRoot, String extendsSetId,
+            PureParser.RelationalClassMappingBodyContext ctx) {
 
+        // ~filter
+        com.gs.legend.model.def.MappingDefinition.MappingFilter filter = null;
+        if (ctx.mappingFilter() != null) {
+            filter = extractMappingFilter(ctx.mappingFilter());
+        }
+
+        // ~distinct
+        boolean distinct = ctx.mappingDistinct() != null;
+
+        // ~groupBy
+        List<com.gs.legend.model.def.RelationalOperation> groupBy = new ArrayList<>();
+        if (ctx.mappingGroupBy() != null) {
+            for (PureParser.MappingOperationContext opCtx : ctx.mappingGroupBy().mappingOperation()) {
+                groupBy.add(buildMappingOperation(opCtx));
+            }
+        }
+
+        // ~primaryKey
+        List<com.gs.legend.model.def.RelationalOperation> primaryKey = new ArrayList<>();
+        if (ctx.mappingPrimaryKey() != null) {
+            for (PureParser.MappingOperationContext opCtx : ctx.mappingPrimaryKey().mappingOperation()) {
+                primaryKey.add(buildMappingOperation(opCtx));
+            }
+        }
+
+        // ~mainTable
         com.gs.legend.model.def.MappingDefinition.TableReference mainTable = null;
         if (ctx.mappingMainTable() != null) {
             mainTable = visitMappingMainTable(ctx.mappingMainTable());
         }
 
+        // Property mappings
         List<com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition> propertyMappings = new ArrayList<>();
         for (PureParser.RelationalPropertyMappingContext propCtx : ctx.relationalPropertyMapping()) {
             com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition propMapping = visitRelationalPropertyMapping(
@@ -1416,8 +1527,10 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             }
         }
 
-        return com.gs.legend.model.def.MappingDefinition.ClassMappingDefinition.relational(
-                className, mainTable, propertyMappings);
+        return new com.gs.legend.model.def.MappingDefinition.ClassMappingDefinition(
+                className, "Relational", setId, isRoot, extendsSetId,
+                mainTable, filter, distinct, groupBy, primaryKey,
+                propertyMappings, null, null, null);
     }
 
     /**
@@ -1571,27 +1684,248 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         return id;
     }
 
+    // ==================== Mapping Filter Extraction ====================
+
     /**
-     * Visits a mapping join operation: [DB]@JoinName
+     * Extracts a ~filter clause from a relational class mapping.
+     * Grammar: mappingFilter: FILTER_CMD databasePointer? (mappingJoinSequence PIPE databasePointer)? identifier
+     */
+    private com.gs.legend.model.def.MappingDefinition.MappingFilter extractMappingFilter(
+            PureParser.MappingFilterContext ctx) {
+        String filterName = ctx.identifier().getText();
+
+        // Database name: from direct databasePointer, or from the one after PIPE
+        String databaseName = null;
+        if (ctx.databasePointer() != null && !ctx.databasePointer().isEmpty()) {
+            // Use the last databasePointer (after PIPE if present, otherwise the direct one)
+            databaseName = ctx.databasePointer(ctx.databasePointer().size() - 1).qualifiedName().getText();
+        }
+
+        // Optional join path before PIPE
+        List<com.gs.legend.model.def.JoinChainElement> joinPath = new ArrayList<>();
+        if (ctx.mappingJoinSequence() != null) {
+            joinPath = extractMappingJoinChain(ctx.mappingJoinSequence());
+        }
+
+        return new com.gs.legend.model.def.MappingDefinition.MappingFilter(databaseName, joinPath, filterName);
+    }
+
+    /**
+     * Extracts a join chain from a mappingJoinSequence.
+     * Grammar: mappingJoinSequence: (PAREN_OPEN identifier PAREN_CLOSE)? mappingJoinPointer (GREATER_THAN mappingJoinPointerFull)*
+     */
+    private List<com.gs.legend.model.def.JoinChainElement> extractMappingJoinChain(
+            PureParser.MappingJoinSequenceContext ctx) {
+        List<com.gs.legend.model.def.JoinChainElement> chain = new ArrayList<>();
+
+        // First join: optional (joinType) before @joinName
+        String firstJoinType = null;
+        if (ctx.PAREN_OPEN() != null && ctx.identifier() != null) {
+            firstJoinType = ctx.identifier().getText();
+        }
+        String firstJoinName = ctx.mappingJoinPointer().identifier().getText();
+        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, null));
+
+        // Subsequent joins: > (joinType)? databasePointer? @joinName
+        for (PureParser.MappingJoinPointerFullContext fullCtx : ctx.mappingJoinPointerFull()) {
+            String joinType = null;
+            if (fullCtx.PAREN_OPEN() != null && fullCtx.identifier() != null) {
+                joinType = fullCtx.identifier().getText();
+            }
+            String hopDb = fullCtx.databasePointer() != null
+                    ? fullCtx.databasePointer().qualifiedName().getText() : null;
+            String joinName = fullCtx.mappingJoinPointer().identifier().getText();
+            chain.add(new com.gs.legend.model.def.JoinChainElement(joinName, joinType, hopDb));
+        }
+
+        return chain;
+    }
+
+    // ==================== Mapping Operation AST Walker ====================
+
+    /**
+     * Builds a RelationalOperation from a mapping operation parse tree.
+     * Grammar: mappingOperation: mappingAtomicOperation (mappingOperationRight)?
+     */
+    private com.gs.legend.model.def.RelationalOperation buildMappingOperation(
+            PureParser.MappingOperationContext ctx) {
+        var left = buildMappingAtomicOperation(ctx.mappingAtomicOperation());
+        if (ctx.mappingOperationRight() != null) {
+            String op = ctx.mappingOperationRight().mappingBooleanOperator().getText();
+            var right = buildMappingOperation(ctx.mappingOperationRight().mappingOperation());
+            return new com.gs.legend.model.def.RelationalOperation.BooleanOp(left, op, right);
+        }
+        return left;
+    }
+
+    /**
+     * Builds a RelationalOperation from a mapping atomic operation.
+     */
+    private com.gs.legend.model.def.RelationalOperation buildMappingAtomicOperation(
+            PureParser.MappingAtomicOperationContext ctx) {
+        com.gs.legend.model.def.RelationalOperation expr;
+
+        if (ctx.mappingGroupOperation() != null) {
+            expr = new com.gs.legend.model.def.RelationalOperation.Group(
+                    buildMappingOperation(ctx.mappingGroupOperation().mappingOperation()));
+        } else if (ctx.mappingFunctionOperation() != null) {
+            String dbName = ctx.databasePointer() != null
+                    ? ctx.databasePointer().qualifiedName().getText() : null;
+            expr = buildMappingFunctionOperation(ctx.mappingFunctionOperation(), dbName);
+        } else if (ctx.mappingColumnOperation() != null) {
+            expr = buildMappingColumnOperation(ctx.mappingColumnOperation());
+        } else if (ctx.mappingJoinOperation() != null) {
+            String dbName = ctx.databasePointer() != null
+                    ? ctx.databasePointer().qualifiedName().getText() : null;
+            expr = buildMappingJoinOp(ctx.mappingJoinOperation(), dbName);
+        } else if (ctx.mappingConstant() != null) {
+            expr = buildMappingConstant(ctx.mappingConstant());
+        } else {
+            throw new IllegalStateException("Unknown mappingAtomicOperation alternative: " + ctx.getText());
+        }
+
+        return expr;
+    }
+
+    private com.gs.legend.model.def.RelationalOperation buildMappingColumnOperation(
+            PureParser.MappingColumnOperationContext ctx) {
+        String dbName = ctx.databasePointer() != null
+                ? ctx.databasePointer().qualifiedName().getText() : null;
+
+        PureParser.MappingTableColumnRefContext colRef = ctx.mappingTableColumnRef();
+        String firstId = colRef.relationalIdentifier().getText();
+
+        if (colRef.mappingScopeInfo() != null) {
+            var scopeIds = colRef.mappingScopeInfo().relationalIdentifier();
+            if (scopeIds.size() == 1) {
+                // TABLE.COLUMN
+                String column = scopeIds.get(0).getText();
+                var result = com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, firstId, column);
+                return wrapWithMappingRightSide(result, ctx.mappingAtomicOperationRight());
+            } else {
+                // SCHEMA.TABLE.COLUMN
+                String table = firstId + "." + scopeIds.get(0).getText();
+                String column = scopeIds.get(1).getText();
+                var result = com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, table, column);
+                return wrapWithMappingRightSide(result, ctx.mappingAtomicOperationRight());
+            }
+        }
+
+        // Bare identifier
+        var result = com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, firstId, firstId);
+        return wrapWithMappingRightSide(result, ctx.mappingAtomicOperationRight());
+    }
+
+    private com.gs.legend.model.def.RelationalOperation wrapWithMappingRightSide(
+            com.gs.legend.model.def.RelationalOperation expr,
+            PureParser.MappingAtomicOperationRightContext rightCtx) {
+        if (rightCtx == null) return expr;
+        if (rightCtx.mappingAtomicSelfOperator() != null) {
+            String selfOp = rightCtx.mappingAtomicSelfOperator().getText();
+            if (selfOp.contains("not")) {
+                return new com.gs.legend.model.def.RelationalOperation.IsNotNull(expr);
+            } else {
+                return new com.gs.legend.model.def.RelationalOperation.IsNull(expr);
+            }
+        }
+        String op = rightCtx.mappingComparisonOperator().getText();
+        var rightExpr = buildMappingAtomicOperation(rightCtx.mappingAtomicOperation());
+        return new com.gs.legend.model.def.RelationalOperation.Comparison(expr, op, rightExpr);
+    }
+
+    private com.gs.legend.model.def.RelationalOperation.FunctionCall buildMappingFunctionOperation(
+            PureParser.MappingFunctionOperationContext ctx, String databaseName) {
+        String funcName = ctx.identifier().getText();
+        List<com.gs.legend.model.def.RelationalOperation> args = new ArrayList<>();
+        for (PureParser.MappingOperationContext argCtx : ctx.mappingOperation()) {
+            args.add(buildMappingOperation(argCtx));
+        }
+        return new com.gs.legend.model.def.RelationalOperation.FunctionCall(funcName, args);
+    }
+
+    private com.gs.legend.model.def.RelationalOperation.JoinNavigation buildMappingJoinOp(
+            PureParser.MappingJoinOperationContext ctx, String dbName) {
+        List<com.gs.legend.model.def.JoinChainElement> chain = extractMappingJoinChain(ctx.mappingJoinSequence());
+
+        com.gs.legend.model.def.RelationalOperation terminal = null;
+        if (ctx.PIPE() != null) {
+            if (ctx.mappingAtomicOperation() != null) {
+                terminal = buildMappingAtomicOperation(ctx.mappingAtomicOperation());
+            } else if (ctx.mappingTableColumnRef() != null) {
+                terminal = buildMappingTableColumnRef(ctx.mappingTableColumnRef(), null);
+            }
+        }
+
+        return new com.gs.legend.model.def.RelationalOperation.JoinNavigation(dbName, chain, terminal);
+    }
+
+    private com.gs.legend.model.def.RelationalOperation buildMappingTableColumnRef(
+            PureParser.MappingTableColumnRefContext ctx, String dbName) {
+        String firstId = ctx.relationalIdentifier().getText();
+        if (ctx.mappingScopeInfo() != null) {
+            var scopeIds = ctx.mappingScopeInfo().relationalIdentifier();
+            if (scopeIds.size() == 1) {
+                return com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, firstId, scopeIds.get(0).getText());
+            } else {
+                String table = firstId + "." + scopeIds.get(0).getText();
+                return com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, table, scopeIds.get(1).getText());
+            }
+        }
+        return com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, firstId, firstId);
+    }
+
+    private com.gs.legend.model.def.RelationalOperation.Literal buildMappingConstant(
+            PureParser.MappingConstantContext ctx) {
+        if (ctx.STRING() != null) {
+            return com.gs.legend.model.def.RelationalOperation.Literal.string(
+                    unquoteString(ctx.STRING().getText()));
+        } else if (ctx.INTEGER() != null) {
+            return com.gs.legend.model.def.RelationalOperation.Literal.integer(
+                    Long.parseLong(ctx.INTEGER().getText()));
+        } else {
+            return com.gs.legend.model.def.RelationalOperation.Literal.decimal(
+                    Double.parseDouble(ctx.FLOAT().getText()));
+        }
+    }
+
+    /**
+     * Visits a mapping join operation: [DB]@JoinName or [DB]@J1 > @J2 | TABLE.COL
      */
     public com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition visitMappingJoinOperation(
             String propertyName, PureParser.MappingAtomicOperationContext ctx) {
 
-        String databaseName = ctx.databasePointer().qualifiedName().getText();
+        String databaseName = ctx.databasePointer() != null
+                ? ctx.databasePointer().qualifiedName().getText() : null;
 
-        PureParser.MappingJoinSequenceContext joinSeqCtx = ctx.mappingJoinOperation().mappingJoinSequence();
-        if (joinSeqCtx != null && joinSeqCtx.mappingJoinPointer() != null) {
-            String joinName = joinSeqCtx.mappingJoinPointer().identifier().getText();
-
-            return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.join(
-                    propertyName,
-                    new com.gs.legend.model.def.MappingDefinition.JoinReference(
-                            databaseName, joinName));
+        PureParser.MappingJoinOperationContext joinOpCtx = ctx.mappingJoinOperation();
+        if (joinOpCtx == null || joinOpCtx.mappingJoinSequence() == null) {
+            String expression = getOriginalText(ctx);
+            return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.expression(
+                    propertyName, expression, null);
         }
 
-        String expression = getOriginalText(ctx);
-        return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.expression(
-                propertyName, expression, null);
+        List<com.gs.legend.model.def.JoinChainElement> chain = extractMappingJoinChain(joinOpCtx.mappingJoinSequence());
+        // Propagate database name to first element if not set
+        if (databaseName != null && !chain.isEmpty() && chain.get(0).databaseName() == null) {
+            var first = chain.get(0);
+            chain.set(0, new com.gs.legend.model.def.JoinChainElement(
+                    first.joinName(), first.joinType(), databaseName));
+        }
+
+        // Optional terminal column after PIPE
+        com.gs.legend.model.def.RelationalOperation terminal = null;
+        if (joinOpCtx.PIPE() != null) {
+            if (joinOpCtx.mappingAtomicOperation() != null) {
+                terminal = buildMappingAtomicOperation(joinOpCtx.mappingAtomicOperation());
+            } else if (joinOpCtx.mappingTableColumnRef() != null) {
+                terminal = buildMappingTableColumnRef(joinOpCtx.mappingTableColumnRef(), null);
+            }
+        }
+
+        return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.join(
+                propertyName,
+                new com.gs.legend.model.def.MappingDefinition.JoinReference(
+                        databaseName, chain, terminal));
     }
 
     /**
