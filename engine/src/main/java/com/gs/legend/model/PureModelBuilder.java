@@ -267,12 +267,7 @@ public final class PureModelBuilder implements ModelContext {
 
         // Register joins
         for (var joinDef : dbDef.joins()) {
-            Join join = new Join(
-                    joinDef.name(),
-                    joinDef.leftTable(),
-                    joinDef.leftColumn(),
-                    joinDef.rightTable(),
-                    joinDef.rightColumn());
+            Join join = new Join(joinDef.name(), joinDef.operation());
             joins.put(joinDef.name(), join);
             joins.put(dbDef.simpleName() + "." + joinDef.name(), join);
 

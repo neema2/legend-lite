@@ -709,19 +709,18 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * (includeDatabase)* (dbSchema | dbTable | dbView | dbJoin | ...)* PAREN_CLOSE
      */
     public com.gs.legend.model.def.DatabaseDefinition visitDatabase(PureParser.DatabaseContext ctx) {
-        // Extract qualified name
         String qualifiedName = ctx.qualifiedName().getText();
 
-        // Extract tables (both top-level and in schemas)
+        // Extract includes
+        List<String> includes = new ArrayList<>();
+        for (PureParser.IncludeDatabaseContext incCtx : ctx.includeDatabase()) {
+            includes.add(incCtx.qualifiedName().getText());
+        }
+
+        // Extract top-level tables
         List<com.gs.legend.model.def.DatabaseDefinition.TableDefinition> tables = new ArrayList<>();
         for (PureParser.DbTableContext tableCtx : ctx.dbTable()) {
             tables.add(extractDbTable(tableCtx));
-        }
-        // Also extract tables from schemas
-        for (PureParser.DbSchemaContext schemaCtx : ctx.dbSchema()) {
-            for (PureParser.DbTableContext tableCtx : schemaCtx.dbTable()) {
-                tables.add(extractDbTable(tableCtx));
-            }
         }
 
         // Extract joins
@@ -730,7 +729,44 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             joins.add(extractDbJoin(joinCtx));
         }
 
-        return new com.gs.legend.model.def.DatabaseDefinition(qualifiedName, tables, joins);
+        // Extract filters
+        List<com.gs.legend.model.def.DatabaseDefinition.FilterDefinition> filters = new ArrayList<>();
+        for (PureParser.DbFilterContext filterCtx : ctx.dbFilter()) {
+            filters.add(extractDbFilter(filterCtx));
+        }
+
+        // Extract multi-grain filters
+        List<com.gs.legend.model.def.DatabaseDefinition.FilterDefinition> multiGrainFilters = new ArrayList<>();
+        for (PureParser.DbMultiGrainFilterContext mgfCtx : ctx.dbMultiGrainFilter()) {
+            String name = mgfCtx.identifier().getText();
+            var condition = buildDbOperation(mgfCtx.dbOperation());
+            multiGrainFilters.add(new com.gs.legend.model.def.DatabaseDefinition.FilterDefinition(name, condition));
+        }
+
+        // Extract schemas (with their tables and views)
+        List<com.gs.legend.model.def.DatabaseDefinition.SchemaDefinition> schemas = new ArrayList<>();
+        for (PureParser.DbSchemaContext schemaCtx : ctx.dbSchema()) {
+            schemas.add(extractDbSchema(schemaCtx));
+            // Also add schema tables to top-level list for backward compat
+            for (PureParser.DbTableContext tableCtx : schemaCtx.dbTable()) {
+                tables.add(extractDbTable(tableCtx));
+            }
+        }
+
+        // Extract top-level views
+        List<com.gs.legend.model.def.DatabaseDefinition.ViewDefinition> views = new ArrayList<>();
+        for (PureParser.DbViewContext viewCtx : ctx.dbView()) {
+            views.add(extractDbView(viewCtx));
+        }
+        // Also collect views from schemas
+        for (PureParser.DbSchemaContext schemaCtx : ctx.dbSchema()) {
+            for (PureParser.DbViewContext viewCtx : schemaCtx.dbView()) {
+                views.add(extractDbView(viewCtx));
+            }
+        }
+
+        return new com.gs.legend.model.def.DatabaseDefinition(
+                qualifiedName, includes, schemas, tables, views, joins, filters, multiGrainFilters);
     }
 
     /**
@@ -773,31 +809,309 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
     }
 
     /**
+     * Visits a filter definition: Filter identifier PAREN_OPEN dbOperation PAREN_CLOSE
+     */
+    private com.gs.legend.model.def.DatabaseDefinition.FilterDefinition extractDbFilter(
+            PureParser.DbFilterContext ctx) {
+        String filterName = ctx.identifier().getText();
+        var condition = buildDbOperation(ctx.dbOperation());
+        return new com.gs.legend.model.def.DatabaseDefinition.FilterDefinition(filterName, condition);
+    }
+
+    /**
+     * Visits a schema definition:
+     * Schema schemaIdentifier PAREN_OPEN (dbTable | dbView | dbTabularFunction)* PAREN_CLOSE
+     */
+    private com.gs.legend.model.def.DatabaseDefinition.SchemaDefinition extractDbSchema(
+            PureParser.DbSchemaContext ctx) {
+        String schemaName = ctx.schemaIdentifier().getText();
+
+        List<com.gs.legend.model.def.DatabaseDefinition.TableDefinition> tables = new ArrayList<>();
+        for (PureParser.DbTableContext tableCtx : ctx.dbTable()) {
+            tables.add(extractDbTable(tableCtx));
+        }
+
+        List<com.gs.legend.model.def.DatabaseDefinition.ViewDefinition> views = new ArrayList<>();
+        for (PureParser.DbViewContext viewCtx : ctx.dbView()) {
+            views.add(extractDbView(viewCtx));
+        }
+
+        return new com.gs.legend.model.def.DatabaseDefinition.SchemaDefinition(schemaName, tables, views);
+    }
+
+    /**
+     * Visits a view definition:
+     * View relationalIdentifier PAREN_OPEN (viewFilterMapping)? (viewGroupBy)? (DISTINCT_CMD)?
+     *     (viewColumnMapping (COMMA viewColumnMapping)*)? PAREN_CLOSE
+     */
+    private com.gs.legend.model.def.DatabaseDefinition.ViewDefinition extractDbView(
+            PureParser.DbViewContext ctx) {
+        String viewName = ctx.relationalIdentifier().getText();
+
+        // Optional filter mapping — stored as raw text for now (complex: join chains + filter ref)
+        com.gs.legend.model.def.RelationalOperation filterMapping = null;
+        if (ctx.viewFilterMapping() != null) {
+            // viewFilterMapping is a reference to a named filter, not an inline expression.
+            // Store as a Literal containing the filter identifier for now.
+            String filterRef = ctx.viewFilterMapping().identifier().getText();
+            filterMapping = com.gs.legend.model.def.RelationalOperation.Literal.string("~filter:" + filterRef);
+        }
+
+        // Optional groupBy
+        List<com.gs.legend.model.def.RelationalOperation> groupBy = new ArrayList<>();
+        if (ctx.viewGroupBy() != null) {
+            for (PureParser.DbOperationContext opCtx : ctx.viewGroupBy().dbOperation()) {
+                groupBy.add(buildDbOperation(opCtx));
+            }
+        }
+
+        // Distinct flag
+        boolean distinct = ctx.DISTINCT_CMD() != null;
+
+        // Column mappings
+        List<com.gs.legend.model.def.DatabaseDefinition.ViewDefinition.ViewColumnMapping> columnMappings = new ArrayList<>();
+        for (PureParser.ViewColumnMappingContext colCtx : ctx.viewColumnMapping()) {
+            String colName = colCtx.identifier(0).getText();
+            // Optional target set ID: [id]
+            String targetSetId = colCtx.identifier().size() > 1 ? colCtx.identifier(1).getText() : null;
+            var expression = buildDbOperation(colCtx.dbOperation());
+            boolean pk = colCtx.PRIMARY_KEY() != null;
+            columnMappings.add(new com.gs.legend.model.def.DatabaseDefinition.ViewDefinition.ViewColumnMapping(
+                    colName, targetSetId, expression, pk));
+        }
+
+        return new com.gs.legend.model.def.DatabaseDefinition.ViewDefinition(
+                viewName, filterMapping, groupBy, distinct, columnMappings);
+    }
+
+    /**
      * Visits a join definition parse tree node.
-     * Grammar: dbJoin: JOIN stereotypes? taggedValues? identifier PAREN_OPEN
-     * operation PAREN_CLOSE
+     * Grammar: dbJoin: JOIN identifier PAREN_OPEN dbOperation PAREN_CLOSE
      */
     private com.gs.legend.model.def.DatabaseDefinition.JoinDefinition extractDbJoin(
             PureParser.DbJoinContext ctx) {
         String joinName = ctx.identifier().getText();
+        com.gs.legend.model.def.RelationalOperation operation = buildDbOperation(ctx.dbOperation());
+        return new com.gs.legend.model.def.DatabaseDefinition.JoinDefinition(joinName, operation);
+    }
 
-        // The join expression is in the 'operation' rule - we need to parse it
-        // For now, extract the text and parse it with regex (join expressions are
-        // complex)
-        String operationText = getOriginalText(ctx.dbOperation());
+    // ==================== dbOperation AST Walker ====================
 
-        // Simple pattern: TABLE_A.COLUMN_A = TABLE_B.COLUMN_B
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\w+)\\.(\\w+)\\s*=\\s*(\\w+)\\.(\\w+)");
-        java.util.regex.Matcher matcher = pattern.matcher(operationText);
+    /**
+     * Visits a dbOperation: dbBooleanOperation | dbJoinOperation
+     */
+    private com.gs.legend.model.def.RelationalOperation buildDbOperation(
+            PureParser.DbOperationContext ctx) {
+        if (ctx.dbJoinOperation() != null) {
+            return buildDbJoinOperation(ctx.dbJoinOperation());
+        }
+        return buildDbBooleanOperation(ctx.dbBooleanOperation());
+    }
 
-        if (matcher.find()) {
-            return new com.gs.legend.model.def.DatabaseDefinition.JoinDefinition(
-                    joinName, matcher.group(1), matcher.group(2), matcher.group(3), matcher.group(4));
+    /**
+     * Visits a dbBooleanOperation: dbAtomicOperation dbBooleanOperationRight?
+     */
+    private com.gs.legend.model.def.RelationalOperation buildDbBooleanOperation(
+            PureParser.DbBooleanOperationContext ctx) {
+        var left = buildDbAtomicOperation(ctx.dbAtomicOperation());
+        if (ctx.dbBooleanOperationRight() != null) {
+            String op = ctx.dbBooleanOperationRight().dbBooleanOperator().getText(); // "and" or "or"
+            var right = buildDbOperation(ctx.dbBooleanOperationRight().dbOperation());
+            return new com.gs.legend.model.def.RelationalOperation.BooleanOp(left, op, right);
+        }
+        return left;
+    }
+
+    /**
+     * Visits a dbAtomicOperation: (group | func | column | join | constant) dbAtomicOperationRight?
+     */
+    private com.gs.legend.model.def.RelationalOperation buildDbAtomicOperation(
+            PureParser.DbAtomicOperationContext ctx) {
+        com.gs.legend.model.def.RelationalOperation expr;
+
+        if (ctx.dbGroupOperation() != null) {
+            expr = new com.gs.legend.model.def.RelationalOperation.Group(
+                    buildDbOperation(ctx.dbGroupOperation().dbOperation()));
+        } else if (ctx.dbFunctionOperation() != null) {
+            String dbName = ctx.databasePointer() != null
+                    ? ctx.databasePointer().qualifiedName().getText() : null;
+            expr = buildDbFunctionOperation(ctx.dbFunctionOperation(), dbName);
+        } else if (ctx.dbColumnOperation() != null) {
+            expr = buildDbColumnOperation(ctx.dbColumnOperation());
+        } else if (ctx.dbJoinOperation() != null) {
+            expr = buildDbJoinOperation(ctx.dbJoinOperation());
+        } else if (ctx.dbConstant() != null) {
+            expr = buildDbConstant(ctx.dbConstant());
+        } else {
+            throw new IllegalStateException("Unknown dbAtomicOperation alternative: " + ctx.getText());
         }
 
-        // Fallback - return placeholder
-        return new com.gs.legend.model.def.DatabaseDefinition.JoinDefinition(
-                joinName, "UNKNOWN", "UNKNOWN", "UNKNOWN", "UNKNOWN");
+        // Handle optional right side: comparison or self-operator
+        if (ctx.dbAtomicOperationRight() != null) {
+            var rightCtx = ctx.dbAtomicOperationRight();
+            if (rightCtx.dbAtomicSelfOperator() != null) {
+                String selfOp = rightCtx.dbAtomicSelfOperator().getText(); // "is null" or "is not null"
+                if (selfOp.contains("not")) {
+                    expr = new com.gs.legend.model.def.RelationalOperation.IsNotNull(expr);
+                } else {
+                    expr = new com.gs.legend.model.def.RelationalOperation.IsNull(expr);
+                }
+            } else {
+                String op = rightCtx.dbAtomicOperator().getText(); // =, !=, <>, >, <, >=, <=
+                var rightExpr = buildDbAtomicOperation(rightCtx.dbAtomicOperation());
+                expr = new com.gs.legend.model.def.RelationalOperation.Comparison(expr, op, rightExpr);
+            }
+        }
+
+        return expr;
+    }
+
+    /**
+     * Visits a dbConstant: STRING | INTEGER | FLOAT
+     */
+    private com.gs.legend.model.def.RelationalOperation.Literal buildDbConstant(
+            PureParser.DbConstantContext ctx) {
+        if (ctx.STRING() != null) {
+            return com.gs.legend.model.def.RelationalOperation.Literal.string(
+                    unquoteString(ctx.STRING().getText()));
+        } else if (ctx.INTEGER() != null) {
+            return com.gs.legend.model.def.RelationalOperation.Literal.integer(
+                    Long.parseLong(ctx.INTEGER().getText()));
+        } else {
+            return com.gs.legend.model.def.RelationalOperation.Literal.decimal(
+                    Double.parseDouble(ctx.FLOAT().getText()));
+        }
+    }
+
+    /**
+     * Visits a dbFunctionOperation: identifier ( args... )
+     */
+    private com.gs.legend.model.def.RelationalOperation.FunctionCall buildDbFunctionOperation(
+            PureParser.DbFunctionOperationContext ctx, String databaseName) {
+        String funcName = ctx.identifier().getText();
+        List<com.gs.legend.model.def.RelationalOperation> args = new ArrayList<>();
+        for (var argCtx : ctx.dbFunctionOperationArgument()) {
+            if (argCtx.dbFunctionOperationArgumentArray() != null) {
+                args.add(buildDbFunctionOperationArray(argCtx.dbFunctionOperationArgumentArray()));
+            } else {
+                args.add(buildDbOperation(argCtx.dbOperation()));
+            }
+        }
+        return new com.gs.legend.model.def.RelationalOperation.FunctionCall(funcName, args);
+    }
+
+    /**
+     * Visits a dbFunctionOperationArgumentArray: [ args... ]
+     */
+    private com.gs.legend.model.def.RelationalOperation.ArrayLiteral buildDbFunctionOperationArray(
+            PureParser.DbFunctionOperationArgumentArrayContext ctx) {
+        List<com.gs.legend.model.def.RelationalOperation> elements = new ArrayList<>();
+        for (var argCtx : ctx.dbFunctionOperationArgument()) {
+            if (argCtx.dbFunctionOperationArgumentArray() != null) {
+                elements.add(buildDbFunctionOperationArray(argCtx.dbFunctionOperationArgumentArray()));
+            } else {
+                elements.add(buildDbOperation(argCtx.dbOperation()));
+            }
+        }
+        return new com.gs.legend.model.def.RelationalOperation.ArrayLiteral(elements);
+    }
+
+    /**
+     * Visits a dbColumnOperation: databasePointer? dbTableAliasColumnOperation
+     */
+    private com.gs.legend.model.def.RelationalOperation buildDbColumnOperation(
+            PureParser.DbColumnOperationContext ctx) {
+        String dbName = ctx.databasePointer() != null
+                ? ctx.databasePointer().qualifiedName().getText() : null;
+        return buildDbTableAliasColumnOperation(ctx.dbTableAliasColumnOperation(), dbName);
+    }
+
+    /**
+     * Visits dbTableAliasColumnOperation: target ref or scope info ref
+     */
+    private com.gs.legend.model.def.RelationalOperation buildDbTableAliasColumnOperation(
+            PureParser.DbTableAliasColumnOperationContext ctx, String dbName) {
+        if (ctx.dbTableAliasColumnOperationWithTarget() != null) {
+            String col = extractRelationalIdentifier(
+                    ctx.dbTableAliasColumnOperationWithTarget().relationalIdentifier());
+            return new com.gs.legend.model.def.RelationalOperation.TargetColumnRef(col);
+        }
+        var scopeCtx = ctx.dbTableAliasColumnOperationWithScopeInfo();
+        String firstId = extractRelationalIdentifier(scopeCtx.relationalIdentifier());
+        if (scopeCtx.scopeInfo() != null) {
+            var scopeIds = scopeCtx.scopeInfo().relationalIdentifier();
+            if (scopeIds.size() == 1) {
+                // TABLE.COLUMN
+                return com.gs.legend.model.def.RelationalOperation.ColumnRef.of(
+                        dbName, firstId, extractRelationalIdentifier(scopeIds.get(0)));
+            } else {
+                // SCHEMA.TABLE.COLUMN
+                String table = firstId + "." + extractRelationalIdentifier(scopeIds.get(0));
+                String column = extractRelationalIdentifier(scopeIds.get(1));
+                return com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, table, column);
+            }
+        }
+        // Bare identifier (no table prefix) — used in function args with implicit context
+        return com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, firstId, firstId);
+    }
+
+    /**
+     * Visits a dbJoinOperation: databasePointer? joinSequence (PIPE terminal)?
+     */
+    private com.gs.legend.model.def.RelationalOperation.JoinNavigation buildDbJoinOperation(
+            PureParser.DbJoinOperationContext ctx) {
+        String dbName = ctx.databasePointer() != null
+                ? ctx.databasePointer().qualifiedName().getText() : null;
+
+        var joinSeqCtx = ctx.joinSequence();
+        List<com.gs.legend.model.def.JoinChainElement> chain = new ArrayList<>();
+
+        // First join: optional (joinType) before @joinName
+        String firstJoinType = null;
+        if (joinSeqCtx.PAREN_OPEN() != null && joinSeqCtx.identifier() != null) {
+            firstJoinType = joinSeqCtx.identifier().getText();
+        }
+        String firstJoinName = joinSeqCtx.joinPointer().identifier().getText();
+        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, null));
+
+        // Subsequent joins: > (joinType)? databasePointer? @joinName
+        for (var fullCtx : joinSeqCtx.joinPointerFull()) {
+            String joinType = null;
+            if (fullCtx.PAREN_OPEN() != null && fullCtx.identifier() != null) {
+                joinType = fullCtx.identifier().getText();
+            }
+            String hopDb = fullCtx.databasePointer() != null
+                    ? fullCtx.databasePointer().qualifiedName().getText() : null;
+            String joinName = fullCtx.joinPointer().identifier().getText();
+            chain.add(new com.gs.legend.model.def.JoinChainElement(joinName, joinType, hopDb));
+        }
+
+        // Optional terminal after PIPE
+        com.gs.legend.model.def.RelationalOperation terminal = null;
+        if (ctx.PIPE() != null) {
+            if (ctx.dbBooleanOperation() != null) {
+                terminal = buildDbBooleanOperation(ctx.dbBooleanOperation());
+            } else if (ctx.dbTableAliasColumnOperation() != null) {
+                terminal = buildDbTableAliasColumnOperation(ctx.dbTableAliasColumnOperation(), null);
+            }
+        }
+
+        return new com.gs.legend.model.def.RelationalOperation.JoinNavigation(dbName, chain, terminal);
+    }
+
+    /**
+     * Extracts text from a relationalIdentifier: identifier | QUOTED_STRING
+     */
+    private String extractRelationalIdentifier(PureParser.RelationalIdentifierContext ctx) {
+        if (ctx.QUOTED_STRING() != null) {
+            String text = ctx.QUOTED_STRING().getText();
+            // Strip surrounding quotes
+            if (text.length() >= 2) {
+                return text.substring(1, text.length() - 1);
+            }
+            return text;
+        }
+        return ctx.identifier().getText();
     }
 
     /**

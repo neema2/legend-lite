@@ -1,92 +1,123 @@
 package com.gs.legend.model.store;
 
+import com.gs.legend.model.def.RelationalOperation;
+
 import java.util.Objects;
 
 /**
  * Represents a Join definition between two tables in a relational database.
  * 
- * Pure syntax:
+ * The join condition is a full {@link RelationalOperation} expression tree, supporting:
  * <pre>
- * Join JoinName(TABLE_A.COLUMN_A = TABLE_B.COLUMN_B)
+ * Join Simple(T1.ID = T2.FK_ID)                              -- simple equi-join
+ * Join Multi(T1.A = T2.A and T1.B = T2.B)                    -- multi-column
+ * Join SelfJoin(T1.PARENT_ID = {target}.ID)                  -- self-join
+ * Join FuncJoin(concat('pfx_', T1.NAME) = T2.PREFIXED_NAME)  -- function-based
  * </pre>
  * 
- * Example:
- * <pre>
- * Database store::MyDB
- * (
- *     Table T_PERSON (...)
- *     Table T_ADDRESS (...)
- *     Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
- * )
- * </pre>
+ * For backward compatibility, simple equi-joins expose {@link #leftTable()}, {@link #leftColumn()},
+ * {@link #rightTable()}, {@link #rightColumn()}, and {@link #getColumnForTable(String)} accessors
+ * that extract from the expression tree. These throw {@link UnsupportedOperationException} for
+ * complex join conditions.
  * 
- * @param name The join name
- * @param leftTable The left table in the join
- * @param leftColumn The left column
- * @param rightTable The right table in the join  
- * @param rightColumn The right column
+ * @param name      The join name
+ * @param condition The full expression tree for the join condition
  */
 public record Join(
         String name,
-        String leftTable,
-        String leftColumn,
-        String rightTable,
-        String rightColumn
+        RelationalOperation condition
 ) {
     
     public Join {
         Objects.requireNonNull(name, "Join name cannot be null");
-        Objects.requireNonNull(leftTable, "Left table cannot be null");
-        Objects.requireNonNull(leftColumn, "Left column cannot be null");
-        Objects.requireNonNull(rightTable, "Right table cannot be null");
-        Objects.requireNonNull(rightColumn, "Right column cannot be null");
+        Objects.requireNonNull(condition, "Join condition cannot be null");
     }
-    
+
     /**
-     * Creates a join with explicit table and column names.
+     * Backward-compatible constructor for simple equi-joins.
+     */
+    public Join(String name, String leftTable, String leftColumn,
+                String rightTable, String rightColumn) {
+        this(name, RelationalOperation.Comparison.eq(
+                RelationalOperation.ColumnRef.of(leftTable, leftColumn),
+                RelationalOperation.ColumnRef.of(rightTable, rightColumn)));
+    }
+
+    /**
+     * Creates a join with explicit table and column names (backward compat).
      */
     public static Join of(String name, String leftTable, String leftColumn, 
                           String rightTable, String rightColumn) {
         return new Join(name, leftTable, leftColumn, rightTable, rightColumn);
     }
-    
+
+    // ==================== Simple equi-join accessors (backward compat) ====================
+
+    private RelationalOperation.SimpleEquiJoin equiJoin() {
+        var eq = condition.asSimpleEquiJoin();
+        if (eq == null) throw new UnsupportedOperationException(
+                "Not a simple equi-join: " + name + " — use condition() for complex joins");
+        return eq;
+    }
+
+    /** Left table name. Throws if not a simple equi-join. */
+    public String leftTable() { return equiJoin().leftTable(); }
+
+    /** Left column name. Throws if not a simple equi-join. */
+    public String leftColumn() { return equiJoin().leftColumn(); }
+
+    /** Right table name. Throws if not a simple equi-join. */
+    public String rightTable() { return equiJoin().rightTable(); }
+
+    /** Right column name. Throws if not a simple equi-join. */
+    public String rightColumn() { return equiJoin().rightColumn(); }
+
     /**
      * Gets the table that is NOT the given table name.
-     * Useful for navigating from one table to another via the join.
+     * For simple equi-joins only.
      */
     public String getOtherTable(String tableName) {
-        if (leftTable.equals(tableName)) {
-            return rightTable;
-        }
-        if (rightTable.equals(tableName)) {
-            return leftTable;
-        }
+        var eq = equiJoin();
+        if (eq.leftTable().equals(tableName)) return eq.rightTable();
+        if (eq.rightTable().equals(tableName)) return eq.leftTable();
         throw new IllegalArgumentException("Table " + tableName + " is not part of join " + name);
     }
     
     /**
      * Gets the column for a given table.
+     * For simple equi-joins only.
      */
     public String getColumnForTable(String tableName) {
-        if (leftTable.equals(tableName)) {
-            return leftColumn;
-        }
-        if (rightTable.equals(tableName)) {
-            return rightColumn;
-        }
+        var eq = equiJoin();
+        if (eq.leftTable().equals(tableName)) return eq.leftColumn();
+        if (eq.rightTable().equals(tableName)) return eq.rightColumn();
         throw new IllegalArgumentException("Table " + tableName + " is not part of join " + name);
     }
     
     /**
      * Checks if this join involves the given table.
+     * For simple equi-joins only; returns false for complex joins.
      */
     public boolean involvesTable(String tableName) {
-        return leftTable.equals(tableName) || rightTable.equals(tableName);
+        var eq = condition.asSimpleEquiJoin();
+        if (eq == null) return false;
+        return eq.leftTable().equals(tableName) || eq.rightTable().equals(tableName);
+    }
+
+    /**
+     * Returns true if this is a simple equi-join (T1.C1 = T2.C2).
+     */
+    public boolean isSimpleEquiJoin() {
+        return condition.asSimpleEquiJoin() != null;
     }
     
     @Override
     public String toString() {
-        return "Join " + name + "(" + leftTable + "." + leftColumn + " = " + 
-               rightTable + "." + rightColumn + ")";
+        var eq = condition.asSimpleEquiJoin();
+        if (eq != null) {
+            return "Join " + name + "(" + eq.leftTable() + "." + eq.leftColumn() + " = " + 
+                   eq.rightTable() + "." + eq.rightColumn() + ")";
+        }
+        return "Join " + name + "(" + condition + ")";
     }
 }

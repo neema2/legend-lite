@@ -104,10 +104,8 @@ class MappingDefinitionExtractionTest {
         // These document the gaps. They will fail until we implement proper extraction.
 
         @Test
-        @DisplayName("GAP: Multi-column join condition (and)")
+        @DisplayName("Multi-column join condition (and) - full expression tree")
         void testMultiColumnJoin() {
-            // Legend-pure supports: Join J(T1.A = T2.A and T1.B = T2.B)
-            // Current builder uses regex and only finds first T.C = T.C
             var db = parseDatabase("""
                     ###Relational
                     Database store::MyDB
@@ -120,22 +118,33 @@ class MappingDefinitionExtractionTest {
 
             var join = db.joins().get(0);
             assertEquals("MultiColJoin", join.name());
-            // Current: regex finds first T1.a = T2.a, drops the second condition
-            // TODO: Once RelationalOperation is implemented, assert full expression tree:
-            // BooleanOp(Comparison(ColumnRef(T1,a), "=", ColumnRef(T2,a)),
-            //           "and",
-            //           Comparison(ColumnRef(T1,b), "=", ColumnRef(T2,b)))
-            assertEquals("T1", join.leftTable());
-            assertEquals("a", join.leftColumn());
-            // For now this passes because regex catches the first pair.
-            // The REAL test is that the second condition is NOT lost.
+
+            // Full expression tree: BooleanOp(Comparison, "and", Comparison)
+            var op = join.operation();
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.BooleanOp.class, op);
+            var boolOp = (com.gs.legend.model.def.RelationalOperation.BooleanOp) op;
+            assertEquals("and", boolOp.op());
+
+            // Left: T1.a = T2.a
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.Comparison.class, boolOp.left());
+            var leftCmp = (com.gs.legend.model.def.RelationalOperation.Comparison) boolOp.left();
+            assertEquals("=", leftCmp.op());
+            var leftCol = (com.gs.legend.model.def.RelationalOperation.ColumnRef) leftCmp.left();
+            assertEquals("T1", leftCol.table());
+            assertEquals("a", leftCol.column());
+
+            // Right: T1.b = T2.b
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.Comparison.class, boolOp.right());
+            var rightCmp = (com.gs.legend.model.def.RelationalOperation.Comparison) boolOp.right();
+            assertEquals("=", rightCmp.op());
+
+            // Not a simple equi-join
+            assertNull(join.operation().asSimpleEquiJoin());
         }
 
         @Test
-        @Disabled("GAP: Regex-based join extraction can't parse function calls — needs RelationalOperation expression tree")
-        @DisplayName("GAP: Function-based join condition")
+        @DisplayName("Function-based join condition - full expression tree")
         void testFunctionJoin() {
-            // Legend-pure supports: Join J(concat('prefix_', T1.name) = T2.prefixed_name)
             var db = parseDatabase("""
                     ###Relational
                     Database store::MyDB
@@ -148,21 +157,31 @@ class MappingDefinitionExtractionTest {
 
             var join = db.joins().get(0);
             assertEquals("FuncJoin", join.name());
-            // Current: regex can't parse this → falls back to UNKNOWN placeholders
-            // TODO: Should produce RelationalOperation.Comparison(
-            //   FunctionCall("concat", [Literal("prefix_"), ColumnRef(T1, name)]),
-            //   "=",
-            //   ColumnRef(T2, prefixed_name))
-            // For now, just document that it fails:
-            assertNotEquals("UNKNOWN", join.leftTable(),
-                    "Function-based join should not fall back to UNKNOWN");
+
+            // Comparison(FunctionCall("concat", [Literal, ColumnRef]), "=", ColumnRef)
+            var op = join.operation();
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.Comparison.class, op);
+            var cmp = (com.gs.legend.model.def.RelationalOperation.Comparison) op;
+            assertEquals("=", cmp.op());
+
+            // Left: concat('prefix_', T1.name)
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.FunctionCall.class, cmp.left());
+            var func = (com.gs.legend.model.def.RelationalOperation.FunctionCall) cmp.left();
+            assertEquals("concat", func.name());
+            assertEquals(2, func.args().size());
+
+            // Right: T2.prefixed_name
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.ColumnRef.class, cmp.right());
+            var rightCol = (com.gs.legend.model.def.RelationalOperation.ColumnRef) cmp.right();
+            assertEquals("T2", rightCol.table());
+            assertEquals("prefixed_name", rightCol.column());
+
+            assertNull(join.operation().asSimpleEquiJoin());
         }
 
         @Test
-        @Disabled("GAP: Regex-based join extraction can't parse {target} — needs RelationalOperation expression tree")
-        @DisplayName("GAP: Self-join with {target}")
+        @DisplayName("Self-join with {target} - full expression tree")
         void testSelfJoin() {
-            // Legend-pure supports: Join SelfJoin(T.parent_id = {target}.id)
             var db = parseDatabase("""
                     ###Relational
                     Database store::MyDB
@@ -174,15 +193,29 @@ class MappingDefinitionExtractionTest {
 
             var join = db.joins().get(0);
             assertEquals("OrgHierarchy", join.name());
-            // Current: regex can't handle {target} → falls back to UNKNOWN
-            // TODO: Should produce RelationalOperation.Comparison(
-            //   ColumnRef(T_ORG, parent_id), "=", TargetColumnRef(id))
-            assertNotEquals("UNKNOWN", join.leftTable(),
-                    "Self-join should not fall back to UNKNOWN");
+
+            // Comparison(ColumnRef(T_ORG, parent_id), "=", TargetColumnRef(id))
+            var op = join.operation();
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.Comparison.class, op);
+            var cmp = (com.gs.legend.model.def.RelationalOperation.Comparison) op;
+            assertEquals("=", cmp.op());
+
+            // Left: T_ORG.parent_id
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.ColumnRef.class, cmp.left());
+            var leftCol = (com.gs.legend.model.def.RelationalOperation.ColumnRef) cmp.left();
+            assertEquals("T_ORG", leftCol.table());
+            assertEquals("parent_id", leftCol.column());
+
+            // Right: {target}.id
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.TargetColumnRef.class, cmp.right());
+            var targetCol = (com.gs.legend.model.def.RelationalOperation.TargetColumnRef) cmp.right();
+            assertEquals("id", targetCol.column());
+
+            assertNull(join.operation().asSimpleEquiJoin());
         }
 
         @Test
-        @DisplayName("GAP: Views not extracted")
+        @DisplayName("View extraction with column mappings")
         void testViewExtraction() {
             var db = parseDatabase("""
                     ###Relational
@@ -197,13 +230,28 @@ class MappingDefinitionExtractionTest {
                     )
                     """);
 
-            assertEquals(1, db.tables().size()); // TradeTable
-            // TODO: db.views() should return 1 view
-            // Currently views are completely skipped by visitDatabase
+            assertEquals(1, db.tables().size());
+            assertEquals(1, db.views().size());
+
+            var view = db.views().get(0);
+            assertEquals("ActiveTradeView", view.name());
+            assertFalse(view.distinct());
+            assertNull(view.filterMapping());
+            assertEquals(0, view.groupByColumns().size());
+            assertEquals(2, view.columnMappings().size());
+
+            var col0 = view.columnMappings().get(0);
+            assertEquals("trade_id", col0.name());
+            assertTrue(col0.primaryKey());
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.ColumnRef.class, col0.expression());
+
+            var col1 = view.columnMappings().get(1);
+            assertEquals("amount", col1.name());
+            assertFalse(col1.primaryKey());
         }
 
         @Test
-        @DisplayName("GAP: Filters not extracted")
+        @DisplayName("Filter extraction with expression tree")
         void testFilterExtraction() {
             var db = parseDatabase("""
                     ###Relational
@@ -214,19 +262,23 @@ class MappingDefinitionExtractionTest {
                     )
                     """);
 
-            // TODO: db.filters() should return 1 filter
-            // Currently filters are completely skipped by visitDatabase
+            assertEquals(1, db.filters().size());
+            var filter = db.filters().get(0);
+            assertEquals("ActiveFilter", filter.name());
+
+            // Comparison(ColumnRef(TradeTable, status), "=", Literal(1))
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.Comparison.class, filter.condition());
+            var cmp = (com.gs.legend.model.def.RelationalOperation.Comparison) filter.condition();
+            assertEquals("=", cmp.op());
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.ColumnRef.class, cmp.left());
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.Literal.class, cmp.right());
         }
 
         @Test
-        @DisplayName("GAP: Database includes not extracted")
+        @DisplayName("Database includes extraction")
         void testDatabaseIncludes() {
+            // parseDatabase returns first DB, so parse just the one with includes
             var db = parseDatabase("""
-                    ###Relational
-                    Database store::BaseDB
-                    (
-                        Table BaseTable (id INTEGER PRIMARY KEY)
-                    )
                     ###Relational
                     Database store::ExtendedDB
                     (
@@ -235,9 +287,9 @@ class MappingDefinitionExtractionTest {
                     )
                     """);
 
-            // parseDatabase returns first DB; let's check it parsed
             assertNotNull(db);
-            // TODO: For the second DB, db.includes() should return ["store::BaseDB"]
+            assertEquals(1, db.includes().size());
+            assertEquals("store::BaseDB", db.includes().get(0));
         }
 
         @Test
