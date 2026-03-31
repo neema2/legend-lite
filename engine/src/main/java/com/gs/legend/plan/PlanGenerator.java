@@ -69,7 +69,7 @@ public class PlanGenerator {
         var vs = com.gs.legend.parser.PureParser.parseQuery(query);
         var unit = new TypeChecker(model).check(vs);
         var explicitMappings = com.gs.legend.compiler.MappingResolver.discoverMappings(
-                unit, model.getMappingRegistry());
+                unit, model.getMappingRegistry(), model);
         var storeResolutions = new com.gs.legend.compiler.MappingResolver(
                 unit, model, explicitMappings).resolve();
         return new PlanGenerator(unit, dialect, storeResolutions).generate();

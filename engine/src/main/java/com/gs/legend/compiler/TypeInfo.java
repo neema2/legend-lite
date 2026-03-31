@@ -1,7 +1,6 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.plan.GenericType;
 
 
@@ -26,14 +25,15 @@ import java.util.Map;
  * Designed for Rust portability: side table pattern
  * ({@code HashMap<NodeId, TypeInfo>}) works cleanly in both Java and Rust.
  *
- * @param mapping      Resolved class→table mapping (null when no class context)
+ * @param instanceLiteral True if this node is a ^Class struct literal (identity-mapped).
+ *                     MappingResolver uses this to create identity mappings.
  * @param inlinedBody  If this node is a user-defined function call, the expanded
  *                     body AST. PlanGenerator processes this instead of the
  *                     original function call node. Null for all standard nodes.
  * @param expressionType The type + multiplicity of this expression. Always non-null.
  */
 public record TypeInfo(
-        ClassMapping mapping,
+        boolean instanceLiteral,
         List<SortSpec> sortSpecs,
         List<ProjectionSpec> projections,
         List<ColumnSpec> columnSpecs,
@@ -309,7 +309,7 @@ public record TypeInfo(
      * Adding a new field to the record only requires updating this class.
      */
     public static final class Builder {
-        private ClassMapping mapping;
+        private boolean instanceLiteral;
         private List<SortSpec> sortSpecs = List.of();
         private List<ProjectionSpec> projections = List.of();
         private List<ColumnSpec> columnSpecs = List.of();
@@ -328,7 +328,7 @@ public record TypeInfo(
         private Builder() {}
 
         private Builder(TypeInfo src) {
-            this.mapping = src.mapping();
+            this.instanceLiteral = src.instanceLiteral();
             this.sortSpecs = src.sortSpecs();
             this.projections = src.projections();
             this.columnSpecs = src.columnSpecs();
@@ -345,7 +345,7 @@ public record TypeInfo(
             this.foldSpec = src.foldSpec();
         }
 
-        public Builder mapping(ClassMapping v) { this.mapping = v; return this; }
+        public Builder instanceLiteral(boolean v) { this.instanceLiteral = v; return this; }
         public Builder sortSpecs(List<SortSpec> v) { this.sortSpecs = v; return this; }
         public Builder projections(List<ProjectionSpec> v) { this.projections = v; return this; }
         public Builder columnSpecs(List<ColumnSpec> v) { this.columnSpecs = v; return this; }
@@ -366,7 +366,7 @@ public record TypeInfo(
                 throw new IllegalStateException(
                         "TypeInfo.expressionType must not be null — every expression must have a type");
             }
-            return new TypeInfo(mapping, sortSpecs, projections,
+            return new TypeInfo(instanceLiteral, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
                     joinColumnRenames, graphFetchSpec, tdsLiteral, expressionType,
                     lambdaParam, resolvedFunc, foldSpec);
@@ -374,11 +374,6 @@ public record TypeInfo(
     }
 
     // ===== Derived checks =====
-
-    /** True if backed by a class mapping (Person.all()). */
-    public boolean isClassBased() {
-        return mapping != null;
-    }
 
     /** True if this produces a relational (table-like) result with columns. */
     public boolean isRelational() {
@@ -427,11 +422,6 @@ public record TypeInfo(
     /** True if this node has pre-resolved sort specs. */
     public boolean hasSortSpecs() {
         return sortSpecs != null && !sortSpecs.isEmpty();
-    }
-
-    /** Returns the physical table name from the mapping, or null if unmapped. */
-    public String tableName() {
-        return mapping != null ? mapping.sourceTable().name() : null;
     }
 
     /**

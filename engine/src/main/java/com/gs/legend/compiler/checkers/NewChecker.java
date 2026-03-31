@@ -3,7 +3,6 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.plan.GenericType;
 
@@ -13,8 +12,8 @@ import com.gs.legend.plan.GenericType;
  * Checker for {@code new(PE(className), ClassInstance("instance", InstanceData))}.
  *
  * <p>Validates the class exists in model context, checks property names,
- * compiles property value expressions, builds identity mapping + associations,
- * and returns TypeInfo with ClassType.
+ * compiles property value expressions, and returns TypeInfo with ClassType.
+ * Stamps {@code instanceLiteral=true} so MappingResolver can create identity mappings.
  *
  * <p>Parser emits: {@code new(PackageableElementPtr(className), ClassInstance("instance", InstanceData))}
  */
@@ -46,11 +45,8 @@ public class NewChecker extends AbstractChecker {
             env.compileExpr(entry.getValue(), ctx);
         }
 
-        // Build identity mapping — scalar primitives get identity PropertyMappings
-        var identityMapping = RelationalMapping.identity(pureClass);
-
         return TypeInfo.builder()
-                .mapping(identityMapping)
+                .instanceLiteral(true)
                 .expressionType(ExpressionType.one(new GenericType.ClassType(data.className())))
                 .build();
     }

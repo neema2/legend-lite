@@ -9,6 +9,7 @@ import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Join;
 import com.gs.legend.model.store.PropertyMapping;
+import com.gs.legend.plan.GenericType;
 
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -73,23 +74,24 @@ public final class MappingResolver {
      * <p>For each mapping-dependent node:
      * <ul>
      *   <li>{@code getAll(Person)} → exactly-one lookup from registry (0 → throw, &gt;1 → throw)</li>
-     *   <li>{@code ^Person(...)} → identity mapping already stamped by NewChecker in TypeInfo</li>
+     *   <li>{@code ^Person(...)} → identity mapping created from instanceLiteral flag + model context</li>
      * </ul>
      *
      * @return class name → ClassMapping, to be passed to MappingResolver constructor
      */
     public static Map<String, ClassMapping> discoverMappings(
-            TypeCheckResult typeResult, MappingRegistry registry) {
+            TypeCheckResult typeResult, MappingRegistry registry, ModelContext modelContext) {
         Map<String, ClassMapping> mappings = new LinkedHashMap<>();
-        discoverInNode(typeResult.root(), typeResult, registry, mappings);
+        discoverInNode(typeResult.root(), typeResult, registry, modelContext, mappings);
         return mappings;
     }
 
     private static void discoverInNode(ValueSpecification vs, TypeCheckResult typeResult,
-                                       MappingRegistry registry, Map<String, ClassMapping> mappings) {
+                                       MappingRegistry registry, ModelContext modelContext,
+                                       Map<String, ClassMapping> mappings) {
         TypeInfo info = typeResult.types().get(vs);
         if (info != null && info.inlinedBody() != null) {
-            discoverInNode(info.inlinedBody(), typeResult, registry, mappings);
+            discoverInNode(info.inlinedBody(), typeResult, registry, modelContext, mappings);
         }
 
         switch (vs) {
@@ -109,22 +111,28 @@ public final class MappingResolver {
                         }
                     }
                 } else if ("new".equals(funcName)) {
-                    // ^Class — identity mapping stamped by NewChecker
-                    if (info != null && info.mapping() != null) {
-                        String className = info.mapping().targetClass().name();
-                        mappings.putIfAbsent(className, info.mapping());
+                    // ^Class — instanceLiteral flag stamped by NewChecker
+                    if (info != null && info.instanceLiteral()
+                            && info.type() instanceof GenericType.ClassType ct) {
+                        String className = TypeInfo.simpleName(ct.qualifiedName());
+                        if (!mappings.containsKey(className)) {
+                            // Create identity mapping from model context.
+                            // Built-in types (Pair, etc.) won't be in the model — skip them.
+                            modelContext.findClass(className).ifPresent(pureClass ->
+                                    mappings.put(className, RelationalMapping.identity(pureClass)));
+                        }
                     }
                 }
 
                 for (var param : af.parameters()) {
-                    discoverInNode(param, typeResult, registry, mappings);
+                    discoverInNode(param, typeResult, registry, modelContext, mappings);
                 }
             }
             case LambdaFunction lf -> {
-                for (var expr : lf.body()) discoverInNode(expr, typeResult, registry, mappings);
+                for (var expr : lf.body()) discoverInNode(expr, typeResult, registry, modelContext, mappings);
             }
             case PureCollection pc -> {
-                for (var v : pc.values()) discoverInNode(v, typeResult, registry, mappings);
+                for (var v : pc.values()) discoverInNode(v, typeResult, registry, modelContext, mappings);
             }
             default -> { }
         }
@@ -206,8 +214,9 @@ public final class MappingResolver {
 
     private StoreResolution resolveNew(AppliedFunction af) {
         TypeInfo info = typeResult.types().get(af);
-        if (info == null || info.mapping() == null) return null;
-        String className = info.mapping().targetClass().name();
+        if (info == null || !info.instanceLiteral()) return null;
+        if (!(info.type() instanceof GenericType.ClassType ct)) return null;
+        String className = TypeInfo.simpleName(ct.qualifiedName());
         ClassMapping mapping = explicitMappings.get(className);
         if (mapping == null) return null;
         return resolveClassMapping(mapping, className);

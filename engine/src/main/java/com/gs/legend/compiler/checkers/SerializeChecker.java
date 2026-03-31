@@ -35,7 +35,15 @@ public class SerializeChecker extends AbstractChecker {
         // Override with serialize tree if provided
         if (af.parameters().size() > 1 && af.parameters().get(1) instanceof ClassInstance ci
                 && ci.value() instanceof com.gs.legend.ast.GraphFetchTree gft) {
-            var targetClass = sourceInfo.mapping().targetClass();
+            // Resolve target class from ClassType via model context
+            if (!(sourceInfo.type() instanceof GenericType.ClassType classType)) {
+                throw new PureCompileException(
+                        "serialize(): source must be class-based, got " + sourceInfo.type());
+            }
+            String className = TypeInfo.simpleName(classType.qualifiedName());
+            var targetClass = findClass(className)
+                    .orElseThrow(() -> new PureCompileException(
+                            "serialize(): class '" + className + "' not found in model"));
             spec = GraphFetchChecker.toGraphFetchSpec(gft, targetClass);
         }
 

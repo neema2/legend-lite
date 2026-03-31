@@ -9,8 +9,8 @@ import com.gs.legend.plan.GraphFetchSpec;
  *
  * <p>Type-checks:
  * <ol>
- *   <li>Source must be class-based (has a ClassMapping)</li>
- *   <li>Root class in tree must match source mapping's target class</li>
+ *   <li>Source must be class-based (ClassType)</li>
+ *   <li>Root class in tree must match source class</li>
  *   <li>All properties in tree must exist on the target class</li>
  *   <li>Nested properties must be class-typed (not scalars)</li>
  * </ol>
@@ -26,11 +26,11 @@ public class GraphFetchChecker extends AbstractChecker {
         // Compile source (e.g., Person.all())
         TypeInfo sourceInfo = env.compileExpr(af.parameters().get(0), ctx);
 
-        // (1) Source must be class-based
-        if (sourceInfo.mapping() == null) {
+        // (1) Source must be class-based (ClassType)
+        if (!(sourceInfo.type() instanceof com.gs.legend.plan.GenericType.ClassType classType)) {
             throw new PureCompileException(
                     "graphFetch() requires a class-based source (e.g., Person.all()), "
-                            + "but source has no ClassMapping");
+                            + "but source type is " + sourceInfo.type());
         }
 
         // Extract GraphFetchTree from ClassInstance parameter
@@ -43,8 +43,11 @@ public class GraphFetchChecker extends AbstractChecker {
             throw new PureCompileException("graphFetch() requires a graph fetch tree argument #{...}#");
         }
 
-        // (2) Root class must match source mapping's target class
-        var targetClass = sourceInfo.mapping().targetClass();
+        // (2) Root class must match source class
+        String className = TypeInfo.simpleName(classType.qualifiedName());
+        var targetClass = findClass(className)
+                .orElseThrow(() -> new PureCompileException(
+                        "graphFetch(): class '" + className + "' not found in model"));
         if (!tree.rootClass().equals(targetClass.name())
                 && !tree.rootClass().equals(targetClass.qualifiedName())) {
             throw new PureCompileException(

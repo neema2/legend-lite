@@ -50,12 +50,11 @@ public class GetAllChecker extends AbstractChecker {
                         "getAll(): no mapping found for class '" + className + "'"));
 
         if (mapping instanceof PureClassMapping pcm) {
-            return compileM2MGetAll(pcm);
+            return compileM2MGetAll(pcm, fullPath);
         }
 
         // Relational: return ClassType[*] — schema resolved later by project()
         return TypeInfo.builder()
-                .mapping(mapping)
                 .expressionType(ExpressionType.many(new GenericType.ClassType(fullPath)))
                 .build();
     }
@@ -63,26 +62,11 @@ public class GetAllChecker extends AbstractChecker {
     // ==================== M2M Resolution ====================
 
     /**
-     * Resolves M2M getAll: source chain → virtual schema → type-checks property expressions.
+     * Resolves M2M getAll: source chain resolution + type-checks property expressions.
+     * Returns ClassType[*] — same as relational getAll.
      */
-    private TypeInfo compileM2MGetAll(PureClassMapping pureMapping) {
+    private TypeInfo compileM2MGetAll(PureClassMapping pureMapping, String fullPath) {
         ClassMapping srcMapping = resolveSource(pureMapping);
-
-        PureClass targetClass = findClass(pureMapping.targetClassName())
-                .orElseThrow(() -> new PureCompileException(
-                        "M2M target class '" + pureMapping.targetClassName() + "' not found"));
-        var resolvedMapping = pureMapping.withResolved(targetClass, srcMapping);
-
-        // Build virtual schema from target class property types
-        Map<String, GenericType> virtualColumns = new LinkedHashMap<>();
-        for (String propName : pureMapping.propertyExpressions().keySet()) {
-            virtualColumns.put(propName, resolvePropertyType(targetClass, propName));
-        }
-
-        // Add join-referenced properties to virtual schema
-        for (String joinProp : pureMapping.joinReferences().keySet()) {
-            virtualColumns.putIfAbsent(joinProp, resolvePropertyType(targetClass, joinProp));
-        }
 
         // Type-check M2M property expressions and filter against source context
         TypeChecker.CompilationContext srcCtx = buildSourceContext(srcMapping);
@@ -92,10 +76,9 @@ public class GetAllChecker extends AbstractChecker {
         // Stamp filter expression so PlanGenerator can read $src.property nodes
         pureMapping.optionalFilter().ifPresent(f -> env.compileExpr(f, srcCtx));
 
+        // Return ClassType[*] — same as relational. MappingResolver handles physical resolution.
         return TypeInfo.builder()
-                .mapping(resolvedMapping)
-                .expressionType(ExpressionType.many(
-                        new GenericType.Relation(GenericType.Relation.Schema.withoutPivot(virtualColumns))))
+                .expressionType(ExpressionType.many(new GenericType.ClassType(fullPath)))
                 .build();
     }
 

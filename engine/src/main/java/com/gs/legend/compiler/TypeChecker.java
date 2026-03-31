@@ -5,8 +5,6 @@ import com.gs.legend.ast.*;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.PureFunctionRegistry;
 
-import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.parser.PureParser;
 import com.gs.legend.plan.GenericType;
 
@@ -318,8 +316,8 @@ public class TypeChecker implements TypeCheckEnv {
         // This is a workaround — the correct fix is compiler-driven single→collection coercion.
         var ci = (ClassInstance) af.parameters().get(1);
         var data = (ValueSpecificationBuilder.InstanceData) ci.value();
-        if (info.mapping() instanceof RelationalMapping rm) {
-            var pureClass = rm.pureClass();
+        if (info.type() instanceof GenericType.ClassType(String qn) && modelContext != null) {
+            var pureClass = modelContext.findClass(simpleName(qn)).orElse(null);
             if (pureClass != null) {
                 for (var entry : data.properties().entrySet()) {
                     var propOpt = pureClass.findProperty(entry.getKey());
@@ -402,19 +400,18 @@ public class TypeChecker implements TypeCheckEnv {
         // stamping logic doesn't overwrite it with Relation.
         if (bodyInfo.expressionType() != null && !bodyInfo.expressionType().isRelation()) {
             var info = TypeInfo.builder()
-                    .mapping(bodyInfo.mapping())
                     .expressionType(bodyInfo.expressionType())
                     .build();
             types.put(lf, info);
             return info;
         }
-        return typed(lf, bodyInfo.schema(), bodyInfo.mapping());
+        return typed(lf, bodyInfo.schema());
     }
 
     private TypeInfo compileVariable(Variable v, CompilationContext ctx) {
         GenericType.Relation.Schema varType = ctx.getRelationType(v.name());
         if (varType != null) {
-            return typed(v, varType, null);
+            return typed(v, varType);
         }
         // Let binding → inline the bound expression via inlinedBody
         // PlanGenerator already handles inlinedBody at both relational and scalar
@@ -497,19 +494,17 @@ public class TypeChecker implements TypeCheckEnv {
             if (vInfo == null) {
                 vInfo = compileExpr(v, ctx);
             }
-            if (vInfo != null && isInstanceLiteral(vInfo.inlinedBody())) {
+            if (vInfo != null && vInfo.instanceLiteral()) {
                 return inlineStructExtract(ap, vInfo.inlinedBody(), ctx);
             }
         }
-        // .prop directly on instance literal: ^Person(firstName='John').firstName
-        if (!ap.parameters().isEmpty() && isInstanceLiteral(ap.parameters().get(0))) {
-            compileExpr(ap.parameters().get(0), ctx);
-            return inlineStructExtract(ap, ap.parameters().get(0), ctx);
-        }
-        // .prop on a list-producing function is sugar for ->map(_x | _x.prop)
-        // Desugar by building a synthetic map node and pointing via inlinedBody
+        // .prop on a function result (includes ^Class instance literals, list-producing fns, etc.)
         if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedFunction ownerFn) {
             TypeInfo ownerInfo = compileExpr(ownerFn, ctx);
+            // ^Class instance literal: ^Person(firstName='John').firstName
+            if (ownerInfo.instanceLiteral()) {
+                return inlineStructExtract(ap, ownerFn, ctx);
+            }
             if (ownerInfo != null && ownerInfo.isMany()) {
                 var propVar = new Variable("_prop_x");
                 var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
@@ -591,21 +586,26 @@ public class TypeChecker implements TypeCheckEnv {
         throw new PureCompileException("Unresolved type for property: " + ap.property());
     }
 
-    /** Returns true if the node is a struct instance literal: new(PE(class), ClassInstance("instance", data)). */
-    private static boolean isInstanceLiteral(ValueSpecification vs) {
-        return vs instanceof AppliedFunction af && "new".equals(simpleName(af.function()))
-                && af.parameters().size() >= 2
-                && af.parameters().get(1) instanceof ClassInstance ci
-                && "instance".equals(ci.type());
-    }
-
     private TypeInfo inlineStructExtract(AppliedProperty ap, ValueSpecification structSource,
             CompilationContext ctx) {
         var extractNode = new AppliedFunction("structExtract",
                 List.of(structSource, new CString(ap.property())));
+        // Resolve type from model — the struct source has ClassType
+        TypeInfo srcInfo = types.get(structSource);
+        GenericType fieldType = GenericType.Primitive.ANY;
+        if (srcInfo != null && srcInfo.type() instanceof GenericType.ClassType(String qn) && modelContext != null) {
+            String className = simpleName(qn);
+            var classOpt = modelContext.findClass(className);
+            if (classOpt.isPresent()) {
+                var propOpt = classOpt.get().findProperty(ap.property());
+                if (propOpt.isPresent()) {
+                    fieldType = GenericType.fromType(propOpt.get().genericType());
+                }
+            }
+        }
         var info = TypeInfo.builder()
                 .inlinedBody(extractNode)
-                .expressionType(ExpressionType.one(GenericType.Primitive.ANY)).build();
+                .expressionType(ExpressionType.one(fieldType)).build();
         types.put(ap, info);
         return info;
     }
@@ -616,13 +616,12 @@ public class TypeChecker implements TypeCheckEnv {
             compileExpr(v, ctx);
         }
         GenericType elementType = unifyElementType(coll.values());
-        // For struct collections, propagate mapping from first element
-        // so downstream checkers (graphFetch, serialize) can resolve class via mapping.
+        // For struct collections, propagate instanceLiteral from first element
         if (!coll.values().isEmpty()) {
             TypeInfo firstElem = types.get(coll.values().get(0));
-            if (firstElem != null && firstElem.mapping() != null) {
+            if (firstElem != null && firstElem.instanceLiteral()) {
                 var info = TypeInfo.builder()
-                        .mapping(firstElem.mapping())
+                        .instanceLiteral(true)
                         .expressionType(ExpressionType.many(elementType))
                         .build();
                 types.put(coll, info);
@@ -802,10 +801,8 @@ public class TypeChecker implements TypeCheckEnv {
      * Registers a relational TypeInfo in the side table and returns it.
      * All relational type registration in TypeChecker goes through this method.
      */
-    private TypeInfo typed(ValueSpecification ast, GenericType.Relation.Schema relationType,
-            ClassMapping mapping) {
+    private TypeInfo typed(ValueSpecification ast, GenericType.Relation.Schema relationType) {
         var info = TypeInfo.builder()
-                .mapping(mapping)
                 .expressionType(ExpressionType.one(new GenericType.Relation(relationType))).build();
         types.put(ast, info);
         return info;

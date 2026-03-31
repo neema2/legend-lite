@@ -54,7 +54,8 @@ public class ConcatenateChecker extends AbstractChecker {
         GenericType.Relation.Schema rightSchema = right.schema();
 
         // 3. Class LCA: different class-based sources with different columns
-        if (left.mapping() != null && right.mapping() != null
+        if (left.type() instanceof com.gs.legend.plan.GenericType.ClassType
+                && right.type() instanceof com.gs.legend.plan.GenericType.ClassType
                 && leftSchema != null && rightSchema != null
                 && !leftSchema.columns().keySet().equals(rightSchema.columns().keySet())) {
             TypeInfo lca = resolveClassLCA(left, right);
