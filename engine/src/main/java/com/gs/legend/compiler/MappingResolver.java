@@ -16,20 +16,19 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Pass 3: Resolves explicit mappings to physical store concepts.
+ * Pass 3: Resolves mappings to physical store concepts.
  *
  * <p>Runs AFTER {@link TypeChecker} (Pass 2), BEFORE PlanGenerator (Pass 4).
- * Takes explicit {@code Map<String, ClassMapping>} as input — never discovers
- * mappings itself. The exactly-one lookup is a separate concern handled by
- * {@link #discoverMappings(TypeCheckResult, MappingRegistry)}.
+ * Receives {@link MappingRegistry} directly — discovers and resolves mappings
+ * in a single AST walk. No separate discovery phase needed.
  *
  * <p>Produces a per-node {@link StoreResolution} sidecar with the same
  * IdentityHashMap pattern as TypeInfo.
  *
  * <h3>Pipeline</h3>
  * <pre>
- * PureParser → TypeChecker → discoverMappings → MappingResolver → PlanGenerator
- *  (Pass 1)     (Pass 2)     (mapping lookup)    (Pass 3)          (Pass 4)
+ * PureParser → TypeChecker → MappingResolver → PlanGenerator
+ *  (Pass 1)     (Pass 2)       (Pass 3)          (Pass 4)
  * </pre>
  */
 public final class MappingResolver {
@@ -37,23 +36,19 @@ public final class MappingResolver {
     private final TypeCheckResult typeResult;
     private final ModelContext modelContext;
     private final MappingRegistry registry;
-    private final Map<String, ClassMapping> explicitMappings;
     private final IdentityHashMap<ValueSpecification, StoreResolution> resolutions = new IdentityHashMap<>();
     private final java.util.Set<String> resolving = new java.util.HashSet<>();
 
     /**
-     * @param typeResult       Typed AST from TypeChecker
-     * @param modelContext     Model for class/association lookups and internal M2M chain resolution
-     * @param explicitMappings Class name → mapping, explicitly provided by caller.
-     *                         Sources: registry lookup for getAll, identity mapping for ^Class.
-     *                         MappingResolver never discovers mappings — it only resolves what it's given.
+     * @param typeResult   Typed AST from TypeChecker
+     * @param registry     MappingRegistry for class→mapping lookups
+     * @param modelContext Model for class/association lookups
      */
-    public MappingResolver(TypeCheckResult typeResult, ModelContext modelContext,
-                           Map<String, ClassMapping> explicitMappings) {
+    public MappingResolver(TypeCheckResult typeResult, MappingRegistry registry,
+                           ModelContext modelContext) {
         this.typeResult = typeResult;
         this.modelContext = modelContext;
-        this.registry = modelContext.getMappingRegistry();
-        this.explicitMappings = explicitMappings;
+        this.registry = registry;
     }
 
     /**
@@ -64,78 +59,6 @@ public final class MappingResolver {
     public IdentityHashMap<ValueSpecification, StoreResolution> resolve() {
         walkNode(typeResult.root(), null);
         return resolutions;
-    }
-
-    // ==================== Mapping Discovery (top-level convenience) ====================
-
-    /**
-     * Discovers mappings by walking the typed AST. Separate from resolution.
-     *
-     * <p>For each mapping-dependent node:
-     * <ul>
-     *   <li>{@code getAll(Person)} → exactly-one lookup from registry (0 → throw, &gt;1 → throw)</li>
-     *   <li>{@code ^Person(...)} → identity mapping created from instanceLiteral flag + model context</li>
-     * </ul>
-     *
-     * @return class name → ClassMapping, to be passed to MappingResolver constructor
-     */
-    public static Map<String, ClassMapping> discoverMappings(
-            TypeCheckResult typeResult, MappingRegistry registry, ModelContext modelContext) {
-        Map<String, ClassMapping> mappings = new LinkedHashMap<>();
-        discoverInNode(typeResult.root(), typeResult, registry, modelContext, mappings);
-        return mappings;
-    }
-
-    private static void discoverInNode(ValueSpecification vs, TypeCheckResult typeResult,
-                                       MappingRegistry registry, ModelContext modelContext,
-                                       Map<String, ClassMapping> mappings) {
-        TypeInfo info = typeResult.types().get(vs);
-        if (info != null && info.inlinedBody() != null) {
-            discoverInNode(info.inlinedBody(), typeResult, registry, modelContext, mappings);
-        }
-
-        switch (vs) {
-            case AppliedFunction af -> {
-                String funcName = TypeInfo.simpleName(af.function());
-
-                if ("getAll".equals(funcName)) {
-                    // Exactly-one mapping lookup
-                    if (af.parameters().get(0) instanceof PackageableElementPtr(String fullPath)) {
-                        String className = TypeInfo.simpleName(fullPath);
-                        if (!mappings.containsKey(className)) {
-                            ClassMapping mapping = registry.findAnyMapping(className)
-                                    .orElseThrow(() -> new PureCompileException(
-                                            "No mapping found for class '" + className
-                                                    + "' — exactly one mapping required"));
-                            mappings.put(className, mapping);
-                        }
-                    }
-                } else if ("new".equals(funcName)) {
-                    // ^Class — instanceLiteral flag stamped by NewChecker
-                    if (info != null && info.instanceLiteral()
-                            && info.type() instanceof GenericType.ClassType ct) {
-                        String className = TypeInfo.simpleName(ct.qualifiedName());
-                        if (!mappings.containsKey(className)) {
-                            // Create identity mapping from model context.
-                            // Built-in types (Pair, etc.) won't be in the model — skip them.
-                            modelContext.findClass(className).ifPresent(pureClass ->
-                                    mappings.put(className, RelationalMapping.identity(pureClass)));
-                        }
-                    }
-                }
-
-                for (var param : af.parameters()) {
-                    discoverInNode(param, typeResult, registry, modelContext, mappings);
-                }
-            }
-            case LambdaFunction lf -> {
-                for (var expr : lf.body()) discoverInNode(expr, typeResult, registry, modelContext, mappings);
-            }
-            case PureCollection pc -> {
-                for (var v : pc.values()) discoverInNode(v, typeResult, registry, modelContext, mappings);
-            }
-            default -> { }
-        }
     }
 
     // ==================== AST Walk ====================
@@ -200,14 +123,14 @@ public final class MappingResolver {
         }
     }
 
-    // ==================== Resolve from Explicit Mappings ====================
+    // ==================== Resolve getAll / new ====================
 
     private StoreResolution resolveGetAll(AppliedFunction af) {
         if (!(af.parameters().get(0) instanceof PackageableElementPtr(String fullPath))) {
             return null;
         }
         String className = TypeInfo.simpleName(fullPath);
-        ClassMapping mapping = explicitMappings.get(className);
+        ClassMapping mapping = registry.findAnyMapping(className).orElse(null);
         if (mapping == null) return null;
         return resolveClassMapping(mapping, className);
     }
@@ -217,9 +140,10 @@ public final class MappingResolver {
         if (info == null || !info.instanceLiteral()) return null;
         if (!(info.type() instanceof GenericType.ClassType ct)) return null;
         String className = TypeInfo.simpleName(ct.qualifiedName());
-        ClassMapping mapping = explicitMappings.get(className);
-        if (mapping == null) return null;
-        return resolveClassMapping(mapping, className);
+        // ^Class — create identity mapping from model context
+        PureClass pc = modelContext.findClass(className).orElse(null);
+        if (pc == null) return null;
+        return resolveClassMapping(RelationalMapping.identity(pc), className);
     }
 
     // ==================== ClassMapping → StoreResolution ====================

@@ -646,7 +646,6 @@ public final class PureModelBuilder implements ModelContext {
 
     // ==================== ModelContext Implementation ====================
 
-    @Override
     public Optional<ClassMapping> findMapping(String className) {
         // Try relational mapping first, then M2M
         var relOpt = mappingRegistry.findByClassName(className);
@@ -654,6 +653,13 @@ public final class PureModelBuilder implements ModelContext {
         var pureOpt = mappingRegistry.findPureClassMapping(className);
         if (pureOpt.isPresent()) return Optional.of(pureOpt.get());
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<MappingExpression> findMappingExpression(String className) {
+        return mappingRegistry.findPureClassMapping(className)
+                .map(pcm -> new MappingExpression(pcm.sourceClassName(),
+                        pcm.propertyExpressions(), pcm.filter()));
     }
 
     @Override

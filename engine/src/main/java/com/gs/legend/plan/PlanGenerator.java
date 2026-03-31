@@ -68,10 +68,9 @@ public class PlanGenerator {
         SQLDialect dialect = model.resolveDialect(runtimeName);
         var vs = com.gs.legend.parser.PureParser.parseQuery(query);
         var unit = new TypeChecker(model).check(vs);
-        var explicitMappings = com.gs.legend.compiler.MappingResolver.discoverMappings(
-                unit, model.getMappingRegistry(), model);
+
         var storeResolutions = new com.gs.legend.compiler.MappingResolver(
-                unit, model, explicitMappings).resolve();
+                unit, model.getMappingRegistry(), model).resolve();
         return new PlanGenerator(unit, dialect, storeResolutions).generate();
     }
 

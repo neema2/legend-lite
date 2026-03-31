@@ -4,25 +4,18 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.PackageableElementPtr;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.mapping.MappingRegistry;
-import com.gs.legend.model.mapping.PureClassMapping;
-import com.gs.legend.model.mapping.RelationalMapping;
-import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.ModelContext.MappingExpression;
 import com.gs.legend.plan.GenericType;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Checker for {@code getAll()}.
  *
- * <p>Resolves class → mapping → type:
- * <ul>
- *   <li>RelationalMapping → ClassType[*]</li>
- *   <li>PureClassMapping → M2M chain resolution + virtual schema</li>
- * </ul>
+ * <p>Returns ClassType[*] for both relational and M2M mappings.
+ * For M2M, type-checks property expressions against the source PureClass
+ * via {@link MappingExpression} (no routing info, no registry access).
+ * Chain resolution and physical mapping are handled by MappingResolver.
  */
 public class GetAllChecker extends AbstractChecker {
 
@@ -44,136 +37,42 @@ public class GetAllChecker extends AbstractChecker {
         }
         String className = TypeInfo.simpleName(fullPath);
 
-        // Single lookup via findAnyMapping — covers both relational and M2M
-        ClassMapping mapping = registry().findAnyMapping(className)
-                .orElseThrow(() -> new PureCompileException(
-                        "getAll(): no mapping found for class '" + className + "'"));
-
-        if (mapping instanceof PureClassMapping pcm) {
-            return compileM2MGetAll(pcm, fullPath);
+        // M2M? Compile expressions against source PureClass
+        var mapExpr = env.modelContext().findMappingExpression(className).orElse(null);
+        if (mapExpr != null) {
+            compileMappingExpressions(mapExpr);
         }
 
-        // Relational: return ClassType[*] — schema resolved later by project()
-        return TypeInfo.builder()
-                .expressionType(ExpressionType.many(new GenericType.ClassType(fullPath)))
-                .build();
-    }
-
-    // ==================== M2M Resolution ====================
-
-    /**
-     * Resolves M2M getAll: source chain resolution + type-checks property expressions.
-     * Returns ClassType[*] — same as relational getAll.
-     */
-    private TypeInfo compileM2MGetAll(PureClassMapping pureMapping, String fullPath) {
-        ClassMapping srcMapping = resolveSource(pureMapping);
-
-        // Type-check M2M property expressions and filter against source context
-        TypeChecker.CompilationContext srcCtx = buildSourceContext(srcMapping);
-        for (var entry : pureMapping.propertyExpressions().entrySet()) {
-            env.compileExpr(entry.getValue(), srcCtx);
-        }
-        // Stamp filter expression so PlanGenerator can read $src.property nodes
-        pureMapping.optionalFilter().ifPresent(f -> env.compileExpr(f, srcCtx));
-
-        // Return ClassType[*] — same as relational. MappingResolver handles physical resolution.
+        // Always return ClassType[*] — same for relational and M2M
         return TypeInfo.builder()
                 .expressionType(ExpressionType.many(new GenericType.ClassType(fullPath)))
                 .build();
     }
 
     /**
-     * Resolves the source mapping for an M2M class.
-     * If the source is itself M2M, recursively resolves the chain first.
+     * Type-checks M2M property expressions and filter.
+     * Recursively compiles source chain if source is also M2M.
+     * Uses withLambdaParam("src", ClassType) — $src is a class instance,
+     * resolved via compileProperty's existing ClassType path (findClass → findProperty).
      */
-    private ClassMapping resolveSource(PureClassMapping pureMapping) {
-        String sourceClassName = pureMapping.sourceClassName();
-        ClassMapping srcMapping = registry().findAnyMapping(sourceClassName)
-                .orElseThrow(() -> new PureCompileException(
-                        "M2M source class '" + sourceClassName + "' has no mapping"));
-
-        if (srcMapping instanceof PureClassMapping srcPcm) {
-            resolveM2MChain(srcPcm);
-            srcMapping = registry().findAnyMapping(sourceClassName).orElseThrow();
-        }
-        return srcMapping;
-    }
-
-    /**
-     * Recursively resolves M2M chain, linking each PureClassMapping to its source.
-     * Chain must terminate at a RelationalMapping.
-     */
-    private void resolveM2MChain(PureClassMapping pcm) {
-        String srcClassName = pcm.sourceClassName();
-        ClassMapping srcMapping = registry().findAnyMapping(srcClassName)
-                .orElseThrow(() -> new PureCompileException(
-                        "M2M chain: source class '" + srcClassName + "' has no mapping"));
-
-        if (srcMapping instanceof PureClassMapping innerPcm) {
-            resolveM2MChain(innerPcm);
-            srcMapping = registry().findAnyMapping(srcClassName).orElseThrow();
+    private void compileMappingExpressions(MappingExpression mapExpr) {
+        // Recursively compile source chain (if source is also M2M)
+        var sourceExpr = env.modelContext().findMappingExpression(mapExpr.sourceClassName()).orElse(null);
+        if (sourceExpr != null) {
+            compileMappingExpressions(sourceExpr);
         }
 
-        // Type-check intermediate property expressions and filter
-        TypeChecker.CompilationContext srcCtx = buildSourceContext(srcMapping);
-        for (var entry : pcm.propertyExpressions().entrySet()) {
-            env.compileExpr(entry.getValue(), srcCtx);
+        // $src is a class instance — use the existing ClassType property resolution path.
+        // compileProperty resolves $src.prop via PureClass.findProperty() + associations.
+        var srcCtx = new TypeChecker.CompilationContext()
+                .withLambdaParam("src", new GenericType.ClassType(mapExpr.sourceClassName()));
+
+        // Compile each property expression + filter
+        for (var expr : mapExpr.propertyExpressions().values()) {
+            env.compileExpr(expr, srcCtx);
         }
-        pcm.optionalFilter().ifPresent(f -> env.compileExpr(f, srcCtx));
-
-        PureClass targetClass = findClass(pcm.targetClassName())
-                .orElseThrow(() -> new PureCompileException(
-                        "M2M chain: target class '" + pcm.targetClassName() + "' not found"));
-        registry().updatePureClassMapping(
-                pcm.targetClassName(), pcm.withResolved(targetClass, srcMapping));
-    }
-
-    // ==================== Context Building ====================
-
-    /**
-     * Builds CompilationContext with $src bound to source schema + mapping.
-     */
-    private TypeChecker.CompilationContext buildSourceContext(ClassMapping srcMapping) {
-        Map<String, GenericType> srcColumns = new LinkedHashMap<>();
-
-        if (srcMapping instanceof RelationalMapping srcRm) {
-            for (var pm : srcRm.propertyMappings()) {
-                srcColumns.put(pm.propertyName(), srcRm.pureTypeForProperty(pm.propertyName()));
-            }
-        } else if (srcMapping instanceof PureClassMapping srcPcm) {
-            PureClass srcClass = findClass(srcPcm.targetClassName())
-                    .orElseThrow(() -> new PureCompileException(
-                            "M2M source class '" + srcPcm.targetClassName() + "' not found"));
-            for (String propName : srcPcm.propertyExpressions().keySet()) {
-                srcColumns.put(propName, resolvePropertyType(srcClass, propName));
-            }
-        } else {
-            throw new PureCompileException(
-                    "getAll: unsupported source mapping type: "
-                            + srcMapping.getClass().getSimpleName());
+        if (mapExpr.filter() != null) {
+            env.compileExpr(mapExpr.filter(), srcCtx);
         }
-
-        return new TypeChecker.CompilationContext()
-                .withRelationType("src", GenericType.Relation.Schema.withoutPivot(srcColumns));
-    }
-
-    // ==================== Type Resolution ====================
-
-    /**
-     * Resolves a property's Pure type from its owning class.
-     * Uses PureClass.findProperty which already searches superclasses.
-     */
-    private static GenericType resolvePropertyType(PureClass pureClass, String propertyName) {
-        return pureClass.findProperty(propertyName)
-                .map(prop -> GenericType.fromTypeName(prop.genericType().typeName()))
-                .orElseThrow(() -> new PureCompileException(
-                        "Property '" + propertyName + "' not found on class '"
-                                + pureClass.qualifiedName() + "'"));
-    }
-
-    // ==================== Helpers ====================
-
-    private MappingRegistry registry() {
-        return env.modelContext().getMappingRegistry();
     }
 }

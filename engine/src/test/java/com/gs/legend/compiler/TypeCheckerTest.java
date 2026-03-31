@@ -51,15 +51,6 @@ class TypeCheckerTest {
 
     /** Minimal ModelContext wrapping the test registry. */
     private static final com.gs.legend.model.ModelContext testModel = new com.gs.legend.model.ModelContext() {
-        public MappingRegistry getMappingRegistry() {
-            return registry;
-        }
-
-        public java.util.Optional<com.gs.legend.model.mapping.ClassMapping> findMapping(String n) {
-            var opt = registry.findByClassName(n);
-            return opt.map(m -> m);
-        }
-
         public java.util.Optional<com.gs.legend.model.m3.PureClass> findClass(String n) {
             return java.util.Optional.empty();
         }

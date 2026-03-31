@@ -1,12 +1,12 @@
 package com.gs.legend.model;
 
+import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.PureClass;
-import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.store.Join;
 import com.gs.legend.model.store.Table;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -22,22 +22,6 @@ import java.util.Optional;
  * JOIN for explicit relational queries).
  */
 public interface ModelContext {
-
-    /**
-     * Returns the mapping registry for table/class lookups.
-     * Default is an empty registry (never null).
-     */
-    default MappingRegistry getMappingRegistry() {
-        return new MappingRegistry();
-    }
-
-    /**
-     * Finds a mapping for a class by name.
-     * 
-     * @param className Simple or qualified class name
-     * @return The class mapping, if found
-     */
-    Optional<ClassMapping> findMapping(String className);
 
     /**
      * Finds a PureClass by name.
@@ -105,6 +89,32 @@ public interface ModelContext {
      */
     default boolean hasEnumValue(String enumName, String valueName) {
         return findEnum(enumName).map(e -> e.hasValue(valueName)).orElse(false);
+    }
+
+    /**
+     * Compiler-visible view of an M2M mapping — expressions only, no routing info.
+     * Named MappingExpression because it's the DSL/expression side of a mapping
+     * (analogous to FunctionExpression, CastExpression in the IR).
+     * Generic enough for M2M today and relational DynaFunctions later.
+     *
+     * @param sourceClassName      The source class being mapped from (~src)
+     * @param propertyExpressions  Map of property name → pre-parsed AST expression
+     * @param filter               Optional filter expression (~filter)
+     */
+    record MappingExpression(
+            String sourceClassName,
+            Map<String, ValueSpecification> propertyExpressions,
+            ValueSpecification filter) {}
+
+    /**
+     * Finds the compiler-visible M2M expression mapping for a class.
+     * Returns only expressions and source class — no routing info (tables, columns, joins).
+     *
+     * @param className Simple or qualified class name
+     * @return The mapping expression, if this class has an M2M (Pure) mapping
+     */
+    default Optional<MappingExpression> findMappingExpression(String className) {
+        return Optional.empty();
     }
 
     /**

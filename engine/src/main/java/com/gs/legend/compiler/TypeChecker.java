@@ -159,9 +159,6 @@ public class TypeChecker implements TypeCheckEnv {
         if (modelContext.findClass(path).isPresent() || modelContext.findClass(name).isPresent()) {
             return scalarTyped(pe, new GenericType.ClassType(path));
         }
-        if (modelContext.findMapping(path).isPresent() || modelContext.findMapping(name).isPresent()) {
-            return scalarTyped(pe, new GenericType.ClassType(path));
-        }
         if (modelContext.findEnum(path).isPresent() || modelContext.findEnum(name).isPresent()) {
             return scalarTyped(pe, new GenericType.EnumType(path));
         }

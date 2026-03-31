@@ -60,16 +60,6 @@ public class TableReferenceChecker extends AbstractChecker {
                 return tableOpt.get();
         }
 
-        var registry = modelCtx != null ? modelCtx.getMappingRegistry() : null;
-        if (registry != null) {
-            var mappingOpt = registry.findByTableName(tableKey);
-            if (mappingOpt.isPresent())
-                return mappingOpt.get().table();
-            mappingOpt = registry.findByTableName(tableName);
-            if (mappingOpt.isPresent())
-                return mappingOpt.get().table();
-        }
-
         throw new PureCompileException("Table not found: " + tableRef);
     }
 
