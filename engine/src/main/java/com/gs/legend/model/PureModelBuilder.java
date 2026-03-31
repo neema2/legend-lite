@@ -31,6 +31,8 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, Association> associations = new HashMap<>();
     private final Map<String, Table> tables = new HashMap<>();
     private final Map<String, Join> joins = new HashMap<>();
+    private final Map<String, View> views = new HashMap<>();
+    private final Map<String, Filter> filters = new HashMap<>();
     private final Map<String, DatabaseDefinition> databases = new HashMap<>();
     private final Map<String, ProfileDefinition> profiles = new HashMap<>();
     private final Map<String, FunctionDefinition> functions = new HashMap<>();
@@ -265,6 +267,16 @@ public final class PureModelBuilder implements ModelContext {
             tables.put(dbDef.simpleName() + "." + tableDef.name(), table);
         }
 
+        // Register schema tables (schema-qualified and simple name)
+        for (var schema : dbDef.schemas()) {
+            for (var tableDef : schema.tables()) {
+                Table table = convertTable(tableDef);
+                tables.put(tableDef.name(), table);
+                tables.put(schema.name() + "." + tableDef.name(), table);
+                tables.put(dbDef.simpleName() + "." + schema.name() + "." + tableDef.name(), table);
+            }
+        }
+
         // Register joins
         for (var joinDef : dbDef.joins()) {
             Join join = new Join(joinDef.name(), joinDef.operation());
@@ -273,6 +285,20 @@ public final class PureModelBuilder implements ModelContext {
 
             // Also register with MappingRegistry for M2M deep fetch lookup
             mappingRegistry.registerJoin(join);
+        }
+
+        // Register views
+        for (var viewDef : dbDef.views()) {
+            View view = convertView(viewDef);
+            views.put(viewDef.name(), view);
+            views.put(dbDef.simpleName() + "." + viewDef.name(), view);
+        }
+
+        // Register filters
+        for (var filterDef : dbDef.filters()) {
+            Filter filter = new Filter(filterDef.name(), filterDef.condition());
+            filters.put(filterDef.name(), filter);
+            filters.put(dbDef.simpleName() + "." + filterDef.name(), filter);
         }
 
         return this;
@@ -407,8 +433,16 @@ public final class PureModelBuilder implements ModelContext {
                 }
             }
 
+            // Extract mapping-level directives
+            String setId = classMapping.setId();
+            boolean isRoot = classMapping.isRoot();
+            boolean distinct = classMapping.distinct();
+            String filterName = classMapping.filter() != null ? classMapping.filter().filterName() : null;
+            String filterDbName = classMapping.filter() != null ? classMapping.filter().databaseName() : null;
+
             // Create and register the mapping
-            RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings);
+            RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings,
+                    false, setId, isRoot, distinct, filterName, filterDbName);
             mappingRegistry.register(mapping);
         }
 
@@ -837,6 +871,14 @@ public final class PureModelBuilder implements ModelContext {
                 .map(this::convertColumn)
                 .toList();
         return new Table(tableDef.name(), columns);
+    }
+
+    private View convertView(DatabaseDefinition.ViewDefinition viewDef) {
+        List<View.ViewColumn> viewColumns = viewDef.columnMappings().stream()
+                .map(vc -> new View.ViewColumn(vc.name(), vc.expression(), vc.primaryKey()))
+                .toList();
+        return new View(viewDef.name(), viewDef.filterMapping(),
+                viewDef.groupByColumns(), viewDef.distinct(), viewColumns);
     }
 
     private Column convertColumn(DatabaseDefinition.ColumnDefinition colDef) {

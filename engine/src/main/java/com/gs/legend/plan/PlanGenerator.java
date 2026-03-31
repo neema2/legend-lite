@@ -715,8 +715,10 @@ public class PlanGenerator {
             builder = new SqlBuilder().fromSubquery(source, tableAlias);
         }
 
-        // Track association joins: assocProperty → cached alias
-        record AssocJoinInfo(String alias, StoreResolution.JoinResolution joinRes) {
+        // Track association joins: chainKey → cached alias + resolution
+        // chainKey is dotted path: "dept", "dept.org" for multi-hop
+        record AssocJoinInfo(String alias, String parentAlias,
+                             StoreResolution.JoinResolution joinRes) {
         }
         java.util.Map<String, AssocJoinInfo> assocJoins = new java.util.LinkedHashMap<>();
 
@@ -730,35 +732,45 @@ public class PlanGenerator {
             var proj = info.projections().get(i);
 
             if (proj.isAssociation()) {
-                // Association navigation: e.g., propertyPath=["items", "productName"]
-                String assocProp = proj.associationProperty();
-                String leafProp = proj.property();
+                // Association navigation: e.g., propertyPath=["dept","org","name"]
+                // Walk intermediate hops, adding JOINs for each
+                List<String> path = proj.propertyPath();
+                String leafProp = path.getLast();
+                StoreResolution curStore = store;
+                String curAlias = tableAlias;
 
-                AssocJoinInfo joinInfo = assocJoins.get(assocProp);
-                String targetAlias;
-                StoreResolution.JoinResolution joinRes;
+                // Walk all hops except the leaf property
+                for (int hop = 0; hop < path.size() - 1; hop++) {
+                    String hopProp = path.get(hop);
+                    String chainKey = String.join(".", path.subList(0, hop + 1));
 
-                if (joinInfo == null) {
-                    joinRes = store != null && store.hasJoins() ? store.joins().get(assocProp) : null;
-                    if (joinRes == null) joinRes = findJoinResolution(assocProp);
-                    if (joinRes == null) {
-                        throw new PureCompileException(
-                                "No join resolution for association '" + assocProp + "' in project");
+                    AssocJoinInfo joinInfo = assocJoins.get(chainKey);
+                    if (joinInfo == null) {
+                        var joinRes = curStore != null && curStore.hasJoins()
+                                ? curStore.joins().get(hopProp) : null;
+                        if (joinRes == null) joinRes = findJoinResolution(hopProp);
+                        if (joinRes == null) {
+                            throw new PureCompileException(
+                                    "No join resolution for association '" + hopProp + "' in project");
+                        }
+                        String hopAlias = "j" + (assocJoins.size() + 1);
+                        assocJoins.put(chainKey, new AssocJoinInfo(hopAlias, curAlias, joinRes));
+                        curAlias = hopAlias;
+                        curStore = joinRes.targetResolution();
+                    } else {
+                        curAlias = joinInfo.alias();
+                        curStore = joinInfo.joinRes().targetResolution();
                     }
-                    targetAlias = "j" + (assocJoins.size() + 1);
-                    assocJoins.put(assocProp, new AssocJoinInfo(targetAlias, joinRes));
-                } else {
-                    targetAlias = joinInfo.alias();
-                    joinRes = joinInfo.joinRes();
                 }
 
                 SqlExpr colExpr;
-                if (joinRes.join() == null) {
+                var lastJoin = assocJoins.get(String.join(".", path.subList(0, path.size() - 1)));
+                if (lastJoin != null && lastJoin.joinRes().join() == null) {
                     // UNNEST association (struct array): resolve from unnested element
-                    String elemAlias = targetAlias + "_elem";
-                    colExpr = resolveColumnExpr(leafProp, joinRes.targetResolution(), elemAlias);
+                    String elemAlias = curAlias + "_elem";
+                    colExpr = resolveColumnExpr(leafProp, curStore, elemAlias);
                 } else {
-                    colExpr = resolveColumnExpr(leafProp, joinRes.targetResolution(), targetAlias);
+                    colExpr = resolveColumnExpr(leafProp, curStore, curAlias);
                 }
                 builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
             } else {
@@ -783,12 +795,12 @@ public class PlanGenerator {
             AssocJoinInfo joinInfo = entry.getValue();
             var joinRes = joinInfo.joinRes();
             if (joinRes.join() != null) {
-                // Regular FK join
+                // Regular FK join — parentAlias is the source side for this hop
                 String targetTableName = joinRes.targetTable();
                 String leftCol = joinRes.sourceColumn();
                 String rightCol = joinRes.targetColumn();
                 SqlExpr onCondition = new SqlExpr.Binary(
-                        new SqlExpr.Column(tableAlias, leftCol), "=",
+                        new SqlExpr.Column(joinInfo.parentAlias(), leftCol), "=",
                         new SqlExpr.Column(joinInfo.alias(), rightCol));
                 builder.addJoin(SqlBuilder.JoinType.LEFT,
                         dialect.quoteIdentifier(targetTableName),

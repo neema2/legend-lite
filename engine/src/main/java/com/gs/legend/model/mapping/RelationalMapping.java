@@ -25,15 +25,29 @@ import java.util.stream.Collectors;
  * @param nested           If true, properties are accessed via nested struct field paths
  *                         (e.g., {@code t0."alias"."field"}) rather than flat column refs.
  *                         Set for struct literals (identity mappings) and future variant-column mappings.
+ * @param setId            Optional set implementation ID (null if default)
+ * @param isRoot           Whether this is the root mapping for the class
+ * @param distinct         Whether ~distinct is specified on this mapping
+ * @param filterName       Optional named filter reference (null if none)
+ * @param filterDatabaseName Optional database for the filter (null if none)
  */
 public record RelationalMapping(
         PureClass pureClass,
         Table table,
         List<PropertyMapping> propertyMappings,
-        boolean nested) implements ClassMapping {
+        boolean nested,
+        String setId,
+        boolean isRoot,
+        boolean distinct,
+        String filterName,
+        String filterDatabaseName) implements ClassMapping {
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
-        this(pureClass, table, propertyMappings, false);
+        this(pureClass, table, propertyMappings, false, null, false, false, null, null);
+    }
+
+    public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings, boolean nested) {
+        this(pureClass, table, propertyMappings, nested, null, false, false, null, null);
     }
 
     public RelationalMapping {

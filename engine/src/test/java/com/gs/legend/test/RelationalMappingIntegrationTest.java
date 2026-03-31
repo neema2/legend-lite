@@ -1169,8 +1169,8 @@ class RelationalMappingIntegrationTest {
 
         // --- Multi-hop Joins ---
 
-        @Test @Disabled("GAP: Multi-hop join chains not yet supported (builder extracts single hop only)")
-        @DisplayName("GAP: Multi-hop join: Person → Dept → Org")
+        @Test
+        @DisplayName("Multi-hop join: Person → Dept → Org")
         void testMultiHopJoin() throws SQLException {
             setupBasicTables();
             String m = withRuntime("""
@@ -2532,10 +2532,56 @@ class RelationalMappingIntegrationTest {
     @DisplayName("GAP: Feature Composition (Disabled)")
     class GapComposition {
 
-        @Test @Disabled("GAP: Multi-hop join chains not supported")
-        @DisplayName("GAP: 3-hop join: Emp → Dept → Company → Country")
+        @Test
+        @DisplayName("3-hop join: Emp → Dept → Company → Country")
         void testThreeHopJoin() throws SQLException {
-            // Requires multi-hop join resolution
+            sql("CREATE TABLE T_EMP (ID INT PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INT)",
+                "CREATE TABLE T_DEPT (ID INT PRIMARY KEY, NAME VARCHAR(50), COMPANY_ID INT)",
+                "CREATE TABLE T_COMPANY (ID INT PRIMARY KEY, NAME VARCHAR(100), COUNTRY_ID INT)",
+                "CREATE TABLE T_COUNTRY (ID INT PRIMARY KEY, NAME VARCHAR(50))",
+                "INSERT INTO T_COUNTRY VALUES (1, 'USA'), (2, 'UK')",
+                "INSERT INTO T_COMPANY VALUES (1, 'Acme Corp', 1), (2, 'Brit Ltd', 2)",
+                "INSERT INTO T_DEPT VALUES (1, 'Engineering', 1), (2, 'Sales', 2)",
+                "INSERT INTO T_EMP VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
+            String m = withRuntime("""
+                    Class model::Emp { name: String[1]; }
+                    Class model::Dept { name: String[1]; }
+                    Class model::Company { name: String[1]; }
+                    Class model::Country { name: String[1]; }
+                    Association model::Emp_Dept { emps: Emp[*]; dept: Dept[1]; }
+                    Association model::Dept_Company { depts: Dept[*]; company: Company[1]; }
+                    Association model::Company_Country { companies: Company[*]; country: Country[1]; }
+                    Database store::DB (
+                        Table T_EMP (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
+                        Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), COMPANY_ID INTEGER)
+                        Table T_COMPANY (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), COUNTRY_ID INTEGER)
+                        Table T_COUNTRY (ID INTEGER PRIMARY KEY, NAME VARCHAR(50))
+                        Join Emp_Dept(T_EMP.DEPT_ID = T_DEPT.ID)
+                        Join Dept_Company(T_DEPT.COMPANY_ID = T_COMPANY.ID)
+                        Join Company_Country(T_COMPANY.COUNTRY_ID = T_COUNTRY.ID)
+                    )
+                    Mapping model::M (
+                        Emp: Relational { ~mainTable [store::DB] T_EMP name: [store::DB] T_EMP.NAME }
+                        Dept: Relational { ~mainTable [store::DB] T_DEPT name: [store::DB] T_DEPT.NAME }
+                        Company: Relational { ~mainTable [store::DB] T_COMPANY name: [store::DB] T_COMPANY.NAME }
+                        Country: Relational { ~mainTable [store::DB] T_COUNTRY name: [store::DB] T_COUNTRY.NAME }
+                    )
+                    """, "store::DB", "model::M");
+            // Navigate Emp → dept → company → country (3 hops)
+            var r = exec(m, "Emp.all()->project(~[name:e|$e.name, country:e|$e.dept.company.country.name])");
+            assertEquals(3, r.rowCount());
+            // Alice & Charlie → Engineering → Acme Corp → USA
+            // Bob → Sales → Brit Ltd → UK
+            var rows = r.rows();
+            for (var row : rows) {
+                String empName = row.get(0).toString();
+                String countryName = row.get(1).toString();
+                if ("Alice".equals(empName) || "Charlie".equals(empName)) {
+                    assertEquals("USA", countryName);
+                } else {
+                    assertEquals("UK", countryName);
+                }
+            }
         }
 
         @Test @Disabled("GAP: Multi-hop + aggregation")

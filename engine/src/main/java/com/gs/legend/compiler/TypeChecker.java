@@ -569,13 +569,27 @@ public class TypeChecker implements TypeCheckEnv {
                     className = qn;
                 }
                 if (className != null) {
-                    var classOpt = modelContext.findClass(className);
+                    String simpleClassName = simpleName(className);
+                    var classOpt = modelContext.findClass(simpleClassName);
                     if (classOpt.isPresent()) {
                         var propOpt = classOpt.get().findProperty(ap.property());
                         if (propOpt.isPresent()) {
                             GenericType fieldType = GenericType.fromType(propOpt.get().genericType());
                             return scalarTyped(ap, fieldType);
                         }
+                    }
+                    // Association-injected properties (same pattern as first-hop at line 472)
+                    var assocNav = modelContext.findAssociationByProperty(simpleClassName, ap.property());
+                    if (assocNav.isPresent()) {
+                        var nav = assocNav.get();
+                        GenericType targetType = new GenericType.ClassType(nav.targetClassName());
+                        var info = TypeInfo.builder()
+                                .expressionType(nav.isToMany()
+                                        ? ExpressionType.many(targetType)
+                                        : ExpressionType.one(targetType))
+                                .build();
+                        types.put(ap, info);
+                        return info;
                     }
                 }
             }
