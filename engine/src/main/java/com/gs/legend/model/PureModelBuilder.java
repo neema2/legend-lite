@@ -40,6 +40,7 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, RuntimeDefinition> runtimes = new HashMap<>();
     private final Map<String, ServiceDefinition> services = new HashMap<>();
     private final Map<String, EnumDefinition> enums = new HashMap<>();
+    private final Map<String, MappingDefinition> mappingDefinitions = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry();
 
     {
@@ -129,7 +130,91 @@ public final class PureModelBuilder implements ModelContext {
             }
         }
 
+        // PHASE 4: Resolve database includes (merge tables/joins/views/filters from included DBs)
+        resolveDatabaseIncludes();
+
+        // PHASE 5: Resolve mapping includes (copy class mappings from included mappings)
+        resolveMappingIncludes();
+
         return this;
+    }
+
+    /**
+     * Resolves database include directives. For each database that includes another,
+     * registers the included database's tables, joins, views, and filters under the
+     * including database's namespace. Handles transitive includes.
+     */
+    private void resolveDatabaseIncludes() {
+        for (var dbDef : databases.values().stream().distinct().toList()) {
+            for (String includedPath : dbDef.includes()) {
+                DatabaseDefinition included = databases.get(includedPath);
+                if (included == null) continue;
+                String dbName = dbDef.simpleName();
+
+                // Merge tables
+                for (var tableDef : included.tables()) {
+                    Table table = convertTable(tableDef);
+                    tables.putIfAbsent(dbName + "." + tableDef.name(), table);
+                    tables.putIfAbsent(tableDef.name(), table);
+                }
+                for (var schema : included.schemas()) {
+                    for (var tableDef : schema.tables()) {
+                        Table table = convertTable(tableDef);
+                        tables.putIfAbsent(dbName + "." + schema.name() + "." + tableDef.name(), table);
+                        tables.putIfAbsent(schema.name() + "." + tableDef.name(), table);
+                        tables.putIfAbsent(tableDef.name(), table);
+                    }
+                }
+
+                // Merge joins
+                for (var joinDef : included.joins()) {
+                    Join join = new Join(joinDef.name(), joinDef.operation());
+                    joins.putIfAbsent(dbName + "." + joinDef.name(), join);
+                    joins.putIfAbsent(joinDef.name(), join);
+                    mappingRegistry.registerJoin(join);
+                }
+
+                // Merge views
+                for (var viewDef : included.views()) {
+                    View view = convertView(viewDef);
+                    views.putIfAbsent(dbName + "." + viewDef.name(), view);
+                    views.putIfAbsent(viewDef.name(), view);
+                }
+
+                // Merge filters
+                for (var filterDef : included.filters()) {
+                    Filter filter = new Filter(filterDef.name(), filterDef.condition());
+                    filters.putIfAbsent(dbName + "." + filterDef.name(), filter);
+                    filters.putIfAbsent(filterDef.name(), filter);
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolves mapping include directives. For each mapping that includes another,
+     * copies the included mapping's class mappings into the including mapping's scope
+     * in MappingRegistry.
+     */
+    private void resolveMappingIncludes() {
+        for (var mappingDef : mappingDefinitions.values().stream().distinct().toList()) {
+            for (var include : mappingDef.includes()) {
+                String includedPath = include.includedMappingPath();
+                // Look up included mapping's class mappings in the registry
+                var includedMappings = mappingRegistry.getAllClassMappings(includedPath);
+                if (includedMappings.isEmpty()) continue;
+
+                // Register each included class mapping under the current mapping's scope
+                for (var entry : includedMappings.entrySet()) {
+                    var cm = entry.getValue();
+                    if (cm instanceof RelationalMapping rm) {
+                        mappingRegistry.register(mappingDef.qualifiedName(), rm);
+                    } else if (cm instanceof com.gs.legend.model.mapping.PureClassMapping pcm) {
+                        mappingRegistry.registerPureClassMapping(mappingDef.qualifiedName(), pcm);
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -347,6 +432,30 @@ public final class PureModelBuilder implements ModelContext {
      * - Pure: Re-parses as M2M and registers M2M class mappings
      */
     public PureModelBuilder addMapping(MappingDefinition mappingDef) {
+        // Store for include resolution
+        mappingDefinitions.put(mappingDef.qualifiedName(), mappingDef);
+        mappingDefinitions.put(mappingDef.simpleName(), mappingDef);
+
+        // Process association mappings: register join associations
+        for (var assocMapping : mappingDef.associationMappings()) {
+            for (var prop : assocMapping.properties()) {
+                if (!prop.joinChain().isEmpty()) {
+                    String joinName = prop.joinChain().get(0).joinName();
+                    Join join = joins.get(joinName);
+                    if (join != null) {
+                        String key = assocMapping.associationName() + "." + prop.propertyName();
+                        explicitAssociationJoins.put(key, join);
+                        // Also register with simple association name
+                        String simpleName = assocMapping.associationName().contains("::")
+                                ? assocMapping.associationName().substring(
+                                        assocMapping.associationName().lastIndexOf("::") + 2)
+                                : assocMapping.associationName();
+                        explicitAssociationJoins.put(simpleName + "." + prop.propertyName(), join);
+                    }
+                }
+            }
+        }
+
         for (var classMapping : mappingDef.classMappings()) {
             if ("Pure".equals(classMapping.mappingType())) {
                 // Pure (M2M) mapping - parse and register M2M class mapping

@@ -2,8 +2,10 @@ package com.gs.legend.model.mapping;
 
 import com.gs.legend.model.store.Join;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,6 +26,11 @@ public final class MappingRegistry {
     private final Map<String, PureClassMapping> pureByTargetClass = new HashMap<>();
     private final Map<String, Join> joinsByName = new HashMap<>();
 
+    // Multi-mapping support — class name → all mappings for that class
+    private final Map<String, List<RelationalMapping>> relationalMultiByClass = new HashMap<>();
+    // Set ID index — setId → mapping
+    private final Map<String, RelationalMapping> relationalBySetId = new HashMap<>();
+
     // Scoped maps — mappingName → (className → mapping)
     private final Map<String, Map<String, RelationalMapping>> scopedRelational = new HashMap<>();
     private final Map<String, Map<String, PureClassMapping>> scopedPure = new HashMap<>();
@@ -37,14 +44,27 @@ public final class MappingRegistry {
         String qualifiedName = mapping.pureClass().qualifiedName();
         String simpleName = mapping.pureClass().name();
 
-        // Scoped
+        // Scoped — root mapping wins, otherwise first registered
         var scope = scopedRelational.computeIfAbsent(mappingName, k -> new HashMap<>());
-        scope.put(qualifiedName, mapping);
-        scope.put(simpleName, mapping);
+        if (mapping.isRoot() || !scope.containsKey(qualifiedName)) {
+            scope.put(qualifiedName, mapping);
+            scope.put(simpleName, mapping);
+        }
 
-        // Flat
-        relationalByClass.put(qualifiedName, mapping);
-        relationalByClass.put(simpleName, mapping);
+        // Flat — root mapping wins, otherwise first registered
+        if (mapping.isRoot() || !relationalByClass.containsKey(qualifiedName)) {
+            relationalByClass.put(qualifiedName, mapping);
+            relationalByClass.put(simpleName, mapping);
+        }
+
+        // Multi-mapping list
+        relationalMultiByClass.computeIfAbsent(qualifiedName, k -> new ArrayList<>()).add(mapping);
+        relationalMultiByClass.computeIfAbsent(simpleName, k -> new ArrayList<>()).add(mapping);
+
+        // Set ID index
+        if (mapping.setId() != null) {
+            relationalBySetId.put(mapping.setId(), mapping);
+        }
     }
 
     /**
@@ -64,6 +84,33 @@ public final class MappingRegistry {
      */
     public void registerJoin(Join join) {
         joinsByName.put(join.name(), join);
+    }
+
+    // ==================== Set ID / Root Lookups ====================
+
+    /**
+     * Finds a relational mapping by set ID.
+     */
+    public Optional<RelationalMapping> findBySetId(String setId) {
+        return Optional.ofNullable(relationalBySetId.get(setId));
+    }
+
+    /**
+     * Finds the root mapping for a class (the one marked with *).
+     * Falls back to the single mapping if only one exists.
+     */
+    public Optional<RelationalMapping> findRootMapping(String className) {
+        var mappings = relationalMultiByClass.get(className);
+        if (mappings == null || mappings.isEmpty()) return Optional.empty();
+        if (mappings.size() == 1) return Optional.of(mappings.get(0));
+        return mappings.stream().filter(RelationalMapping::isRoot).findFirst();
+    }
+
+    /**
+     * Returns all relational mappings for a class name (multiple set IDs).
+     */
+    public List<RelationalMapping> findAllByClassName(String className) {
+        return relationalMultiByClass.getOrDefault(className, List.of());
     }
 
     // ==================== Flat Lookups (PureModelBuilder) ====================

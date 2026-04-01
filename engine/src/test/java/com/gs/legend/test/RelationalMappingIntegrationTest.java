@@ -1308,11 +1308,44 @@ class RelationalMappingIntegrationTest {
 
         // --- Set IDs and Root Markers ---
 
-        @Test @Disabled("GAP: Set IDs ignored by builder")
-        @DisplayName("GAP: Multiple set implementations with root marker")
+        @Test
+        @DisplayName("Multiple set implementations with root marker resolve via root")
         void testSetIdsAndRoot() throws SQLException {
-            // *Person[person_set1]: Relational { ... }
-            // Person[person_set2]: Relational { ... }
+            sql("CREATE TABLE T_EMPLOYEE (ID INT, NAME VARCHAR(100))",
+                "CREATE TABLE T_CONTRACTOR (ID INT, NAME VARCHAR(100))",
+                "INSERT INTO T_EMPLOYEE VALUES (1, 'Alice'), (2, 'Bob')",
+                "INSERT INTO T_CONTRACTOR VALUES (10, 'Charlie')");
+
+            String model = withRuntime("""
+                    Class test::Person { id: Integer[1]; name: String[1]; }
+                    Database store::DB
+                    (
+                        Table T_EMPLOYEE (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL)
+                        Table T_CONTRACTOR (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL)
+                    )
+                    Mapping test::M
+                    (
+                        *Person[emp]: Relational
+                        {
+                            ~mainTable [store::DB] T_EMPLOYEE
+                            id: [store::DB] T_EMPLOYEE.ID,
+                            name: [store::DB] T_EMPLOYEE.NAME
+                        }
+                        Person[contractor]: Relational
+                        {
+                            ~mainTable [store::DB] T_CONTRACTOR
+                            id: [store::DB] T_CONTRACTOR.ID,
+                            name: [store::DB] T_CONTRACTOR.NAME
+                        }
+                    )
+                    """, "store::DB", "test::M");
+
+            // Root mapping (emp) should be used for Person.all()
+            var result = exec(model, "Person.all()->project([x|$x.name], ['name'])");
+            var names = colStr(result, 0);
+            assertEquals(2, names.size());
+            assertTrue(names.contains("Alice"));
+            assertTrue(names.contains("Bob"));
         }
 
         // --- Mapping Extends ---
@@ -1325,10 +1358,35 @@ class RelationalMappingIntegrationTest {
 
         // --- Mapping Includes ---
 
-        @Test @Disabled("GAP: includes not visited by builder")
-        @DisplayName("GAP: Mapping include")
+        @Test
+        @DisplayName("Mapping include pulls class mappings from included mapping")
         void testMappingInclude() throws SQLException {
-            // include model::BaseMapping
+            sql("CREATE TABLE PEOPLE (ID INT, NAME VARCHAR(100))",
+                "INSERT INTO PEOPLE VALUES (1, 'Alice'), (2, 'Bob')");
+
+            String model = withRuntime("""
+                    Class test::Person { id: Integer[1]; name: String[1]; }
+                    Database store::DB ( Table PEOPLE (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL) )
+                    Mapping base::BaseMapping
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] PEOPLE
+                            id: [store::DB] PEOPLE.ID,
+                            name: [store::DB] PEOPLE.NAME
+                        }
+                    )
+                    Mapping test::M
+                    (
+                        include base::BaseMapping
+                    )
+                    """, "store::DB", "test::M");
+
+            // Person mapping comes from included base::BaseMapping
+            var result = exec(model, "Person.all()->project([x|$x.name], ['name'])");
+            var names = colStr(result, 0);
+            assertEquals(2, names.size());
+            assertTrue(names.contains("Alice"));
         }
 
         // --- Store Substitution ---
@@ -1385,10 +1443,49 @@ class RelationalMappingIntegrationTest {
 
         // --- Database Includes ---
 
-        @Test @Disabled("GAP: Database includes not extracted")
-        @DisplayName("GAP: Database include directive")
+        @Test
+        @DisplayName("Database include merges tables and joins from included DB")
         void testDatabaseInclude() throws SQLException {
-            // include store::BaseDB
+            sql("CREATE TABLE BASE_PERSON (ID INT, NAME VARCHAR(100))",
+                "CREATE TABLE EXT_ADDRESS (ID INT, PERSON_ID INT, CITY VARCHAR(100))",
+                "INSERT INTO BASE_PERSON VALUES (1, 'Alice'), (2, 'Bob')",
+                "INSERT INTO EXT_ADDRESS VALUES (10, 1, 'NYC'), (20, 2, 'LA')");
+
+            String model = withRuntime("""
+                    Class test::Person { id: Integer[1]; name: String[1]; }
+                    Class test::Address { id: Integer[1]; city: String[1]; }
+                    Database store::BaseDB
+                    (
+                        Table BASE_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL)
+                    )
+                    Database store::ExtDB
+                    (
+                        include store::BaseDB
+                        Table EXT_ADDRESS (ID INTEGER PRIMARY KEY, PERSON_ID INTEGER NOT NULL, CITY VARCHAR(100) NOT NULL)
+                    )
+                    Mapping test::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::ExtDB] BASE_PERSON
+                            id: [store::ExtDB] BASE_PERSON.ID,
+                            name: [store::ExtDB] BASE_PERSON.NAME
+                        }
+                        Address: Relational
+                        {
+                            ~mainTable [store::ExtDB] EXT_ADDRESS
+                            id: [store::ExtDB] EXT_ADDRESS.ID,
+                            city: [store::ExtDB] EXT_ADDRESS.CITY
+                        }
+                    )
+                    """, "store::ExtDB", "test::M");
+
+            // BASE_PERSON is from included BaseDB, accessible via ExtDB
+            var result = exec(model, "Person.all()->project([x|$x.name], ['name'])");
+            var names = colStr(result, 0);
+            assertEquals(2, names.size());
+            assertTrue(names.contains("Alice"));
+            assertTrue(names.contains("Bob"));
         }
 
         // --- Local Properties ---
@@ -1411,10 +1508,53 @@ class RelationalMappingIntegrationTest {
 
         // --- Association Mappings (Explicit) ---
 
-        @Test @Disabled("GAP: Association mappings not visited by builder")
-        @DisplayName("GAP: Explicit association mapping")
+        @Test
+        @DisplayName("Explicit association mapping wires join for navigation")
         void testExplicitAssociationMapping() throws SQLException {
-            // PersonFirm: AssociationMapping ( persons: [DB]@Firm_Person, firm: [DB]@Person_Firm )
+            sql("CREATE TABLE T_PERSON (ID INT, NAME VARCHAR(100), FIRM_ID INT)",
+                "CREATE TABLE T_FIRM (ID INT, LEGAL_NAME VARCHAR(100))",
+                "INSERT INTO T_FIRM VALUES (1, 'ACME'), (2, 'Globex')",
+                "INSERT INTO T_PERSON VALUES (10, 'Alice', 1), (20, 'Bob', 1), (30, 'Charlie', 2)");
+
+            String model = withRuntime("""
+                    Class test::Person { id: Integer[1]; name: String[1]; }
+                    Class test::Firm { id: Integer[1]; legalName: String[1]; }
+                    Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
+                    Database store::DB
+                    (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL, FIRM_ID INTEGER NOT NULL)
+                        Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100) NOT NULL)
+                        Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
+                    )
+                    Mapping test::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            id: [store::DB] T_PERSON.ID,
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                        Firm: Relational
+                        {
+                            ~mainTable [store::DB] T_FIRM
+                            id: [store::DB] T_FIRM.ID,
+                            legalName: [store::DB] T_FIRM.LEGAL_NAME
+                        }
+                        test::PersonFirm: AssociationMapping
+                        (
+                            employees: [store::DB]@PersonFirm,
+                            firm: [store::DB]@PersonFirm
+                        )
+                    )
+                    """, "store::DB", "test::M");
+
+            // Navigate Person -> firm via explicit association mapping
+            var result = exec(model, "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            assertEquals(3, result.rows().size());
+            var names = colStr(result, 0);
+            var firms = colStr(result, 1);
+            assertTrue(names.contains("Alice"));
+            assertTrue(firms.contains("ACME"));
         }
 
         // --- XStore ---
