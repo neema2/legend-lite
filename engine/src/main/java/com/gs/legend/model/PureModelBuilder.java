@@ -443,7 +443,7 @@ public final class PureModelBuilder implements ModelContext {
             // Create and register the mapping
             RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings,
                     false, setId, isRoot, distinct, filterName, filterDbName);
-            mappingRegistry.register(mapping);
+            mappingRegistry.register(mappingDef.qualifiedName(), mapping);
         }
 
         return this;
@@ -494,7 +494,7 @@ public final class PureModelBuilder implements ModelContext {
                         joinRefs,
                         null,  // targetClass — resolved later
                         null); // sourceMapping — resolved later
-        mappingRegistry.registerPureClassMapping(pureMapping);
+        mappingRegistry.registerPureClassMapping(mappingName, pureMapping);
     }
 
     /**
@@ -556,6 +556,28 @@ public final class PureModelBuilder implements ModelContext {
      */
     public Optional<Join> getJoin(String joinName) {
         return Optional.ofNullable(joins.get(joinName));
+    }
+
+    /**
+     * @param filterName The filter name (simple or qualified with db prefix)
+     * @return The Filter, if found
+     */
+    public Optional<Filter> getFilter(String filterName) {
+        return Optional.ofNullable(filters.get(filterName));
+    }
+
+    /**
+     * Resolves all mapping names from a runtime definition.
+     *
+     * @param runtimeName The runtime name
+     * @return The list of mapping names, or empty if no mappings defined
+     */
+    public java.util.List<String> resolveMappingNames(String runtimeName) {
+        RuntimeDefinition runtime = runtimes.get(runtimeName);
+        if (runtime == null || runtime.mappings() == null || runtime.mappings().isEmpty()) {
+            return java.util.List.of();
+        }
+        return runtime.mappings();
     }
 
     /**
@@ -687,7 +709,7 @@ public final class PureModelBuilder implements ModelContext {
     @Override
     public Optional<MappingExpression> findMappingExpression(String className) {
         return mappingRegistry.findPureClassMapping(className)
-                .map(pcm -> new MappingExpression(pcm.sourceClassName(),
+                .map(pcm -> new MappingExpression.M2M(pcm.sourceClassName(),
                         pcm.propertyExpressions(), pcm.filter()));
     }
 

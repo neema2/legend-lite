@@ -159,6 +159,7 @@ class M2M2RTabularTest {
             {
                 mappings:
                 [
+                    model::RawMapping,
                     model::PersonM2MMapping,
                     model::PersonViewMapping,
                     model::FilteredMapping,

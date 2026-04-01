@@ -1,13 +1,7 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.model.m3.PrimitiveType;
-import com.gs.legend.model.m3.Property;
-import com.gs.legend.model.m3.PureClass;
-import com.gs.legend.model.mapping.MappingRegistry;
-import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.store.Column;
-import com.gs.legend.model.store.PropertyMapping;
 import com.gs.legend.model.store.SqlDataType;
 import com.gs.legend.model.store.Table;
 import com.gs.legend.plan.GenericType;
@@ -38,16 +32,6 @@ class TypeCheckerTest {
             Column.nullable("HIRE_DATE", SqlDataType.DATE),
             Column.nullable("ACTIVE", SqlDataType.BOOLEAN)));
 
-    private static final PureClass PERSON_CLASS = new PureClass("model", "Person", List.of(
-            Property.required("firstName", PrimitiveType.STRING),
-            Property.required("lastName", PrimitiveType.STRING),
-            Property.required("age", PrimitiveType.INTEGER)));
-
-    private static final MappingRegistry registry = new MappingRegistry()
-            .register(new RelationalMapping(PERSON_CLASS, PERSON_TABLE, List.of(
-                    PropertyMapping.column("firstName", "FIRST_NAME"),
-                    PropertyMapping.column("lastName", "LAST_NAME"),
-                    PropertyMapping.column("age", "AGE"))));
 
     /** Minimal ModelContext wrapping the test registry. */
     private static final com.gs.legend.model.ModelContext testModel = new com.gs.legend.model.ModelContext() {

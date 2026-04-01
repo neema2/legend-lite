@@ -28,8 +28,8 @@ import java.util.stream.Collectors;
  * @param setId            Optional set implementation ID (null if default)
  * @param isRoot           Whether this is the root mapping for the class
  * @param distinct         Whether ~distinct is specified on this mapping
- * @param filterName       Optional named filter reference (null if none)
- * @param filterDatabaseName Optional database for the filter (null if none)
+ * @param filterName       Name of the ~filter (null if none)
+ * @param filterDbName     Database name qualifying the filter (null if none)
  */
 public record RelationalMapping(
         PureClass pureClass,
@@ -40,7 +40,7 @@ public record RelationalMapping(
         boolean isRoot,
         boolean distinct,
         String filterName,
-        String filterDatabaseName) implements ClassMapping {
+        String filterDbName) implements ClassMapping {
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
         this(pureClass, table, propertyMappings, false, null, false, false, null, null);

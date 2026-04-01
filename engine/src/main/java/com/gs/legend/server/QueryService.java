@@ -1,17 +1,12 @@
 package com.gs.legend.server;
 
-import com.gs.legend.compiler.MappingResolver;
-import com.gs.legend.compiler.TypeChecker;
-import com.gs.legend.compiler.TypeCheckResult;
 import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.exec.PlanExecutor;
 import com.gs.legend.model.PureModelBuilder;
-import com.gs.legend.parser.PureParser;
 import com.gs.legend.plan.PlanGenerator;
 import com.gs.legend.plan.SingleExecutionPlan;
 import com.gs.legend.serial.ResultSerializer;
 import com.gs.legend.serial.SerializerRegistry;
-import com.gs.legend.sqlgen.SQLDialect;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -39,7 +34,7 @@ public class QueryService {
             Connection connection) throws SQLException {
 
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        SingleExecutionPlan plan = generatePlan(model, query, runtimeName);
+        SingleExecutionPlan plan = PlanGenerator.generate(model, query, runtimeName);
 
         System.out.println("Pure Query: " + query);
         System.out.println("Generated SQL: " + plan.sql());
@@ -56,7 +51,7 @@ public class QueryService {
 
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
         Connection conn = model.resolveConnection(runtimeName);
-        SingleExecutionPlan plan = generatePlan(model, query, runtimeName);
+        SingleExecutionPlan plan = PlanGenerator.generate(model, query, runtimeName);
 
         System.out.println("Pure Query: " + query);
         System.out.println("Generated SQL: " + plan.sql());
@@ -87,29 +82,11 @@ public class QueryService {
             throws SQLException, IOException {
 
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        SingleExecutionPlan plan = generatePlan(model, query, runtimeName);
+        SingleExecutionPlan plan = PlanGenerator.generate(model, query, runtimeName);
         ExecutionResult result = PlanExecutor.execute(plan, connection);
 
         ResultSerializer serializer = SerializerRegistry.get(format);
         serializer.serialize(result, out);
     }
 
-    // ==================== Pipeline ====================
-
-    /**
-     * Full pipeline: parse → typecheck → resolve mappings → generate plan.
-     *
-     * <p>This is the single orchestration point. MappingResolver does its own
-     * registry lookups in a single AST walk. PlanGenerator receives
-     * pre-resolved StoreResolutions and does zero mapping work.
-     */
-    private SingleExecutionPlan generatePlan(PureModelBuilder model, String query,
-            String runtimeName) {
-        SQLDialect dialect = model.resolveDialect(runtimeName);
-        var vs = PureParser.parseQuery(query);
-        TypeCheckResult unit = new TypeChecker(model).check(vs);
-
-        var storeResolutions = new MappingResolver(unit, model.getMappingRegistry(), model).resolve();
-        return new PlanGenerator(unit, dialect, storeResolutions).generate();
-    }
 }

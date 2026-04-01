@@ -5,6 +5,7 @@ import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Join;
 import com.gs.legend.model.store.Table;
+import com.gs.legend.plan.GenericType;
 
 import java.util.Map;
 import java.util.Optional;
@@ -92,26 +93,50 @@ public interface ModelContext {
     }
 
     /**
-     * Compiler-visible view of an M2M mapping — expressions only, no routing info.
-     * Named MappingExpression because it's the DSL/expression side of a mapping
-     * (analogous to FunctionExpression, CastExpression in the IR).
-     * Generic enough for M2M today and relational DynaFunctions later.
+     * Compiler-visible view of a mapping — expressions only, no routing info.
+     * Sealed interface with two variants: M2M (Pure expression-based) and
+     * Relational (column-based with optional filter).
      *
-     * @param sourceClassName      The source class being mapped from (~src)
-     * @param propertyExpressions  Map of property name → pre-parsed AST expression
-     * @param filter               Optional filter expression (~filter)
+     * <p>TypeChecker sees this via {@link #findMappingExpression(String)}.
+     * MappingResolver never sees this — it uses ClassMapping directly.
      */
-    record MappingExpression(
-            String sourceClassName,
-            Map<String, ValueSpecification> propertyExpressions,
-            ValueSpecification filter) {}
+    sealed interface MappingExpression {
+
+        /**
+         * M2M (Pure) mapping: property expressions are Pure AST, compiled
+         * with {@code $src} as a ClassType instance.
+         *
+         * @param sourceClassName      The source class being mapped from (~src)
+         * @param propertyExpressions  Map of property name → pre-parsed AST expression
+         * @param filter               Optional filter expression (~filter)
+         */
+        record M2M(
+                String sourceClassName,
+                Map<String, ValueSpecification> propertyExpressions,
+                ValueSpecification filter) implements MappingExpression {}
+
+        /**
+         * Relational mapping: column-based with optional filter.
+         * Filter is compiled with {@code $row} typed by the table's column schema.
+         *
+         * @param className  The class being mapped
+         * @param schema     Column name → GenericType (from table definition)
+         * @param filter     Optional pre-converted ~filter expression (null if none)
+         * @param distinct   Whether ~distinct is specified
+         */
+        record Relational(
+                String className,
+                GenericType.Relation.Schema schema,
+                ValueSpecification filter,
+                boolean distinct) implements MappingExpression {}
+    }
 
     /**
-     * Finds the compiler-visible M2M expression mapping for a class.
-     * Returns only expressions and source class — no routing info (tables, columns, joins).
+     * Finds the compiler-visible mapping expression for a class.
+     * Returns only expressions — no routing info (tables, columns, joins).
      *
      * @param className Simple or qualified class name
-     * @return The mapping expression, if this class has an M2M (Pure) mapping
+     * @return The mapping expression, if this class has a mapping
      */
     default Optional<MappingExpression> findMappingExpression(String className) {
         return Optional.empty();

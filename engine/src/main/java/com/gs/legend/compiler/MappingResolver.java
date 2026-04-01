@@ -3,7 +3,6 @@ package com.gs.legend.compiler;
 import com.gs.legend.ast.*;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.mapping.PureClassMapping;
 import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
@@ -19,36 +18,36 @@ import java.util.Map;
  * Pass 3: Resolves mappings to physical store concepts.
  *
  * <p>Runs AFTER {@link TypeChecker} (Pass 2), BEFORE PlanGenerator (Pass 4).
- * Receives {@link MappingRegistry} directly — discovers and resolves mappings
- * in a single AST walk. No separate discovery phase needed.
+ * Receives {@link NormalizedMapping} — all M2M chains are pre-resolved,
+ * so this pass is purely read-only.
  *
  * <p>Produces a per-node {@link StoreResolution} sidecar with the same
  * IdentityHashMap pattern as TypeInfo.
  *
  * <h3>Pipeline</h3>
  * <pre>
- * PureParser → TypeChecker → MappingResolver → PlanGenerator
- *  (Pass 1)     (Pass 2)       (Pass 3)          (Pass 4)
+ * PureParser → MappingNormalizer → TypeChecker → MappingResolver → PlanGenerator
+ *  (Pass 1)      (Pass 1.5)         (Pass 2)       (Pass 3)          (Pass 4)
  * </pre>
  */
 public final class MappingResolver {
 
     private final TypeCheckResult typeResult;
     private final ModelContext modelContext;
-    private final MappingRegistry registry;
+    private final NormalizedMapping normalized;
     private final IdentityHashMap<ValueSpecification, StoreResolution> resolutions = new IdentityHashMap<>();
     private final java.util.Set<String> resolving = new java.util.HashSet<>();
 
     /**
      * @param typeResult   Typed AST from TypeChecker
-     * @param registry     MappingRegistry for class→mapping lookups
+     * @param normalized   Immutable mapping snapshot (from MappingNormalizer)
      * @param modelContext Model for class/association lookups
      */
-    public MappingResolver(TypeCheckResult typeResult, MappingRegistry registry,
+    public MappingResolver(TypeCheckResult typeResult, NormalizedMapping normalized,
                            ModelContext modelContext) {
         this.typeResult = typeResult;
         this.modelContext = modelContext;
-        this.registry = registry;
+        this.normalized = normalized;
     }
 
     /**
@@ -130,7 +129,7 @@ public final class MappingResolver {
             return null;
         }
         String className = TypeInfo.simpleName(fullPath);
-        ClassMapping mapping = registry.findAnyMapping(className).orElse(null);
+        ClassMapping mapping = normalized.findClassMapping(className).orElse(null);
         if (mapping == null) return null;
         return resolveClassMapping(mapping, className);
     }
@@ -183,34 +182,30 @@ public final class MappingResolver {
         Map<String, StoreResolution.JoinResolution> joins =
                 resolveAssociationJoins(className, rm);
 
+        // Resolved filter + distinct from NormalizedMapping (normalizer already converted ~filter)
+        var filterExpr = normalized.findMappingExpression(className)
+                .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
+                .map(e -> ((ModelContext.MappingExpression.Relational) e).filter())
+                .orElse(null);
+
         resolving.remove(className);
         return new StoreResolution(
                 tableName, propToCol, properties, joins,
-                null, rm.nested());
+                filterExpr, rm.nested(), rm.distinct());
     }
 
-    private StoreResolution resolveM2M(PureClassMapping original) {
-        // Resolve source chain and link into this PureClassMapping
-        ClassMapping sourceMapping = resolveM2MSource(original);
-        PureClassMapping resolved = original;
-        if (sourceMapping != null) {
-            PureClass targetClass = modelContext.findClass(original.targetClassName())
-                    .orElseThrow(() -> new PureCompileException(
-                            "MappingResolver: M2M target class '"
-                                    + original.targetClassName() + "' not found"));
-            resolved = original.withResolved(targetClass, sourceMapping);
-            registry.updatePureClassMapping(original.targetClassName(), resolved);
-        }
-
-        StoreResolution sourceResolution = sourceMapping != null
-                ? resolveClassMapping(sourceMapping, resolved.sourceClassName())
+    private StoreResolution resolveM2M(PureClassMapping pcm) {
+        // M2M chains are pre-resolved by MappingNormalizer —
+        // pcm.sourceMapping() is already set.
+        StoreResolution sourceResolution = pcm.sourceMapping() != null
+                ? resolveClassMapping(pcm.sourceMapping(), pcm.sourceClassName())
                 : null;
 
-        String tableName = resolved.sourceTable().name();
+        String tableName = pcm.sourceTable().name();
         Map<String, String> propToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
 
-        for (var entry : resolved.propertyExpressions().entrySet()) {
+        for (var entry : pcm.propertyExpressions().entrySet()) {
             String prop = entry.getKey();
             properties.put(prop, new StoreResolution.PropertyResolution.M2MExpression(
                     entry.getValue(), sourceResolution));
@@ -219,37 +214,11 @@ public final class MappingResolver {
 
         // Resolve M2M join references
         Map<String, StoreResolution.JoinResolution> joins =
-                resolveM2MJoinReferences(resolved);
+                resolveM2MJoinReferences(pcm);
 
         return new StoreResolution(
                 tableName, propToCol, properties, joins,
-                resolved.filter(), false);
-    }
-
-    // ==================== M2M Source Chain ====================
-
-    /**
-     * Resolves the source mapping for an M2M class, recursively if chained.
-     */
-    private ClassMapping resolveM2MSource(PureClassMapping pcm) {
-        String sourceClassName = pcm.sourceClassName();
-        ClassMapping srcMapping = registry.findAnyMapping(sourceClassName).orElse(null);
-        if (srcMapping == null) return null;
-
-        if (srcMapping instanceof PureClassMapping srcPcm) {
-            // Recursive: resolve the inner chain first
-            ClassMapping innerSrc = resolveM2MSource(srcPcm);
-            if (innerSrc != null) {
-                PureClass targetClass = modelContext.findClass(srcPcm.targetClassName())
-                        .orElseThrow(() -> new PureCompileException(
-                                "MappingResolver: M2M target class '"
-                                        + srcPcm.targetClassName() + "' not found"));
-                var resolved = srcPcm.withResolved(targetClass, innerSrc);
-                registry.updatePureClassMapping(srcPcm.targetClassName(), resolved);
-                return resolved;
-            }
-        }
-        return srcMapping;
+                pcm.filter(), false);
     }
 
     // ==================== Association / Join Resolution ====================
@@ -271,7 +240,7 @@ public final class MappingResolver {
             String targetClassName = nav.targetClassName();
             // Skip back-references to avoid infinite recursion (Person→Address→Person)
             if (resolving.contains(targetClassName)) continue;
-            ClassMapping targetMapping = registry.findAnyMapping(targetClassName).orElse(null);
+            ClassMapping targetMapping = normalized.findClassMapping(targetClassName).orElse(null);
             if (targetMapping == null) continue;
 
             Join join = nav.join();
@@ -319,7 +288,7 @@ public final class MappingResolver {
             String propName = entry.getKey();
             String joinName = entry.getValue();
 
-            Join join = registry.findJoin(joinName).orElse(null);
+            Join join = normalized.findJoin(joinName).orElse(null);
             if (join == null) continue;
 
             // Find the target class from the PureClass property
@@ -332,22 +301,9 @@ public final class MappingResolver {
             String targetClassName = prop.genericType().typeName();
             boolean isToMany = !prop.multiplicity().isSingular();
 
-            ClassMapping targetMapping = registry.findAnyMapping(targetClassName).orElse(null);
+            // NormalizedMapping already resolved M2M chains
+            ClassMapping targetMapping = normalized.findClassMapping(targetClassName).orElse(null);
             if (targetMapping == null) continue;
-
-            // If target is M2M, resolve its source chain
-            if (targetMapping instanceof PureClassMapping targetPcm) {
-                ClassMapping srcMapping = resolveM2MSource(targetPcm);
-                if (srcMapping != null) {
-                    PureClass tgtClass = modelContext.findClass(targetPcm.targetClassName())
-                            .orElseThrow(() -> new PureCompileException(
-                                    "MappingResolver: M2M target class '"
-                                            + targetPcm.targetClassName() + "' not found"));
-                    targetMapping = targetPcm.withResolved(tgtClass, srcMapping);
-                    registry.updatePureClassMapping(targetPcm.targetClassName(),
-                            (PureClassMapping) targetMapping);
-                }
-            }
 
             StoreResolution targetResolution = resolveClassMapping(targetMapping, targetClassName);
             String targetTable = targetMapping.sourceTable().name();

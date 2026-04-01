@@ -13,9 +13,12 @@ import java.util.List;
  * Checker for {@code getAll()}.
  *
  * <p>Returns ClassType[*] for both relational and M2M mappings.
- * For M2M, type-checks property expressions against the source PureClass
- * via {@link MappingExpression} (no routing info, no registry access).
- * Chain resolution and physical mapping are handled by MappingResolver.
+ * Dispatches on {@link MappingExpression} variant:
+ * <ul>
+ *   <li>{@link MappingExpression.M2M}: type-checks property expressions with $src as ClassType</li>
+ *   <li>{@link MappingExpression.Relational}: type-checks filter with $row as Relation row</li>
+ * </ul>
+ * No registry access — only ModelContext.findMappingExpression().
  */
 public class GetAllChecker extends AbstractChecker {
 
@@ -37,11 +40,13 @@ public class GetAllChecker extends AbstractChecker {
         }
         String className = TypeInfo.simpleName(fullPath);
 
-        // M2M? Compile expressions against source PureClass
-        var mapExpr = env.modelContext().findMappingExpression(className).orElse(null);
-        if (mapExpr != null) {
-            compileMappingExpressions(mapExpr);
-        }
+        // Compile mapping-level expressions (filter, property expressions, etc.)
+        env.modelContext().findMappingExpression(className).ifPresent(mapExpr -> {
+            switch (mapExpr) {
+                case MappingExpression.M2M m2m -> compileM2MExpressions(m2m);
+                case MappingExpression.Relational rel -> compileRelationalExpressions(rel);
+            }
+        });
 
         // Always return ClassType[*] — same for relational and M2M
         return TypeInfo.builder()
@@ -55,24 +60,35 @@ public class GetAllChecker extends AbstractChecker {
      * Uses withLambdaParam("src", ClassType) — $src is a class instance,
      * resolved via compileProperty's existing ClassType path (findClass → findProperty).
      */
-    private void compileMappingExpressions(MappingExpression mapExpr) {
+    private void compileM2MExpressions(MappingExpression.M2M m2m) {
         // Recursively compile source chain (if source is also M2M)
-        var sourceExpr = env.modelContext().findMappingExpression(mapExpr.sourceClassName()).orElse(null);
-        if (sourceExpr != null) {
-            compileMappingExpressions(sourceExpr);
-        }
+        env.modelContext().findMappingExpression(m2m.sourceClassName())
+                .ifPresent(src -> { if (src instanceof MappingExpression.M2M srcM2M) compileM2MExpressions(srcM2M); });
 
         // $src is a class instance — use the existing ClassType property resolution path.
-        // compileProperty resolves $src.prop via PureClass.findProperty() + associations.
         var srcCtx = new TypeChecker.CompilationContext()
-                .withLambdaParam("src", new GenericType.ClassType(mapExpr.sourceClassName()));
+                .withLambdaParam("src", new GenericType.ClassType(m2m.sourceClassName()));
 
         // Compile each property expression + filter
-        for (var expr : mapExpr.propertyExpressions().values()) {
+        for (var expr : m2m.propertyExpressions().values()) {
             env.compileExpr(expr, srcCtx);
         }
-        if (mapExpr.filter() != null) {
-            env.compileExpr(mapExpr.filter(), srcCtx);
+        if (m2m.filter() != null) {
+            env.compileExpr(m2m.filter(), srcCtx);
         }
+    }
+
+    /**
+     * Compiles relational mapping-level expressions (filter, future: groupBy, primaryKey).
+     * These are ValueSpecs produced by MappingNormalizer from RelationalOperation AST.
+     * Uses withRelationType to bind $row with the table's column schema.
+     */
+    private void compileRelationalExpressions(MappingExpression.Relational rel) {
+        if (rel.filter() == null) return;
+
+        var rowCtx = new TypeChecker.CompilationContext()
+                .withRelationType("row", rel.schema());
+
+        env.compileExpr(rel.filter(), rowCtx);
     }
 }

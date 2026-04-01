@@ -267,6 +267,8 @@ class M2MIntegrationTest {
             {
                 mappings:
                 [
+                    model::RawMapping,
+                    model::AddressM2MMapping,
                     model::PersonM2MMapping,
                     model::ConditionalMapping,
                     model::FilteredMapping,

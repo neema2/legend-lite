@@ -1235,20 +1235,75 @@ class RelationalMappingIntegrationTest {
 
         // --- Mapping ~filter ---
 
-        @Test @Disabled("GAP: ~filter directive ignored by builder")
-        @DisplayName("GAP: Mapping-level filter")
+        @Test
+        @DisplayName("Mapping-level ~filter adds WHERE clause to all queries")
         void testMappingFilter() throws SQLException {
             sql("CREATE TABLE PEOPLE (ID INT, NAME VARCHAR(100), ACTIVE INT)",
                 "INSERT INTO PEOPLE VALUES (1, 'Alice', 1), (2, 'Bob', 0), (3, 'Charlie', 1)");
-            // ~filter [DB] ActiveFilter should add WHERE ACTIVE = 1 to all queries
+
+            String model = withRuntime("""
+                    Class test::Person { id: Integer[1]; name: String[1]; active: Integer[1]; }
+                    Database test::DB
+                    (
+                        Table PEOPLE (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL, ACTIVE INTEGER NOT NULL)
+                        Filter ActiveFilter(PEOPLE.ACTIVE = 1)
+                    )
+                    Mapping test::M
+                    (
+                        Person: Relational
+                        {
+                            ~filter [test::DB] ActiveFilter
+                            ~mainTable [test::DB] PEOPLE
+                            id: [test::DB] PEOPLE.ID,
+                            name: [test::DB] PEOPLE.NAME,
+                            active: [test::DB] PEOPLE.ACTIVE
+                        }
+                    )
+                    """, "test::DB", "test::M");
+
+            // All 3 rows in table, but filter should only return ACTIVE = 1
+            var result = exec(model, "Person.all()->project([x|$x.name], ['name'])");
+            var names = colStr(result, 0);
+            assertEquals(2, names.size());
+            assertTrue(names.contains("Alice"));
+            assertTrue(names.contains("Charlie"));
+            assertFalse(names.contains("Bob"));
         }
 
         // --- Mapping ~distinct ---
 
-        @Test @Disabled("GAP: ~distinct directive ignored by builder")
-        @DisplayName("GAP: Mapping-level distinct")
+        @Test
+        @DisplayName("Mapping-level ~distinct adds DISTINCT to generated SQL")
         void testMappingDistinct() throws SQLException {
-            // ~distinct should add DISTINCT to generated SQL
+            sql("CREATE TABLE TAGS (ID INT, TAG VARCHAR(100))",
+                "INSERT INTO TAGS VALUES (1, 'java'), (2, 'sql'), (3, 'java'), (4, 'sql'), (5, 'rust')");
+
+            String model = withRuntime("""
+                    Class test::Tag { id: Integer[1]; tag: String[1]; }
+                    Database test::DB
+                    (
+                        Table TAGS (ID INTEGER PRIMARY KEY, TAG VARCHAR(100) NOT NULL)
+                    )
+                    Mapping test::M
+                    (
+                        Tag: Relational
+                        {
+                            ~distinct
+                            ~mainTable [test::DB] TAGS
+                            id: [test::DB] TAGS.ID,
+                            tag: [test::DB] TAGS.TAG
+                        }
+                    )
+                    """, "test::DB", "test::M");
+
+            // 5 rows with duplicates on tag — ~distinct means DISTINCT on all generated SELECTs
+            var result = exec(model, "Tag.all()->project([x|$x.tag], ['tag'])");
+            var tags = colStr(result, 0);
+            // DISTINCT collapses to 3 unique tag values: java, sql, rust
+            assertEquals(3, tags.size());
+            assertTrue(tags.contains("java"));
+            assertTrue(tags.contains("sql"));
+            assertTrue(tags.contains("rust"));
         }
 
         // --- Set IDs and Root Markers ---

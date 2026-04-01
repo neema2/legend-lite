@@ -21,8 +21,9 @@ import java.util.Map;
  * @param propertyToColumn Pure property name → physical column name (simple mappings)
  * @param properties       Per-property resolution descriptors (handles expression, enum, M2M)
  * @param joins            Association property → join resolution
- * @param filterExpr       Pre-parsed ~filter expression from mapping (null if none)
+ * @param filterExpr       Pre-compiled ~filter expression (null if none). Unified path for both M2M and relational filters.
  * @param nested           True for struct-literal identity mappings (nested field access)
+ * @param distinct         Whether ~distinct is specified on this mapping
  */
 public record StoreResolution(
         String tableName,
@@ -30,7 +31,19 @@ public record StoreResolution(
         Map<String, PropertyResolution> properties,
         Map<String, JoinResolution> joins,
         ValueSpecification filterExpr,
-        boolean nested) {
+        boolean nested,
+        boolean distinct) {
+
+    /** Constructor without distinct (defaults to false). */
+    public StoreResolution(
+            String tableName,
+            Map<String, String> propertyToColumn,
+            Map<String, PropertyResolution> properties,
+            Map<String, JoinResolution> joins,
+            ValueSpecification filterExpr,
+            boolean nested) {
+        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, false);
+    }
 
     /**
      * How a single property resolves to a physical store element.

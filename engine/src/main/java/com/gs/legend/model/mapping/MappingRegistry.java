@@ -1,122 +1,90 @@
 package com.gs.legend.model.mapping;
 
-import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Join;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Registry for holding relational and M2M mappings.
- * Thread-safe and designed for runtime lookup of class-to-table mappings.
+ * Build-time accumulator for mappings and joins.
+ *
+ * <p>PureModelBuilder writes here during parsing. After parsing,
+ * <b>MappingNormalizer</b> reads scoped maps ({@link #getAllClassMappings})
+ * and joins ({@link #getAllJoins}) to produce an immutable {@code NormalizedMapping}
+ * snapshot. MappingResolver reads from NormalizedMapping, not from this class.
+ *
+ * <p>All maps are plain HashMaps — this is single-threaded build-time code.
  */
 public final class MappingRegistry {
 
-    private final Map<String, RelationalMapping> mappingsByClassName;
-    private final Map<String, RelationalMapping> mappingsByTableName;
-    private final Map<String, PureClassMapping> pureClassMappingsByTargetClass;
-    private final Map<String, Join> joinsByName;
+    // Flat maps — class name → mapping (searched across all scopes)
+    private final Map<String, RelationalMapping> relationalByClass = new HashMap<>();
+    private final Map<String, PureClassMapping> pureByTargetClass = new HashMap<>();
+    private final Map<String, Join> joinsByName = new HashMap<>();
 
-    public MappingRegistry() {
-        this.mappingsByClassName = new ConcurrentHashMap<>();
-        this.mappingsByTableName = new ConcurrentHashMap<>();
-        this.pureClassMappingsByTargetClass = new ConcurrentHashMap<>();
-        this.joinsByName = new ConcurrentHashMap<>();
-    }
+    // Scoped maps — mappingName → (className → mapping)
+    private final Map<String, Map<String, RelationalMapping>> scopedRelational = new HashMap<>();
+    private final Map<String, Map<String, PureClassMapping>> scopedPure = new HashMap<>();
+
+    // ==================== Registration (PureModelBuilder) ====================
 
     /**
-     * Registers a relational mapping.
-     * Registers by both qualified name and simple name for flexible lookup.
-     * 
-     * @param mapping The mapping to register
-     * @return this registry for fluent API
+     * Registers a relational mapping under a mapping name scope and flat index.
      */
-    public MappingRegistry register(RelationalMapping mapping) {
-        String qualifiedClassName = mapping.pureClass().qualifiedName();
-        String simpleClassName = mapping.pureClass().name();
-        String tableKey = mapping.table().qualifiedName();
+    public void register(String mappingName, RelationalMapping mapping) {
+        String qualifiedName = mapping.pureClass().qualifiedName();
+        String simpleName = mapping.pureClass().name();
 
-        // Register by both qualified and simple name
-        mappingsByClassName.put(qualifiedClassName, mapping);
-        mappingsByClassName.put(simpleClassName, mapping);
-        mappingsByTableName.put(tableKey, mapping);
+        // Scoped
+        var scope = scopedRelational.computeIfAbsent(mappingName, k -> new HashMap<>());
+        scope.put(qualifiedName, mapping);
+        scope.put(simpleName, mapping);
 
-        return this;
+        // Flat
+        relationalByClass.put(qualifiedName, mapping);
+        relationalByClass.put(simpleName, mapping);
     }
 
-
-
     /**
-     * Registers a PureClassMapping (clean AST, replaces M2M).
+     * Registers a PureClassMapping under a mapping name scope and flat index.
      */
-    public MappingRegistry registerPureClassMapping(PureClassMapping mapping) {
-        pureClassMappingsByTargetClass.put(mapping.targetClassName(), mapping);
-        return this;
+    public void registerPureClassMapping(String mappingName, PureClassMapping mapping) {
+        // Scoped
+        var scope = scopedPure.computeIfAbsent(mappingName, k -> new HashMap<>());
+        scope.put(mapping.targetClassName(), mapping);
+
+        // Flat
+        pureByTargetClass.put(mapping.targetClassName(), mapping);
     }
 
     /**
-     * Looks up a PureClassMapping by target class name.
+     * Registers a Join by name.
      */
-    public Optional<PureClassMapping> findPureClassMapping(String targetClassName) {
-        return Optional.ofNullable(pureClassMappingsByTargetClass.get(targetClassName));
+    public void registerJoin(Join join) {
+        joinsByName.put(join.name(), join);
     }
 
-    /**
-     * Finds any ClassMapping (relational or M2M) by class name.
-     * Checks relational mappings first, then PureClassMappings.
-     */
-    public Optional<ClassMapping> findAnyMapping(String className) {
-        RelationalMapping rm = mappingsByClassName.get(className);
-        if (rm != null) return Optional.of(rm);
-        PureClassMapping pcm = pureClassMappingsByTargetClass.get(className);
-        if (pcm != null) return Optional.of(pcm);
-        return Optional.empty();
-    }
+    // ==================== Flat Lookups (PureModelBuilder) ====================
 
     /**
-     * Updates a PureClassMapping with a resolved version (e.g., after chain resolution).
-     */
-    public void updatePureClassMapping(String targetClassName, PureClassMapping resolved) {
-        pureClassMappingsByTargetClass.put(targetClassName, resolved);
-    }
-
-    /**
-     * Looks up a mapping by Pure class name.
-     * 
-     * @param className The fully qualified class name
-     * @return Optional containing the mapping if found
+     * Finds a relational mapping by class name.
      */
     public Optional<RelationalMapping> findByClassName(String className) {
-        return Optional.ofNullable(mappingsByClassName.get(className));
+        return Optional.ofNullable(relationalByClass.get(className));
     }
 
     /**
-     * Looks up a mapping by Pure class.
-     * 
-     * @param pureClass The Pure class
-     * @return Optional containing the mapping if found
+     * Finds a PureClassMapping by target class name.
      */
-    public Optional<RelationalMapping> findByClass(PureClass pureClass) {
-        return findByClassName(pureClass.qualifiedName());
+    public Optional<PureClassMapping> findPureClassMapping(String targetClassName) {
+        return Optional.ofNullable(pureByTargetClass.get(targetClassName));
     }
 
     /**
-     * Looks up a mapping by table name.
-     * 
-     * @param tableName The fully qualified table name
-     * @return Optional containing the mapping if found
-     */
-    public Optional<RelationalMapping> findByTableName(String tableName) {
-        return Optional.ofNullable(mappingsByTableName.get(tableName));
-    }
-
-
-
-    /**
-     * @param className The fully qualified class name
-     * @return The mapping
-     * @throws IllegalArgumentException if no mapping exists
+     * Gets a relational mapping or throws.
+     * Used by legacy tests — prefer findByClassName for production code.
      */
     public RelationalMapping getByClassName(String className) {
         return findByClassName(className)
@@ -125,70 +93,30 @@ public final class MappingRegistry {
     }
 
     /**
-     * @return Number of registered relational mappings
-     */
-    public int size() {
-        return mappingsByClassName.size();
-    }
-
-
-
-    // ==================== Join Registration ====================
-
-    /**
-     * Registers a Join by name.
-     * 
-     * @param join The Join to register
-     * @return this registry for fluent API
-     */
-    public MappingRegistry registerJoin(Join join) {
-        joinsByName.put(join.name(), join);
-        return this;
-    }
-
-    /**
-     * Looks up a Join by name.
-     * 
-     * @param joinName The join name
-     * @return Optional containing the Join if found
+     * Finds a Join by name.
      */
     public Optional<Join> findJoin(String joinName) {
         return Optional.ofNullable(joinsByName.get(joinName));
     }
 
+    // ==================== Scoped Lookups (MappingNormalizer) ====================
+
     /**
-     * Gets a Join or throws.
-     * 
-     * @param joinName The join name
-     * @return The Join
-     * @throws IllegalArgumentException if no join exists
+     * Returns all class mappings (relational + M2M) under a mapping name.
      */
-    public Join getJoin(String joinName) {
-        return findJoin(joinName)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "No join found with name: " + joinName));
+    public Map<String, ClassMapping> getAllClassMappings(String mappingName) {
+        Map<String, ClassMapping> result = new LinkedHashMap<>();
+        var relScope = scopedRelational.get(mappingName);
+        if (relScope != null) result.putAll(relScope);
+        var pureScope = scopedPure.get(mappingName);
+        if (pureScope != null) result.putAll(pureScope);
+        return result;
     }
 
     /**
-     * Finds a Join that connects two tables (by name, in either direction).
+     * Returns all registered joins.
      */
-    public Optional<Join> findJoinBetweenTables(String table1, String table2) {
-        for (Join join : joinsByName.values()) {
-            if ((join.leftTable().equals(table1) && join.rightTable().equals(table2))
-                    || (join.leftTable().equals(table2) && join.rightTable().equals(table1))) {
-                return Optional.of(join);
-            }
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * Clears all registered mappings.
-     */
-    public void clear() {
-        mappingsByClassName.clear();
-        mappingsByTableName.clear();
-        pureClassMappingsByTargetClass.clear();
-        joinsByName.clear();
+    public Map<String, Join> getAllJoins() {
+        return Map.copyOf(joinsByName);
     }
 }

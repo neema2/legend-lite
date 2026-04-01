@@ -66,11 +66,14 @@ public class PlanGenerator {
             com.gs.legend.model.PureModelBuilder model,
             String query, String runtimeName) {
         SQLDialect dialect = model.resolveDialect(runtimeName);
+        var mappingNames = model.resolveMappingNames(runtimeName);
+        var normalizer = new com.gs.legend.compiler.MappingNormalizer(model, mappingNames);
+
         var vs = com.gs.legend.parser.PureParser.parseQuery(query);
-        var unit = new TypeChecker(model).check(vs);
+        var unit = new TypeChecker(normalizer.modelContext()).check(vs);
 
         var storeResolutions = new com.gs.legend.compiler.MappingResolver(
-                unit, model.getMappingRegistry(), model).resolve();
+                unit, normalizer.normalizedMapping(), model).resolve();
         return new PlanGenerator(unit, dialect, storeResolutions).generate();
     }
 
@@ -422,9 +425,24 @@ public class PlanGenerator {
         }
         String tableName = store.tableName();
         String alias = nextTableAlias();
-        return new SqlBuilder()
+        var builder = new SqlBuilder()
                 .selectStar()
                 .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier(alias));
+
+        // Apply relational mapping ~filter as WHERE clause.
+        // M2M filters (sourceResolution != null) are handled in generateGraphFetch.
+        if (store.hasFilter() && store.sourceResolution() == null) {
+            SqlExpr whereClause = generateScalar(
+                    store.filterExpr(), "$row", null, unquote(alias));
+            builder.addWhere(whereClause);
+        }
+
+        // Apply mapping-level ~distinct
+        if (store.distinct()) {
+            builder.distinct();
+        }
+
+        return builder;
     }
 
     /**
