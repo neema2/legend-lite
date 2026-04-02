@@ -31,6 +31,7 @@ public class TableReferenceChecker extends AbstractChecker {
         Table table = resolveTable(tableRef);
         GenericType.Relation.Schema schema = tableToSchema(table);
         return TypeInfo.builder()
+                .resolvedTableName(table.name())
                 .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
                 .build();
     }

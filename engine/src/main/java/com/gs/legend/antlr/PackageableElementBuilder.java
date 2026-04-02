@@ -1072,7 +1072,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             firstJoinType = joinSeqCtx.identifier().getText();
         }
         String firstJoinName = joinSeqCtx.joinPointer().identifier().getText();
-        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, null));
+        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, null, false));
 
         // Subsequent joins: > (joinType)? databasePointer? @joinName
         for (var fullCtx : joinSeqCtx.joinPointerFull()) {
@@ -1083,7 +1083,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             String hopDb = fullCtx.databasePointer() != null
                     ? fullCtx.databasePointer().qualifiedName().getText() : null;
             String joinName = fullCtx.joinPointer().identifier().getText();
-            chain.add(new com.gs.legend.model.def.JoinChainElement(joinName, joinType, hopDb));
+            chain.add(new com.gs.legend.model.def.JoinChainElement(joinName, joinType, hopDb, false));
         }
 
         // Optional terminal after PIPE
@@ -1302,7 +1302,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 if (dbName != null && !joinChain.isEmpty() && joinChain.get(0).databaseName() == null) {
                     var first = joinChain.get(0);
                     joinChain.set(0, new com.gs.legend.model.def.JoinChainElement(
-                            first.joinName(), first.joinType(), dbName));
+                            first.joinName(), first.joinType(), dbName, first.strict()));
                 }
             }
 
@@ -1724,7 +1724,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             firstJoinType = ctx.identifier().getText();
         }
         String firstJoinName = ctx.mappingJoinPointer().identifier().getText();
-        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, null));
+        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, null, false));
 
         // Subsequent joins: > (joinType)? databasePointer? @joinName
         for (PureParser.MappingJoinPointerFullContext fullCtx : ctx.mappingJoinPointerFull()) {
@@ -1735,7 +1735,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             String hopDb = fullCtx.databasePointer() != null
                     ? fullCtx.databasePointer().qualifiedName().getText() : null;
             String joinName = fullCtx.mappingJoinPointer().identifier().getText();
-            chain.add(new com.gs.legend.model.def.JoinChainElement(joinName, joinType, hopDb));
+            chain.add(new com.gs.legend.model.def.JoinChainElement(joinName, joinType, hopDb, false));
         }
 
         return chain;
@@ -1909,7 +1909,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         if (databaseName != null && !chain.isEmpty() && chain.get(0).databaseName() == null) {
             var first = chain.get(0);
             chain.set(0, new com.gs.legend.model.def.JoinChainElement(
-                    first.joinName(), first.joinType(), databaseName));
+                    first.joinName(), first.joinType(), databaseName, first.strict()));
         }
 
         // Optional terminal column after PIPE

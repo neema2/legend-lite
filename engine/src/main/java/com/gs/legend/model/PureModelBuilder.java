@@ -479,10 +479,28 @@ public final class PureModelBuilder implements ModelContext {
                 }
             }
 
-            // Build property mappings (skip join references - handled separately)
+            // Build property mappings:
+            // - Bare join references (no terminal column) are skipped — handled as associations
+            // - Join references WITH terminal columns become join-chain PropertyMappings
             List<PropertyMapping> propertyMappings = classMapping.propertyMappings().stream()
-                    .filter(pm -> !pm.isJoinReference()) // Skip association join references
+                    .filter(pm -> !pm.isJoinReference()
+                            || pm.joinReference().terminalColumn() != null)
                     .map(pm -> {
+                        // Join chain property mapping: @J1 > @J2 | T.COL
+                        if (pm.isJoinReference() && pm.joinReference().terminalColumn() != null) {
+                            var joinRef = pm.joinReference();
+                            var terminal = joinRef.terminalColumn();
+                            String terminalCol;
+                            if (terminal instanceof com.gs.legend.model.def.RelationalOperation.ColumnRef cr) {
+                                terminalCol = cr.column();
+                            } else {
+                                terminalCol = pm.propertyName();
+                            }
+                            List<String> joinNames = joinRef.joinChain().stream()
+                                    .map(com.gs.legend.model.def.JoinChainElement::joinName)
+                                    .toList();
+                            return PropertyMapping.joinChain(pm.propertyName(), terminalCol, joinNames);
+                        }
                         if (pm.isExpression()) {
                             // Expression-based mapping (e.g., PAYLOAD->get('price', @Integer))
                             String colName = extractColumnNameFromExpression(pm.expressionString());

@@ -43,22 +43,31 @@ public class ExtendChecker extends AbstractChecker {
         // compileOverClause validates each sub-component (ascending, rows, unbounded, etc.)
         // individually via resolveOverload — no top-level over() resolution needed.
         TypeInfo.OverSpec overSpec = null;
+        TypeInfo.TraversalSpec traversalSpec = null;
+        GenericType.Relation.Schema colSpecSchema = sourceSchema;
         for (int i = 1; i < params.size(); i++) {
-            if (params.get(i) instanceof AppliedFunction paf
-                    && "over".equals(simpleName(paf.function()))) {
-                overSpec = compileOverClause(paf, sourceSchema);
-                break;
+            if (params.get(i) instanceof AppliedFunction paf) {
+                String fn = simpleName(paf.function());
+                if ("over".equals(fn)) {
+                    overSpec = compileOverClause(paf, sourceSchema);
+                } else if ("traverse".equals(fn)) {
+                    var result = compileTraverseClause(paf, sourceSchema, ctx);
+                    traversalSpec = result.spec;
+                    colSpecSchema = result.terminalSchema;
+                }
             }
         }
 
         // --- Compile each ColSpec/ColSpecArray ---
+        // When traverse is present, colSpecSchema is the terminal table's schema
+        // so the colSpec lambda param binds to the terminal columns, not source.
         for (int i = 1; i < params.size(); i++) {
             var p = params.get(i);
-            if (p instanceof AppliedFunction) continue; // over() — already handled
+            if (p instanceof AppliedFunction) continue; // over()/traverse() — already handled
             if (p instanceof ClassInstance ci) {
                 List<ColSpec> colSpecs = extractColSpecs(ci);
                 for (ColSpec cs : colSpecs) {
-                    var result = compileColSpec(cs, sourceSchema, source, ctx, overSpec, def);
+                    var result = compileColSpec(cs, colSpecSchema, source, ctx, overSpec, def);
                     if (newColumns.containsKey(result.alias)) {
                         throw new PureCompileException(
                                 "extend(): column '" + result.alias
@@ -73,10 +82,13 @@ public class ExtendChecker extends AbstractChecker {
         }
 
         var schema = new GenericType.Relation.Schema(newColumns, sourceSchema.dynamicPivotColumns());
-        return TypeInfo.builder()
+        var builder = TypeInfo.builder()
                 .windowSpecs(windowSpecs)
-                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
-                .build();
+                .expressionType(ExpressionType.one(new GenericType.Relation(schema)));
+        if (traversalSpec != null) {
+            builder.traversalSpec(traversalSpec);
+        }
+        return builder.build();
     }
 
     // ========== Public helpers for PlanGenerator ==========
@@ -380,6 +392,98 @@ public class ExtendChecker extends AbstractChecker {
             case CURRENT_ROW -> 0;
             case OFFSET -> bound.offset();
         };
+    }
+
+    // ========== Traverse clause compilation ==========
+
+    private record TraverseResult(TypeInfo.TraversalSpec spec,
+                                   GenericType.Relation.Schema terminalSchema) {}
+
+    private record HopParts(ValueSpecification target, LambdaFunction condition) {}
+
+    /**
+     * Compiles a traverse() clause: flattens the chain, resolves each hop's target table,
+     * type-checks each condition lambda, and builds a TraversalSpec.
+     */
+    private TraverseResult compileTraverseClause(AppliedFunction traverseAf,
+                                                  GenericType.Relation.Schema sourceSchema,
+                                                  TypeChecker.CompilationContext ctx) {
+        List<HopParts> hopParts = new ArrayList<>();
+        flattenTraverseChain(traverseAf, hopParts);
+
+        List<TypeInfo.TraversalHop> hops = new ArrayList<>();
+        GenericType.Relation.Schema prevSchema = sourceSchema;
+
+        for (HopParts parts : hopParts) {
+            // Compile target via normal pipeline (TableReferenceChecker)
+            TypeInfo targetInfo = env.compileExpr(parts.target, ctx);
+            GenericType.Relation.Schema targetSchema = targetInfo.schema();
+            if (targetSchema == null) {
+                throw new PureCompileException(
+                        "traverse() target must be a Relation with a known schema");
+            }
+            String tableName = targetInfo.resolvedTableName();
+            if (tableName == null) {
+                throw new PureCompileException(
+                        "traverse() target must be a tableReference() with a resolved table name");
+            }
+
+            LambdaFunction condLambda = parts.condition;
+            if (condLambda.parameters().size() != 2) {
+                throw new PureCompileException(
+                        "traverse() condition lambda must have exactly 2 parameters (prev, hop), got "
+                                + condLambda.parameters().size());
+            }
+
+            String prevParam = condLambda.parameters().get(0).name();
+            String hopParam = condLambda.parameters().get(1).name();
+
+            TypeChecker.CompilationContext lambdaCtx = ctx
+                    .withLambdaParam(prevParam, new GenericType.Tuple(prevSchema))
+                    .withLambdaParam(hopParam, new GenericType.Tuple(targetSchema));
+
+            compileLambdaBody(condLambda, lambdaCtx);
+
+            hops.add(new TypeInfo.TraversalHop(
+                    tableName, condLambda.body().get(0), prevParam, hopParam));
+            prevSchema = targetSchema;
+        }
+
+        return new TraverseResult(new TypeInfo.TraversalSpec(hops), prevSchema);
+    }
+
+    /**
+     * Recursively flattens a traverse chain into ordered hop parts.
+     * Standalone: traverse(target, cond) → 1 hop.
+     * Chained: traverse(traverse(...), target, cond) → N hops (recursive).
+     */
+    private void flattenTraverseChain(AppliedFunction traverseAf, List<HopParts> out) {
+        var params = traverseAf.parameters();
+        if (params.size() == 2) {
+            // Standalone: traverse(target, cond)
+            if (!(params.get(1) instanceof LambdaFunction)) {
+                throw new PureCompileException(
+                        "traverse(): second parameter must be a condition lambda");
+            }
+            out.add(new HopParts(params.get(0), (LambdaFunction) params.get(1)));
+        } else if (params.size() == 3) {
+            // Chained: traverse(prevTraverse, target, cond)
+            if (!(params.get(0) instanceof AppliedFunction inner
+                    && "traverse".equals(simpleName(inner.function())))) {
+                throw new PureCompileException(
+                        "traverse(): chained form requires a traverse() as first parameter");
+            }
+            flattenTraverseChain(inner, out);
+            if (!(params.get(2) instanceof LambdaFunction)) {
+                throw new PureCompileException(
+                        "traverse(): third parameter must be a condition lambda");
+            }
+            out.add(new HopParts(params.get(1), (LambdaFunction) params.get(2)));
+        } else {
+            throw new PureCompileException(
+                    "traverse() requires 2 (standalone) or 3 (chained) parameters, got "
+                            + params.size());
+        }
     }
 
     // ========== Shared utilities ==========

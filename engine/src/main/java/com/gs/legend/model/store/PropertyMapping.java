@@ -10,11 +10,13 @@ import java.util.regex.Pattern;
 /**
  * Maps a Pure property to a relational column or expression.
  * 
- * Supports three modes:
+ * Supports four modes:
  * 1. Simple column mapping: propertyName -> columnName
  * 2. Expression mapping: propertyName -> expression (e.g.,
  * PAYLOAD->get('price', @Integer))
  * 3. Enum column mapping: propertyName -> CASE WHEN column=val1 THEN enum1 ...
+ * 4. Join chain mapping: propertyName -> @J1 > @J2 | T.COL (column on remote table
+ *    reachable through joins). Future: >> enforces 1-to-1 via scalar subquery.
  * 
  * @param propertyName     The Pure property name (e.g., "price")
  * @param columnName       The relational column name (e.g., "PRICE" or
@@ -23,13 +25,16 @@ import java.util.regex.Pattern;
  * @param enumMapping      Map from enum value name to list of db values (null
  *                         if not enum)
  * @param enumType         The enum type name (null if not enum)
+ * @param joinChain        Ordered list of join names to traverse (null for local column mappings).
+ *                         When present, columnName is the terminal column on the final joined table.
  */
 public record PropertyMapping(
         String propertyName,
         String columnName,
         String expressionString,
         Map<String, List<Object>> enumMapping,
-        String enumType) {
+        String enumType,
+        List<String> joinChain) {
     public PropertyMapping {
         Objects.requireNonNull(propertyName, "Property name cannot be null");
         Objects.requireNonNull(columnName, "Column name cannot be null");
@@ -40,27 +45,30 @@ public record PropertyMapping(
         if (columnName.isBlank()) {
             throw new IllegalArgumentException("Column name cannot be blank");
         }
+        if (joinChain != null) {
+            joinChain = List.copyOf(joinChain);
+        }
     }
 
     /**
      * Creates a simple column mapping.
      */
     public PropertyMapping(String propertyName, String columnName) {
-        this(propertyName, columnName, null, null, null);
+        this(propertyName, columnName, null, null, null, null);
     }
 
     /**
      * Creates a simple column mapping.
      */
     public static PropertyMapping column(String propertyName, String columnName) {
-        return new PropertyMapping(propertyName, columnName, null, null, null);
+        return new PropertyMapping(propertyName, columnName, null, null, null, null);
     }
 
     /**
      * Creates an expression-based mapping.
      */
     public static PropertyMapping expression(String propertyName, String columnName, String expression) {
-        return new PropertyMapping(propertyName, columnName, expression, null, null);
+        return new PropertyMapping(propertyName, columnName, expression, null, null, null);
     }
 
     /**
@@ -73,7 +81,21 @@ public record PropertyMapping(
      */
     public static PropertyMapping enumColumn(String propertyName, String columnName,
             String enumType, Map<String, List<Object>> enumMapping) {
-        return new PropertyMapping(propertyName, columnName, null, Map.copyOf(enumMapping), enumType);
+        return new PropertyMapping(propertyName, columnName, null, Map.copyOf(enumMapping), enumType, null);
+    }
+
+    /**
+     * Creates a join chain mapping: property value comes from a column on a remote table
+     * reachable through the given join chain.
+     * Pure syntax: {@code prop: [DB]@J1 > @J2 | T.COL}
+     *
+     * @param propertyName The property name
+     * @param columnName   The terminal column name on the final joined table
+     * @param joinNames    Ordered list of join names to traverse
+     */
+    public static PropertyMapping joinChain(String propertyName, String columnName,
+            List<String> joinNames) {
+        return new PropertyMapping(propertyName, columnName, null, null, null, joinNames);
     }
 
     /**
@@ -88,6 +110,13 @@ public record PropertyMapping(
      */
     public boolean hasEnumMapping() {
         return enumMapping != null && !enumMapping.isEmpty();
+    }
+
+    /**
+     * @return true if this property uses a join chain mapping
+     */
+    public boolean hasJoinChain() {
+        return joinChain != null && !joinChain.isEmpty();
     }
 
     /**

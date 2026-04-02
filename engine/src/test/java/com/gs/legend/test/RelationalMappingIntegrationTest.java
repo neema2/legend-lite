@@ -869,6 +869,328 @@ class RelationalMappingIntegrationTest {
         }
     }
 
+    // ==================== 9b. Traverse (Relation API) ====================
+
+    @Nested
+    @DisplayName("9b. Traverse — extend(traverse(), colSpec)")
+    class TraverseTests {
+
+        @BeforeEach
+        void setup() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INT)",
+                "CREATE TABLE T_DEPT (ID INT PRIMARY KEY, NAME VARCHAR(50), ORG_ID INT)",
+                "CREATE TABLE T_ORG (ID INT PRIMARY KEY, NAME VARCHAR(100))",
+                "INSERT INTO T_ORG VALUES (1, 'Acme Corp'), (2, 'Globex')",
+                "INSERT INTO T_DEPT VALUES (1, 'Engineering', 1), (2, 'Sales', 1), (3, 'Research', 2)",
+                // Dave has DEPT_ID=999 (no match) → LEFT JOIN produces NULLs
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 3), (4, 'Dave', 999)");
+        }
+
+        private String traverseModel() {
+            return withRuntime("""
+                    Class model::Dummy { x: String[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
+                        Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                        Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                    )
+                    Mapping model::M ( Dummy: Relational { ~mainTable [store::DB] T_PERSON x: [store::DB] T_PERSON.NAME } )
+                    """, "store::DB", "model::M");
+        }
+
+        // --- Basic traverse ---
+
+        @Test @DisplayName("Single-hop traverse: Person → Dept")
+        void testSingleHopTraverse() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->select(~[NAME, deptName])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            var depts = colStr(r, 1);
+            assertEquals("Engineering", depts.get(names.indexOf("Alice")));
+            assertEquals("Sales", depts.get(names.indexOf("Bob")));
+            assertEquals("Research", depts.get(names.indexOf("Charlie")));
+        }
+
+        @Test @DisplayName("Multi-hop traverse: Person → Dept → Org")
+        void testMultiHopTraverse() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->select(~[NAME, orgName])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            var orgs = colStr(r, 1);
+            assertEquals("Acme Corp", orgs.get(names.indexOf("Alice")));
+            assertEquals("Acme Corp", orgs.get(names.indexOf("Bob")));
+            assertEquals("Globex", orgs.get(names.indexOf("Charlie")));
+        }
+
+        @Test @DisplayName("Multi-column ColSpecArray from same traversal")
+        void testMultiColumnTraverse() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~[deptName:t|$t.NAME, deptId:t|$t.ID])->select(~[NAME, deptName, deptId])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            var depts = colStr(r, 1);
+            var deptIds = colInt(r, 2);
+            assertEquals("Engineering", depts.get(names.indexOf("Alice")));
+            assertEquals(Integer.valueOf(1), deptIds.get(names.indexOf("Alice")));
+            assertEquals("Research", depts.get(names.indexOf("Charlie")));
+            assertEquals(Integer.valueOf(3), deptIds.get(names.indexOf("Charlie")));
+        }
+
+        // --- LEFT JOIN NULL (no matching FK) ---
+
+        @Test @DisplayName("LEFT JOIN: unmatched FK produces NULL")
+        void testTraverseLeftJoinNull() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->select(~[NAME, deptName])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            var depts = colStr(r, 1);
+            // Dave has DEPT_ID=999 → no match → NULL
+            assertNull(depts.get(names.indexOf("Dave")));
+        }
+
+        @Test @DisplayName("Multi-hop LEFT JOIN: NULL propagates through chain")
+        void testMultiHopLeftJoinNull() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->select(~[NAME, orgName])->from(test::RT)");
+            var names = colStr(r, 0);
+            var orgs = colStr(r, 1);
+            assertNull(orgs.get(names.indexOf("Dave")));
+        }
+
+        // --- Traverse + filter ---
+
+        @Test @DisplayName("Filter on traversed column")
+        void testTraverseThenFilter() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->filter(x|$x.deptName == 'Engineering')->select(~[NAME, deptName])->from(test::RT)");
+            assertEquals(1, r.rowCount());
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Engineering", colStr(r, 1).get(0));
+        }
+
+        @Test @DisplayName("Filter on multi-hop traversed column")
+        void testMultiHopTraverseThenFilter() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->filter(x|$x.orgName == 'Globex')->select(~[NAME])->from(test::RT)");
+            assertEquals(1, r.rowCount());
+            assertEquals("Charlie", colStr(r, 0).get(0));
+        }
+
+        @Test @DisplayName("Filter on source column after traverse")
+        void testTraverseFilterOnSourceColumn() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->filter(x|$x.NAME == 'Alice')->select(~[NAME, deptName])->from(test::RT)");
+            assertEquals(1, r.rowCount());
+            assertEquals("Engineering", colStr(r, 1).get(0));
+        }
+
+        // --- Traverse + sort ---
+
+        @Test @DisplayName("Sort by traversed column")
+        void testTraverseThenSort() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->sort(~deptName->ascending())->select(~[NAME, deptName])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var depts = colStr(r, 1);
+            // DuckDB: NULLS LAST for ASC → Engineering, Research, Sales, NULL
+            assertEquals("Engineering", depts.get(0));
+            assertEquals("Research", depts.get(1));
+            assertEquals("Sales", depts.get(2));
+            assertNull(depts.get(3));
+        }
+
+        // --- Traverse + filter + sort ---
+
+        @Test @DisplayName("Traverse + filter + sort combined")
+        void testTraverseFilterSort() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->filter(x|$x.orgName == 'Acme Corp')->sort(~NAME->ascending())->select(~[NAME, orgName])->from(test::RT)");
+            assertEquals(2, r.rowCount());
+            assertEquals(List.of("Alice", "Bob"), colStr(r, 0));
+        }
+
+        // --- Traverse + limit/take ---
+
+        @Test @DisplayName("Traverse + sort + limit")
+        void testTraverseSortLimit() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->sort(~NAME->ascending())->limit(2)->select(~[NAME, deptName])->from(test::RT)");
+            assertEquals(2, r.rowCount());
+            assertEquals(List.of("Alice", "Bob"), colStr(r, 0));
+        }
+
+        // --- Traverse + groupBy ---
+
+        @Test @DisplayName("GroupBy on traversed column with count")
+        void testTraverseGroupBy() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->groupBy(~orgName, ~cnt:x|$x.NAME:y|$y->count())->sort(~orgName->ascending())->from(test::RT)");
+            // DuckDB ASC NULLS LAST: Acme Corp=2, Globex=1, NULL=1
+            assertEquals(3, r.rowCount());
+            var orgs = colStr(r, 0);
+            var counts = colInt(r, 1);
+            assertEquals("Acme Corp", orgs.get(0));
+            assertEquals(Integer.valueOf(2), counts.get(0));
+            assertEquals("Globex", orgs.get(1));
+            assertEquals(Integer.valueOf(1), counts.get(1));
+        }
+
+        // --- Traverse + select (project only traversed columns) ---
+
+        @Test @DisplayName("Select only traversed columns")
+        void testTraverseSelectOnlyTraversedCols() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~[deptName:t|$t.NAME, deptOrgId:t|$t.ORG_ID])->select(~[deptName, deptOrgId])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            assertEquals(2, r.columnCount());
+            assertEquals("deptName", r.columns().get(0).name());
+            assertEquals("deptOrgId", r.columns().get(1).name());
+        }
+
+        // --- Multiple independent traversals ---
+
+        @Test @DisplayName("Two independent traverse extends on same source")
+        void testTwoIndependentTraversals() throws SQLException {
+            // First extend: Person → Dept (deptName)
+            // Second extend: Person → Dept → Org (orgName)
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->select(~[NAME, deptName, orgName])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            var depts = colStr(r, 1);
+            var orgs = colStr(r, 2);
+            assertEquals("Engineering", depts.get(names.indexOf("Alice")));
+            assertEquals("Acme Corp", orgs.get(names.indexOf("Alice")));
+            assertEquals("Research", depts.get(names.indexOf("Charlie")));
+            assertEquals("Globex", orgs.get(names.indexOf("Charlie")));
+        }
+
+        // --- Traverse + extend (computed column on traversed data) ---
+
+        @Test @DisplayName("Extend computed column using traversed column")
+        void testTraverseThenExtendComputed() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptId:t|$t.ID)->extend(~deptIdDoubled:x|$x.deptId * 2)->select(~[NAME, deptId, deptIdDoubled])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            var deptIds = colInt(r, 1);
+            var doubled = colInt(r, 2);
+            int aliceIdx = names.indexOf("Alice");
+            assertEquals(Integer.valueOf(1), deptIds.get(aliceIdx));
+            assertEquals(Integer.valueOf(2), doubled.get(aliceIdx));
+        }
+
+        @Test @DisplayName("Scalar extend THEN traverse (inlined column preserved)")
+        void testScalarExtendThenTraverse() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(~idDoubled:x|$x.ID * 2)->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->select(~[NAME, idDoubled, deptName])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            var doubled = colInt(r, 1);
+            var depts = colStr(r, 2);
+            int aliceIdx = names.indexOf("Alice");
+            assertEquals(Integer.valueOf(2), doubled.get(aliceIdx));
+            assertEquals("Engineering", depts.get(aliceIdx));
+        }
+
+        // --- Compound (non-equi) join conditions ---
+
+        @Test @DisplayName("Compound condition: equi-join AND filter in ON clause")
+        void testTraverseCompoundCondition() throws SQLException {
+            // Join person→dept WHERE dept ID matches AND dept is in org > 1 (Globex only)
+            // Alice(dept=1,org=1)→NULL, Bob(dept=2,org=1)→NULL, Charlie(dept=3,org=2)→Research
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID && $hop.ORG_ID > 1}), ~deptName:t|$t.NAME)->select(~[NAME, deptName])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            var depts = colStr(r, 1);
+            assertEquals("Research", depts.get(names.indexOf("Charlie")));
+            assertNull(depts.get(names.indexOf("Alice")));
+            assertNull(depts.get(names.indexOf("Bob")));
+        }
+
+        @Test @DisplayName("Non-equi join: range condition")
+        void testTraverseNonEquiJoin() throws SQLException {
+            // Join person→dept WHERE person.ID >= dept.ID (1-to-many: row expansion)
+            // Alice(1): dept 1 only; Bob(2): dept 1,2; Charlie(3): dept 1,2,3; Dave(4): dept 1,2,3
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.ID >= $hop.ID}), ~deptName:t|$t.NAME)->groupBy(~NAME, ~cnt:x|$x.deptName:y|$y->count())->sort(~NAME->ascending())->from(test::RT)");
+            var names = colStr(r, 0);
+            var counts = colInt(r, 1);
+            assertEquals(Integer.valueOf(1), counts.get(names.indexOf("Alice")));
+            assertEquals(Integer.valueOf(2), counts.get(names.indexOf("Bob")));
+            assertEquals(Integer.valueOf(3), counts.get(names.indexOf("Charlie")));
+        }
+
+        // --- Interleaved operations between traversals ---
+
+        @Test @DisplayName("Traverse → filter → traverse (filter between two traversals)")
+        void testTraverseFilterTraverse() throws SQLException {
+            // First: add deptName via traverse
+            // Then: filter to Engineering only
+            // Then: add orgName via second traverse chain
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->filter(x|$x.deptName == 'Engineering')" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->select(~[NAME, deptName, orgName])->from(test::RT)");
+            assertEquals(1, r.rowCount());
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Engineering", colStr(r, 1).get(0));
+            assertEquals("Acme Corp", colStr(r, 2).get(0));
+        }
+
+        @Test @DisplayName("Traverse → sort → traverse (sort between two traversals)")
+        void testTraverseSortTraverse() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->sort(~NAME->ascending())" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->select(~[NAME, deptName, orgName])->from(test::RT)");
+            assertEquals(4, r.rowCount());
+            // Sorted by NAME ascending: Alice, Bob, Charlie, Dave
+            assertEquals(List.of("Alice", "Bob", "Charlie", "Dave"), colStr(r, 0));
+            assertEquals("Acme Corp", colStr(r, 2).get(0)); // Alice→Acme
+            assertEquals("Globex", colStr(r, 2).get(2)); // Charlie→Globex
+        }
+
+        // --- GroupBy aggregating traversed columns ---
+
+        @Test @DisplayName("GroupBy source col, aggregate traversed col (sum)")
+        void testGroupBySourceAggregateTraversed() throws SQLException {
+            // Bring in deptId via traverse, then sum it grouped by name
+            // Each person has one dept, so sum = their dept ID
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptOrgId:t|$t.ORG_ID)->groupBy(~NAME, ~totalOrgId:x|$x.deptOrgId:y|$y->sum())->sort(~NAME->ascending())->from(test::RT)");
+            var names = colStr(r, 0);
+            var sums = colInt(r, 1);
+            // Alice→dept 1 (ORG_ID=1), Bob→dept 2 (ORG_ID=1), Charlie→dept 3 (ORG_ID=2)
+            assertEquals(Integer.valueOf(1), sums.get(names.indexOf("Alice")));
+            assertEquals(Integer.valueOf(1), sums.get(names.indexOf("Bob")));
+            assertEquals(Integer.valueOf(2), sums.get(names.indexOf("Charlie")));
+        }
+
+        @Test @DisplayName("GroupBy traversed col, aggregate source col (sum of person IDs per org)")
+        void testGroupByTraversedAggregateSource() throws SQLException {
+            var r = exec(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->groupBy(~orgName, ~totalId:x|$x.ID:y|$y->sum())->sort(~orgName->ascending())->from(test::RT)");
+            // Acme Corp: Alice(1)+Bob(2)=3, Globex: Charlie(3)=3, NULL: Dave(4)=4
+            assertEquals(3, r.rowCount());
+            var orgs = colStr(r, 0);
+            var sums = colInt(r, 1);
+            assertEquals(Integer.valueOf(3), sums.get(orgs.indexOf("Acme Corp")));
+            assertEquals(Integer.valueOf(3), sums.get(orgs.indexOf("Globex")));
+        }
+    }
+
     // ==================== 10. Multi-Table Databases ====================
 
     @Nested
@@ -1196,6 +1518,59 @@ class RelationalMappingIntegrationTest {
             var r = exec(m, "Person.all()->project(~[name:p|$p.name, org:p|$p.dept.org.name])");
             assertEquals(3, r.rowCount());
             for (var row : r.rows()) assertEquals("Acme Corp", row.get(1).toString());
+        }
+
+        // --- Join Chain Property Mappings (@J1 > @J2 | T.COL) ---
+
+        @Test
+        @DisplayName("Join chain property mapping: Person.orgName via @Person_Dept > @Dept_Org | T_ORG.NAME")
+        void testJoinChainPropertyMapping() throws SQLException {
+            setupBasicTables();
+            String m = withRuntime("""
+                    Class model::Person { name: String[1]; orgName: String[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER, MANAGER_ID INTEGER)
+                        Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                        Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                        Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
+                        Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
+                    )
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            orgName: [store::DB] @Person_Dept > @Dept_Org | T_ORG.NAME
+                        }
+                    )
+                    """, "store::DB", "model::M");
+            var r = exec(m, "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+            assertEquals(3, r.rowCount());
+            for (var row : r.rows()) assertEquals("Acme Corp", row.get(1).toString());
+        }
+
+        @Test
+        @DisplayName("Join chain property mapping with filter")
+        void testJoinChainPropertyMappingFilter() throws SQLException {
+            setupBasicTables();
+            String m = withRuntime("""
+                    Class model::Person { name: String[1]; orgName: String[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER, MANAGER_ID INTEGER)
+                        Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                        Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                        Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
+                        Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
+                    )
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            orgName: [store::DB] @Person_Dept > @Dept_Org | T_ORG.NAME
+                        }
+                    )
+                    """, "store::DB", "model::M");
+            var r = exec(m, "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
+            assertEquals(3, r.rowCount());
         }
 
         // --- Self-Joins ---
@@ -2616,7 +2991,7 @@ class RelationalMappingIntegrationTest {
                     """, "store::DB", "model::M");
         }
 
-        @Test @Disabled("GAP: 2-hop association chain (Emp→Dept→Company) — compiler can't resolve 'company' property through chained navigation")
+        @Test // was @Disabled — testing 2-hop chain
         @DisplayName("Employee with department and company (2 joins)")
         void testEmpDeptCompany() throws SQLException {
             var r = exec(model, "Emp.all()->project(~[name:e|$e.name, dept:e|$e.dept.name, company:e|$e.dept.company.name])");
@@ -2627,7 +3002,7 @@ class RelationalMappingIntegrationTest {
             assertEquals("Beta Ltd", empCompany.get("Charlie"));
         }
 
-        @Test @Disabled("GAP: 2-hop association chain — compiler can't resolve chained association properties")
+        @Test // was @Disabled — 2-hop filter fixed with multi-hop EXISTS
         @DisplayName("Filter on company country, project employee name")
         void testFilterCompanyProjectEmp() throws SQLException {
             var r = exec(model, "Emp.all()->filter({e|$e.dept.company.country == 'USA'})->project(~[name:e|$e.name])");
@@ -2648,7 +3023,7 @@ class RelationalMappingIntegrationTest {
             assertEquals(2, r.rowCount()); // Alice and Diana
         }
 
-        @Test @Disabled("GAP: 2-hop association chain — compiler can't resolve chained association properties")
+        @Test // was @Disabled — 2-hop chain works now
         @DisplayName("Total salary per company")
         void testTotalSalPerCompany() throws SQLException {
             var r = exec(model,

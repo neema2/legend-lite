@@ -551,7 +551,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("partial overlap — only overlapping columns get prefix")
+        @DisplayName("prefix renames ALL right-side columns (not just overlapping)")
         void testPartialOverlapPrefix() throws SQLException {
             var result = executeRelation("""
                     #TDS
@@ -570,10 +570,10 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                     )""");
             var colNames = result.columns().stream().map(c -> c.name()).toList();
             assertTrue(colNames.contains("id"), "Left id kept");
-            assertTrue(colNames.contains("right_id"), "Overlapping right id prefixed");
-            assertTrue(colNames.contains("score"), "Non-overlapping score not prefixed");
+            assertTrue(colNames.contains("right_id"), "Right id prefixed");
+            assertTrue(colNames.contains("right_score"), "Right score also prefixed");
             assertTrue(colNames.contains("name"), "Left name kept");
-            var byName = collectResults(result, "name", "score");
+            var byName = collectResults(result, "name", "right_score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(85L, ((Number) byName.get("Bob")).longValue());
         }
@@ -625,7 +625,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                     )""");
             assertEquals(2, result.rowCount(),
                     "Alice(eng-eng) and Bob(sales-sales); Charlie eng≠marketing");
-            var byName = collectResults(result, "name", "level");
+            var byName = collectResults(result, "name", "right_level");
             assertEquals("senior", byName.get("Alice"));
             assertEquals("junior", byName.get("Bob"));
             assertFalse(byName.containsKey("Charlie"), "Charlie's dept doesn't match");

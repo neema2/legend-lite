@@ -9,7 +9,6 @@ import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Filter;
 import com.gs.legend.model.store.Join;
-import com.gs.legend.plan.GenericType;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -108,10 +107,9 @@ public final class MappingNormalizer {
                 expressions.put(className, new ModelContext.MappingExpression.M2M(
                         pcm.sourceClassName(), pcm.propertyExpressions(), pcm.filter()));
             } else if (cm instanceof RelationalMapping rm) {
-                var filterExpr = resolveRelationalFilter(rm);
-                var schema = buildSchemaFromTable(rm);
+                var sourceRelation = synthesizeSourceRelation(rm);
                 expressions.put(className, new ModelContext.MappingExpression.Relational(
-                        className, schema, filterExpr, rm.distinct()));
+                        className, sourceRelation));
             }
         }
 
@@ -163,16 +161,179 @@ public final class MappingNormalizer {
         return pcm.withResolved(targetClass, sourceMapping);
     }
 
-    // ==================== Relational Filter Resolution ====================
+    // ==================== Source Relation Synthesis ====================
 
     /**
-     * Resolves a relational mapping's ~filter reference to a ValueSpecification.
-     * Returns null if no filter is defined.
+     * Synthesizes a sourceRelation ValueSpecification for a RelationalMapping.
+     * This is the single source of truth for the mapping's data source.
+     *
+     * <p>Canonical ordering:
+     * <ol>
+     *   <li>tableReference("db.TABLE") — base table</li>
+     *   <li>→filter(lambda) — ~filter condition (if any)</li>
+     *   <li>→join(...) — property mapping join chains (LEFT OUTER)</li>
+     *   <li>→distinct() — ~distinct (if set)</li>
+     * </ol>
      */
-    private com.gs.legend.ast.ValueSpecification resolveRelationalFilter(RelationalMapping rm) {
-        if (rm.filterName() == null) return null;
+    private com.gs.legend.ast.ValueSpecification synthesizeSourceRelation(RelationalMapping rm) {
+        // 1. Base: tableReference("db.TABLE")
+        String tableName = rm.table().name();
+        com.gs.legend.ast.ValueSpecification source = new com.gs.legend.ast.AppliedFunction(
+                "tableReference",
+                java.util.List.of(new com.gs.legend.ast.CString(tableName)),
+                false);
 
-        // Look up the filter by name, trying qualified (db.filterName) first
+        // 2. ~filter → ->filter({row | <condition>})
+        if (rm.filterName() != null) {
+            var filterBody = resolveFilterCondition(rm);
+            if (filterBody != null) {
+                var lambda = new com.gs.legend.ast.LambdaFunction(
+                        java.util.List.of(new com.gs.legend.ast.Variable("row")),
+                        filterBody);
+                source = new com.gs.legend.ast.AppliedFunction(
+                        "filter",
+                        java.util.List.of(source, lambda),
+                        true);
+            }
+        }
+
+        // 3. Property mapping join chains → ->extend(traverse(...), ~[colSpecs])
+        source = addTraverseExtends(rm, source);
+
+        // 4. ~distinct → ->distinct()
+        if (rm.distinct()) {
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "distinct",
+                    java.util.List.of(source),
+                    true);
+        }
+
+        return source;
+    }
+
+    /**
+     * Groups join-chain property mappings by their chain path and synthesizes
+     * {@code ->extend(traverse(...), ~[prop:t|$t.COL])} for each unique chain.
+     *
+     * <p>Properties sharing the same join chain path are grouped into a single
+     * extend call with multiple colSpecs. Different chains get separate extends.
+     */
+    private com.gs.legend.ast.ValueSpecification addTraverseExtends(
+            RelationalMapping rm,
+            com.gs.legend.ast.ValueSpecification source) {
+
+        // Group join-chain properties by their full chain path
+        var chainGroups = new LinkedHashMap<java.util.List<String>,
+                java.util.List<com.gs.legend.model.store.PropertyMapping>>();
+        for (var pm : rm.propertyMappings()) {
+            if (!pm.hasJoinChain()) continue;
+            chainGroups.computeIfAbsent(pm.joinChain(), k -> new java.util.ArrayList<>()).add(pm);
+        }
+
+        if (chainGroups.isEmpty()) return source;
+
+        String mainTable = rm.table().name();
+
+        for (var entry : chainGroups.entrySet()) {
+            java.util.List<String> chainNames = entry.getKey();
+            var props = entry.getValue();
+
+            // Build traverse chain
+            var traverseExpr = buildTraverseChain(mainTable, chainNames);
+
+            // Build colSpecs: ~[prop1:t|$t.COL1, prop2:t|$t.COL2]
+            var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
+            for (var pm : props) {
+                var lambda = new com.gs.legend.ast.LambdaFunction(
+                        java.util.List.of(new com.gs.legend.ast.Variable("t")),
+                        new com.gs.legend.ast.AppliedProperty(
+                                pm.columnName(),
+                                java.util.List.of(new com.gs.legend.ast.Variable("t"))));
+                colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda));
+            }
+
+            // Wrap in ClassInstance
+            com.gs.legend.ast.ClassInstance colSpecCI;
+            if (colSpecs.size() == 1) {
+                colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpecs.get(0));
+            } else {
+                colSpecCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
+                        new com.gs.legend.ast.ColSpecArray(colSpecs));
+            }
+
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "extend",
+                    java.util.List.of(source, traverseExpr, colSpecCI),
+                    true);
+        }
+
+        return source;
+    }
+
+    /**
+     * Builds a traverse chain from join definitions:
+     * {@code traverse(T_DEPT, {prev,hop|...})->traverse(T_ORG, {prev,hop|...})}
+     */
+    private com.gs.legend.ast.ValueSpecification buildTraverseChain(
+            String startTable, java.util.List<String> joinNames) {
+
+        String currentTable = startTable;
+        com.gs.legend.ast.ValueSpecification traverseExpr = null;
+
+        for (String joinName : joinNames) {
+            Join join = model.findJoin(joinName)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Join not found: " + joinName));
+
+            String rightTable = join.getOtherTable(currentTable);
+            String leftCol = join.getColumnForTable(currentTable);
+            String rightCol = join.getColumnForTable(rightTable);
+
+            var targetRef = new com.gs.legend.ast.AppliedFunction(
+                    "tableReference",
+                    java.util.List.of(new com.gs.legend.ast.CString(rightTable)),
+                    false);
+
+            var condBody = new com.gs.legend.ast.AppliedFunction(
+                    "equal",
+                    java.util.List.of(
+                            new com.gs.legend.ast.AppliedProperty(
+                                    leftCol,
+                                    java.util.List.of(new com.gs.legend.ast.Variable("prev"))),
+                            new com.gs.legend.ast.AppliedProperty(
+                                    rightCol,
+                                    java.util.List.of(new com.gs.legend.ast.Variable("hop")))));
+            var condLambda = new com.gs.legend.ast.LambdaFunction(
+                    java.util.List.of(
+                            new com.gs.legend.ast.Variable("prev"),
+                            new com.gs.legend.ast.Variable("hop")),
+                    condBody);
+
+            if (traverseExpr == null) {
+                // Standalone: traverse(target, cond)
+                traverseExpr = new com.gs.legend.ast.AppliedFunction(
+                        "traverse",
+                        java.util.List.of(targetRef, condLambda),
+                        false);
+            } else {
+                // Chained: traverse(prev, target, cond)
+                traverseExpr = new com.gs.legend.ast.AppliedFunction(
+                        "traverse",
+                        java.util.List.of(traverseExpr, targetRef, condLambda),
+                        false);
+            }
+
+            currentTable = rightTable;
+        }
+
+        return traverseExpr;
+    }
+
+    /**
+     * Resolves a ~filter name to a ValueSpecification condition body.
+     * Returns null if the filter is not found.
+     */
+    private com.gs.legend.ast.ValueSpecification resolveFilterCondition(RelationalMapping rm) {
         Filter filter = null;
         if (rm.filterDbName() != null) {
             filter = model.getFilter(rm.filterDbName() + "." + rm.filterName()).orElse(null);
@@ -180,25 +341,11 @@ public final class MappingNormalizer {
         if (filter == null) {
             filter = model.getFilter(rm.filterName()).orElse(null);
         }
-
         if (filter == null) {
             throw new IllegalStateException(
                     "Filter '" + rm.filterName() + "' not found for mapping of "
                             + rm.pureClass().qualifiedName());
         }
-
-        // Convert RelationalOperation → ValueSpecification
         return RelationalMappingConverter.convert(filter.condition());
-    }
-
-    /**
-     * Builds a Relation Schema from the table's columns for typing filter expressions.
-     */
-    private GenericType.Relation.Schema buildSchemaFromTable(RelationalMapping rm) {
-        Map<String, GenericType> columns = new LinkedHashMap<>();
-        for (var col : rm.table().columns()) {
-            columns.put(col.name(), col.dataType().toGenericType());
-        }
-        return new GenericType.Relation.Schema(columns, java.util.List.of());
     }
 }

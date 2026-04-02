@@ -411,7 +411,7 @@ public record MappingDefinition(
          */
         public JoinReference(String databaseName, String joinName) {
             this(databaseName,
-                    List.of(new JoinChainElement(joinName, null, databaseName)),
+                    List.of(new JoinChainElement(joinName, null, databaseName, false)),
                     null);
         }
 

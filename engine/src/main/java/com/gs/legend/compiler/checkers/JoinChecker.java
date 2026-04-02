@@ -96,8 +96,11 @@ public class JoinChecker extends AbstractChecker {
      * Applies right-prefix renaming by mutating the V binding in-place.
      * Returns the rename map (original → prefixed) for PlanGenerator.
      *
+     * <p>When a prefix is provided, ALL right-side columns are renamed to
+     * {@code prefix_originalName}. This makes output column names fully
+     * deterministic — no conflict detection needed.
+     *
      * <p>If no prefix is provided and there are duplicate columns, throws.
-     * If no duplicates exist, the V binding is unchanged.
      */
     private Map<String, String> applyPrefixToBindings(
             Bindings bindings,
@@ -105,38 +108,27 @@ public class JoinChecker extends AbstractChecker {
             GenericType.Relation.Schema rightSchema,
             String rightPrefix) {
 
-        // Detect duplicate columns between left and right
-        Set<String> leftColNames = leftSchema.columns().keySet();
-        Set<String> duplicates = new LinkedHashSet<>();
-        for (String name : rightSchema.columns().keySet()) {
-            if (leftColNames.contains(name)) {
-                duplicates.add(name);
+        if (rightPrefix == null) {
+            // No prefix: check for duplicates
+            Set<String> leftColNames = leftSchema.columns().keySet();
+            for (String name : rightSchema.columns().keySet()) {
+                if (leftColNames.contains(name)) {
+                    throw new PureCompileException(
+                            "Join produces duplicate column '" + name
+                                    + "'. Supply a right-side prefix parameter to disambiguate: "
+                                    + "->join(right, JoinType.INNER, {l, r | ...}, 'prefix')");
+                }
             }
-        }
-
-        if (duplicates.isEmpty()) {
             return Map.of();
         }
 
-        if (rightPrefix == null) {
-            throw new PureCompileException(
-                    "Join produces duplicate columns " + duplicates
-                            + ". Supply a right-side prefix parameter to disambiguate: "
-                            + "->join(right, JoinType.INNER, {l, r | ...}, 'prefix')");
-        }
-
-        // Build prefixed schema for V
+        // Prefix provided: rename ALL right-side columns to prefix_name
         Map<String, GenericType> prefixedColumns = new LinkedHashMap<>();
         Map<String, String> renames = new LinkedHashMap<>();
         for (var entry : rightSchema.columns().entrySet()) {
-            String name = entry.getKey();
-            if (duplicates.contains(name)) {
-                String prefixed = rightPrefix + "_" + name;
-                prefixedColumns.put(prefixed, entry.getValue());
-                renames.put(name, prefixed);
-            } else {
-                prefixedColumns.put(name, entry.getValue());
-            }
+            String prefixed = rightPrefix + "_" + entry.getKey();
+            prefixedColumns.put(prefixed, entry.getValue());
+            renames.put(entry.getKey(), prefixed);
         }
 
         // Mutate V binding: replace original Tuple with prefixed Tuple

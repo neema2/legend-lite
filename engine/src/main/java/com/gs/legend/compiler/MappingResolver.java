@@ -160,9 +160,18 @@ public final class MappingResolver {
         Map<String, String> propToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
 
+        // sourceRelation from NormalizedMapping
+        var relExpr = normalized.findMappingExpression(className)
+                .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
+                .map(e -> (ModelContext.MappingExpression.Relational) e)
+                .orElse(null);
+
         for (PropertyMapping pm : rm.propertyMappings()) {
             String prop = pm.propertyName();
-            String col = pm.columnName();
+            // Join-chain properties: extend(traverse(), ~propName:t|$t.COL) names them directly
+            String col = pm.hasJoinChain()
+                    ? pm.propertyName()
+                    : pm.columnName();
             propToCol.put(prop, col);
 
             var exprAccess = pm.expressionAccess();
@@ -182,16 +191,13 @@ public final class MappingResolver {
         Map<String, StoreResolution.JoinResolution> joins =
                 resolveAssociationJoins(className, rm);
 
-        // Resolved filter + distinct from NormalizedMapping (normalizer already converted ~filter)
-        var filterExpr = normalized.findMappingExpression(className)
-                .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
-                .map(e -> ((ModelContext.MappingExpression.Relational) e).filter())
-                .orElse(null);
+        // sourceRelation from NormalizedMapping
+        var sourceRelation = relExpr != null ? relExpr.sourceRelation() : null;
 
         resolving.remove(className);
         return new StoreResolution(
                 tableName, propToCol, properties, joins,
-                filterExpr, rm.nested(), rm.distinct());
+                null, rm.nested(), sourceRelation);
     }
 
     private StoreResolution resolveM2M(PureClassMapping pcm) {

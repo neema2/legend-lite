@@ -31,6 +31,7 @@ public class SqlBuilder {
     // ──── SELECT ────
     private final List<SelectColumn> selectColumns = new ArrayList<>();
     private boolean selectStar = false;
+    private String qualifiedStarAlias = null; // "t0".* instead of bare *
     private final List<String> starExcept = new ArrayList<>(); // EXCEPT(col)
     private final List<SelectColumn> starReplace = new ArrayList<>(); // REPLACE(expr AS col)
     private boolean distinct = false;
@@ -100,9 +101,17 @@ public class SqlBuilder {
         return this;
     }
 
+    /** SELECT "alias".* — only columns from the named table/alias, not from joined tables. */
+    public SqlBuilder selectQualifiedStar(String alias) {
+        this.selectStar = true;
+        this.qualifiedStarAlias = alias;
+        return this;
+    }
+
     /** Clears SELECT * so explicit columns can be added. */
     public SqlBuilder clearSelect() {
         this.selectStar = false;
+        this.qualifiedStarAlias = null;
         this.selectColumns.clear();
         return this;
     }
@@ -359,7 +368,7 @@ public class SqlBuilder {
 
         if (selectStar && !windowColumns.isEmpty()) {
             // SELECT *, window_func() OVER (...) AS alias
-            sql.append("*");
+            sql.append(qualifiedStarAlias != null ? qualifiedStarAlias + ".*" : "*");
             for (var wc : windowColumns) {
                 sql.append(", ").append(wc.function().toSql(dialect));
                 if (wc.overClause() != null) {
@@ -368,7 +377,7 @@ public class SqlBuilder {
                 sql.append(" AS ").append(wc.alias());
             }
         } else if (selectStar) {
-            sql.append("*");
+            sql.append(qualifiedStarAlias != null ? qualifiedStarAlias + ".*" : "*");
             if (!starExcept.isEmpty()) {
                 sql.append(dialect.renderStarExcept(starExcept));
             }

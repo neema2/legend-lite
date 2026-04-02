@@ -5,8 +5,6 @@ import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Join;
 import com.gs.legend.model.store.Table;
-import com.gs.legend.plan.GenericType;
-
 import java.util.Map;
 import java.util.Optional;
 
@@ -116,19 +114,16 @@ public interface ModelContext {
                 ValueSpecification filter) implements MappingExpression {}
 
         /**
-         * Relational mapping: column-based with optional filter.
-         * Filter is compiled with {@code $row} typed by the table's column schema.
+         * Relational mapping: source relation is the single source of truth.
+         * The sourceRelation is a ValueSpecification chain synthesized by MappingNormalizer:
+         * {@code tableReference("db.TABLE") -> filter(...) -> join(...) -> distinct()}
          *
-         * @param className  The class being mapped
-         * @param schema     Column name → GenericType (from table definition)
-         * @param filter     Optional pre-converted ~filter expression (null if none)
-         * @param distinct   Whether ~distinct is specified
+         * @param className       The class being mapped
+         * @param sourceRelation  Synthesized Relation ValueSpec (tableRef + filter + joins + distinct)
          */
         record Relational(
                 String className,
-                GenericType.Relation.Schema schema,
-                ValueSpecification filter,
-                boolean distinct) implements MappingExpression {}
+                ValueSpecification sourceRelation) implements MappingExpression {}
     }
 
     /**

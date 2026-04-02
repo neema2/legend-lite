@@ -78,7 +78,20 @@ public record TypeInfo(
          * Stamped by FoldChecker, consumed by PlanGenerator via exhaustive switch.
          * Null for non-fold expressions.
          */
-        FoldSpec foldSpec) {
+        FoldSpec foldSpec,
+        /**
+         * Traverse specification for extend(traverse(...), colSpec).
+         * Each hop describes a LEFT JOIN to a target table with an arbitrary condition.
+         * Stamped by ExtendChecker, consumed by PlanGenerator to emit flat JOINs.
+         * Null for non-traverse expressions.
+         */
+        TraversalSpec traversalSpec,
+        /**
+         * Resolved physical table name for tableReference() expressions.
+         * Stamped by TableReferenceChecker. Used by PlanGenerator and ExtendChecker.
+         * Null for non-tableReference expressions.
+         */
+        String resolvedTableName) {
 
     // ===== Convenience type accessors (delegate to expressionType) =====
 
@@ -287,6 +300,28 @@ public record TypeInfo(
         ASC, DESC
     }
 
+    /**
+     * Pre-resolved traverse specification for extend(traverse(...), colSpec).
+     * Describes a chain of LEFT JOINs to be emitted as flat joins in SQL.
+     *
+     * @param hops Ordered list of join hops (first = closest to source, last = terminal)
+     */
+    public record TraversalSpec(List<TraversalHop> hops) {}
+
+    /**
+     * A single hop in a traverse chain.
+     *
+     * @param tableName      Physical table to LEFT JOIN
+     * @param conditionBody  Lambda body for the ON clause (compiled by generateScalar)
+     * @param prevParam      Lambda param name bound to the previous table's alias
+     * @param hopParam       Lambda param name bound to this hop's table alias
+     */
+    public record TraversalHop(
+            String tableName,
+            ValueSpecification conditionBody,
+            String prevParam,
+            String hopParam) {}
+
 
 
     // All TypeInfo construction goes through builder() or from(). No static shortcuts —
@@ -324,6 +359,8 @@ public record TypeInfo(
         private boolean lambdaParam;
         private NativeFunctionDef resolvedFunc;
         private FoldSpec foldSpec;
+        private TraversalSpec traversalSpec;
+        private String resolvedTableName;
 
         private Builder() {}
 
@@ -343,6 +380,8 @@ public record TypeInfo(
             this.lambdaParam = src.lambdaParam();
             this.resolvedFunc = src.resolvedFunc();
             this.foldSpec = src.foldSpec();
+            this.traversalSpec = src.traversalSpec();
+            this.resolvedTableName = src.resolvedTableName();
         }
 
         public Builder instanceLiteral(boolean v) { this.instanceLiteral = v; return this; }
@@ -360,6 +399,8 @@ public record TypeInfo(
         public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
         public Builder resolvedFunc(NativeFunctionDef v) { this.resolvedFunc = v; return this; }
         public Builder foldSpec(FoldSpec v) { this.foldSpec = v; return this; }
+        public Builder traversalSpec(TraversalSpec v) { this.traversalSpec = v; return this; }
+        public Builder resolvedTableName(String v) { this.resolvedTableName = v; return this; }
 
         public TypeInfo build() {
             if (expressionType == null) {
@@ -369,7 +410,8 @@ public record TypeInfo(
             return new TypeInfo(instanceLiteral, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
                     joinColumnRenames, graphFetchSpec, tdsLiteral, expressionType,
-                    lambdaParam, resolvedFunc, foldSpec);
+                    lambdaParam, resolvedFunc, foldSpec, traversalSpec,
+                    resolvedTableName);
         }
     }
 

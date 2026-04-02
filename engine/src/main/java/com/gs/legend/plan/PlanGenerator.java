@@ -423,23 +423,24 @@ public class PlanGenerator {
         if (store == null || store.tableName() == null) {
             throw new PureCompileException("getAll: StoreResolution not resolved for " + af.function());
         }
+
+        // sourceRelation path: Relation ValueSpec chain (tableRef + filter + distinct + joins)
+        if (store.sourceRelation() != null) {
+            return generateRelation(store.sourceRelation());
+        }
+
+        // Fallback: simple SELECT * FROM table (for non-relational getAll, e.g. identity mappings)
         String tableName = store.tableName();
         String alias = nextTableAlias();
         var builder = new SqlBuilder()
                 .selectStar()
                 .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier(alias));
 
-        // Apply relational mapping ~filter as WHERE clause.
         // M2M filters (sourceResolution != null) are handled in generateGraphFetch.
         if (store.hasFilter() && store.sourceResolution() == null) {
             SqlExpr whereClause = generateScalar(
                     store.filterExpr(), "$row", null, unquote(alias));
             builder.addWhere(whereClause);
-        }
-
-        // Apply mapping-level ~distinct
-        if (store.distinct()) {
-            builder.distinct();
         }
 
         return builder;
@@ -543,18 +544,20 @@ public class PlanGenerator {
     private SqlBuilder generateTableAccess(AppliedFunction af) {
         var store = storeFor(af);
         String tableName = store != null ? store.tableName() : null;
-        // table('myTable') — tableName comes from the string parameter, not from a mapping
-        if (tableName == null && !af.parameters().isEmpty()
-                && af.parameters().get(0) instanceof CString(String value)) {
-            int dotIdx = value.lastIndexOf('.');
-            tableName = dotIdx > 0 ? value.substring(dotIdx + 1) : value;
+        // Read resolved table name from TypeInfo (stamped by TableReferenceChecker)
+        if (tableName == null) {
+            TypeInfo tableInfo = unit.typeInfoFor(af);
+            if (tableInfo != null && tableInfo.resolvedTableName() != null) {
+                tableName = tableInfo.resolvedTableName();
+            }
         }
         if (tableName == null) {
             throw new PureCompileException("tableAccess: tableName not resolved for " + af.function());
         }
+        String alias = nextTableAlias();
         return new SqlBuilder()
                 .selectStar()
-                .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier("t0"));
+                .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier(alias));
     }
 
     /**
@@ -949,29 +952,61 @@ public class PlanGenerator {
         }
 
         // Found AssociationRef — wrap entire expression in EXISTS
-        var joinRes = store.hasJoins() ? store.joins().get(ref.assocProp()) : null;
-        if (joinRes == null) joinRes = findJoinResolution(ref.assocProp());
-        if (joinRes == null || joinRes.join() == null) {
+        // Walk the hop chain, building JOINs for each intermediate hop inside the EXISTS
+        var hops = ref.hops();
+        StoreResolution currentStore = store;
+        String currentAlias = tableAlias;
+
+        // Resolve first hop
+        var firstJoinRes = currentStore.hasJoins() ? currentStore.joins().get(hops.get(0)) : null;
+        if (firstJoinRes == null) firstJoinRes = findJoinResolution(hops.get(0));
+        if (firstJoinRes == null || firstJoinRes.join() == null) {
             return expr; // Can't resolve — pass through
         }
 
-        String subAlias = "sub" + (tableAliasCounter++);
-        String targetTableName = joinRes.targetTable();
-        String leftJoinCol = joinRes.sourceColumn();
-        String rightJoinCol = joinRes.targetColumn();
+        String firstSubAlias = "sub" + (tableAliasCounter++);
+        String firstTargetTable = firstJoinRes.targetTable();
+        String firstLeftCol = firstJoinRes.sourceColumn();
+        String firstRightCol = firstJoinRes.targetColumn();
 
-        // Replace AssociationRef → Column(subAlias, targetCol) in the expression
-        SqlExpr resolved = replaceAssociationRef(expr, ref, subAlias);
-
-        // Build EXISTS: correlation AND resolved predicate
+        // Correlation: first hop table correlates back to the outer query
         SqlExpr correlation = new SqlExpr.Binary(
-                new SqlExpr.Column(subAlias, rightJoinCol), "=",
-                new SqlExpr.Column(tableAlias, leftJoinCol));
+                new SqlExpr.Column(firstSubAlias, firstRightCol), "=",
+                new SqlExpr.Column(currentAlias, firstLeftCol));
 
         SqlBuilder subquery = new SqlBuilder()
                 .addSelect(new SqlExpr.NumericLiteral(1), null)
-                .from(dialect.quoteIdentifier(targetTableName), dialect.quoteIdentifier(subAlias))
-                .addWhere(new SqlExpr.And(List.of(correlation, resolved)));
+                .from(dialect.quoteIdentifier(firstTargetTable), dialect.quoteIdentifier(firstSubAlias));
+
+        // Add intermediate JOINs for hops beyond the first
+        String leafAlias = firstSubAlias;
+        StoreResolution hopStore = firstJoinRes.targetResolution();
+        for (int i = 1; i < hops.size(); i++) {
+            String hop = hops.get(i);
+            var hopJoinRes = hopStore != null && hopStore.hasJoins()
+                    ? hopStore.joins().get(hop) : null;
+            if (hopJoinRes == null || hopJoinRes.join() == null) break;
+
+            String hopAlias = "sub" + (tableAliasCounter++);
+            String hopTable = hopJoinRes.targetTable();
+            String hopSourceCol = hopJoinRes.sourceColumn();
+            String hopTargetCol = hopJoinRes.targetColumn();
+
+            // JOIN intermediate table inside the EXISTS
+            SqlExpr joinCond = new SqlExpr.Binary(
+                    new SqlExpr.Column(hopAlias, hopTargetCol), "=",
+                    new SqlExpr.Column(leafAlias, hopSourceCol));
+            subquery.addJoin(SqlBuilder.JoinType.INNER, dialect.quoteIdentifier(hopTable),
+                    dialect.quoteIdentifier(hopAlias), joinCond);
+
+            leafAlias = hopAlias;
+            hopStore = hopJoinRes.targetResolution();
+        }
+
+        // Replace AssociationRef → Column(leafAlias, targetCol) in the expression
+        SqlExpr resolved = replaceAssociationRef(expr, ref, leafAlias);
+
+        subquery.addWhere(new SqlExpr.And(List.of(correlation, resolved)));
         return new SqlExpr.Exists(subquery);
     }
 
@@ -1121,22 +1156,44 @@ public class PlanGenerator {
         // Resolve AssociationRef → correlated scalar subquery
         // Filter uses EXISTS (boolean), sort needs the actual value
         SqlExpr.AssociationRef ref = findAssociationRef(colExpr);
-        if (ref != null) {
-            var joinRes = findJoinResolution(ref.assocProp());
-            if (joinRes != null && joinRes.join() != null && store != null) {
-                String subAlias = "sort_j" + (tableAliasCounter++);
-                String targetTableName = joinRes.targetTable();
-                String leftJoinCol = joinRes.sourceColumn();
-                String rightJoinCol = joinRes.targetColumn();
-                SqlExpr targetCol = new SqlExpr.Column(subAlias, ref.targetCol());
+        if (ref != null && store != null) {
+            var hops = ref.hops();
+            // Resolve first hop
+            var firstJoinRes = findJoinResolution(hops.get(0));
+            if (firstJoinRes != null && firstJoinRes.join() != null) {
+                String firstSubAlias = "sort_j" + (tableAliasCounter++);
+                String firstTargetTable = firstJoinRes.targetTable();
+                String firstLeftCol = firstJoinRes.sourceColumn();
+                String firstRightCol = firstJoinRes.targetColumn();
+
                 SqlExpr correlation = new SqlExpr.Binary(
-                        new SqlExpr.Column(subAlias, rightJoinCol), "=",
-                        new SqlExpr.Column(tableAlias, leftJoinCol));
+                        new SqlExpr.Column(firstSubAlias, firstRightCol), "=",
+                        new SqlExpr.Column(tableAlias, firstLeftCol));
                 SqlBuilder subquery = new SqlBuilder()
-                        .addSelect(targetCol, null)
-                        .from(dialect.quoteIdentifier(targetTableName),
-                                dialect.quoteIdentifier(subAlias))
+                        .from(dialect.quoteIdentifier(firstTargetTable),
+                                dialect.quoteIdentifier(firstSubAlias))
                         .addWhere(correlation);
+
+                // Add intermediate JOINs for multi-hop
+                String leafAlias = firstSubAlias;
+                StoreResolution hopStore = firstJoinRes.targetResolution();
+                for (int i = 1; i < hops.size(); i++) {
+                    String hop = hops.get(i);
+                    var hopJoinRes = hopStore != null && hopStore.hasJoins()
+                            ? hopStore.joins().get(hop) : null;
+                    if (hopJoinRes == null || hopJoinRes.join() == null) break;
+
+                    String hopAlias = "sort_j" + (tableAliasCounter++);
+                    SqlExpr joinCond = new SqlExpr.Binary(
+                            new SqlExpr.Column(hopAlias, hopJoinRes.targetColumn()), "=",
+                            new SqlExpr.Column(leafAlias, hopJoinRes.sourceColumn()));
+                    subquery.addJoin(SqlBuilder.JoinType.INNER, dialect.quoteIdentifier(hopJoinRes.targetTable()),
+                            dialect.quoteIdentifier(hopAlias), joinCond);
+                    leafAlias = hopAlias;
+                    hopStore = hopJoinRes.targetResolution();
+                }
+
+                subquery.addSelect(new SqlExpr.Column(leafAlias, ref.targetCol()), null);
                 colExpr = new SqlExpr.Subquery(subquery);
             }
         }
@@ -1571,6 +1628,64 @@ public class PlanGenerator {
                 b.addWindowColumn(funcExpr, null, quotedAlias);
             }
             return b;
+        }
+
+        // --- Traverse extend: flat LEFT JOINs + colSpec from terminal table ---
+        if (info != null && info.traversalSpec() != null) {
+            var spec = info.traversalSpec();
+            String sourceAlias = unquote(source.getFromAlias());
+            String prevAlias = sourceAlias;
+
+            if (!source.hasJoins() && source.hasSelectColumns()) {
+                // Prior scalar extend inlined columns with unqualified references
+                // (e.g., "ID" * 2) — must wrap in subquery before adding JOINs
+                // to avoid ambiguous column refs after JOIN adds same-named columns.
+                String wrapAlias = "trav_src";
+                source = new SqlBuilder()
+                        .selectStar()
+                        .fromSubquery(source, wrapAlias);
+                sourceAlias = wrapAlias;
+                prevAlias = wrapAlias;
+            } else if (!source.hasJoins()) {
+                // Clean source: switch bare SELECT * to qualified "t0".*
+                // to avoid column ambiguity from joined tables sharing names.
+                source.selectQualifiedStar(dialect.quoteIdentifier(sourceAlias));
+            }
+            // else: source already has JOINs (prior traverse) — keep existing columns
+
+            // Add flat LEFT JOINs for each hop
+            for (var hop : spec.hops()) {
+                String hopAlias = nextTableAlias();
+                var aliases = Map.of(hop.prevParam(), prevAlias, hop.hopParam(), hopAlias);
+                SqlExpr on = generateScalar(hop.conditionBody(), null, null, null, aliases);
+                source.addJoin(SqlBuilder.JoinType.LEFT,
+                        dialect.quoteIdentifier(hop.tableName()),
+                        dialect.quoteIdentifier(hopAlias), on);
+                prevAlias = hopAlias;
+            }
+
+            // Compile colSpecs — map lambda param to terminal alias
+            String terminalAlias = prevAlias;
+            List<ColSpec> traverseColSpecs = new java.util.ArrayList<>();
+            for (int i = 1; i < params.size(); i++) {
+                if (params.get(i) instanceof ClassInstance ci) {
+                    if (ci.value() instanceof ColSpec cs) traverseColSpecs.add(cs);
+                    else if (ci.value() instanceof ColSpecArray(List<ColSpec> specs))
+                        traverseColSpecs.addAll(specs);
+                }
+            }
+            for (ColSpec cs : traverseColSpecs) {
+                if (cs.function1() != null) {
+                    String lambdaParam = cs.function1().parameters().isEmpty() ? null
+                            : cs.function1().parameters().get(0).name();
+                    var varAliases = lambdaParam != null
+                            ? Map.<String, String>of(lambdaParam, terminalAlias) : null;
+                    SqlExpr computed = generateScalar(
+                            cs.function1().body().get(0), null, null, null, varAliases);
+                    source.addSelect(computed, dialect.quoteIdentifier(cs.name()));
+                }
+            }
+            return source;
         }
 
         // --- Scalar extend: read AST directly (unchanged) ---
@@ -2056,19 +2171,30 @@ public class PlanGenerator {
                         && varAliases.containsKey(v.name())) {
                     yield new SqlExpr.Column(varAliases.get(v.name()), ap.property());
                 }
-                // Check for association path: $p.addresses.street
+                // Check for association path: $p.addresses.street or $e.dept.company.country
                 if (tableAlias != null && !ap.parameters().isEmpty()
                         && ap.parameters().get(0) instanceof AppliedProperty) {
                     List<String> path = extractPropertyChain(ap);
                     if (path.size() > 1) {
-                        String assocProp = path.get(0);
-                        String leafProp = path.getLast();
-                        var joinRes = findJoinResolution(assocProp);
-                        if (joinRes != null) {
-                            String targetCol = joinRes.targetResolution() != null
-                                    ? joinRes.targetResolution().columnFor(leafProp) : null;
+                        // Walk the chain hop by hop through targetResolutions
+                        // path = ["dept", "company", "country"] → hops = ["dept", "company"], leaf = "country"
+                        List<String> hops = new ArrayList<>();
+                        StoreResolution current = store;
+                        boolean resolved = true;
+                        for (int i = 0; i < path.size() - 1; i++) {
+                            String hop = path.get(i);
+                            var jr = current != null && current.hasJoins()
+                                    ? current.joins().get(hop) : null;
+                            if (jr == null) { resolved = false; break; }
+                            hops.add(hop);
+                            current = jr.targetResolution();
+                        }
+                        if (resolved && !hops.isEmpty()) {
+                            String leafProp = path.getLast();
+                            String targetCol = current != null
+                                    ? current.columnFor(leafProp) : null;
                             if (targetCol == null) targetCol = leafProp;
-                            yield new SqlExpr.AssociationRef(assocProp, targetCol);
+                            yield new SqlExpr.AssociationRef(hops, targetCol);
                         }
                     }
                 }

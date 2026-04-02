@@ -21,9 +21,10 @@ import java.util.Map;
  * @param propertyToColumn Pure property name → physical column name (simple mappings)
  * @param properties       Per-property resolution descriptors (handles expression, enum, M2M)
  * @param joins            Association property → join resolution
- * @param filterExpr       Pre-compiled ~filter expression (null if none). Unified path for both M2M and relational filters.
+ * @param filterExpr       Pre-compiled ~filter expression (null if none). Used by M2M filters only.
  * @param nested           True for struct-literal identity mappings (nested field access)
- * @param distinct         Whether ~distinct is specified on this mapping
+ * @param sourceRelation   Synthesized source Relation ValueSpec for relational mappings (null for M2M/identity).
+ *                         Encapsulates tableReference + filter + distinct + join chains.
  */
 public record StoreResolution(
         String tableName,
@@ -32,9 +33,9 @@ public record StoreResolution(
         Map<String, JoinResolution> joins,
         ValueSpecification filterExpr,
         boolean nested,
-        boolean distinct) {
+        ValueSpecification sourceRelation) {
 
-    /** Constructor without distinct (defaults to false). */
+    /** Constructor without sourceRelation (for M2M and identity mappings). */
     public StoreResolution(
             String tableName,
             Map<String, String> propertyToColumn,
@@ -42,7 +43,7 @@ public record StoreResolution(
             Map<String, JoinResolution> joins,
             ValueSpecification filterExpr,
             boolean nested) {
-        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, false);
+        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, null);
     }
 
     /**

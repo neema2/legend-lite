@@ -341,6 +341,17 @@ public class BuiltinFunctionRegistry {
                 "native function extend<T,K,V,R>(r:Relation<T>[1], window:_Window<T>[1], agg:AggColSpec<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
         reg.registerSignature("extend",
                 "native function extend<T,K,V,R>(r:Relation<T>[1], window:_Window<T>[1], agg:AggColSpecArray<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
+        // Extend — traverse (FK path traversal)
+        reg.registerSignature("extend",
+                "native function extend<T,Z>(r:Relation<T>[1], path:_Traversal[1], f:FuncColSpec<{T[1]->Any[0..1]},Z>[1]):Relation<T+Z>[1];");
+        reg.registerSignature("extend",
+                "native function extend<T,Z>(r:Relation<T>[1], path:_Traversal[1], fs:FuncColSpecArray<{T[1]->Any[*]},Z>[1]):Relation<T+Z>[1];");
+
+        // ========== Traverse — chainable FK path hops ==========
+        reg.registerSignature("traverse",
+                "native function traverse<T,V>(target:Relation<V>[1], cond:Function<{T[1],V[1]->Boolean[1]}>[1]):_Traversal[1];");
+        reg.registerSignature("traverse",
+                "native function traverse<T,V>(prev:_Traversal[1], target:Relation<V>[1], cond:Function<{T[1],V[1]->Boolean[1]}>[1]):_Traversal[1];");
 
         // ========== Sort direction constructors ==========
         reg.registerSignature("ascending",

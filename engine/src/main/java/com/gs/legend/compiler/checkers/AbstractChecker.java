@@ -405,7 +405,8 @@ public abstract class AbstractChecker implements FunctionChecker {
                 case "Function" -> actual instanceof LambdaFunction
                     || actual instanceof PackageableElementPtr; // function reference (e.g., eq_Any_1__Any_1__Boolean_1_)
                 case "SortInfo" -> actual instanceof AppliedFunction;
-                case "_Window" -> actual instanceof AppliedFunction;
+                case "_Window" -> actual instanceof AppliedFunction af
+                    && !"traverse".equals(simpleName(af.function()));
                 case "Rows", "_Range" -> actual instanceof AppliedFunction;
                 default -> isSource && source != null
                         && source.type() instanceof GenericType.Parameterized gp
@@ -420,6 +421,11 @@ public abstract class AbstractChecker implements FunctionChecker {
             // Any is the top type — accepts everything
             if ("Any".equals(c.name())) {
                 return true;
+            }
+            // _Traversal: matches traverse() AppliedFunction (no type params → Concrete)
+            if ("_Traversal".equals(c.name())) {
+                return actual instanceof AppliedFunction af
+                        && "traverse".equals(simpleName(af.function()));
             }
             // Reject lambdas and class instances for specific Concrete types
             // (e.g., Number, String) — they are structural, not scalar values

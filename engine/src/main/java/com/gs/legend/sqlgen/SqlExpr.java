@@ -458,15 +458,22 @@ public sealed interface SqlExpr {
     /**
      * Association property reference — compile-time only.
      * Created during scalar compilation when an association path (e.g.,
-     * $p.addresses.street)
-     * is detected. Consumed by buildComparison to generate EXISTS subqueries.
+     * $p.addresses.street or $e.dept.company.country)
+     * is detected. Consumed by resolveAssociationRefs to generate EXISTS subqueries.
      * Must never reach toSql() — throws if it does.
+     *
+     * @param hops      Ordered list of association property names to traverse.
+     *                  Single-hop: ["addresses"]. Multi-hop: ["dept", "company"].
+     * @param targetCol The resolved column name on the final target table.
      */
-    record AssociationRef(String assocProp, String targetCol) implements SqlExpr {
+    record AssociationRef(java.util.List<String> hops, String targetCol) implements SqlExpr {
+        /** Convenience: first hop property name (used for single-hop lookups). */
+        public String assocProp() { return hops.get(0); }
+
         @Override
         public String toSql(SQLDialect dialect) {
             throw new IllegalStateException(
-                    "AssociationRef should be resolved before SQL generation: " + assocProp + "." + targetCol);
+                    "AssociationRef should be resolved before SQL generation: " + hops + "." + targetCol);
         }
     }
 

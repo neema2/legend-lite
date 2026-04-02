@@ -79,16 +79,11 @@ public class GetAllChecker extends AbstractChecker {
     }
 
     /**
-     * Compiles relational mapping-level expressions (filter, future: groupBy, primaryKey).
-     * These are ValueSpecs produced by MappingNormalizer from RelationalOperation AST.
-     * Uses withRelationType to bind $row with the table's column schema.
+     * Compiles the sourceRelation ValueSpec chain synthesized by MappingNormalizer.
+     * This triggers the full Relation pipeline: TableReferenceChecker → FilterChecker → etc.
      */
     private void compileRelationalExpressions(MappingExpression.Relational rel) {
-        if (rel.filter() == null) return;
-
-        var rowCtx = new TypeChecker.CompilationContext()
-                .withRelationType("row", rel.schema());
-
-        env.compileExpr(rel.filter(), rowCtx);
+        if (rel.sourceRelation() == null) return;
+        env.compileExpr(rel.sourceRelation(), new TypeChecker.CompilationContext());
     }
 }
