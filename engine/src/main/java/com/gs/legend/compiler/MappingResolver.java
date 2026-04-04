@@ -252,15 +252,20 @@ public final class MappingResolver {
         for (var entry : normalized.findAssociationJoins(className).entrySet()) {
             String propName = entry.getKey();
             var info = entry.getValue();
-            // Skip back-references to avoid infinite recursion (Person→Address→Person)
-            if (resolving.contains(info.targetClassName())) continue;
             ClassMapping targetMapping = normalized.findClassMapping(info.targetClassName())
                     .orElseThrow(() -> new PureCompileException(
                             "Association join for property '" + propName + "' targets class '"
                                     + info.targetClassName() + "' which has no mapping in scope"
                                     + " — MappingNormalizer should have excluded this"));
 
-            StoreResolution targetResolution = resolveClassMapping(targetMapping, info.targetClassName());
+            StoreResolution targetResolution;
+            if (resolving.contains(info.targetClassName())) {
+                // Self-join or back-reference: build shallow resolution (same table/columns,
+                // no recursive association joins) to avoid infinite recursion.
+                targetResolution = buildShallowResolution(targetMapping);
+            } else {
+                targetResolution = resolveClassMapping(targetMapping, info.targetClassName());
+            }
             String targetTable = targetMapping.sourceTable().name();
 
             joins.put(propName, buildJoinResolution(
@@ -288,6 +293,29 @@ public final class MappingResolver {
         }
 
         return joins;
+    }
+
+    /**
+     * Builds a shallow StoreResolution from a ClassMapping — table name and property-to-column
+     * mappings only, no recursive association join resolution. Used for self-joins and
+     * back-references where the target class is already being resolved (in {@code resolving}).
+     */
+    private StoreResolution buildShallowResolution(ClassMapping mapping) {
+        if (!(mapping instanceof RelationalMapping rm)) {
+            throw new PureCompileException(
+                    "Self-join/back-reference target must be relational, got: " + mapping.getClass().getSimpleName());
+        }
+        String tableName = rm.table().name();
+        Map<String, String> propToCol = new LinkedHashMap<>();
+        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
+        for (PropertyMapping pm : rm.propertyMappings()) {
+            String prop = pm.propertyName();
+            String col = pm.hasJoinChain() ? pm.propertyName() : pm.columnName();
+            propToCol.put(prop, col);
+            properties.put(prop, new StoreResolution.PropertyResolution.Column(col));
+        }
+        return new StoreResolution(tableName, propToCol, properties, Map.of(),
+                null, rm.nested(), null);
     }
 
     // ==================== Join Condition Helpers ====================
