@@ -83,6 +83,11 @@ class RelationalMappingIntegrationTest {
                 .collect(Collectors.toList());
     }
 
+    /** Generate SQL without executing. */
+    private String planSql(String model, String query) {
+        return com.gs.legend.plan.PlanGenerator.generate(model, query, "test::RT").sql();
+    }
+
     /** Convenience: single-table model with given class, db, mapping, columns. */
     private String singleTableModel(String className, String tableName, String dbName,
                                      String mappingName, String classDef, String tableDef,
@@ -1188,6 +1193,121 @@ class RelationalMappingIntegrationTest {
             var sums = colInt(r, 1);
             assertEquals(Integer.valueOf(3), sums.get(orgs.indexOf("Acme Corp")));
             assertEquals(Integer.valueOf(3), sums.get(orgs.indexOf("Globex")));
+        }
+    }
+
+    // ==================== 9c. Traverse SQL Structure Assertions ====================
+
+    @Nested
+    @DisplayName("9c. Traverse SQL Structure — flat JOINs, no subquery wrap")
+    class TraverseSqlStructure {
+
+        @BeforeEach
+        void setup() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INT)",
+                "CREATE TABLE T_DEPT (ID INT PRIMARY KEY, NAME VARCHAR(50), ORG_ID INT)",
+                "CREATE TABLE T_ORG (ID INT PRIMARY KEY, NAME VARCHAR(100))",
+                "INSERT INTO T_ORG VALUES (1, 'Acme Corp'), (2, 'Globex')",
+                "INSERT INTO T_DEPT VALUES (1, 'Engineering', 1), (2, 'Sales', 1), (3, 'Research', 2)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 3), (4, 'Dave', 999)");
+        }
+
+        private String traverseModel() {
+            return withRuntime("""
+                    Class model::Dummy { x: String[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
+                        Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                        Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                    )
+                    Mapping model::M ( Dummy: Relational { ~mainTable [store::DB] T_PERSON x: [store::DB] T_PERSON.NAME } )
+                    """, "store::DB", "model::M");
+        }
+
+        /** Count occurrences of keyword in SQL. */
+        private int count(String sql, String keyword) {
+            int c = 0;
+            for (int i = sql.indexOf(keyword); i >= 0; i = sql.indexOf(keyword, i + keyword.length())) c++;
+            return c;
+        }
+
+        @Test @DisplayName("Single-hop: flat LEFT JOIN, exactly 1 SELECT")
+        void testSingleHopFlatSql() throws SQLException {
+            // No select() — raw traverse output, no outer subquery
+            String sql = planSql(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->from(test::RT)");
+            assertEquals(1, count(sql, "SELECT"), "Flat: exactly 1 SELECT: " + sql);
+            assertEquals(1, count(sql, "LEFT OUTER JOIN"), "Exactly 1 LEFT OUTER JOIN: " + sql);
+            assertTrue(sql.contains("\"t0\".\"DEPT_ID\""), "ON clause uses physical column ref: " + sql);
+        }
+
+        @Test @DisplayName("Multi-hop: flat LEFT JOINs, exactly 1 SELECT")
+        void testMultiHopFlatSql() throws SQLException {
+            String sql = planSql(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->from(test::RT)");
+            assertEquals(1, count(sql, "SELECT"), "Flat: exactly 1 SELECT: " + sql);
+            assertEquals(2, count(sql, "LEFT OUTER JOIN"), "Exactly 2 LEFT OUTER JOINs: " + sql);
+        }
+
+        @Test @DisplayName("Two independent traversals: flat JOINs, exactly 1 SELECT")
+        void testTwoIndependentTraversalsFlatSql() throws SQLException {
+            String sql = planSql(traverseModel(),
+                "#>{store::DB.T_PERSON}#" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->from(test::RT)");
+            assertEquals(1, count(sql, "SELECT"), "Flat: exactly 1 SELECT: " + sql);
+            assertEquals(3, count(sql, "LEFT OUTER JOIN"), "Exactly 3 LEFT OUTER JOINs: " + sql);
+        }
+
+        @Test @DisplayName("Filter before traverse: wraps filter, traverse is flat on wrapped source")
+        void testFilterBeforeTraverseSql() throws SQLException {
+            String sql = planSql(traverseModel(),
+                "#>{store::DB.T_PERSON}#->filter(x|$x.ID > 1)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->from(test::RT)");
+            // Filter produces non-table-based source → traverse wraps it.
+            // 2 SELECTs: inner (filter) + outer (traverse JOIN)
+            assertEquals(2, count(sql, "SELECT"), "Filter + traverse = 2 SELECTs: " + sql);
+            assertEquals(1, count(sql, "LEFT OUTER JOIN"), "Exactly 1 LEFT OUTER JOIN: " + sql);
+            assertTrue(sql.contains("WHERE"), "Filter becomes WHERE: " + sql);
+        }
+
+        @Test @DisplayName("Traverse → filter → traverse: filter breaks chain, second traverse wraps")
+        void testTraverseFilterTraverseSql() throws SQLException {
+            String sql = planSql(traverseModel(),
+                "#>{store::DB.T_PERSON}#" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->filter(x|$x.deptName == 'Engineering')" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->from(test::RT)");
+            // First traverse flat (1 JOIN), filter wraps, second traverse flat (2 JOINs) on wrapped source
+            assertEquals(3, count(sql, "LEFT OUTER JOIN"), "3 LEFT OUTER JOINs total: " + sql);
+            assertTrue(sql.contains("trav_src"), "Second traverse wraps in subquery: " + sql);
+            assertTrue(sql.contains("WHERE"), "Filter becomes WHERE: " + sql);
+        }
+
+        @Test @DisplayName("Traverse → sort → traverse: sort breaks chain, second traverse wraps")
+        void testTraverseSortTraverseSql() throws SQLException {
+            String sql = planSql(traverseModel(),
+                "#>{store::DB.T_PERSON}#" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->sort(~NAME->ascending())" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->from(test::RT)");
+            // First traverse flat (1 JOIN) + sort, then second traverse wraps (2 JOINs)
+            assertEquals(3, count(sql, "LEFT OUTER JOIN"), "3 LEFT OUTER JOINs total: " + sql);
+            assertTrue(sql.contains("trav_src"), "Second traverse wraps in subquery: " + sql);
+            assertTrue(sql.contains("ORDER BY"), "Sort preserved: " + sql);
+        }
+
+        @Test @DisplayName("Traverse then scalar extend: flat, exactly 1 SELECT")
+        void testTraverseThenScalarExtendFlatSql() throws SQLException {
+            String sql = planSql(traverseModel(),
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptId:t|$t.ID)->extend(~deptIdDoubled:x|$x.deptId * 2)->from(test::RT)");
+            assertEquals(1, count(sql, "SELECT"), "Flat: exactly 1 SELECT: " + sql);
+            assertEquals(1, count(sql, "LEFT OUTER JOIN"), "Exactly 1 LEFT OUTER JOIN: " + sql);
+            assertTrue(sql.contains("deptIdDoubled"), "Scalar extend column present: " + sql);
         }
     }
 

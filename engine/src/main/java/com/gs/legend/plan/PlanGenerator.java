@@ -1624,22 +1624,26 @@ public class PlanGenerator {
             String sourceAlias = unquote(source.getFromAlias());
             String prevAlias = sourceAlias;
 
-            if (!source.hasJoins() && source.hasSelectColumns()) {
-                // Prior scalar extend inlined columns with unqualified references
-                // (e.g., "ID" * 2) — must wrap in subquery before adding JOINs
-                // to avoid ambiguous column refs after JOIN adds same-named columns.
+            // Determine if source is table-ref based (physical column names → flat JOINs safe)
+            // or not (class-based project / scalar extend → aliased columns → must wrap).
+            TypeInfo sourceInfo = unit.types().get(params.get(0));
+            boolean sourceIsTableBased = sourceInfo != null
+                    && (sourceInfo.resolvedTableName() != null || sourceInfo.traversalSpec() != null);
+
+            if (!sourceIsTableBased) {
+                // Source has aliased columns (class-based project or scalar extend).
+                // Wrap in subquery so traverse ON clause references output column names.
                 String wrapAlias = "trav_src";
                 source = new SqlBuilder()
-                        .selectStar()
+                        .selectQualifiedStar(dialect.quoteIdentifier(wrapAlias))
                         .fromSubquery(source, wrapAlias);
                 sourceAlias = wrapAlias;
                 prevAlias = wrapAlias;
             } else if (!source.hasJoins()) {
-                // Clean source: switch bare SELECT * to qualified "t0".*
-                // to avoid column ambiguity from joined tables sharing names.
+                // Clean table-ref source: qualified star to avoid column ambiguity.
                 source.selectQualifiedStar(dialect.quoteIdentifier(sourceAlias));
             }
-            // else: source already has JOINs (prior traverse) — keep existing columns
+            // else: table-ref based source with JOINs (prior traverse) — keep flat
 
             // Add flat LEFT JOINs for each hop
             for (var hop : spec.hops()) {

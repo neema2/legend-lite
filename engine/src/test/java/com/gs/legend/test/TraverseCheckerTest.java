@@ -311,6 +311,110 @@ class TraverseCheckerTest {
         }
 
         @Test
+        @DisplayName("Two independent to-many: Person -> Address AND Person -> Phone")
+        void testTwoIndependentToMany() throws SQLException {
+            sql("CREATE TABLE T_PERSON2 (ID INT PRIMARY KEY, NAME VARCHAR(100))",
+                "CREATE TABLE T_ADDR (ID INT, PERSON_ID INT, CITY VARCHAR(100))",
+                "CREATE TABLE T_PHONE (ID INT, PERSON_ID INT, NUMBER VARCHAR(20))",
+                "INSERT INTO T_PERSON2 VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')",
+                "INSERT INTO T_ADDR VALUES (1, 1, 'NYC'), (2, 1, 'LA'), (3, 2, 'Chicago')",
+                "INSERT INTO T_PHONE VALUES (1, 1, '555-0001'), (2, 2, '555-0002'), (3, 2, '555-0003')");
+
+            String model = withRuntime("""
+                    Class test::Person { name: String[1]; }
+                    Class test::Addr { city: String[1]; }
+                    Class test::Phone { number: String[1]; }
+                    Association test::PersonAddr { addresses: Addr[*]; person: Person[1]; }
+                    Association test::PersonPhone { phones: Phone[*]; owner: Person[1]; }
+                    Database store::DB
+                    (
+                        Table T_PERSON2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                        Table T_ADDR (ID INTEGER, PERSON_ID INTEGER, CITY VARCHAR(100))
+                        Table T_PHONE (ID INTEGER, PERSON_ID INTEGER, NUMBER VARCHAR(20))
+                        Join PersonAddr(T_PERSON2.ID = T_ADDR.PERSON_ID)
+                        Join PersonPhone(T_PERSON2.ID = T_PHONE.PERSON_ID)
+                    )
+                    Mapping test::M
+                    (
+                        Person: Relational { ~mainTable [store::DB] T_PERSON2 name: [store::DB] T_PERSON2.NAME }
+                        Addr: Relational { ~mainTable [store::DB] T_ADDR city: [store::DB] T_ADDR.CITY }
+                        Phone: Relational { ~mainTable [store::DB] T_PHONE number: [store::DB] T_PHONE.NUMBER }
+                        test::PersonAddr: AssociationMapping ( person: [store::DB]@PersonAddr, addresses: [store::DB]@PersonAddr )
+                        test::PersonPhone: AssociationMapping ( owner: [store::DB]@PersonPhone, phones: [store::DB]@PersonPhone )
+                    )
+                    """, "store::DB", "test::M");
+
+            // Project both to-many associations — potential cartesian product
+            // Alice: 2 addr x 1 phone, Bob: 1 addr x 2 phones, Charlie: 0 addr x 0 phones
+            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.addresses.city, x|$x.phones.number], ['name', 'city', 'phone'])");
+
+            // Collect per-person data
+            Map<String, Set<String>> cities = new HashMap<>();
+            Map<String, Set<String>> phones = new HashMap<>();
+            Map<String, Integer> rowCounts = new HashMap<>();
+            for (var row : r.rows()) {
+                String name = row.get(0).toString();
+                rowCounts.merge(name, 1, Integer::sum);
+                if (row.get(1) != null) cities.computeIfAbsent(name, k -> new HashSet<>()).add(row.get(1).toString());
+                if (row.get(2) != null) phones.computeIfAbsent(name, k -> new HashSet<>()).add(row.get(2).toString());
+            }
+
+            // Alice has 2 addresses and 1 phone — verify her data is present
+            assertTrue(cities.containsKey("Alice"));
+            assertEquals(Set.of("NYC", "LA"), cities.get("Alice"));
+            assertEquals(Set.of("555-0001"), phones.get("Alice"));
+
+            // Bob has 1 address and 2 phones
+            assertEquals(Set.of("Chicago"), cities.get("Bob"));
+            assertEquals(Set.of("555-0002", "555-0003"), phones.get("Bob"));
+
+            // Charlie has no addresses and no phones — should still appear with NULLs
+            assertTrue(rowCounts.containsKey("Charlie"));
+        }
+
+        @Test
+        @DisplayName("Pre-filter to single to-many match, then project through association — no explosion")
+        void testPreFilterThenToManyProject() throws SQLException {
+            // Alice has 2 addresses (NYC, LA) and Bob has 1 (Chicago).
+            // Pre-filter to only people who have exactly 1 address (Bob, Charlie=0, Diana=0).
+            // Then project the address — Bob gets Chicago, others get NULL.
+            // Key: the pre-filter should NOT cause row explosion.
+            //
+            // Strategy: filter on a specific address city first to narrow to one match,
+            // THEN project through the to-many.
+            // Filter: person has an address in Chicago → only Bob.
+            // Project Bob's addresses.city → should be exactly Chicago (1 row, no explosion).
+            var r = exec(fullModel(),
+                "Person.all()->filter({p|$p.addresses.city == 'Chicago'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
+            // Bob has only 1 address (Chicago), and filter used EXISTS → 1 row for Bob
+            assertEquals(1, r.rows().size());
+            assertEquals("Bob", r.rows().get(0).get(0).toString());
+            assertEquals("Chicago", r.rows().get(0).get(1).toString());
+        }
+
+        @Test
+        @DisplayName("Pre-filter narrows multi-address person, project still shows all addresses")
+        void testPreFilterDoesNotLimitProjection() throws SQLException {
+            // Alice has 2 addresses (NYC, LA). Filter on firm='Acme' (which Alice matches).
+            // Then project addresses — Alice should still show BOTH addresses (2 rows).
+            // The filter is on a DIFFERENT association (firm), not on addresses.
+            var r = exec(fullModel(),
+                "Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
+            // Acme people: Alice (2 addresses) and Bob (1 address) = 3 rows
+            assertEquals(3, r.rows().size());
+            Map<String, List<String>> nameCity = new HashMap<>();
+            for (var row : r.rows()) {
+                String name = row.get(0).toString();
+                nameCity.computeIfAbsent(name, k -> new ArrayList<>())
+                        .add(row.get(1) != null ? row.get(1).toString() : null);
+            }
+            assertEquals(2, nameCity.get("Alice").size());
+            assertTrue(nameCity.get("Alice").contains("NYC"));
+            assertTrue(nameCity.get("Alice").contains("LA"));
+            assertEquals(1, nameCity.get("Bob").size());
+        }
+
+        @Test
         @DisplayName("Filter to-many: multiple matches still returns person once")
         void testFilterToManyMultipleMatchesOnePerson() throws SQLException {
             // Alice has addresses in NYC and LA — filter city in ('NYC', 'LA') should return Alice once
@@ -926,7 +1030,534 @@ class TraverseCheckerTest {
         }
     }
 
-    // ==================== 1j. Self-Join (GAP) ====================
+    // ==================== 1k. Wild / Stress Tests ====================
+
+    @Nested
+    @DisplayName("1k. Wild / Stress Tests")
+    class WildStress {
+
+        @BeforeEach
+        void setup() throws SQLException { setupTables(); }
+
+        @Test
+        @DisplayName("Reverse to-many as root: Firm.all() projecting employees")
+        void testReverseToManyAsRoot() throws SQLException {
+            // Start from Firm, navigate to employees (to-many)
+            var r = exec(fullModel(), "Firm.all()->filter({f|$f.employees.name == 'Alice'})->project(~[legalName:f|$f.legalName])");
+            assertEquals(1, r.rowCount());
+            assertEquals("Acme", colStr(r, 0).get(0));
+        }
+
+        @Test
+        @DisplayName("Cross-association filter: EXISTS on to-many AND equals on to-one")
+        void testCrossAssociationFilter() throws SQLException {
+            // Filter: has address in NYC (EXISTS) AND firm is Acme (equi-join)
+            // Only Alice has NYC address AND works at Acme
+            var r = exec(fullModel(), "Person.all()->filter({p|$p.addresses.city == 'NYC' && $p.firm.legalName == 'Acme'})->project(~[name:p|$p.name])");
+            assertEquals(1, r.rowCount());
+            assertEquals("Alice", colStr(r, 0).get(0));
+        }
+
+        @Test
+        @DisplayName("Filter on deep path + project on different deep path")
+        void testFilterDeepProjectDifferent() throws SQLException {
+            // Filter on dept.org.name, project firm.legalName — two completely independent association paths
+            var r = exec(fullModel(), "Person.all()->filter({p|$p.dept.org.name == 'Acme Corp'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            assertEquals(3, r.rows().size());
+            Map<String, String> map = new HashMap<>();
+            for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
+            assertEquals("Acme", map.get("Alice"));
+            assertEquals("Acme", map.get("Bob"));
+            assertEquals("Globex", map.get("Charlie"));
+        }
+
+        @Test
+        @DisplayName("Limit after to-many expansion: project addresses then limit")
+        void testLimitAfterToManyExpansion() throws SQLException {
+            // Person->addresses produces 5 rows (Alice x2, Bob x1, Charlie NULL, Diana NULL)
+            // Sort by name ASC then limit 2 — should get Alice's first 2 rows
+            var r = exec(fullModel(),
+                "Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->sort(~name->ascending())->limit(2)");
+            assertEquals(2, r.rowCount());
+            // Both rows are Alice (she has 2 addresses and sorts first)
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Alice", colStr(r, 0).get(1));
+        }
+
+        @Test
+        @DisplayName("Distinct after to-many expansion: dedup expanded rows")
+        void testDistinctAfterToManyExpansion() throws SQLException {
+            // Project just the person name through addresses — Alice appears twice (2 addresses)
+            // Distinct should collapse Alice back to 1
+            var r = exec(fullModel(),
+                "Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->select(~[name])->distinct()");
+            assertEquals(4, r.rowCount());
+            var names = colStr(r, 0);
+            assertEquals(1, Collections.frequency(names, "Alice"));
+        }
+
+        @Test
+        @DisplayName("Empty source table: 0 persons, joins still produce 0 rows")
+        void testEmptySourceTable() throws SQLException {
+            sql("CREATE TABLE T_EMPTY_PERSON (ID INT, NAME VARCHAR(100), FIRM_ID INT)",
+                "CREATE TABLE T_EMPTY_FIRM (ID INT, LEGAL_NAME VARCHAR(100))",
+                "INSERT INTO T_EMPTY_FIRM VALUES (1, 'Acme')");
+            // T_EMPTY_PERSON has no rows
+
+            String model = withRuntime("""
+                    Class test::Person { name: String[1]; }
+                    Class test::Firm { legalName: String[1]; }
+                    Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    Database store::DB
+                    (
+                        Table T_EMPTY_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
+                        Table T_EMPTY_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100))
+                        Join PersonFirm(T_EMPTY_PERSON.FIRM_ID = T_EMPTY_FIRM.ID)
+                    )
+                    Mapping test::M
+                    (
+                        Person: Relational { ~mainTable [store::DB] T_EMPTY_PERSON name: [store::DB] T_EMPTY_PERSON.NAME }
+                        Firm: Relational { ~mainTable [store::DB] T_EMPTY_FIRM legalName: [store::DB] T_EMPTY_FIRM.LEGAL_NAME }
+                        test::PersonFirm: AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm )
+                    )
+                    """, "store::DB", "test::M");
+
+            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            assertEquals(0, r.rows().size());
+        }
+
+        @Test
+        @DisplayName("Diamond: two paths to same org concept via different associations")
+        void testDiamondTwoPaths() throws SQLException {
+            // Person->dept.org.name AND Person->dept.name — both through dept but different depths
+            // Verify both resolve independently with correct values
+            var r = exec(fullModel(),
+                "Person.all()->project([x|$x.name, x|$x.dept.name, x|$x.dept.org.name], ['name', 'dept', 'org'])");
+            assertEquals(4, r.rows().size());
+            Map<String, String> depts = new HashMap<>();
+            Map<String, String> orgs = new HashMap<>();
+            for (var row : r.rows()) {
+                String name = row.get(0).toString();
+                depts.put(name, row.get(1) != null ? row.get(1).toString() : null);
+                orgs.put(name, row.get(2) != null ? row.get(2).toString() : null);
+            }
+            assertEquals("Engineering", depts.get("Alice"));
+            assertEquals("Acme Corp", orgs.get("Alice"));
+            assertEquals("Sales", depts.get("Bob"));
+            assertEquals("Acme Corp", orgs.get("Bob"));
+            assertNull(depts.get("Diana"));
+            assertNull(orgs.get("Diana"));
+        }
+
+        @Test
+        @DisplayName("Sort by to-many association property: addresses.city with row expansion")
+        void testSortByToManyProperty() throws SQLException {
+            var r = exec(fullModel(),
+                "Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->sort(~city->ascending())");
+            assertEquals(5, r.rowCount());
+            var cities = colStr(r, 1);
+            // ASC NULLS LAST: Chicago, LA, NYC, NULL, NULL
+            assertEquals("Chicago", cities.get(0));
+            assertEquals("LA", cities.get(1));
+            assertEquals("NYC", cities.get(2));
+            assertNull(cities.get(3));
+            assertNull(cities.get(4));
+        }
+
+        @Test
+        @DisplayName("Three associations in one projection: firm + dept + addresses")
+        void testThreeAssociationsOneProjection() throws SQLException {
+            var r = exec(fullModel(),
+                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.dept.name, x|$x.addresses.city], ['name', 'firm', 'dept', 'city'])");
+            // Alice: 2 address rows, Bob: 1, Charlie: 1 (NULL city), Diana: 1 (NULL all)
+            assertEquals(5, r.rows().size());
+            // Verify Alice's rows have consistent firm/dept across her 2 address rows
+            List<String> aliceFirms = new ArrayList<>();
+            List<String> aliceDepts = new ArrayList<>();
+            for (var row : r.rows()) {
+                if ("Alice".equals(row.get(0).toString())) {
+                    aliceFirms.add(row.get(1) != null ? row.get(1).toString() : null);
+                    aliceDepts.add(row.get(2) != null ? row.get(2).toString() : null);
+                }
+            }
+            assertEquals(2, aliceFirms.size());
+            assertTrue(aliceFirms.stream().allMatch("Acme"::equals));
+            assertTrue(aliceDepts.stream().allMatch("Engineering"::equals));
+        }
+
+        @Test
+        @DisplayName("GroupBy to-one association after to-many filter (EXISTS + aggregation)")
+        void testGroupByToOneAfterToManyFilter() throws SQLException {
+            // Filter: person has address in a known city (EXISTS) — Alice(NYC,LA), Bob(Chicago)
+            // Charlie and Diana have no addresses, so EXISTS is false for them.
+            // GroupBy firm, count — only Acme people (Alice, Bob) survive the filter.
+            // Globex (Charlie) excluded. Diana (NULL firm) excluded.
+            var r = exec(fullModel(),
+                "Person.all()->filter({p|$p.addresses.city != ''})->project(~[firm:p|$p.firm.legalName, name:p|$p.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
+            // Only Acme people have addresses — 1 group
+            assertEquals(1, r.rowCount());
+            assertEquals("Acme", colStr(r, 0).get(0));
+            assertEquals(Integer.valueOf(2), colInt(r, 1).get(0));
+        }
+
+        @Test
+        @DisplayName("Association property in string computation: extend with toUpper on firm name")
+        void testAssociationInComputation() throws SQLException {
+            var r = exec(fullModel(),
+                "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toUpper())");
+            assertEquals(1, r.rowCount());
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Acme", colStr(r, 1).get(0));
+            assertEquals("ACME", colStr(r, 2).get(0));
+        }
+
+        @Test
+        @DisplayName("Self-join two hops: Dev -> VP -> CEO (manager's manager)")
+        void testSelfJoinTwoHops() throws SQLException {
+            sql("CREATE TABLE T_EMP2 (ID INT PRIMARY KEY, NAME VARCHAR(100), MANAGER_ID INT)",
+                "INSERT INTO T_EMP2 VALUES (1, 'CEO', NULL), (2, 'VP', 1), (3, 'Dev', 2), (4, 'Intern', 3)");
+
+            String model = withRuntime("""
+                    Class test::Emp { name: String[1]; }
+                    Association test::EmpManager { manager: Emp[0..1]; reports: Emp[*]; }
+                    Database store::DB
+                    (
+                        Table T_EMP2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), MANAGER_ID INTEGER)
+                        Join EmpManager(T_EMP2.MANAGER_ID = {target}.ID)
+                    )
+                    Mapping test::M
+                    (
+                        Emp: Relational { ~mainTable [store::DB] T_EMP2 name: [store::DB] T_EMP2.NAME }
+                        test::EmpManager: AssociationMapping ( manager: [store::DB]@EmpManager, reports: [store::DB]@EmpManager )
+                    )
+                    """, "store::DB", "test::M");
+
+            // Navigate TWO hops: emp -> manager -> manager (skip-level reporting)
+            var r = exec(model, "Emp.all()->project([x|$x.name, x|$x.manager.manager.name], ['name', 'grandmanager'])");
+            assertEquals(4, r.rows().size());
+            Map<String, String> map = new HashMap<>();
+            for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
+            assertNull(map.get("CEO"));        // no manager
+            assertNull(map.get("VP"));         // manager is CEO, CEO has no manager
+            assertEquals("CEO", map.get("Dev"));    // Dev->VP->CEO
+            assertEquals("VP", map.get("Intern"));  // Intern->Dev->VP
+        }
+
+        @Test
+        @DisplayName("Filter on self-join property: manager.name == 'CEO'")
+        void testFilterOnSelfJoin() throws SQLException {
+            sql("CREATE TABLE T_EMP3 (ID INT PRIMARY KEY, NAME VARCHAR(100), MANAGER_ID INT)",
+                "INSERT INTO T_EMP3 VALUES (1, 'CEO', NULL), (2, 'VP', 1), (3, 'Director', 1), (4, 'Dev', 2)");
+
+            String model = withRuntime("""
+                    Class test::Emp { name: String[1]; }
+                    Association test::EmpManager { manager: Emp[0..1]; reports: Emp[*]; }
+                    Database store::DB
+                    (
+                        Table T_EMP3 (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), MANAGER_ID INTEGER)
+                        Join EmpManager(T_EMP3.MANAGER_ID = {target}.ID)
+                    )
+                    Mapping test::M
+                    (
+                        Emp: Relational { ~mainTable [store::DB] T_EMP3 name: [store::DB] T_EMP3.NAME }
+                        test::EmpManager: AssociationMapping ( manager: [store::DB]@EmpManager, reports: [store::DB]@EmpManager )
+                    )
+                    """, "store::DB", "test::M");
+
+            // Who reports directly to the CEO?
+            var r = exec(model, "Emp.all()->filter({e|$e.manager.name == 'CEO'})->project(~[name:e|$e.name])->sort(~name->ascending())");
+            assertEquals(2, r.rowCount());
+            assertEquals(List.of("Director", "VP"), colStr(r, 0));
+        }
+    }
+
+    // ==================== 1l. Combined Association Nav + extend(traverse()) ====================
+
+    @Nested
+    @DisplayName("1l. Combined Association Nav + extend(traverse())")
+    class CombinedTraverse {
+
+        @BeforeEach
+        void setup() throws SQLException { setupTables(); }
+
+        /**
+         * Model with deptId mapped so it's available in TDS for extend(traverse()) FK reference.
+         * Classic association nav (firm) + explicit extend(traverse()) (dept) in same query.
+         */
+        private String combinedModel() {
+            return withRuntime("""
+                    Class test::Person { id: Integer[1]; name: String[1]; deptId: Integer[0..1]; }
+                    Class test::Firm { id: Integer[1]; legalName: String[1]; }
+                    Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    Database store::DB
+                    (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
+                        Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
+                        Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                        Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                        Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
+                    )
+                    Mapping test::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            id: [store::DB] T_PERSON.ID,
+                            name: [store::DB] T_PERSON.NAME,
+                            deptId: [store::DB] T_PERSON.DEPT_ID
+                        }
+                        Firm: Relational
+                        {
+                            ~mainTable [store::DB] T_FIRM
+                            id: [store::DB] T_FIRM.ID,
+                            legalName: [store::DB] T_FIRM.LEGAL_NAME
+                        }
+                        test::PersonFirm: AssociationMapping
+                        (
+                            employees: [store::DB]@PersonFirm,
+                            firm: [store::DB]@PersonFirm
+                        )
+                    )
+                    """, "store::DB", "test::M");
+        }
+
+        @Test
+        @DisplayName("Association nav project + extend(traverse()) in same query")
+        void testAssocNavPlusExtendTraverse() throws SQLException {
+            // Classic association: Person->firm.legalName (MappingNormalizer-synthesized traverse)
+            // User-written: extend(traverse(T_DEPT), ~deptName) (explicit Relation API traverse)
+            // Project includes deptId so traverse can use it as FK
+            var r = exec(combinedModel(),
+                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->select(~[name, firm, deptName])");
+            assertEquals(4, r.rowCount());
+            Map<String, String> firms = new HashMap<>();
+            Map<String, String> depts = new HashMap<>();
+            for (var row : r.rows()) {
+                String name = row.get(0).toString();
+                firms.put(name, row.get(1) != null ? row.get(1).toString() : null);
+                depts.put(name, row.get(2) != null ? row.get(2).toString() : null);
+            }
+            assertEquals("Acme", firms.get("Alice"));
+            assertEquals("Engineering", depts.get("Alice"));
+            assertEquals("Acme", firms.get("Bob"));
+            assertEquals("Sales", depts.get("Bob"));
+            assertEquals("Globex", firms.get("Charlie"));
+            assertEquals("Engineering", depts.get("Charlie"));
+            assertNull(firms.get("Diana"));
+            assertNull(depts.get("Diana"));
+        }
+
+        @Test
+        @DisplayName("Filter on association nav, then extend(traverse()) on result")
+        void testFilterAssocThenExtendTraverse() throws SQLException {
+            // Filter via classic association (firm='Acme'), then add dept via extend(traverse())
+            var r = exec(combinedModel(),
+                "Person.all()->filter({p|$p.firm.legalName == 'Acme'})" +
+                "->project(~[name:x|$x.name, deptId:x|$x.deptId])" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->select(~[name, deptName])->sort(~name->ascending())");
+            assertEquals(2, r.rowCount());
+            assertEquals(List.of("Alice", "Bob"), colStr(r, 0));
+            assertEquals("Engineering", colStr(r, 1).get(0));
+            assertEquals("Sales", colStr(r, 1).get(1));
+        }
+
+        @Test
+        @DisplayName("extend(traverse()) multi-hop + association nav in same query")
+        void testMultiHopExtendTraversePlusAssocNav() throws SQLException {
+            // User-written multi-hop traverse: Person -> Dept -> Org (via extend)
+            // Classic association: Person -> firm.legalName
+            // Both in same query
+            var r = exec(combinedModel(),
+                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})" +
+                "->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->select(~[name, firm, orgName])->sort(~name->ascending())");
+            assertEquals(4, r.rowCount());
+            assertEquals(List.of("Alice", "Bob", "Charlie", "Diana"), colStr(r, 0));
+            // firm via association nav
+            assertEquals("Acme", colStr(r, 1).get(0));
+            assertEquals("Globex", colStr(r, 1).get(2));
+            // org via extend(traverse()) multi-hop
+            assertEquals("Acme Corp", colStr(r, 2).get(0));
+            assertEquals("Acme Corp", colStr(r, 2).get(1));
+            assertEquals("Acme Corp", colStr(r, 2).get(2));
+            assertNull(colStr(r, 2).get(3)); // Diana has no dept
+        }
+
+        @Test
+        @DisplayName("extend(traverse()) then filter on traversed + association column")
+        void testExtendTraverseThenFilterOnBoth() throws SQLException {
+            // Add dept via extend(traverse()), then filter on traversed col AND association col
+            var r = exec(combinedModel(),
+                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->filter(x|$x.firm == 'Acme' && $x.deptName == 'Engineering')");
+            assertEquals(1, r.rowCount());
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Acme", colStr(r, 1).get(0));
+            // deptId=2, deptName=3 — verify deptName (last column)
+            int lastCol = r.columns().size() - 1;
+            assertEquals("Engineering", colStr(r, lastCol).get(0));
+        }
+    }
+
+    // ==================== 1m. BOSS: All-Mapping (association + join chains) ====================
+
+    @Nested
+    @DisplayName("1m. BOSS: All-Mapping — association nav + join chain properties")
+    class BossAllMapping {
+
+        @BeforeEach
+        void setup() throws SQLException {
+            // 7 tables: Person -> Firm (assoc), Person -> Dept -> Org -> Country (3-hop chain), Person -> Addr (1-hop chain)
+            sql("CREATE TABLE T_COUNTRY (ID INT PRIMARY KEY, NAME VARCHAR(100))",
+                "CREATE TABLE T_ORG (ID INT PRIMARY KEY, NAME VARCHAR(100), COUNTRY_ID INT)",
+                "CREATE TABLE T_DEPT (ID INT PRIMARY KEY, NAME VARCHAR(50), ORG_ID INT)",
+                "CREATE TABLE T_FIRM (ID INT PRIMARY KEY, LEGAL_NAME VARCHAR(100))",
+                "CREATE TABLE T_ADDR (ID INT PRIMARY KEY, CITY VARCHAR(100))",
+                "CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INT, DEPT_ID INT, ADDR_ID INT)",
+                "INSERT INTO T_COUNTRY VALUES (1, 'USA'), (2, 'UK')",
+                "INSERT INTO T_ORG VALUES (1, 'Acme Corp', 1), (2, 'Globex Ltd', 2)",
+                "INSERT INTO T_DEPT VALUES (1, 'Engineering', 1), (2, 'Sales', 1), (3, 'Research', 2)",
+                "INSERT INTO T_FIRM VALUES (1, 'Acme'), (2, 'Globex')",
+                "INSERT INTO T_ADDR VALUES (1, 'New York'), (2, 'London'), (3, 'Chicago')",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1, 1, 1), (2, 'Bob', 1, 2, 3), (3, 'Charlie', 2, 3, 2), (4, 'Diana', NULL, NULL, NULL)");
+        }
+
+        /**
+         * 7-table model, all in mapping — no user-written extend(traverse()):
+         *   - Association: PersonFirm (firm nav)
+         *   - 1-hop chain: deptName (@Person_Dept | T_DEPT.NAME)
+         *   - 1-hop chain: city (@Person_Addr | T_ADDR.CITY)
+         *   - 2-hop chain: orgName (@Person_Dept > @Dept_Org | T_ORG.NAME)
+         *   - 3-hop chain: countryName (@Person_Dept > @Dept_Org > @Org_Country | T_COUNTRY.NAME)
+         */
+        private String bossModel() {
+            return withRuntime("""
+                    Class test::Person { name: String[1]; deptName: String[0..1]; city: String[0..1]; orgName: String[0..1]; countryName: String[0..1]; }
+                    Class test::Firm { legalName: String[1]; }
+                    Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    Database store::DB
+                    (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER, ADDR_ID INTEGER)
+                        Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
+                        Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                        Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), COUNTRY_ID INTEGER)
+                        Table T_COUNTRY (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                        Table T_ADDR (ID INTEGER PRIMARY KEY, CITY VARCHAR(100))
+                        Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
+                        Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
+                        Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
+                        Join Org_Country(T_ORG.COUNTRY_ID = T_COUNTRY.ID)
+                        Join Person_Addr(T_PERSON.ADDR_ID = T_ADDR.ID)
+                    )
+                    Mapping test::M
+                    (
+                        Person: Relational
+                        {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            deptName: [store::DB] @Person_Dept | T_DEPT.NAME,
+                            city: [store::DB] @Person_Addr | T_ADDR.CITY,
+                            orgName: [store::DB] @Person_Dept > @Dept_Org | T_ORG.NAME,
+                            countryName: [store::DB] @Person_Dept > @Dept_Org > @Org_Country | T_COUNTRY.NAME
+                        }
+                        Firm: Relational
+                        {
+                            ~mainTable [store::DB] T_FIRM
+                            legalName: [store::DB] T_FIRM.LEGAL_NAME
+                        }
+                        test::PersonFirm: AssociationMapping
+                        (
+                            employees: [store::DB]@PersonFirm,
+                            firm: [store::DB]@PersonFirm
+                        )
+                    )
+                    """, "store::DB", "test::M");
+        }
+
+        @Test
+        @DisplayName("Project all: name + firm (assoc) + dept (1-hop) + org (2-hop) + country (3-hop) + city (1-hop)")
+        void testProjectAll() throws SQLException {
+            var r = exec(bossModel(),
+                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptName, x|$x.orgName, x|$x.countryName, x|$x.city], " +
+                "['name', 'firm', 'dept', 'org', 'country', 'city'])->sort(~name->ascending())");
+            assertEquals(4, r.rowCount());
+            // Alice: Acme, Engineering, Acme Corp, USA, New York
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Acme", colStr(r, 1).get(0));
+            assertEquals("Engineering", colStr(r, 2).get(0));
+            assertEquals("Acme Corp", colStr(r, 3).get(0));
+            assertEquals("USA", colStr(r, 4).get(0));
+            assertEquals("New York", colStr(r, 5).get(0));
+            // Bob: Acme, Sales, Acme Corp, USA, Chicago
+            assertEquals("Bob", colStr(r, 0).get(1));
+            assertEquals("Acme", colStr(r, 1).get(1));
+            assertEquals("Sales", colStr(r, 2).get(1));
+            assertEquals("Acme Corp", colStr(r, 3).get(1));
+            assertEquals("USA", colStr(r, 4).get(1));
+            assertEquals("Chicago", colStr(r, 5).get(1));
+            // Charlie: Globex, Research, Globex Ltd, UK, London
+            assertEquals("Charlie", colStr(r, 0).get(2));
+            assertEquals("Globex", colStr(r, 1).get(2));
+            assertEquals("Research", colStr(r, 2).get(2));
+            assertEquals("Globex Ltd", colStr(r, 3).get(2));
+            assertEquals("UK", colStr(r, 4).get(2));
+            assertEquals("London", colStr(r, 5).get(2));
+            // Diana: all NULLs (no FK links)
+            assertEquals("Diana", colStr(r, 0).get(3));
+            assertNull(colStr(r, 1).get(3));
+            assertNull(colStr(r, 2).get(3));
+            assertNull(colStr(r, 3).get(3));
+            assertNull(colStr(r, 4).get(3));
+            assertNull(colStr(r, 5).get(3));
+        }
+
+        @Test
+        @DisplayName("Filter on 3-hop chain + 1-hop chain, project association nav")
+        void testFilterChainProjectAssoc() throws SQLException {
+            // Filter: USA (3-hop chain) + Engineering (1-hop chain). Project: firm (association nav)
+            var r = exec(bossModel(),
+                "Person.all()->filter({p|$p.countryName == 'USA' && $p.deptName == 'Engineering'})" +
+                "->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            assertEquals(1, r.rowCount());
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Acme", colStr(r, 1).get(0));
+        }
+
+        @Test
+        @DisplayName("Filter on 1-hop chain, project 3-hop chain + association")
+        void testFilterOneHopProjectThreeHop() throws SQLException {
+            // Filter by dept, project country + firm
+            var r = exec(bossModel(),
+                "Person.all()->filter({p|$p.deptName == 'Engineering'})" +
+                "->project([x|$x.name, x|$x.countryName, x|$x.firm.legalName], ['name', 'country', 'firm'])");
+            assertEquals(1, r.rowCount());
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("USA", colStr(r, 1).get(0));
+            assertEquals("Acme", colStr(r, 2).get(0));
+        }
+
+        @Test
+        @DisplayName("GroupBy on 2-hop chain column, count via association")
+        void testGroupByChainColumn() throws SQLException {
+            // Count employees per org
+            var r = exec(bossModel(),
+                "Person.all()->filter({p|$p.orgName->isNotEmpty()})" +
+                "->project([x|$x.orgName], ['org'])" +
+                "->groupBy(~org, ~cnt:x|$x.org:y|$y->count())->sort(~org->ascending())");
+            assertEquals(2, r.rowCount());
+            assertEquals("Acme Corp", colStr(r, 0).get(0));
+            assertEquals(2, colInt(r, 1).get(0).intValue());
+            assertEquals("Globex Ltd", colStr(r, 0).get(1));
+            assertEquals(1, colInt(r, 1).get(1).intValue());
+        }
+    }
+
+    // ==================== 1j. Self-Join ====================
 
     @Nested
     @DisplayName("1j. Self-Join")
