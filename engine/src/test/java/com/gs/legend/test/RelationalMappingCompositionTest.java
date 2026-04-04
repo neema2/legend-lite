@@ -1042,6 +1042,28 @@ class RelationalMappingCompositionTest {
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
+
+        @Test @DisplayName("sortBy assoc property → scalar subquery in ORDER BY")
+        void sortByAssocProperty() throws SQLException {
+            setupData();
+            var r = exec(assocPlusChainModel(),
+                    "Employee.all()->sortBy({e|$e.firm.legalName})->project(~[name:e|$e.name, firm:e|$e.firm.legalName])");
+            assertEquals(3, r.rowCount());
+            // Acme Corp < Beta Inc alphabetically → Alice,Bob first, then Charlie
+            var firms = colStr(r, 1);
+            assertEquals("Acme Corp", firms.get(0));
+            assertEquals("Acme Corp", firms.get(1));
+            assertEquals("Beta Inc", firms.get(2));
+        }
+
+        @Test @Disabled("GAP: collection groupBy on Class.all() not supported — arity-4 overload doesn't match")
+        @DisplayName("groupBy (collection) with assoc in key function")
+        void groupByCollectionWithAssocKey() throws SQLException {
+            setupData();
+            var r = exec(assocPlusChainModel(),
+                    "Employee.all()->groupBy([{e|$e.firm.legalName}], [agg({e|$e.name}, {y|$y->count()})], ['firm', 'cnt'])");
+            assertEquals(2, r.rowCount());
+        }
     }
 
     // ==================== 17. Pure M2M Mappings ====================
