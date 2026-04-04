@@ -215,6 +215,7 @@ public class TypeChecker implements TypeCheckEnv {
             case "extend" -> new com.gs.legend.compiler.checkers.ExtendChecker(this).check(af, source, ctx);
             case "join" -> new com.gs.legend.compiler.checkers.JoinChecker(this).check(af, source, ctx);
             case "asOfJoin" -> new com.gs.legend.compiler.checkers.AsOfJoinChecker(this).check(af, source, ctx);
+            case "traverse" -> new com.gs.legend.compiler.checkers.TraverseChecker(this).check(af, source, ctx);
             case "pivot" -> new com.gs.legend.compiler.checkers.PivotChecker(this).check(af, source, ctx);
             case "flatten" -> new com.gs.legend.compiler.checkers.FlattenChecker(this).check(af, source, ctx);
             case "from" -> new com.gs.legend.compiler.checkers.FromChecker(this).check(af, source, ctx);

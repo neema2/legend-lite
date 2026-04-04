@@ -492,15 +492,15 @@ public class PlanGenerator {
                             "Nested property '" + prop.name() + "' has no resolved join in StoreResolution");
                 }
 
-                // Ensure parent join column is projected
-                String parentJoinCol = joinRes.sourceColumn();
-                source.addSelect(
-                        new SqlExpr.Column(tableAlias, parentJoinCol),
-                        dialect.quoteIdentifier(parentJoinCol));
+                // Ensure parent join columns are projected (may be multiple for compound conditions)
+                if (joinRes.joinCondition() != null) {
+                    for (String col : joinRes.sourceColumns()) {
+                        source.addSelect(new SqlExpr.Column(tableAlias, col), dialect.quoteIdentifier(col));
+                    }
+                }
 
                 // Build correlated subquery for nested object
                 String childTable = joinRes.targetTable();
-                String childJoinCol = joinRes.targetColumn();
                 String childAlias = "c_" + prop.name();
 
                 // Build json_object for child properties
@@ -512,11 +512,11 @@ public class PlanGenerator {
                 }
                 var childJsonObj = new SqlExpr.JsonObject(childKvPairs);
 
-                // Correlated WHERE: child.fk = _sub.parent_pk
-                SqlExpr correlation = new SqlExpr.Binary(
-                        new SqlExpr.Column(childAlias, childJoinCol),
-                        "=",
-                        new SqlExpr.Column("_sub", parentJoinCol));
+                // Correlated WHERE: full join condition with _sub as source, childAlias as target
+                SqlExpr correlation = (joinRes.joinCondition() != null)
+                        ? generateScalar(joinRes.joinCondition(), null, null, null,
+                            Map.of(joinRes.sourceParam(), "_sub", joinRes.targetParam(), childAlias))
+                        : new SqlExpr.BoolLiteral(true);
 
                 SqlBuilder childQuery = new SqlBuilder();
                 if (joinRes.isToMany()) {
@@ -786,7 +786,7 @@ public class PlanGenerator {
 
                 SqlExpr colExpr;
                 var lastJoin = assocJoins.get(String.join(".", path.subList(0, path.size() - 1)));
-                if (lastJoin != null && lastJoin.joinRes().join() == null) {
+                if (lastJoin != null && lastJoin.joinRes().joinCondition() == null) {
                     // UNNEST association (struct array): resolve from unnested element
                     String elemAlias = curAlias + "_elem";
                     colExpr = resolveColumnExpr(leafProp, curStore, elemAlias);
@@ -815,14 +815,11 @@ public class PlanGenerator {
         for (var entry : assocJoins.entrySet()) {
             AssocJoinInfo joinInfo = entry.getValue();
             var joinRes = joinInfo.joinRes();
-            if (joinRes.join() != null) {
-                // Regular FK join — parentAlias is the source side for this hop
+            if (joinRes.joinCondition() != null) {
+                // Regular FK join — full condition rendered via generateScalar + varAliases
                 String targetTableName = joinRes.targetTable();
-                String leftCol = joinRes.sourceColumn();
-                String rightCol = joinRes.targetColumn();
-                SqlExpr onCondition = new SqlExpr.Binary(
-                        new SqlExpr.Column(joinInfo.parentAlias(), leftCol), "=",
-                        new SqlExpr.Column(joinInfo.alias(), rightCol));
+                SqlExpr onCondition = generateScalar(joinRes.joinCondition(), null, null, null,
+                        Map.of(joinRes.sourceParam(), joinInfo.parentAlias(), joinRes.targetParam(), joinInfo.alias()));
                 builder.addJoin(SqlBuilder.JoinType.LEFT,
                         dialect.quoteIdentifier(targetTableName),
                         dialect.quoteIdentifier(joinInfo.alias()), onCondition);
@@ -960,19 +957,16 @@ public class PlanGenerator {
         // Resolve first hop
         var firstJoinRes = currentStore.hasJoins() ? currentStore.joins().get(hops.get(0)) : null;
         if (firstJoinRes == null) firstJoinRes = findJoinResolution(hops.get(0));
-        if (firstJoinRes == null || firstJoinRes.join() == null) {
+        if (firstJoinRes == null || firstJoinRes.joinCondition() == null) {
             return expr; // Can't resolve — pass through
         }
 
         String firstSubAlias = "sub" + (tableAliasCounter++);
         String firstTargetTable = firstJoinRes.targetTable();
-        String firstLeftCol = firstJoinRes.sourceColumn();
-        String firstRightCol = firstJoinRes.targetColumn();
 
-        // Correlation: first hop table correlates back to the outer query
-        SqlExpr correlation = new SqlExpr.Binary(
-                new SqlExpr.Column(firstSubAlias, firstRightCol), "=",
-                new SqlExpr.Column(currentAlias, firstLeftCol));
+        // Correlation: first hop — join condition rendered via generateScalar + varAliases
+        SqlExpr correlation = generateScalar(firstJoinRes.joinCondition(), null, null, null,
+                Map.of(firstJoinRes.sourceParam(), currentAlias, firstJoinRes.targetParam(), firstSubAlias));
 
         SqlBuilder subquery = new SqlBuilder()
                 .addSelect(new SqlExpr.NumericLiteral(1), null)
@@ -985,17 +979,14 @@ public class PlanGenerator {
             String hop = hops.get(i);
             var hopJoinRes = hopStore != null && hopStore.hasJoins()
                     ? hopStore.joins().get(hop) : null;
-            if (hopJoinRes == null || hopJoinRes.join() == null) break;
+            if (hopJoinRes == null || hopJoinRes.joinCondition() == null) break;
 
             String hopAlias = "sub" + (tableAliasCounter++);
             String hopTable = hopJoinRes.targetTable();
-            String hopSourceCol = hopJoinRes.sourceColumn();
-            String hopTargetCol = hopJoinRes.targetColumn();
 
-            // JOIN intermediate table inside the EXISTS
-            SqlExpr joinCond = new SqlExpr.Binary(
-                    new SqlExpr.Column(hopAlias, hopTargetCol), "=",
-                    new SqlExpr.Column(leafAlias, hopSourceCol));
+            // JOIN intermediate table — join condition via generateScalar + varAliases
+            SqlExpr joinCond = generateScalar(hopJoinRes.joinCondition(), null, null, null,
+                    Map.of(hopJoinRes.sourceParam(), leafAlias, hopJoinRes.targetParam(), hopAlias));
             subquery.addJoin(SqlBuilder.JoinType.INNER, dialect.quoteIdentifier(hopTable),
                     dialect.quoteIdentifier(hopAlias), joinCond);
 
@@ -1160,15 +1151,13 @@ public class PlanGenerator {
             var hops = ref.hops();
             // Resolve first hop
             var firstJoinRes = findJoinResolution(hops.get(0));
-            if (firstJoinRes != null && firstJoinRes.join() != null) {
+            if (firstJoinRes != null && firstJoinRes.joinCondition() != null) {
                 String firstSubAlias = "sort_j" + (tableAliasCounter++);
                 String firstTargetTable = firstJoinRes.targetTable();
-                String firstLeftCol = firstJoinRes.sourceColumn();
-                String firstRightCol = firstJoinRes.targetColumn();
 
-                SqlExpr correlation = new SqlExpr.Binary(
-                        new SqlExpr.Column(firstSubAlias, firstRightCol), "=",
-                        new SqlExpr.Column(tableAlias, firstLeftCol));
+                // Correlation: join condition via generateScalar + varAliases
+                SqlExpr correlation = generateScalar(firstJoinRes.joinCondition(), null, null, null,
+                        Map.of(firstJoinRes.sourceParam(), tableAlias, firstJoinRes.targetParam(), firstSubAlias));
                 SqlBuilder subquery = new SqlBuilder()
                         .from(dialect.quoteIdentifier(firstTargetTable),
                                 dialect.quoteIdentifier(firstSubAlias))
@@ -1181,12 +1170,11 @@ public class PlanGenerator {
                     String hop = hops.get(i);
                     var hopJoinRes = hopStore != null && hopStore.hasJoins()
                             ? hopStore.joins().get(hop) : null;
-                    if (hopJoinRes == null || hopJoinRes.join() == null) break;
+                    if (hopJoinRes == null || hopJoinRes.joinCondition() == null) break;
 
                     String hopAlias = "sort_j" + (tableAliasCounter++);
-                    SqlExpr joinCond = new SqlExpr.Binary(
-                            new SqlExpr.Column(hopAlias, hopJoinRes.targetColumn()), "=",
-                            new SqlExpr.Column(leafAlias, hopJoinRes.sourceColumn()));
+                    SqlExpr joinCond = generateScalar(hopJoinRes.joinCondition(), null, null, null,
+                            Map.of(hopJoinRes.sourceParam(), leafAlias, hopJoinRes.targetParam(), hopAlias));
                     subquery.addJoin(SqlBuilder.JoinType.INNER, dialect.quoteIdentifier(hopJoinRes.targetTable()),
                             dialect.quoteIdentifier(hopAlias), joinCond);
                     leafAlias = hopAlias;
@@ -3620,7 +3608,7 @@ public class PlanGenerator {
                                 List<Variable> parameters, List<ValueSpecification> body)) {
                     String propName = assocProp.property();
                     var joinRes = findJoinResolution(propName);
-                    if (joinRes != null && joinRes.join() != null) {
+                    if (joinRes != null && joinRes.joinCondition() != null) {
                         String targetTable = joinRes.targetTable();
                         String existsAlias = "_ex";
 
@@ -3630,12 +3618,9 @@ public class PlanGenerator {
                                 ? generateScalar(body.getLast(), elemParam, joinRes.targetResolution(), existsAlias)
                                 : new SqlExpr.BoolLiteral(true);
 
-                        // Build JOIN condition: _ex.FK = t0.PK
-                        String sourceCol = joinRes.sourceColumn();
-                        String targetCol = joinRes.targetColumn();
-                        SqlExpr joinCond = new SqlExpr.Binary(
-                                new SqlExpr.Column(existsAlias, targetCol), "=",
-                                new SqlExpr.Column(tableAlias, sourceCol));
+                        // Build JOIN condition via generateScalar + varAliases
+                        SqlExpr joinCond = generateScalar(joinRes.joinCondition(), null, null, null,
+                                Map.of(joinRes.sourceParam(), tableAlias, joinRes.targetParam(), existsAlias));
 
                         // Combine: JOIN condition AND predicate
                         SqlExpr whereCond = new SqlExpr.Binary(joinCond, "AND", predBody);
@@ -4101,6 +4086,8 @@ public class PlanGenerator {
         }
         return null;
     }
+
+    // renderJoinCondition / renderJoinOn DELETED — replaced by generateScalar + varAliases
 
     // binaryOp DELETED — was thin wrapper, inlined into generateScalarFunction
 

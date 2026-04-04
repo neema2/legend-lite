@@ -382,7 +382,8 @@ public abstract class AbstractChecker implements FunctionChecker {
                     }
                     yield isSource
                         ? (source != null && source.isRelational())
-                        : actual instanceof ClassInstance ci && "relation".equals(ci.type());
+                        : (compiledType instanceof GenericType.Relation)
+                          || (actual instanceof ClassInstance ci && "relation".equals(ci.type()));
                 }
                 case "ColSpec"
                         -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type());

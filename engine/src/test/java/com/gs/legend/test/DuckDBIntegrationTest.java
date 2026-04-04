@@ -321,8 +321,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(builder.getJoin("Person_Address").isPresent());
 
         var join = builder.getJoin("Person_Address").orElseThrow();
-        assertEquals("T_PERSON", join.leftTable());
-        assertEquals("T_ADDRESS", join.rightTable());
+        var tableNames = com.gs.legend.model.RelationalMappingConverter.collectTableNames(join.condition());
+        assertTrue(tableNames.contains("T_PERSON"));
+        assertTrue(tableNames.contains("T_ADDRESS"));
     }
 
     // ==================== Pure Association Navigation Tests ====================
@@ -717,6 +718,108 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(sql.contains("PERSON_ID"), "Must have correlation on PERSON_ID");
         assertTrue(sql.contains("STREET"), "Must filter on STREET");
         assertTrue(sql.contains("'Test St'"), "Must include the literal value");
+    }
+
+    // ==================== Multi-Column (Compound) Join Tests ====================
+
+    @Test
+    @DisplayName("Multi-column join: EXISTS filter with AND join condition")
+    void testMultiColumnJoinExistsFilter() throws SQLException {
+        // Create tables with a composite key relationship
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("CREATE TABLE T_EMP_MC (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))");
+            stmt.execute("CREATE TABLE T_DEPT_MC (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))");
+            stmt.execute("INSERT INTO T_EMP_MC VALUES (1, 'ENG', 'US', 'Alice'), (2, 'ENG', 'EU', 'Bob'), (3, 'SALES', 'US', 'Carol')");
+            stmt.execute("INSERT INTO T_DEPT_MC VALUES (1, 'ENG', 'US', 'US Engineering'), (2, 'ENG', 'EU', 'EU Engineering'), (3, 'SALES', 'US', 'US Sales')");
+        }
+
+        String pureSource = """
+                Class model::EmpMC { name: String[1]; }
+                Class model::DeptMC { deptName: String[1]; }
+                Association model::Emp_Dept_MC
+                {
+                    emp: EmpMC[*];
+                    dept: DeptMC[0..1];
+                }
+                Database store::McDb
+                (
+                    Table T_EMP_MC (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))
+                    Table T_DEPT_MC (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))
+                    Join Emp_Dept_MC(T_EMP_MC.DEPT_CODE = T_DEPT_MC.DEPT_CODE and T_EMP_MC.REGION = T_DEPT_MC.REGION)
+                )
+                Mapping model::McMap
+                (
+                    EmpMC: Relational { ~mainTable [McDb] T_EMP_MC  name: [McDb] T_EMP_MC.NAME }
+                    DeptMC: Relational { ~mainTable [McDb] T_DEPT_MC  deptName: [McDb] T_DEPT_MC.DEPT_NAME }
+                )
+                RelationalDatabaseConnection store::McConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::McRT { mappings: [model::McMap]; connections: [store::McDb: [environment: store::McConn]]; }
+                """;
+
+        // Filter through to-one association → EXISTS with compound ON
+        String pureQuery = "EmpMC.all()->filter({e | $e.dept.deptName == 'US Engineering'})->project(~[name:e|$e.name])";
+        var result = queryService.execute(pureSource, pureQuery, "test::McRT", connection);
+
+        assertEquals(1, result.rows().size(), "Only Alice is in US Engineering");
+        assertEquals("Alice", result.rows().get(0).get(0));
+
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE T_EMP_MC");
+            stmt.execute("DROP TABLE T_DEPT_MC");
+        }
+    }
+
+    @Test
+    @DisplayName("Multi-column join: LEFT JOIN projection with AND join condition")
+    void testMultiColumnJoinProjection() throws SQLException {
+        // Create tables with a composite key relationship
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("CREATE TABLE T_EMP_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))");
+            stmt.execute("CREATE TABLE T_DEPT_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))");
+            stmt.execute("INSERT INTO T_EMP_MC2 VALUES (1, 'ENG', 'US', 'Alice'), (2, 'ENG', 'EU', 'Bob')");
+            stmt.execute("INSERT INTO T_DEPT_MC2 VALUES (1, 'ENG', 'US', 'US Engineering'), (2, 'ENG', 'EU', 'EU Engineering')");
+        }
+
+        String pureSource = """
+                Class model::EmpMC2 { name: String[1]; }
+                Class model::DeptMC2 { deptName: String[1]; }
+                Association model::Emp_Dept_MC2
+                {
+                    emp: EmpMC2[*];
+                    dept: DeptMC2[0..1];
+                }
+                Database store::McDb2
+                (
+                    Table T_EMP_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))
+                    Table T_DEPT_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))
+                    Join Emp_Dept_MC2(T_EMP_MC2.DEPT_CODE = T_DEPT_MC2.DEPT_CODE and T_EMP_MC2.REGION = T_DEPT_MC2.REGION)
+                )
+                Mapping model::McMap2
+                (
+                    EmpMC2: Relational { ~mainTable [McDb2] T_EMP_MC2  name: [McDb2] T_EMP_MC2.NAME }
+                    DeptMC2: Relational { ~mainTable [McDb2] T_DEPT_MC2  deptName: [McDb2] T_DEPT_MC2.DEPT_NAME }
+                )
+                RelationalDatabaseConnection store::McConn2 { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::McRT2 { mappings: [model::McMap2]; connections: [store::McDb2: [environment: store::McConn2]]; }
+                """;
+
+        // Project through association → LEFT JOIN with compound ON
+        String pureQuery = "EmpMC2.all()->project(~[name:e|$e.name, dept:e|$e.dept.deptName])";
+        var result = queryService.execute(pureSource, pureQuery, "test::McRT2", connection);
+
+        assertEquals(2, result.rows().size());
+        // Verify correct matching: Alice→US Engineering, Bob→EU Engineering (not cross-matched)
+        java.util.Map<String, String> empToDept = new java.util.HashMap<>();
+        for (var row : result.rows()) {
+            empToDept.put((String) row.get(0), (String) row.get(1));
+        }
+        assertEquals("US Engineering", empToDept.get("Alice"), "Alice should match US Engineering");
+        assertEquals("EU Engineering", empToDept.get("Bob"), "Bob should match EU Engineering");
+
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("DROP TABLE T_EMP_MC2");
+            stmt.execute("DROP TABLE T_DEPT_MC2");
+        }
     }
 
     // ==================== Row Explosion Demonstration ====================

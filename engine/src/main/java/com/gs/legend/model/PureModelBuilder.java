@@ -587,21 +587,13 @@ public final class PureModelBuilder implements ModelContext {
     private void registerM2MClassMapping(String mappingName, MappingDefinition.ClassMappingDefinition classMapping) {
         // === NEW: Parse M2M expressions via ValueSpecificationBuilder → PureClassMapping ===
         java.util.Map<String, com.gs.legend.ast.ValueSpecification> parsedExpressions = new java.util.LinkedHashMap<>();
-        java.util.Map<String, String> joinRefs = new java.util.LinkedHashMap<>();
 
         if (classMapping.m2mPropertyExpressions() != null) {
             for (var entry : classMapping.m2mPropertyExpressions().entrySet()) {
                 String propertyName = entry.getKey();
                 String expressionString = entry.getValue();
-
-                if (expressionString.startsWith("@")) {
-                    // Join reference (e.g., @PersonAddress) — store separately
-                    joinRefs.put(propertyName, expressionString.substring(1));
-                } else {
-                    // Parse Pure expression via ValueSpecificationBuilder
-                    parsedExpressions.put(propertyName,
-                            com.gs.legend.parser.PureParser.parseQuery(expressionString));
-                }
+                parsedExpressions.put(propertyName,
+                        com.gs.legend.parser.PureParser.parseQuery(expressionString));
             }
         }
 
@@ -618,7 +610,6 @@ public final class PureModelBuilder implements ModelContext {
                         classMapping.sourceClassName(),
                         parsedExpressions,
                         parsedFilter,
-                        joinRefs,
                         null,  // targetClass — resolved later
                         null); // sourceMapping — resolved later
         mappingRegistry.registerPureClassMapping(mappingName, pureMapping);
@@ -837,7 +828,7 @@ public final class PureModelBuilder implements ModelContext {
     public Optional<MappingExpression> findMappingExpression(String className) {
         return mappingRegistry.findPureClassMapping(className)
                 .map(pcm -> new MappingExpression.M2M(pcm.sourceClassName(),
-                        pcm.propertyExpressions(), pcm.filter()));
+                        pcm.propertyExpressions(), pcm.filter(), java.util.Map.of()));
     }
 
     @Override
@@ -863,9 +854,53 @@ public final class PureModelBuilder implements ModelContext {
         }
     }
 
-    @Override
-    public java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String className) {
-        var result = new java.util.LinkedHashMap<String, AssociationNavigation>();
+    /**
+     * Returns all property→Join mappings for a class from explicit mapping references.
+     * Includes both relational class mapping {@code @JoinName} and association mapping references.
+     * Key: property name, Value: Join.
+     *
+     * <p>This is the mapping-level source of truth for which properties use which joins,
+     * independent of whether the property comes from an Association or is declared directly on the class.
+     */
+    public java.util.Map<String, Join> findAllPropertyJoins(String className) {
+        var result = new java.util.LinkedHashMap<String, Join>();
+        String prefix = className + ".";
+        for (var entry : explicitAssociationJoins.entrySet()) {
+            if (entry.getKey().startsWith(prefix)) {
+                String propName = entry.getKey().substring(prefix.length());
+                result.putIfAbsent(propName, entry.getValue());
+            }
+        }
+        // Also check simple class name
+        String simpleName = className.contains("::")
+                ? className.substring(className.lastIndexOf("::") + 2) : className;
+        if (!simpleName.equals(className)) {
+            String simplePrefix = simpleName + ".";
+            for (var entry : explicitAssociationJoins.entrySet()) {
+                if (entry.getKey().startsWith(simplePrefix)) {
+                    String propName = entry.getKey().substring(simplePrefix.length());
+                    result.putIfAbsent(propName, entry.getValue());
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Full association navigation info for physical layers (MappingNormalizer).
+     * NOT on ModelContext — only accessible via PureModelBuilder directly.
+     */
+    public record FullAssociationNavigation(
+            String targetClassName,
+            boolean isToMany,
+            Join join) {}
+
+    /**
+     * Returns all association navigations for a given class, with full physical info.
+     * Called by MappingNormalizer directly (not through ModelContext).
+     */
+    public java.util.Map<String, FullAssociationNavigation> findAllAssociationNavigations(String className) {
+        var result = new java.util.LinkedHashMap<String, FullAssociationNavigation>();
         for (Association assoc : associations.values()) {
             var prop1 = assoc.property1();
             var prop2 = assoc.property2();
@@ -874,13 +909,13 @@ public final class PureModelBuilder implements ModelContext {
                 boolean isToMany = prop1.multiplicity().isMany();
                 Join join = findJoinForAssociationProperty(assoc.name(), prop1.propertyName());
                 result.putIfAbsent(prop1.propertyName(),
-                        new AssociationNavigation(assoc, prop2, prop1, isToMany, join));
+                        new FullAssociationNavigation(prop1.targetClass(), isToMany, join));
             }
             if (prop1.targetClass().equals(className)) {
                 boolean isToMany = prop2.multiplicity().isMany();
                 Join join = findJoinForAssociationProperty(assoc.name(), prop2.propertyName());
                 result.putIfAbsent(prop2.propertyName(),
-                        new AssociationNavigation(assoc, prop1, prop2, isToMany, join));
+                        new FullAssociationNavigation(prop2.targetClass(), isToMany, join));
             }
         }
         return result;
@@ -889,7 +924,7 @@ public final class PureModelBuilder implements ModelContext {
     @Override
     public Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName) {
         // Search all associations for one that has this property navigating from the
-        // given class
+        // given class. Returns lightweight AssociationNavigation for TypeChecker.
         for (Association assoc : associations.values()) {
             var prop1 = assoc.property1();
             var prop2 = assoc.property2();
@@ -898,15 +933,13 @@ public final class PureModelBuilder implements ModelContext {
             // (property1 navigates FROM prop2.targetClass TO prop1.targetClass)
             if (prop1.propertyName().equals(propertyName) && prop2.targetClass().equals(fromClassName)) {
                 boolean isToMany = prop1.multiplicity().isMany();
-                Join join = findJoinForAssociationProperty(assoc.name(), propertyName);
-                return Optional.of(new AssociationNavigation(assoc, prop2, prop1, isToMany, join));
+                return Optional.of(new AssociationNavigation(prop1.targetClass(), isToMany));
             }
 
             // Check if property2's name matches and property1's target is fromClassName
             if (prop2.propertyName().equals(propertyName) && prop1.targetClass().equals(fromClassName)) {
                 boolean isToMany = prop2.multiplicity().isMany();
-                Join join = findJoinForAssociationProperty(assoc.name(), propertyName);
-                return Optional.of(new AssociationNavigation(assoc, prop1, prop2, isToMany, join));
+                return Optional.of(new AssociationNavigation(prop2.targetClass(), isToMany));
             }
         }
         return Optional.empty();
@@ -960,7 +993,6 @@ public final class PureModelBuilder implements ModelContext {
         return Optional.ofNullable(joins.get(simpleName));
     }
 
-    @Override
     public Optional<Join> findJoin(String joinName) {
         return Optional.ofNullable(joins.get(joinName));
     }

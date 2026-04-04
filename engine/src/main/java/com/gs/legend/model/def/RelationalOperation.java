@@ -285,24 +285,4 @@ public sealed interface RelationalOperation {
         }
     }
 
-    // ==================== Utility Methods ====================
-
-    /**
-     * Attempts to extract a simple equi-join from this operation.
-     * Returns null if this is not a simple {@code T1.C1 = T2.C2} comparison.
-     */
-    default SimpleEquiJoin asSimpleEquiJoin() {
-        if (this instanceof Comparison c && "=".equals(c.op())
-                && c.left() instanceof ColumnRef left
-                && c.right() instanceof ColumnRef right) {
-            return new SimpleEquiJoin(left.table(), left.column(), right.table(), right.column());
-        }
-        return null;
-    }
-
-    /**
-     * Simple equi-join extracted from a Comparison expression.
-     * Used for backward compatibility with code expecting leftTable/leftColumn/rightTable/rightColumn.
-     */
-    record SimpleEquiJoin(String leftTable, String leftColumn, String rightTable, String rightColumn) {}
 }

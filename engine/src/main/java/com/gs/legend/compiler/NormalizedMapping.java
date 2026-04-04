@@ -2,7 +2,6 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.store.Join;
 
 import java.util.Map;
 import java.util.Optional;
@@ -22,8 +21,9 @@ import java.util.Optional;
  * <ul>
  *   <li><b>TypeChecker</b> sees only {@link #findMappingExpression(String)}
  *       (via ModelContext delegation)</li>
- *   <li><b>MappingResolver</b> sees {@link #findClassMapping(String)} and
- *       {@link #findJoin(String)} — read-only</li>
+ *   <li><b>MappingResolver</b> sees {@link #findClassMapping(String)},
+ *       {@link #findSourceRelation(String)}, {@link #findAssociationJoins(String)},
+ *       and {@link #findM2MAssociationNavigations(String)} — read-only</li>
  *   <li>Neither sees {@code MappingRegistry} directly</li>
  * </ul>
  */
@@ -31,15 +31,12 @@ public final class NormalizedMapping {
 
     private final Map<String, ClassMapping> classMappings;
     private final Map<String, ModelContext.MappingExpression> expressions;
-    private final Map<String, Join> joins;
 
     public NormalizedMapping(
             Map<String, ClassMapping> classMappings,
-            Map<String, ModelContext.MappingExpression> expressions,
-            Map<String, Join> joins) {
+            Map<String, ModelContext.MappingExpression> expressions) {
         this.classMappings = Map.copyOf(classMappings);
         this.expressions = Map.copyOf(expressions);
-        this.joins = Map.copyOf(joins);
     }
 
     /**
@@ -51,11 +48,38 @@ public final class NormalizedMapping {
     }
 
     /**
-     * Finds a join by name.
-     * Used by MappingResolver (replaces registry.findJoin).
+     * Returns the synthesized sourceRelation for a relational class.
+     * Used by MappingResolver to build StoreResolution without touching MappingExpression.
      */
-    public Optional<Join> findJoin(String joinName) {
-        return Optional.ofNullable(joins.get(joinName));
+    public com.gs.legend.ast.ValueSpecification findSourceRelation(String className) {
+        return findMappingExpression(className)
+                .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
+                .map(e -> ((ModelContext.MappingExpression.Relational) e).sourceRelation())
+                .orElse(null);
+    }
+
+    /**
+     * Returns pre-resolved association joins for a relational class.
+     * Key = property name, value = AssociationJoinInfo (targetClassName, traversal, isToMany).
+     * Used by MappingResolver to build JoinResolutions.
+     */
+    public java.util.Map<String, ModelContext.AssociationJoinInfo> findAssociationJoins(String className) {
+        return findMappingExpression(className)
+                .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
+                .map(e -> ((ModelContext.MappingExpression.Relational) e).associationJoins())
+                .orElse(java.util.Map.of());
+    }
+
+    /**
+     * Returns pre-resolved association navigations for an M2M class.
+     * Key = M2M property name, value = AssociationJoinInfo from the source class's relational joins.
+     * Used by MappingResolver to build JoinResolutions.
+     */
+    public java.util.Map<String, ModelContext.AssociationJoinInfo> findM2MAssociationNavigations(String className) {
+        return findMappingExpression(className)
+                .filter(e -> e instanceof ModelContext.MappingExpression.M2M)
+                .map(e -> ((ModelContext.MappingExpression.M2M) e).associationNavigations())
+                .orElse(java.util.Map.of());
     }
 
     /**
@@ -74,9 +98,9 @@ public final class NormalizedMapping {
     }
 
     /**
-     * Empty snapshot — no mappings, no joins.
+     * Empty snapshot — no mappings, no expressions.
      */
     public static NormalizedMapping empty() {
-        return new NormalizedMapping(Map.of(), Map.of(), Map.of());
+        return new NormalizedMapping(Map.of(), Map.of());
     }
 }

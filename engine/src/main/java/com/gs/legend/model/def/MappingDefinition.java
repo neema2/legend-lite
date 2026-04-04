@@ -270,19 +270,20 @@ public record MappingDefinition(
     /**
      * Represents a property mapping within a class mapping.
      * 
-     * Supports three modes:
+     * Supports four modes:
      * 1. Simple column reference: propertyName -> [DB] TABLE.COLUMN
      * 2. Expression with embedded class: propertyName -> COLUMN->cast(@ClassName)
      * 3. Join reference for associations: propertyName -> [DB]@JoinName
+     * 4. Structured expression: propertyName -> concat(T.A, ' ', T.B) (parsed RelationalOperation tree)
      * 
-     * @param propertyName      The Pure property name
-     * @param columnReference   The column reference (null if using join/expression)
-     * @param joinReference     The join reference for association properties (null
-     *                          if using column/expression)
-     * @param expressionString  The mapping expression (null if using column/join
-     *                          reference)
-     * @param embeddedClassName The target class for embedded JSON (null if not
-     *                          embedded)
+     * @param propertyName       The Pure property name
+     * @param columnReference    The column reference (null if using join/expression)
+     * @param joinReference      The join reference for association properties (null
+     *                           if using column/expression)
+     * @param expressionString   The mapping expression as raw string (null if using column/join/mappingExpression)
+     * @param embeddedClassName  The target class for embedded JSON (null if not embedded)
+     * @param enumMappingId      Enumeration mapping ID (null if no enum transform)
+     * @param mappingExpression  Structured expression tree for DynaFunction property mappings (null if simple column/join)
      */
     public record PropertyMappingDefinition(
             String propertyName,
@@ -290,14 +291,15 @@ public record MappingDefinition(
             JoinReference joinReference,
             String expressionString,
             String embeddedClassName,
-            String enumMappingId) {
+            String enumMappingId,
+            RelationalOperation mappingExpression) {
 
         public PropertyMappingDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
-            // Either columnReference, joinReference, or expressionString must be present
-            if (columnReference == null && joinReference == null && expressionString == null) {
+            // At least one value source must be present
+            if (columnReference == null && joinReference == null && expressionString == null && mappingExpression == null) {
                 throw new IllegalArgumentException(
-                        "Either columnReference, joinReference, or expressionString must be provided for property: "
+                        "Either columnReference, joinReference, expressionString, or mappingExpression must be provided for property: "
                                 + propertyName);
             }
         }
@@ -306,7 +308,7 @@ public record MappingDefinition(
          * Creates a simple column reference mapping.
          */
         public static PropertyMappingDefinition column(String propertyName, ColumnReference columnRef) {
-            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, null);
+            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, null, null);
         }
 
         /**
@@ -314,14 +316,14 @@ public record MappingDefinition(
          */
         public static PropertyMappingDefinition columnWithEnumMapping(String propertyName, ColumnReference columnRef,
                 String enumMappingId) {
-            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, enumMappingId);
+            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, enumMappingId, null);
         }
 
         /**
          * Creates a join reference mapping for association properties.
          */
         public static PropertyMappingDefinition join(String propertyName, JoinReference joinRef) {
-            return new PropertyMappingDefinition(propertyName, null, joinRef, null, null, null);
+            return new PropertyMappingDefinition(propertyName, null, joinRef, null, null, null, null);
         }
 
         /**
@@ -329,7 +331,14 @@ public record MappingDefinition(
          */
         public static PropertyMappingDefinition expression(String propertyName, String expression,
                 String embeddedClass) {
-            return new PropertyMappingDefinition(propertyName, null, null, expression, embeddedClass, null);
+            return new PropertyMappingDefinition(propertyName, null, null, expression, embeddedClass, null, null);
+        }
+
+        /**
+         * Creates a structured expression mapping from a parsed RelationalOperation tree.
+         */
+        public static PropertyMappingDefinition mappingExpression(String propertyName, RelationalOperation expr) {
+            return new PropertyMappingDefinition(propertyName, null, null, null, null, null, expr);
         }
 
         /**
@@ -352,6 +361,13 @@ public record MappingDefinition(
          */
         public boolean isExpression() {
             return expressionString != null;
+        }
+
+        /**
+         * @return true if this mapping uses a structured expression tree (DynaFunction)
+         */
+        public boolean hasMappingExpression() {
+            return mappingExpression != null;
         }
 
         /**

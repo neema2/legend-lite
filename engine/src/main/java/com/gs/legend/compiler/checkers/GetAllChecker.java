@@ -7,7 +7,9 @@ import com.gs.legend.compiler.*;
 import com.gs.legend.model.ModelContext.MappingExpression;
 import com.gs.legend.plan.GenericType;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Checker for {@code getAll()}.
@@ -43,7 +45,7 @@ public class GetAllChecker extends AbstractChecker {
         // Compile mapping-level expressions (filter, property expressions, etc.)
         env.modelContext().findMappingExpression(className).ifPresent(mapExpr -> {
             switch (mapExpr) {
-                case MappingExpression.M2M m2m -> compileM2MExpressions(m2m);
+                case MappingExpression.M2M m2m -> compileM2MExpressions(className, m2m, new HashSet<>());
                 case MappingExpression.Relational rel -> compileRelationalExpressions(rel);
             }
         });
@@ -60,10 +62,19 @@ public class GetAllChecker extends AbstractChecker {
      * Uses withLambdaParam("src", ClassType) — $src is a class instance,
      * resolved via compileProperty's existing ClassType path (findClass → findProperty).
      */
-    private void compileM2MExpressions(MappingExpression.M2M m2m) {
-        // Recursively compile source chain (if source is also M2M)
+    private void compileM2MExpressions(String targetClassName, MappingExpression.M2M m2m, Set<String> visited) {
+        if (!visited.add(targetClassName)) return;
+
+        // Recursively compile source mapping expressions.
+        // If source is M2M, recurse into it. If source is Relational, compile its
+        // traverse expressions so join conditions get TypeInfo for PlanGenerator.
         env.modelContext().findMappingExpression(m2m.sourceClassName())
-                .ifPresent(src -> { if (src instanceof MappingExpression.M2M srcM2M) compileM2MExpressions(srcM2M); });
+                .ifPresent(src -> {
+                    switch (src) {
+                        case MappingExpression.M2M srcM2M -> compileM2MExpressions(m2m.sourceClassName(), srcM2M, visited);
+                        case MappingExpression.Relational srcRel -> compileRelationalExpressions(srcRel);
+                    }
+                });
 
         // $src is a class instance — use the existing ClassType property resolution path.
         var srcCtx = new TypeChecker.CompilationContext()
@@ -76,14 +87,47 @@ public class GetAllChecker extends AbstractChecker {
         if (m2m.filter() != null) {
             env.compileExpr(m2m.filter(), srcCtx);
         }
+
+        // Recursively compile M2M mappings for nested class-typed properties.
+        // E.g., PersonWithAddress has property address:Address[*]. If Address has
+        // its own M2M mapping, compile it so PlanGenerator has TypeInfo for its expressions.
+        env.modelContext().findClass(targetClassName).ifPresent(pc -> {
+            for (var prop : pc.properties()) {
+                String propTypeName = prop.genericType().typeName();
+                env.modelContext().findMappingExpression(propTypeName).ifPresent(propExpr -> {
+                    if (propExpr instanceof MappingExpression.M2M propM2M) {
+                        compileM2MExpressions(propTypeName, propM2M, visited);
+                    }
+                });
+            }
+        });
     }
 
     /**
-     * Compiles the sourceRelation ValueSpec chain synthesized by MappingNormalizer.
-     * This triggers the full Relation pipeline: TableReferenceChecker → FilterChecker → etc.
+     * Compiles the sourceRelation ValueSpec chain synthesized by MappingNormalizer,
+     * then compiles all join traversals (association primitives).
+     * Recursively follows associations to compile transitively reachable classes'
+     * traversals — needed for multi-hop joins (Person → Firm → Country).
      */
     private void compileRelationalExpressions(MappingExpression.Relational rel) {
-        if (rel.sourceRelation() == null) return;
-        env.compileExpr(rel.sourceRelation(), new TypeChecker.CompilationContext());
+        compileRelationalExpressions(rel, new HashSet<>());
+    }
+
+    private void compileRelationalExpressions(MappingExpression.Relational rel, Set<String> visited) {
+        if (!visited.add(rel.className())) return;
+
+        var ctx = new TypeChecker.CompilationContext();
+        env.compileExpr(rel.sourceRelation(), ctx);
+        // Compile each association traversal and recursively compile target classes.
+        // associationJoins carries target class names — no findAllAssociationNavigations needed.
+        for (var info : rel.associationJoins().values()) {
+            env.compileExpr(info.traversal(), ctx);
+            env.modelContext().findMappingExpression(info.targetClassName())
+                    .ifPresent(mapExpr -> {
+                        if (mapExpr instanceof MappingExpression.Relational targetRel) {
+                            compileRelationalExpressions(targetRel, visited);
+                        }
+                    });
+        }
     }
 }

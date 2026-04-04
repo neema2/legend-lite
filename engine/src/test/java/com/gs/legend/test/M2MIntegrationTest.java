@@ -59,6 +59,12 @@ class M2MIntegrationTest {
                 personId: Integer[1];
             }
 
+            Association model::RawPersonAddress
+            {
+                rawPerson: RawPerson[1];
+                rawAddresses: RawAddress[*];
+            }
+
             Class model::Person
             {
                 fullName: String[1];
@@ -149,14 +155,16 @@ class M2MIntegrationTest {
                     lastName: [RawDatabase] T_RAW_PERSON.LAST_NAME,
                     age: [RawDatabase] T_RAW_PERSON.AGE,
                     salary: [RawDatabase] T_RAW_PERSON.SALARY,
-                    isActive: [RawDatabase] T_RAW_PERSON.IS_ACTIVE
+                    isActive: [RawDatabase] T_RAW_PERSON.IS_ACTIVE,
+                    rawAddresses: [RawDatabase] @PersonAddress
                 }
                 RawAddress: Relational
                 {
                     ~mainTable [RawDatabase] T_RAW_ADDRESS
                     city: [RawDatabase] T_RAW_ADDRESS.CITY,
                     street: [RawDatabase] T_RAW_ADDRESS.STREET,
-                    personId: [RawDatabase] T_RAW_ADDRESS.PERSON_ID
+                    personId: [RawDatabase] T_RAW_ADDRESS.PERSON_ID,
+                    rawPerson: [RawDatabase] @PersonAddress
                 }
             )
 
@@ -186,20 +194,20 @@ class M2MIntegrationTest {
                 {
                     ~src RawPerson
                     fullName: $src.firstName + ' ' + $src.lastName,
-                    address: @PersonAddress
+                    address: $src.rawAddresses
                 }
                 PersonWithAddresses: Pure
                 {
                     ~src RawPerson
                     fullName: $src.firstName + ' ' + $src.lastName,
-                    addresses: @PersonAddress
+                    addresses: $src.rawAddresses
                 }
                 ActivePersonWithAddress: Pure
                 {
                     ~src RawPerson
                     ~filter $src.isActive == true
                     fullName: $src.firstName + ' ' + $src.lastName,
-                    address: @PersonAddress
+                    address: $src.rawAddresses
                 }
                 Address: Pure
                 {
@@ -211,7 +219,7 @@ class M2MIntegrationTest {
                 {
                     ~src RawPerson
                     fullName: $src.firstName + ' ' + $src.lastName,
-                    address: @PersonAddress
+                    address: $src.rawAddresses
                 }
             )
 

@@ -31,7 +31,6 @@ import java.util.Optional;
  * @param sourceClassName  The source class being mapped from (~src)
  * @param propertyExpressions  Map of property name → pre-parsed AST expression
  * @param filter  Optional filter expression (~filter), pre-parsed
- * @param joinReferences  Map of property name → join name (for @JoinName deep fetch)
  * @param targetClass  Resolved target PureClass (may be null if not yet resolved)
  * @param sourceMapping  Resolved source ClassMapping (may be null if not yet resolved)
  */
@@ -40,7 +39,6 @@ public record PureClassMapping(
         String sourceClassName,
         Map<String, ValueSpecification> propertyExpressions,
         ValueSpecification filter,
-        Map<String, String> joinReferences,
         PureClass targetClass,
         ClassMapping sourceMapping
 ) implements ClassMapping {
@@ -49,18 +47,17 @@ public record PureClassMapping(
         Objects.requireNonNull(sourceClassName, "Source class name cannot be null");
         Objects.requireNonNull(propertyExpressions, "Property expressions cannot be null");
         propertyExpressions = Map.copyOf(propertyExpressions);
-        joinReferences = joinReferences != null ? Map.copyOf(joinReferences) : Map.of();
     }
 
     /**
-     * Creates a PureClassMapping without filter or join references (and unresolved).
+     * Creates a PureClassMapping without filter (and unresolved).
      */
     public static PureClassMapping of(
             String targetClassName,
             String sourceClassName,
             Map<String, ValueSpecification> propertyExpressions) {
         return new PureClassMapping(targetClassName, sourceClassName, propertyExpressions,
-                null, Map.of(), null, null);
+                null, null, null);
     }
 
     /**
@@ -68,7 +65,7 @@ public record PureClassMapping(
      */
     public PureClassMapping withResolved(PureClass resolvedTarget, ClassMapping resolvedSource) {
         return new PureClassMapping(targetClassName, sourceClassName, propertyExpressions,
-                filter, joinReferences, resolvedTarget, resolvedSource);
+                filter, resolvedTarget, resolvedSource);
     }
 
     /**

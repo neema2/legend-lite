@@ -1,7 +1,6 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.model.store.Join;
 
 import java.util.List;
 import java.util.Map;
@@ -76,18 +75,20 @@ public record StoreResolution(
      * Resolved association navigation (property → JOIN).
      *
      * @param targetTable      Physical table to join to
-     * @param sourceColumn     Column on the source side of the join
-     * @param targetColumn     Column on the target side of the join
+     * @param sourceParam      Variable name for source side in joinCondition ValueSpec
+     * @param targetParam      Variable name for target side in joinCondition ValueSpec
      * @param isToMany         True if association has [*] multiplicity
-     * @param join             The resolved Join object (for complex join conditions)
+     * @param joinCondition    Pre-converted join condition as ValueSpecification
+     * @param sourceColumns    Source-side column names referenced by the join condition (for graphFetch projection)
      * @param targetResolution StoreResolution for the target table (for nested property access)
      */
     public record JoinResolution(
             String targetTable,
-            String sourceColumn,
-            String targetColumn,
+            String sourceParam,
+            String targetParam,
             boolean isToMany,
-            Join join,
+            ValueSpecification joinCondition,
+            java.util.Set<String> sourceColumns,
             StoreResolution targetResolution) {
     }
 

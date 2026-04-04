@@ -94,10 +94,16 @@ class MappingDefinitionExtractionTest {
             assertEquals(1, db.joins().size());
             var join = db.joins().get(0);
             assertEquals("Person_Address", join.name());
-            assertEquals("T_PERSON", join.leftTable());
-            assertEquals("address_id", join.leftColumn());
-            assertEquals("T_ADDRESS", join.rightTable());
-            assertEquals("id", join.rightColumn());
+
+            // Inspect condition tree: Comparison(ColumnRef(T_PERSON, address_id), "=", ColumnRef(T_ADDRESS, id))
+            var cmp = (com.gs.legend.model.def.RelationalOperation.Comparison) join.operation();
+            assertEquals("=", cmp.op());
+            var left = (com.gs.legend.model.def.RelationalOperation.ColumnRef) cmp.left();
+            assertEquals("T_PERSON", left.table());
+            assertEquals("address_id", left.column());
+            var right = (com.gs.legend.model.def.RelationalOperation.ColumnRef) cmp.right();
+            assertEquals("T_ADDRESS", right.table());
+            assertEquals("id", right.column());
         }
 
         // ======================== FAILING TESTS — FEATURES NOT YET EXTRACTED ========================
@@ -138,8 +144,6 @@ class MappingDefinitionExtractionTest {
             var rightCmp = (com.gs.legend.model.def.RelationalOperation.Comparison) boolOp.right();
             assertEquals("=", rightCmp.op());
 
-            // Not a simple equi-join
-            assertNull(join.operation().asSimpleEquiJoin());
         }
 
         @Test
@@ -175,8 +179,6 @@ class MappingDefinitionExtractionTest {
             var rightCol = (com.gs.legend.model.def.RelationalOperation.ColumnRef) cmp.right();
             assertEquals("T2", rightCol.table());
             assertEquals("prefixed_name", rightCol.column());
-
-            assertNull(join.operation().asSimpleEquiJoin());
         }
 
         @Test
@@ -210,8 +212,6 @@ class MappingDefinitionExtractionTest {
             assertInstanceOf(com.gs.legend.model.def.RelationalOperation.TargetColumnRef.class, cmp.right());
             var targetCol = (com.gs.legend.model.def.RelationalOperation.TargetColumnRef) cmp.right();
             assertEquals("id", targetCol.column());
-
-            assertNull(join.operation().asSimpleEquiJoin());
         }
 
         @Test

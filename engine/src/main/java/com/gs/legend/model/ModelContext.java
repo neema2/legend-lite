@@ -1,9 +1,7 @@
 package com.gs.legend.model;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.PureClass;
-import com.gs.legend.model.store.Join;
 import com.gs.legend.model.store.Table;
 import java.util.Map;
 import java.util.Optional;
@@ -14,11 +12,10 @@ import java.util.Optional;
  * Provides access to:
  * - Class definitions and mappings
  * - Association definitions (for navigation through relationships)
- * - Join definitions (for SQL generation)
+ * - Enum definitions
  * 
  * This interface allows the compiler to resolve property navigation
- * through associations and generate appropriate SQL (EXISTS for to-many,
- * JOIN for explicit relational queries).
+ * through associations and type-check mapping expressions.
  */
 public interface ModelContext {
 
@@ -41,25 +38,6 @@ public interface ModelContext {
      * @return The association and navigation details, if found
      */
     Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName);
-
-    /**
-     * Returns all association navigations for a given class.
-     * Each entry maps a property name to its AssociationNavigation.
-     *
-     * @param className The class to find association navigations for
-     * @return Map of property name → AssociationNavigation (empty if none)
-     */
-    default java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String className) {
-        return java.util.Map.of();
-    }
-
-    /**
-     * Finds a join by name.
-     * 
-     * @param joinName The join name
-     * @return The join, if found
-     */
-    Optional<Join> findJoin(String joinName);
 
     /**
      * Finds a table by name.
@@ -91,12 +69,30 @@ public interface ModelContext {
     }
 
     /**
+     * Pre-resolved association join info, produced by MappingNormalizer.
+     * Carries everything GetAllChecker and MappingResolver need — no further
+     * model or Association lookups required downstream.
+     *
+     * <p>Top-level on ModelContext (not nested inside MappingExpression) so that
+     * NormalizedMapping can expose it to MappingResolver without leaking
+     * MappingExpression visibility.
+     *
+     * @param targetClassName The class the association navigates TO
+     * @param traversal       traverse(src, tgt, {src, tgt | cond}) ValueSpec
+     * @param isToMany        Whether this is a to-many navigation
+     */
+    record AssociationJoinInfo(
+            String targetClassName,
+            ValueSpecification traversal,
+            boolean isToMany) {}
+
+    /**
      * Compiler-visible view of a mapping — expressions only, no routing info.
      * Sealed interface with two variants: M2M (Pure expression-based) and
      * Relational (column-based with optional filter).
      *
      * <p>TypeChecker sees this via {@link #findMappingExpression(String)}.
-     * MappingResolver never sees this — it uses ClassMapping directly.
+     * MappingResolver never sees this — it reads from NormalizedMapping accessors.
      */
     sealed interface MappingExpression {
 
@@ -104,26 +100,34 @@ public interface ModelContext {
          * M2M (Pure) mapping: property expressions are Pure AST, compiled
          * with {@code $src} as a ClassType instance.
          *
-         * @param sourceClassName      The source class being mapped from (~src)
-         * @param propertyExpressions  Map of property name → pre-parsed AST expression
-         * @param filter               Optional filter expression (~filter)
+         * @param sourceClassName         The source class being mapped from (~src)
+         * @param propertyExpressions     Map of property name → pre-parsed AST expression
+         * @param filter                  Optional filter expression (~filter)
+         * @param associationNavigations  M2M properties that navigate associations on the source class.
+         *                               Key = M2M property name (e.g., "address"), value = pre-resolved join info.
+         *                               Populated by MappingNormalizer; read by GetAllChecker.
          */
         record M2M(
                 String sourceClassName,
                 Map<String, ValueSpecification> propertyExpressions,
-                ValueSpecification filter) implements MappingExpression {}
+                ValueSpecification filter,
+                Map<String, AssociationJoinInfo> associationNavigations) implements MappingExpression {}
 
         /**
          * Relational mapping: source relation is the single source of truth.
          * The sourceRelation is a ValueSpecification chain synthesized by MappingNormalizer:
          * {@code tableReference("db.TABLE") -> filter(...) -> join(...) -> distinct()}
          *
-         * @param className       The class being mapped
-         * @param sourceRelation  Synthesized Relation ValueSpec (tableRef + filter + joins + distinct)
+         * @param className        The class being mapped
+         * @param sourceRelation   Synthesized Relation ValueSpec (tableRef + filter + joins + distinct)
+         * @param associationJoins Per-property association joins: propertyName → AssociationJoinInfo.
+         *                         Traversals compiled by GetAllChecker (stamps TypeInfo);
+         *                         join info read by MappingResolver via NormalizedMapping.
          */
         record Relational(
                 String className,
-                ValueSpecification sourceRelation) implements MappingExpression {}
+                ValueSpecification sourceRelation,
+                Map<String, AssociationJoinInfo> associationJoins) implements MappingExpression {}
     }
 
     /**
@@ -138,27 +142,15 @@ public interface ModelContext {
     }
 
     /**
-     * Represents navigation through an association.
-     * 
-     * @param association The association being navigated
-     * @param sourceEnd   The end we're navigating FROM
-     * @param targetEnd   The end we're navigating TO
-     * @param isToMany    Whether this is a to-many navigation
-     * @param join        The relational join for this association (if available)
+     * Compiler-visible association navigation info.
+     * TypeChecker uses this to resolve association-contributed property types.
+     *
+     * @param targetClassName The class being navigated TO
+     * @param isToMany        Whether this is a to-many navigation
      */
     record AssociationNavigation(
-            Association association,
-            Association.AssociationEnd sourceEnd,
-            Association.AssociationEnd targetEnd,
-            boolean isToMany,
-            Join join) {
-        /**
-         * @return The target class name
-         */
-        public String targetClassName() {
-            return targetEnd.targetClass();
-        }
-    }
+            String targetClassName,
+            boolean isToMany) {}
 
     /**
      * Finds the lowest common ancestor (LCA) of two classes using BFS on the

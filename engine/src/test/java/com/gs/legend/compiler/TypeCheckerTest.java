@@ -44,10 +44,6 @@ class TypeCheckerTest {
             return java.util.Optional.empty();
         }
 
-        public java.util.Optional<com.gs.legend.model.store.Join> findJoin(String n) {
-            return java.util.Optional.empty();
-        }
-
         public java.util.Optional<com.gs.legend.model.store.Table> findTable(String n) {
             if (n.contains("T_PERSON")) return java.util.Optional.of(PERSON_TABLE);
             return java.util.Optional.empty();

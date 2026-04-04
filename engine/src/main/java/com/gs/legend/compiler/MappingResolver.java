@@ -6,13 +6,14 @@ import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.PureClassMapping;
 import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
-import com.gs.legend.model.store.Join;
 import com.gs.legend.model.store.PropertyMapping;
 import com.gs.legend.plan.GenericType;
 
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Pass 3: Resolves mappings to physical store concepts.
@@ -36,7 +37,7 @@ public final class MappingResolver {
     private final ModelContext modelContext;
     private final NormalizedMapping normalized;
     private final IdentityHashMap<ValueSpecification, StoreResolution> resolutions = new IdentityHashMap<>();
-    private final java.util.Set<String> resolving = new java.util.HashSet<>();
+    private final Set<String> resolving = new HashSet<>();
 
     /**
      * @param typeResult   Typed AST from TypeChecker
@@ -160,12 +161,6 @@ public final class MappingResolver {
         Map<String, String> propToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
 
-        // sourceRelation from NormalizedMapping
-        var relExpr = normalized.findMappingExpression(className)
-                .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
-                .map(e -> (ModelContext.MappingExpression.Relational) e)
-                .orElse(null);
-
         for (PropertyMapping pm : rm.propertyMappings()) {
             String prop = pm.propertyName();
             // Join-chain properties: extend(traverse(), ~propName:t|$t.COL) names them directly
@@ -187,12 +182,12 @@ public final class MappingResolver {
             }
         }
 
-        // Resolve association joins from model (not TypeInfo)
+        // Resolve association joins from NormalizedMapping (pre-resolved by MappingNormalizer)
         Map<String, StoreResolution.JoinResolution> joins =
-                resolveAssociationJoins(className, rm);
+                resolveAssociationJoins(className);
 
-        // sourceRelation from NormalizedMapping
-        var sourceRelation = relExpr != null ? relExpr.sourceRelation() : null;
+        // sourceRelation from NormalizedMapping (dedicated accessor — no MappingExpression needed)
+        var sourceRelation = normalized.findSourceRelation(className);
 
         resolving.remove(className);
         return new StoreResolution(
@@ -202,10 +197,14 @@ public final class MappingResolver {
 
     private StoreResolution resolveM2M(PureClassMapping pcm) {
         // M2M chains are pre-resolved by MappingNormalizer —
-        // pcm.sourceMapping() is already set.
-        StoreResolution sourceResolution = pcm.sourceMapping() != null
-                ? resolveClassMapping(pcm.sourceMapping(), pcm.sourceClassName())
-                : null;
+        // pcm.sourceMapping() MUST be set by this point.
+        if (pcm.sourceMapping() == null) {
+            throw new PureCompileException(
+                    "M2M mapping for '" + pcm.targetClassName()
+                            + "' has unresolved source '" + pcm.sourceClassName()
+                            + "' — MappingNormalizer should have resolved this");
+        }
+        StoreResolution sourceResolution = resolveClassMapping(pcm.sourceMapping(), pcm.sourceClassName());
 
         String tableName = pcm.sourceTable().name();
         Map<String, String> propToCol = new LinkedHashMap<>();
@@ -218,9 +217,20 @@ public final class MappingResolver {
             propToCol.put(prop, prop);
         }
 
-        // Resolve M2M join references
-        Map<String, StoreResolution.JoinResolution> joins =
-                resolveM2MJoinReferences(pcm);
+        // Resolve Association navigations from pre-resolved NormalizedMapping data
+        Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
+        for (var navEntry : normalized.findM2MAssociationNavigations(pcm.targetClassName()).entrySet()) {
+            String m2mPropName = navEntry.getKey();
+            var info = navEntry.getValue();
+            ClassMapping targetMapping = normalized.findClassMapping(info.targetClassName())
+                    .orElseThrow(() -> new PureCompileException(
+                            "M2M Association navigation targets class '" + info.targetClassName()
+                                    + "' which has no mapping in scope"));
+            StoreResolution targetResolution = resolveClassMapping(targetMapping, info.targetClassName());
+            String targetTable = targetMapping.sourceTable().name();
+            joins.put(m2mPropName, buildJoinResolution(
+                    targetTable, info.isToMany(), info.traversal(), targetResolution));
+        }
 
         return new StoreResolution(
                 tableName, propToCol, properties, joins,
@@ -230,34 +240,31 @@ public final class MappingResolver {
     // ==================== Association / Join Resolution ====================
 
     /**
-     * Resolves association joins for a relational mapping using model definitions.
-     * Uses ModelContext.findAllAssociationNavigations to find association-contributed
-     * properties (which are NOT in PureClass.properties()).
+     * Resolves association joins for a relational mapping.
+     * Reads pre-resolved AssociationJoinInfo from NormalizedMapping — no model queries needed.
+     * Also discovers inline struct-array properties (UNNEST candidates) from the model.
      */
     private Map<String, StoreResolution.JoinResolution> resolveAssociationJoins(
-            String className, RelationalMapping sourceMapping) {
+            String className) {
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
-        String sourceTable = sourceMapping.table().name();
 
-        // 1. Model associations (Association objects — properties not on the class itself)
-        for (var entry : modelContext.findAllAssociationNavigations(className).entrySet()) {
+        // 1. Pre-resolved association joins (from MappingNormalizer via NormalizedMapping)
+        for (var entry : normalized.findAssociationJoins(className).entrySet()) {
             String propName = entry.getKey();
-            var nav = entry.getValue();
-            String targetClassName = nav.targetClassName();
+            var info = entry.getValue();
             // Skip back-references to avoid infinite recursion (Person→Address→Person)
-            if (resolving.contains(targetClassName)) continue;
-            ClassMapping targetMapping = normalized.findClassMapping(targetClassName).orElse(null);
-            if (targetMapping == null) continue;
+            if (resolving.contains(info.targetClassName())) continue;
+            ClassMapping targetMapping = normalized.findClassMapping(info.targetClassName())
+                    .orElseThrow(() -> new PureCompileException(
+                            "Association join for property '" + propName + "' targets class '"
+                                    + info.targetClassName() + "' which has no mapping in scope"
+                                    + " — MappingNormalizer should have excluded this"));
 
-            Join join = nav.join();
-            StoreResolution targetResolution = resolveClassMapping(targetMapping, targetClassName);
+            StoreResolution targetResolution = resolveClassMapping(targetMapping, info.targetClassName());
             String targetTable = targetMapping.sourceTable().name();
-            String sourceCol = join != null ? join.getColumnForTable(sourceTable) : null;
-            String targetCol = join != null ? join.getColumnForTable(targetTable) : null;
 
-            joins.put(propName, new StoreResolution.JoinResolution(
-                    targetTable, sourceCol, targetCol,
-                    nav.isToMany(), join, targetResolution));
+            joins.put(propName, buildJoinResolution(
+                    targetTable, info.isToMany(), info.traversal(), targetResolution));
         }
 
         // 2. Inline struct-array properties (to-many class-typed on the class itself).
@@ -276,50 +283,74 @@ public final class MappingResolver {
                 var identityMapping = RelationalMapping.identity(elementClass);
                 StoreResolution targetResolution = resolveClassMapping(identityMapping, typeName);
                 joins.put(prop.name(), new StoreResolution.JoinResolution(
-                        null, null, null, true, null, targetResolution));
+                        null, null, null, true, null, Set.of(), targetResolution));
             }
         }
 
         return joins;
     }
 
+    // ==================== Join Condition Helpers ====================
+
     /**
-     * Resolves M2M @JoinName references to JoinResolutions.
+     * Builds a JoinResolution from a traverse expression.
+     * The joinTraversal is: {@code traverse(tableRef(src), tableRef(tgt), {src, tgt | body})}.
+     * Unwraps the lambda to extract param names and condition body.
+     * TypeInfo already stamped by TypeChecker (via GetAllChecker → TraverseChecker).
      */
-    private Map<String, StoreResolution.JoinResolution> resolveM2MJoinReferences(
-            PureClassMapping pcm) {
-        Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
-
-        for (var entry : pcm.joinReferences().entrySet()) {
-            String propName = entry.getKey();
-            String joinName = entry.getValue();
-
-            Join join = normalized.findJoin(joinName).orElse(null);
-            if (join == null) continue;
-
-            // Find the target class from the PureClass property
-            PureClass targetClass = modelContext.findClass(pcm.targetClassName()).orElse(null);
-            if (targetClass == null) continue;
-
-            var prop = targetClass.findProperty(propName).orElse(null);
-            if (prop == null) continue;
-
-            String targetClassName = prop.genericType().typeName();
-            boolean isToMany = !prop.multiplicity().isSingular();
-
-            // NormalizedMapping already resolved M2M chains
-            ClassMapping targetMapping = normalized.findClassMapping(targetClassName).orElse(null);
-            if (targetMapping == null) continue;
-
-            StoreResolution targetResolution = resolveClassMapping(targetMapping, targetClassName);
-            String targetTable = targetMapping.sourceTable().name();
-            String sourceCol = join.getColumnForTable(join.leftTable());
-            String targetCol = join.getColumnForTable(join.rightTable());
-
-            joins.put(propName, new StoreResolution.JoinResolution(
-                    targetTable, sourceCol, targetCol,
-                    isToMany, join, targetResolution));
+    private StoreResolution.JoinResolution buildJoinResolution(
+            String targetTable, boolean isToMany,
+            ValueSpecification joinTraversal, StoreResolution targetResolution) {
+        // Unwrap traverse(source, target, lambda) → extract lambda
+        if (!(joinTraversal instanceof AppliedFunction traverseAf)) {
+            throw new IllegalArgumentException(
+                    "Expected traverse() AppliedFunction, got: " + joinTraversal.getClass().getSimpleName());
         }
-        return joins;
+        if (!(traverseAf.parameters().get(2) instanceof LambdaFunction lambda)) {
+            throw new IllegalArgumentException(
+                    "Expected LambdaFunction as traverse param[2], got: "
+                            + traverseAf.parameters().get(2).getClass().getSimpleName());
+        }
+
+        String sourceParam = lambda.parameters().get(0).name();
+        String targetParam = lambda.parameters().get(1).name();
+        ValueSpecification condBody = lambda.body().get(0);
+
+        Set<String> sourceColumns = extractSourceColumns(condBody, sourceParam);
+
+        return new StoreResolution.JoinResolution(
+                targetTable, sourceParam, targetParam, isToMany,
+                condBody, sourceColumns, targetResolution);
+    }
+
+    /**
+     * Extracts column names referenced on the source side of a join condition.
+     * Finds all AppliedProperty nodes whose Variable matches sourceParam.
+     */
+    private static Set<String> extractSourceColumns(ValueSpecification vs, String sourceParam) {
+        Set<String> columns = new HashSet<>();
+        collectSourceColumns(vs, sourceParam, columns);
+        return columns;
+    }
+
+    private static void collectSourceColumns(ValueSpecification vs, String sourceParam, Set<String> cols) {
+        switch (vs) {
+            case AppliedProperty ap -> {
+                if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v
+                        && v.name().equals(sourceParam)) {
+                    cols.add(ap.property());
+                }
+            }
+            case AppliedFunction af -> {
+                for (var p : af.parameters()) collectSourceColumns(p, sourceParam, cols);
+            }
+            case CString ignored -> {} // literal — no columns
+            case CInteger ignored -> {}
+            case CFloat ignored -> {}
+            case CDecimal ignored -> {}
+            case CBoolean ignored -> {}
+            default -> throw new IllegalArgumentException(
+                    "Unexpected node in join condition ValueSpec: " + vs.getClass().getSimpleName());
+        }
     }
 }

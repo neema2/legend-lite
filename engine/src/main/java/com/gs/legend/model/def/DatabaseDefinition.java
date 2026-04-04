@@ -285,70 +285,13 @@ public record DatabaseDefinition(
         }
 
         /**
-         * Backward-compatible constructor for simple equi-joins.
+         * Convenience constructor for simple equi-joins.
          * Builds a {@code Comparison(ColumnRef(lT,lC), "=", ColumnRef(rT,rC))} operation.
          */
         public JoinDefinition(String name, String leftTable, String leftColumn, String rightTable, String rightColumn) {
             this(name, RelationalOperation.Comparison.eq(
                     RelationalOperation.ColumnRef.of(leftTable, leftColumn),
                     RelationalOperation.ColumnRef.of(rightTable, rightColumn)));
-        }
-
-        /**
-         * Extracts left table name (backward compat). Throws if not a simple equi-join.
-         */
-        public String leftTable() {
-            var eq = operation.asSimpleEquiJoin();
-            if (eq == null) throw new UnsupportedOperationException("Not a simple equi-join: " + name);
-            return eq.leftTable();
-        }
-
-        /**
-         * Extracts left column name (backward compat). Throws if not a simple equi-join.
-         */
-        public String leftColumn() {
-            var eq = operation.asSimpleEquiJoin();
-            if (eq == null) throw new UnsupportedOperationException("Not a simple equi-join: " + name);
-            return eq.leftColumn();
-        }
-
-        /**
-         * Extracts right table name (backward compat). Throws if not a simple equi-join.
-         */
-        public String rightTable() {
-            var eq = operation.asSimpleEquiJoin();
-            if (eq == null) throw new UnsupportedOperationException("Not a simple equi-join: " + name);
-            return eq.rightTable();
-        }
-
-        /**
-         * Extracts right column name (backward compat). Throws if not a simple equi-join.
-         */
-        public String rightColumn() {
-            var eq = operation.asSimpleEquiJoin();
-            if (eq == null) throw new UnsupportedOperationException("Not a simple equi-join: " + name);
-            return eq.rightColumn();
-        }
-        
-        /**
-         * Checks if this join involves the given table.
-         * For simple equi-joins only; complex joins should inspect the operation tree directly.
-         */
-        public boolean involvesTable(String tableName) {
-            var eq = operation.asSimpleEquiJoin();
-            if (eq == null) return false;
-            return eq.leftTable().equals(tableName) || eq.rightTable().equals(tableName);
-        }
-        
-        /**
-         * Gets the other table in a simple equi-join. Throws if not a simple equi-join.
-         */
-        public String getOtherTable(String tableName) {
-            var eq = operation.asSimpleEquiJoin();
-            if (eq == null) throw new UnsupportedOperationException("Not a simple equi-join: " + name);
-            if (eq.leftTable().equals(tableName)) return eq.rightTable();
-            if (eq.rightTable().equals(tableName)) return eq.leftTable();
-            throw new IllegalArgumentException("Table " + tableName + " not in join " + name);
         }
     }
 
