@@ -579,7 +579,13 @@ public class TypeChecker implements TypeCheckEnv {
                         var propOpt = classOpt.get().findProperty(ap.property());
                         if (propOpt.isPresent()) {
                             GenericType fieldType = GenericType.fromType(propOpt.get().genericType());
-                            return scalarTyped(ap, fieldType);
+                            List<String> assocPath = collectPropertyChain(ap);
+                            var info = TypeInfo.builder()
+                                    .expressionType(ExpressionType.one(fieldType))
+                                    .associationPath(assocPath)
+                                    .build();
+                            types.put(ap, info);
+                            return info;
                         }
                     }
                     // Association-injected properties (same pattern as first-hop at line 472)
@@ -587,10 +593,12 @@ public class TypeChecker implements TypeCheckEnv {
                     if (assocNav.isPresent()) {
                         var nav = assocNav.get();
                         GenericType targetType = new GenericType.ClassType(nav.targetClassName());
+                        List<String> assocPath = collectPropertyChain(ap);
                         var info = TypeInfo.builder()
                                 .expressionType(nav.isToMany()
                                         ? ExpressionType.many(targetType)
                                         : ExpressionType.one(targetType))
+                                .associationPath(assocPath)
                                 .build();
                         types.put(ap, info);
                         return info;
@@ -599,6 +607,21 @@ public class TypeChecker implements TypeCheckEnv {
             }
         }
         throw new PureCompileException("Unresolved type for property: " + ap.property());
+    }
+
+    /**
+     * Collects the full property chain from a multi-hop AppliedProperty.
+     * E.g., $e.firm.legalName → ["firm", "legalName"].
+     */
+    private static List<String> collectPropertyChain(AppliedProperty ap) {
+        var path = new java.util.ArrayList<String>();
+        path.add(ap.property());
+        ValueSpecification current = ap.parameters().isEmpty() ? null : ap.parameters().get(0);
+        while (current instanceof AppliedProperty ownerAp) {
+            path.addFirst(ownerAp.property());
+            current = ownerAp.parameters().isEmpty() ? null : ownerAp.parameters().get(0);
+        }
+        return List.copyOf(path);
     }
 
     private TypeInfo inlineStructExtract(AppliedProperty ap, ValueSpecification structSource,

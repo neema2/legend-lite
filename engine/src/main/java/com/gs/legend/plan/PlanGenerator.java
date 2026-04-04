@@ -680,13 +680,22 @@ public class PlanGenerator {
         if (source.isSelectStar() && source.hasWhere()
                 && !source.hasGroupBy() && !source.hasOrderBy()
                 && !source.hasWindowColumns()) {
+            String mergeAlias = source.getFromAlias() != null ? unquote(source.getFromAlias()) : null;
             SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, store);
+            // Resolve association paths → EXISTS subqueries
+            if (store != null && mergeAlias != null) {
+                whereClause = resolveAssociationRefs(whereClause, store, mergeAlias);
+            }
             source.addWhere(whereClause);
             return source;
         }
-        // Subquery wrapping — chain property aliases resolve from subquery output.
+        // Subquery wrapping — column names resolve from subquery output (store=null).
+        // Association paths still fire via TypeInfo and get resolved via store.
         String filterAlias = source.hasGroupBy() ? "grp" : "ext";
         SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, null, filterAlias);
+        if (store != null) {
+            whereClause = resolveAssociationRefs(whereClause, store, filterAlias);
+        }
         return new SqlBuilder()
                 .selectStar()
                 .fromSubquery(source, filterAlias)
@@ -848,21 +857,6 @@ public class PlanGenerator {
 
 
 
-    /** Recursively extracts property chain from nested AppliedProperty. */
-    private List<String> extractPropertyChain(ValueSpecification vs) {
-        if (vs instanceof AppliedProperty(String property, List<ValueSpecification> parameters)) {
-            if (!parameters.isEmpty() && parameters.get(0) instanceof AppliedProperty) {
-                List<String> parent = extractPropertyChain(parameters.get(0));
-                var result = new ArrayList<>(parent);
-                result.add(property);
-                return result;
-            }
-            return List.of(property);
-        }
-        throw new PureCompileException(
-                "PlanGenerator: cannot extract property chain from " + vs.getClass().getSimpleName());
-    }
-
     /**
      * Resolves a property to its column expression via StoreResolution.
      * Pattern-matches on PropertyResolution — no ClassMapping dispatch.
@@ -999,8 +993,12 @@ public class PlanGenerator {
             hopStore = hopJoinRes.targetResolution();
         }
 
-        // Replace AssociationRef → Column(leafAlias, targetCol) in the expression
-        SqlExpr resolved = replaceAssociationRef(expr, ref, leafAlias);
+        // Resolve Pure property name → physical column via leaf store
+        String physicalCol = hopStore != null ? hopStore.columnFor(ref.targetCol()) : null;
+        if (physicalCol == null) physicalCol = ref.targetCol();
+
+        // Replace AssociationRef → Column(leafAlias, physicalCol) in the expression
+        SqlExpr resolved = replaceAssociationRef(expr, ref, leafAlias, physicalCol);
 
         subquery.addWhere(new SqlExpr.And(List.of(correlation, resolved)));
         return new SqlExpr.Exists(subquery);
@@ -1034,33 +1032,34 @@ public class PlanGenerator {
         return null;
     }
 
-    /** Replaces an AssociationRef with Column(subAlias, targetCol) in an expression tree. */
-    private SqlExpr replaceAssociationRef(SqlExpr expr, SqlExpr.AssociationRef ref, String subAlias) {
+    /** Replaces an AssociationRef with Column(subAlias, physicalCol) in an expression tree. */
+    private SqlExpr replaceAssociationRef(SqlExpr expr, SqlExpr.AssociationRef ref,
+                                          String subAlias, String physicalCol) {
         if (expr instanceof SqlExpr.AssociationRef r && r.equals(ref)) {
-            return new SqlExpr.Column(subAlias, ref.targetCol());
+            return new SqlExpr.Column(subAlias, physicalCol);
         }
         if (expr instanceof SqlExpr.Binary(SqlExpr l, String op, SqlExpr r)) {
-            return new SqlExpr.Binary(replaceAssociationRef(l, ref, subAlias), op,
-                    replaceAssociationRef(r, ref, subAlias));
+            return new SqlExpr.Binary(replaceAssociationRef(l, ref, subAlias, physicalCol), op,
+                    replaceAssociationRef(r, ref, subAlias, physicalCol));
         }
         if (expr instanceof SqlExpr.FunctionCall(String name, List<SqlExpr> args)) {
             var replaced = args.stream()
-                    .map(a -> replaceAssociationRef(a, ref, subAlias)).toList();
+                    .map(a -> replaceAssociationRef(a, ref, subAlias, physicalCol)).toList();
             return new SqlExpr.FunctionCall(name, replaced);
         }
         if (expr instanceof SqlExpr.Grouped(SqlExpr inner)) {
-            return new SqlExpr.Grouped(replaceAssociationRef(inner, ref, subAlias));
+            return new SqlExpr.Grouped(replaceAssociationRef(inner, ref, subAlias, physicalCol));
         }
         if (expr instanceof SqlExpr.Not(SqlExpr inner)) {
-            return new SqlExpr.Not(replaceAssociationRef(inner, ref, subAlias));
+            return new SqlExpr.Not(replaceAssociationRef(inner, ref, subAlias, physicalCol));
         }
         if (expr instanceof SqlExpr.StartsWith(SqlExpr s, SqlExpr p)) {
-            return new SqlExpr.StartsWith(replaceAssociationRef(s, ref, subAlias),
-                    replaceAssociationRef(p, ref, subAlias));
+            return new SqlExpr.StartsWith(replaceAssociationRef(s, ref, subAlias, physicalCol),
+                    replaceAssociationRef(p, ref, subAlias, physicalCol));
         }
         if (expr instanceof SqlExpr.EndsWith(SqlExpr s, SqlExpr p)) {
-            return new SqlExpr.EndsWith(replaceAssociationRef(s, ref, subAlias),
-                    replaceAssociationRef(p, ref, subAlias));
+            return new SqlExpr.EndsWith(replaceAssociationRef(s, ref, subAlias, physicalCol),
+                    replaceAssociationRef(p, ref, subAlias, physicalCol));
         }
         return expr;
     }
@@ -1186,7 +1185,10 @@ public class PlanGenerator {
                     hopStore = hopJoinRes.targetResolution();
                 }
 
-                subquery.addSelect(new SqlExpr.Column(leafAlias, ref.targetCol()), null);
+                // Resolve Pure property name → physical column via leaf store
+                String sortPhysicalCol = hopStore != null ? hopStore.columnFor(ref.targetCol()) : null;
+                if (sortPhysicalCol == null) sortPhysicalCol = ref.targetCol();
+                subquery.addSelect(new SqlExpr.Column(leafAlias, sortPhysicalCol), null);
                 colExpr = new SqlExpr.Subquery(subquery);
             }
         }
@@ -2178,32 +2180,13 @@ public class PlanGenerator {
                         && varAliases.containsKey(v.name())) {
                     yield new SqlExpr.Column(varAliases.get(v.name()), ap.property());
                 }
-                // Check for association path: $p.addresses.street or $e.dept.company.country
-                if (tableAlias != null && !ap.parameters().isEmpty()
-                        && ap.parameters().get(0) instanceof AppliedProperty) {
-                    List<String> path = extractPropertyChain(ap);
-                    if (path.size() > 1) {
-                        // Walk the chain hop by hop through targetResolutions
-                        // path = ["dept", "company", "country"] → hops = ["dept", "company"], leaf = "country"
-                        List<String> hops = new ArrayList<>();
-                        StoreResolution current = store;
-                        boolean resolved = true;
-                        for (int i = 0; i < path.size() - 1; i++) {
-                            String hop = path.get(i);
-                            var jr = current != null && current.hasJoins()
-                                    ? current.joins().get(hop) : null;
-                            if (jr == null) { resolved = false; break; }
-                            hops.add(hop);
-                            current = jr.targetResolution();
-                        }
-                        if (resolved && !hops.isEmpty()) {
-                            String leafProp = path.getLast();
-                            String targetCol = current != null
-                                    ? current.columnFor(leafProp) : null;
-                            if (targetCol == null) targetCol = leafProp;
-                            yield new SqlExpr.AssociationRef(hops, targetCol);
-                        }
-                    }
+                // Association path: read from TypeInfo (stamped by Compiler)
+                TypeInfo apInfo = unit.types().get(ap);
+                if (apInfo != null && apInfo.associationPath() != null) {
+                    var path = apInfo.associationPath();
+                    // hops = all but last, leaf = last
+                    yield new SqlExpr.AssociationRef(
+                            path.subList(0, path.size() - 1), path.getLast());
                 }
                 // Struct field access in lambda: $f.legalName → f.legalName
                 // Only when owner is NOT the relational row param (relational row accesses → column ref)

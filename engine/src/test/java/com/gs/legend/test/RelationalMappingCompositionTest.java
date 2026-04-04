@@ -1033,7 +1033,7 @@ class RelationalMappingCompositionTest {
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
         }
 
-        @Test @Disabled("GAP: association filter in subquery context needs decoupled column-mapping vs association-resolution")
+        @Test
         @DisplayName("filter on assoc + project chain")
         void filterAssocProjectChain() throws SQLException {
             setupData();
@@ -1175,7 +1175,7 @@ class RelationalMappingCompositionTest {
             assertTrue(colStr(r, 0).contains("Bob (Sales)"));
         }
 
-        @Test @Disabled("GAP: M2M filter in subquery context needs decoupled column-mapping vs association-resolution")
+        @Test @Disabled("GAP: M2M computed property in subquery filter — needs expression expansion, not column ref")
         @DisplayName("M2M filter on target prop that references chain")
         void m2mFilterOnChainDerived() throws SQLException {
             setupData();
@@ -1399,7 +1399,7 @@ class RelationalMappingCompositionTest {
             assertTrue(r.rowCount() >= 3);
         }
 
-        @Test @Disabled("GAP: association filter in subquery context needs decoupled column-mapping vs association-resolution")
+        @Test 
         @DisplayName("filter on assoc + project chain")
         void filterAssocProjectChain() throws SQLException {
             setupData();
@@ -1429,7 +1429,7 @@ class RelationalMappingCompositionTest {
             assertTrue(names.contains("Charlie"));
         }
 
-        @Test @Disabled("GAP: association filter in subquery context needs decoupled column-mapping vs association-resolution")
+        @Test
         @DisplayName("filter chain + filter assoc combined")
         void filterChainAndAssoc() throws SQLException {
             setupData();

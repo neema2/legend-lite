@@ -91,7 +91,14 @@ public record TypeInfo(
          * Stamped by TableReferenceChecker. Used by PlanGenerator and ExtendChecker.
          * Null for non-tableReference expressions.
          */
-        String resolvedTableName) {
+        String resolvedTableName,
+        /**
+         * Association property path for multi-hop class property accesses.
+         * E.g., $e.firm.legalName → ["firm", "legalName"].
+         * Null for direct (non-association) property accesses.
+         * Stamped by TypeChecker.compileProperty, consumed by PlanGenerator.generateScalar.
+         */
+        List<String> associationPath) {
 
     // ===== Convenience type accessors (delegate to expressionType) =====
 
@@ -361,6 +368,7 @@ public record TypeInfo(
         private FoldSpec foldSpec;
         private TraversalSpec traversalSpec;
         private String resolvedTableName;
+        private List<String> associationPath;
 
         private Builder() {}
 
@@ -382,6 +390,7 @@ public record TypeInfo(
             this.foldSpec = src.foldSpec();
             this.traversalSpec = src.traversalSpec();
             this.resolvedTableName = src.resolvedTableName();
+            this.associationPath = src.associationPath();
         }
 
         public Builder instanceLiteral(boolean v) { this.instanceLiteral = v; return this; }
@@ -401,6 +410,7 @@ public record TypeInfo(
         public Builder foldSpec(FoldSpec v) { this.foldSpec = v; return this; }
         public Builder traversalSpec(TraversalSpec v) { this.traversalSpec = v; return this; }
         public Builder resolvedTableName(String v) { this.resolvedTableName = v; return this; }
+        public Builder associationPath(List<String> v) { this.associationPath = v; return this; }
 
         public TypeInfo build() {
             if (expressionType == null) {
@@ -411,7 +421,7 @@ public record TypeInfo(
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
                     joinColumnRenames, graphFetchSpec, tdsLiteral, expressionType,
                     lambdaParam, resolvedFunc, foldSpec, traversalSpec,
-                    resolvedTableName);
+                    resolvedTableName, associationPath);
         }
     }
 
