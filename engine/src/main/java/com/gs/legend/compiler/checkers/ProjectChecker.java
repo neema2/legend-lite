@@ -83,11 +83,11 @@ public class ProjectChecker extends AbstractChecker {
             // Compile body → type comes from the type system
             TypeInfo bodyType = compileLambdaBody(lambda, lambdaCtx);
 
-            // Extract property path for association detection
-            List<String> propertyPath = extractPropertyPath(lambda);
+            // Read association path from compiled TypeInfo (stamped by TypeChecker.compileProperty)
+            List<String> associationPath = findAssociationPath(lambda.body().get(0));
 
             projectedColumns.put(alias, bodyType.type());
-            projectionSpecs.add(new TypeInfo.ProjectionSpec(propertyPath, alias));
+            projectionSpecs.add(new TypeInfo.ProjectionSpec(associationPath, alias));
         }
 
         // 5. Build output Relation<Schema>
@@ -161,29 +161,17 @@ public class ProjectChecker extends AbstractChecker {
     }
 
     /**
-     * Extracts the property path from a lambda body.
-     * Returns multi-element list for association navigation (e.g. ["items", "productName"]),
-     * single-element for simple property access.
+     * Finds the association path from a compiled expression's TypeInfo.
+     * Follows through function calls to find the innermost node with associationPath.
+     * Returns null if no multi-hop association path exists.
      */
-    private static List<String> extractPropertyPath(LambdaFunction lf) {
-        if (lf.body().isEmpty()) return List.of();
-        return extractPathFromExpr(lf.body().get(0));
-    }
-
-    private static List<String> extractPathFromExpr(ValueSpecification vs) {
-        if (vs instanceof AppliedProperty ap) {
-            // Check for chained property: $p.items.productName
-            if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty parent) {
-                var path = new ArrayList<>(extractPathFromExpr(parent));
-                path.add(ap.property());
-                return path;
-            }
-            return List.of(ap.property());
-        }
-        // Function wrapping: $p.date->monthNumber() → extract bottommost property
+    private List<String> findAssociationPath(ValueSpecification vs) {
+        TypeInfo ti = env.lookupCompiled(vs);
+        if (ti != null && ti.associationPath() != null) return ti.associationPath();
+        // Follow through function calls: $e.firm.startDate->monthNumber()
         if (vs instanceof AppliedFunction af && !af.parameters().isEmpty()) {
-            return extractPathFromExpr(af.parameters().get(0));
+            return findAssociationPath(af.parameters().get(0));
         }
-        return List.of();
+        return null;
     }
 }

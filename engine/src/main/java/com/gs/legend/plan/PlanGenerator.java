@@ -772,9 +772,9 @@ public class PlanGenerator {
             var proj = info.projections().get(i);
 
             if (proj.isAssociation()) {
-                // Association navigation: e.g., propertyPath=["dept","org","name"]
+                // Association navigation: e.g., associationPath=["dept","org","name"]
                 // Walk intermediate hops, adding JOINs for each
-                List<String> path = proj.propertyPath();
+                List<String> path = proj.associationPath();
                 String leafProp = path.getLast();
                 StoreResolution curStore = store;
                 String curAlias = tableAlias;
@@ -824,7 +824,7 @@ public class PlanGenerator {
                     builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
                 } else {
                     // Bare ColSpec (~prop) — treat as column reference
-                    SqlExpr colExpr = resolveColumnExpr(proj.property(), store, tableAlias);
+                    SqlExpr colExpr = resolveColumnExpr(proj.alias(), store, tableAlias);
                     builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
                 }
             }

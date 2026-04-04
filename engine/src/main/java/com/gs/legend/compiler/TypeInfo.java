@@ -162,19 +162,12 @@ public record TypeInfo(
      * for code generation (Pattern A).
      */
     public record ProjectionSpec(
-            List<String> propertyPath,
+            List<String> associationPath,
             String alias) {
 
+        /** True if this projection navigates through an association (multi-hop path). */
         public boolean isAssociation() {
-            return propertyPath.size() > 1;
-        }
-
-        public String property() {
-            return propertyPath.getLast();
-        }
-
-        public String associationProperty() {
-            return propertyPath.get(0);
+            return associationPath != null && associationPath.size() > 1;
         }
     }
 
