@@ -1175,7 +1175,7 @@ class RelationalMappingCompositionTest {
             assertTrue(colStr(r, 0).contains("Bob (Sales)"));
         }
 
-        @Test @Disabled("GAP: M2M computed property in subquery filter — needs expression expansion, not column ref")
+        @Test
         @DisplayName("M2M filter on target prop that references chain")
         void m2mFilterOnChainDerived() throws SQLException {
             setupData();

@@ -689,10 +689,15 @@ public class PlanGenerator {
             source.addWhere(whereClause);
             return source;
         }
-        // Subquery wrapping — column names resolve from subquery output (store=null).
-        // Association paths still fire via TypeInfo and get resolved via store.
+        // Subquery wrapping: determine store usage from source type.
+        // ClassType source (pre-project): filter on class properties → need store for M2M expansion.
+        // Relation source (post-project): filter on projected aliases → store=null.
         String filterAlias = source.hasGroupBy() ? "grp" : "ext";
-        SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, null, filterAlias);
+        TypeInfo sourceInfo = unit.types().get(params.get(0));
+        boolean isClassSource = sourceInfo != null
+                && sourceInfo.type() instanceof GenericType.ClassType;
+        SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName,
+                isClassSource ? store : null, filterAlias);
         if (store != null) {
             whereClause = resolveAssociationRefs(whereClause, store, filterAlias);
         }
