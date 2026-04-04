@@ -24,6 +24,7 @@ import java.util.Map;
  * @param nested           True for struct-literal identity mappings (nested field access)
  * @param sourceRelation   Synthesized source Relation ValueSpec for relational mappings (null for M2M/identity).
  *                         Encapsulates tableReference + filter + distinct + join chains.
+ * @param extendOverride   Cancellation info for extend nodes (null = not an extend node / all active).
  */
 public record StoreResolution(
         String tableName,
@@ -32,9 +33,22 @@ public record StoreResolution(
         Map<String, JoinResolution> joins,
         ValueSpecification filterExpr,
         boolean nested,
-        ValueSpecification sourceRelation) {
+        ValueSpecification sourceRelation,
+        ExtendOverride extendOverride) {
 
-    /** Constructor without sourceRelation (for M2M and identity mappings). */
+    /** Constructor without extendOverride (default for all non-extend nodes). */
+    public StoreResolution(
+            String tableName,
+            Map<String, String> propertyToColumn,
+            Map<String, PropertyResolution> properties,
+            Map<String, JoinResolution> joins,
+            ValueSpecification filterExpr,
+            boolean nested,
+            ValueSpecification sourceRelation) {
+        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, sourceRelation, null);
+    }
+
+    /** Constructor without sourceRelation or extendOverride (for M2M and identity mappings). */
     public StoreResolution(
             String tableName,
             Map<String, String> propertyToColumn,
@@ -42,7 +56,24 @@ public record StoreResolution(
             Map<String, JoinResolution> joins,
             ValueSpecification filterExpr,
             boolean nested) {
-        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, null);
+        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, null, null);
+    }
+
+    /** Factory for extend-only StoreResolutions (carries only cancellation info). */
+    public static StoreResolution forExtend(ExtendOverride override) {
+        return new StoreResolution(null, Map.of(), Map.of(), Map.of(), null, false, null, override);
+    }
+
+    /**
+     * Column-level cancellation info for extend nodes.
+     * Stamped by MappingResolver on sourceRelation extend nodes;
+     * read by PlanGenerator in generateExtend.
+     *
+     * @param activeColumns Columns to keep (null = all active, empty = skip entire node)
+     */
+    public record ExtendOverride(java.util.Set<String> activeColumns) {
+        public boolean isFullyCancelled() { return activeColumns != null && activeColumns.isEmpty(); }
+        public boolean isActive(String col) { return activeColumns == null || activeColumns.contains(col); }
     }
 
     /**
@@ -112,6 +143,11 @@ public record StoreResolution(
     /** True if this resolution has a mapping filter. */
     public boolean hasFilter() {
         return filterExpr != null;
+    }
+
+    /** True if this is an extend node with cancellation info. */
+    public boolean hasExtendOverride() {
+        return extendOverride != null;
     }
 
     /** Extracts the source StoreResolution from M2M property expressions (for filter context). */

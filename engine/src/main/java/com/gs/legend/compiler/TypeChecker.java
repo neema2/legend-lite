@@ -45,6 +45,8 @@ public class TypeChecker implements TypeCheckEnv {
     private final ModelContext modelContext;
     /** Per-node type info, consumed by PlanGenerator. */
     private final IdentityHashMap<ValueSpecification, TypeInfo> types = new IdentityHashMap<>();
+    /** Class property accesses observed during compilation (className → property names). */
+    private final Map<String, Set<String>> classPropertyAccesses = new HashMap<>();
 
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
@@ -75,7 +77,7 @@ public class TypeChecker implements TypeCheckEnv {
                     "TypeChecker: expressionType not stamped for root " + vs.getClass().getSimpleName());
         }
 
-        return new TypeCheckResult(vs, types);
+        return new TypeCheckResult(vs, types, classPropertyAccesses);
     }
 
     /**
@@ -466,6 +468,7 @@ public class TypeChecker implements TypeCheckEnv {
                 if (classOpt.isPresent()) {
                     var propOpt = classOpt.get().findProperty(ap.property());
                     if (propOpt.isPresent()) {
+                        classPropertyAccesses.computeIfAbsent(TypeInfo.simpleName(qualifiedName), k -> new HashSet<>()).add(ap.property());
                         GenericType fieldType = GenericType.fromType(propOpt.get().genericType());
                         return scalarTyped(ap, fieldType);
                     }

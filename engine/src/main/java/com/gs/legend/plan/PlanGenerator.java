@@ -429,6 +429,13 @@ public class PlanGenerator {
             return generateRelation(store.sourceRelation());
         }
 
+        // M2M: if the source class has a sourceRelation (join chains), use it
+        // so that chain-derived columns (e.g., deptName via @Emp_Dept) are available.
+        StoreResolution srcRes = store.sourceResolution();
+        if (srcRes != null && srcRes.sourceRelation() != null) {
+            return generateRelation(srcRes.sourceRelation());
+        }
+
         // Fallback: simple SELECT * FROM table (for non-relational getAll, e.g. identity mappings)
         String tableName = store.tableName();
         String alias = nextTableAlias();
@@ -677,11 +684,9 @@ public class PlanGenerator {
             source.addWhere(whereClause);
             return source;
         }
-        // Subquery wrapping — columns resolve by name from subquery output.
-        // Don't pass store for resolution: the subquery SELECT already computed
-        // all expressions as named aliases, so WHERE just references those aliases.
-        SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, (StoreResolution) null);
+        // Subquery wrapping — chain property aliases resolve from subquery output.
         String filterAlias = source.hasGroupBy() ? "grp" : "ext";
+        SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, null, filterAlias);
         return new SqlBuilder()
                 .selectStar()
                 .fromSubquery(source, filterAlias)
@@ -1586,6 +1591,14 @@ public class PlanGenerator {
 
     private SqlBuilder generateExtend(AppliedFunction af) {
         List<ValueSpecification> params = af.parameters();
+
+        // --- Cancellation check (from StoreResolution sidecar) ---
+        var store = storeFor(af);
+        var extendOverride = store != null ? store.extendOverride() : null;
+        if (extendOverride != null && extendOverride.isFullyCancelled()) {
+            return generateRelation(params.get(0)); // skip entire node including JOINs
+        }
+
         SqlBuilder source = generateRelation(params.get(0));
 
         // Read pre-resolved window specs from sidecar
@@ -1667,6 +1680,7 @@ public class PlanGenerator {
                 }
             }
             for (ColSpec cs : traverseColSpecs) {
+                if (extendOverride != null && !extendOverride.isActive(cs.name())) continue;
                 if (cs.function1() != null) {
                     String lambdaParam = cs.function1().parameters().isEmpty() ? null
                             : cs.function1().parameters().get(0).name();
@@ -1695,6 +1709,7 @@ public class PlanGenerator {
             source = new SqlBuilder().selectStar().fromSubquery(source, "extend_src");
         }
         for (ColSpec cs : colSpecs) {
+            if (extendOverride != null && !extendOverride.isActive(cs.name())) continue;
             if (cs.function1() != null) {
                 String lambdaParam = cs.function1().parameters().isEmpty() ? null
                         : cs.function1().parameters().get(0).name();

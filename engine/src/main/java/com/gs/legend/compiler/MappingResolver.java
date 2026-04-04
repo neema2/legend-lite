@@ -9,9 +9,11 @@ import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.PropertyMapping;
 import com.gs.legend.plan.GenericType;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,6 +39,7 @@ public final class MappingResolver {
     private final ModelContext modelContext;
     private final NormalizedMapping normalized;
     private final IdentityHashMap<ValueSpecification, StoreResolution> resolutions = new IdentityHashMap<>();
+    private final IdentityHashMap<StoreResolution, String> storeClassNames = new IdentityHashMap<>();
     private final Set<String> resolving = new HashSet<>();
 
     /**
@@ -58,6 +61,7 @@ public final class MappingResolver {
      */
     public IdentityHashMap<ValueSpecification, StoreResolution> resolve() {
         walkNode(typeResult.root(), null);
+        stampExtendOverrides();
         return resolutions;
     }
 
@@ -149,10 +153,12 @@ public final class MappingResolver {
     // ==================== ClassMapping → StoreResolution ====================
 
     private StoreResolution resolveClassMapping(ClassMapping mapping, String className) {
-        return switch (mapping) {
+        StoreResolution result = switch (mapping) {
             case RelationalMapping rm -> resolveRelational(rm, className);
             case PureClassMapping pcm -> resolveM2M(pcm);
         };
+        if (result != null) storeClassNames.put(result, className);
+        return result;
     }
 
     private StoreResolution resolveRelational(RelationalMapping rm, String className) {
@@ -380,5 +386,74 @@ public final class MappingResolver {
             default -> throw new IllegalArgumentException(
                     "Unexpected node in join condition ValueSpec: " + vs.getClass().getSimpleName());
         }
+    }
+
+    // ==================== Extend Override Stamping ====================
+
+    /**
+     * Stamps {@link StoreResolution.ExtendOverride} on sourceRelation extend nodes
+     * whose columns are not all used by the query.
+     *
+     * <p>Reads {@code typeResult.classPropertyAccesses()} (populated by TypeChecker)
+     * to determine which model properties are referenced. Intersects with each
+     * extend node's colSpec names to produce column-level cancellation.
+     */
+    private void stampExtendOverrides() {
+        // Collect overrides first, then apply — avoids ConcurrentModificationException
+        var overrides = new IdentityHashMap<ValueSpecification, StoreResolution>();
+
+        // Iterate storeClassNames (all resolved stores), not resolutions (user-query AST only).
+        // M2M source stores are in storeClassNames but not in resolutions.
+        for (var entry : storeClassNames.entrySet()) {
+            StoreResolution store = entry.getKey();
+            if (store.sourceRelation() == null) continue;
+
+            String className = entry.getValue();
+
+            Set<String> usedProps = typeResult.classPropertyAccesses()
+                    .getOrDefault(className, Set.of());
+
+            for (AppliedFunction extendAf : findExtendNodes(store.sourceRelation())) {
+                Set<String> extendCols = extractColSpecNames(extendAf);
+                if (extendCols.isEmpty()) continue;
+
+                Set<String> active = new HashSet<>(extendCols);
+                active.retainAll(usedProps);
+                if (active.size() == extendCols.size()) continue; // all used — no override needed
+
+                overrides.put(extendAf, StoreResolution.forExtend(
+                        new StoreResolution.ExtendOverride(active)));
+            }
+        }
+
+        resolutions.putAll(overrides);
+    }
+
+    /** Walks the sourceRelation chain to find extend nodes (outermost first). */
+    private static List<AppliedFunction> findExtendNodes(ValueSpecification sourceRel) {
+        var result = new ArrayList<AppliedFunction>();
+        var cur = sourceRel;
+        while (cur instanceof AppliedFunction af
+                && "extend".equals(TypeInfo.simpleName(af.function()))) {
+            result.add(af);
+            cur = af.parameters().get(0);
+        }
+        return result;
+    }
+
+    /** Extracts colSpec names from an extend node's ClassInstance parameter. */
+    private static Set<String> extractColSpecNames(AppliedFunction extendAf) {
+        var names = new HashSet<String>();
+        // extend(source, [traverse], colSpecCI) — colSpec is the last param
+        for (int i = 1; i < extendAf.parameters().size(); i++) {
+            if (extendAf.parameters().get(i) instanceof ClassInstance ci) {
+                if (ci.value() instanceof ColSpec cs) {
+                    names.add(cs.name());
+                } else if (ci.value() instanceof ColSpecArray arr) {
+                    for (ColSpec cs : arr.colSpecs()) names.add(cs.name());
+                }
+            }
+        }
+        return names;
     }
 }

@@ -1594,6 +1594,174 @@ class RelationalMappingIntegrationTest {
         }
     }
 
+    // ==================== LAZY JOIN OPTIMIZATION ====================
+
+    @Nested
+    @DisplayName("15. Lazy Join Optimization")
+    class LazyJoinOptimization {
+
+        private String joinChainModel() {
+            return withRuntime("""
+                    Class model::Person { name: String[1]; deptName: String[1]; orgName: String[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
+                        Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                        Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                        Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
+                        Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
+                    )
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            deptName: [store::DB] @Person_Dept | T_DEPT.NAME,
+                            orgName: [store::DB] @Person_Dept > @Dept_Org | T_ORG.NAME
+                        }
+                    )
+                    """, "store::DB", "model::M");
+        }
+
+        private int countJoins(String sql) {
+            int count = 0;
+            String upper = sql.toUpperCase();
+            int idx = 0;
+            while ((idx = upper.indexOf("LEFT OUTER JOIN", idx)) != -1) {
+                count++;
+                idx += 15;
+            }
+            return count;
+        }
+
+        // --- Full cancellation: no join-chain property used ---
+
+        @Test @DisplayName("No JOINs when only main-table property projected")
+        void testNoJoinWhenOnlyLocalProperty() {
+            String sql = planSql(joinChainModel(),
+                    "Person.all()->project(~[name:p|$p.name])");
+            assertEquals(0, countJoins(sql),
+                    "Expected 0 LEFT JOINs when only local property projected. SQL: " + sql);
+            assertFalse(sql.toUpperCase().contains("T_DEPT"),
+                    "T_DEPT should not appear in SQL. SQL: " + sql);
+            assertFalse(sql.toUpperCase().contains("T_ORG"),
+                    "T_ORG should not appear in SQL. SQL: " + sql);
+        }
+
+        // --- Partial cancellation: one chain used, another not ---
+
+        @Test @DisplayName("1 JOIN when only 1-hop chain property projected")
+        void testOneJoinWhenSingleHopUsed() {
+            String sql = planSql(joinChainModel(),
+                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
+            assertEquals(1, countJoins(sql),
+                    "Expected 1 LEFT JOIN for deptName (1-hop). SQL: " + sql);
+            assertTrue(sql.toUpperCase().contains("T_DEPT"),
+                    "T_DEPT should appear for deptName. SQL: " + sql);
+            assertFalse(sql.toUpperCase().contains("T_ORG"),
+                    "T_ORG should not appear when orgName not used. SQL: " + sql);
+        }
+
+        @Test @DisplayName("2 JOINs when 2-hop chain property projected")
+        void testTwoJoinsWhenTwoHopUsed() {
+            String sql = planSql(joinChainModel(),
+                    "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+            assertEquals(2, countJoins(sql),
+                    "Expected 2 LEFT JOINs for orgName (2-hop chain). SQL: " + sql);
+            assertTrue(sql.toUpperCase().contains("T_DEPT"),
+                    "T_DEPT should appear (intermediate hop). SQL: " + sql);
+            assertTrue(sql.toUpperCase().contains("T_ORG"),
+                    "T_ORG should appear (terminal hop). SQL: " + sql);
+        }
+
+        // --- All chains used: no cancellation ---
+
+        @Test @DisplayName("3 JOINs when all chain properties projected")
+        void testAllJoinsWhenAllUsed() {
+            String sql = planSql(joinChainModel(),
+                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, org:p|$p.orgName])");
+            assertEquals(3, countJoins(sql),
+                    "Expected 3 LEFT JOINs (1 for deptName, 2 for orgName). SQL: " + sql);
+        }
+
+        // --- Filter triggers join ---
+
+        @Test @DisplayName("JOINs appear when chain property used in filter only")
+        void testJoinWhenFilterUsesChainProperty() {
+            String sql = planSql(joinChainModel(),
+                    "Person.all()->filter({p|$p.orgName == 'Acme'})->project(~[name:p|$p.name])");
+            assertEquals(2, countJoins(sql),
+                    "Expected 2 LEFT JOINs for orgName used in filter. SQL: " + sql);
+        }
+
+        @Test @DisplayName("No JOINs when filter uses only local property")
+        void testNoJoinWhenFilterUsesLocalProperty() {
+            String sql = planSql(joinChainModel(),
+                    "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name])");
+            assertEquals(0, countJoins(sql),
+                    "Expected 0 LEFT JOINs when only local properties used. SQL: " + sql);
+        }
+
+        // --- Correctness: data still correct with lazy joins ---
+
+        @Test @DisplayName("Data correct: lazy join still returns right values")
+        void testDataCorrectnessWithLazyJoin() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INT)",
+                "CREATE TABLE T_DEPT (ID INT PRIMARY KEY, NAME VARCHAR(50), ORG_ID INT)",
+                "CREATE TABLE T_ORG (ID INT PRIMARY KEY, NAME VARCHAR(100))",
+                "INSERT INTO T_ORG VALUES (1, 'Acme Corp')",
+                "INSERT INTO T_DEPT VALUES (1, 'Engineering', 1), (2, 'Sales', 1)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
+
+            // Project only name — no joins needed
+            var r1 = exec(joinChainModel(), "Person.all()->project(~[name:p|$p.name])");
+            assertEquals(3, r1.rowCount());
+            assertTrue(colStr(r1, 0).containsAll(List.of("Alice", "Bob", "Charlie")));
+
+            // Project name + orgName — 2 joins needed
+            var r2 = exec(joinChainModel(), "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+            assertEquals(3, r2.rowCount());
+            for (var row : r2.rows()) assertEquals("Acme Corp", row.get(1).toString());
+        }
+
+        @Test @DisplayName("Data correct: filter on chain property + project local")
+        void testDataFilterOnChainProjectLocal() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INT)",
+                "CREATE TABLE T_DEPT (ID INT PRIMARY KEY, NAME VARCHAR(50), ORG_ID INT)",
+                "CREATE TABLE T_ORG (ID INT PRIMARY KEY, NAME VARCHAR(100))",
+                "INSERT INTO T_ORG VALUES (1, 'Acme Corp'), (2, 'Beta Inc')",
+                "INSERT INTO T_DEPT VALUES (1, 'Engineering', 1), (2, 'Sales', 2)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
+
+            var r = exec(joinChainModel(),
+                    "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
+            assertEquals(2, r.rowCount());
+            assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
+        }
+
+        // --- Partial cancellation within batched extend ---
+
+        @Test @DisplayName("Partial column cancellation: 2-col extend, only 1 used")
+        void testPartialColumnCancellation() {
+            // deptName and orgName share different chains. When only deptName is used,
+            // the orgName chain should be cancelled.
+            String sql = planSql(joinChainModel(),
+                    "Person.all()->project(~[dept:p|$p.deptName])");
+            assertEquals(1, countJoins(sql),
+                    "Expected 1 LEFT JOIN for deptName only. SQL: " + sql);
+            assertFalse(sql.toUpperCase().contains("T_ORG"),
+                    "T_ORG should not appear when orgName not projected. SQL: " + sql);
+        }
+
+        @Test @DisplayName("Partial: filter on deptName, project name — only 1-hop join")
+        void testPartialFilterDeptProjectName() {
+            String sql = planSql(joinChainModel(),
+                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
+            assertEquals(1, countJoins(sql),
+                    "Expected 1 LEFT JOIN for deptName in filter. SQL: " + sql);
+            assertFalse(sql.toUpperCase().contains("T_ORG"),
+                    "T_ORG should not appear. SQL: " + sql);
+        }
+    }
+
     // ==================== GAP FEATURES (Disabled) ====================
 
     @Nested
