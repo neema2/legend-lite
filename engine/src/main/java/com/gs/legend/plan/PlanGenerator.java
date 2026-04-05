@@ -2329,14 +2329,14 @@ public class PlanGenerator {
             // --- Comparison (may produce EXISTS for association paths when tableAlias set)
             // ---
             case "equal", "greaterThan", "greaterThanEqual",
-                    "lessThan", "lessThanEqual", "notEqual" -> {
+                    "lessThan", "lessThanEqual", "notEqual", "notEqualAnsi" -> {
                 String op = switch (funcName) {
                     case "equal" -> "=";
                     case "greaterThan" -> ">";
                     case "greaterThanEqual" -> ">=";
                     case "lessThan" -> "<";
                     case "lessThanEqual" -> "<=";
-                    case "notEqual" -> "<>";
+                    case "notEqual", "notEqualAnsi" -> "<>";
                     default -> "=";
                 };
                 // Partial date comparisons: render as string comparison
@@ -2412,7 +2412,7 @@ public class PlanGenerator {
                 }
                 yield new SqlExpr.Binary(c.apply(params.get(0)), "+", c.apply(params.get(1)));
             }
-            case "minus" -> {
+            case "minus", "sub" -> {
                 if (params.size() == 1) {
                     // Unary minus: (-1 * x) to match old pipeline
                     yield new SqlExpr.Binary(new SqlExpr.NumericLiteral(-1), "*", c.apply(params.get(0)));
@@ -2534,6 +2534,28 @@ public class PlanGenerator {
             }
             case "replace" -> new SqlExpr.FunctionCall("REPLACE",
                     List.of(c.apply(params.get(0)), c.apply(params.get(1)), c.apply(params.get(2))));
+
+            // --- SQL literal DynaFunctions ---
+            case "sqlNull" -> new SqlExpr.NullLiteral();
+            case "sqlTrue" -> new SqlExpr.BoolLiteral(true);
+            case "sqlFalse" -> new SqlExpr.BoolLiteral(false);
+            case "isNull" -> new SqlExpr.IsNull(c.apply(params.get(0)));
+            case "isNotNull" -> new SqlExpr.IsNotNull(c.apply(params.get(0)));
+            case "group" -> c.apply(params.get(0));
+            case "isDistinct" -> new SqlExpr.FunctionCall("isDistinctFrom",
+                    List.of(c.apply(params.get(0)), c.apply(params.get(1))));
+            case "currentUserId" -> new SqlExpr.FunctionCall("currentUserId", List.of());
+            case "divideRound" -> new SqlExpr.FunctionCall("roundHalfEven",
+                    List.of(new SqlExpr.Binary(c.apply(params.get(0)), "/", c.apply(params.get(1))),
+                            c.apply(params.get(2))));
+            case "md5" -> new SqlExpr.FunctionCall("MD5", List.of(c.apply(params.get(0))));
+            case "sha1" -> new SqlExpr.FunctionCall("SHA1", List.of(c.apply(params.get(0))));
+            case "sha256" -> new SqlExpr.FunctionCall("SHA256", List.of(c.apply(params.get(0))));
+            case "objectReferenceIn" -> new SqlExpr.In(c.apply(params.get(0)),
+                    params.subList(1, params.size()).stream().map(c).toList());
+            case "averageRank" -> new SqlExpr.FunctionCall("PERCENT_RANK", List.of());
+            case "variantTo" -> new SqlExpr.Cast(c.apply(params.get(0)),
+                    params.size() > 1 && params.get(1) instanceof CString(String typeName) ? typeName : "Any");
 
             // --- Null checks ---
             case "isEmpty" -> {

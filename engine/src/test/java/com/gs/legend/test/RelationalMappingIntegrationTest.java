@@ -2178,15 +2178,15 @@ class RelationalMappingIntegrationTest {
             assertTrue(names.contains("Jane Smith"));
         }
 
-        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
-        @DisplayName("GAP: substring() in relational property mapping")
+        @Test
+        @DisplayName("DynaFunction: substring() in relational property mapping")
         void testDynaFunctionSubstring() throws SQLException {
             sql("CREATE TABLE CODES (ID INT, CODE VARCHAR(10))",
                 "INSERT INTO CODES VALUES (1, 'US-CA-01'), (2, 'UK-LN-02')");
             String model = withRuntime("""
                     Class model::Code { country: String[1]; }
                     Database store::DB ( Table CODES ( ID INTEGER, CODE VARCHAR(10) ) )
-                    Mapping model::M ( Code: Relational { ~mainTable [store::DB] CODES country: substring([store::DB] CODES.CODE, 1, 2) } )
+                    Mapping model::M ( Code: Relational { ~mainTable [store::DB] CODES country: substring([store::DB] CODES.CODE, 0, 2) } )
                     """, "store::DB", "model::M");
             var result = exec(model, "Code.all()->project([x|$x.country], ['country'])");
             assertEquals(2, result.rows().size());
@@ -2195,8 +2195,8 @@ class RelationalMappingIntegrationTest {
             assertTrue(countries.contains("UK"));
         }
 
-        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
-        @DisplayName("GAP: if(equal(...)) in relational property mapping")
+        @Test
+        @DisplayName("DynaFunction: if(equal(...)) in relational property mapping")
         void testDynaFunctionIfEqual() throws SQLException {
             sql("CREATE TABLE STATUS (ID INT, CODE VARCHAR(10))",
                 "INSERT INTO STATUS VALUES (1, 'A'), (2, 'I')");
@@ -2212,8 +2212,8 @@ class RelationalMappingIntegrationTest {
             assertTrue(labels.contains("Inactive"));
         }
 
-        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
-        @DisplayName("GAP: plus() arithmetic in relational property mapping")
+        @Test
+        @DisplayName("DynaFunction: plus() arithmetic in relational property mapping")
         void testDynaFunctionPlus() throws SQLException {
             sql("CREATE TABLE NUMS (ID INT, A INT, B INT)",
                 "INSERT INTO NUMS VALUES (1, 10, 20), (2, 30, 40)");
@@ -2226,8 +2226,8 @@ class RelationalMappingIntegrationTest {
             assertEquals(2, result.rows().size());
         }
 
-        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
-        @DisplayName("GAP: toLower() in relational property mapping")
+        @Test
+        @DisplayName("DynaFunction: toLower() in relational property mapping")
         void testDynaFunctionToLower() throws SQLException {
             sql("CREATE TABLE T1 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T1 VALUES (1, 'ALICE'), (2, 'BOB')");
@@ -2243,8 +2243,8 @@ class RelationalMappingIntegrationTest {
             assertTrue(names.contains("bob"));
         }
 
-        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
-        @DisplayName("GAP: nested DynaFunction: toLower(concat(...))")
+        @Test
+        @DisplayName("DynaFunction: nested toLower(concat(...))")
         void testDynaFunctionNested() throws SQLException {
             sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
                 "INSERT INTO NAMES VALUES (1, 'John', 'DOE')");

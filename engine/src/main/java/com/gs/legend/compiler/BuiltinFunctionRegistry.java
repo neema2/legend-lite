@@ -486,10 +486,37 @@ public class BuiltinFunctionRegistry {
      * Organized by category from DynaFunctionRegistry.
      */
     private static void registerScalarFunctions(BuiltinFunctionRegistry reg) {
-        // ===== String =====
-        // DynaFunction concat: variadic string concatenation (from relational mapping syntax)
+        // ===== DynaFunction-only (SQL relational operations, not standard Pure functions) =====
+        // These are used in relational property mapping syntax: e.g., fullName: concat([DB] T.FIRST, ' ', [DB] T.LAST)
         reg.registerSignature("concat",
                 "native function concat(strs:String[*]):String[1];");
+        reg.registerSignature("sqlNull", "native function sqlNull():Nil[0];");
+        reg.registerSignature("sqlTrue", "native function sqlTrue():Boolean[1];");
+        reg.registerSignature("sqlFalse", "native function sqlFalse():Boolean[1];");
+        reg.registerSignature("isNull", "native function isNull<T>(val:T[1]):Boolean[1];");
+        reg.registerSignature("isNotNull", "native function isNotNull<T>(val:T[1]):Boolean[1];");
+        reg.registerSignature("sub", "native function sub(left:Number[1], right:Number[1]):Number[1];");
+        reg.registerSignature("notEqualAnsi",
+                "native function notEqualAnsi(left:Any[1], right:Any[1]):Boolean[1];");
+        reg.registerSignature("group", "native function group<T>(val:T[1]):T[1];");
+        reg.registerSignature("divideRound",
+                "native function divideRound(left:Number[1], right:Number[1], scale:Integer[1]):Number[1];");
+        reg.registerSignature("isDistinct",
+                "native function isDistinct(left:Any[1], right:Any[1]):Boolean[1];");
+        reg.registerSignature("currentUserId", "native function currentUserId():String[1];");
+        reg.registerSignature("md5", "native function md5(str:String[1]):String[1];");
+        reg.registerSignature("sha1", "native function sha1(str:String[1]):String[1];");
+        reg.registerSignature("sha256", "native function sha256(str:String[1]):String[1];");
+        reg.registerSignature("repeatString",
+                "native function repeatString(str:String[1], count:Integer[1]):String[1];");
+        reg.registerSignature("objectReferenceIn",
+                "native function objectReferenceIn(col:Any[1], values:Any[*]):Boolean[1];");
+        reg.registerSignature("averageRank",
+                "native function averageRank():Number[1];");
+        reg.registerSignature("variantTo",
+                "native function variantTo<T>(val:Any[1], type:T[1]):T[1];");
+
+        // ===== String =====
         reg.registerSignature("toLower", "native function toLower(source:String[1]):String[1];");
         reg.registerSignature("toUpper", "native function toUpper(source:String[1]):String[1];");
         reg.registerSignature("trim", "native function trim(str:String[1]):String[1];");

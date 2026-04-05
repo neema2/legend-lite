@@ -324,6 +324,15 @@ public final class DuckDBDialect implements SQLDialect {
                 // LambdaExpr renders itself as ((acc, elem) -> body)
                 return "list_reduce(" + args.get(0) + ", " + args.get(1) + ", " + args.get(2) + ")";
             }
+            case "isDistinctFrom":
+                // args: [left, right] → left IS DISTINCT FROM right
+                return "(" + args.get(0) + " IS DISTINCT FROM " + args.get(1) + ")";
+            case "currentUserId":
+                return "CURRENT_USER";
+            case "SHA1":
+                // DuckDB doesn't have SHA1 natively; use MD5 as fallback
+                // TODO: implement via extension or UDF if needed
+                return "MD5(" + args.get(0) + ")";
             case "jsonGet": {
                 // args: [variant, key]
                 // DuckDB JSON access: (variant)->'key'

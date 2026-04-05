@@ -90,9 +90,16 @@ public final class RelationalMappingConverter {
             case RelationalOperation.IsNotNull isNotNull ->
                     new AppliedFunction("isNotEmpty", List.of(convert(isNotNull.operand(), tableToParam, targetParamName)));
 
-            case RelationalOperation.FunctionCall func ->
-                    new AppliedFunction(func.name(),
+            case RelationalOperation.FunctionCall func -> {
+                    var convertedArgs = new java.util.ArrayList<>(
                             func.args().stream().map(a -> convert(a, tableToParam, targetParamName)).toList());
+                    // DynaFunction if(cond, then, else) → Pure if(cond, |then, |else)
+                    if (func.name().equals("if") && convertedArgs.size() >= 3) {
+                        convertedArgs.set(1, new LambdaFunction(List.of(), convertedArgs.get(1)));
+                        convertedArgs.set(2, new LambdaFunction(List.of(), convertedArgs.get(2)));
+                    }
+                    yield new AppliedFunction(func.name(), convertedArgs);
+            }
 
             case RelationalOperation.Group grp -> convert(grp.inner(), tableToParam, targetParamName);
 
