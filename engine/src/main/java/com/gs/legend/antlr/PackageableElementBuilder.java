@@ -1622,6 +1622,17 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             return visitMappingColumnOperation(propertyName, atomicCtx.mappingColumnOperation(), enumMappingId);
         }
 
+        // Check for function operation: funcName(args...)
+        // Also handle boolean/group operations — buildMappingOperation covers the full tree
+        if (atomicCtx.mappingFunctionOperation() != null
+                || atomicCtx.mappingGroupOperation() != null
+                || ctx.mappingOperationRight() != null
+                || atomicCtx.mappingConstant() != null) {
+            var expr = buildMappingOperation(ctx);
+            return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.mappingExpression(
+                    propertyName, expr);
+        }
+
         // Fallback: store entire operation as expression
         String expression = getOriginalText(ctx);
         return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.expression(
@@ -1809,6 +1820,15 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 var result = com.gs.legend.model.def.RelationalOperation.ColumnRef.of(dbName, table, column);
                 return wrapWithMappingRightSide(result, ctx.mappingAtomicOperationRight());
             }
+        }
+
+        // Bare quoted string without scope → string literal (grammar ambiguity:
+        // relationalIdentifier matches QUOTED_STRING, which shadows mappingConstant)
+        if (dbName == null && colRef.mappingScopeInfo() == null
+                && ctx.mappingAtomicOperationRight() == null
+                && firstId.startsWith("'") && firstId.endsWith("'")) {
+            return com.gs.legend.model.def.RelationalOperation.Literal.string(
+                    firstId.substring(1, firstId.length() - 1));
         }
 
         // Bare identifier

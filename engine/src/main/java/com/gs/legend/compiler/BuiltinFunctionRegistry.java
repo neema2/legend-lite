@@ -159,8 +159,11 @@ public class BuiltinFunctionRegistry {
             throw new PureCompileException("Unknown function: '" + fn + "'");
         }
 
-        // Step 1: filter by arity
+        // Step 1: filter by exact arity first; fall back to variadic [*] matches
         var arityMatches = defs.stream().filter(d -> d.arity() == arity).toList();
+        if (arityMatches.isEmpty()) {
+            arityMatches = defs.stream().filter(d -> d.matchesArity(arity)).toList();
+        }
         if (arityMatches.isEmpty()) {
             throw new PureCompileException(
                     "No overload of '" + fn + "' accepts " + arity + " arguments "
@@ -484,6 +487,9 @@ public class BuiltinFunctionRegistry {
      */
     private static void registerScalarFunctions(BuiltinFunctionRegistry reg) {
         // ===== String =====
+        // DynaFunction concat: variadic string concatenation (from relational mapping syntax)
+        reg.registerSignature("concat",
+                "native function concat(strs:String[*]):String[1];");
         reg.registerSignature("toLower", "native function toLower(source:String[1]):String[1];");
         reg.registerSignature("toUpper", "native function toUpper(source:String[1]):String[1];");
         reg.registerSignature("trim", "native function trim(str:String[1]):String[1];");

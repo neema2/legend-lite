@@ -1,5 +1,7 @@
 package com.gs.legend.model.store;
 
+import com.gs.legend.ast.ValueSpecification;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +29,9 @@ import java.util.regex.Pattern;
  * @param enumType         The enum type name (null if not enum)
  * @param joinChain        Ordered list of join names to traverse (null for local column mappings).
  *                         When present, columnName is the terminal column on the final joined table.
+ * @param dynaExpression   Pre-compiled DynaFunction expression (null for simple column/expression mappings).
+ *                         When present, the expression is a ValueSpecification AST tree that PlanGenerator
+ *                         evaluates via generateScalar instead of simple column lookup.
  */
 public record PropertyMapping(
         String propertyName,
@@ -34,7 +39,8 @@ public record PropertyMapping(
         String expressionString,
         Map<String, List<Object>> enumMapping,
         String enumType,
-        List<String> joinChain) {
+        List<String> joinChain,
+        ValueSpecification dynaExpression) {
     public PropertyMapping {
         Objects.requireNonNull(propertyName, "Property name cannot be null");
         Objects.requireNonNull(columnName, "Column name cannot be null");
@@ -54,21 +60,21 @@ public record PropertyMapping(
      * Creates a simple column mapping.
      */
     public PropertyMapping(String propertyName, String columnName) {
-        this(propertyName, columnName, null, null, null, null);
+        this(propertyName, columnName, null, null, null, null, null);
     }
 
     /**
      * Creates a simple column mapping.
      */
     public static PropertyMapping column(String propertyName, String columnName) {
-        return new PropertyMapping(propertyName, columnName, null, null, null, null);
+        return new PropertyMapping(propertyName, columnName, null, null, null, null, null);
     }
 
     /**
      * Creates an expression-based mapping.
      */
     public static PropertyMapping expression(String propertyName, String columnName, String expression) {
-        return new PropertyMapping(propertyName, columnName, expression, null, null, null);
+        return new PropertyMapping(propertyName, columnName, expression, null, null, null, null);
     }
 
     /**
@@ -81,7 +87,7 @@ public record PropertyMapping(
      */
     public static PropertyMapping enumColumn(String propertyName, String columnName,
             String enumType, Map<String, List<Object>> enumMapping) {
-        return new PropertyMapping(propertyName, columnName, null, Map.copyOf(enumMapping), enumType, null);
+        return new PropertyMapping(propertyName, columnName, null, Map.copyOf(enumMapping), enumType, null, null);
     }
 
     /**
@@ -95,7 +101,18 @@ public record PropertyMapping(
      */
     public static PropertyMapping joinChain(String propertyName, String columnName,
             List<String> joinNames) {
-        return new PropertyMapping(propertyName, columnName, null, null, null, joinNames);
+        return new PropertyMapping(propertyName, columnName, null, null, null, joinNames, null);
+    }
+
+    /**
+     * Creates a DynaFunction expression mapping: property value computed from a pre-compiled expression.
+     * Pure syntax: {@code prop: concat([DB] T.FIRST, ' ', [DB] T.LAST)}
+     *
+     * @param propertyName The property name
+     * @param expr         Pre-compiled ValueSpecification expression tree
+     */
+    public static PropertyMapping dynaFunction(String propertyName, ValueSpecification expr) {
+        return new PropertyMapping(propertyName, propertyName, null, null, null, null, expr);
     }
 
     /**
@@ -117,6 +134,13 @@ public record PropertyMapping(
      */
     public boolean hasJoinChain() {
         return joinChain != null && !joinChain.isEmpty();
+    }
+
+    /**
+     * @return true if this property uses a DynaFunction expression mapping
+     */
+    public boolean hasDynaExpression() {
+        return dynaExpression != null;
     }
 
     /**

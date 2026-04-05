@@ -108,10 +108,15 @@ public abstract class AbstractChecker implements FunctionChecker {
             throw new PureCompileException("Unknown function: '" + funcName + "'");
         }
 
-        // Step 1: filter by arity
+        // Step 1: filter by exact arity first; fall back to variadic [*] matches
         var arityMatches = defs.stream()
                 .filter(d -> d.arity() == params.size())
                 .toList();
+        if (arityMatches.isEmpty()) {
+            arityMatches = defs.stream()
+                    .filter(d -> d.matchesArity(params.size()))
+                    .toList();
+        }
         if (arityMatches.isEmpty()) {
             throw new PureCompileException(
                     "No overload of '" + funcName + "' accepts " + params.size() + " arguments"

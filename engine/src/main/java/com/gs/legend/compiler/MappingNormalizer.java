@@ -318,11 +318,14 @@ public final class MappingNormalizer {
         // 3. Property mapping join chains → ->extend(traverse(...), ~[colSpecs])
         source = addTraverseExtends(rm, source);
 
-        // 4. Non-join property mappings → ->extend(~[name:row|$row.COL, ...])
+        // 4. DynaFunction property mappings → ->extend(~[prop:row|<dynaExpr>])
+        source = addDynaFunctionExtends(rm, source);
+
+        // 5. Non-join property mappings → ->extend(~[name:row|$row.COL, ...])
         // TEMPORARILY DISABLED for debugging — uncomment after Phase 3
         // source = addPropertyExtends(rm, source);
 
-        // 5. ~distinct → ->distinct()
+        // 6. ~distinct → ->distinct()
         if (rm.distinct()) {
             source = new com.gs.legend.ast.AppliedFunction(
                     "distinct",
@@ -394,6 +397,44 @@ public final class MappingNormalizer {
         }
 
         return source;
+    }
+
+    /**
+     * Adds {@code ->extend(~[prop:row|<dynaExpr>, ...])} for DynaFunction property mappings.
+     * Each DynaFunction property carries a pre-compiled ValueSpecification expression tree
+     * (e.g., {@code concat($row.FIRST, ' ', $row.LAST)}). These are wrapped in ColSpec lambdas
+     * and added as extend columns so TypeChecker can stamp them with TypeInfo.
+     */
+    private com.gs.legend.ast.ValueSpecification addDynaFunctionExtends(
+            RelationalMapping rm,
+            com.gs.legend.ast.ValueSpecification source) {
+
+        var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
+
+        for (var pm : rm.propertyMappings()) {
+            if (!pm.hasDynaExpression()) continue;
+
+            var rowVar = new com.gs.legend.ast.Variable("row");
+            // The dynaExpression already uses $row.COLUMN references (from RelationalMappingConverter)
+            var lambda = new com.gs.legend.ast.LambdaFunction(
+                    java.util.List.of(rowVar), pm.dynaExpression());
+            colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda));
+        }
+
+        if (colSpecs.isEmpty()) return source;
+
+        com.gs.legend.ast.ClassInstance colSpecCI;
+        if (colSpecs.size() == 1) {
+            colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpecs.get(0));
+        } else {
+            colSpecCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
+                    new com.gs.legend.ast.ColSpecArray(colSpecs));
+        }
+
+        return new com.gs.legend.ast.AppliedFunction(
+                "extend",
+                java.util.List.of(source, colSpecCI),
+                true);
     }
 
     /**

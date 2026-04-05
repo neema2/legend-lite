@@ -501,6 +501,11 @@ public final class PureModelBuilder implements ModelContext {
                                     .toList();
                             return PropertyMapping.joinChain(pm.propertyName(), terminalCol, joinNames);
                         }
+                        if (pm.hasMappingExpression()) {
+                            // DynaFunction expression: convert RelationalOperation → ValueSpecification
+                            var vsExpr = RelationalMappingConverter.convert(pm.mappingExpression());
+                            return PropertyMapping.dynaFunction(pm.propertyName(), vsExpr);
+                        }
                         if (pm.isExpression()) {
                             // Expression-based mapping (e.g., PAYLOAD->get('price', @Integer))
                             String colName = extractColumnNameFromExpression(pm.expressionString());

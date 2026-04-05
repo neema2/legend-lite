@@ -2161,12 +2161,101 @@ class RelationalMappingIntegrationTest {
 
         // --- DynaFunction in Property Mapping ---
 
-        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
-        @DisplayName("GAP: concat() in relational property mapping")
+        @Test
+        @DisplayName("DynaFunction: concat() in relational property mapping")
         void testDynaFunctionConcat() throws SQLException {
             sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
-                "INSERT INTO NAMES VALUES (1, 'John', 'Doe')");
-            // fullName: concat([DB] T.FIRST, ' ', [DB] T.LAST) in mapping body
+                "INSERT INTO NAMES VALUES (1, 'John', 'Doe'), (2, 'Jane', 'Smith')");
+            String model = withRuntime("""
+                    Class model::Person { fullName: String[1]; }
+                    Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
+                    Mapping model::M ( Person: Relational { ~mainTable [store::DB] NAMES fullName: concat([store::DB] NAMES.FIRST, ' ', [store::DB] NAMES.LAST) } )
+                    """, "store::DB", "model::M");
+            var result = exec(model, "Person.all()->project([x|$x.fullName], ['fullName'])");
+            assertEquals(2, result.rows().size());
+            var names = colStr(result, 0);
+            assertTrue(names.contains("John Doe"));
+            assertTrue(names.contains("Jane Smith"));
+        }
+
+        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
+        @DisplayName("GAP: substring() in relational property mapping")
+        void testDynaFunctionSubstring() throws SQLException {
+            sql("CREATE TABLE CODES (ID INT, CODE VARCHAR(10))",
+                "INSERT INTO CODES VALUES (1, 'US-CA-01'), (2, 'UK-LN-02')");
+            String model = withRuntime("""
+                    Class model::Code { country: String[1]; }
+                    Database store::DB ( Table CODES ( ID INTEGER, CODE VARCHAR(10) ) )
+                    Mapping model::M ( Code: Relational { ~mainTable [store::DB] CODES country: substring([store::DB] CODES.CODE, 1, 2) } )
+                    """, "store::DB", "model::M");
+            var result = exec(model, "Code.all()->project([x|$x.country], ['country'])");
+            assertEquals(2, result.rows().size());
+            var countries = colStr(result, 0);
+            assertTrue(countries.contains("US"));
+            assertTrue(countries.contains("UK"));
+        }
+
+        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
+        @DisplayName("GAP: if(equal(...)) in relational property mapping")
+        void testDynaFunctionIfEqual() throws SQLException {
+            sql("CREATE TABLE STATUS (ID INT, CODE VARCHAR(10))",
+                "INSERT INTO STATUS VALUES (1, 'A'), (2, 'I')");
+            String model = withRuntime("""
+                    Class model::Rec { label: String[1]; }
+                    Database store::DB ( Table STATUS ( ID INTEGER, CODE VARCHAR(10) ) )
+                    Mapping model::M ( Rec: Relational { ~mainTable [store::DB] STATUS label: if(equal([store::DB] STATUS.CODE, 'A'), 'Active', 'Inactive') } )
+                    """, "store::DB", "model::M");
+            var result = exec(model, "Rec.all()->project([x|$x.label], ['label'])");
+            assertEquals(2, result.rows().size());
+            var labels = colStr(result, 0);
+            assertTrue(labels.contains("Active"));
+            assertTrue(labels.contains("Inactive"));
+        }
+
+        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
+        @DisplayName("GAP: plus() arithmetic in relational property mapping")
+        void testDynaFunctionPlus() throws SQLException {
+            sql("CREATE TABLE NUMS (ID INT, A INT, B INT)",
+                "INSERT INTO NUMS VALUES (1, 10, 20), (2, 30, 40)");
+            String model = withRuntime("""
+                    Class model::Rec { total: Integer[1]; }
+                    Database store::DB ( Table NUMS ( ID INTEGER, A INTEGER, B INTEGER ) )
+                    Mapping model::M ( Rec: Relational { ~mainTable [store::DB] NUMS total: plus([store::DB] NUMS.A, [store::DB] NUMS.B) } )
+                    """, "store::DB", "model::M");
+            var result = exec(model, "Rec.all()->project([x|$x.total], ['total'])");
+            assertEquals(2, result.rows().size());
+        }
+
+        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
+        @DisplayName("GAP: toLower() in relational property mapping")
+        void testDynaFunctionToLower() throws SQLException {
+            sql("CREATE TABLE T1 (ID INT, NAME VARCHAR(50))",
+                "INSERT INTO T1 VALUES (1, 'ALICE'), (2, 'BOB')");
+            String model = withRuntime("""
+                    Class model::P { lowerName: String[1]; }
+                    Database store::DB ( Table T1 ( ID INTEGER, NAME VARCHAR(50) ) )
+                    Mapping model::M ( P: Relational { ~mainTable [store::DB] T1 lowerName: toLower([store::DB] T1.NAME) } )
+                    """, "store::DB", "model::M");
+            var result = exec(model, "P.all()->project([x|$x.lowerName], ['lowerName'])");
+            assertEquals(2, result.rows().size());
+            var names = colStr(result, 0);
+            assertTrue(names.contains("alice"));
+            assertTrue(names.contains("bob"));
+        }
+
+        @Test @Disabled("GAP: DynaFunction expressions fall back to raw string")
+        @DisplayName("GAP: nested DynaFunction: toLower(concat(...))")
+        void testDynaFunctionNested() throws SQLException {
+            sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
+                "INSERT INTO NAMES VALUES (1, 'John', 'DOE')");
+            String model = withRuntime("""
+                    Class model::Person { email: String[1]; }
+                    Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
+                    Mapping model::M ( Person: Relational { ~mainTable [store::DB] NAMES email: toLower(concat([store::DB] NAMES.FIRST, [store::DB] NAMES.LAST)) } )
+                    """, "store::DB", "model::M");
+            var result = exec(model, "Person.all()->project([x|$x.email], ['email'])");
+            assertEquals(1, result.rows().size());
+            assertEquals("johndoe", result.rows().get(0).get(0));
         }
 
         // --- Association Mappings (Explicit) ---

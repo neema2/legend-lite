@@ -2477,6 +2477,7 @@ public class PlanGenerator {
             }
             case "startsWith" -> new SqlExpr.StartsWith(c.apply(params.get(0)), c.apply(params.get(1)));
             case "endsWith" -> new SqlExpr.EndsWith(c.apply(params.get(0)), c.apply(params.get(1)));
+            case "concat" -> new SqlExpr.FunctionCall("concat", params.stream().map(c::apply).toList());
             case "toLower" -> new SqlExpr.FunctionCall("LOWER", List.of(c.apply(params.get(0))));
             case "toUpper" -> new SqlExpr.FunctionCall("UPPER", List.of(c.apply(params.get(0))));
             case "length" -> new SqlExpr.FunctionCall("LENGTH", List.of(c.apply(params.get(0))));

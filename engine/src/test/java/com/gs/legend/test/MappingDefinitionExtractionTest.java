@@ -734,8 +734,21 @@ class MappingDefinitionExtractionTest {
 
             var prop = mapping.classMappings().get(0).propertyMappings().get(0);
             assertEquals("fullName", prop.propertyName());
-            // TODO: Should be MappingOperation.FunctionCall("concat", [...])
-            // Currently stored as raw expression string
+            // Verify structured FunctionCall is produced (not raw expression string)
+            assertTrue(prop.hasMappingExpression(), "Should have structured mappingExpression");
+            var expr = prop.mappingExpression();
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.FunctionCall.class, expr);
+            var fc = (com.gs.legend.model.def.RelationalOperation.FunctionCall) expr;
+            assertEquals("concat", fc.name());
+            assertEquals(3, fc.args().size());
+            // arg[0]: column ref FIRST
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.ColumnRef.class, fc.args().get(0));
+            // arg[1]: string literal ' '
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.Literal.class, fc.args().get(1));
+            var lit = (com.gs.legend.model.def.RelationalOperation.Literal) fc.args().get(1);
+            assertEquals(" ", lit.value());
+            // arg[2]: column ref LAST
+            assertInstanceOf(com.gs.legend.model.def.RelationalOperation.ColumnRef.class, fc.args().get(2));
         }
 
         @Test

@@ -301,7 +301,7 @@ public class SqlBuilder {
     }
 
     public boolean isSelectStar() {
-        return selectStar;
+        return selectStar && selectColumns.isEmpty();
     }
 
     public boolean hasJoins() {
