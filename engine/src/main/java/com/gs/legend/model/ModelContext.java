@@ -69,22 +69,15 @@ public interface ModelContext {
     }
 
     /**
-     * Pre-resolved association join info, produced by MappingNormalizer.
-     * Carries everything GetAllChecker and MappingResolver need — no further
-     * model or Association lookups required downstream.
+     * Returns all association navigations for a class (lightweight, no physical join info).
+     * Used by GetAllChecker for recursive compilation of target class expressions.
      *
-     * <p>Top-level on ModelContext (not nested inside MappingExpression) so that
-     * NormalizedMapping can expose it to MappingResolver without leaking
-     * MappingExpression visibility.
-     *
-     * @param targetClassName The class the association navigates TO
-     * @param traversal       traverse(src, tgt, {src, tgt | cond}) ValueSpec
-     * @param isToMany        Whether this is a to-many navigation
+     * @param className The class to look up associations for
+     * @return Map of property name → AssociationNavigation
      */
-    record AssociationJoinInfo(
-            String targetClassName,
-            ValueSpecification traversal,
-            boolean isToMany) {}
+    default Map<String, AssociationNavigation> findAllAssociationNavigations(String className) {
+        return Map.of();
+    }
 
     /**
      * Compiler-visible view of a mapping — expressions only, no routing info.
@@ -103,31 +96,24 @@ public interface ModelContext {
          * @param sourceClassName         The source class being mapped from (~src)
          * @param propertyExpressions     Map of property name → pre-parsed AST expression
          * @param filter                  Optional filter expression (~filter)
-         * @param associationNavigations  M2M properties that navigate associations on the source class.
-         *                               Key = M2M property name (e.g., "address"), value = pre-resolved join info.
-         *                               Populated by MappingNormalizer; read by GetAllChecker.
          */
         record M2M(
                 String sourceClassName,
                 Map<String, ValueSpecification> propertyExpressions,
-                ValueSpecification filter,
-                Map<String, AssociationJoinInfo> associationNavigations) implements MappingExpression {}
+                ValueSpecification filter) implements MappingExpression {}
 
         /**
          * Relational mapping: source relation is the single source of truth.
          * The sourceRelation is a ValueSpecification chain synthesized by MappingNormalizer:
-         * {@code tableReference("db.TABLE") -> filter(...) -> join(...) -> distinct()}
+         * {@code tableReference("db.TABLE") -> filter(...) -> join(...) -> extend(traverse()) -> distinct()}
+         * Association traversals are embedded as extend() nodes with fn1=traverse.
          *
          * @param className        The class being mapped
-         * @param sourceRelation   Synthesized Relation ValueSpec (tableRef + filter + joins + distinct)
-         * @param associationJoins Per-property association joins: propertyName → AssociationJoinInfo.
-         *                         Traversals compiled by GetAllChecker (stamps TypeInfo);
-         *                         join info read by MappingResolver via NormalizedMapping.
+         * @param sourceRelation   Synthesized Relation ValueSpec (tableRef + filter + joins + extends + distinct)
          */
         record Relational(
                 String className,
-                ValueSpecification sourceRelation,
-                Map<String, AssociationJoinInfo> associationJoins) implements MappingExpression {}
+                ValueSpecification sourceRelation) implements MappingExpression {}
     }
 
     /**

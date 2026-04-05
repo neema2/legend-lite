@@ -100,6 +100,14 @@ public record StoreResolution(
          */
         record M2MExpression(ValueSpecification expression, StoreResolution sourceResolution)
                 implements PropertyResolution {}
+
+        /**
+         * Embedded column: sub-property resolves to a column on the PARENT table (no JOIN).
+         * PlanGenerator uses the parent alias to reference the column directly.
+         *
+         * @param columnName Physical column on the parent table
+         */
+        record EmbeddedColumn(String columnName) implements PropertyResolution {}
     }
 
     /**
@@ -112,6 +120,7 @@ public record StoreResolution(
      * @param joinCondition    Pre-converted join condition as ValueSpecification
      * @param sourceColumns    Source-side column names referenced by the join condition (for graphFetch projection)
      * @param targetResolution StoreResolution for the target table (for nested property access)
+     * @param embedded         True if this is an embedded mapping (sub-properties on parent table, no JOIN)
      */
     public record JoinResolution(
             String targetTable,
@@ -120,7 +129,17 @@ public record StoreResolution(
             boolean isToMany,
             ValueSpecification joinCondition,
             java.util.Set<String> sourceColumns,
-            StoreResolution targetResolution) {
+            StoreResolution targetResolution,
+            boolean embedded) {
+
+        /** Convenience constructor for non-embedded joins. */
+        public JoinResolution(
+                String targetTable, String sourceParam, String targetParam,
+                boolean isToMany, ValueSpecification joinCondition,
+                java.util.Set<String> sourceColumns, StoreResolution targetResolution) {
+            this(targetTable, sourceParam, targetParam, isToMany,
+                    joinCondition, sourceColumns, targetResolution, false);
+        }
     }
 
     // ===== Convenience =====

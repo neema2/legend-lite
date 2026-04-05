@@ -116,13 +116,14 @@ public class GetAllChecker extends AbstractChecker {
     private void compileRelationalExpressions(MappingExpression.Relational rel, Set<String> visited) {
         if (!visited.add(rel.className())) return;
 
+        // sourceRelation already contains association traversals as extend() nodes
+        // with fn1=traverse. compileExpr walks the full chain including those.
         var ctx = new TypeChecker.CompilationContext();
         env.compileExpr(rel.sourceRelation(), ctx);
-        // Compile each association traversal and recursively compile target classes.
-        // associationJoins carries target class names — no findAllAssociationNavigations needed.
-        for (var info : rel.associationJoins().values()) {
-            env.compileExpr(info.traversal(), ctx);
-            env.modelContext().findMappingExpression(info.targetClassName())
+
+        // Recurse into association target classes to compile their expressions
+        for (var nav : env.modelContext().findAllAssociationNavigations(rel.className()).values()) {
+            env.modelContext().findMappingExpression(nav.targetClassName())
                     .ifPresent(mapExpr -> {
                         if (mapExpr instanceof MappingExpression.Relational targetRel) {
                             compileRelationalExpressions(targetRel, visited);

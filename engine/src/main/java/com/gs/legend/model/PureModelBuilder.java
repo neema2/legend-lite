@@ -482,7 +482,9 @@ public final class PureModelBuilder implements ModelContext {
             // Build property mappings:
             // - Bare join references (no terminal column) are skipped — handled as associations
             // - Join references WITH terminal columns become join-chain PropertyMappings
+            // - Embedded/inline PMDs are skipped — handled separately below
             List<PropertyMapping> propertyMappings = classMapping.propertyMappings().stream()
+                    .filter(pm -> pm.structuredValue() == null)
                     .filter(pm -> !pm.isJoinReference()
                             || pm.joinReference().terminalColumn() != null)
                     .map(pm -> {
@@ -572,9 +574,24 @@ public final class PureModelBuilder implements ModelContext {
             String filterName = classMapping.filter() != null ? classMapping.filter().filterName() : null;
             String filterDbName = classMapping.filter() != null ? classMapping.filter().databaseName() : null;
 
+            // Build embedded property mappings from structured PMDs
+            var embeddedMappings = new java.util.LinkedHashMap<String, List<PropertyMapping>>();
+            for (var pm : classMapping.propertyMappings()) {
+                if (pm.structuredValue() instanceof com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping emb) {
+                    var subMappings = new java.util.ArrayList<PropertyMapping>();
+                    for (var sub : emb.properties()) {
+                        if (sub.columnReference() != null) {
+                            subMappings.add(PropertyMapping.column(sub.propertyName(),
+                                    sub.columnReference().columnName()));
+                        }
+                    }
+                    embeddedMappings.put(pm.propertyName(), subMappings);
+                }
+            }
+
             // Create and register the mapping
             RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings,
-                    false, setId, isRoot, distinct, filterName, filterDbName);
+                    false, setId, isRoot, distinct, filterName, filterDbName, embeddedMappings);
             mappingRegistry.register(mappingDef.qualifiedName(), mapping);
         }
 
@@ -833,7 +850,7 @@ public final class PureModelBuilder implements ModelContext {
     public Optional<MappingExpression> findMappingExpression(String className) {
         return mappingRegistry.findPureClassMapping(className)
                 .map(pcm -> new MappingExpression.M2M(pcm.sourceClassName(),
-                        pcm.propertyExpressions(), pcm.filter(), java.util.Map.of()));
+                        pcm.propertyExpressions(), pcm.filter()));
     }
 
     @Override
@@ -904,7 +921,7 @@ public final class PureModelBuilder implements ModelContext {
      * Returns all association navigations for a given class, with full physical info.
      * Called by MappingNormalizer directly (not through ModelContext).
      */
-    public java.util.Map<String, FullAssociationNavigation> findAllAssociationNavigations(String className) {
+    public java.util.Map<String, FullAssociationNavigation> findAllAssociationNavigationsFull_impl(String className) {
         var result = new java.util.LinkedHashMap<String, FullAssociationNavigation>();
         for (Association assoc : associations.values()) {
             var prop1 = assoc.property1();
@@ -924,6 +941,24 @@ public final class PureModelBuilder implements ModelContext {
             }
         }
         return result;
+    }
+
+    @Override
+    public Map<String, AssociationNavigation> findAllAssociationNavigations(String className) {
+        var result = new java.util.LinkedHashMap<String, AssociationNavigation>();
+        for (var entry : findAllAssociationNavigationsFull(className).entrySet()) {
+            var nav = entry.getValue();
+            result.put(entry.getKey(), new AssociationNavigation(nav.targetClassName(), nav.isToMany()));
+        }
+        return result;
+    }
+
+    /**
+     * Returns all association navigations with full physical info (including Join).
+     * Called by MappingNormalizer directly (not through ModelContext).
+     */
+    public Map<String, FullAssociationNavigation> findAllAssociationNavigationsFull(String className) {
+        return findAllAssociationNavigationsFull_impl(className);
     }
 
     @Override

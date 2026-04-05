@@ -7,6 +7,7 @@ import com.gs.legend.model.mapping.PureClassMapping;
 import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.PropertyMapping;
+import com.gs.legend.compiler.checkers.ExtendChecker;
 import com.gs.legend.plan.GenericType;
 
 import java.util.ArrayList;
@@ -190,7 +191,7 @@ public final class MappingResolver {
 
         // Resolve association joins from NormalizedMapping (pre-resolved by MappingNormalizer)
         Map<String, StoreResolution.JoinResolution> joins =
-                resolveAssociationJoins(className);
+                resolveAssociationJoins(className, tableName);
 
         // sourceRelation from NormalizedMapping (dedicated accessor — no MappingExpression needed)
         var sourceRelation = normalized.findSourceRelation(className);
@@ -223,19 +224,52 @@ public final class MappingResolver {
             propToCol.put(prop, prop);
         }
 
-        // Resolve Association navigations from pre-resolved NormalizedMapping data
+        // Resolve M2M association navigations by walking the source class's sourceRelation
+        // extend nodes. For each M2M property matching $src.assocProp, find the traverse
+        // embedded in the source class's extend node for that association property.
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
-        for (var navEntry : normalized.findM2MAssociationNavigations(pcm.targetClassName()).entrySet()) {
-            String m2mPropName = navEntry.getKey();
-            var info = navEntry.getValue();
-            ClassMapping targetMapping = normalized.findClassMapping(info.targetClassName())
-                    .orElseThrow(() -> new PureCompileException(
-                            "M2M Association navigation targets class '" + info.targetClassName()
-                                    + "' which has no mapping in scope"));
-            StoreResolution targetResolution = resolveClassMapping(targetMapping, info.targetClassName());
-            String targetTable = targetMapping.sourceTable().name();
-            joins.put(m2mPropName, buildJoinResolution(
-                    targetTable, info.isToMany(), info.traversal(), targetResolution));
+        var srcSourceRelation = normalized.findSourceRelation(pcm.sourceClassName());
+        if (srcSourceRelation != null) {
+            for (var propEntry : pcm.propertyExpressions().entrySet()) {
+                String m2mPropName = propEntry.getKey();
+                var expr = propEntry.getValue();
+
+                // Match pattern: AppliedProperty(assocPropName, [Variable("src")])
+                if (!(expr instanceof AppliedProperty ap)) continue;
+                if (ap.parameters().size() != 1) continue;
+                if (!(ap.parameters().get(0) instanceof Variable v)) continue;
+                if (!"src".equals(v.name())) continue;
+
+                String assocPropName = ap.property();
+
+                // Find the traverse for this property in the source's sourceRelation
+                AppliedFunction traverseAf = findTraverseForProp(srcSourceRelation, assocPropName);
+                if (traverseAf == null) continue;
+
+                // Look up association for target class + multiplicity
+                var nav = modelContext.findAssociationByProperty(pcm.sourceClassName(), assocPropName)
+                        .orElse(null);
+                if (nav == null) continue;
+
+                // Determine isToMany from M2M target class property multiplicity
+                boolean isToMany = nav.isToMany();
+                var targetClassOpt = modelContext.findClass(pcm.targetClassName());
+                if (targetClassOpt.isPresent()) {
+                    var propOpt = targetClassOpt.get().findProperty(m2mPropName);
+                    if (propOpt.isPresent()) {
+                        isToMany = !propOpt.get().multiplicity().isSingular();
+                    }
+                }
+
+                ClassMapping targetMapping = normalized.findClassMapping(nav.targetClassName())
+                        .orElseThrow(() -> new PureCompileException(
+                                "M2M Association navigation targets class '" + nav.targetClassName()
+                                        + "' which has no mapping in scope"));
+                StoreResolution targetResolution = resolveClassMapping(targetMapping, nav.targetClassName());
+                String targetTable = targetMapping.sourceTable().name();
+                joins.put(m2mPropName, buildJoinResolution(
+                        targetTable, isToMany, traverseAf, targetResolution));
+            }
         }
 
         return new StoreResolution(
@@ -246,39 +280,92 @@ public final class MappingResolver {
     // ==================== Association / Join Resolution ====================
 
     /**
-     * Resolves association joins for a relational mapping.
-     * Reads pre-resolved AssociationJoinInfo from NormalizedMapping — no model queries needed.
+     * Resolves association joins for a relational mapping by walking the sourceRelation's
+     * extend nodes. Each association extend has a ColSpec with fn1=traverse (0-param lambda).
      * Also discovers inline struct-array properties (UNNEST candidates) from the model.
      */
     private Map<String, StoreResolution.JoinResolution> resolveAssociationJoins(
-            String className) {
+            String className, String tableName) {
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
 
-        // 1. Pre-resolved association joins (from MappingNormalizer via NormalizedMapping)
-        for (var entry : normalized.findAssociationJoins(className).entrySet()) {
-            String propName = entry.getKey();
-            var info = entry.getValue();
-            ClassMapping targetMapping = normalized.findClassMapping(info.targetClassName())
-                    .orElseThrow(() -> new PureCompileException(
-                            "Association join for property '" + propName + "' targets class '"
-                                    + info.targetClassName() + "' which has no mapping in scope"
-                                    + " — MappingNormalizer should have excluded this"));
+        // 1. Walk extend nodes in sourceRelation to find association extends
+        var sourceRelation = normalized.findSourceRelation(className);
+        if (sourceRelation != null) {
+            for (AppliedFunction extendAf : findExtendNodes(sourceRelation)) {
+                for (int i = 1; i < extendAf.parameters().size(); i++) {
+                    if (!(extendAf.parameters().get(i) instanceof ClassInstance ci)) continue;
+                    if (!(ci.value() instanceof ColSpec cs)) continue;
+                    if (!ExtendChecker.isAssociationExtend(cs)) continue;
 
-            StoreResolution targetResolution;
-            if (resolving.contains(info.targetClassName())) {
-                // Self-join or back-reference: build shallow resolution (same table/columns,
-                // no recursive association joins) to avoid infinite recursion.
-                targetResolution = buildShallowResolution(targetMapping);
-            } else {
-                targetResolution = resolveClassMapping(targetMapping, info.targetClassName());
+                    String propName = cs.name();
+                    // Extract traverse call from fn1's body
+                    AppliedFunction traverseAf = (AppliedFunction) cs.function1().body().get(0);
+
+                    // Look up association for target class and multiplicity
+                    var nav = modelContext.findAssociationByProperty(className, propName)
+                            .orElse(null);
+                    if (nav == null) continue;
+
+                    ClassMapping targetMapping = normalized.findClassMapping(nav.targetClassName())
+                            .orElseThrow(() -> new PureCompileException(
+                                    "Association join for property '" + propName + "' targets class '"
+                                            + nav.targetClassName() + "' which has no mapping in scope"));
+
+                    StoreResolution targetResolution;
+                    if (resolving.contains(nav.targetClassName())) {
+                        targetResolution = buildShallowResolution(targetMapping);
+                    } else {
+                        targetResolution = resolveClassMapping(targetMapping, nav.targetClassName());
+                    }
+                    String targetTable = targetMapping.sourceTable().name();
+
+                    joins.put(propName, buildJoinResolution(
+                            targetTable, nav.isToMany(), traverseAf, targetResolution));
+                }
             }
-            String targetTable = targetMapping.sourceTable().name();
-
-            joins.put(propName, buildJoinResolution(
-                    targetTable, info.isToMany(), info.traversal(), targetResolution));
         }
 
-        // 2. Inline struct-array properties (to-many class-typed on the class itself).
+        // 2. Embedded extends: fn1 is 0-param lambda wrapping ColSpecArray.
+        //    No JOIN — sub-properties resolve to parent table columns.
+        if (sourceRelation != null) {
+            for (AppliedFunction extendAf : findExtendNodes(sourceRelation)) {
+                for (int i = 1; i < extendAf.parameters().size(); i++) {
+                    if (!(extendAf.parameters().get(i) instanceof ClassInstance ci)) continue;
+                    if (!(ci.value() instanceof ColSpec cs)) continue;
+                    if (!ExtendChecker.isEmbeddedExtend(cs)) continue;
+
+                    String propName = cs.name();
+                    // Extract sub-ColSpecs from the ColSpecArray
+                    ClassInstance innerCI = (ClassInstance) cs.function1().body().get(0);
+                    ColSpecArray subArray = (ColSpecArray) innerCI.value();
+
+                    // Build embedded target resolution: sub-property → EmbeddedColumn(parentCol)
+                    Map<String, String> subPropToCol = new LinkedHashMap<>();
+                    Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
+                    for (ColSpec sub : subArray.colSpecs()) {
+                        // fn1 body is AppliedProperty(columnName, [Variable("row")])
+                        var subBody = sub.function1().body().get(0);
+                        if (subBody instanceof AppliedProperty ap) {
+                            String colName = ap.property();
+                            subPropToCol.put(sub.name(), colName);
+                            subProperties.put(sub.name(),
+                                    new StoreResolution.PropertyResolution.EmbeddedColumn(colName));
+                        }
+                    }
+
+                    // Embedded target uses parent table — no separate table
+                    var embeddedResolution = new StoreResolution(
+                            tableName, subPropToCol, subProperties, Map.of(),
+                            null, false);
+
+                    // JoinResolution with embedded=true — PlanGenerator uses parent alias, no JOIN
+                    joins.put(propName, new StoreResolution.JoinResolution(
+                            null, null, null, false, null, Set.of(), embeddedResolution, true));
+                }
+            }
+        }
+
+        // 3. Inline struct-array properties (to-many class-typed on the class itself).
         //    These are UNNEST candidates (join=null) for ^Class patterns.
         var pureClass = modelContext.findClass(className).orElse(null);
         if (pureClass != null) {
@@ -324,26 +411,45 @@ public final class MappingResolver {
                 null, rm.nested(), null);
     }
 
+    /**
+     * Finds the traverse AppliedFunction for a given property name by walking
+     * the sourceRelation's extend nodes. Returns null if not found.
+     */
+    private static AppliedFunction findTraverseForProp(ValueSpecification sourceRel, String propName) {
+        for (AppliedFunction extendAf : findExtendNodes(sourceRel)) {
+            for (int i = 1; i < extendAf.parameters().size(); i++) {
+                if (!(extendAf.parameters().get(i) instanceof ClassInstance ci)) continue;
+                if (!(ci.value() instanceof ColSpec cs)) continue;
+                if (!cs.name().equals(propName)) continue;
+                if (!ExtendChecker.isAssociationExtend(cs)) continue;
+                return (AppliedFunction) cs.function1().body().get(0);
+            }
+        }
+        return null;
+    }
+
     // ==================== Join Condition Helpers ====================
 
     /**
      * Builds a JoinResolution from a traverse expression.
-     * The joinTraversal is: {@code traverse(tableRef(src), tableRef(tgt), {src, tgt | body})}.
-     * Unwraps the lambda to extract param names and condition body.
-     * TypeInfo already stamped by TypeChecker (via GetAllChecker → TraverseChecker).
+     * Handles both inside-extend 2-param traverse {@code traverse(targetRef, {prev,hop|cond})}
+     * and chained 3-param traverse {@code traverse(prev_traverse, targetRef, {prev,hop|cond})}.
+     * Lambda is always the last parameter.
+     * TypeInfo already stamped by TypeChecker (via GetAllChecker → ExtendChecker).
      */
     private StoreResolution.JoinResolution buildJoinResolution(
             String targetTable, boolean isToMany,
             ValueSpecification joinTraversal, StoreResolution targetResolution) {
-        // Unwrap traverse(source, target, lambda) → extract lambda
         if (!(joinTraversal instanceof AppliedFunction traverseAf)) {
             throw new IllegalArgumentException(
                     "Expected traverse() AppliedFunction, got: " + joinTraversal.getClass().getSimpleName());
         }
-        if (!(traverseAf.parameters().get(2) instanceof LambdaFunction lambda)) {
+        // Lambda is always last param: index 1 for 2-param, index 2 for 3-param
+        int lambdaIdx = traverseAf.parameters().size() - 1;
+        if (!(traverseAf.parameters().get(lambdaIdx) instanceof LambdaFunction lambda)) {
             throw new IllegalArgumentException(
-                    "Expected LambdaFunction as traverse param[2], got: "
-                            + traverseAf.parameters().get(2).getClass().getSimpleName());
+                    "Expected LambdaFunction as traverse param[" + lambdaIdx + "], got: "
+                            + traverseAf.parameters().get(lambdaIdx).getClass().getSimpleName());
         }
 
         String sourceParam = lambda.parameters().get(0).name();

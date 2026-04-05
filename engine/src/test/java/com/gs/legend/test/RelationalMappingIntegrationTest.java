@@ -3473,6 +3473,190 @@ class RelationalMappingIntegrationTest {
         }
     }
 
+    // ==================== 28. Embedded Mappings ====================
+
+    @Nested
+    @DisplayName("28. Embedded Mappings")
+    class EmbeddedMappings {
+
+        private String model;
+
+        @BeforeEach
+        void setup() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INT)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 'Acme Corp', 1000000), (2, 'Bob', 'Beta Inc', 500000), (3, 'Charlie', 'Acme Corp', 1000000)");
+            model = withRuntime("""
+                    Class model::Person { name: String[1]; }
+                    Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
+                    Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INTEGER)
+                    )
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm (
+                                legalName: [store::DB] T_PERSON.FIRM_NAME,
+                                revenue: [store::DB] T_PERSON.FIRM_REVENUE
+                            )
+                        }
+                    )
+                    """, "store::DB", "model::M");
+        }
+
+        @Test
+        @DisplayName("Project single embedded property")
+        void testEmbeddedSingleProperty() throws SQLException {
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            var r = exec(model, query);
+            assertEquals(3, r.rowCount());
+            assertTrue(colStr(r, 1).contains("Acme Corp"));
+            assertTrue(colStr(r, 1).contains("Beta Inc"));
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Embedded should produce no JOIN");
+        }
+
+        @Test
+        @DisplayName("Project multiple embedded properties")
+        void testEmbeddedMultiProperty() throws SQLException {
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
+            var r = exec(model, query);
+            assertEquals(3, r.rowCount());
+            // Alice → Acme Corp, 1000000
+            var names = colStr(r, 0);
+            var firms = colStr(r, 1);
+            var revs = colInt(r, 2);
+            int aliceIdx = names.indexOf("Alice");
+            assertEquals("Acme Corp", firms.get(aliceIdx));
+            assertEquals(Integer.valueOf(1000000), revs.get(aliceIdx));
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Embedded should produce no JOIN");
+        }
+
+        @Test
+        @DisplayName("Filter on embedded property")
+        void testEmbeddedFilter() throws SQLException {
+            var query = "Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
+            var r = exec(model, query);
+            assertEquals(2, r.rowCount());
+            assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Embedded filter should produce no JOIN");
+        }
+
+        @Test
+        @DisplayName("SQL has no JOIN for embedded — columns from parent table")
+        void testEmbeddedNoJoinSql() {
+            String sql = planSql(model, "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
+            assertFalse(sql.toUpperCase().contains("JOIN"), "Embedded should produce no JOIN: " + sql);
+            assertTrue(sql.contains("FIRM_NAME"), "Should reference FIRM_NAME column directly: " + sql);
+        }
+
+        @Test
+        @DisplayName("Embedded + flat column coexistence")
+        void testEmbeddedWithFlatColumn() throws SQLException {
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])->sort(~name->ascending())";
+            var r = exec(model, query);
+            assertEquals(3, r.rowCount());
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Acme Corp", colStr(r, 1).get(0));
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Embedded + sort should produce no JOIN");
+        }
+    }
+
+    // ==================== 29. Embedded + Association Coexistence ====================
+
+    @Nested
+    @DisplayName("29. Embedded + Association Coexistence")
+    class EmbeddedWithAssociation {
+
+        @Test
+        @DisplayName("Embedded property on same table + association join on different table")
+        void testEmbeddedAndAssociationTogether() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), ADDR_ID INT)",
+                "CREATE TABLE T_ADDRESS (ID INT PRIMARY KEY, STREET VARCHAR(200), CITY VARCHAR(100))",
+                "INSERT INTO T_ADDRESS VALUES (1, '123 Main St', 'New York'), (2, '456 Oak Ave', 'Boston')",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 'Acme Corp', 1), (2, 'Bob', 'Beta Inc', 2)");
+            var model = withRuntime("""
+                    Class model::Person { name: String[1]; }
+                    Class model::Firm { legalName: String[1]; }
+                    Class model::Address { street: String[1]; city: String[1]; }
+                    Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
+                    Association model::Person_Address { person: Person[1]; address: Address[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), ADDR_ID INTEGER)
+                        Table T_ADDRESS (ID INTEGER PRIMARY KEY, STREET VARCHAR(200), CITY VARCHAR(100))
+                        Join Person_Address(T_PERSON.ADDR_ID = T_ADDRESS.ID)
+                    )
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm (
+                                legalName: [store::DB] T_PERSON.FIRM_NAME
+                            )
+                        }
+                        Address: Relational {
+                            ~mainTable [store::DB] T_ADDRESS
+                            street: [store::DB] T_ADDRESS.STREET,
+                            city: [store::DB] T_ADDRESS.CITY
+                        }
+                    )
+                    """, "store::DB", "model::M");
+
+            // Project embedded firm + association address
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, city:p|$p.address.city])";
+            var r = exec(model, query);
+            assertEquals(2, r.rowCount());
+            var names = colStr(r, 0);
+            int aliceIdx = names.indexOf("Alice");
+            assertEquals("Acme Corp", colStr(r, 1).get(aliceIdx));
+            assertEquals("New York", colStr(r, 2).get(aliceIdx));
+            // Exactly one JOIN for address association; firm embedded = no JOIN
+            String sql = planSql(model, query).toUpperCase();
+            assertEquals(1, sql.split("JOIN").length - 1, "Expected exactly 1 JOIN (address): " + sql);
+            assertTrue(sql.contains("T_ADDRESS"), "JOIN should be to T_ADDRESS: " + sql);
+        }
+
+        @Test
+        @DisplayName("SQL: embedded = no JOIN, association = LEFT JOIN")
+        void testEmbeddedAndAssociationSql() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), ADDR_ID INT)",
+                "CREATE TABLE T_ADDRESS (ID INT, STREET VARCHAR(200), CITY VARCHAR(100))");
+            var model = withRuntime("""
+                    Class model::Person { name: String[1]; }
+                    Class model::Firm { legalName: String[1]; }
+                    Class model::Address { street: String[1]; city: String[1]; }
+                    Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
+                    Association model::Person_Address { person: Person[1]; address: Address[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), ADDR_ID INTEGER)
+                        Table T_ADDRESS (ID INTEGER PRIMARY KEY, STREET VARCHAR(200), CITY VARCHAR(100))
+                        Join Person_Address(T_PERSON.ADDR_ID = T_ADDRESS.ID)
+                    )
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm (
+                                legalName: [store::DB] T_PERSON.FIRM_NAME
+                            )
+                        }
+                        Address: Relational {
+                            ~mainTable [store::DB] T_ADDRESS
+                            street: [store::DB] T_ADDRESS.STREET,
+                            city: [store::DB] T_ADDRESS.CITY
+                        }
+                    )
+                    """, "store::DB", "model::M");
+
+            String sql = planSql(model, "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, city:p|$p.address.city])");
+            String upper = sql.toUpperCase();
+            // Exactly one JOIN (for address association); firm embedded = no JOIN
+            assertEquals(1, upper.split("JOIN").length - 1, "Expected exactly 1 JOIN (address): " + sql);
+            assertTrue(upper.contains("T_ADDRESS"), "JOIN should be to T_ADDRESS: " + sql);
+            assertTrue(sql.contains("FIRM_NAME"), "Firm should reference parent column directly: " + sql);
+        }
+    }
+
     // ==================== GAP: Composition of Unsupported Features ====================
 
     @Nested

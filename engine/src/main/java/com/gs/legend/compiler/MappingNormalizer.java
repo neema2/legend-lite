@@ -54,6 +54,7 @@ public final class MappingNormalizer {
             @Override public java.util.Optional<AssociationNavigation> findAssociationByProperty(String c, String p) { return model.findAssociationByProperty(c, p); }
             @Override public java.util.Optional<com.gs.legend.model.store.Table> findTable(String n) { return model.findTable(n); }
             @Override public java.util.Optional<com.gs.legend.model.def.EnumDefinition> findEnum(String n) { return model.findEnum(n); }
+            @Override public java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String c) { return model.findAllAssociationNavigations(c); }
             @Override public java.util.Optional<MappingExpression> findMappingExpression(String className) {
                 return normalized.findMappingExpression(className);
             }
@@ -61,7 +62,7 @@ public final class MappingNormalizer {
     }
 
     /**
-     * Full mapping data for MappingResolver — findClassMapping + findAssociationJoins.
+     * Full mapping data for MappingResolver — findClassMapping + findSourceRelation.
      * TypeChecker never sees this.
      */
     public NormalizedMapping normalizedMapping() {
@@ -96,57 +97,30 @@ public final class MappingNormalizer {
             }
         }
 
-        // Phase 2a: Build Relational MappingExpressions (with per-property associationJoins).
-        // Relational expressions must be built first so M2M expressions can reference
-        // the source class's associationJoins to wire up association navigations.
+        // Phase 2a: Build Relational MappingExpressions.
+        // Association traversals are embedded in sourceRelation as extend() nodes
+        // with fn1=traverse — no separate AssociationJoinInfo needed.
         for (var entry : resolvedMappings.entrySet()) {
             String className = entry.getKey();
             ClassMapping cm = entry.getValue();
             if (!(cm instanceof RelationalMapping rm)) continue;
 
             var sourceRelation = synthesizeSourceRelation(rm);
-            String sourceTable = rm.table().name();
-
-            // Build per-property association joins from Association navigations.
-            // Direction is deterministic: sourceTable = this class, targetTable = Association target.
-            var assocJoins = new LinkedHashMap<String, ModelContext.AssociationJoinInfo>();
-            for (var navEntry : model.findAllAssociationNavigations(className).entrySet()) {
-                String propName = navEntry.getKey();
-                var nav = navEntry.getValue();
-                // No relational join for this association — pure-model-only, skip
-                if (nav.join() == null) continue;
-
-                // Target class must have a mapping in this scope to wire up
-                ClassMapping targetCm = resolvedMappings.get(nav.targetClassName());
-                if (targetCm == null) continue;
-                if (targetCm.sourceTable() == null) {
-                    throw new com.gs.legend.compiler.PureCompileException(
-                            "Association property '" + propName + "' targets class '"
-                                    + nav.targetClassName() + "' whose mapping has no source table");
-                }
-                String targetTable = targetCm.sourceTable().name();
-
-                // nav.join() is already a resolved Join from PureModelBuilder — use directly
-                var traversal = buildTraverse(nav.join(), sourceTable, targetTable);
-                assocJoins.put(propName, new ModelContext.AssociationJoinInfo(
-                        nav.targetClassName(), traversal, nav.isToMany()));
-            }
+            sourceRelation = addAssociationExtends(rm, className, sourceRelation, resolvedMappings);
             expressions.put(className, new ModelContext.MappingExpression.Relational(
-                    className, sourceRelation, assocJoins));
+                    className, sourceRelation));
         }
 
-        // Phase 2b: Build M2M MappingExpressions, detecting association navigations.
-        // For each M2M property expression matching AppliedProperty(prop, [Variable("src")]),
-        // check if it's an Association navigation on the source class. If so, look up the
-        // source class's already-built Relational associationJoins for the traversal.
+        // Phase 2b: Build M2M MappingExpressions.
+        // M2M association navigations are resolved by MappingResolver at resolve time
+        // by walking the source class's sourceRelation extend nodes.
         for (var entry : resolvedMappings.entrySet()) {
             String className = entry.getKey();
             ClassMapping cm = entry.getValue();
             if (!(cm instanceof PureClassMapping pcm)) continue;
 
-            var assocNavs = detectM2MAssociationNavigations(pcm, expressions);
             expressions.put(className, new ModelContext.MappingExpression.M2M(
-                    pcm.sourceClassName(), pcm.propertyExpressions(), pcm.filter(), assocNavs));
+                    pcm.sourceClassName(), pcm.propertyExpressions(), pcm.filter()));
         }
 
         return new NormalizedMapping(resolvedMappings, expressions);
@@ -194,89 +168,105 @@ public final class MappingNormalizer {
         return pcm.withResolved(targetClass, sourceMapping);
     }
 
-    // ==================== M2M Association Detection ====================
+    // ==================== Association Extends ====================
 
     /**
-     * Detects Association navigations in M2M property expressions.
-     * When a Pure mapping has {@code address: $src.rawAddresses}, the expression is
-     * {@code AppliedProperty("rawAddresses", [Variable("src")])}. If "rawAddresses" is an
-     * Association property on the source class, we look up the source class's
-     * already-built Relational associationJoins to find the traversal.
+     * Adds association extend nodes to the sourceRelation chain.
+     * Each association becomes: {@code extend(source, ~propName:traverse(target, {prev,hop|cond}))}
+     * where the ColSpec's fn1 is a 0-param lambda wrapping the traverse() call.
      *
-     * <p>Multiplicity comes from the M2M TARGET class property (e.g., address:[0..1]),
-     * not the Association end (rawAddresses:[*]).
+     * <p>Uses the 2-param extend form (source + ColSpec). The traverse chain is embedded
+     * in the ColSpec's fn1 body. Self-joins are supported via TargetColumnRef.
      */
-    private Map<String, ModelContext.AssociationJoinInfo> detectM2MAssociationNavigations(
-            PureClassMapping pcm,
-            Map<String, ModelContext.MappingExpression> builtExpressions) {
+    private com.gs.legend.ast.ValueSpecification addAssociationExtends(
+            RelationalMapping rm, String className,
+            com.gs.legend.ast.ValueSpecification source,
+            Map<String, ClassMapping> resolvedMappings) {
 
-        var result = new LinkedHashMap<String, ModelContext.AssociationJoinInfo>();
-        String sourceClassName = pcm.sourceClassName();
+        String sourceTable = rm.table().name();
 
-        // Find the source class's Relational expression (built in Phase 2a)
-        var sourceExpr = builtExpressions.get(sourceClassName);
-        if (!(sourceExpr instanceof ModelContext.MappingExpression.Relational sourceRel)) {
-            return result; // Source is not relational — no association joins to wire
+        for (var navEntry : model.findAllAssociationNavigationsFull(className).entrySet()) {
+            String propName = navEntry.getKey();
+            var nav = navEntry.getValue();
+            if (nav.join() == null) continue;
+
+            ClassMapping targetCm = resolvedMappings.get(nav.targetClassName());
+            if (targetCm == null || targetCm.sourceTable() == null) continue;
+
+            // Build traverse chain (supports self-joins via TargetColumnRef)
+            var traverseCall = buildTraverseChain(sourceTable, java.util.List.of(nav.join().name()));
+
+            // Wrap traverse in a 0-param lambda: fn1 = { -> traverse(...) }
+            var fn1 = new com.gs.legend.ast.LambdaFunction(
+                    java.util.List.of(),
+                    java.util.List.of(traverseCall));
+
+            // ColSpec with fn1=traverse lambda (fn2=null) — association extend marker
+            var colSpec = new com.gs.legend.ast.ColSpec(propName, fn1);
+            var colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpec);
+
+            // 2-param extend: extend(source, ColSpec) — no separate _Traversal param
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "extend",
+                    java.util.List.of(source, colSpecCI),
+                    true);
         }
-
-        // Build reverse lookup: assocPropName on source → AssociationJoinInfo
-        // (associationJoins is already keyed by property name on the source class)
-        var sourceAssocJoins = sourceRel.associationJoins();
-
-        for (var entry : pcm.propertyExpressions().entrySet()) {
-            String m2mPropName = entry.getKey();
-            var expr = entry.getValue();
-
-            // Match pattern: AppliedProperty(assocPropName, [Variable("src")])
-            if (!(expr instanceof com.gs.legend.ast.AppliedProperty ap)) continue;
-            if (ap.parameters().size() != 1) continue;
-            if (!(ap.parameters().get(0) instanceof com.gs.legend.ast.Variable v)) continue;
-            if (!"src".equals(v.name())) continue;
-
-            String assocPropName = ap.property();
-
-            // Check if this property has a pre-resolved association join on the source class
-            var sourceJoinInfo = sourceAssocJoins.get(assocPropName);
-            if (sourceJoinInfo == null) continue;
-
-            // Determine isToMany from the M2M TARGET class property multiplicity,
-            // not the Association end multiplicity.
-            boolean isToMany = sourceJoinInfo.isToMany();
-            var targetClassOpt = model.findClass(pcm.targetClassName());
-            if (targetClassOpt.isPresent()) {
-                var propOpt = targetClassOpt.get().findProperty(m2mPropName);
-                if (propOpt.isPresent()) {
-                    isToMany = !propOpt.get().multiplicity().isSingular();
-                }
-            }
-
-            result.put(m2mPropName, new ModelContext.AssociationJoinInfo(
-                    sourceJoinInfo.targetClassName(), sourceJoinInfo.traversal(), isToMany));
-        }
-
-        return result;
+        return source;
     }
 
-    // ==================== Traverse Builder ====================
+    // ==================== Embedded Extends ====================
 
     /**
-     * Builds {@code traverse(tableRef(src), tableRef(tgt), {src, tgt | cond})}.
+     * Adds embedded property extend nodes to the sourceRelation chain.
+     * Each embedded property becomes:
+     * {@code extend(source, ~propName:{-> ~[sub1:r|$r.COL1, sub2:r|$r.COL2]})}
+     * where fn1 is a 0-param lambda whose body is a ColSpecArray of sub-property mappings.
+     *
+     * <p>This is structurally distinct from association extends (fn1 body = traverse)
+     * and is detected by {@code ExtendChecker.isEmbeddedExtend()} and
+     * {@code MappingResolver.resolveAssociationJoins()}.
      */
-    private static com.gs.legend.ast.ValueSpecification buildTraverse(Join join, String sourceTable, String targetTable) {
-        var tableToParam = new java.util.HashMap<String, String>();
-        tableToParam.put(sourceTable, "src");
-        if (!targetTable.equals(sourceTable)) tableToParam.put(targetTable, "tgt");
+    private com.gs.legend.ast.ValueSpecification addEmbeddedExtends(
+            RelationalMapping rm,
+            com.gs.legend.ast.ValueSpecification source) {
 
-        var condBody = RelationalMappingConverter.convert(join.condition(), tableToParam, "tgt");
-        var lambda = new com.gs.legend.ast.LambdaFunction(
-                java.util.List.of(new com.gs.legend.ast.Variable("src"), new com.gs.legend.ast.Variable("tgt")),
-                java.util.List.of(condBody));
-        return new com.gs.legend.ast.AppliedFunction("meta::pure::functions::relation::traverse", java.util.List.of(
-                new com.gs.legend.ast.AppliedFunction("meta::pure::functions::relation::tableReference",
-                        java.util.List.of(new com.gs.legend.ast.CString(sourceTable))),
-                new com.gs.legend.ast.AppliedFunction("meta::pure::functions::relation::tableReference",
-                        java.util.List.of(new com.gs.legend.ast.CString(targetTable))),
-                lambda));
+        if (rm.embeddedMappings().isEmpty()) return source;
+
+        for (var entry : rm.embeddedMappings().entrySet()) {
+            String propName = entry.getKey();
+            var subMappings = entry.getValue();
+
+            // Build sub-ColSpecs: ~[sub1:row|$row.COL1, sub2:row|$row.COL2]
+            var subColSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
+            for (var sub : subMappings) {
+                var rowVar = new com.gs.legend.ast.Variable("row");
+                var body = new com.gs.legend.ast.AppliedProperty(
+                        sub.columnName(), java.util.List.of(rowVar));
+                var fn1 = new com.gs.legend.ast.LambdaFunction(
+                        java.util.List.of(rowVar), body);
+                subColSpecs.add(new com.gs.legend.ast.ColSpec(sub.propertyName(), fn1));
+            }
+
+            // Wrap in ColSpecArray → ClassInstance("colSpecArray", ...)
+            var colSpecArray = new com.gs.legend.ast.ColSpecArray(subColSpecs);
+            var colSpecArrayCI = new com.gs.legend.ast.ClassInstance("colSpecArray", colSpecArray);
+
+            // fn1 = 0-param lambda wrapping ColSpecArray: { -> ~[...] }
+            var outerFn1 = new com.gs.legend.ast.LambdaFunction(
+                    java.util.List.of(),
+                    java.util.List.of(colSpecArrayCI));
+
+            // ColSpec with fn1=embedded lambda — embedded extend marker
+            var colSpec = new com.gs.legend.ast.ColSpec(propName, outerFn1);
+            var colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpec);
+
+            // 2-param extend: extend(source, ColSpec)
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "extend",
+                    java.util.List.of(source, colSpecCI),
+                    true);
+        }
+        return source;
     }
 
     // ==================== Source Relation Synthesis ====================
@@ -321,7 +311,10 @@ public final class MappingNormalizer {
         // 4. DynaFunction property mappings → ->extend(~[prop:row|<dynaExpr>])
         source = addDynaFunctionExtends(rm, source);
 
-        // 5. Non-join property mappings → ->extend(~[name:row|$row.COL, ...])
+        // 5. Embedded property mappings → ->extend(~prop:{->~[sub1:r|$r.COL1, ...]})
+        source = addEmbeddedExtends(rm, source);
+
+        // 6. Non-join property mappings → ->extend(~[name:row|$row.COL, ...])
         // TEMPORARILY DISABLED for debugging — uncomment after Phase 3
         // source = addPropertyExtends(rm, source);
 
@@ -616,17 +609,20 @@ public final class MappingNormalizer {
                     .orElseThrow(() -> new IllegalStateException(
                             "Join not found: " + joinName));
 
-            // Find the "other" table in the join condition
+            // Find the target table. For self-joins (all table names == curTable),
+            // target stays as curTable — TargetColumnRef disambiguates in the condition.
             var tableNames = RelationalMappingConverter.collectTableNames(join.condition());
             String targetTable = tableNames.stream()
                     .filter(t -> !t.equals(curTable))
                     .findFirst()
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Join '" + joinName + "' does not reference a table other than '" + curTable + "'"));
+                    .orElse(curTable); // self-join: target == source
 
-            // Convert the full join condition with table→param mapping
-            var tableToParam = java.util.Map.of(curTable, "prev", targetTable, "hop");
-            var condBody = RelationalMappingConverter.convert(join.condition(), tableToParam);
+            // Convert join condition. For self-joins, use 3-param convert with "hop"
+            // as targetParamName so TargetColumnRef maps to Variable("hop").
+            var tableToParam = new java.util.HashMap<String, String>();
+            tableToParam.put(curTable, "prev");
+            if (!targetTable.equals(curTable)) tableToParam.put(targetTable, "hop");
+            var condBody = RelationalMappingConverter.convert(join.condition(), tableToParam, "hop");
 
             var targetRef = new com.gs.legend.ast.AppliedFunction(
                     "tableReference",

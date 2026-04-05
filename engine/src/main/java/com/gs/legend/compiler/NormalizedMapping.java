@@ -21,9 +21,10 @@ import java.util.Optional;
  * <ul>
  *   <li><b>TypeChecker</b> sees only {@link #findMappingExpression(String)}
  *       (via ModelContext delegation)</li>
- *   <li><b>MappingResolver</b> sees {@link #findClassMapping(String)},
- *       {@link #findSourceRelation(String)}, {@link #findAssociationJoins(String)},
- *       and {@link #findM2MAssociationNavigations(String)} — read-only</li>
+ *   <li><b>MappingResolver</b> sees {@link #findClassMapping(String)}
+ *       and {@link #findSourceRelation(String)} — read-only.
+ *       Association joins are embedded in sourceRelation as extend() nodes
+ *       with fn1=traverse (walked by MappingResolver directly).</li>
  *   <li>Neither sees {@code MappingRegistry} directly</li>
  * </ul>
  */
@@ -56,30 +57,6 @@ public final class NormalizedMapping {
                 .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
                 .map(e -> ((ModelContext.MappingExpression.Relational) e).sourceRelation())
                 .orElse(null);
-    }
-
-    /**
-     * Returns pre-resolved association joins for a relational class.
-     * Key = property name, value = AssociationJoinInfo (targetClassName, traversal, isToMany).
-     * Used by MappingResolver to build JoinResolutions.
-     */
-    public java.util.Map<String, ModelContext.AssociationJoinInfo> findAssociationJoins(String className) {
-        return findMappingExpression(className)
-                .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
-                .map(e -> ((ModelContext.MappingExpression.Relational) e).associationJoins())
-                .orElse(java.util.Map.of());
-    }
-
-    /**
-     * Returns pre-resolved association navigations for an M2M class.
-     * Key = M2M property name, value = AssociationJoinInfo from the source class's relational joins.
-     * Used by MappingResolver to build JoinResolutions.
-     */
-    public java.util.Map<String, ModelContext.AssociationJoinInfo> findM2MAssociationNavigations(String className) {
-        return findMappingExpression(className)
-                .filter(e -> e instanceof ModelContext.MappingExpression.M2M)
-                .map(e -> ((ModelContext.MappingExpression.M2M) e).associationNavigations())
-                .orElse(java.util.Map.of());
     }
 
     /**

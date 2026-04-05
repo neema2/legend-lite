@@ -662,10 +662,13 @@ class MappingDefinitionExtractionTest {
 
             var firmProp = props.get(1);
             assertEquals("firm", firmProp.propertyName());
-            // TODO: Should be PropertyMappingValue.EmbeddedMapping with 2 sub-properties
-            // Currently stored as raw expression string
-            assertNotNull(firmProp.expressionString(),
-                    "Embedded mapping currently falls back to expression string");
+            assertNotNull(firmProp.structuredValue(), "Should have structured embedded value");
+            assertInstanceOf(com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping.class,
+                    firmProp.structuredValue());
+            var embedded = (com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping) firmProp.structuredValue();
+            assertEquals(2, embedded.properties().size());
+            assertEquals("legalName", embedded.properties().get(0).propertyName());
+            assertEquals("employeeCount", embedded.properties().get(1).propertyName());
         }
 
         @Test
@@ -687,8 +690,11 @@ class MappingDefinitionExtractionTest {
             var props = mapping.classMappings().get(0).propertyMappings();
             var firmProp = props.get(1);
             assertEquals("firm", firmProp.propertyName());
-            // TODO: Should be PropertyMappingValue.InlineMapping with targetSetId="firm_set1"
-            // Currently stored as raw expression string
+            assertNotNull(firmProp.structuredValue(), "Should have structured inline value");
+            assertInstanceOf(com.gs.legend.model.def.PropertyMappingValue.InlineMapping.class,
+                    firmProp.structuredValue());
+            var inline = (com.gs.legend.model.def.PropertyMappingValue.InlineMapping) firmProp.structuredValue();
+            assertEquals("firm_set1", inline.targetSetId());
         }
 
         @Test
@@ -713,8 +719,14 @@ class MappingDefinitionExtractionTest {
             var props = mapping.classMappings().get(0).propertyMappings();
             var firmProp = props.get(1);
             assertEquals("firm", firmProp.propertyName());
-            // TODO: Should be PropertyMappingValue.OtherwiseMapping
-            // with embedded part + fallback set ID and join
+            // Otherwise is still parsed as embedded (no separate otherwise handling yet)
+            // The embeddedPropertyMapping grammar includes otherwiseEmbeddedPropertyMapping
+            assertNotNull(firmProp.structuredValue(), "Should have structured embedded value");
+            assertInstanceOf(com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping.class,
+                    firmProp.structuredValue());
+            var embedded = (com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping) firmProp.structuredValue();
+            assertEquals(1, embedded.properties().size());
+            assertEquals("legalName", embedded.properties().get(0).propertyName());
         }
 
         @Test

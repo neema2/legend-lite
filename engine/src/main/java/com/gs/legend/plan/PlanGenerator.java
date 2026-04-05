@@ -793,10 +793,16 @@ public class PlanGenerator {
                             throw new PureCompileException(
                                     "No join resolution for association '" + hopProp + "' in project");
                         }
-                        String hopAlias = "j" + (assocJoins.size() + 1);
-                        assocJoins.put(chainKey, new AssocJoinInfo(hopAlias, curAlias, joinRes));
-                        curAlias = hopAlias;
-                        curStore = joinRes.targetResolution();
+                        if (joinRes.embedded()) {
+                            // Embedded: no JOIN, sub-properties on parent table
+                            assocJoins.put(chainKey, new AssocJoinInfo(curAlias, curAlias, joinRes));
+                            curStore = joinRes.targetResolution();
+                        } else {
+                            String hopAlias = "j" + (assocJoins.size() + 1);
+                            assocJoins.put(chainKey, new AssocJoinInfo(hopAlias, curAlias, joinRes));
+                            curAlias = hopAlias;
+                            curStore = joinRes.targetResolution();
+                        }
                     } else {
                         curAlias = joinInfo.alias();
                         curStore = joinInfo.joinRes().targetResolution();
@@ -805,7 +811,8 @@ public class PlanGenerator {
 
                 SqlExpr colExpr;
                 var lastJoin = assocJoins.get(String.join(".", path.subList(0, path.size() - 1)));
-                if (lastJoin != null && lastJoin.joinRes().joinCondition() == null) {
+                if (lastJoin != null && !lastJoin.joinRes().embedded()
+                        && lastJoin.joinRes().joinCondition() == null) {
                     // UNNEST association (struct array): resolve from unnested element
                     String elemAlias = curAlias + "_elem";
                     colExpr = resolveColumnExpr(leafProp, curStore, elemAlias);
@@ -834,7 +841,10 @@ public class PlanGenerator {
         for (var entry : assocJoins.entrySet()) {
             AssocJoinInfo joinInfo = entry.getValue();
             var joinRes = joinInfo.joinRes();
-            if (joinRes.joinCondition() != null) {
+            if (joinRes.embedded()) {
+                // Embedded: no JOIN needed — sub-properties resolve from parent alias
+                continue;
+            } else if (joinRes.joinCondition() != null) {
                 // Regular FK join — full condition rendered via generateScalar + varAliases
                 String targetTableName = joinRes.targetTable();
                 SqlExpr onCondition = generateScalar(joinRes.joinCondition(), null, null, null,
@@ -891,6 +901,9 @@ public class PlanGenerator {
                     buildEnumCase(alias, enumRes.columnName(), enumRes.enumMap());
             case StoreResolution.PropertyResolution.M2MExpression m2m ->
                     generateScalar(m2m.expression(), "src", m2m.sourceResolution(), alias);
+            case StoreResolution.PropertyResolution.EmbeddedColumn emb ->
+                    alias != null ? new SqlExpr.Column(alias, emb.columnName())
+                            : new SqlExpr.ColumnRef(emb.columnName());
         };
     }
 
@@ -952,8 +965,7 @@ public class PlanGenerator {
             return expr;
         }
 
-        // Found AssociationRef — wrap entire expression in EXISTS
-        // Walk the hop chain, building JOINs for each intermediate hop inside the EXISTS
+        // Found AssociationRef — resolve based on join type
         var hops = ref.hops();
         StoreResolution currentStore = store;
         String currentAlias = tableAlias;
@@ -961,7 +973,19 @@ public class PlanGenerator {
         // Resolve first hop
         var firstJoinRes = currentStore.hasJoins() ? currentStore.joins().get(hops.get(0)) : null;
         if (firstJoinRes == null) firstJoinRes = findJoinResolution(hops.get(0));
-        if (firstJoinRes == null || firstJoinRes.joinCondition() == null) {
+        if (firstJoinRes == null) {
+            return expr; // Can't resolve — pass through
+        }
+
+        // Embedded: resolve directly to Column(tableAlias, physicalCol) — no EXISTS
+        if (firstJoinRes.embedded()) {
+            StoreResolution embeddedStore = firstJoinRes.targetResolution();
+            String physicalCol = embeddedStore != null ? embeddedStore.columnFor(ref.targetCol()) : null;
+            if (physicalCol == null) physicalCol = ref.targetCol();
+            return replaceAssociationRef(expr, ref, tableAlias, physicalCol);
+        }
+
+        if (firstJoinRes.joinCondition() == null) {
             return expr; // Can't resolve — pass through
         }
 

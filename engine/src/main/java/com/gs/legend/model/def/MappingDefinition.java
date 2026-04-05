@@ -284,6 +284,7 @@ public record MappingDefinition(
      * @param embeddedClassName  The target class for embedded JSON (null if not embedded)
      * @param enumMappingId      Enumeration mapping ID (null if no enum transform)
      * @param mappingExpression  Structured expression tree for DynaFunction property mappings (null if simple column/join)
+     * @param structuredValue    Structured value for embedded/inline/otherwise mappings (null if not structured)
      */
     public record PropertyMappingDefinition(
             String propertyName,
@@ -292,14 +293,16 @@ public record MappingDefinition(
             String expressionString,
             String embeddedClassName,
             String enumMappingId,
-            RelationalOperation mappingExpression) {
+            RelationalOperation mappingExpression,
+            com.gs.legend.model.def.PropertyMappingValue structuredValue) {
 
         public PropertyMappingDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             // At least one value source must be present
-            if (columnReference == null && joinReference == null && expressionString == null && mappingExpression == null) {
+            if (columnReference == null && joinReference == null && expressionString == null
+                    && mappingExpression == null && structuredValue == null) {
                 throw new IllegalArgumentException(
-                        "Either columnReference, joinReference, expressionString, or mappingExpression must be provided for property: "
+                        "Either columnReference, joinReference, expressionString, mappingExpression, or structuredValue must be provided for property: "
                                 + propertyName);
             }
         }
@@ -308,7 +311,7 @@ public record MappingDefinition(
          * Creates a simple column reference mapping.
          */
         public static PropertyMappingDefinition column(String propertyName, ColumnReference columnRef) {
-            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, null, null);
+            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, null, null, null);
         }
 
         /**
@@ -316,14 +319,14 @@ public record MappingDefinition(
          */
         public static PropertyMappingDefinition columnWithEnumMapping(String propertyName, ColumnReference columnRef,
                 String enumMappingId) {
-            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, enumMappingId, null);
+            return new PropertyMappingDefinition(propertyName, columnRef, null, null, null, enumMappingId, null, null);
         }
 
         /**
          * Creates a join reference mapping for association properties.
          */
         public static PropertyMappingDefinition join(String propertyName, JoinReference joinRef) {
-            return new PropertyMappingDefinition(propertyName, null, joinRef, null, null, null, null);
+            return new PropertyMappingDefinition(propertyName, null, joinRef, null, null, null, null, null);
         }
 
         /**
@@ -331,14 +334,31 @@ public record MappingDefinition(
          */
         public static PropertyMappingDefinition expression(String propertyName, String expression,
                 String embeddedClass) {
-            return new PropertyMappingDefinition(propertyName, null, null, expression, embeddedClass, null, null);
+            return new PropertyMappingDefinition(propertyName, null, null, expression, embeddedClass, null, null, null);
         }
 
         /**
          * Creates a structured expression mapping from a parsed RelationalOperation tree.
          */
         public static PropertyMappingDefinition mappingExpression(String propertyName, RelationalOperation expr) {
-            return new PropertyMappingDefinition(propertyName, null, null, null, null, null, expr);
+            return new PropertyMappingDefinition(propertyName, null, null, null, null, null, expr, null);
+        }
+
+        /**
+         * Creates an embedded property mapping with nested sub-property mappings.
+         */
+        public static PropertyMappingDefinition embedded(String propertyName,
+                List<PropertyMappingDefinition> subMappings) {
+            return new PropertyMappingDefinition(propertyName, null, null, null, null, null, null,
+                    new com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping(null, subMappings));
+        }
+
+        /**
+         * Creates an inline embedded property mapping referencing another set.
+         */
+        public static PropertyMappingDefinition inline(String propertyName, String targetSetId) {
+            return new PropertyMappingDefinition(propertyName, null, null, null, null, null, null,
+                    new com.gs.legend.model.def.PropertyMappingValue.InlineMapping(targetSetId));
         }
 
         /**

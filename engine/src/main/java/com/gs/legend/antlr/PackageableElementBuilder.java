@@ -1580,10 +1580,20 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
     public com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition visitRelationalPropertyValue(
             String propertyName, PureParser.RelationalPropertyValueContext ctx) {
 
-        if (ctx.embeddedPropertyMapping() != null || ctx.inlineEmbeddedPropertyMapping() != null) {
-            String expression = getOriginalText(ctx);
-            return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.expression(
-                    propertyName, expression, null);
+        if (ctx.embeddedPropertyMapping() != null) {
+            var embCtx = ctx.embeddedPropertyMapping();
+            var subMappings = new java.util.ArrayList<com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition>();
+            for (var rpm : embCtx.relationalPropertyMapping()) {
+                var sub = visitRelationalPropertyMapping(rpm);
+                if (sub != null) subMappings.add(sub);
+            }
+            return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.embedded(
+                    propertyName, subMappings);
+        }
+        if (ctx.inlineEmbeddedPropertyMapping() != null) {
+            String targetSetId = ctx.inlineEmbeddedPropertyMapping().identifier().getText();
+            return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.inline(
+                    propertyName, targetSetId);
         }
 
         if (ctx.mappingOperation() != null) {

@@ -67,6 +67,21 @@ public class ExtendChecker extends AbstractChecker {
             if (p instanceof ClassInstance ci) {
                 List<ColSpec> colSpecs = extractColSpecs(ci);
                 for (ColSpec cs : colSpecs) {
+                    // Association extend: fn1 is a 0-param lambda wrapping traverse().
+                    // Compile the traverse to stamp TypeInfo on condition body nodes
+                    // (MappingResolver + PlanGenerator need TypeInfo on join conditions).
+                    if (isAssociationExtend(cs)) {
+                        AppliedFunction innerTraverse = (AppliedFunction) cs.function1().body().get(0);
+                        var result = compileTraverseClause(innerTraverse, sourceSchema, ctx);
+                        traversalSpec = result.spec;
+                        colSpecSchema = result.terminalSchema;
+                        continue;
+                    }
+                    // Embedded extend: fn1 is 0-param lambda wrapping ColSpecArray.
+                    // Resolved by MappingResolver — compiler skips.
+                    if (isEmbeddedExtend(cs)) {
+                        continue;
+                    }
                     var result = compileColSpec(cs, colSpecSchema, source, ctx, overSpec, def);
                     if (newColumns.containsKey(result.alias)) {
                         throw new PureCompileException(
@@ -108,6 +123,38 @@ public class ExtendChecker extends AbstractChecker {
             }
         }
         return result;
+    }
+
+    // ========== Association / Embedded extend detection ==========
+
+    /**
+     * Checks if a ColSpec is an association extend marker.
+     * Association extends have fn1 as a 0-param lambda whose body is a traverse() call.
+     * These are synthesized by MappingNormalizer and resolved by MappingResolver — the
+     * compiler skips them (but the inner traverse IS compiled for TypeInfo stamping).
+     */
+    public static boolean isAssociationExtend(ColSpec cs) {
+        if (cs.function1() == null) return false;
+        var fn1 = cs.function1();
+        if (!fn1.parameters().isEmpty()) return false; // must be 0-param
+        if (fn1.body().isEmpty()) return false;
+        return fn1.body().get(0) instanceof AppliedFunction af
+                && "traverse".equals(TypeInfo.simpleName(af.function()));
+    }
+
+    /**
+     * Checks if a ColSpec is an embedded property extend marker.
+     * Embedded extends have fn1 as a 0-param lambda whose body is a
+     * ClassInstance("colSpecArray", ColSpecArray(...)) containing sub-property ColSpecs.
+     * These are synthesized by MappingNormalizer and resolved by MappingResolver.
+     */
+    public static boolean isEmbeddedExtend(ColSpec cs) {
+        if (cs.function1() == null) return false;
+        var fn1 = cs.function1();
+        if (!fn1.parameters().isEmpty()) return false; // must be 0-param
+        if (fn1.body().isEmpty()) return false;
+        return fn1.body().get(0) instanceof ClassInstance ci
+                && ci.value() instanceof ColSpecArray;
     }
 
     // ========== ColSpec compilation ==========
