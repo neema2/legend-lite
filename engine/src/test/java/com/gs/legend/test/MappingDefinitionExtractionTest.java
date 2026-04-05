@@ -698,7 +698,7 @@ class MappingDefinitionExtractionTest {
         }
 
         @Test
-        @DisplayName("GAP: Otherwise property mapping")
+        @DisplayName("Otherwise property mapping")
         void testOtherwisePropertyMapping() {
             var mapping = parseMapping("""
                     ###Mapping
@@ -719,14 +719,17 @@ class MappingDefinitionExtractionTest {
             var props = mapping.classMappings().get(0).propertyMappings();
             var firmProp = props.get(1);
             assertEquals("firm", firmProp.propertyName());
-            // Otherwise is still parsed as embedded (no separate otherwise handling yet)
-            // The embeddedPropertyMapping grammar includes otherwiseEmbeddedPropertyMapping
-            assertNotNull(firmProp.structuredValue(), "Should have structured embedded value");
-            assertInstanceOf(com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping.class,
+            assertNotNull(firmProp.structuredValue(), "Should have structured otherwise value");
+            assertInstanceOf(com.gs.legend.model.def.PropertyMappingValue.OtherwiseMapping.class,
                     firmProp.structuredValue());
-            var embedded = (com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping) firmProp.structuredValue();
-            assertEquals(1, embedded.properties().size());
-            assertEquals("legalName", embedded.properties().get(0).propertyName());
+            var ow = (com.gs.legend.model.def.PropertyMappingValue.OtherwiseMapping) firmProp.structuredValue();
+            // Embedded sub-properties
+            assertEquals(1, ow.embedded().properties().size());
+            assertEquals("legalName", ow.embedded().properties().get(0).propertyName());
+            // Fallback
+            assertEquals("firm_set1", ow.fallbackSetId());
+            assertNotNull(ow.fallbackJoin());
+            assertEquals("Person_Firm", ow.fallbackJoin().joinChain().get(0).joinName());
         }
 
         @Test

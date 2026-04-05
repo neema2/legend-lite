@@ -339,7 +339,7 @@ public final class MappingResolver {
                     ClassInstance innerCI = (ClassInstance) cs.function1().body().get(0);
                     ColSpecArray subArray = (ColSpecArray) innerCI.value();
 
-                    // Build embedded target resolution: sub-property → EmbeddedColumn(parentCol)
+                    // Build embedded sub-property resolutions
                     Map<String, String> subPropToCol = new LinkedHashMap<>();
                     Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
                     for (ColSpec sub : subArray.colSpecs()) {
@@ -353,14 +353,33 @@ public final class MappingResolver {
                         }
                     }
 
-                    // Embedded target uses parent table — no separate table
-                    var embeddedResolution = new StoreResolution(
-                            tableName, subPropToCol, subProperties, Map.of(),
-                            null, false);
-
-                    // JoinResolution with embedded=true — PlanGenerator uses parent alias, no JOIN
-                    joins.put(propName, new StoreResolution.JoinResolution(
-                            null, null, null, false, null, Set.of(), embeddedResolution, true));
+                    // Otherwise merge: if association JoinResolution already exists for this
+                    // property, merge embedded columns INTO the association's target resolution.
+                    // Embedded sub-properties use parent alias; others use join alias.
+                    var existingJoin = joins.get(propName);
+                    if (existingJoin != null && !existingJoin.embedded()) {
+                        // Merge: start with association's target, override with EmbeddedColumn
+                        var assocTarget = existingJoin.targetResolution();
+                        var mergedPropToCol = new LinkedHashMap<>(assocTarget.propertyToColumn());
+                        mergedPropToCol.putAll(subPropToCol);
+                        var mergedProperties = new LinkedHashMap<>(assocTarget.properties());
+                        mergedProperties.putAll(subProperties);
+                        var mergedResolution = new StoreResolution(
+                                assocTarget.tableName(), mergedPropToCol, mergedProperties,
+                                assocTarget.joins(), assocTarget.filterExpr(), assocTarget.nested());
+                        joins.put(propName, new StoreResolution.JoinResolution(
+                                existingJoin.targetTable(), existingJoin.sourceParam(),
+                                existingJoin.targetParam(), existingJoin.isToMany(),
+                                existingJoin.joinCondition(), existingJoin.sourceColumns(),
+                                mergedResolution, false));
+                    } else {
+                        // Pure embedded (no fallback join)
+                        var embeddedResolution = new StoreResolution(
+                                tableName, subPropToCol, subProperties, Map.of(),
+                                null, false);
+                        joins.put(propName, new StoreResolution.JoinResolution(
+                                null, null, null, false, null, Set.of(), embeddedResolution, true));
+                    }
                 }
             }
         }

@@ -761,6 +761,9 @@ public class PlanGenerator {
                              StoreResolution.JoinResolution joinRes) {
         }
         java.util.Map<String, AssocJoinInfo> assocJoins = new java.util.LinkedHashMap<>();
+        // Track which association hops actually need their JOINs emitted.
+        // For Otherwise mappings, a hop is only needed if a non-EmbeddedColumn leaf was resolved.
+        java.util.Set<String> neededJoins = new java.util.HashSet<>();
 
         // Step 4: Build SELECT columns from projections (sidecar) + lambda bodies (AST)
         TypeInfo info = unit.types().get(af);
@@ -816,8 +819,17 @@ public class PlanGenerator {
                     // UNNEST association (struct array): resolve from unnested element
                     String elemAlias = curAlias + "_elem";
                     colExpr = resolveColumnExpr(leafProp, curStore, elemAlias);
+                } else if (lastJoin != null && !lastJoin.joinRes().embedded()
+                        && curStore != null && curStore.resolveProperty(leafProp)
+                            instanceof StoreResolution.PropertyResolution.EmbeddedColumn emb) {
+                    // Otherwise: embedded sub-property resolves from parent table, not join
+                    colExpr = new SqlExpr.Column(lastJoin.parentAlias(), emb.columnName());
                 } else {
                     colExpr = resolveColumnExpr(leafProp, curStore, curAlias);
+                    // Non-embedded leaf accessed — mark all hops in chain as needed
+                    for (int hop = 0; hop < path.size() - 1; hop++) {
+                        neededJoins.add(String.join(".", path.subList(0, hop + 1)));
+                    }
                 }
                 builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
             } else {
@@ -845,6 +857,10 @@ public class PlanGenerator {
                 // Embedded: no JOIN needed — sub-properties resolve from parent alias
                 continue;
             } else if (joinRes.joinCondition() != null) {
+                if (!neededJoins.contains(entry.getKey())) {
+                    // Otherwise: all leaves for this hop resolved to EmbeddedColumn — skip JOIN
+                    continue;
+                }
                 // Regular FK join — full condition rendered via generateScalar + varAliases
                 String targetTableName = joinRes.targetTable();
                 SqlExpr onCondition = generateScalar(joinRes.joinCondition(), null, null, null,
@@ -983,6 +999,14 @@ public class PlanGenerator {
             String physicalCol = embeddedStore != null ? embeddedStore.columnFor(ref.targetCol()) : null;
             if (physicalCol == null) physicalCol = ref.targetCol();
             return replaceAssociationRef(expr, ref, tableAlias, physicalCol);
+        }
+
+        // Otherwise: if targetCol resolves to EmbeddedColumn, use parent alias directly
+        if (firstJoinRes.targetResolution() != null) {
+            var propRes = firstJoinRes.targetResolution().resolveProperty(ref.targetCol());
+            if (propRes instanceof StoreResolution.PropertyResolution.EmbeddedColumn emb) {
+                return replaceAssociationRef(expr, ref, tableAlias, emb.columnName());
+            }
         }
 
         if (firstJoinRes.joinCondition() == null) {

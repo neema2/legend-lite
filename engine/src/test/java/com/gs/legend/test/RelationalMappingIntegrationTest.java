@@ -1870,32 +1870,6 @@ class RelationalMappingIntegrationTest {
             // Would need: Join OrgHierarchy(T_PERSON.MANAGER_ID = {target}.ID)
         }
 
-        // --- Embedded Mappings ---
-
-        @Test @Disabled("GAP: Embedded mappings stored as raw expression string")
-        @DisplayName("GAP: Embedded property mapping (denormalized table)")
-        void testEmbeddedMapping() throws SQLException {
-            sql("CREATE TABLE DENORM (ID INT, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INT)",
-                "INSERT INTO DENORM VALUES (1, 'Alice', 'Acme', 1000000)");
-            // Embedded mapping: firm(legalName: DENORM.FIRM_NAME, revenue: DENORM.FIRM_REVENUE)
-        }
-
-        // --- Inline Mappings ---
-
-        @Test @Disabled("GAP: Inline mappings stored as raw expression string")
-        @DisplayName("GAP: Inline property mapping")
-        void testInlineMapping() throws SQLException {
-            // firm() Inline[firm_set1]
-        }
-
-        // --- Otherwise Mappings ---
-
-        @Test @Disabled("GAP: Otherwise mappings stored as raw expression string")
-        @DisplayName("GAP: Otherwise mapping (embedded with join fallback)")
-        void testOtherwiseMapping() throws SQLException {
-            // firm(legalName: T.FIRM_NAME) Otherwise ([firm_set1]: [DB]@Person_Firm)
-        }
-
         // --- Mapping ~filter ---
 
         @Test
@@ -3657,6 +3631,180 @@ class RelationalMappingIntegrationTest {
         }
     }
 
+    // ==================== 30. Inline Mappings ====================
+
+    @Nested
+    @DisplayName("30. Inline Mappings")
+    class InlineMappings {
+
+        private String model;
+
+        @BeforeEach
+        void setup() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INT)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 'Acme Corp', 1000000), (2, 'Bob', 'Beta Inc', 500000), (3, 'Charlie', 'Acme Corp', 1000000)");
+            model = withRuntime("""
+                    Class model::Person { name: String[1]; }
+                    Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
+                    Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INTEGER)
+                    )
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm() Inline[firm_set1]
+                        }
+                        Firm[firm_set1]: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            legalName: [store::DB] T_PERSON.FIRM_NAME,
+                            revenue: [store::DB] T_PERSON.FIRM_REVENUE
+                        }
+                    )
+                    """, "store::DB", "model::M");
+        }
+
+        @Test
+        @DisplayName("Project single inline property")
+        void testInlineSingleProperty() throws SQLException {
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            var r = exec(model, query);
+            assertEquals(3, r.rowCount());
+            assertTrue(colStr(r, 1).contains("Acme Corp"));
+            assertTrue(colStr(r, 1).contains("Beta Inc"));
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Inline should produce no JOIN");
+        }
+
+        @Test
+        @DisplayName("Project multiple inline properties")
+        void testInlineMultiProperty() throws SQLException {
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
+            var r = exec(model, query);
+            assertEquals(3, r.rowCount());
+            var names = colStr(r, 0);
+            int aliceIdx = names.indexOf("Alice");
+            assertEquals("Acme Corp", colStr(r, 1).get(aliceIdx));
+            assertEquals(Integer.valueOf(1000000), colInt(r, 2).get(aliceIdx));
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Inline should produce no JOIN");
+        }
+
+        @Test
+        @DisplayName("Filter on inline property")
+        void testInlineFilter() throws SQLException {
+            var query = "Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
+            var r = exec(model, query);
+            assertEquals(2, r.rowCount());
+            assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Inline filter should produce no JOIN");
+        }
+
+        @Test
+        @DisplayName("SQL has no JOIN for inline — columns from referenced mapping's table")
+        void testInlineNoJoinSql() {
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            String sql = planSql(model, query);
+            assertFalse(sql.toUpperCase().contains("JOIN"), "Inline should produce no JOIN: " + sql);
+            assertTrue(sql.contains("FIRM_NAME"), "Should reference FIRM_NAME column directly: " + sql);
+        }
+    }
+
+    // ==================== 31. Otherwise Mappings ====================
+
+    @Nested
+    @DisplayName("31. Otherwise Mappings")
+    class OtherwiseMappings {
+
+        private String model;
+
+        @BeforeEach
+        void setup() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_ID INT)",
+                "CREATE TABLE T_FIRM (ID INT PRIMARY KEY, LEGAL_NAME VARCHAR(200), REVENUE INT)",
+                "INSERT INTO T_FIRM VALUES (1, 'Acme Corp', 1000000), (2, 'Beta Inc', 500000)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 'Acme Corp', 1), (2, 'Bob', 'Beta Inc', 2), (3, 'Charlie', 'Acme Corp', 1)");
+            model = withRuntime("""
+                    Class model::Person { name: String[1]; }
+                    Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
+                    Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_ID INTEGER)
+                        Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(200), REVENUE INTEGER)
+                        Join Person_Firm(T_PERSON.FIRM_ID = T_FIRM.ID)
+                    )
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME,
+                            firm (
+                                legalName: [store::DB] T_PERSON.FIRM_NAME
+                            ) Otherwise([firm_set1]: [store::DB]@Person_Firm)
+                        }
+                        Firm[firm_set1]: Relational {
+                            ~mainTable [store::DB] T_FIRM
+                            legalName: [store::DB] T_FIRM.LEGAL_NAME,
+                            revenue: [store::DB] T_FIRM.REVENUE
+                        }
+                    )
+                    """, "store::DB", "model::M");
+        }
+
+        @Test
+        @DisplayName("Embedded property from parent table (no JOIN needed)")
+        void testOtherwiseEmbeddedProperty() throws SQLException {
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            var r = exec(model, query);
+            assertEquals(3, r.rowCount());
+            assertTrue(colStr(r, 1).contains("Acme Corp"));
+            // Embedded property resolves from parent table — no JOIN
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"),
+                    "Embedded property should not require JOIN");
+        }
+
+        @Test
+        @DisplayName("Fallback property via join (JOIN required)")
+        void testOtherwiseFallbackProperty() throws SQLException {
+            var query = "Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])";
+            var r = exec(model, query);
+            assertEquals(3, r.rowCount());
+            var names = colStr(r, 0);
+            int aliceIdx = names.indexOf("Alice");
+            assertEquals(Integer.valueOf(1000000), colInt(r, 1).get(aliceIdx));
+            // Fallback property needs JOIN to T_FIRM
+            String sql = planSql(model, query).toUpperCase();
+            assertEquals(1, sql.split("JOIN").length - 1, "Expected 1 JOIN for fallback: " + sql);
+            assertTrue(sql.contains("T_FIRM"), "JOIN should be to T_FIRM: " + sql);
+        }
+
+        @Test
+        @DisplayName("Mixed: embedded from parent + fallback from join")
+        void testOtherwiseMixed() throws SQLException {
+            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
+            var r = exec(model, query);
+            assertEquals(3, r.rowCount());
+            var names = colStr(r, 0);
+            int aliceIdx = names.indexOf("Alice");
+            assertEquals("Acme Corp", colStr(r, 1).get(aliceIdx));
+            assertEquals(Integer.valueOf(1000000), colInt(r, 2).get(aliceIdx));
+            // One JOIN for revenue (fallback), legalName from parent
+            String sql = planSql(model, query).toUpperCase();
+            assertEquals(1, sql.split("JOIN").length - 1, "Expected 1 JOIN: " + sql);
+            assertTrue(sql.contains("FIRM_NAME"), "Embedded legalName from parent: " + sql);
+            assertTrue(sql.contains("T_FIRM"), "Fallback revenue via JOIN: " + sql);
+        }
+
+        @Test
+        @DisplayName("Filter on embedded property (no JOIN needed)")
+        void testOtherwiseFilterOnEmbedded() throws SQLException {
+            var query = "Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
+            var r = exec(model, query);
+            assertEquals(2, r.rowCount());
+            assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
+            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"),
+                    "Filter on embedded property should not require JOIN");
+        }
+    }
+
     // ==================== GAP: Composition of Unsupported Features ====================
 
     @Nested
@@ -3721,17 +3869,6 @@ class RelationalMappingIntegrationTest {
             // groupBy company.country when starting from Emp
         }
 
-        @Test @Disabled("GAP: Embedded + join in same mapping")
-        @DisplayName("GAP: Embedded property + join navigation")
-        void testEmbeddedWithJoin() throws SQLException {
-            // firm(legalName: T.FIRM_NAME) + project through another join
-        }
-
-        @Test @Disabled("GAP: Embedded + filter")
-        @DisplayName("GAP: Filter on embedded property")
-        void testEmbeddedFilter() throws SQLException {
-            // filter({p | $p.firm.legalName == 'Acme'}) where firm is embedded
-        }
 
         @Test @Disabled("GAP: Set IDs + filter disambiguation")
         @DisplayName("GAP: Multiple set IDs with filter selecting correct set")
@@ -3800,11 +3937,6 @@ class RelationalMappingIntegrationTest {
             // AggregationAware mapping auto-selecting aggregate view vs detail
         }
 
-        @Test @Disabled("GAP: Inline + otherwise + filter")
-        @DisplayName("GAP: Inline mapping with otherwise fallback, filtered")
-        void testInlineOtherwiseFilter() throws SQLException {
-            // firm() Inline[set1] Otherwise([set2]: @Join), then filter on firm.name
-        }
 
         @Test @Disabled("GAP: Self-join + filter + sort")
         @DisplayName("GAP: Self-join (manager hierarchy) with filter")

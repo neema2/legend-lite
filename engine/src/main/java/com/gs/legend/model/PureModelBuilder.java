@@ -586,6 +586,38 @@ public final class PureModelBuilder implements ModelContext {
                         }
                     }
                     embeddedMappings.put(pm.propertyName(), subMappings);
+                } else if (pm.structuredValue() instanceof com.gs.legend.model.def.PropertyMappingValue.InlineMapping inl) {
+                    // Inline: resolve target set ID → use its property mappings as embedded
+                    var targetDef = mappingDef.findClassMappingBySetId(inl.targetSetId());
+                    if (targetDef.isEmpty()) {
+                        throw new IllegalStateException(
+                                "Inline mapping target set ID '" + inl.targetSetId() + "' not found");
+                    }
+                    var subMappings = new java.util.ArrayList<PropertyMapping>();
+                    for (var sub : targetDef.get().propertyMappings()) {
+                        if (sub.columnReference() != null) {
+                            subMappings.add(PropertyMapping.column(sub.propertyName(),
+                                    sub.columnReference().columnName()));
+                        }
+                    }
+                    embeddedMappings.put(pm.propertyName(), subMappings);
+                } else if (pm.structuredValue() instanceof com.gs.legend.model.def.PropertyMappingValue.OtherwiseMapping ow) {
+                    // Otherwise: embedded sub-mappings + fallback join
+                    var subMappings = new java.util.ArrayList<PropertyMapping>();
+                    for (var sub : ow.embedded().properties()) {
+                        if (sub.columnReference() != null) {
+                            subMappings.add(PropertyMapping.column(sub.propertyName(),
+                                    sub.columnReference().columnName()));
+                        }
+                    }
+                    embeddedMappings.put(pm.propertyName(), subMappings);
+                    // Register fallback join as explicit association join
+                    String joinName = ow.fallbackJoin().joinChain().get(0).joinName();
+                    Join join = joins.get(joinName);
+                    if (join != null) {
+                        String key = classMapping.className() + "." + pm.propertyName();
+                        explicitAssociationJoins.put(key, join);
+                    }
                 }
             }
 

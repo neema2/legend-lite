@@ -141,6 +141,15 @@ public record MappingDefinition(
     }
 
     /**
+     * Finds a class mapping by set implementation ID.
+     */
+    public Optional<ClassMappingDefinition> findClassMappingBySetId(String setId) {
+        return classMappings.stream()
+                .filter(cm -> setId.equals(cm.setId()))
+                .findFirst();
+    }
+
+    /**
      * Represents a class mapping within a mapping.
      * 
      * @param className              The class being mapped
@@ -359,6 +368,18 @@ public record MappingDefinition(
         public static PropertyMappingDefinition inline(String propertyName, String targetSetId) {
             return new PropertyMappingDefinition(propertyName, null, null, null, null, null, null,
                     new com.gs.legend.model.def.PropertyMappingValue.InlineMapping(targetSetId));
+        }
+
+        /**
+         * Creates an otherwise mapping: embedded sub-properties + join fallback.
+         */
+        public static PropertyMappingDefinition otherwise(String propertyName,
+                List<PropertyMappingDefinition> subMappings,
+                String fallbackSetId, PropertyMappingValue.JoinMapping fallbackJoin) {
+            var embedded = new com.gs.legend.model.def.PropertyMappingValue.EmbeddedMapping(null, subMappings);
+            return new PropertyMappingDefinition(propertyName, null, null, null, null, null, null,
+                    new com.gs.legend.model.def.PropertyMappingValue.OtherwiseMapping(
+                            embedded, fallbackSetId, fallbackJoin));
         }
 
         /**

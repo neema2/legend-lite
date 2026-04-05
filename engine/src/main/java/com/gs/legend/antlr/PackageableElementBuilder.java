@@ -1587,6 +1587,18 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 var sub = visitRelationalPropertyMapping(rpm);
                 if (sub != null) subMappings.add(sub);
             }
+            // Check for Otherwise clause: Otherwise([setId]: [DB]@JoinName)
+            if (embCtx.otherwiseEmbeddedPropertyMapping() != null) {
+                var owCtx = embCtx.otherwiseEmbeddedPropertyMapping().otherwisePropertyMapping();
+                String fallbackSetId = owCtx.identifier().getText();
+                String dbName = owCtx.databasePointer() != null
+                        ? owCtx.databasePointer().qualifiedName().getText() : null;
+                var joinChain = extractMappingJoinChain(owCtx.mappingJoinSequence());
+                var fallbackJoin = new com.gs.legend.model.def.PropertyMappingValue.JoinMapping(
+                        dbName, joinChain, null);
+                return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.otherwise(
+                        propertyName, subMappings, fallbackSetId, fallbackJoin);
+            }
             return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.embedded(
                     propertyName, subMappings);
         }
