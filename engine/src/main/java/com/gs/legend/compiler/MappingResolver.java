@@ -387,6 +387,49 @@ public final class MappingResolver {
             }
         }
 
+        // 4. Traverse extends: extend(source, traverse(...), ~[col:{src,tgt|$tgt.COL}])
+        //    Join-chain properties that require an additional JOIN. The traverse expression
+        //    encodes the join condition; ColSpecs encode the projected columns on the target table.
+        if (sourceRelation != null) {
+            for (AppliedFunction extendAf : findExtendNodes(sourceRelation)) {
+                if (!isTraverseExtend(extendAf)) continue;
+
+                AppliedFunction traverseAf = (AppliedFunction) extendAf.parameters().get(1);
+                String targetTable = extractTraverseTargetTable(traverseAf);
+                if (targetTable == null) continue;
+
+                List<ColSpec> colSpecs = extractTraverseColSpecs(extendAf);
+                if (colSpecs.isEmpty()) continue;
+
+                // Build targetResolution mapping propName → physicalCol for all ColSpecs
+                Map<String, String> subPropToCol = new LinkedHashMap<>();
+                Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
+                for (ColSpec cs : colSpecs) {
+                    String physCol = extractTraversePhysicalColumn(cs);
+                    if (physCol != null) {
+                        subPropToCol.put(cs.name(), physCol);
+                        subProperties.put(cs.name(),
+                                new StoreResolution.PropertyResolution.Column(physCol));
+                    } else if (cs.function1() != null && !cs.function1().body().isEmpty()) {
+                        // DynaFunction body (e.g., concat($src.A, $tgt.B))
+                        subPropToCol.put(cs.name(), cs.name());
+                        subProperties.put(cs.name(),
+                                new StoreResolution.PropertyResolution.DynaFunction(
+                                        cs.function1().body().get(0)));
+                    }
+                }
+
+                var targetResolution = new StoreResolution(
+                        targetTable, subPropToCol, subProperties, Map.of(), null, false);
+                var joinRes = buildJoinResolution(
+                        targetTable, false, traverseAf, targetResolution);
+
+                for (ColSpec cs : colSpecs) {
+                    joins.put(cs.name(), joinRes);
+                }
+            }
+        }
+
         // 3. Inline struct-array properties (to-many class-typed on the class itself).
         //    These are UNNEST candidates (join=null) for ^Class patterns.
         var pureClass = modelContext.findClass(className).orElse(null);
@@ -555,6 +598,55 @@ public final class MappingResolver {
         }
 
         resolutions.putAll(overrides);
+    }
+
+    // ==================== Traverse Extend Helpers ====================
+
+    /** True if the extend node is a 3-param traverse extend: extend(source, traverse(...), colSpecCI). */
+    private static boolean isTraverseExtend(AppliedFunction extendAf) {
+        if (extendAf.parameters().size() < 3) return false;
+        return extendAf.parameters().get(1) instanceof AppliedFunction af
+                && "traverse".equals(TypeInfo.simpleName(af.function()));
+    }
+
+    /** Extracts the terminal target table name from a traverse expression. */
+    private static String extractTraverseTargetTable(AppliedFunction traverseAf) {
+        // Table reference is always at index size-2 (before the lambda at last index)
+        int tableRefIdx = traverseAf.parameters().size() - 2;
+        var tableRef = traverseAf.parameters().get(tableRefIdx);
+        if (tableRef instanceof AppliedFunction af
+                && "tableReference".equals(TypeInfo.simpleName(af.function()))) {
+            if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof CString cs) {
+                return cs.value();
+            }
+        }
+        return null;
+    }
+
+    /** Extracts ColSpecs from a traverse extend's last ClassInstance parameter. */
+    private static List<ColSpec> extractTraverseColSpecs(AppliedFunction extendAf) {
+        // ColSpec ClassInstance is the last param
+        var lastParam = extendAf.parameters().get(extendAf.parameters().size() - 1);
+        if (lastParam instanceof ClassInstance ci) {
+            if (ci.value() instanceof ColSpec cs) return List.of(cs);
+            if (ci.value() instanceof ColSpecArray arr) return arr.colSpecs();
+        }
+        return List.of();
+    }
+
+    /**
+     * Extracts the physical column name from a traverse ColSpec's lambda body.
+     * For simple column access ({src,tgt|$tgt.COL}), returns "COL".
+     * Returns null for DynaFunction/complex expressions.
+     */
+    private static String extractTraversePhysicalColumn(ColSpec cs) {
+        if (cs.function1() == null) return null;
+        var body = cs.function1().body();
+        if (body == null || body.isEmpty()) return null;
+        if (body.get(0) instanceof AppliedProperty ap) {
+            return ap.property();
+        }
+        return null;
     }
 
     /** Walks the sourceRelation chain to find extend nodes (outermost first). */

@@ -825,6 +825,25 @@ public class PlanGenerator {
                     // Otherwise: embedded sub-property resolves from parent table, not join
                     colExpr = new SqlExpr.Column(lastJoin.parentAlias(), emb.columnName());
                 } else {
+                    // Leaf-join check: if the leaf property itself requires a join
+                    // (traverse-extend on the target class), add it before resolving
+                    var leafJoinRes = curStore != null && curStore.hasJoins()
+                            ? curStore.joins().get(leafProp) : null;
+                    if (leafJoinRes != null && !leafJoinRes.embedded()
+                            && leafJoinRes.joinCondition() != null) {
+                        String leafChainKey = String.join(".", path);
+                        AssocJoinInfo leafJoinInfo = assocJoins.get(leafChainKey);
+                        if (leafJoinInfo == null) {
+                            String leafAlias = "j" + (assocJoins.size() + 1);
+                            assocJoins.put(leafChainKey, new AssocJoinInfo(leafAlias, curAlias, leafJoinRes));
+                            neededJoins.add(leafChainKey);
+                            curAlias = leafAlias;
+                            curStore = leafJoinRes.targetResolution();
+                        } else {
+                            curAlias = leafJoinInfo.alias();
+                            curStore = leafJoinRes.targetResolution();
+                        }
+                    }
                     colExpr = resolveColumnExpr(leafProp, curStore, curAlias);
                     // Non-embedded leaf accessed — mark all hops in chain as needed
                     for (int hop = 0; hop < path.size() - 1; hop++) {
@@ -840,6 +859,65 @@ public class PlanGenerator {
                     String paramName = lambda.parameters().isEmpty() ? "x"
                             : lambda.parameters().get(0).name();
                     SqlExpr colExpr = generateScalar(lambda.body().get(0), paramName, store, tableAlias);
+
+                    // Resolve any AssociationRef markers into LEFT JOINs on the outer query.
+                    // This handles computed expressions like $o.customer.name + $o.product.name
+                    // where multiple association paths appear in a single scalar expression.
+                    SqlExpr.AssociationRef ref;
+                    while ((ref = findAssociationRef(colExpr)) != null && store != null) {
+                        var hops = ref.hops();
+                        StoreResolution curStore = store;
+                        String curAlias = tableAlias;
+
+                        // Walk hops, adding LEFT JOINs via assocJoins (same as association branch)
+                        for (String hop : hops) {
+                            String chainKey = "scalar_" + hop + "_" + curAlias;
+                            AssocJoinInfo joinInfo = assocJoins.get(chainKey);
+                            if (joinInfo == null) {
+                                var joinRes = curStore.hasJoins()
+                                        ? curStore.joins().get(hop) : null;
+                                if (joinRes == null) joinRes = findJoinResolution(hop);
+                                if (joinRes == null) break;
+                                if (joinRes.embedded()) {
+                                    assocJoins.put(chainKey, new AssocJoinInfo(curAlias, curAlias, joinRes));
+                                    curStore = joinRes.targetResolution();
+                                } else {
+                                    String hopAlias = "j" + (assocJoins.size() + 1);
+                                    assocJoins.put(chainKey, new AssocJoinInfo(hopAlias, curAlias, joinRes));
+                                    neededJoins.add(chainKey);
+                                    curAlias = hopAlias;
+                                    curStore = joinRes.targetResolution();
+                                }
+                            } else {
+                                curAlias = joinInfo.alias();
+                                curStore = joinInfo.joinRes().targetResolution();
+                            }
+                        }
+
+                        // Leaf-join check on the target column
+                        var leafJoinRes = curStore != null && curStore.hasJoins()
+                                ? curStore.joins().get(ref.targetCol()) : null;
+                        if (leafJoinRes != null && !leafJoinRes.embedded()
+                                && leafJoinRes.joinCondition() != null) {
+                            String leafKey = "scalar_leaf_" + ref.targetCol() + "_" + curAlias;
+                            AssocJoinInfo leafInfo = assocJoins.get(leafKey);
+                            if (leafInfo == null) {
+                                String leafAlias = "j" + (assocJoins.size() + 1);
+                                assocJoins.put(leafKey, new AssocJoinInfo(leafAlias, curAlias, leafJoinRes));
+                                neededJoins.add(leafKey);
+                                curAlias = leafAlias;
+                                curStore = leafJoinRes.targetResolution();
+                            } else {
+                                curAlias = leafInfo.alias();
+                                curStore = leafJoinRes.targetResolution();
+                            }
+                        }
+
+                        String physCol = curStore != null ? curStore.columnFor(ref.targetCol()) : null;
+                        if (physCol == null) physCol = ref.targetCol();
+                        colExpr = replaceAssociationRef(colExpr, ref, curAlias, physCol);
+                    }
+
                     builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
                 } else {
                     // Bare ColSpec (~prop) — treat as column reference
@@ -1048,6 +1126,21 @@ public class PlanGenerator {
             hopStore = hopJoinRes.targetResolution();
         }
 
+        // Leaf-join check: if the target column itself requires a join
+        // (traverse-extend on the target class), add INNER JOIN before resolving
+        var leafJoinRes = hopStore != null && hopStore.hasJoins()
+                ? hopStore.joins().get(ref.targetCol()) : null;
+        if (leafJoinRes != null && !leafJoinRes.embedded()
+                && leafJoinRes.joinCondition() != null) {
+            String ljAlias = "sub" + (tableAliasCounter++);
+            SqlExpr ljCond = generateScalar(leafJoinRes.joinCondition(), null, null, null,
+                    Map.of(leafJoinRes.sourceParam(), leafAlias, leafJoinRes.targetParam(), ljAlias));
+            subquery.addJoin(SqlBuilder.JoinType.INNER, dialect.quoteIdentifier(leafJoinRes.targetTable()),
+                    dialect.quoteIdentifier(ljAlias), ljCond);
+            leafAlias = ljAlias;
+            hopStore = leafJoinRes.targetResolution();
+        }
+
         // Resolve Pure property name → physical column via leaf store
         String physicalCol = hopStore != null ? hopStore.columnFor(ref.targetCol()) : null;
         if (physicalCol == null) physicalCol = ref.targetCol();
@@ -1238,6 +1331,20 @@ public class PlanGenerator {
                             dialect.quoteIdentifier(hopAlias), joinCond);
                     leafAlias = hopAlias;
                     hopStore = hopJoinRes.targetResolution();
+                }
+
+                // Leaf-join check: if the target column itself requires a join
+                var leafJoinRes = hopStore != null && hopStore.hasJoins()
+                        ? hopStore.joins().get(ref.targetCol()) : null;
+                if (leafJoinRes != null && !leafJoinRes.embedded()
+                        && leafJoinRes.joinCondition() != null) {
+                    String ljAlias = "sort_j" + (tableAliasCounter++);
+                    SqlExpr ljCond = generateScalar(leafJoinRes.joinCondition(), null, null, null,
+                            Map.of(leafJoinRes.sourceParam(), leafAlias, leafJoinRes.targetParam(), ljAlias));
+                    subquery.addJoin(SqlBuilder.JoinType.INNER, dialect.quoteIdentifier(leafJoinRes.targetTable()),
+                            dialect.quoteIdentifier(ljAlias), ljCond);
+                    leafAlias = ljAlias;
+                    hopStore = leafJoinRes.targetResolution();
                 }
 
                 // Resolve Pure property name → physical column via leaf store

@@ -3233,7 +3233,7 @@ class RelationalMappingIntegrationTest {
             assertTrue(r.rowCount() >= 3); // Gold-Hardware, Gold-Software, Silver-Hardware
         }
 
-        @Test @Disabled("GAP: String concat across two join paths only resolves first join in SQL")
+        @Test
         @DisplayName("Computed projection using columns from two joins")
         void testComputedFromTwoJoins() throws SQLException {
             var r = exec(model, "Order.all()->project(~[label:o|$o.customer.name + ' bought ' + $o.product.name, qty:o|$o.qty])");
@@ -4087,7 +4087,7 @@ class RelationalMappingIntegrationTest {
             assertTrue(names.contains("Carol Smith"));
         }
 
-        @Test @Disabled("GAP: Association nav to join-chain property on target class")
+        @Test
         @DisplayName("Association mapping + multi-hop join chain")
         void testAssocMappingWithJoins() throws SQLException {
             sql("CREATE TABLE T_PERSON (ID INT, NAME VARCHAR(100), FIRM_ID INT)",
@@ -4131,6 +4131,90 @@ class RelationalMappingIntegrationTest {
             assertEquals("USA", colStr(r, 2).get(0));
             assertEquals("Brit Corp", colStr(r, 1).get(1));
             assertEquals("UK", colStr(r, 2).get(1));
+        }
+
+        @Test
+        @DisplayName("Filter on association → join-chain property")
+        void testAssocJoinChainFilter() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT, NAME VARCHAR(100), FIRM_ID INT)",
+                "CREATE TABLE T_FIRM (ID INT, LEGAL_NAME VARCHAR(100), COUNTRY_ID INT)",
+                "CREATE TABLE T_COUNTRY (ID INT, NAME VARCHAR(100))",
+                "INSERT INTO T_COUNTRY VALUES (1, 'USA'), (2, 'UK')",
+                "INSERT INTO T_FIRM VALUES (1, 'Acme', 1), (2, 'Brit Corp', 2)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
+            String model = withRuntime("""
+                    Class test::Person { name: String[1]; }
+                    Class test::Firm { legalName: String[1]; country: String[1]; }
+                    Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
+                        Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100), COUNTRY_ID INTEGER)
+                        Table T_COUNTRY (ID INTEGER, NAME VARCHAR(100))
+                        Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
+                        Join FirmCountry(T_FIRM.COUNTRY_ID = T_COUNTRY.ID)
+                    )
+                    Mapping test::M (
+                        test::Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                        test::Firm: Relational {
+                            ~mainTable [store::DB] T_FIRM
+                            legalName: [store::DB] T_FIRM.LEGAL_NAME,
+                            country: @FirmCountry | [store::DB] T_COUNTRY.NAME
+                        }
+                        test::PersonFirm: AssociationMapping (
+                            firm: [store::DB]@PersonFirm,
+                            employees: [store::DB]@PersonFirm
+                        )
+                    )
+                    """, "store::DB", "test::M");
+            var r = exec(model, "Person.all()->filter({p|$p.firm.country == 'USA'})->project(~[name:p|$p.name])->sort(~name->ascending())");
+            assertEquals(2, r.rowCount());
+            assertEquals(List.of("Alice", "Charlie"), colStr(r, 0));
+        }
+
+        @Test
+        @DisplayName("Sort on association → join-chain property")
+        void testAssocJoinChainSort() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT, NAME VARCHAR(100), FIRM_ID INT)",
+                "CREATE TABLE T_FIRM (ID INT, LEGAL_NAME VARCHAR(100), COUNTRY_ID INT)",
+                "CREATE TABLE T_COUNTRY (ID INT, NAME VARCHAR(100))",
+                "INSERT INTO T_COUNTRY VALUES (1, 'USA'), (2, 'UK')",
+                "INSERT INTO T_FIRM VALUES (1, 'Acme', 1), (2, 'Brit Corp', 2)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
+            String model = withRuntime("""
+                    Class test::Person { name: String[1]; }
+                    Class test::Firm { legalName: String[1]; country: String[1]; }
+                    Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
+                        Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100), COUNTRY_ID INTEGER)
+                        Table T_COUNTRY (ID INTEGER, NAME VARCHAR(100))
+                        Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
+                        Join FirmCountry(T_FIRM.COUNTRY_ID = T_COUNTRY.ID)
+                    )
+                    Mapping test::M (
+                        test::Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                        test::Firm: Relational {
+                            ~mainTable [store::DB] T_FIRM
+                            legalName: [store::DB] T_FIRM.LEGAL_NAME,
+                            country: @FirmCountry | [store::DB] T_COUNTRY.NAME
+                        }
+                        test::PersonFirm: AssociationMapping (
+                            firm: [store::DB]@PersonFirm,
+                            employees: [store::DB]@PersonFirm
+                        )
+                    )
+                    """, "store::DB", "test::M");
+            // Sort by country — UK before USA alphabetically
+            var r = exec(model, "Person.all()->sortBy({p|$p.firm.country})->project(~[name:p|$p.name])");
+            assertEquals(3, r.rowCount());
+            // UK sorts before USA
+            assertEquals("Bob", colStr(r, 0).get(0));
         }
 
         @Test @Disabled("GAP: Scope block + embedded + filter")

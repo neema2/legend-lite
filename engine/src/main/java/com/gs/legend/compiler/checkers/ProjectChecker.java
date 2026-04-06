@@ -161,15 +161,20 @@ public class ProjectChecker extends AbstractChecker {
     }
 
     /**
-     * Finds the association path from a compiled expression's TypeInfo.
-     * Follows through function calls to find the innermost node with associationPath.
-     * Returns null if no multi-hop association path exists.
+     * Finds the association path from a compiled expression's TypeInfo. 
+     * Follows through single-param wrapper function calls to find the innermost node
+     * with associationPath. Returns null if no multi-hop association path exists.
+     *
+     * <p>Only follows into unary functions (e.g., {@code $e.firm.startDate->monthNumber()})
+     * where the function is a trivial wrapper around a single expression. Multi-param
+     * functions like {@code plus($e.firm.name, $e.product.name)} are NOT followed —
+     * those are computed expressions, not association navigations.
      */
     private List<String> findAssociationPath(ValueSpecification vs) {
         TypeInfo ti = env.lookupCompiled(vs);
         if (ti != null && ti.associationPath() != null) return ti.associationPath();
-        // Follow through function calls: $e.firm.startDate->monthNumber()
-        if (vs instanceof AppliedFunction af && !af.parameters().isEmpty()) {
+        // Follow through single-param wrapper calls: $e.firm.startDate->monthNumber()
+        if (vs instanceof AppliedFunction af && af.parameters().size() == 1) {
             return findAssociationPath(af.parameters().get(0));
         }
         return null;
