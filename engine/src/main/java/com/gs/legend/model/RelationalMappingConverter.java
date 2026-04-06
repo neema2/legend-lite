@@ -101,6 +101,9 @@ public final class RelationalMappingConverter {
                     yield new AppliedFunction(func.name(), convertedArgs);
             }
 
+            case RelationalOperation.JoinNavigation nav ->
+                    convert(nav.terminal(), tableToParam, targetParamName);
+
             case RelationalOperation.Group grp -> convert(grp.inner(), tableToParam, targetParamName);
 
             default -> throw new IllegalArgumentException(
@@ -132,6 +135,9 @@ public final class RelationalMappingConverter {
             case RelationalOperation.IsNull n -> collectTableNamesRecursive(n.operand(), tables);
             case RelationalOperation.IsNotNull n -> collectTableNamesRecursive(n.operand(), tables);
             case RelationalOperation.FunctionCall f -> f.args().forEach(a -> collectTableNamesRecursive(a, tables));
+            case RelationalOperation.JoinNavigation nav -> {
+                if (nav.terminal() != null) collectTableNamesRecursive(nav.terminal(), tables);
+            }
             case RelationalOperation.Group g -> collectTableNamesRecursive(g.inner(), tables);
             case RelationalOperation.ArrayLiteral arr -> arr.elements().forEach(e -> collectTableNamesRecursive(e, tables));
             default -> {} // Literal, TargetColumnRef, etc.

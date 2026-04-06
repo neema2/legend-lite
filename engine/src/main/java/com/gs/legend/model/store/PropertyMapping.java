@@ -116,6 +116,20 @@ public record PropertyMapping(
     }
 
     /**
+     * Creates a combined DynaFunction + join chain mapping: property value computed from
+     * an expression that references columns on a remote table reachable through joins.
+     * Pure syntax: {@code prop: concat([DB] EMP.NAME, ' - ', @EmpDept | [DB] DEPT.DEPT_NAME)}
+     *
+     * @param propertyName The property name
+     * @param expr         Pre-compiled ValueSpecification expression tree (uses $src/$tgt references)
+     * @param joinNames    Ordered list of join names to traverse
+     */
+    public static PropertyMapping dynaFunctionWithJoin(String propertyName, ValueSpecification expr,
+            List<String> joinNames) {
+        return new PropertyMapping(propertyName, propertyName, null, null, null, joinNames, expr);
+    }
+
+    /**
      * @return true if this property uses an expression mapping
      */
     public boolean hasExpression() {

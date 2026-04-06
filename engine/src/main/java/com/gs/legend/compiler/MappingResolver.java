@@ -177,7 +177,7 @@ public final class MappingResolver {
             propToCol.put(prop, col);
 
             var exprAccess = pm.expressionAccess();
-            if (pm.hasDynaExpression()) {
+            if (pm.hasDynaExpression() && !pm.hasJoinChain()) {
                 properties.put(prop, new StoreResolution.PropertyResolution.DynaFunction(
                         pm.dynaExpression()));
             } else if (exprAccess.isPresent()) {

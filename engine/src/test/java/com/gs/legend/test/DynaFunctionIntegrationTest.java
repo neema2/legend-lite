@@ -577,7 +577,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             assertTrue(vals.contains("WORLD"));  // CODE='B' → toUpper
         }
 
-        @Test @Disabled("GAP: JoinNavigation inside DynaFunction args needs JOIN + scalar cross-table reference")
+        @Test
         @DisplayName("DynaFunction with join chain: concat with joined column")
         void testDynaFunctionWithJoinChain() throws SQLException {
             sql("CREATE TABLE DEPT (ID INT, DEPT_NAME VARCHAR(50))",

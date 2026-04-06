@@ -363,14 +363,23 @@ public final class MappingNormalizer {
             // Build traverse chain
             var traverseExpr = buildTraverseChain(mainTable, chainNames);
 
-            // Build colSpecs: ~[prop1:t|$t.COL1, prop2:t|$t.COL2]
+            // Build colSpecs: ~[prop1:{src,tgt|$tgt.COL1}, prop2:{src,tgt|$tgt.COL2}]
+            var srcVar = new com.gs.legend.ast.Variable("src");
+            var tgtVar = new com.gs.legend.ast.Variable("tgt");
+            var params = java.util.List.of(srcVar, tgtVar);
             var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
             for (var pm : props) {
-                var lambda = new com.gs.legend.ast.LambdaFunction(
-                        java.util.List.of(new com.gs.legend.ast.Variable("t")),
-                        new com.gs.legend.ast.AppliedProperty(
-                                pm.columnName(),
-                                java.util.List.of(new com.gs.legend.ast.Variable("t"))));
+                com.gs.legend.ast.ValueSpecification body;
+                if (pm.hasDynaExpression()) {
+                    // Combined join + DynaFunction: expression already uses $src/$tgt references
+                    body = pm.dynaExpression();
+                } else {
+                    // Simple column access on terminal table: $tgt.COL
+                    body = new com.gs.legend.ast.AppliedProperty(
+                            pm.columnName(),
+                            java.util.List.of(new com.gs.legend.ast.Variable("tgt")));
+                }
+                var lambda = new com.gs.legend.ast.LambdaFunction(params, body);
                 colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda));
             }
 
@@ -406,6 +415,7 @@ public final class MappingNormalizer {
 
         for (var pm : rm.propertyMappings()) {
             if (!pm.hasDynaExpression()) continue;
+            if (pm.hasJoinChain()) continue; // handled by addTraverseExtends
 
             var rowVar = new com.gs.legend.ast.Variable("row");
             // The dynaExpression already uses $row.COLUMN references (from RelationalMappingConverter)

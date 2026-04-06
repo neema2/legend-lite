@@ -505,6 +505,23 @@ public final class PureModelBuilder implements ModelContext {
                         }
                         if (pm.hasMappingExpression()) {
                             // DynaFunction expression: convert RelationalOperation → ValueSpecification
+                            var joinNav = findFirstJoinNavigation(pm.mappingExpression());
+                            if (joinNav != null && classMapping.mainTable() != null) {
+                                // Combined join + DynaFunction: expression references columns across tables
+                                String mainTableName = classMapping.mainTable().tableName();
+                                // Terminal table from JoinNavigation's terminal ColumnRef
+                                var terminalTables = RelationalMappingConverter.collectTableNames(joinNav.terminal());
+                                String terminalTable = terminalTables.stream()
+                                        .filter(t -> !t.equals(mainTableName))
+                                        .findFirst().orElse(terminalTables.iterator().next());
+                                var tableToParam = new java.util.HashMap<String, String>();
+                                tableToParam.put(mainTableName, "src");
+                                tableToParam.put(terminalTable, "tgt");
+                                var vsExpr = RelationalMappingConverter.convert(pm.mappingExpression(), tableToParam);
+                                List<String> joinNames = joinNav.joinChain().stream()
+                                        .map(com.gs.legend.model.def.JoinChainElement::joinName).toList();
+                                return PropertyMapping.dynaFunctionWithJoin(pm.propertyName(), vsExpr, joinNames);
+                            }
                             var vsExpr = RelationalMappingConverter.convert(pm.mappingExpression());
                             return PropertyMapping.dynaFunction(pm.propertyName(), vsExpr);
                         }
@@ -1163,8 +1180,33 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
-     * Extracts column name from an expression like "[DB]
-     * TABLE.COLUMN->cast(@Class)".
+     * Finds the first {@link com.gs.legend.model.def.RelationalOperation.JoinNavigation} in a RelationalOperation tree.
+     * Returns null if none found.
+     */
+    private static com.gs.legend.model.def.RelationalOperation.JoinNavigation findFirstJoinNavigation(
+            com.gs.legend.model.def.RelationalOperation op) {
+        return switch (op) {
+            case com.gs.legend.model.def.RelationalOperation.JoinNavigation nav -> nav;
+            case com.gs.legend.model.def.RelationalOperation.FunctionCall func -> func.args().stream()
+                    .map(PureModelBuilder::findFirstJoinNavigation)
+                    .filter(java.util.Objects::nonNull).findFirst().orElse(null);
+            case com.gs.legend.model.def.RelationalOperation.Comparison cmp -> {
+                var left = findFirstJoinNavigation(cmp.left());
+                yield left != null ? left : findFirstJoinNavigation(cmp.right());
+            }
+            case com.gs.legend.model.def.RelationalOperation.BooleanOp bool -> {
+                var left = findFirstJoinNavigation(bool.left());
+                yield left != null ? left : findFirstJoinNavigation(bool.right());
+            }
+            case com.gs.legend.model.def.RelationalOperation.Group g -> findFirstJoinNavigation(g.inner());
+            case com.gs.legend.model.def.RelationalOperation.IsNull n -> findFirstJoinNavigation(n.operand());
+            case com.gs.legend.model.def.RelationalOperation.IsNotNull n -> findFirstJoinNavigation(n.operand());
+            default -> null;
+        };
+    }
+
+    /**
+     * Extracts column name from an expression like "[DB] TABLE.COLUMN->cast(@Class)".
      */
     private String extractColumnNameFromExpression(String expression) {
         // Pattern: [DB] TABLE.COLUMN...

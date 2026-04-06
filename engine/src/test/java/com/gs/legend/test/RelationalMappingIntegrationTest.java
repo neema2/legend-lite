@@ -908,7 +908,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Single-hop traverse: Person → Dept")
         void testSingleHopTraverse() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->select(~[NAME, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var depts = colStr(r, 1);
@@ -920,7 +920,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Multi-hop traverse: Person → Dept → Org")
         void testMultiHopTraverse() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->select(~[NAME, orgName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})->select(~[NAME, orgName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var orgs = colStr(r, 1);
@@ -932,7 +932,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Multi-column ColSpecArray from same traversal")
         void testMultiColumnTraverse() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~[deptName:t|$t.NAME, deptId:t|$t.ID])->select(~[NAME, deptName, deptId])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~[deptName:{src,tgt|$tgt.NAME}, deptId:{src,tgt|$tgt.ID}])->select(~[NAME, deptName, deptId])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var depts = colStr(r, 1);
@@ -948,7 +948,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("LEFT JOIN: unmatched FK produces NULL")
         void testTraverseLeftJoinNull() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->select(~[NAME, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var depts = colStr(r, 1);
@@ -959,7 +959,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Multi-hop LEFT JOIN: NULL propagates through chain")
         void testMultiHopLeftJoinNull() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->select(~[NAME, orgName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})->select(~[NAME, orgName])->from(test::RT)");
             var names = colStr(r, 0);
             var orgs = colStr(r, 1);
             assertNull(orgs.get(names.indexOf("Dave")));
@@ -970,7 +970,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter on traversed column")
         void testTraverseThenFilter() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->filter(x|$x.deptName == 'Engineering')->select(~[NAME, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->filter(x|$x.deptName == 'Engineering')->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
             assertEquals("Engineering", colStr(r, 1).get(0));
@@ -979,7 +979,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter on multi-hop traversed column")
         void testMultiHopTraverseThenFilter() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->filter(x|$x.orgName == 'Globex')->select(~[NAME])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})->filter(x|$x.orgName == 'Globex')->select(~[NAME])->from(test::RT)");
             assertEquals(1, r.rowCount());
             assertEquals("Charlie", colStr(r, 0).get(0));
         }
@@ -987,7 +987,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter on source column after traverse")
         void testTraverseFilterOnSourceColumn() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->filter(x|$x.NAME == 'Alice')->select(~[NAME, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->filter(x|$x.NAME == 'Alice')->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(1, r.rowCount());
             assertEquals("Engineering", colStr(r, 1).get(0));
         }
@@ -997,7 +997,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Sort by traversed column")
         void testTraverseThenSort() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->sort(~deptName->ascending())->select(~[NAME, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->sort(~deptName->ascending())->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var depts = colStr(r, 1);
             // DuckDB: NULLS LAST for ASC → Engineering, Research, Sales, NULL
@@ -1012,7 +1012,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Traverse + filter + sort combined")
         void testTraverseFilterSort() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->filter(x|$x.orgName == 'Acme Corp')->sort(~NAME->ascending())->select(~[NAME, orgName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})->filter(x|$x.orgName == 'Acme Corp')->sort(~NAME->ascending())->select(~[NAME, orgName])->from(test::RT)");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Alice", "Bob"), colStr(r, 0));
         }
@@ -1022,7 +1022,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Traverse + sort + limit")
         void testTraverseSortLimit() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->sort(~NAME->ascending())->limit(2)->select(~[NAME, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->sort(~NAME->ascending())->limit(2)->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Alice", "Bob"), colStr(r, 0));
         }
@@ -1032,7 +1032,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy on traversed column with count")
         void testTraverseGroupBy() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->groupBy(~orgName, ~cnt:x|$x.NAME:y|$y->count())->sort(~orgName->ascending())->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})->groupBy(~orgName, ~cnt:x|$x.NAME:y|$y->count())->sort(~orgName->ascending())->from(test::RT)");
             // DuckDB ASC NULLS LAST: Acme Corp=2, Globex=1, NULL=1
             assertEquals(3, r.rowCount());
             var orgs = colStr(r, 0);
@@ -1048,7 +1048,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Select only traversed columns")
         void testTraverseSelectOnlyTraversedCols() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~[deptName:t|$t.NAME, deptOrgId:t|$t.ORG_ID])->select(~[deptName, deptOrgId])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~[deptName:{src,tgt|$tgt.NAME}, deptOrgId:{src,tgt|$tgt.ORG_ID}])->select(~[deptName, deptOrgId])->from(test::RT)");
             assertEquals(4, r.rowCount());
             assertEquals(2, r.columnCount());
             assertEquals("deptName", r.columns().get(0).name());
@@ -1063,8 +1063,8 @@ class RelationalMappingIntegrationTest {
             // Second extend: Person → Dept → Org (orgName)
             var r = exec(traverseModel(),
                 "#>{store::DB.T_PERSON}#" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})" +
                 "->select(~[NAME, deptName, orgName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
@@ -1081,7 +1081,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Extend computed column using traversed column")
         void testTraverseThenExtendComputed() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptId:t|$t.ID)->extend(~deptIdDoubled:x|$x.deptId * 2)->select(~[NAME, deptId, deptIdDoubled])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptId:{src,tgt|$tgt.ID})->extend(~deptIdDoubled:x|$x.deptId * 2)->select(~[NAME, deptId, deptIdDoubled])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var deptIds = colInt(r, 1);
@@ -1094,7 +1094,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Scalar extend THEN traverse (inlined column preserved)")
         void testScalarExtendThenTraverse() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(~idDoubled:x|$x.ID * 2)->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->select(~[NAME, idDoubled, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(~idDoubled:x|$x.ID * 2)->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->select(~[NAME, idDoubled, deptName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var doubled = colInt(r, 1);
@@ -1111,7 +1111,7 @@ class RelationalMappingIntegrationTest {
             // Join person→dept WHERE dept ID matches AND dept is in org > 1 (Globex only)
             // Alice(dept=1,org=1)→NULL, Bob(dept=2,org=1)→NULL, Charlie(dept=3,org=2)→Research
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID && $hop.ORG_ID > 1}), ~deptName:t|$t.NAME)->select(~[NAME, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID && $hop.ORG_ID > 1}), ~deptName:{src,tgt|$tgt.NAME})->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var depts = colStr(r, 1);
@@ -1125,7 +1125,7 @@ class RelationalMappingIntegrationTest {
             // Join person→dept WHERE person.ID >= dept.ID (1-to-many: row expansion)
             // Alice(1): dept 1 only; Bob(2): dept 1,2; Charlie(3): dept 1,2,3; Dave(4): dept 1,2,3
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.ID >= $hop.ID}), ~deptName:t|$t.NAME)->groupBy(~NAME, ~cnt:x|$x.deptName:y|$y->count())->sort(~NAME->ascending())->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.ID >= $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->groupBy(~NAME, ~cnt:x|$x.deptName:y|$y->count())->sort(~NAME->ascending())->from(test::RT)");
             var names = colStr(r, 0);
             var counts = colInt(r, 1);
             assertEquals(Integer.valueOf(1), counts.get(names.indexOf("Alice")));
@@ -1142,9 +1142,9 @@ class RelationalMappingIntegrationTest {
             // Then: add orgName via second traverse chain
             var r = exec(traverseModel(),
                 "#>{store::DB.T_PERSON}#" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
                 "->filter(x|$x.deptName == 'Engineering')" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})" +
                 "->select(~[NAME, deptName, orgName])->from(test::RT)");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
@@ -1156,9 +1156,9 @@ class RelationalMappingIntegrationTest {
         void testTraverseSortTraverse() throws SQLException {
             var r = exec(traverseModel(),
                 "#>{store::DB.T_PERSON}#" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
                 "->sort(~NAME->ascending())" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})" +
                 "->select(~[NAME, deptName, orgName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             // Sorted by NAME ascending: Alice, Bob, Charlie, Dave
@@ -1174,7 +1174,7 @@ class RelationalMappingIntegrationTest {
             // Bring in deptId via traverse, then sum it grouped by name
             // Each person has one dept, so sum = their dept ID
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptOrgId:t|$t.ORG_ID)->groupBy(~NAME, ~totalOrgId:x|$x.deptOrgId:y|$y->sum())->sort(~NAME->ascending())->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptOrgId:{src,tgt|$tgt.ORG_ID})->groupBy(~NAME, ~totalOrgId:x|$x.deptOrgId:y|$y->sum())->sort(~NAME->ascending())->from(test::RT)");
             var names = colStr(r, 0);
             var sums = colInt(r, 1);
             // Alice→dept 1 (ORG_ID=1), Bob→dept 2 (ORG_ID=1), Charlie→dept 3 (ORG_ID=2)
@@ -1186,7 +1186,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy traversed col, aggregate source col (sum of person IDs per org)")
         void testGroupByTraversedAggregateSource() throws SQLException {
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->groupBy(~orgName, ~totalId:x|$x.ID:y|$y->sum())->sort(~orgName->ascending())->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})->groupBy(~orgName, ~totalId:x|$x.ID:y|$y->sum())->sort(~orgName->ascending())->from(test::RT)");
             // Acme Corp: Alice(1)+Bob(2)=3, Globex: Charlie(3)=3, NULL: Dave(4)=4
             assertEquals(3, r.rowCount());
             var orgs = colStr(r, 0);
@@ -1235,7 +1235,7 @@ class RelationalMappingIntegrationTest {
         void testSingleHopFlatSql() throws SQLException {
             // No select() — raw traverse output, no outer subquery
             String sql = planSql(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})->from(test::RT)");
             assertEquals(1, count(sql, "SELECT"), "Flat: exactly 1 SELECT: " + sql);
             assertEquals(1, count(sql, "LEFT OUTER JOIN"), "Exactly 1 LEFT OUTER JOIN: " + sql);
             assertTrue(sql.contains("\"t0\".\"DEPT_ID\""), "ON clause uses physical column ref: " + sql);
@@ -1244,7 +1244,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Multi-hop: flat LEFT JOINs, exactly 1 SELECT")
         void testMultiHopFlatSql() throws SQLException {
             String sql = planSql(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})->from(test::RT)");
             assertEquals(1, count(sql, "SELECT"), "Flat: exactly 1 SELECT: " + sql);
             assertEquals(2, count(sql, "LEFT OUTER JOIN"), "Exactly 2 LEFT OUTER JOINs: " + sql);
         }
@@ -1253,8 +1253,8 @@ class RelationalMappingIntegrationTest {
         void testTwoIndependentTraversalsFlatSql() throws SQLException {
             String sql = planSql(traverseModel(),
                 "#>{store::DB.T_PERSON}#" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})" +
                 "->from(test::RT)");
             assertEquals(1, count(sql, "SELECT"), "Flat: exactly 1 SELECT: " + sql);
             assertEquals(3, count(sql, "LEFT OUTER JOIN"), "Exactly 3 LEFT OUTER JOINs: " + sql);
@@ -1264,7 +1264,7 @@ class RelationalMappingIntegrationTest {
         void testFilterBeforeTraverseSql() throws SQLException {
             String sql = planSql(traverseModel(),
                 "#>{store::DB.T_PERSON}#->filter(x|$x.ID > 1)" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
                 "->from(test::RT)");
             // Filter produces non-table-based source → traverse wraps it.
             // 2 SELECTs: inner (filter) + outer (traverse JOIN)
@@ -1277,9 +1277,9 @@ class RelationalMappingIntegrationTest {
         void testTraverseFilterTraverseSql() throws SQLException {
             String sql = planSql(traverseModel(),
                 "#>{store::DB.T_PERSON}#" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
                 "->filter(x|$x.deptName == 'Engineering')" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})" +
                 "->from(test::RT)");
             // First traverse flat (1 JOIN), filter wraps, second traverse flat (2 JOINs) on wrapped source
             assertEquals(3, count(sql, "LEFT OUTER JOIN"), "3 LEFT OUTER JOINs total: " + sql);
@@ -1291,9 +1291,9 @@ class RelationalMappingIntegrationTest {
         void testTraverseSortTraverseSql() throws SQLException {
             String sql = planSql(traverseModel(),
                 "#>{store::DB.T_PERSON}#" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
                 "->sort(~NAME->ascending())" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:t|$t.NAME)" +
+                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})" +
                 "->from(test::RT)");
             // First traverse flat (1 JOIN) + sort, then second traverse wraps (2 JOINs)
             assertEquals(3, count(sql, "LEFT OUTER JOIN"), "3 LEFT OUTER JOINs total: " + sql);
@@ -1304,7 +1304,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Traverse then scalar extend: flat, exactly 1 SELECT")
         void testTraverseThenScalarExtendFlatSql() throws SQLException {
             String sql = planSql(traverseModel(),
-                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptId:t|$t.ID)->extend(~deptIdDoubled:x|$x.deptId * 2)->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID}), ~deptId:{src,tgt|$tgt.ID})->extend(~deptIdDoubled:x|$x.deptId * 2)->from(test::RT)");
             assertEquals(1, count(sql, "SELECT"), "Flat: exactly 1 SELECT: " + sql);
             assertEquals(1, count(sql, "LEFT OUTER JOIN"), "Exactly 1 LEFT OUTER JOIN: " + sql);
             assertTrue(sql.contains("deptIdDoubled"), "Scalar extend column present: " + sql);

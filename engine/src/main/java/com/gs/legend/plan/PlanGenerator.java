@@ -1739,10 +1739,18 @@ public class PlanGenerator {
             for (ColSpec cs : traverseColSpecs) {
                 if (extendOverride != null && !extendOverride.isActive(cs.name())) continue;
                 if (cs.function1() != null) {
-                    String lambdaParam = cs.function1().parameters().isEmpty() ? null
-                            : cs.function1().parameters().get(0).name();
-                    var varAliases = lambdaParam != null
-                            ? Map.<String, String>of(lambdaParam, terminalAlias) : null;
+                    var lambdaParams = cs.function1().parameters();
+                    Map<String, String> varAliases;
+                    if (lambdaParams.size() >= 2) {
+                        // 2-param lambda {src, tgt | ...}: src → source, tgt → terminal
+                        varAliases = Map.of(
+                                lambdaParams.get(0).name(), sourceAlias,
+                                lambdaParams.get(1).name(), terminalAlias);
+                    } else if (lambdaParams.size() == 1) {
+                        varAliases = Map.of(lambdaParams.get(0).name(), terminalAlias);
+                    } else {
+                        varAliases = null;
+                    }
                     SqlExpr computed = generateScalar(
                             cs.function1().body().get(0), null, null, null, varAliases);
                     source.addSelect(computed, dialect.quoteIdentifier(cs.name()));

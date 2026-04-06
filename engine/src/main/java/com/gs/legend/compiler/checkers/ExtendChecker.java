@@ -82,7 +82,7 @@ public class ExtendChecker extends AbstractChecker {
                     if (isEmbeddedExtend(cs)) {
                         continue;
                     }
-                    var result = compileColSpec(cs, colSpecSchema, source, ctx, overSpec, def);
+                    var result = compileColSpec(cs, colSpecSchema, sourceSchema, source, ctx, overSpec, def);
                     if (newColumns.containsKey(result.alias)) {
                         throw new PureCompileException(
                                 "extend(): column '" + result.alias
@@ -163,7 +163,8 @@ public class ExtendChecker extends AbstractChecker {
                                   TypeInfo.WindowSpec windowSpec) {}
 
     private ColSpecResult compileColSpec(ColSpec cs,
-                                          GenericType.Relation.Schema sourceSchema,
+                                          GenericType.Relation.Schema colSpecSchema,
+                                          GenericType.Relation.Schema originalSourceSchema,
                                           TypeInfo source,
                                           TypeChecker.CompilationContext ctx,
                                           TypeInfo.OverSpec overSpec,
@@ -179,10 +180,12 @@ public class ExtendChecker extends AbstractChecker {
 
         // --- Signature-driven target typing ---
         // Extract lambda param types from the resolved extend() signature's FuncColSpec.
-        // Uses T→Tuple(schema) bindings so _Window<T> resolves correctly.
+        // For traverse extends: S = original source schema, T = terminal (joined) table schema.
+        // For non-traverse extends: S = T = source schema.
         PType.FunctionType sigFnType = findColSpecFunctionType(def, fn1.parameters().size());
         var bindings = new Bindings();
-        bindings.put("T", new GenericType.Tuple(sourceSchema));
+        bindings.put("S", new GenericType.Tuple(originalSourceSchema));
+        bindings.put("T", new GenericType.Tuple(colSpecSchema));
 
         TypeChecker.CompilationContext fn1Ctx = ctx;
         for (int pi = 0; pi < fn1.parameters().size() && pi < sigFnType.paramTypes().size(); pi++) {
