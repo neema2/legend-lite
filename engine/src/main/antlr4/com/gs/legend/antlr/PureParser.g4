@@ -1128,9 +1128,9 @@ dbBooleanOperator:                              RELATIONAL_AND | RELATIONAL_OR
 dbAtomicOperation:                              (
                                                     dbGroupOperation
                                                     | ( databasePointer? dbFunctionOperation )
+                                                    | dbConstant
                                                     | dbColumnOperation
                                                     | dbJoinOperation
-                                                    | dbConstant
                                                 )
                                                 dbAtomicOperationRight?
 ;

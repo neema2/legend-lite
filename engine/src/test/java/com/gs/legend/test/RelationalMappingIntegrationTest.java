@@ -1863,11 +1863,33 @@ class RelationalMappingIntegrationTest {
 
         // --- Self-Joins ---
 
-        @Test @Disabled("GAP: Self-joins with {target} not supported")
-        @DisplayName("GAP: Self-join (manager relationship)")
+        @Test
+        @DisplayName("Self-join: Person → manager via {target}")
         void testSelfJoin() throws SQLException {
-            setupBasicTables();
-            // Would need: Join OrgHierarchy(T_PERSON.MANAGER_ID = {target}.ID)
+            sql("CREATE TABLE EMPLOYEES (ID INT, NAME VARCHAR(100), MANAGER_ID INT)",
+                "INSERT INTO EMPLOYEES VALUES (1, 'Alice', null), (2, 'Bob', 1), (3, 'Charlie', 1)");
+
+            String model = withRuntime("""
+                    Class test::Employee { name: String[1]; managerName: String[1]; }
+                    Association test::EmpMgr { emp: test::Employee[*]; manager: test::Employee[1]; }
+                    Database store::DB (
+                        Table EMPLOYEES (ID INTEGER, NAME VARCHAR(100), MANAGER_ID INTEGER)
+                        Join EmpMgr(EMPLOYEES.MANAGER_ID = {target}.ID)
+                    )
+                    Mapping test::M (
+                        test::Employee: Relational {
+                            ~mainTable [store::DB] EMPLOYEES
+                            name: [store::DB] EMPLOYEES.NAME,
+                            managerName: @EmpMgr | [store::DB] EMPLOYEES.NAME
+                        }
+                    )
+                    """, "store::DB", "test::M");
+
+            var r = exec(model, "Employee.all()->filter(e|$e.managerName == 'Alice')->project(~[name:e|$e.name])");
+            var names = colStr(r, 0);
+            assertEquals(2, names.size());
+            assertTrue(names.contains("Bob"));
+            assertTrue(names.contains("Charlie"));
         }
 
         // --- Mapping ~filter ---
@@ -2044,16 +2066,70 @@ class RelationalMappingIntegrationTest {
 
         // --- Complex Join Conditions ---
 
-        @Test @Disabled("GAP: Complex join conditions parsed by regex (only simple equi-join)")
-        @DisplayName("GAP: Multi-column join condition")
+        @Test
+        @DisplayName("Multi-column join condition (T1.A = T2.A and T1.B = T2.B)")
         void testMultiColumnJoin() throws SQLException {
-            // Join J(T1.A = T2.A and T1.B = T2.B)
+            sql("CREATE TABLE ORDERS (REGION VARCHAR(10), PRODUCT_ID INT, QTY INT)",
+                "INSERT INTO ORDERS VALUES ('US', 1, 10), ('US', 2, 5), ('EU', 1, 20)",
+                "CREATE TABLE PRICES (REGION VARCHAR(10), PRODUCT_ID INT, PRICE DECIMAL(10,2))",
+                "INSERT INTO PRICES VALUES ('US', 1, 9.99), ('US', 2, 4.99), ('EU', 1, 12.50)");
+
+            String model = withRuntime("""
+                    Class test::Order { qty: Integer[1]; price: Float[1]; }
+                    Association test::OrderPrice { order: test::Order[*]; priceInfo: test::Price[1]; }
+                    Class test::Price { price: Float[1]; }
+                    Database store::DB (
+                        Table ORDERS (REGION VARCHAR(10), PRODUCT_ID INTEGER, QTY INTEGER)
+                        Table PRICES (REGION VARCHAR(10), PRODUCT_ID INTEGER, PRICE DOUBLE)
+                        Join OrderPrice(ORDERS.REGION = PRICES.REGION and ORDERS.PRODUCT_ID = PRICES.PRODUCT_ID)
+                    )
+                    Mapping test::M (
+                        test::Order: Relational {
+                            ~mainTable [store::DB] ORDERS
+                            qty: [store::DB] ORDERS.QTY,
+                            price: @OrderPrice | [store::DB] PRICES.PRICE
+                        }
+                    )
+                    """, "store::DB", "test::M");
+
+            var r = exec(model, "Order.all()->project(~[qty:o|$o.qty, price:o|$o.price])");
+            assertEquals(3, r.rowCount());
+            // US/product1: qty=10, price=9.99
+            // US/product2: qty=5,  price=4.99
+            // EU/product1: qty=20, price=12.50
         }
 
-        @Test @Disabled("GAP: Function-based join conditions not supported")
-        @DisplayName("GAP: Function in join condition")
+        @Test
+        @DisplayName("Function-based join condition (concat in join)")
         void testFunctionInJoin() throws SQLException {
-            // Join J(concat('prefix_', T1.name) = T2.prefixed_name)
+            sql("CREATE TABLE CODES (ID INT, PREFIX VARCHAR(10), CODE VARCHAR(20))",
+                "INSERT INTO CODES VALUES (1, 'A', '001'), (2, 'B', '002')",
+                "CREATE TABLE LABELS (FULL_CODE VARCHAR(30), LABEL VARCHAR(50))",
+                "INSERT INTO LABELS VALUES ('A_001', 'Alpha One'), ('B_002', 'Beta Two')");
+
+            String model = withRuntime("""
+                    Class test::Item { code: String[1]; label: String[1]; }
+                    Association test::ItemLabel { item: test::Item[*]; labelInfo: test::LabelInfo[1]; }
+                    Class test::LabelInfo { label: String[1]; }
+                    Database store::DB (
+                        Table CODES (ID INTEGER, PREFIX VARCHAR(10), CODE VARCHAR(20))
+                        Table LABELS (FULL_CODE VARCHAR(30), LABEL VARCHAR(50))
+                        Join CodeLabel(concat(CODES.PREFIX, '_', CODES.CODE) = LABELS.FULL_CODE)
+                    )
+                    Mapping test::M (
+                        test::Item: Relational {
+                            ~mainTable [store::DB] CODES
+                            code: [store::DB] CODES.CODE,
+                            label: @CodeLabel | [store::DB] LABELS.LABEL
+                        }
+                    )
+                    """, "store::DB", "test::M");
+
+            var r = exec(model, "Item.all()->project(~[code:i|$i.code, label:i|$i.label])");
+            assertEquals(2, r.rowCount());
+            var labels = colStr(r, 1);
+            assertTrue(labels.contains("Alpha One"));
+            assertTrue(labels.contains("Beta Two"));
         }
 
         // --- Views ---
@@ -3863,10 +3939,37 @@ class RelationalMappingIntegrationTest {
             }
         }
 
-        @Test @Disabled("GAP: Multi-hop + aggregation")
-        @DisplayName("GAP: GroupBy on 3rd-hop table column")
+        @Test
+        @DisplayName("GroupBy on 3rd-hop table column")
         void testMultiHopAggregation() throws SQLException {
-            // groupBy company.country when starting from Emp
+            sql("CREATE TABLE T_EMP2 (ID INT, NAME VARCHAR(100), DEPT_ID INT, SALARY INT)",
+                "CREATE TABLE T_DEPT2 (ID INT, NAME VARCHAR(50), COMPANY_ID INT)",
+                "CREATE TABLE T_COMPANY2 (ID INT, NAME VARCHAR(100), COUNTRY VARCHAR(50))",
+                "INSERT INTO T_COMPANY2 VALUES (1, 'Acme', 'USA'), (2, 'Brit', 'UK')",
+                "INSERT INTO T_DEPT2 VALUES (1, 'Eng', 1), (2, 'Sales', 2)",
+                "INSERT INTO T_EMP2 VALUES (1, 'Alice', 1, 100), (2, 'Bob', 2, 200), (3, 'Charlie', 1, 150)");
+            String m = withRuntime("""
+                    Class model::E2 { name: String[1]; salary: Integer[1]; }
+                    Class model::D2 { name: String[1]; }
+                    Class model::C2 { country: String[1]; }
+                    Association model::E2_D2 { emps: E2[*]; dept: D2[1]; }
+                    Association model::D2_C2 { depts: D2[*]; company: C2[1]; }
+                    Database store::DB (
+                        Table T_EMP2 (ID INTEGER, NAME VARCHAR(100), DEPT_ID INTEGER, SALARY INTEGER)
+                        Table T_DEPT2 (ID INTEGER, NAME VARCHAR(50), COMPANY_ID INTEGER)
+                        Table T_COMPANY2 (ID INTEGER, NAME VARCHAR(100), COUNTRY VARCHAR(50))
+                        Join E2_D2(T_EMP2.DEPT_ID = T_DEPT2.ID)
+                        Join D2_C2(T_DEPT2.COMPANY_ID = T_COMPANY2.ID)
+                    )
+                    Mapping model::M (
+                        E2: Relational { ~mainTable [store::DB] T_EMP2 name: [store::DB] T_EMP2.NAME, salary: [store::DB] T_EMP2.SALARY }
+                        D2: Relational { ~mainTable [store::DB] T_DEPT2 name: [store::DB] T_DEPT2.NAME }
+                        C2: Relational { ~mainTable [store::DB] T_COMPANY2 country: [store::DB] T_COMPANY2.COUNTRY }
+                    )
+                    """, "store::DB", "model::M");
+            // GroupBy country (2 hops from Emp), sum salary
+            var r = exec(m, "E2.all()->project(~[country:e|$e.dept.company.country, salary:e|$e.salary])->groupBy([{r|$r.country}], [agg({r|$r.salary}, {y|$y->sum()})], ['country', 'totalSalary'])");
+            assertEquals(2, r.rowCount());
         }
 
 
@@ -3913,10 +4016,23 @@ class RelationalMappingIntegrationTest {
             // +fullName: $p.first + ' ' + $p.last, filter on fullName, project dept
         }
 
-        @Test @Disabled("GAP: DynaFunction in mapping + filter")
-        @DisplayName("GAP: DynaFunction mapped property filtered on")
+        @Test
+        @DisplayName("DynaFunction mapped property filtered on")
         void testDynaFunctionWithFilter() throws SQLException {
-            // fullName: concat(T.FIRST, ' ', T.LAST), filter({p|$p.fullName->contains('Smith')})
+            sql("CREATE TABLE PEOPLE (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
+                "INSERT INTO PEOPLE VALUES (1, 'Alice', 'Smith'), (2, 'Bob', 'Jones'), (3, 'Carol', 'Smith')");
+            String model = withRuntime("""
+                    Class model::P { fullName: String[1]; }
+                    Database store::DB ( Table PEOPLE ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
+                    Mapping model::M ( P: Relational { ~mainTable [store::DB] PEOPLE
+                        fullName: concat([store::DB] PEOPLE.FIRST, ' ', [store::DB] PEOPLE.LAST)
+                    } )
+                    """, "store::DB", "model::M");
+            var r = exec(model, "P.all()->filter(p|$p.fullName->contains('Smith'))->project(~[name:p|$p.fullName])");
+            var names = colStr(r, 0);
+            assertEquals(2, names.size());
+            assertTrue(names.contains("Alice Smith"));
+            assertTrue(names.contains("Carol Smith"));
         }
 
         @Test @Disabled("GAP: Association mapping + multi-table join chain")

@@ -102,6 +102,14 @@ public record StoreResolution(
                 implements PropertyResolution {}
 
         /**
+         * DynaFunction expression: property computed from a relational expression.
+         * PlanGenerator calls generateScalar on the expression instead of simple column lookup.
+         *
+         * @param expression Pre-compiled ValueSpecification expression tree
+         */
+        record DynaFunction(ValueSpecification expression) implements PropertyResolution {}
+
+        /**
          * Embedded column: sub-property resolves to a column on the PARENT table (no JOIN).
          * PlanGenerator uses the parent alias to reference the column directly.
          *

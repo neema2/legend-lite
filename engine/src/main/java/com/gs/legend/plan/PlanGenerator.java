@@ -917,6 +917,8 @@ public class PlanGenerator {
                     buildEnumCase(alias, enumRes.columnName(), enumRes.enumMap());
             case StoreResolution.PropertyResolution.M2MExpression m2m ->
                     generateScalar(m2m.expression(), "src", m2m.sourceResolution(), alias);
+            case StoreResolution.PropertyResolution.DynaFunction dyna ->
+                    generateScalar(dyna.expression(), null, store, alias);
             case StoreResolution.PropertyResolution.EmbeddedColumn emb ->
                     alias != null ? new SqlExpr.Column(alias, emb.columnName())
                             : new SqlExpr.ColumnRef(emb.columnName());

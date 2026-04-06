@@ -577,7 +577,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             assertTrue(vals.contains("WORLD"));  // CODE='B' → toUpper
         }
 
-        @Test @Disabled("GAP: RelationalMappingConverter doesn't handle JoinNavigation inside DynaFunction args")
+        @Test @Disabled("GAP: JoinNavigation inside DynaFunction args needs JOIN + scalar cross-table reference")
         @DisplayName("DynaFunction with join chain: concat with joined column")
         void testDynaFunctionWithJoinChain() throws SQLException {
             sql("CREATE TABLE DEPT (ID INT, DEPT_NAME VARCHAR(50))",
@@ -601,7 +601,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             assertTrue(labels.contains("Bob - Sales"));
         }
 
-        @Test @Disabled("GAP: Sort on computed extend column uses table alias instead of column alias")
+        @Test
         @DisplayName("DynaFunction property + sort + limit")
         void testDynaPropertyWithSortAndLimit() throws SQLException {
             sql("CREATE TABLE WORDS (ID INT, WORD VARCHAR(50))",

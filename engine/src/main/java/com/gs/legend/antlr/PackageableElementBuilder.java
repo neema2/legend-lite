@@ -1634,8 +1634,8 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
 
         PureParser.MappingAtomicOperationContext atomicCtx = ctx.mappingAtomicOperation();
 
-        // Check for join operation: [DB]@JoinName
-        if (atomicCtx.databasePointer() != null && atomicCtx.mappingJoinOperation() != null) {
+        // Check for join operation: [DB]@JoinName or @JoinName (databasePointer is optional per grammar)
+        if (atomicCtx.mappingJoinOperation() != null) {
             return visitMappingJoinOperation(propertyName, atomicCtx);
         }
 
