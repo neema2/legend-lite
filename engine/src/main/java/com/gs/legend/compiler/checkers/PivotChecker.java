@@ -65,7 +65,7 @@ public class PivotChecker extends AbstractChecker {
         List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
         for (ColSpec cs : aggSpecs) {
             TypeInfo.AggColumnSpec acs = groupByChecker.compileAggColSpec(
-                    cs, sourceSchema, source, ctx);
+                    cs, new GenericType.Relation(sourceSchema), source, ctx);
             aggCols.add(acs);
         }
 

@@ -178,8 +178,14 @@ public final class MappingResolver {
 
             var exprAccess = pm.expressionAccess();
             if (pm.hasDynaExpression() && !pm.hasJoinChain()) {
-                properties.put(prop, new StoreResolution.PropertyResolution.DynaFunction(
-                        pm.dynaExpression()));
+                if (!rm.groupByColumns().isEmpty()) {
+                    // ~groupBy active: DynaFunction is incorporated into the groupBy call
+                    // in sourceRelation — output column is aliased as the property name.
+                    properties.put(prop, new StoreResolution.PropertyResolution.Column(prop));
+                } else {
+                    properties.put(prop, new StoreResolution.PropertyResolution.DynaFunction(
+                            pm.dynaExpression()));
+                }
             } else if (exprAccess.isPresent()) {
                 var ea = exprAccess.get();
                 properties.put(prop, new StoreResolution.PropertyResolution.Expression(

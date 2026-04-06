@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
  * @param embeddedMappings   Map from embedded property name to sub-property mappings.
  *                           e.g., firm → [legalName→FIRM_NAME, revenue→FIRM_REVENUE].
  *                           Empty if no embedded properties.
+ * @param groupByColumns     Column names for ~groupBy (empty if none)
  */
 public record RelationalMapping(
         PureClass pureClass,
@@ -44,14 +45,15 @@ public record RelationalMapping(
         boolean distinct,
         String filterName,
         String filterDbName,
-        Map<String, List<PropertyMapping>> embeddedMappings) implements ClassMapping {
+        Map<String, List<PropertyMapping>> embeddedMappings,
+        List<String> groupByColumns) implements ClassMapping {
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
-        this(pureClass, table, propertyMappings, false, null, false, false, null, null, Map.of());
+        this(pureClass, table, propertyMappings, false, null, false, false, null, null, Map.of(), List.of());
     }
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings, boolean nested) {
-        this(pureClass, table, propertyMappings, nested, null, false, false, null, null, Map.of());
+        this(pureClass, table, propertyMappings, nested, null, false, false, null, null, Map.of(), List.of());
     }
 
     public RelationalMapping {
@@ -62,6 +64,7 @@ public record RelationalMapping(
         // Ensure immutability
         propertyMappings = List.copyOf(propertyMappings);
         if (embeddedMappings == null) embeddedMappings = Map.of();
+        if (groupByColumns == null) groupByColumns = List.of();
     }
 
     /**

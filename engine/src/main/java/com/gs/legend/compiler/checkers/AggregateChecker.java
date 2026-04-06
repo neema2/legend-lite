@@ -46,7 +46,8 @@ public class AggregateChecker extends AbstractChecker {
         var groupByChecker = new GroupByChecker(env);
         List<ColSpec> aggSpecs = GroupByChecker.extractAggColSpecs(params.get(1));
         for (ColSpec cs : aggSpecs) {
-            TypeInfo.AggColumnSpec acs = groupByChecker.compileAggColSpec(cs, sourceSchema, source, ctx);
+            TypeInfo.AggColumnSpec acs = groupByChecker.compileAggColSpec(
+                    cs, new GenericType.Relation(sourceSchema), source, ctx);
             resultColumns.put(acs.alias(), acs.castType() != null ? acs.castType() : acs.returnType());
             aggCols.add(acs);
         }

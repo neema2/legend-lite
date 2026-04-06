@@ -1548,27 +1548,45 @@ public class PlanGenerator {
     private SqlBuilder generateGroupBy(AppliedFunction af) {
         List<ValueSpecification> params = af.parameters();
         SqlBuilder source = generateRelation(params.get(0));
-
-        SqlBuilder builder = new SqlBuilder()
-                .fromSubquery(source, "groupby_src");
-
         TypeInfo info = unit.types().get(af);
 
-        // Group columns — from columnSpecs (unchanged)
-        for (var cs : info.columnSpecs()) {
-            SqlExpr colRef = new SqlExpr.ColumnRef(cs.columnName());
-            builder.addSelect(colRef, null);
-            builder.addGroupBy(colRef);
+        boolean classSource = info.projections() != null && !info.projections().isEmpty();
+        StoreResolution store = classSource ? storeFor(af) : null;
+        String tableAlias;
+        SqlBuilder builder;
+
+        // Class source: inline into source table if possible; otherwise subquery-wrap
+        if (classSource && source.isSelectStar() && !source.hasGroupBy() && !source.hasJoins()) {
+            tableAlias = unquote(source.getFromAlias());
+            source.clearSelect();
+            builder = source;
+        } else {
+            tableAlias = "groupby_src";
+            builder = new SqlBuilder().fromSubquery(source, tableAlias);
         }
 
-        // Agg columns — sidecar types + AST structure
+        // Key columns — from projections (class source) or columnSpecs (Relation)
+        if (classSource) {
+            for (var proj : info.projections()) {
+                SqlExpr colExpr = resolveColumnExpr(
+                        proj.associationPath().getLast(), store, tableAlias);
+                builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
+                builder.addGroupBy(colExpr);
+            }
+        } else {
+            for (var cs : info.columnSpecs()) {
+                SqlExpr colRef = new SqlExpr.ColumnRef(cs.columnName());
+                builder.addSelect(colRef, null);
+                builder.addGroupBy(colRef);
+            }
+        }
+
+        // Agg columns — unified (store is null for Relation path, non-null for class)
         List<ColSpec> astSpecs = com.gs.legend.compiler.checkers.GroupByChecker
                 .extractAggColSpecs(params.get(2));
         for (int i = 0; i < info.aggColumnSpecs().size(); i++) {
             var acs = info.aggColumnSpecs().get(i);
-            ColSpec ast = astSpecs.get(i);
-
-            SqlExpr aggExpr = generateAggFromAst(acs, ast);
+            SqlExpr aggExpr = generateAggFromAst(acs, astSpecs.get(i), store, tableAlias);
             if (acs.castType() != null)
                 aggExpr = new SqlExpr.Cast(aggExpr, acs.castType().typeName());
             builder.addSelect(aggExpr, dialect.quoteIdentifier(acs.alias()));
@@ -1591,7 +1609,7 @@ public class PlanGenerator {
             var acs = info.aggColumnSpecs().get(i);
             ColSpec ast = astSpecs.get(i);
 
-            SqlExpr aggExpr = generateAggFromAst(acs, ast);
+            SqlExpr aggExpr = generateAggFromAst(acs, ast, null, null);
             if (acs.castType() != null)
                 aggExpr = new SqlExpr.Cast(aggExpr, acs.castType().typeName());
             builder.addSelect(aggExpr, dialect.quoteIdentifier(acs.alias()));
@@ -1606,7 +1624,8 @@ public class PlanGenerator {
      * Generates SQL for an aggregate column by reading fn1/fn2 from the AST.
      * Dispatches on resolved function identity (not strings).
      */
-    private SqlExpr generateAggFromAst(TypeInfo.AggColumnSpec acs, ColSpec ast) {
+    private SqlExpr generateAggFromAst(TypeInfo.AggColumnSpec acs, ColSpec ast,
+                                        StoreResolution store, String tableAlias) {
         var registry = com.gs.legend.compiler.BuiltinFunctionRegistry.instance();
         var fn1Body = ast.function1().body().get(0);
         // For window context, fn1 has 3 params {p,w,r|...}: use last param (row variable)
@@ -1619,13 +1638,13 @@ public class PlanGenerator {
         // Used by wavg, corr, covarSample, covarPopulation, maxBy, minBy
         if (fn1Body instanceof AppliedFunction fn1Af
                 && isRowMapperFunc(fn1Af, registry)) {
-            SqlExpr col1 = generateScalar(fn1Af.parameters().get(0), fn1Param, null, null);
-            SqlExpr col2 = generateScalar(fn1Af.parameters().get(1), fn1Param, null, null);
+            SqlExpr col1 = generateScalar(fn1Af.parameters().get(0), fn1Param, store, tableAlias);
+            SqlExpr col2 = generateScalar(fn1Af.parameters().get(1), fn1Param, store, tableAlias);
             return generateRowMapperAgg(acs, col1, col2, registry);
         }
 
         // Standard: compile fn1 body as scalar expression
-        SqlExpr mapExpr = generateScalar(fn1Body, fn1Param, null, null);
+        SqlExpr mapExpr = generateScalar(fn1Body, fn1Param, store, tableAlias);
 
         // Special: hashCode → HASH(LIST(col))
         if (acs.resolvedFunc() == registry.hashCodeAgg()) {
@@ -1924,7 +1943,7 @@ public class PlanGenerator {
         if (ast.function2() != null) {
             var acs = new TypeInfo.AggColumnSpec(ws.alias(), ws.resolvedFunc(),
                     ws.returnType(), ws.castType());
-            SqlExpr aggExpr = generateAggFromAst(acs, ast);
+            SqlExpr aggExpr = generateAggFromAst(acs, ast, null, null);
             return windowifyAggExpr(aggExpr, sqlWindow);
         }
 
@@ -2296,7 +2315,7 @@ public class PlanGenerator {
             var acs = info.aggColumnSpecs().get(i);
             ColSpec ast = astSpecs.get(i);
 
-            SqlExpr aggExpr = generateAggFromAst(acs, ast);
+            SqlExpr aggExpr = generateAggFromAst(acs, ast, null, null);
             if (acs.castType() != null)
                 aggExpr = new SqlExpr.Cast(aggExpr, acs.castType().typeName());
             String exprSql = aggExpr.toSql(dialect);
@@ -2350,9 +2369,10 @@ public class PlanGenerator {
                         && varAliases.containsKey(v.name())) {
                     yield new SqlExpr.Column(varAliases.get(v.name()), ap.property());
                 }
-                // Association path: read from TypeInfo (stamped by Compiler)
+                // Multi-hop association path: read from TypeInfo (stamped by Compiler)
                 TypeInfo apInfo = unit.types().get(ap);
-                if (apInfo != null && apInfo.associationPath() != null) {
+                if (apInfo != null && apInfo.associationPath() != null
+                        && apInfo.associationPath().size() > 1) {
                     var path = apInfo.associationPath();
                     // hops = all but last, leaf = last
                     yield new SqlExpr.AssociationRef(

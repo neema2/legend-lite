@@ -7,19 +7,20 @@ import com.gs.legend.plan.GenericType;
 import java.util.*;
 
 /**
- * Type checker for {@code groupBy()} — Relation API only.
+ * Type checker for {@code groupBy()} — Relation API and class-source.
  *
- * <p>Supports the 4 official overloads from legend-engine:
+ * <p>Supports the 4 Relation overloads from legend-engine plus a class-source overload:
  * <pre>
  * groupBy(r:Relation<T>, cols:ColSpec<Z⊆T>,       agg:AggColSpec<...>)      → Relation<Z+R>
  * groupBy(r:Relation<T>, cols:ColSpecArray<Z⊆T>,  agg:AggColSpec<...>)      → Relation<Z+R>
  * groupBy(r:Relation<T>, cols:ColSpec<Z⊆T>,       agg:AggColSpecArray<...>) → Relation<Z+R>
  * groupBy(r:Relation<T>, cols:ColSpecArray<Z⊆T>,  agg:AggColSpecArray<...>) → Relation<Z+R>
+ * groupBy(cl:C[*],       keys:FuncColSpecArray,   aggs:AggColSpecArray)     → Relation<Z+R>
  * </pre>
  *
- * <p>Signature-driven: compiles fn1/fn2 lambda bodies for type validation.
- * Produces {@link TypeInfo.AggColumnSpec} with resolved function + types only —
- * PlanGenerator reads fn1/fn2 from the AST directly.
+ * <p>The class-source overload follows the same pattern as
+ * {@link ProjectChecker}: FuncColSpec keys carry extraction lambdas,
+ * compiled against the ClassType. Produces projections in TypeInfo for PlanGenerator.
  *
  * @see AggregateChecker
  */
@@ -37,16 +38,27 @@ public class GroupByChecker extends AbstractChecker {
 
         // Legacy TDS desugar: groupBy([keyFns], [agg(mapFn, aggFn)], ['aliases'])
         //                   → groupBy(~[keyCols], ~[aggAlias:fn1:fn2])
+        // Branches on source type:
+        //   ClassType → FuncColSpec keys (with extraction lambdas) → matches class-source overload
+        //   Relation  → bare-name ColSpec keys → matches existing Relation overloads
         if (def.arity() == 4) {
+            boolean classSource = source.type() instanceof GenericType.ClassType;
             AppliedFunction rewritten = rewriteLegacyGroupBy(af,
                     (PureCollection) params.get(1), (PureCollection) params.get(2),
-                    (PureCollection) params.get(3));
+                    (PureCollection) params.get(3), classSource);
             TypeInfo result = env.compileExpr(rewritten, ctx);
             return TypeInfo.from(result).inlinedBody(rewritten).build();
         }
 
         unify(def, source.expressionType()); // validate source matches signature generics
 
+        // Class-source overload: groupBy(cl:C[*], keys:FuncColSpecArray, aggs:AggColSpecArray)
+        // Keys have extraction lambdas (like project) — produces projections for PlanGenerator
+        if (source.type() instanceof GenericType.ClassType) {
+            return checkClassSource(af, def, source, ctx);
+        }
+
+        // Relation-source overloads: bare-name keys validated against source schema
         GenericType.Relation.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException(
@@ -70,9 +82,10 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         // --- Aggregate columns (param 2): AggColSpec or AggColSpecArray ---
+        GenericType fn1ParamType = new GenericType.Relation(sourceSchema);
         List<ColSpec> aggSpecs = extractAggColSpecs(params.get(2));
         for (ColSpec cs : aggSpecs) {
-            TypeInfo.AggColumnSpec acs = compileAggColSpec(cs, sourceSchema, source, ctx);
+            TypeInfo.AggColumnSpec acs = compileAggColSpec(cs, fn1ParamType, source, ctx);
             resultColumns.put(acs.alias(), acs.castType() != null ? acs.castType() : acs.returnType());
             aggCols.add(acs);
         }
@@ -83,6 +96,75 @@ public class GroupByChecker extends AbstractChecker {
 
         var schema = GenericType.Relation.Schema.withoutPivot(resultColumns);
         return TypeInfo.builder()
+                .columnSpecs(groupCols)
+                .aggColumnSpecs(aggCols)
+                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
+                .build();
+    }
+
+    // ========== Class-source compilation ==========
+
+    /**
+     * Handles the class-source overload: {@code groupBy(cl:C[*], keys:FuncColSpecArray, aggs:AggColSpecArray)}.
+     *
+     * <p>Follows the same pattern as {@link ProjectChecker}: FuncColSpec keys carry
+     * extraction lambdas compiled against the ClassType. Produces {@link TypeInfo#projections()}
+     * so PlanGenerator can resolve key columns via StoreResolution.
+     */
+    private TypeInfo checkClassSource(AppliedFunction af, NativeFunctionDef def,
+                                      TypeInfo source, TypeChecker.CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        var bindings = unify(def, source.expressionType());
+
+        // Resolve lambda param type from signature (C[1])
+        PType.FunctionType ft = extractFunctionType(def.params().get(1));
+        GenericType resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+                "groupBy() key lambda param");
+
+        Map<String, GenericType> resultColumns = new LinkedHashMap<>();
+        List<TypeInfo.ColumnSpec> groupCols = new ArrayList<>();
+        List<TypeInfo.ProjectionSpec> projectionSpecs = new ArrayList<>();
+
+        // --- Key columns: FuncColSpec with extraction lambdas ---
+        List<ColSpec> keyColSpecs = extractColSpecs(params.get(1));
+        for (ColSpec cs : keyColSpecs) {
+            String alias = cs.name();
+            LambdaFunction lambda = cs.function1();
+            if (lambda == null) {
+                // Simple column reference: ~prop → synthesize identity lambda
+                lambda = new LambdaFunction(
+                        List.of(new Variable("x")),
+                        List.of(new AppliedProperty(alias, List.of(new Variable("x")))));
+            }
+            String paramName = lambda.parameters().isEmpty() ? "x"
+                    : lambda.parameters().get(0).name();
+            TypeChecker.CompilationContext lambdaCtx = bindLambdaParam(
+                    ctx, paramName, resolvedParamType, source);
+            TypeInfo bodyType = compileLambdaBody(lambda, lambdaCtx);
+            TypeInfo bodyInfo = env.lookupCompiled(lambda.body().get(0));
+            List<String> associationPath = bodyInfo != null ? bodyInfo.associationPath() : null;
+
+            resultColumns.put(alias, bodyType.type());
+            groupCols.add(TypeInfo.ColumnSpec.col(alias));
+            projectionSpecs.add(new TypeInfo.ProjectionSpec(associationPath, alias));
+        }
+
+        // --- Aggregate columns: compile fn1 against ClassType ---
+        List<ColSpec> aggSpecs = extractAggColSpecs(params.get(2));
+        List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
+        for (ColSpec cs : aggSpecs) {
+            TypeInfo.AggColumnSpec acs = compileAggColSpec(cs, resolvedParamType, source, ctx);
+            resultColumns.put(acs.alias(), acs.castType() != null ? acs.castType() : acs.returnType());
+            aggCols.add(acs);
+        }
+
+        if (resultColumns.isEmpty()) {
+            throw new PureCompileException("groupBy() produced no output columns");
+        }
+
+        var schema = GenericType.Relation.Schema.withoutPivot(resultColumns);
+        return TypeInfo.builder()
+                .projections(projectionSpecs)
                 .columnSpecs(groupCols)
                 .aggColumnSpecs(aggCols)
                 .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
@@ -105,7 +187,7 @@ public class GroupByChecker extends AbstractChecker {
      * </ul>
      */
     TypeInfo.AggColumnSpec compileAggColSpec(ColSpec cs,
-                                             GenericType.Relation.Schema sourceSchema,
+                                             GenericType fn1ParamType,
                                              TypeInfo source,
                                              TypeChecker.CompilationContext ctx) {
         String alias = cs.name();
@@ -117,8 +199,7 @@ public class GroupByChecker extends AbstractChecker {
         }
         LambdaFunction fn1 = cs.function1();
         String fn1Param = fn1.parameters().isEmpty() ? null : fn1.parameters().get(0).name();
-        GenericType sourceRelType = new GenericType.Relation(sourceSchema);
-        TypeChecker.CompilationContext fn1Ctx = bindLambdaParam(ctx, fn1Param, sourceRelType, source);
+        TypeChecker.CompilationContext fn1Ctx = bindLambdaParam(ctx, fn1Param, fn1ParamType, source);
         TypeInfo fn1Result = compileLambdaBody(fn1, fn1Ctx);
 
         // --- fn2: compile reduce lambda ---
@@ -170,7 +251,8 @@ public class GroupByChecker extends AbstractChecker {
      * <p>Aliases are split: first N for key columns, remaining for agg columns.
      */
     private static AppliedFunction rewriteLegacyGroupBy(
-            AppliedFunction af, PureCollection keyFns, PureCollection aggs, PureCollection aliases) {
+            AppliedFunction af, PureCollection keyFns, PureCollection aggs, PureCollection aliases,
+            boolean funcColSpecKeys) {
         List<ValueSpecification> keyList = keyFns.values();
         List<ValueSpecification> aggList = aggs.values();
         List<ValueSpecification> aliasList = aliases.values();
@@ -182,13 +264,17 @@ public class GroupByChecker extends AbstractChecker {
                             + keyList.size() + " keys + " + aggList.size() + " aggs), got " + aliasList.size());
         }
 
-        // Key columns: ColSpec(alias) — bare column references
+        // Key columns: FuncColSpec (with lambda) for class source, bare ColSpec for Relation
         List<ColSpec> keyCols = new ArrayList<>();
         for (int i = 0; i < keyList.size(); i++) {
             if (!(aliasList.get(i) instanceof CString cs))
                 throw new PureCompileException(
                         "groupBy() legacy syntax: key alias[" + i + "] must be a String literal");
-            keyCols.add(new ColSpec(cs.value()));
+            if (funcColSpecKeys && keyList.get(i) instanceof LambdaFunction lambda) {
+                keyCols.add(new ColSpec(cs.value(), lambda));
+            } else {
+                keyCols.add(new ColSpec(cs.value()));
+            }
         }
 
         // Agg columns: ColSpec(alias, mapFn, aggFn) — extracted from agg(mapFn, aggFn) calls
@@ -223,6 +309,16 @@ public class GroupByChecker extends AbstractChecker {
     }
 
     // ========== Helpers ==========
+
+    /** Extracts ColSpec list from a FuncColSpecArray parameter (keys with lambdas). */
+    private static List<ColSpec> extractColSpecs(ValueSpecification param) {
+        if (param instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
+            return specs;
+        }
+        throw new PureCompileException(
+                "groupBy() class-source keys must be a FuncColSpecArray (~[...]), got "
+                        + param.getClass().getSimpleName());
+    }
 
     /**
      * Extracts ColSpec list from AggColSpec or AggColSpecArray parameter.

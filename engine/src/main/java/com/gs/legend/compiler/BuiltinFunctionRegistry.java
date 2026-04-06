@@ -404,6 +404,9 @@ public class BuiltinFunctionRegistry {
                 "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
         reg.registerSignature("groupBy",
                 "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpec<Z⊆T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+        // Class source: groupBy(cl:C[*], keys:FuncColSpecArray, aggs:AggColSpecArray) — like project(C[*], ...)
+        reg.registerSignature("groupBy",
+                "native function groupBy<C,Z,K,V,R>(cl:C[*], keys:FuncColSpecArray<{C[1]->Any[*]},Z>[1], aggs:AggColSpecArray<{C[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
         // Legacy TDS: groupBy(set, keyFns, aggValues, ids) — desugared to arity-3 in GroupByChecker
         reg.registerSignature("groupBy",
                 "native function groupBy<K,V,U>(set:K[*], fns:Function<{K[1]->Any[*]}>[*], aggs:Any[*], ids:String[*]):Relation<K>[1];");

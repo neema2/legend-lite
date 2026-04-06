@@ -469,7 +469,12 @@ public class TypeChecker implements TypeCheckEnv {
                     if (propOpt.isPresent()) {
                         classPropertyAccesses.computeIfAbsent(TypeInfo.simpleName(qualifiedName), k -> new HashSet<>()).add(ap.property());
                         GenericType fieldType = GenericType.fromType(propOpt.get().genericType());
-                        return scalarTyped(ap, fieldType);
+                        var info = TypeInfo.builder()
+                                .expressionType(ExpressionType.one(fieldType))
+                                .associationPath(List.of(ap.property()))
+                                .build();
+                        types.put(ap, info);
+                        return info;
                     }
                 }
                 // Association-injected properties (e.g., $p.addresses from Association
@@ -484,6 +489,7 @@ public class TypeChecker implements TypeCheckEnv {
                             .expressionType(nav.isToMany()
                                     ? ExpressionType.many(targetType)
                                     : ExpressionType.one(targetType))
+                            .associationPath(List.of(ap.property()))
                             .build();
                     types.put(ap, info);
                     return info;

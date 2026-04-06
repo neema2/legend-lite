@@ -30,7 +30,7 @@ Status key: ✅ = working E2E, ⚠️ = partial, ❌ = not implemented, 🔧 = n
 | B2 | ~filter | `~filter [db]FilterName` | ✅ | testMappingFilter |
 | B3 | ~filter via join | `~filter [db]@J [db]Filter` | ❌ | — |
 | B4 | ~distinct | `~distinct` | ✅ | testMappingDistinct |
-| B5 | ~groupBy | `~groupBy(T.col)` | ❌ | — |
+| B5 | ~groupBy | `~groupBy(T.col)` | ✅ | testMappingGroupBy |
 | B6 | ~primaryKey | `~primaryKey(T.col)` | ❌ | — |
 | B7 | Root marker | `*ClassName[id]` | ✅ | testSetIdsAndRoot |
 | B8 | Mapping ID (set ID) | `[myId]` | ⚠️ extracted, not queryable by ID | — |
@@ -111,7 +111,7 @@ Ordered by: dependencies, impact, difficulty. Each item is independently testabl
 | Step | Feature | Ref | Effort |
 |------|---------|-----|--------|
 | 8 | Views as data source (D7) | Group H | Medium |
-| 9 | ~groupBy (B5) | — | Medium |
+| 9 | ~~~groupBy (B5)~~~ | — | ✅ Done |
 | 10 | ~primaryKey (B6) | — | Low |
 | 11 | ~filter via join (B3) | — | Medium |
 | 12 | Schema support (D8) | — | Low |

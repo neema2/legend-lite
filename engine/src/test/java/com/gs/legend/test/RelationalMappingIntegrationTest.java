@@ -591,6 +591,141 @@ class RelationalMappingIntegrationTest {
             assertEquals(4, r.rowCount()); // East-Widget, East-Gadget, West-Widget, West-Gadget
         }
 
+        @Test @DisplayName("GroupBy directly on class source (arity-4, no intermediate project)")
+        void testGroupByClassSource() throws SQLException {
+            var r = exec(model,
+                    "S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'totalAmount'])");
+            assertEquals(2, r.rowCount());
+            Map<String, Integer> results = new HashMap<>();
+            for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
+            assertEquals(420, results.get("East"));
+            assertEquals(400, results.get("West"));
+        }
+
+        @Test @DisplayName("Class-source groupBy with count aggregation")
+        void testClassSourceGroupByCount() throws SQLException {
+            var r = exec(model,
+                    "S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->count()})], ['region', 'cnt'])");
+            assertEquals(2, r.rowCount());
+            Map<String, Integer> results = new HashMap<>();
+            for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
+            assertEquals(3, results.get("East"));
+            assertEquals(2, results.get("West"));
+        }
+
+        @Test @DisplayName("Class-source groupBy with average aggregation")
+        void testClassSourceGroupByAvg() throws SQLException {
+            var r = exec(model,
+                    "S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->average()})], ['region', 'avgAmt'])");
+            assertEquals(2, r.rowCount());
+            Map<String, Double> results = new HashMap<>();
+            for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).doubleValue());
+            assertEquals(140.0, results.get("East"), 0.01);
+            assertEquals(200.0, results.get("West"), 0.01);
+        }
+
+        @Test @DisplayName("Class-source groupBy with min/max aggregation")
+        void testClassSourceGroupByMinMax() throws SQLException {
+            var r = exec(model,
+                    "S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->min()}), agg({r|$r.amount}, {y|$y->max()})], ['region', 'minAmt', 'maxAmt'])");
+            assertEquals(2, r.rowCount());
+            Map<String, List<Integer>> results = new HashMap<>();
+            for (var row : r.rows()) results.put(row.get(0).toString(),
+                    List.of(((Number) row.get(1)).intValue(), ((Number) row.get(2)).intValue()));
+            assertEquals(List.of(100, 200), results.get("East"));
+            assertEquals(List.of(150, 250), results.get("West"));
+        }
+
+        @Test @DisplayName("Class-source groupBy with multiple key columns")
+        void testClassSourceGroupByMultiKey() throws SQLException {
+            var r = exec(model,
+                    "S.all()->groupBy([{r|$r.region}, {r|$r.product}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'product', 'total'])");
+            assertEquals(4, r.rowCount());
+        }
+
+        @Test @DisplayName("Class-source groupBy with DynaFunc-mapped key column")
+        void testClassSourceGroupByDynaFuncKey() throws SQLException {
+            sql("CREATE TABLE PEOPLE (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50), SALARY INT)",
+                "INSERT INTO PEOPLE VALUES (1, 'Alice', 'Smith', 100), (2, 'Bob', 'Smith', 200), (3, 'Carol', 'Jones', 300)");
+            String m = withRuntime("""
+                    Class model::P { fullName: String[1]; lastName: String[1]; salary: Integer[1]; }
+                    Database store::DB (
+                        Table PEOPLE (ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50), SALARY INTEGER)
+                    )
+                    Mapping model::M (
+                        model::P: Relational {
+                            ~mainTable [store::DB] PEOPLE
+                            fullName: concat(PEOPLE.FIRST, ' ', PEOPLE.LAST),
+                            lastName: [store::DB] PEOPLE.LAST,
+                            salary: [store::DB] PEOPLE.SALARY
+                        }
+                    )
+                    """, "store::DB", "model::M");
+            var r = exec(m,
+                    "P.all()->groupBy([{p|$p.lastName}], [agg({p|$p.salary}, {y|$y->sum()})], ['lastName', 'totalSalary'])");
+            assertEquals(2, r.rowCount());
+            Map<String, Integer> results = new HashMap<>();
+            for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
+            assertEquals(300, results.get("Smith"));
+            assertEquals(300, results.get("Jones"));
+        }
+
+        @Test @DisplayName("Class-source groupBy keyed on DynaFunc-computed property")
+        void testClassSourceGroupByDynaFuncComputedKey() throws SQLException {
+            sql("CREATE TABLE ITEMS (ID INT, CATEGORY VARCHAR(50), PRICE INT)",
+                "INSERT INTO ITEMS VALUES (1, 'ELECTRONICS', 100), (2, 'electronics', 200), (3, 'TOOLS', 50)");
+            String m = withRuntime("""
+                    Class model::I { categoryLower: String[1]; price: Integer[1]; }
+                    Database store::DB (
+                        Table ITEMS (ID INTEGER, CATEGORY VARCHAR(50), PRICE INTEGER)
+                    )
+                    Mapping model::M (
+                        model::I: Relational {
+                            ~mainTable [store::DB] ITEMS
+                            categoryLower: toLower(ITEMS.CATEGORY),
+                            price: [store::DB] ITEMS.PRICE
+                        }
+                    )
+                    """, "store::DB", "model::M");
+            var r = exec(m,
+                    "I.all()->groupBy([{i|$i.categoryLower}], [agg({i|$i.price}, {y|$y->sum()})], ['category', 'totalPrice'])");
+            assertEquals(2, r.rowCount());
+            Map<String, Integer> results = new HashMap<>();
+            for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
+            assertEquals(300, results.get("electronics"));
+            assertEquals(50, results.get("tools"));
+        }
+
+        @Test @DisplayName("Class-source groupBy with join-chain key column")
+        void testClassSourceGroupByJoinKey() throws SQLException {
+            sql("CREATE TABLE ORDERS (ID INT, CUST_ID INT, AMOUNT INT)",
+                "CREATE TABLE CUSTOMERS (ID INT, NAME VARCHAR(50))",
+                "INSERT INTO CUSTOMERS VALUES (1, 'Alice'), (2, 'Bob')",
+                "INSERT INTO ORDERS VALUES (1, 1, 100), (2, 1, 200), (3, 2, 50)");
+            String m = withRuntime("""
+                    Class model::Ord { custName: String[1]; amount: Integer[1]; }
+                    Database store::DB (
+                        Table ORDERS (ID INTEGER, CUST_ID INTEGER, AMOUNT INTEGER)
+                        Table CUSTOMERS (ID INTEGER, NAME VARCHAR(50))
+                        Join OrdCust(ORDERS.CUST_ID = CUSTOMERS.ID)
+                    )
+                    Mapping model::M (
+                        model::Ord: Relational {
+                            ~mainTable [store::DB] ORDERS
+                            custName: @OrdCust | [store::DB] CUSTOMERS.NAME,
+                            amount: [store::DB] ORDERS.AMOUNT
+                        }
+                    )
+                    """, "store::DB", "model::M");
+            var r = exec(m,
+                    "Ord.all()->groupBy([{o|$o.custName}], [agg({o|$o.amount}, {y|$y->sum()})], ['customer', 'totalAmount'])");
+            assertEquals(2, r.rowCount());
+            Map<String, Integer> results = new HashMap<>();
+            for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
+            assertEquals(300, results.get("Alice"));
+            assertEquals(50, results.get("Bob"));
+        }
+
         @Test @DisplayName("Distinct on relation")
         void testDistinct() throws SQLException {
             sql("CREATE TABLE DUPS (ID INT, VAL VARCHAR(20))",
@@ -4215,6 +4350,35 @@ class RelationalMappingIntegrationTest {
             assertEquals(3, r.rowCount());
             // UK sorts before USA
             assertEquals("Bob", colStr(r, 0).get(0));
+        }
+
+        @Test
+        @DisplayName("Mapping ~groupBy produces GROUP BY with aggregate in SQL")
+        void testMappingGroupBy() throws SQLException {
+            sql("CREATE TABLE TRADE (TRADE_ID INT, ACC_NUM INT, GSN VARCHAR(20), PRODUCT_ID INT, QTY INT)",
+                "INSERT INTO TRADE VALUES (1, 7900002, 'YU2EF5', 1, 3), (2, 7900002, 'YU2EF5', 1, 5), (3, 7900003, 'EA4GNY', 2, 100), (4, 7900003, 'EA4GNY', 2, 200)");
+            String model = withRuntime("""
+                    Class test::Position { acctNum: Integer[1]; gsn: String[1]; quantity: Integer[1]; }
+                    Database store::DB (
+                        Table TRADE (TRADE_ID INTEGER, ACC_NUM INTEGER, GSN VARCHAR(20), PRODUCT_ID INTEGER, QTY INTEGER)
+                    )
+                    Mapping test::M (
+                        test::Position: Relational {
+                            ~groupBy([store::DB] TRADE.ACC_NUM, [store::DB] TRADE.PRODUCT_ID, [store::DB] TRADE.GSN)
+                            ~mainTable [store::DB] TRADE
+                            acctNum: [store::DB] TRADE.ACC_NUM,
+                            gsn: [store::DB] TRADE.GSN,
+                            quantity: sum([store::DB] TRADE.QTY)
+                        }
+                    )
+                    """, "store::DB", "test::M");
+            var r = exec(model, "Position.all()->project(~[gsn:p|$p.gsn, qty:p|$p.quantity])->sort(~gsn->ascending())");
+            assertEquals(2, r.rowCount());
+            // EA4GNY: sum(100,200)=300, YU2EF5: sum(3,5)=8
+            assertEquals("EA4GNY", colStr(r, 0).get(0));
+            assertEquals("YU2EF5", colStr(r, 0).get(1));
+            assertEquals(300, colInt(r, 1).get(0));
+            assertEquals(8, colInt(r, 1).get(1));
         }
 
         @Test @Disabled("GAP: Scope block + embedded + filter")

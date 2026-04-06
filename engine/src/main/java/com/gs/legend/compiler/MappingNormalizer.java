@@ -309,7 +309,11 @@ public final class MappingNormalizer {
         source = addTraverseExtends(rm, source);
 
         // 4. DynaFunction property mappings → ->extend(~[prop:row|<dynaExpr>])
-        source = addDynaFunctionExtends(rm, source);
+        //    When ~groupBy is active, DynaFunction mappings become aggregate columns
+        //    in the groupBy call (step 6), so skip extends for them here.
+        if (rm.groupByColumns().isEmpty()) {
+            source = addDynaFunctionExtends(rm, source);
+        }
 
         // 5. Embedded property mappings → ->extend(~prop:{->~[sub1:r|$r.COL1, ...]})
         source = addEmbeddedExtends(rm, source);
@@ -318,7 +322,14 @@ public final class MappingNormalizer {
         // TEMPORARILY DISABLED for debugging — uncomment after Phase 3
         // source = addPropertyExtends(rm, source);
 
-        // 6. ~distinct → ->distinct()
+        // 6. ~groupBy → ->groupBy(source, ~[keyCols], ~[aggAlias:fn1:fn2])
+        //    DynaFunction property mappings become aggregate columns;
+        //    ~groupBy columns become the GROUP BY keys.
+        if (!rm.groupByColumns().isEmpty()) {
+            source = addMappingGroupBy(rm, source);
+        }
+
+        // 7. ~distinct → ->distinct()
         if (rm.distinct()) {
             source = new com.gs.legend.ast.AppliedFunction(
                     "distinct",
@@ -437,6 +448,70 @@ public final class MappingNormalizer {
         return new com.gs.legend.ast.AppliedFunction(
                 "extend",
                 java.util.List.of(source, colSpecCI),
+                true);
+    }
+
+    /**
+     * Synthesizes a standard {@code groupBy(source, ~[keyCols], ~[aggAlias:fn1:fn2])} call
+     * from mapping-level {@code ~groupBy} directive and DynaFunction property mappings.
+     *
+     * <p>Key columns come from {@code ~groupBy}; aggregate columns come from DynaFunction
+     * property mappings. Each DynaFunction is decomposed into fn1 (value extraction) and
+     * fn2 (aggregate function). E.g., {@code sum($row.QTY)} →
+     * {@code fn1={c|$c.QTY}, fn2={y|$y->sum()}}.
+     */
+    private com.gs.legend.ast.ValueSpecification addMappingGroupBy(
+            RelationalMapping rm,
+            com.gs.legend.ast.ValueSpecification source) {
+
+        // 1. Key columns from ~groupBy directive
+        var keyCols = rm.groupByColumns().stream()
+                .map(com.gs.legend.ast.ColSpec::new)
+                .toList();
+
+        // 2. Aggregate columns from DynaFunction property mappings
+        var aggCols = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
+        for (var pm : rm.propertyMappings()) {
+            if (!pm.hasDynaExpression()) continue;
+            if (pm.hasJoinChain()) continue;
+
+            // Decompose aggregate: outerFunc(innerExpr) → fn1={c|innerExpr}, fn2={y|$y->outerFunc()}
+            var dynaExpr = pm.dynaExpression();
+            if (dynaExpr instanceof com.gs.legend.ast.AppliedFunction aggFunc && !aggFunc.parameters().isEmpty()) {
+                // fn1: extract the value — body is the argument to the aggregate
+                // dynaExpression uses $row, so fn1 param must also be "row"
+                var fn1Body = aggFunc.parameters().get(0);
+                var fn1 = new com.gs.legend.ast.LambdaFunction(
+                        java.util.List.of(new com.gs.legend.ast.Variable("row")), fn1Body);
+
+                // fn2: apply the aggregate function to the collection parameter
+                var fn2Param = new com.gs.legend.ast.Variable("y");
+                var fn2Body = new com.gs.legend.ast.AppliedFunction(
+                        aggFunc.function(),
+                        java.util.List.of(fn2Param),
+                        true);
+                var fn2 = new com.gs.legend.ast.LambdaFunction(
+                        java.util.List.of(fn2Param), fn2Body);
+
+                aggCols.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), fn1, fn2));
+            }
+        }
+
+        // Build: groupBy(source, ~[keyCols], ~[aggCols:fn1:fn2])
+        var keyArray = new com.gs.legend.ast.ClassInstance("colSpecArray",
+                new com.gs.legend.ast.ColSpecArray(keyCols));
+
+        com.gs.legend.ast.ClassInstance aggCI;
+        if (aggCols.size() == 1) {
+            aggCI = new com.gs.legend.ast.ClassInstance("colSpec", aggCols.get(0));
+        } else {
+            aggCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
+                    new com.gs.legend.ast.ColSpecArray(aggCols));
+        }
+
+        return new com.gs.legend.ast.AppliedFunction(
+                "groupBy",
+                java.util.List.of(source, keyArray, aggCI),
                 true);
     }
 

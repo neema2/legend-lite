@@ -83,8 +83,9 @@ public class ProjectChecker extends AbstractChecker {
             // Compile body → type comes from the type system
             TypeInfo bodyType = compileLambdaBody(lambda, lambdaCtx);
 
-            // Read association path from compiled TypeInfo (stamped by TypeChecker.compileProperty)
-            List<String> associationPath = findAssociationPath(lambda.body().get(0));
+            // Read association path directly from TypeInfo (stamped by TypeChecker.compileProperty)
+            TypeInfo bodyInfo = env.lookupCompiled(lambda.body().get(0));
+            List<String> associationPath = bodyInfo != null ? bodyInfo.associationPath() : null;
 
             projectedColumns.put(alias, bodyType.type());
             projectionSpecs.add(new TypeInfo.ProjectionSpec(associationPath, alias));
@@ -160,23 +161,4 @@ public class ProjectChecker extends AbstractChecker {
                         + param.getClass().getSimpleName());
     }
 
-    /**
-     * Finds the association path from a compiled expression's TypeInfo. 
-     * Follows through single-param wrapper function calls to find the innermost node
-     * with associationPath. Returns null if no multi-hop association path exists.
-     *
-     * <p>Only follows into unary functions (e.g., {@code $e.firm.startDate->monthNumber()})
-     * where the function is a trivial wrapper around a single expression. Multi-param
-     * functions like {@code plus($e.firm.name, $e.product.name)} are NOT followed —
-     * those are computed expressions, not association navigations.
-     */
-    private List<String> findAssociationPath(ValueSpecification vs) {
-        TypeInfo ti = env.lookupCompiled(vs);
-        if (ti != null && ti.associationPath() != null) return ti.associationPath();
-        // Follow through single-param wrapper calls: $e.firm.startDate->monthNumber()
-        if (vs instanceof AppliedFunction af && af.parameters().size() == 1) {
-            return findAssociationPath(af.parameters().get(0));
-        }
-        return null;
-    }
 }

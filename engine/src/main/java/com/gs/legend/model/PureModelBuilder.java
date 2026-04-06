@@ -638,9 +638,16 @@ public final class PureModelBuilder implements ModelContext {
                 }
             }
 
+            // Extract ~groupBy column names
+            List<String> groupByColumns = classMapping.groupBy().stream()
+                    .filter(op -> op instanceof com.gs.legend.model.def.RelationalOperation.ColumnRef)
+                    .map(op -> ((com.gs.legend.model.def.RelationalOperation.ColumnRef) op).column())
+                    .toList();
+
             // Create and register the mapping
             RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings,
-                    false, setId, isRoot, distinct, filterName, filterDbName, embeddedMappings);
+                    false, setId, isRoot, distinct, filterName, filterDbName, embeddedMappings,
+                    groupByColumns);
             mappingRegistry.register(mappingDef.qualifiedName(), mapping);
         }
 
