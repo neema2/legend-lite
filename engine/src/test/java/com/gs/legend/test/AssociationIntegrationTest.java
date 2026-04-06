@@ -11,9 +11,9 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for association navigation via traverse().
+ * Integration tests for association navigation.
  *
- * <p>Tests the full pipeline: Parser -> MappingNormalizer -> TypeChecker (TraverseChecker)
+ * <p>Tests the full pipeline: Parser -> MappingNormalizer -> TypeChecker (ExtendChecker)
  * -> MappingResolver -> PlanGenerator -> DuckDB execution.
  *
  * <p>Covers:
@@ -33,8 +33,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p><b>Assertion Standards</b>: exact row counts, specific values, NULL where expected,
  * no row explosion for to-many filters.
  */
-@DisplayName("TraverseChecker — Association Navigation Tests")
-class TraverseCheckerTest {
+@DisplayName("Association Navigation Integration Tests")
+class AssociationIntegrationTest {
 
     private Connection conn;
     private final QueryService qs = new QueryService();

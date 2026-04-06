@@ -356,9 +356,6 @@ public class BuiltinFunctionRegistry {
                 "native function traverse<T,V>(target:Relation<V>[1], cond:Function<{T[1],V[1]->Boolean[1]}>[1]):_Traversal[1];");
         reg.registerSignature("traverse",
                 "native function traverse<T,V>(prev:_Traversal[1], target:Relation<V>[1], cond:Function<{T[1],V[1]->Boolean[1]}>[1]):_Traversal[1];");
-        // Standalone traverse — association primitive (source + target + condition → target relation)
-        reg.registerSignature("traverse",
-                "native function traverse<T,V>(source:Relation<T>[1], target:Relation<V>[1], cond:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<V>[1];");
 
         // ========== Sort direction constructors ==========
         reg.registerSignature("ascending",
