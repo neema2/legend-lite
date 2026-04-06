@@ -1760,6 +1760,7 @@ class RelationalMappingIntegrationTest {
             assertFalse(sql.toUpperCase().contains("T_ORG"),
                     "T_ORG should not appear. SQL: " + sql);
         }
+
     }
 
     // ==================== GAP FEATURES (Disabled) ====================
@@ -3878,6 +3879,57 @@ class RelationalMappingIntegrationTest {
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
             assertFalse(planSql(model, query).toUpperCase().contains("JOIN"),
                     "Filter on embedded property should not require JOIN");
+        }
+
+        // --- Pruning: otherwise creates 2 extends (embedded + association) sharing
+        // the same ColSpec name "firm". stampExtendOverrides prunes both together,
+        // and PlanGenerator's lazy-JOIN logic only emits the JOIN when a fallback
+        // property is actually accessed.
+
+        @Test
+        @DisplayName("Pruning: no firm access → 0 JOINs, no T_FIRM")
+        void testOtherwisePruningNoFirmAccess() {
+            String sql = planSql(model,
+                    "Person.all()->project(~[name:p|$p.name])");
+            assertFalse(sql.toUpperCase().contains("JOIN"),
+                    "No firm access → no JOIN. SQL: " + sql);
+            assertFalse(sql.toUpperCase().contains("T_FIRM"),
+                    "T_FIRM should not appear. SQL: " + sql);
+        }
+
+        @Test
+        @DisplayName("Pruning: only embedded firm.legalName → 0 JOINs")
+        void testOtherwisePruningEmbeddedOnly() {
+            String sql = planSql(model,
+                    "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
+            assertFalse(sql.toUpperCase().contains("JOIN"),
+                    "Embedded-only access → no JOIN. SQL: " + sql);
+            assertTrue(sql.toUpperCase().contains("FIRM_NAME"),
+                    "Should resolve legalName from parent table column FIRM_NAME. SQL: " + sql);
+        }
+
+        @Test
+        @DisplayName("Pruning: only fallback firm.revenue → 1 JOIN to T_FIRM")
+        void testOtherwisePruningFallbackOnly() {
+            String sql = planSql(model,
+                    "Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])");
+            assertEquals(1, sql.toUpperCase().split("JOIN").length - 1,
+                    "Fallback-only access → 1 JOIN. SQL: " + sql);
+            assertTrue(sql.toUpperCase().contains("T_FIRM"),
+                    "JOIN should target T_FIRM. SQL: " + sql);
+        }
+
+        @Test
+        @DisplayName("Pruning: mixed embedded + fallback → 1 JOIN, both columns present")
+        void testOtherwisePruningMixed() {
+            String sql = planSql(model,
+                    "Person.all()->project(~[firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])");
+            assertEquals(1, sql.toUpperCase().split("JOIN").length - 1,
+                    "Mixed access → 1 JOIN for fallback. SQL: " + sql);
+            assertTrue(sql.toUpperCase().contains("FIRM_NAME"),
+                    "Embedded legalName from parent. SQL: " + sql);
+            assertTrue(sql.toUpperCase().contains("T_FIRM"),
+                    "Fallback revenue via JOIN. SQL: " + sql);
         }
     }
 
