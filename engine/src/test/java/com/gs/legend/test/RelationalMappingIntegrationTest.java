@@ -4087,10 +4087,50 @@ class RelationalMappingIntegrationTest {
             assertTrue(names.contains("Carol Smith"));
         }
 
-        @Test @Disabled("GAP: Association mapping + multi-table join chain")
-        @DisplayName("GAP: Explicit association mapping composing with other joins")
+        @Test @Disabled("GAP: Association nav to join-chain property on target class")
+        @DisplayName("Association mapping + multi-hop join chain")
         void testAssocMappingWithJoins() throws SQLException {
-            // AssociationMapping PersonFirm + join from Firm to Country
+            sql("CREATE TABLE T_PERSON (ID INT, NAME VARCHAR(100), FIRM_ID INT)",
+                "CREATE TABLE T_FIRM (ID INT, LEGAL_NAME VARCHAR(100), COUNTRY_ID INT)",
+                "CREATE TABLE T_COUNTRY (ID INT, NAME VARCHAR(100))",
+                "INSERT INTO T_COUNTRY VALUES (1, 'USA'), (2, 'UK')",
+                "INSERT INTO T_FIRM VALUES (1, 'Acme', 1), (2, 'Brit Corp', 2)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
+            String model = withRuntime("""
+                    Class test::Person { name: String[1]; }
+                    Class test::Firm { legalName: String[1]; country: String[1]; }
+                    Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
+                        Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100), COUNTRY_ID INTEGER)
+                        Table T_COUNTRY (ID INTEGER, NAME VARCHAR(100))
+                        Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
+                        Join FirmCountry(T_FIRM.COUNTRY_ID = T_COUNTRY.ID)
+                    )
+                    Mapping test::M (
+                        test::Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                        test::Firm: Relational {
+                            ~mainTable [store::DB] T_FIRM
+                            legalName: [store::DB] T_FIRM.LEGAL_NAME,
+                            country: @FirmCountry | [store::DB] T_COUNTRY.NAME
+                        }
+                        test::PersonFirm: AssociationMapping (
+                            firm: [store::DB]@PersonFirm,
+                            employees: [store::DB]@PersonFirm
+                        )
+                    )
+                    """, "store::DB", "test::M");
+            // Navigate Person -> Firm (association) -> Country (join chain on Firm)
+            var r = exec(model, "Person.all()->project(~[name:p|$p.name, firm:p|$p.firm.legalName, country:p|$p.firm.country])->sort(~name->ascending())");
+            assertEquals(3, r.rowCount());
+            assertEquals(List.of("Alice", "Bob", "Charlie"), colStr(r, 0));
+            assertEquals("Acme", colStr(r, 1).get(0));
+            assertEquals("USA", colStr(r, 2).get(0));
+            assertEquals("Brit Corp", colStr(r, 1).get(1));
+            assertEquals("UK", colStr(r, 2).get(1));
         }
 
         @Test @Disabled("GAP: Scope block + embedded + filter")
@@ -4106,16 +4146,63 @@ class RelationalMappingIntegrationTest {
         }
 
 
-        @Test @Disabled("GAP: Self-join + filter + sort")
-        @DisplayName("GAP: Self-join (manager hierarchy) with filter")
+        @Test
+        @DisplayName("Self-join + filter + sort composition")
         void testSelfJoinFilter() throws SQLException {
-            // Join(T.MANAGER_ID = {target}.ID) + filter + sort
+            sql("CREATE TABLE EMPLOYEES (ID INT, NAME VARCHAR(100), MANAGER_ID INT)",
+                "INSERT INTO EMPLOYEES VALUES (1, 'Alice', null), (2, 'Bob', 1), (3, 'Charlie', 1), (4, 'Diana', 2)");
+            String model = withRuntime("""
+                    Class test::Employee { name: String[1]; managerName: String[0..1]; }
+                    Database store::DB (
+                        Table EMPLOYEES (ID INTEGER, NAME VARCHAR(100), MANAGER_ID INTEGER)
+                        Join EmpMgr(EMPLOYEES.MANAGER_ID = {target}.ID)
+                    )
+                    Mapping test::M (
+                        test::Employee: Relational {
+                            ~mainTable [store::DB] EMPLOYEES
+                            name: [store::DB] EMPLOYEES.NAME,
+                            managerName: @EmpMgr | [store::DB] EMPLOYEES.NAME
+                        }
+                    )
+                    """, "store::DB", "test::M");
+            // Filter: only employees managed by Alice, sort by name
+            var r = exec(model, "Employee.all()->filter(e|$e.managerName == 'Alice')->project(~[name:e|$e.name])->sort(~name->ascending())");
+            assertEquals(2, r.rowCount());
+            assertEquals(List.of("Bob", "Charlie"), colStr(r, 0));
         }
 
-        @Test @Disabled("GAP: Complex join condition + aggregation")
-        @DisplayName("GAP: Multi-column join + groupBy aggregation")
+        @Test
+        @DisplayName("Complex join condition + groupBy aggregation")
         void testComplexJoinAggregation() throws SQLException {
-            // Join(T1.A = T2.A and T1.B = T2.B) + groupBy
+            sql("CREATE TABLE SALES (REGION VARCHAR(10), PRODUCT_ID INT, QTY INT)",
+                "INSERT INTO SALES VALUES ('US', 1, 10), ('US', 2, 5), ('EU', 1, 20), ('US', 1, 3)",
+                "CREATE TABLE PRODUCTS (REGION VARCHAR(10), PRODUCT_ID INT, NAME VARCHAR(50))",
+                "INSERT INTO PRODUCTS VALUES ('US', 1, 'Widget'), ('US', 2, 'Gadget'), ('EU', 1, 'Widget-EU')");
+            String model = withRuntime("""
+                    Class test::Sale { qty: Integer[1]; productName: String[1]; }
+                    Database store::DB (
+                        Table SALES (REGION VARCHAR(10), PRODUCT_ID INTEGER, QTY INTEGER)
+                        Table PRODUCTS (REGION VARCHAR(10), PRODUCT_ID INTEGER, NAME VARCHAR(50))
+                        Join SaleProduct(SALES.REGION = PRODUCTS.REGION and SALES.PRODUCT_ID = PRODUCTS.PRODUCT_ID)
+                    )
+                    Mapping test::M (
+                        test::Sale: Relational {
+                            ~mainTable [store::DB] SALES
+                            qty: [store::DB] SALES.QTY,
+                            productName: @SaleProduct | [store::DB] PRODUCTS.NAME
+                        }
+                    )
+                    """, "store::DB", "test::M");
+            // GroupBy product name, sum qty
+            var r = exec(model, "Sale.all()->project(~[product:s|$s.productName, qty:s|$s.qty])->groupBy([{r|$r.product}], [agg({r|$r.qty}, {y|$y->sum()})], ['product', 'totalQty'])->sort(~product->ascending())");
+            assertEquals(3, r.rowCount());
+            // Gadget: 5, Widget: 13 (10+3), Widget-EU: 20
+            assertEquals("Gadget", colStr(r, 0).get(0));
+            assertEquals(5, ((Number) r.rows().get(0).get(1)).intValue());
+            assertEquals("Widget", colStr(r, 0).get(1));
+            assertEquals(13, ((Number) r.rows().get(1).get(1)).intValue());
+            assertEquals("Widget-EU", colStr(r, 0).get(2));
+            assertEquals(20, ((Number) r.rows().get(2).get(1)).intValue());
         }
     }
 }
