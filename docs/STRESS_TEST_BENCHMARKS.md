@@ -14,10 +14,19 @@ All stress tests live in `engine/src/test/java/com/gs/legend/test/`:
 | `StressTest100K.java` | 100K hub-spoke | 100 | Large model scaling |
 | `StressTestDense.java` | 10K dense (~10 links/hub) | 100 | Connectivity density |
 | `StressTestComplexQueries.java` | 1K dense | 10 | Per-query phase breakdown |
+| `StressTestChaotic.java` ⚠️ | 100K non-uniform (1-50 props, all types) | 200 | Heterogeneity at scale |
 
-Reproduce:
+⚠️ `StressTestChaotic` is tagged `@Tag("heavy")` and excluded from the default test suite.
+It requires `-Xmx16g` due to ANTLR parse tree size for wide classes.
+
+Reproduce (standard suite):
 ```bash
 mvn test -pl engine -Dtest="StressTest,StressTest10K,StressTest100K,StressTestDense,StressTestComplexQueries"
+```
+
+Reproduce (chaotic only):
+```bash
+mvn test -pl engine -Dtest="StressTestChaotic" -DargLine="-Xmx16g"
 ```
 
 ## Model Size Scaling
@@ -89,6 +98,34 @@ Density adds moderate overhead. Per-query cost stays under 1ms hot.
 
 All query patterns under 120ms. TypeChecker dominates for fan-out queries
 (compiling source relations for each target class).
+
+## Chaotic 100K (non-uniform classes)
+
+100K classes with 1-50 properties each, all 7 Pure types (String, Integer, Boolean,
+Date, DateTime, Float, Decimal), enum mappings, DynaFunc concat, mapping filters,
+random association graph.
+
+| Metric | Value |
+|---|---|
+| Classes | 100,000 (40K tiny, 25K small, 20K med, 10K large, 5K huge) |
+| Property range | 1–50 per class |
+| Pure types | String, Integer, Boolean, Date, DateTime, Float, Decimal |
+| Enum classes | 4,362 |
+| Filtered classes | 8,309 |
+| Concat DynaFunc | 2,431 |
+| Associations | 100,000 |
+| Pure source | 115 MB |
+| Parse + build | 13,531 ms |
+| Normalize | 529 ms |
+| 200 queries | 175 ms |
+| **Total** | **14.7 s** |
+| Heap required | 16 GB |
+
+16 query patterns: simple projects, all-column projects, filter on Integer/Boolean/Float,
+1-hop and 2-hop associations, DynaFunc computed columns, sorts, limits, slices,
+assoc+filter combos, Date column projects.
+
+Queries remain O(1) — 200 queries in 175ms regardless of 100K model size.
 
 ## Key Optimizations
 
