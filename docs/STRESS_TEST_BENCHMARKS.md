@@ -1,18 +1,48 @@
 # Stress Test Benchmarks
 
-Measured on MacOS, JDK 21, single-threaded. Times include JIT warmup (first query is always slower).
+Measured on MacOS, Apple Silicon, JDK 21, single-threaded.
+Commit: `f74cbef` (strict FQN resolution).
+
+## Test Classes
+
+All stress tests live in `engine/src/test/java/com/gs/legend/test/`:
+
+| Test | Model | Queries | Focus |
+|---|---|---|---|
+| `StressTest.java` | 1K hub-spoke | 100 | Baseline scaling |
+| `StressTest10K.java` | 10K hub-spoke | 100 | Medium model |
+| `StressTest100K.java` | 100K hub-spoke | 100 | Large model scaling |
+| `StressTestDense.java` | 10K dense (~10 links/hub) | 100 | Connectivity density |
+| `StressTestComplexQueries.java` | 1K dense | 10 | Per-query phase breakdown |
+
+Reproduce:
+```bash
+mvn test -pl engine -Dtest="StressTest,StressTest10K,StressTest100K,StressTestDense,StressTestComplexQueries"
+```
 
 ## Model Size Scaling
 
 Same 10 query patterns (simple project, filter, sort, 1-hop, 2-hop association navigation).
 
-| Phase | 1K classes | 10K classes | 100K classes | Scaling |
+### Cold (separate JVM per test)
+
+| Phase | 1K | 10K | 100K | Scaling |
 |---|---|---|---|---|
-| Pure source | 600 KB | 6 MB | 65 MB | Linear |
-| Parse + build | 211ms | 814ms | 5,146ms | ~Linear |
-| Normalize | 23ms | 128ms | 921ms | ~Linear |
-| 100 queries | 155ms | 343ms | 347ms | **Flat (O(1))** |
-| **Total** | **550ms** | **1,402ms** | **6,662ms** | ~Linear |
+| Generate source | 1 ms | 10 ms | 55 ms | Linear |
+| Parse + build | 228 ms | 818 ms | 5,246 ms | ~Linear |
+| Normalize | 12 ms | 69 ms | 484 ms | ~Linear |
+| 100 queries | 85 ms | 78 ms | 113 ms | **Flat (O(1))** |
+| **Total** | **408 ms** | **1,073 ms** | **5,905 ms** | ~Linear |
+
+### Hot (all tests in same JVM, JIT-warmed)
+
+| Phase | 1K | 10K | 100K | Scaling |
+|---|---|---|---|---|
+| Generate source | 0 ms | 9 ms | 74 ms | Linear |
+| Parse + build | 29 ms | 474 ms | 5,525 ms | ~Linear |
+| Normalize | 1 ms | 40 ms | 414 ms | ~Linear |
+| 100 queries | 21 ms | 28 ms | 26 ms | **Flat (O(1))** |
+| **Total** | **55 ms** | **555 ms** | **6,041 ms** | ~Linear |
 
 Queries are constant-time regardless of model size — demand-driven compilation means
 only the classes a query touches are compiled and resolved.
@@ -21,15 +51,26 @@ only the classes a query touches are compiled and resolved.
 
 Same queries, varying hub-to-hub connectivity.
 
+### Cold
+
 | Phase | Sparse (~2 per hub) | Dense (~10 per hub) |
 |---|---|---|
 | Associations | 10,100 | 19,000 |
-| Parse + build | 814ms | 949ms |
-| Normalize | 128ms | 191ms |
-| 100 queries | 343ms | 817ms |
-| **Total** | **1,402ms** | **2,076ms** |
+| Parse + build | 818 ms | 966 ms |
+| Normalize | 69 ms | 72 ms |
+| 100 queries | 78 ms | 91 ms |
+| **Total** | **1,073 ms** | **1,237 ms** |
 
-Density adds moderate overhead. Per-query cost stays under 10ms.
+### Hot
+
+| Phase | Sparse (~2 per hub) | Dense (~10 per hub) |
+|---|---|---|
+| Parse + build | 474 ms | 748 ms |
+| Normalize | 40 ms | 54 ms |
+| 100 queries | 28 ms | 53 ms |
+| **Total** | **555 ms** | **882 ms** |
+
+Density adds moderate overhead. Per-query cost stays under 1ms hot.
 
 ## Query Complexity (dense 1K model, ~10 connections per hub)
 
@@ -58,4 +99,7 @@ All query patterns under 120ms. TypeChecker dominates for fan-out queries
    the query actually uses — skip all others.
 
 3. **Association index** (PureModelBuilder): `className → List<Association>` index
-   for O(1) lookup instead of O(N) scan. Reduced normalize from 21s → 128ms at 10K.
+   for O(1) lookup instead of O(N) scan.
+
+4. **SymbolTable int-keyed maps**: all class/mapping/association lookups use integer IDs
+   instead of string keys — eliminates hash collisions at scale.
