@@ -148,7 +148,9 @@ public final class PureModelBuilder implements ModelContext {
         classToAssociations = null;
         propertyToJoin = null;
 
-        PackageableElementBuilder.ParseResult parsed = PureParser.parseModelWithImports(pureSource);
+        PackageableElementBuilder.ParseResult parsed = pureSource.length() > PureParser.CHUNK_THRESHOLD
+                ? PureParser.parseModelChunked(pureSource)
+                : PureParser.parseModelWithImports(pureSource);
         boolean isStrict = strict || pureSource.stripLeading().startsWith("\"use strict\"");
         List<PackageableElement> rawDefinitions = parsed.definitions();
 

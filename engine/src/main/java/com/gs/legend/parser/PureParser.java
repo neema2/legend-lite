@@ -6,7 +6,9 @@ import com.gs.legend.compiler.NativeFunctionDef;
 import com.gs.legend.model.def.*;
 import org.antlr.v4.runtime.*;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Pure language parser — single entry point for all Pure parsing.
@@ -146,6 +148,128 @@ public final class PureParser {
     public static NativeFunctionDef parseNativeFunction(String pureSignature) {
         return PackageableElementBuilder.extractFirstNativeFunctionDefinition(antlrParse(pureSignature))
                 .orElseThrow(() -> new PureParseException("No native function definition found in source"));
+    }
+
+    // ==================== Chunked Parsing ====================
+
+    /** Threshold in chars above which addSource auto-chunks (~500 KB). */
+    public static final int CHUNK_THRESHOLD = 500_000;
+
+    /**
+     * Top-level keywords that start a new definition in the grammar.
+     * Used by the pre-scanner to find definition boundaries.
+     */
+    private static final Set<String> DEF_KEYWORDS = Set.of(
+            "Class", "Association", "Enum", "Mapping", "Database", "Profile",
+            "function", "native", "Service", "Runtime", "SingleConnectionRuntime",
+            "RelationalDatabaseConnection", "Measure", "import"
+    );
+
+    /**
+     * Pre-scans source to find top-level definition boundary positions.
+     * Returns a list of char offsets where definitions start.
+     * Used by {@link #splitDefinitions} and {@link #parseModelChunked}.
+     */
+    static List<Integer> findDefinitionStarts(String source) {
+        List<Integer> starts = new ArrayList<>();
+        int len = source.length();
+        int i = 0;
+        while (i < len) {
+            // Skip whitespace
+            while (i < len && Character.isWhitespace(source.charAt(i))) i++;
+            if (i >= len) break;
+
+            // Skip string literals like "use strict"
+            if (source.charAt(i) == '"') {
+                i++;
+                while (i < len && source.charAt(i) != '"') i++;
+                if (i < len) i++;
+                continue;
+            }
+
+            // Try to match a definition keyword at this position
+            for (String kw : DEF_KEYWORDS) {
+                if (i + kw.length() <= len
+                        && source.startsWith(kw, i)
+                        && (i + kw.length() >= len || !Character.isLetterOrDigit(source.charAt(i + kw.length())))) {
+                    starts.add(i);
+                    break;
+                }
+            }
+
+            // Skip to next line
+            while (i < len && source.charAt(i) != '\n') i++;
+            if (i < len) i++;
+        }
+        return starts;
+    }
+
+    /**
+     * Pre-scans source to find top-level definition boundaries.
+     * Returns a list of source substrings, each covering one or more
+     * complete definitions. Chunks are split at definition boundaries only.
+     *
+     * @param source The full Pure source
+     * @param targetChunkSize Approximate target size per chunk in chars
+     * @return List of source substrings, each a valid set of definitions
+     */
+    public static List<String> splitDefinitions(String source, int targetChunkSize) {
+        List<Integer> starts = findDefinitionStarts(source);
+        if (starts.isEmpty()) return List.of(source);
+
+        List<String> chunks = new ArrayList<>();
+        int chunkStart = 0;
+        for (int s = 1; s < starts.size(); s++) {
+            int pos = starts.get(s);
+            if (pos - chunkStart >= targetChunkSize) {
+                chunks.add(source.substring(chunkStart, pos));
+                chunkStart = pos;
+            }
+        }
+        chunks.add(source.substring(chunkStart));
+        return chunks;
+    }
+
+    /**
+     * Parses a large Pure source in chunks, returning aggregated results.
+     * Each chunk is parsed independently — ANTLR parse tree and token stream
+     * are GC-eligible between chunks, keeping peak memory proportional to
+     * the largest single chunk rather than the whole source.
+     */
+    public static PackageableElementBuilder.ParseResult parseModelChunked(String source) {
+        List<Integer> starts = findDefinitionStarts(source);
+        if (starts.isEmpty()) return parseModelWithImports(source);
+
+        // Compute chunk boundaries (positions into source)
+        List<int[]> boundaries = new ArrayList<>();
+        int chunkStart = 0;
+        for (int s = 1; s < starts.size(); s++) {
+            int pos = starts.get(s);
+            if (pos - chunkStart >= CHUNK_THRESHOLD) {
+                boundaries.add(new int[]{chunkStart, pos});
+                chunkStart = pos;
+            }
+        }
+        boundaries.add(new int[]{chunkStart, source.length()});
+
+        List<PackageableElement> allDefs = new ArrayList<>();
+        ImportScope mergedImports = new ImportScope();
+
+        for (int[] bounds : boundaries) {
+            // Extract chunk substring — only one chunk's substring alive at a time
+            String chunk = source.substring(bounds[0], bounds[1]);
+            PackageableElementBuilder.ParseResult result = parseModelWithImports(chunk);
+            allDefs.addAll(result.definitions());
+            for (String pkg : result.imports().getWildcardImports()) {
+                mergedImports.addImport(pkg + "::*");
+            }
+            for (var entry : result.imports().getTypeImports().entrySet()) {
+                mergedImports.addImport(entry.getValue());
+            }
+            // chunk, tokens, parse tree all GC-eligible after this iteration
+        }
+
+        return new PackageableElementBuilder.ParseResult(allDefs, mergedImports);
     }
 
     // ==================== Internal ====================

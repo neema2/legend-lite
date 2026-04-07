@@ -17,7 +17,7 @@ All stress tests live in `engine/src/test/java/com/gs/legend/test/`:
 | `StressTestChaotic.java` ⚠️ | 100K non-uniform (1-50 props, all types) | 200 | Heterogeneity at scale |
 
 ⚠️ `StressTestChaotic` is tagged `@Tag("heavy")` and excluded from the default test suite.
-It requires `-Xmx16g` due to ANTLR parse tree size for wide classes.
+It requires `-Xmx6g` due to ANTLR parse tree size (chunked parsing reduces this from 16g).
 
 Reproduce (standard suite):
 ```bash
@@ -26,7 +26,7 @@ mvn test -pl engine -Dtest="StressTest,StressTest10K,StressTest100K,StressTestDe
 
 Reproduce (chaotic only):
 ```bash
-mvn test -pl engine -Dtest="StressTestChaotic" -DargLine="-Xmx16g"
+mvn test -pl engine -Dtest="StressTestChaotic" -DargLine="-Xmx6g"
 ```
 
 ## Model Size Scaling
@@ -114,12 +114,12 @@ random association graph.
 | Filtered classes | 8,309 |
 | Concat DynaFunc | 2,431 |
 | Associations | 100,000 |
-| Pure source | 115 MB |
-| Parse + build | 13,531 ms |
-| Normalize | 529 ms |
-| 200 queries | 175 ms |
-| **Total** | **14.7 s** |
-| Heap required | 16 GB |
+| Pure source | 115 MB (73 chunks) |
+| Parse + build | 9,611 ms |
+| Normalize | 484 ms |
+| 200 queries | 145 ms |
+| **Total** | **11.1 s** |
+| Heap required | 6 GB |
 
 16 query patterns: simple projects, all-column projects, filter on Integer/Boolean/Float,
 1-hop and 2-hop associations, DynaFunc computed columns, sorts, limits, slices,
