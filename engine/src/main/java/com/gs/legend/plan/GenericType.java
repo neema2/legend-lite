@@ -1,5 +1,6 @@
 package com.gs.legend.plan;
 
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Multiplicity;
 
 import java.util.List;
@@ -137,7 +138,7 @@ public sealed interface GenericType
 
         public static Primitive fromTypeName(String name) {
             // Handle qualified names: meta::pure::metamodel::variant::Variant -> Variant
-            String simpleName = name.contains("::") ? name.substring(name.lastIndexOf("::") + 2) : name;
+            String simpleName = SymbolTable.extractSimpleName(name);
             return switch (simpleName) {
                 case "Integer" -> INTEGER;
                 case "Float" -> FLOAT;
@@ -208,8 +209,7 @@ public sealed interface GenericType
 
         @Override
         public String typeName() {
-            int lastColon = qualifiedName.lastIndexOf("::");
-            return lastColon >= 0 ? qualifiedName.substring(lastColon + 2) : qualifiedName;
+            return SymbolTable.extractSimpleName(qualifiedName);
         }
     }
 
@@ -223,8 +223,7 @@ public sealed interface GenericType
 
         @Override
         public String typeName() {
-            int lastColon = qualifiedName.lastIndexOf("::");
-            return lastColon >= 0 ? qualifiedName.substring(lastColon + 2) : qualifiedName;
+            return SymbolTable.extractSimpleName(qualifiedName);
         }
     }
 
@@ -453,7 +452,7 @@ public sealed interface GenericType
      */
      static GenericType fromTypeName(String name) {
         // Handle qualified names: strip package prefix for primitive check
-        String simpleName = name.contains("::") ? name.substring(name.lastIndexOf("::") + 2) : name;
+        String simpleName = SymbolTable.extractSimpleName(name);
 
         return switch (simpleName) {
             case "Integer" -> Primitive.INTEGER;

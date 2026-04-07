@@ -131,12 +131,6 @@ public abstract class AbstractChecker implements FunctionChecker {
         var matches = arityMatches.stream()
                 .filter(d -> {
                     boolean m = matchesStructurally(d, params, source, compiledTypes);
-                    if ("extend".equals(funcName)) {
-                        System.out.println("[DEBUG] extend candidate: " + d
-                            + " matched=" + m
-                            + " source=" + (source != null ? source.expressionType() : "null")
-                            + " compiledTypes=" + compiledTypes);
-                    }
                     return m;
                 })
                 .toList();
@@ -334,13 +328,6 @@ public abstract class AbstractChecker implements FunctionChecker {
             ExpressionType compiledExpr = compiledTypes.get(i);
             GenericType compiledType = compiledExpr != null ? compiledExpr.type() : null;
             boolean sm = structuralMatch(expected, actual, source, i == 0, compiledType);
-            if ("extend".equals(def.name())) {
-                System.out.println("[DEBUG]   extend param[" + i + "]: expected=" + expected
-                    + " actual=" + actual.getClass().getSimpleName()
-                    + " compiledType=" + compiledType
-                    + " compiledMult=" + (compiledExpr != null ? compiledExpr.multiplicity() : "null")
-                    + " structMatch=" + sm);
-            }
             if (!sm) {
                 return false;
             }
@@ -378,18 +365,10 @@ public abstract class AbstractChecker implements FunctionChecker {
         }
         if (expected instanceof PType.Parameterized p) {
             return switch (p.rawType()) {
-                case "Relation" -> {
-                    if (isSource) {
-                        System.out.println("[DEBUG-SM] Relation isSource=true source=" + source
-                            + " isRel=" + (source != null ? source.isRelational() : "NULL")
-                            + " type=" + (source != null ? source.type() : "NULL")
-                            + " typeClass=" + (source != null ? source.type().getClass().getSimpleName() : "NULL"));
-                    }
-                    yield isSource
+                case "Relation" -> isSource
                         ? (source != null && source.isRelational())
                         : (compiledType instanceof GenericType.Relation)
                           || (actual instanceof ClassInstance ci && "relation".equals(ci.type()));
-                }
                 case "ColSpec"
                         -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type());
                 case "FuncColSpec"
@@ -640,11 +619,11 @@ public abstract class AbstractChecker implements FunctionChecker {
                 GenericType g = c.toGenericType();
                 if (g == null) {
                     // Non-primitive signature type (DurationUnit, JoinKind, etc.)
-                    // — validate that the actual is an EnumType with matching simple name
+                    // — validate that the actual is an EnumType with matching FQN
                     if (actual instanceof GenericType.EnumType et) {
-                        if (!et.typeName().equals(c.name())) {
+                        if (!et.qualifiedName().equals(c.name())) {
                             throw new PureCompileException(
-                                    context + ": expected " + c.name() + ", got " + et.typeName());
+                                    context + ": expected " + c.name() + ", got " + et.qualifiedName());
                         }
                     } else {
                         throw new PureCompileException(
@@ -718,8 +697,11 @@ public abstract class AbstractChecker implements FunctionChecker {
                     if (modelCtx != null && modelCtx.findEnum(c.name()).isPresent()) {
                         yield new GenericType.EnumType(c.name());
                     }
-                    if (modelCtx != null && modelCtx.findClass(c.name()).isPresent()) {
-                        yield new GenericType.ClassType(c.name());
+                    if (modelCtx != null) {
+                        var classOpt = modelCtx.findClass(c.name());
+                        if (classOpt.isPresent()) {
+                            yield new GenericType.ClassType(classOpt.get().qualifiedName());
+                        }
                     }
                     // Meta-model types that map to String in SQL context
                     if ("Type".equals(c.name())) {
@@ -859,8 +841,6 @@ public abstract class AbstractChecker implements FunctionChecker {
             throw new PureCompileException(
                     "Cannot bind lambda param '" + paramName + "': resolved type is null");
         }
-        System.out.println("[DEBUG bindLambdaParam] '" + paramName + "' resolvedType=" + resolvedType
-                + " (" + resolvedType.getClass().getSimpleName() + ")");
         if (resolvedType instanceof GenericType.Relation rel) {
             // Relation row: bind schema columns for property access
             return ctx.withRelationType(paramName, rel.schema());
@@ -1064,8 +1044,7 @@ public abstract class AbstractChecker implements FunctionChecker {
 
     /** Extracts simple function name from qualified name (e.g. "meta::pure::...::sort" → "sort"). */
     protected static String simpleName(String qualifiedName) {
-        int idx = qualifiedName.lastIndexOf("::");
-        return idx >= 0 ? qualifiedName.substring(idx + 2) : qualifiedName;
+        return com.gs.legend.model.SymbolTable.extractSimpleName(qualifiedName);
     }
 
     /**

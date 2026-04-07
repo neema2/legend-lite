@@ -32,6 +32,10 @@ class M2M2RTabularTest {
     // ==================== Pure Model ====================
 
     private static final String PURE_MODEL = """
+            import model::*;
+            import store::*;
+            import test::*;
+
             Class model::RawPerson
             {
                 firstName: String[1];

@@ -25,6 +25,10 @@ class StreamingIntegrationTest {
     private QueryService queryService;
 
     private static final String PURE_MODEL = """
+            import model::*;
+            import store::*;
+            import test::*;
+
             Class model::Employee
             {
                 name: String[1];

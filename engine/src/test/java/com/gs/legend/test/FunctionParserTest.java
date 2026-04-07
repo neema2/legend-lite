@@ -159,6 +159,8 @@ public class FunctionParserTest {
     @DisplayName("Parse multiple definitions including function")
     void testParseMultipleDefinitionsWithFunction() {
         String pure = """
+                import model::*;
+
                 Class model::Person {
                     name: String[1];
                 }

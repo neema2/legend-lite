@@ -130,6 +130,8 @@ public class ProfileParserTest {
     @DisplayName("Parse Class without any annotations (backwards compatibility)")
     void testParseClassWithoutAnnotations() {
         String pure = """
+                import model::*;
+
                 Class model::Simple {
                     value: Integer[1];
                 }

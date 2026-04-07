@@ -48,6 +48,8 @@ class RelationalMappingIntegrationTest {
     /** Builds connection + runtime Pure source wrapping the given model. */
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                import test::*;
+
 
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
@@ -93,6 +95,9 @@ class RelationalMappingIntegrationTest {
                                      String mappingName, String classDef, String tableDef,
                                      String mappingBody) {
         return withRuntime("""
+                import model::*;
+                import store::*;
+
                 %s
                 Database %s ( Table %s ( %s ) )
                 Mapping %s ( %s: Relational { ~mainTable [%s] %s %s } )
@@ -256,6 +261,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_PERSON VALUES (1, 'Alice')",
                 "INSERT INTO T_FIRM VALUES (1, 'Acme')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legal: String[1]; }
                     Database store::DB (
@@ -648,6 +656,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE PEOPLE (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50), SALARY INT)",
                 "INSERT INTO PEOPLE VALUES (1, 'Alice', 'Smith', 100), (2, 'Bob', 'Smith', 200), (3, 'Carol', 'Jones', 300)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { fullName: String[1]; lastName: String[1]; salary: Integer[1]; }
                     Database store::DB (
                         Table PEOPLE (ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50), SALARY INTEGER)
@@ -675,6 +686,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE ITEMS (ID INT, CATEGORY VARCHAR(50), PRICE INT)",
                 "INSERT INTO ITEMS VALUES (1, 'ELECTRONICS', 100), (2, 'electronics', 200), (3, 'TOOLS', 50)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::I { categoryLower: String[1]; price: Integer[1]; }
                     Database store::DB (
                         Table ITEMS (ID INTEGER, CATEGORY VARCHAR(50), PRICE INTEGER)
@@ -703,6 +717,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO CUSTOMERS VALUES (1, 'Alice'), (2, 'Bob')",
                 "INSERT INTO ORDERS VALUES (1, 1, 100), (2, 1, 200), (3, 2, 50)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Ord { custName: String[1]; amount: Integer[1]; }
                     Database store::DB (
                         Table ORDERS (ID INTEGER, CUST_ID INTEGER, AMOUNT INTEGER)
@@ -731,6 +748,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE DUPS (ID INT, VAL VARCHAR(20))",
                 "INSERT INTO DUPS VALUES (1, 'A'), (2, 'B'), (3, 'A'), (4, 'C'), (5, 'B')");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::D { val: String[1]; }
                     Database store::DB ( Table DUPS (ID INTEGER, VAL VARCHAR(20)) )
                     Mapping model::M ( D: Relational { ~mainTable [store::DB] DUPS val: [store::DB] DUPS.VAL } )
@@ -757,6 +777,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 1), (3, 'Charlie', 2)",
                 "INSERT INTO T_ADDRESS VALUES (1, 1, '123 Main St', 'New York'), (2, 1, '456 Oak Ave', 'Boston'), (3, 2, '789 Elm St', 'Chicago')");
             model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; }
                     Class model::Address { street: String[1]; city: String[1]; }
@@ -845,6 +868,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE TASKS (ID INT, NAME VARCHAR(100), STATUS VARCHAR(20))",
                 "INSERT INTO TASKS VALUES (1, 'Fix bug', 'PENDING'), (2, 'Write docs', 'DONE'), (3, 'Deploy', 'PENDING')");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Enum model::TaskStatus { PENDING, IN_PROGRESS, DONE }
                     Class model::Task { name: String[1]; status: TaskStatus[1]; }
                     Database store::DB ( Table TASKS (ID INTEGER, NAME VARCHAR(100), STATUS VARCHAR(20)) )
@@ -859,6 +885,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE ORDERS (ID INT, STATUS_CODE VARCHAR(5))",
                 "INSERT INTO ORDERS VALUES (1, 'A'), (2, 'I'), (3, 'A'), (4, 'C')");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Enum model::OrderStatus { ACTIVE, INACTIVE, CANCELLED }
                     Class model::Order { status: OrderStatus[1]; }
                     Database store::DB ( Table ORDERS (ID INTEGER, STATUS_CODE VARCHAR(5)) )
@@ -876,6 +905,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE FLAGS (ID INT, LEVEL INT)",
                 "INSERT INTO FLAGS VALUES (1, 1), (2, 2), (3, 1), (4, 3)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Enum model::Priority { LOW, MEDIUM, HIGH }
                     Class model::Flag { priority: Priority[1]; }
                     Database store::DB ( Table FLAGS (ID INTEGER, LEVEL INTEGER) )
@@ -893,6 +925,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE ITEMS (ID INT, CATEGORY VARCHAR(20))",
                 "INSERT INTO ITEMS VALUES (1, 'A'), (2, 'ACT'), (3, 'ACTIVE'), (4, 'I')");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Enum model::Status { ACTIVE, INACTIVE }
                     Class model::Item { status: Status[1]; }
                     Database store::DB ( Table ITEMS (ID INTEGER, CATEGORY VARCHAR(20)) )
@@ -917,6 +952,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE RAW_PERSON (ID INT, FIRST_NAME VARCHAR(50), LAST_NAME VARCHAR(50))",
                 "INSERT INTO RAW_PERSON VALUES (1, 'John', 'Doe'), (2, 'Jane', 'Smith')");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::RawPerson { firstName: String[1]; lastName: String[1]; }
                     Class model::Person { fullName: String[1]; }
                     Database store::DB ( Table RAW_PERSON (ID INTEGER, FIRST_NAME VARCHAR(50), LAST_NAME VARCHAR(50)) )
@@ -935,6 +973,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE SRC (ID INT, A VARCHAR(50), B VARCHAR(50), C INT)",
                 "INSERT INTO SRC VALUES (1, 'hello', 'world', 42)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Source { a: String[1]; b: String[1]; c: Integer[1]; }
                     Class model::Target { combined: String[1]; doubled: Integer[1]; }
                     Database store::DB ( Table SRC (ID INTEGER, A VARCHAR(50), B VARCHAR(50), C INTEGER) )
@@ -964,6 +1005,9 @@ class RelationalMappingIntegrationTest {
 
         private String relModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::D { name: String[1]; val: Integer[1]; }
                     Database store::DB ( Table T_DATA (ID INTEGER, NAME VARCHAR(50), VAL INTEGER) )
                     Mapping model::M ( D: Relational { ~mainTable [store::DB] T_DATA name: [store::DB] T_DATA.NAME, val: [store::DB] T_DATA.VAL } )
@@ -1028,6 +1072,9 @@ class RelationalMappingIntegrationTest {
 
         private String traverseModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Dummy { x: String[1]; }
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
@@ -1349,6 +1396,9 @@ class RelationalMappingIntegrationTest {
 
         private String traverseModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Dummy { x: String[1]; }
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
@@ -1461,6 +1511,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO EMP VALUES (1, 'Alice', 1), (2, 'Bob', 2)",
                 "INSERT INTO PROJ VALUES (1, 'Project X', 1), (2, 'Project Y', 1), (3, 'Project Z', 2)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Dept { name: String[1]; }
                     Class model::Emp { name: String[1]; }
                     Class model::Proj { name: String[1]; }
@@ -1496,6 +1549,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO CUSTOMERS VALUES (1, 'Alice'), (2, 'Bob')",
                 "INSERT INTO PRODUCTS VALUES (1, 'Widget', 10), (2, 'Gadget', 20), (3, 'Doohickey', 30)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Customer { name: String[1]; }
                     Class model::Product { title: String[1]; price: Integer[1]; }
                     Database store::DB (
@@ -1737,6 +1793,9 @@ class RelationalMappingIntegrationTest {
 
         private String joinChainModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; deptName: String[1]; orgName: String[1]; }
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
@@ -1920,6 +1979,9 @@ class RelationalMappingIntegrationTest {
         void testMultiHopJoin() throws SQLException {
             setupBasicTables();
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Dept { name: String[1]; }
                     Class model::Org { name: String[1]; }
@@ -1951,6 +2013,9 @@ class RelationalMappingIntegrationTest {
         void testJoinChainPropertyMapping() throws SQLException {
             setupBasicTables();
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; orgName: String[1]; }
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER, MANAGER_ID INTEGER)
@@ -1977,6 +2042,9 @@ class RelationalMappingIntegrationTest {
         void testJoinChainPropertyMappingFilter() throws SQLException {
             setupBasicTables();
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; orgName: String[1]; }
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER, MANAGER_ID INTEGER)
@@ -2006,6 +2074,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO EMPLOYEES VALUES (1, 'Alice', null), (2, 'Bob', 1), (3, 'Charlie', 1)");
 
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Employee { name: String[1]; managerName: String[1]; }
                     Association test::EmpMgr { emp: test::Employee[*]; manager: test::Employee[1]; }
                     Database store::DB (
@@ -2037,6 +2108,8 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PEOPLE VALUES (1, 'Alice', 1), (2, 'Bob', 0), (3, 'Charlie', 1)");
 
             String model = withRuntime("""
+                    import test::*;
+
                     Class test::Person { id: Integer[1]; name: String[1]; active: Integer[1]; }
                     Database test::DB
                     (
@@ -2074,6 +2147,8 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO TAGS VALUES (1, 'java'), (2, 'sql'), (3, 'java'), (4, 'sql'), (5, 'rust')");
 
             String model = withRuntime("""
+                    import test::*;
+
                     Class test::Tag { id: Integer[1]; tag: String[1]; }
                     Database test::DB
                     (
@@ -2112,6 +2187,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_CONTRACTOR VALUES (10, 'Charlie')");
 
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Person { id: Integer[1]; name: String[1]; }
                     Database store::DB
                     (
@@ -2160,6 +2238,10 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PEOPLE VALUES (1, 'Alice'), (2, 'Bob')");
 
             String model = withRuntime("""
+                    import base::*;
+                    import store::*;
+                    import test::*;
+
                     Class test::Person { id: Integer[1]; name: String[1]; }
                     Database store::DB ( Table PEOPLE (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL) )
                     Mapping base::BaseMapping
@@ -2211,6 +2293,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PRICES VALUES ('US', 1, 9.99), ('US', 2, 4.99), ('EU', 1, 12.50)");
 
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Order { qty: Integer[1]; price: Float[1]; }
                     Association test::OrderPrice { order: test::Order[*]; priceInfo: test::Price[1]; }
                     Class test::Price { price: Float[1]; }
@@ -2244,6 +2329,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO LABELS VALUES ('A_001', 'Alpha One'), ('B_002', 'Beta Two')");
 
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Item { code: String[1]; label: String[1]; }
                     Association test::ItemLabel { item: test::Item[*]; labelInfo: test::LabelInfo[1]; }
                     Class test::LabelInfo { label: String[1]; }
@@ -2277,6 +2365,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO EMPLOYEES VALUES (1, 'Alice', 10), (2, 'Bob', 20)");
 
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::Employee { empId: Integer[1]; empName: String[1]; }
                 Database store::DB (
                     Table EMPLOYEES (ID INT, NAME VARCHAR(100), DEPT_ID INT)
@@ -2311,6 +2402,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO EMPLOYEES VALUES (1, 'Alice', 'Smith', 10), (2, 'Bob', 'Jones', 20)");
 
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::Employee {
                     empId: Integer[1];
                     fullName: String[1];
@@ -2348,6 +2442,9 @@ class RelationalMappingIntegrationTest {
         @DisplayName("View join pruning — unused join column produces 0 JOINs")
         void testViewJoinPruning() throws SQLException {
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::Employee {
                     empId: Integer[1];
                     empName: String[1];
@@ -2402,6 +2499,9 @@ class RelationalMappingIntegrationTest {
                         "(4, 'Widget', 150, 'West', 2)");
 
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::Sale {
                     saleId: Integer[1];
                     product: String[1];
@@ -2466,6 +2566,9 @@ class RelationalMappingIntegrationTest {
                         "(4, 'Gadget', 150, 'ACTIVE', 1)");
 
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::Order {
                     orderId: Integer[1];
                     product: String[1];
@@ -2529,6 +2632,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PERSONS VALUES (1, 'Alice', 10, 100)");
 
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::Person {
                     name: String[1];
                     deptName: String[1];
@@ -2590,6 +2696,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO ORDERS VALUES (1, 1, 1)");
 
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::Order {
                     orderId: Integer[1];
                     parties: String[1];
@@ -2628,6 +2737,9 @@ class RelationalMappingIntegrationTest {
                         "(3, 'West', 150), (4, 'West', 50)");
 
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::RegionTotal {
                     region: String[1];
                     total: Integer[1];
@@ -2669,6 +2781,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO hr.EMPLOYEES VALUES (1, 'Alice', 'Eng'), (2, 'Bob', 'Sales')");
 
             String model = withRuntime("""
+                import store::*;
+                import test::*;
+
                 Class test::Employee {
                     empId: Integer[1];
                     name: String[1];
@@ -2718,6 +2833,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO EXT_ADDRESS VALUES (10, 1, 'NYC'), (20, 2, 'LA')");
 
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Person { id: Integer[1]; name: String[1]; }
                     Class test::Address { id: Integer[1]; city: String[1]; }
                     Database store::BaseDB
@@ -2770,6 +2888,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
                 "INSERT INTO NAMES VALUES (1, 'John', 'Doe'), (2, 'Jane', 'Smith')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { fullName: String[1]; }
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( Person: Relational { ~mainTable [store::DB] NAMES fullName: concat([store::DB] NAMES.FIRST, ' ', [store::DB] NAMES.LAST) } )
@@ -2787,6 +2908,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE CODES (ID INT, CODE VARCHAR(10))",
                 "INSERT INTO CODES VALUES (1, 'US-CA-01'), (2, 'UK-LN-02')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Code { country: String[1]; }
                     Database store::DB ( Table CODES ( ID INTEGER, CODE VARCHAR(10) ) )
                     Mapping model::M ( Code: Relational { ~mainTable [store::DB] CODES country: substring([store::DB] CODES.CODE, 0, 2) } )
@@ -2804,6 +2928,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE STATUS (ID INT, CODE VARCHAR(10))",
                 "INSERT INTO STATUS VALUES (1, 'A'), (2, 'I')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Rec { label: String[1]; }
                     Database store::DB ( Table STATUS ( ID INTEGER, CODE VARCHAR(10) ) )
                     Mapping model::M ( Rec: Relational { ~mainTable [store::DB] STATUS label: if(equal([store::DB] STATUS.CODE, 'A'), 'Active', 'Inactive') } )
@@ -2821,6 +2948,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE NUMS (ID INT, A INT, B INT)",
                 "INSERT INTO NUMS VALUES (1, 10, 20), (2, 30, 40)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Rec { total: Integer[1]; }
                     Database store::DB ( Table NUMS ( ID INTEGER, A INTEGER, B INTEGER ) )
                     Mapping model::M ( Rec: Relational { ~mainTable [store::DB] NUMS total: plus([store::DB] NUMS.A, [store::DB] NUMS.B) } )
@@ -2835,6 +2965,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE T1 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T1 VALUES (1, 'ALICE'), (2, 'BOB')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { lowerName: String[1]; }
                     Database store::DB ( Table T1 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T1 lowerName: toLower([store::DB] T1.NAME) } )
@@ -2852,6 +2985,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
                 "INSERT INTO NAMES VALUES (1, 'John', 'DOE')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { email: String[1]; }
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( Person: Relational { ~mainTable [store::DB] NAMES email: toLower(concat([store::DB] NAMES.FIRST, [store::DB] NAMES.LAST)) } )
@@ -2872,6 +3008,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_PERSON VALUES (10, 'Alice', 1), (20, 'Bob', 1), (30, 'Charlie', 2)");
 
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Person { id: Integer[1]; name: String[1]; }
                     Class test::Firm { id: Integer[1]; legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
@@ -3151,6 +3290,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO DEPTS VALUES (1, 'Engineering'), (2, 'Sales'), (3, 'Marketing')",
                 "INSERT INTO EMPLOYEES VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1), (4, 'Diana', 3)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Employee { name: String[1]; }
                     Class model::Dept { name: String[1]; }
                     Association model::Emp_Dept { employees: Employee[*]; dept: Dept[1]; }
@@ -3176,6 +3318,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO SCHOOLS VALUES (1, 'MIT'), (2, 'Stanford')",
                 "INSERT INTO STUDENTS VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Student { name: String[1]; }
                     Class model::School { name: String[1]; }
                     Association model::Student_School { students: Student[*]; school: School[1]; }
@@ -3204,6 +3349,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PEOPLE VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')",
                 "INSERT INTO ADDRS VALUES (1, 1, 'NYC'), (2, 1, 'LA'), (3, 1, 'Chicago'), (4, 2, 'Boston')");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Addr { city: String[1]; }
                     Association model::Person_Addr { person: Person[1]; addrs: Addr[*]; }
@@ -3230,6 +3378,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PEOPLE VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')",
                 "INSERT INTO ADDRS VALUES (1, 1, 'NYC'), (2, 1, 'LA'), (3, 2, 'NYC'), (4, 3, 'Boston')");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Addr { city: String[1]; }
                     Association model::Person_Addr { person: Person[1]; addrs: Addr[*]; }
@@ -3257,6 +3408,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PRODUCTS VALUES (1, 'Widget'), (2, 'Gadget')",
                 "INSERT INTO ORDERS VALUES (1, 1, 1, 5), (2, 1, 2, 3), (3, 2, 1, 10)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Order { qty: Integer[1]; }
                     Class model::Customer { name: String[1]; }
                     Class model::Product { name: String[1]; }
@@ -3286,6 +3440,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO AUTHORS VALUES (1, 'Tolkien', 'UK'), (2, 'Asimov', 'USA'), (3, 'Clarke', 'UK')",
                 "INSERT INTO BOOKS VALUES (1, 'LOTR', 1), (2, 'Hobbit', 1), (3, 'Foundation', 2), (4, '2001', 3)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Author { name: String[1]; country: String[1]; }
                     Class model::Book { title: String[1]; }
                     Association model::Author_Book { author: Author[1]; books: Book[*]; }
@@ -3448,6 +3605,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO HR_DEPT VALUES (1, 'Engineering'), (2, 'Marketing'), (3, 'Sales')",
                 "INSERT INTO HR_EMP VALUES (1, 'Alice', 120000, 1), (2, 'Bob', 90000, 1), (3, 'Charlie', 85000, 2), (4, 'Diana', 110000, 3), (5, 'Eve', 95000, 1)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Emp { name: String[1]; sal: Integer[1]; }
                     Class model::Dept { name: String[1]; }
                     Association model::Emp_Dept { emps: Emp[*]; dept: Dept[1]; }
@@ -3473,6 +3633,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO SUPPLIERS VALUES (1, 'Acme Supply', 'USA'), (2, 'Global Parts', 'Germany')",
                 "INSERT INTO INV_ITEMS VALUES (1, 'Bolt M5', 1000, 1), (2, 'Nut M5', 5, 1), (3, 'Washer M5', 3, 2), (4, 'Screw M5', 500, 2)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Item { name: String[1]; stock: Integer[1]; }
                     Class model::Supplier { name: String[1]; country: String[1]; }
                     Association model::Item_Supplier { items: Item[*]; supplier: Supplier[1]; }
@@ -3540,6 +3703,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO C_ADDR VALUES (1, 1, 'NYC', 'NY'), (2, 1, 'LA', 'CA'), (3, 2, 'Boston', 'MA')",
                 "INSERT INTO C_ADDR VALUES (4, 3, 'Chicago', 'IL'), (5, 5, 'Dallas', 'TX')");
             model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Emp { name: String[1]; sal: Integer[1]; active: Boolean[1]; }
                     Class model::Dept { name: String[1]; budget: Integer[1]; }
                     Class model::Addr { city: String[1]; state: String[1]; }
@@ -3643,6 +3809,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO REP VALUES (1, 'Alice', 'East'), (2, 'Bob', 'East'), (3, 'Charlie', 'West')",
                 "INSERT INTO SALE VALUES (1, 500, 1), (2, 300, 1), (3, 700, 2), (4, 200, 3), (5, 400, 3), (6, 100, 1)");
             model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Sale { amount: Integer[1]; }
                     Class model::Rep { name: String[1]; region: String[1]; }
                     Association model::Sale_Rep { sales: Sale[*]; rep: Rep[1]; }
@@ -3725,6 +3894,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO MJ_ORDER VALUES (1, 1, 1, 5, 10.0), (2, 1, 2, 1, 100.0), (3, 2, 1, 3, 10.0)",
                 "INSERT INTO MJ_ORDER VALUES (4, 2, 3, 2, 25.0), (5, 3, 2, 4, 100.0), (6, 3, 1, 10, 10.0)");
             model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Order { qty: Integer[1]; price: Float[1]; }
                     Class model::Customer { name: String[1]; tier: String[1]; }
                     Class model::Product { name: String[1]; category: String[1]; }
@@ -3814,6 +3986,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO EJ_USER VALUES (1, 'Alice'), (2, 'Bob')",
                 "INSERT INTO EJ_TICKET VALUES (1, 'Fix crash', 'H', 1), (2, 'Add docs', 'L', 2), (3, 'Perf issue', 'H', 1), (4, 'UI tweak', 'M', 2)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Enum model::Priority { LOW, MEDIUM, HIGH }
                     Class model::Ticket { title: String[1]; priority: Priority[1]; }
                     Class model::User { name: String[1]; }
@@ -3842,6 +4017,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO EJ2_CUST VALUES (1, 'Alice'), (2, 'Bob')",
                 "INSERT INTO EJ2_ORDER VALUES (1, 'A', 1, 100), (2, 'A', 1, 200), (3, 'C', 2, 300), (4, 'A', 2, 150)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Enum model::Status { ACTIVE, CANCELLED }
                     Class model::Order { status: Status[1]; amount: Integer[1]; }
                     Class model::Cust { name: String[1]; }
@@ -3880,6 +4058,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO M2M_DEPT VALUES (1, 'Engineering'), (2, 'Sales')",
                 "INSERT INTO M2M_EMP VALUES (1, 'Alice', 'Smith', 1), (2, 'Bob', 'Jones', 2)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::RawEmp { first: String[1]; last: String[1]; }
                     Class model::RawDept { name: String[1]; }
                     Class model::Employee { fullName: String[1]; }
@@ -3905,6 +4086,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE M2M_RAW (ID INT, A VARCHAR(50), B VARCHAR(50), SCORE INT)",
                 "INSERT INTO M2M_RAW VALUES (1, 'Alpha', 'One', 80), (2, 'Beta', 'Two', 95), (3, 'Gamma', 'Three', 70)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Raw { a: String[1]; b: String[1]; score: Integer[1]; }
                     Class model::View { label: String[1]; score: Integer[1]; }
                     Database store::DB ( Table M2M_RAW (ID INTEGER, A VARCHAR(50), B VARCHAR(50), SCORE INTEGER) )
@@ -3941,6 +4125,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO LD_PROJECT VALUES (1, 'ProjectX', 500000, 1), (2, 'ProjectY', 200000, 2), (3, 'ProjectZ', 800000, 3)",
                 "INSERT INTO LD_SKILL VALUES (1, 1, 'Java', 9), (2, 1, 'Python', 7), (3, 2, 'Sales', 8), (4, 3, 'ML', 9), (5, 4, 'Java', 6)");
             model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Company { name: String[1]; country: String[1]; }
                     Class model::Dept { name: String[1]; }
                     Class model::Emp { name: String[1]; sal: Integer[1]; }
@@ -4089,6 +4276,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INT)",
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 'Acme Corp', 1000000), (2, 'Bob', 'Beta Inc', 500000), (3, 'Charlie', 'Acme Corp', 1000000)");
             model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
@@ -4179,6 +4369,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_ADDRESS VALUES (1, '123 Main St', 'New York'), (2, '456 Oak Ave', 'Boston')",
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 'Acme Corp', 1), (2, 'Bob', 'Beta Inc', 2)");
             var model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; }
                     Class model::Address { street: String[1]; city: String[1]; }
@@ -4225,6 +4418,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE T_PERSON (ID INT, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), ADDR_ID INT)",
                 "CREATE TABLE T_ADDRESS (ID INT, STREET VARCHAR(200), CITY VARCHAR(100))");
             var model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; }
                     Class model::Address { street: String[1]; city: String[1]; }
@@ -4273,6 +4469,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INT)",
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 'Acme Corp', 1000000), (2, 'Bob', 'Beta Inc', 500000), (3, 'Charlie', 'Acme Corp', 1000000)");
             model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
@@ -4353,6 +4552,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_FIRM VALUES (1, 'Acme Corp', 1000000), (2, 'Beta Inc', 500000)",
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 'Acme Corp', 1), (2, 'Bob', 'Beta Inc', 2), (3, 'Charlie', 'Acme Corp', 1)");
             model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
@@ -4503,6 +4705,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_DEPT VALUES (1, 'Engineering', 1), (2, 'Sales', 2)",
                 "INSERT INTO T_EMP VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Emp { name: String[1]; }
                     Class model::Dept { name: String[1]; }
                     Class model::Company { name: String[1]; }
@@ -4553,6 +4758,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_DEPT2 VALUES (1, 'Eng', 1), (2, 'Sales', 2)",
                 "INSERT INTO T_EMP2 VALUES (1, 'Alice', 1, 100), (2, 'Bob', 2, 200), (3, 'Charlie', 1, 150)");
             String m = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::E2 { name: String[1]; salary: Integer[1]; }
                     Class model::D2 { name: String[1]; }
                     Class model::C2 { country: String[1]; }
@@ -4626,6 +4834,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE PEOPLE (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
                 "INSERT INTO PEOPLE VALUES (1, 'Alice', 'Smith'), (2, 'Bob', 'Jones'), (3, 'Carol', 'Smith')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { fullName: String[1]; }
                     Database store::DB ( Table PEOPLE ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] PEOPLE
@@ -4649,6 +4860,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_FIRM VALUES (1, 'Acme', 1), (2, 'Brit Corp', 2)",
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; country: String[1]; }
                     Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
@@ -4695,6 +4909,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_FIRM VALUES (1, 'Acme', 1), (2, 'Brit Corp', 2)",
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; country: String[1]; }
                     Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
@@ -4736,6 +4953,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_FIRM VALUES (1, 'Acme', 1), (2, 'Brit Corp', 2)",
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; country: String[1]; }
                     Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
@@ -4775,6 +4995,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE TRADE (TRADE_ID INT, ACC_NUM INT, GSN VARCHAR(20), PRODUCT_ID INT, QTY INT)",
                 "INSERT INTO TRADE VALUES (1, 7900002, 'YU2EF5', 1, 3), (2, 7900002, 'YU2EF5', 1, 5), (3, 7900003, 'EA4GNY', 2, 100), (4, 7900003, 'EA4GNY', 2, 200)");
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Position { acctNum: Integer[1]; gsn: String[1]; quantity: Integer[1]; }
                     Database store::DB (
                         Table TRADE (TRADE_ID INTEGER, ACC_NUM INTEGER, GSN VARCHAR(20), PRODUCT_ID INTEGER, QTY INTEGER)
@@ -4817,6 +5040,9 @@ class RelationalMappingIntegrationTest {
             sql("CREATE TABLE EMPLOYEES (ID INT, NAME VARCHAR(100), MANAGER_ID INT)",
                 "INSERT INTO EMPLOYEES VALUES (1, 'Alice', null), (2, 'Bob', 1), (3, 'Charlie', 1), (4, 'Diana', 2)");
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Employee { name: String[1]; managerName: String[0..1]; }
                     Database store::DB (
                         Table EMPLOYEES (ID INTEGER, NAME VARCHAR(100), MANAGER_ID INTEGER)
@@ -4844,6 +5070,9 @@ class RelationalMappingIntegrationTest {
                 "CREATE TABLE PRODUCTS (REGION VARCHAR(10), PRODUCT_ID INT, NAME VARCHAR(50))",
                 "INSERT INTO PRODUCTS VALUES ('US', 1, 'Widget'), ('US', 2, 'Gadget'), ('EU', 1, 'Widget-EU')");
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Sale { qty: Integer[1]; productName: String[1]; }
                     Database store::DB (
                         Table SALES (REGION VARCHAR(10), PRODUCT_ID INTEGER, QTY INTEGER)
@@ -4880,6 +5109,9 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PRODUCTS VALUES (10, 'Widget'), (20, 'Gadget')",
                 "INSERT INTO ORDERS VALUES (1, 1, 10), (2, 2, 20), (3, 1, 20)");
             String model = withRuntime("""
+                    import store::*;
+                    import test::*;
+
                     Class test::Order { summary: String[1]; custName: String[1]; prodName: String[1]; }
                     Database store::DB (
                         Table ORDERS (ID INTEGER, CUST_ID INTEGER, PROD_ID INTEGER)

@@ -38,6 +38,8 @@ public class GetCheckerTest {
     private final QueryService queryService = new QueryService();
 
     private static final String EVENT_DATABASE = """
+            import store::*;
+
             Database store::EventDatabase
             (
                 Table T_EVENTS
@@ -59,6 +61,8 @@ public class GetCheckerTest {
             """;
 
     private static final String RUNTIME_DEF = """
+            import test::*;
+
             Runtime test::TestRuntime
             {
                 mappings:

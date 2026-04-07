@@ -26,6 +26,10 @@ public class ComputedProjectIntegrationTest {
      * produces from the Pure interpreter.
      */
     private static final String MODEL = """
+            import meta::pure::functions::relation::tests::project::*;
+            import store::*;
+            import test::*;
+
             Class meta::pure::functions::relation::tests::project::TypeForProjectTest {
                 name: String[1];
                 addresses: meta::pure::functions::relation::tests::project::Address[*];
@@ -98,6 +102,10 @@ public class ComputedProjectIntegrationTest {
      * Model for the PCT composition tests (testFilterPostProject etc).
      */
     private static final String COMPOSITION_MODEL = """
+            import meta::pure::functions::relation::tests::composition::*;
+            import store::*;
+            import test::*;
+
             Class meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests {
                 firstName: String[1];
                 lastName: String[1];
@@ -160,6 +168,9 @@ public class ComputedProjectIntegrationTest {
     // ==================== PCT testGroupByCastBeforeAgg / AfterAgg ====================
 
     private static final String TDS_MODEL = """
+            import store::*;
+            import test::*;
+
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
             RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
@@ -268,6 +279,9 @@ public class ComputedProjectIntegrationTest {
     // ==================== PCT testOLAPAggCastWithPartitionWindow ====================
 
     private static final String TDS_3COL_MODEL = """
+            import store::*;
+            import test::*;
+
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
             RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }

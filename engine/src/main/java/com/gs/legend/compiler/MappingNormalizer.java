@@ -7,9 +7,11 @@ import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.PureClassMapping;
 import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.store.Filter;
 import com.gs.legend.model.store.Join;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -33,6 +35,7 @@ import java.util.Set;
 public final class MappingNormalizer {
 
     private final PureModelBuilder model;
+    private final SymbolTable symbols;
     private NormalizedMapping normalized;
 
     /**
@@ -41,6 +44,7 @@ public final class MappingNormalizer {
      */
     public MappingNormalizer(PureModelBuilder model, java.util.List<String> mappingNames) {
         this.model = model;
+        this.symbols = model.symbolTable();
         this.normalized = normalize(mappingNames);
     }
 
@@ -48,7 +52,7 @@ public final class MappingNormalizer {
      * Restricted view for TypeChecker — only sees findMappingExpression.
      */
     public ModelContext modelContext() {
-        if (normalized.allClassMappings().isEmpty()) return model;
+        if (!normalized.hasClassMappings()) return model;
         return new ModelContext() {
             @Override public java.util.Optional<com.gs.legend.model.m3.PureClass> findClass(String n) { return model.findClass(n); }
             @Override public java.util.Optional<AssociationNavigation> findAssociationByProperty(String c, String p) { return model.findAssociationByProperty(c, p); }
@@ -75,23 +79,23 @@ public final class MappingNormalizer {
         if (mappingNames.isEmpty()) return NormalizedMapping.empty();
 
         var registry = model.getMappingRegistry();
-        Map<String, ClassMapping> allMappings = new LinkedHashMap<>();
+        Map<Integer, ClassMapping> allMappings = new HashMap<>();
         for (String name : mappingNames) {
             allMappings.putAll(registry.getAllClassMappings(name));
         }
 
-        Map<String, ClassMapping> resolvedMappings = new LinkedHashMap<>();
-        Map<String, ModelContext.MappingExpression> expressions = new LinkedHashMap<>();
+        Map<Integer, ClassMapping> resolvedMappings = new HashMap<>();
+        Map<Integer, ModelContext.MappingExpression> expressions = new HashMap<>();
 
         // Phase 1: Resolve M2M chains
-        Set<String> resolving = new HashSet<>();
+        Set<Integer> resolving = new HashSet<>();
         for (var entry : allMappings.entrySet()) {
-            String className = entry.getKey();
+            int classId = entry.getKey();
             ClassMapping cm = entry.getValue();
 
             if (cm instanceof PureClassMapping pcm) {
                 ClassMapping resolved = resolveM2MChain(pcm, allMappings, resolving);
-                resolvedMappings.put(className, resolved);
+                resolvedMappings.put(classId, resolved);
             } else if (cm instanceof RelationalMapping rm && rm.view() != null) {
                 // View macro: resolve PMs through the view once, store the resolved mapping.
                 // MappingResolver reads the resolved PMs — no second resolution needed.
@@ -103,9 +107,9 @@ public final class MappingNormalizer {
                     resolved = resolved.withGroupByColumns(
                             resolveViewGroupByKeys(rm.view(), resolvedPMs));
                 }
-                resolvedMappings.put(className, resolved);
+                resolvedMappings.put(classId, resolved);
             } else {
-                resolvedMappings.put(className, cm);
+                resolvedMappings.put(classId, cm);
             }
         }
 
@@ -113,13 +117,14 @@ public final class MappingNormalizer {
         // Association traversals are embedded in sourceRelation as extend() nodes
         // with fn1=traverse — no separate AssociationJoinInfo needed.
         for (var entry : resolvedMappings.entrySet()) {
-            String className = entry.getKey();
+            int classId = entry.getKey();
+            String className = symbols.nameOf(classId);
             ClassMapping cm = entry.getValue();
             if (!(cm instanceof RelationalMapping rm)) continue;
 
             var sourceRelation = synthesizeSourceRelation(rm);
             sourceRelation = addAssociationExtends(rm, className, sourceRelation, resolvedMappings);
-            expressions.put(className, new ModelContext.MappingExpression.Relational(
+            expressions.put(classId, new ModelContext.MappingExpression.Relational(
                     className, sourceRelation));
         }
 
@@ -127,15 +132,15 @@ public final class MappingNormalizer {
         // M2M association navigations are resolved by MappingResolver at resolve time
         // by walking the source class's sourceRelation extend nodes.
         for (var entry : resolvedMappings.entrySet()) {
-            String className = entry.getKey();
+            int classId = entry.getKey();
             ClassMapping cm = entry.getValue();
             if (!(cm instanceof PureClassMapping pcm)) continue;
 
-            expressions.put(className, new ModelContext.MappingExpression.M2M(
+            expressions.put(classId, new ModelContext.MappingExpression.M2M(
                     pcm.sourceClassName(), pcm.propertyExpressions(), pcm.filter()));
         }
 
-        return new NormalizedMapping(resolvedMappings, expressions);
+        return new NormalizedMapping(symbols, resolvedMappings, expressions);
     }
 
     // ==================== M2M Chain Resolution ====================
@@ -146,17 +151,17 @@ public final class MappingNormalizer {
      */
     private ClassMapping resolveM2MChain(
             PureClassMapping pcm,
-            Map<String, ClassMapping> allMappings,
-            Set<String> resolving) {
+            Map<Integer, ClassMapping> allMappings,
+            Set<Integer> resolving) {
 
-        String targetClassName = pcm.targetClassName();
-        if (resolving.contains(targetClassName)) {
+        int targetId = symbols.resolveId(pcm.targetClassName());
+        if (resolving.contains(targetId)) {
             throw new IllegalStateException(
-                    "Circular M2M chain detected for class: " + targetClassName);
+                    "Circular M2M chain detected for class: " + pcm.targetClassName());
         }
 
-        String sourceClassName = pcm.sourceClassName();
-        ClassMapping sourceMapping = allMappings.get(sourceClassName);
+        int sourceId = symbols.resolveId(pcm.sourceClassName());
+        ClassMapping sourceMapping = sourceId >= 0 ? allMappings.get(sourceId) : null;
 
         if (sourceMapping == null) {
             // Source class has no mapping in this scope — leave unresolved
@@ -165,16 +170,16 @@ public final class MappingNormalizer {
 
         // If source is also M2M, resolve it recursively first
         if (sourceMapping instanceof PureClassMapping srcPcm) {
-            resolving.add(targetClassName);
+            resolving.add(targetId);
             sourceMapping = resolveM2MChain(srcPcm, allMappings, resolving);
-            resolving.remove(targetClassName);
+            resolving.remove(targetId);
 
             // Update the source in allMappings so other chains can use the resolved version
-            allMappings.put(sourceClassName, sourceMapping);
+            allMappings.put(sourceId, sourceMapping);
         }
 
         // Resolve target class
-        PureClass targetClass = model.findClass(targetClassName).orElse(null);
+        PureClass targetClass = model.findClass(pcm.targetClassName()).orElse(null);
 
         // Fill in the two nulls
         return pcm.withResolved(targetClass, sourceMapping);
@@ -193,7 +198,7 @@ public final class MappingNormalizer {
     private com.gs.legend.ast.ValueSpecification addAssociationExtends(
             RelationalMapping rm, String className,
             com.gs.legend.ast.ValueSpecification source,
-            Map<String, ClassMapping> resolvedMappings) {
+            Map<Integer, ClassMapping> resolvedMappings) {
 
         String sourceTable = rm.table().qualifiedName();
 
@@ -202,7 +207,8 @@ public final class MappingNormalizer {
             var nav = navEntry.getValue();
             if (nav.join() == null) continue;
 
-            ClassMapping targetCm = resolvedMappings.get(nav.targetClassName());
+            int targetId = symbols.resolveId(nav.targetClassName());
+            ClassMapping targetCm = targetId >= 0 ? resolvedMappings.get(targetId) : null;
             if (targetCm == null || targetCm.sourceTable() == null) continue;
 
             // Build traverse chain (supports self-joins via TargetColumnRef)

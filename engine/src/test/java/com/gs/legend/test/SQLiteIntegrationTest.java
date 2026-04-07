@@ -69,6 +69,8 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testParseClassWithOptionalProperty() {
         // GIVEN: A Pure Class with optional and many multiplicity
         String pureClass = """
+                import model::*;
+
                 Class model::Employee
                 {
                     name: String[1];
@@ -99,6 +101,8 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testParseDatabaseWithMultipleTables() {
         // GIVEN: A Pure Database with multiple tables
         String pureDatabase = """
+                import store::*;
+
                 Database store::SalesDB
                 (
                     Table T_CUSTOMER
@@ -137,7 +141,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         // THEN: Model builder has all objects
         assertNotNull(modelBuilder);
 
-        PureClass personClass = modelBuilder.getClass("Person");
+        PureClass personClass = modelBuilder.getClass("model::Person");
         assertNotNull(personClass);
         assertEquals("Person", personClass.name());
 
@@ -145,7 +149,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         assertNotNull(personTable);
         assertEquals(5, personTable.columns().size());
 
-        RelationalMapping mapping = mappingRegistry.getByClassName("Person");
+        RelationalMapping mapping = mappingRegistry.getByClassName("model::Person");
         assertEquals(3, mapping.propertyMappings().size());
     }
 
@@ -295,6 +299,10 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithClassQuery_SQLite() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Adult { name: String[1]; age: Integer[1]; }
                 Database store::AdultDb ( Table T_ADULT ( ID INTEGER, NAME VARCHAR(100), AGE INTEGER ) )
                 Mapping model::AdultMap ( Adult: Relational { ~mainTable [AdultDb] T_ADULT name: [AdultDb] T_ADULT.NAME, age: [AdultDb] T_ADULT.AGE } )
@@ -346,6 +354,10 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithRelationQuery_SQLite() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Worker { dept: String[1]; salary: Integer[1]; }
                 Database store::WorkerDb ( Table T_WORKER ( ID INTEGER, DEPT VARCHAR(50), SALARY INTEGER ) )
                 Mapping model::WorkerMap ( Worker: Relational { ~mainTable [WorkerDb] T_WORKER dept: [WorkerDb] T_WORKER.DEPT, salary: [WorkerDb] T_WORKER.SALARY } )

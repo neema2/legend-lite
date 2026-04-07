@@ -7,6 +7,7 @@ import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.ClassDefinition.ConstraintDefinition;
 import com.gs.legend.model.def.ClassDefinition.DerivedPropertyDefinition;
 import com.gs.legend.model.def.ClassDefinition.PropertyDefinition;
+import com.gs.legend.model.def.ImportScope;
 import com.gs.legend.model.def.StereotypeApplication;
 import com.gs.legend.model.def.TaggedValue;
 import com.gs.legend.model.m3.Multiplicity;
@@ -1459,10 +1460,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      */
     public com.gs.legend.model.def.MappingDefinition.ClassMappingDefinition visitClassMappingElement(
             PureParser.ClassMappingElementContext ctx) {
-        String qualifiedClassName = ctx.qualifiedName().getText();
-        String className = qualifiedClassName.contains("::")
-                ? qualifiedClassName.substring(qualifiedClassName.lastIndexOf("::") + 2)
-                : qualifiedClassName;
+        String className = ctx.qualifiedName().getText();
 
         // Extract isRoot (*), setId ([id]), extendsSetId (extends [id])
         boolean isRoot = ctx.STAR() != null;
@@ -2441,7 +2439,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         // Case 3: Named type — qualifiedName with optional type arguments
         if (ctx.qualifiedName() != null) {
             String rawName = ctx.qualifiedName().getText();
-            // Strip package prefix if present
+            // Simple name for type-var check (T, V, K are never qualified)
             String simpleName = rawName.contains("::")
                     ? rawName.substring(rawName.lastIndexOf("::") + 2) : rawName;
 
@@ -2461,7 +2459,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             if (currentTypeParams.contains(simpleName)) {
                 return new PType.TypeVar(simpleName);
             }
-            return new PType.Concrete(simpleName);
+            return new PType.Concrete(rawName);
         }
 
         // Case 4: Unit name
@@ -2593,15 +2591,36 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * @return List of all PackageableElements found
      */
     public static List<com.gs.legend.model.def.PackageableElement> extractAllDefinitions(
-            PureParser.DefinitionContext definitionCtx) {
+            com.gs.legend.antlr.PureParser.DefinitionContext definitionCtx) {
+        return extractAllDefinitionsWithImports(definitionCtx).definitions();
+    }
+
+    /**
+     * Extracts all definitions AND import statements from a parsed source.
+     * Import statements are collected into an ImportScope for name resolution.
+     */
+    /** Result of parsing: definitions + imports from import statements. */
+    public record ParseResult(List<com.gs.legend.model.def.PackageableElement> definitions, ImportScope imports) {}
+
+    public static ParseResult extractAllDefinitionsWithImports(
+            com.gs.legend.antlr.PureParser.DefinitionContext definitionCtx) {
         List<com.gs.legend.model.def.PackageableElement> result = new ArrayList<>();
+        ImportScope imports = new ImportScope();
         if (definitionCtx == null) {
-            return result;
+            return new ParseResult(result, imports);
+        }
+
+        // Collect import statements
+        for (com.gs.legend.antlr.PureParser.ImportStatementContext importCtx : definitionCtx.importStatement()) {
+            // Grammar: IMPORT packagePath PATH_SEPARATOR STAR SEMI_COLON
+            // packagePath.getText() = "simple::model", so import = "simple::model::*"
+            String pkg = importCtx.packagePath().getText();
+            imports.addImport(pkg + "::*");
         }
 
         PackageableElementBuilder builder = new PackageableElementBuilder();
 
-        for (PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
+        for (com.gs.legend.antlr.PureParser.ElementDefinitionContext elemCtx : definitionCtx.elementDefinition()) {
             if (elemCtx.classDefinition() != null) {
                 result.add(builder.visitClassDefinition(elemCtx.classDefinition()));
             } else if (elemCtx.enumDefinition() != null) {
@@ -2627,6 +2646,6 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             // nativeFunction handled via extractNativeFunctionDefinitions()
         }
 
-        return result;
+        return new ParseResult(result, imports);
     }
 }

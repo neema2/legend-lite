@@ -28,6 +28,10 @@ class MappingTestIntegrationTest {
     private QueryService queryService;
 
     private static final String RELATIONAL_MODEL = """
+            import model::*;
+            import store::*;
+            import test::*;
+
             Class model::Person
             {
                 firstName: String[1];

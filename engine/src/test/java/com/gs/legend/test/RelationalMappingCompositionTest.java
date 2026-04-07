@@ -49,6 +49,8 @@ class RelationalMappingCompositionTest {
 
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                import test::*;
+
 
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
@@ -114,6 +116,9 @@ class RelationalMappingCompositionTest {
     /** Person with local + 1-hop + 2-hop join chain properties. */
     private String threeHopModel() {
         return withRuntime("""
+                import model::*;
+                import store::*;
+
                 Class model::Person { name: String[1]; deptName: String[1]; deptBudget: Integer[1]; orgName: String[1]; orgCountry: String[1]; }
                 Database store::DB (
                     Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
@@ -800,6 +805,9 @@ class RelationalMappingCompositionTest {
 
         private String assocToOneModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
@@ -879,6 +887,9 @@ class RelationalMappingCompositionTest {
 
         private String assocToManyModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Address { street: String[1]; city: String[1]; }
                     Association model::Person_Address { person: Person[1]; addresses: Address[*]; }
@@ -962,6 +973,9 @@ class RelationalMappingCompositionTest {
 
         private String assocPlusChainModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Employee { name: String[1]; deptName: String[1]; }
                     Class model::Firm { legalName: String[1]; }
                     Association model::Emp_Firm { employee: Employee[*]; firm: Firm[1]; }
@@ -1079,6 +1093,9 @@ class RelationalMappingCompositionTest {
 
         private String m2mModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::RawPerson { first: String[1]; last: String[1]; score: Integer[1]; }
                     Class model::Person { fullName: String[1]; score: Integer[1]; }
                     Database store::DB ( Table T_RAW (ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50), SCORE INTEGER) )
@@ -1147,6 +1164,9 @@ class RelationalMappingCompositionTest {
 
         private String m2mJoinChainModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::RawEmp { name: String[1]; deptName: String[1]; }
                     Class model::Employee { label: String[1]; }
                     Database store::DB (
@@ -1209,6 +1229,9 @@ class RelationalMappingCompositionTest {
 
         private String m2mAssocModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::RawEmp { first: String[1]; last: String[1]; }
                     Class model::RawDept { name: String[1]; }
                     Class model::Employee { fullName: String[1]; }
@@ -1260,6 +1283,9 @@ class RelationalMappingCompositionTest {
 
         private String multiClassModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; age: Integer[1]; }
                     Class model::Product { title: String[1]; price: Integer[1]; }
                     Database store::DB (
@@ -1338,6 +1364,9 @@ class RelationalMappingCompositionTest {
 
         private String fullComboModel() {
             return withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::Person { name: String[1]; deptName: String[1]; orgName: String[1]; }
                     Class model::Address { city: String[1]; }
                     Association model::Person_Address { person: Person[1]; addresses: Address[*]; }

@@ -40,19 +40,21 @@ public class GetAllChecker extends AbstractChecker {
                     "getAll(): first argument must be a class reference, got "
                             + params.get(0).getClass().getSimpleName());
         }
-        String className = TypeInfo.simpleName(fullPath);
+        // Resolve to FQN — ensures all downstream keys (classPropertyAccesses,
+        // associationNavigations, storeClassNames) use consistent FQN keys.
+        String fqn = findClass(fullPath).map(c -> c.qualifiedName()).orElse(fullPath);
 
         // Compile mapping-level expressions (filter, property expressions, etc.)
-        env.modelContext().findMappingExpression(className).ifPresent(mapExpr -> {
+        env.modelContext().findMappingExpression(fqn).ifPresent(mapExpr -> {
             switch (mapExpr) {
-                case MappingExpression.M2M m2m -> compileM2MExpressions(className, m2m, new HashSet<>());
+                case MappingExpression.M2M m2m -> compileM2MExpressions(fqn, m2m, new HashSet<>());
                 case MappingExpression.Relational rel -> compileRelationalExpressions(rel);
             }
         });
 
         // Always return ClassType[*] — same for relational and M2M
         return TypeInfo.builder()
-                .expressionType(ExpressionType.many(new GenericType.ClassType(fullPath)))
+                .expressionType(ExpressionType.many(new GenericType.ClassType(fqn)))
                 .build();
     }
 
@@ -76,9 +78,10 @@ public class GetAllChecker extends AbstractChecker {
                     }
                 });
 
-        // $src is a class instance — use the existing ClassType property resolution path.
+        // $src is a class instance — resolve to FQN for consistent keys with MappingResolver.
+        String srcFqn = findClass(m2m.sourceClassName()).map(c -> c.qualifiedName()).orElse(m2m.sourceClassName());
         var srcCtx = new TypeChecker.CompilationContext()
-                .withLambdaParam("src", new GenericType.ClassType(m2m.sourceClassName()));
+                .withLambdaParam("src", new GenericType.ClassType(srcFqn));
 
         // Compile each property expression + filter
         for (var expr : m2m.propertyExpressions().values()) {
@@ -120,7 +123,7 @@ public class GetAllChecker extends AbstractChecker {
         // with fn1=traverse. compileExpr walks the full chain including those.
         var ctx = new TypeChecker.CompilationContext();
         env.compileExpr(rel.sourceRelation(), ctx);
-        env.markSourceRelationCompiled(TypeInfo.simpleName(rel.className()));
+        env.markSourceRelationCompiled(rel.className());
 
         // Target classes' source relations are compiled on-demand by
         // TypeChecker.compileNeededAssociationTargets() (pass 2) — only for

@@ -7,11 +7,11 @@ import java.sql.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Stress test: 10K classes with DENSE connectivity (~10 hub-to-hub links each).
- * Same query patterns as StressTest — isolates normalizer/compiler impact of density.
+ * Stress test: 100K classes, tables, mappings, joins.
+ * 10x the 10K baseline — designed to surface integer-key vs string-key performance.
  */
-@DisplayName("Stress Tests Dense")
-class StressTestDense {
+@DisplayName("Stress Tests 100K")
+class StressTest100K {
 
     private Connection conn;
 
@@ -27,41 +27,27 @@ class StressTestDense {
 
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                
                 import test::*;
-
 
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
                 """.formatted(mappingName, dbName);
     }
 
-    /**
-     * Dense hub-spoke topology with 10K classes:
-     *
-     * 1000 Hub classes (H0..H999):
-     *   - Each hub connects to 10 other hubs via distinct associations
-     *     (ring + 9 skip-links at offsets 1,2,3,5,7,11,13,17,19)
-     *   - ~10 hub-to-hub associations per hub
-     *
-     * 9000 Satellite classes (S0..S8999): 9 per hub
-     *   - Each satellite connects to its hub via to-one association
-     *
-     * Same 10 query patterns as StressTest — measures density impact on normalizer.
-     */
     @Test
-    @DisplayName("10K dense hub-spoke model")
-    void testDenseModel() throws SQLException {
-        int HUBS = 1000;
+    @DisplayName("100K hub-spoke model")
+    void test100KModel() throws SQLException {
+        int HUBS = 10000;
         int SATS_PER_HUB = 9;
         int SATS = HUBS * SATS_PER_HUB;
-        int N = HUBS + SATS;
-        int[] SKIP_OFFSETS = {1, 2, 3, 5, 7, 11, 13, 17, 19};
+        int N = HUBS + SATS; // 100000
 
         // ---- Phase 0: Generate Pure source ----
         long t0 = System.nanoTime();
-        var sb = new StringBuilder(N * 1200);
+        var sb = new StringBuilder(N * 800);
 
-        // ---- Hub classes ----
+        // ---- Hub classes H0..H9999 ----
         for (int h = 0; h < HUBS; h++) {
             sb.append("Class test::H").append(h).append(" {\n");
             sb.append("    id: Integer[1];\n");
@@ -72,7 +58,7 @@ class StressTestDense {
             sb.append("}\n");
         }
 
-        // ---- Satellite classes ----
+        // ---- Satellite classes S0..S89999 ----
         for (int s = 0; s < SATS; s++) {
             sb.append("Class test::S").append(s).append(" {\n");
             sb.append("    id: Integer[1];\n");
@@ -84,19 +70,7 @@ class StressTestDense {
         // ---- Associations ----
         int assocCount = 0;
 
-        // Hub skip-links: each hub connects to 9 others at various offsets
-        for (int h = 0; h < HUBS; h++) {
-            for (int si = 0; si < SKIP_OFFSETS.length; si++) {
-                int target = (h + SKIP_OFFSETS[si]) % HUBS;
-                sb.append("Association test::HubLink").append(h).append("_").append(si).append(" {\n");
-                sb.append("    link").append(h).append("_").append(si).append(": test::H").append(target).append("[0..1];\n");
-                sb.append("    back").append(h).append("_").append(si).append(": test::H").append(h).append("[0..1];\n");
-                sb.append("}\n");
-                assocCount++;
-            }
-        }
-
-        // Hub ring: H0→H1→...→H999→H0 (the canonical nextHub for queries)
+        // Hub ring: H0→H1, ..., H9999→H0
         for (int h = 0; h < HUBS; h++) {
             int next = (h + 1) % HUBS;
             sb.append("Association test::HubRing").append(h).append(" {\n");
@@ -106,7 +80,17 @@ class StressTestDense {
             assocCount++;
         }
 
-        // Satellite→Hub
+        // Cross-links: every 100th hub links to hub+50
+        for (int h = 0; h < HUBS; h += 100) {
+            int target = (h + 50) % HUBS;
+            sb.append("Association test::HubCross").append(h).append(" {\n");
+            sb.append("    crossTo").append(h).append(": test::H").append(target).append("[0..1];\n");
+            sb.append("    crossFrom").append(h).append(": test::H").append(h).append("[0..1];\n");
+            sb.append("}\n");
+            assocCount++;
+        }
+
+        // Satellite→Hub: S_i belongs to H_(i/9)
         for (int s = 0; s < SATS; s++) {
             int hub = s / SATS_PER_HUB;
             sb.append("Association test::SatHub").append(s).append(" {\n");
@@ -119,14 +103,12 @@ class StressTestDense {
         // ---- Database ----
         sb.append("Database store::DB (\n");
 
-        // Hub tables — each has FK columns for all skip-links + ring
+        // Hub tables
         for (int h = 0; h < HUBS; h++) {
             sb.append("    Table TH").append(h)
               .append(" (ID INT, NAME VARCHAR(100), CODE VARCHAR(20), SCORE INT, STATUS VARCHAR(10)");
             sb.append(", NEXT_HUB_ID INT");
-            for (int si = 0; si < SKIP_OFFSETS.length; si++) {
-                sb.append(", LINK").append(si).append("_ID INT");
-            }
+            if (h % 100 == 0) sb.append(", CROSS_HUB_ID INT");
             sb.append(")\n");
         }
 
@@ -143,13 +125,11 @@ class StressTestDense {
               .append("(TH").append(h).append(".NEXT_HUB_ID = TH").append(next).append(".ID)\n");
         }
 
-        // Skip-link joins
-        for (int h = 0; h < HUBS; h++) {
-            for (int si = 0; si < SKIP_OFFSETS.length; si++) {
-                int target = (h + SKIP_OFFSETS[si]) % HUBS;
-                sb.append("    Join JLink").append(h).append("_").append(si)
-                  .append("(TH").append(h).append(".LINK").append(si).append("_ID = TH").append(target).append(".ID)\n");
-            }
+        // Cross-link joins
+        for (int h = 0; h < HUBS; h += 100) {
+            int target = (h + 50) % HUBS;
+            sb.append("    Join JCross").append(h)
+              .append("(TH").append(h).append(".CROSS_HUB_ID = TH").append(target).append(".ID)\n");
         }
 
         // Satellite→Hub joins
@@ -157,12 +137,6 @@ class StressTestDense {
             int hub = s / SATS_PER_HUB;
             sb.append("    Join JSat").append(s)
               .append("(TS").append(s).append(".HUB_ID = TH").append(hub).append(".ID)\n");
-        }
-
-        // Filters on even hubs
-        for (int h = 0; h < HUBS; h += 2) {
-            sb.append("    Filter ActiveHub").append(h)
-              .append("(TH").append(h).append(".STATUS = 'ACTIVE')\n");
         }
 
         sb.append(")\n");
@@ -173,9 +147,6 @@ class StressTestDense {
         // Hub mappings
         for (int h = 0; h < HUBS; h++) {
             sb.append("    test::H").append(h).append(": Relational {\n");
-            if (h % 2 == 0) {
-                sb.append("        ~filter [store::DB] ActiveHub").append(h).append("\n");
-            }
             sb.append("        ~mainTable [store::DB] TH").append(h).append("\n");
             sb.append("        id: [store::DB] TH").append(h).append(".ID,\n");
             sb.append("        name: [store::DB] TH").append(h).append(".NAME,\n");
@@ -204,16 +175,12 @@ class StressTestDense {
             sb.append("    )\n");
         }
 
-        // Skip-link association mappings
-        for (int h = 0; h < HUBS; h++) {
-            for (int si = 0; si < SKIP_OFFSETS.length; si++) {
-                sb.append("    test::HubLink").append(h).append("_").append(si).append(": AssociationMapping (\n");
-                sb.append("        link").append(h).append("_").append(si)
-                  .append(": [store::DB]@JLink").append(h).append("_").append(si).append(",\n");
-                sb.append("        back").append(h).append("_").append(si)
-                  .append(": [store::DB]@JLink").append(h).append("_").append(si).append("\n");
-                sb.append("    )\n");
-            }
+        // Cross-link association mappings
+        for (int h = 0; h < HUBS; h += 100) {
+            sb.append("    test::HubCross").append(h).append(": AssociationMapping (\n");
+            sb.append("        crossTo").append(h).append(": [store::DB]@JCross").append(h).append(",\n");
+            sb.append("        crossFrom").append(h).append(": [store::DB]@JCross").append(h).append("\n");
+            sb.append("    )\n");
         }
 
         // Satellite→Hub association mappings
@@ -229,12 +196,10 @@ class StressTestDense {
         String model = withRuntime(sb.toString(), "store::DB", "test::M");
         long genMs = (System.nanoTime() - t0) / 1_000_000;
 
-        int totalAssocs = assocCount;
-        int totalJoins = HUBS + (HUBS * SKIP_OFFSETS.length) + SATS;
-        System.out.println("=== STRESS TEST: Dense Hub-Spoke 10K ===");
+        int joinCount = HUBS + (HUBS / 100) + SATS;
+        System.out.println("=== STRESS TEST: Hub-Spoke 100K ===");
         System.out.println("Model: " + HUBS + " hubs, " + SATS + " satellites, "
-                + totalAssocs + " associations (~" + (SKIP_OFFSETS.length + 1) + " per hub), "
-                + totalJoins + " joins");
+                + assocCount + " associations, " + joinCount + " joins");
         System.out.println("Pure source size: " + (model.length() / 1024) + " KB");
         System.out.println("Phase 0 (generate source): " + genMs + " ms");
 
@@ -255,70 +220,44 @@ class StressTestDense {
         var normalizedMapping = normalizer.normalizedMapping();
         var modelCtx = normalizer.modelContext();
 
-        // ---- Same 100 query patterns as sparse test ----
+        // ---- 100 diverse queries spread across the 100K model ----
         var queries = new java.util.ArrayList<String>();
         for (int q = 0; q < 100; q++) {
-            int h = q * (HUBS / 100);
+            int h = q * (HUBS / 100); // spread across the 10000 hubs
             int s = h * SATS_PER_HUB;
             int nextH = (h + 1) % HUBS;
 
             switch (q % 10) {
-                case 0 -> queries.add("test::H" + h + ".all()->project(~[id, name, code])");
-                case 1 -> queries.add("test::S" + s + ".all()->project(~[id, label, value])");
-                case 2 -> queries.add("test::H" + h + ".all()->project(~[id, name, score])"
-                        + "->filter(r|$r.score > 50)");
-                case 3 -> queries.add("test::H" + h + ".all()->project(~[id, name, fullLabel])"
-                        + "->sort(~name->ascending())");
-                case 4 -> queries.add("test::H" + h + ".all()->project(~[id, fullLabel])");
-                case 5 -> queries.add("test::H" + h + ".all()->project(~[id, name, nh:x|$x.nextHub"
-                        + h + ".name])");
-                case 6 -> queries.add("test::S" + s + ".all()->project(~[id, label, hubName:x|$x.hub"
-                        + s + ".name])");
-                case 7 -> queries.add("test::H" + h + ".all()->project(~[id, name, score])"
-                        + "->filter(r|$r.id > 0)->sort(~score->descending())->limit(10)");
-                case 8 -> queries.add("test::H" + h + ".all()->project(~[id, name, nn:x|$x.nextHub"
-                        + h + ".nextHub" + nextH + ".name])");
-                case 9 -> queries.add("test::H" + h + ".all()->project(~[id, name])");
+                case 0 -> // Simple project on hub
+                    queries.add("test::H" + h + ".all()->project(~[id, name, code])");
+                case 1 -> // Simple project on satellite
+                    queries.add("test::S" + s + ".all()->project(~[id, label, value])");
+                case 2 -> // Hub project + filter
+                    queries.add("test::H" + h + ".all()->project(~[id, name, score])"
+                            + "->filter(r|$r.score > 50)");
+                case 3 -> // Hub project + sort
+                    queries.add("test::H" + h + ".all()->project(~[id, name, fullLabel])"
+                            + "->sort(~name->ascending())");
+                case 4 -> // Hub project with DynaFunc column only
+                    queries.add("test::H" + h + ".all()->project(~[id, fullLabel])");
+                case 5 -> // Hub → nextHub association navigation
+                    queries.add("test::H" + h + ".all()->project(~[id, name, nh:x|$x.nextHub"
+                            + h + ".name])");
+                case 6 -> // Satellite → hub association navigation
+                    queries.add("test::S" + s + ".all()->project(~[id, label, hubName:x|$x.hub"
+                            + s + ".name])");
+                case 7 -> // Hub project + filter + sort + limit
+                    queries.add("test::H" + h + ".all()->project(~[id, name, score])"
+                            + "->filter(r|$r.id > 0)->sort(~score->descending())->limit(10)");
+                case 8 -> // Hub → nextHub → nextNextHub (2-hop ring)
+                    queries.add("test::H" + h + ".all()->project(~[id, name, nn:x|$x.nextHub"
+                            + h + ".nextHub" + nextH + ".name])");
+                case 9 -> // Simple hub project (different hub)
+                    queries.add("test::H" + h + ".all()->project(~[id, name])");
             }
         }
 
-        // ---- Diagnostics ----
-        System.out.println("\n=== PER-QUERY TIMING DIAGNOSTICS ===");
-        String[] diagQueries = {
-            "test::H0.all()->project(~[id, name, code])",
-            "test::H5.all()->project(~[id, name, nh:x|$x.nextHub5.name])",
-            "test::H8.all()->project(~[id, name, nn:x|$x.nextHub8.nextHub9.name])",
-        };
-        for (String dq : diagQueries) {
-            System.out.println("  Q: " + dq);
-            long parseUs = -1, typeUs = -1, resolveUs = -1, planUs = -1;
-            String phase = "parse";
-            try {
-                long t = System.nanoTime();
-                var vs = com.gs.legend.parser.PureParser.parseQuery(dq);
-                parseUs = (System.nanoTime() - t) / 1000;
-                phase = "typeCheck";
-                t = System.nanoTime();
-                var unit = new com.gs.legend.compiler.TypeChecker(modelCtx).check(vs);
-                typeUs = (System.nanoTime() - t) / 1000;
-                phase = "resolve";
-                t = System.nanoTime();
-                var storeRes = new com.gs.legend.compiler.MappingResolver(
-                        unit, normalizedMapping, builder).resolve();
-                resolveUs = (System.nanoTime() - t) / 1000;
-                phase = "planGen";
-                t = System.nanoTime();
-                var plan = new com.gs.legend.plan.PlanGenerator(
-                        unit, dialect, storeRes).generate();
-                planUs = (System.nanoTime() - t) / 1000;
-                System.out.println("    parse=" + parseUs + "us  typeCheck=" + typeUs + "us  resolve=" + resolveUs + "us  planGen=" + planUs + "us");
-            } catch (Exception e) {
-                System.out.println("    FAILED in '" + phase + "': " + e.getClass().getSimpleName() + ": " + e.getMessage());
-            }
-        }
-        System.out.println("=== END DIAGNOSTICS ===\n");
-
-        // ---- Run all queries ----
+        // ---- Run all 100 queries ----
         int passed = 0, failed = 0;
         long queryStartAll = System.nanoTime();
         for (int q = 0; q < queries.size(); q++) {

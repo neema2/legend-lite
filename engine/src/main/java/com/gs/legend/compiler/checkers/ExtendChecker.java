@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.plan.GenericType;
 
 import java.util.*;
@@ -159,7 +160,7 @@ public class ExtendChecker extends AbstractChecker {
         if (!fn1.parameters().isEmpty()) return false; // must be 0-param
         if (fn1.body().isEmpty()) return false;
         return fn1.body().get(0) instanceof AppliedFunction af
-                && "traverse".equals(TypeInfo.simpleName(af.function()));
+                && "traverse".equals(SymbolTable.extractSimpleName(af.function()));
     }
 
     /**
@@ -213,9 +214,6 @@ public class ExtendChecker extends AbstractChecker {
             PType sigType = sigFnType.paramTypes().get(pi).type();
             GenericType resolvedType = resolve(sigType, bindings,
                     "extend() lambda param " + pi);
-            System.out.println("[DEBUG ExtendChecker] param " + pi + " '" + paramName
-                    + "' sigType=" + sigType + " resolvedType=" + resolvedType
-                    + " (" + resolvedType.getClass().getSimpleName() + ")");
             fn1Ctx = bindLambdaParam(fn1Ctx, paramName, resolvedType, source);
         }
         // compileLambdaBody → compileExpr → ScalarChecker → resolveOverload
@@ -234,17 +232,6 @@ public class ExtendChecker extends AbstractChecker {
         // For window extends, look up the function resolved by ScalarChecker during
         // compileLambdaBody — no re-resolution needed.
         NativeFunctionDef resolvedFunc = lookupResolvedFunc(fn1);
-        System.out.println("[DEBUG ExtendChecker] alias=" + alias + " resolvedFunc=" + (resolvedFunc != null ? resolvedFunc.name() : "NULL") + " overSpec=" + (overSpec != null));
-        if (resolvedFunc == null && fn1.body().size() > 0) {
-            var dbgBody = fn1.body().get(0);
-            System.out.println("[DEBUG ExtendChecker] fn1.body[0] class=" + dbgBody.getClass().getSimpleName());
-            if (dbgBody instanceof AppliedProperty dbgAp && !dbgAp.parameters().isEmpty()) {
-                System.out.println("[DEBUG ExtendChecker]   AppliedProperty=" + dbgAp.property() + " inner=" + dbgAp.parameters().get(0).getClass().getSimpleName());
-                if (dbgAp.parameters().get(0) instanceof AppliedFunction dbgAf) {
-                    System.out.println("[DEBUG ExtendChecker]   inner func=" + dbgAf.function() + " info=" + env.lookupCompiled(dbgAf));
-                }
-            }
-        }
         var ws = overSpec != null && resolvedFunc != null
                 ? new TypeInfo.WindowSpec(resolvedFunc, overSpec, alias, returnType, null)
                 : null;

@@ -26,6 +26,8 @@ class VariantIntegrationTest {
     private final QueryService queryService = new QueryService();
 
     private static final String EVENT_DATABASE = """
+            import store::*;
+
             Database store::EventDatabase
             (
                 Table T_EVENTS
@@ -47,6 +49,8 @@ class VariantIntegrationTest {
             """;
 
     private static final String RUNTIME_DEFINITION = """
+            import test::*;
+
             Runtime test::TestRuntime
             {
                 mappings:
@@ -312,6 +316,10 @@ class VariantIntegrationTest {
     void testEmbeddedClassMapping() throws SQLException {
         // Full model with embedded class mapping
         String pureModel = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Event {
                     id: Integer[1];
                     eventType: String[1];

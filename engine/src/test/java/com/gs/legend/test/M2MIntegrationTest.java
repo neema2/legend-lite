@@ -43,6 +43,10 @@ class M2MIntegrationTest {
      * - Connection and Runtime for execution
      */
     private static final String PURE_MODEL = """
+            import model::*;
+            import store::*;
+            import test::*;
+
             Class model::RawPerson
             {
                 firstName: String[1];

@@ -60,6 +60,8 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     // ==================== Pure Service Definitions ====================
 
     private static final String ALL_PERSONS_SERVICE = """
+            import model::*;
+
             Service model::AllPersons
             {
                 pattern: '/api/persons';
@@ -72,6 +74,8 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
             """;
 
     private static final String PERSONS_BY_LASTNAME_SERVICE = """
+            import model::*;
+
             Service model::PersonsByLastName
             {
                 pattern: '/api/persons/{lastName}';
@@ -84,6 +88,8 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
             """;
 
     private static final String PERSONS_WITH_ADDRESSES_SERVICE = """
+            import model::*;
+
             Service model::PersonsWithAddresses
             {
                 pattern: '/api/persons-with-addresses';
@@ -96,6 +102,8 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
             """;
 
     private static final String PERSONS_BY_CITY_SERVICE = """
+            import model::*;
+
             Service model::PersonsByCity
             {
                 pattern: '/api/persons-by-city/{city}';

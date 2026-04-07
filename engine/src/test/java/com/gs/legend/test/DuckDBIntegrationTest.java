@@ -72,12 +72,12 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // GIVEN: Complete Pure model is already loaded in setupMappingRegistry()
 
         // THEN: The model builder has created all objects
-        assertNotNull(modelBuilder.getClass("Person"));
+        assertNotNull(modelBuilder.getClass("model::Person"));
         assertNotNull(modelBuilder.getTable("T_PERSON"));
-        assertTrue(mappingRegistry.findByClassName("Person").isPresent());
+        assertTrue(mappingRegistry.findByClassName("model::Person").isPresent());
 
         // Verify the PureClass
-        PureClass personClass = modelBuilder.getClass("Person");
+        PureClass personClass = modelBuilder.getClass("model::Person");
         assertEquals("Person", personClass.name());
         assertEquals(3, personClass.properties().size());
 
@@ -248,7 +248,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Verify domain model structure")
     void testDomainModelStructure() {
         // Get the class from the model builder (built from Pure syntax)
-        PureClass personClass = modelBuilder.getClass("Person");
+        PureClass personClass = modelBuilder.getClass("model::Person");
 
         assertEquals("Person", personClass.name());
         assertEquals(3, personClass.properties().size());
@@ -262,9 +262,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Verify mapping registry functionality")
     void testMappingRegistryFunctionality() {
         // Registry is set up in @BeforeEach via setupMappingRegistry()
-        assertTrue(mappingRegistry.findByClassName("Person").isPresent());
+        assertTrue(mappingRegistry.findByClassName("model::Person").isPresent());
 
-        RelationalMapping mapping = mappingRegistry.getByClassName("Person");
+        RelationalMapping mapping = mappingRegistry.getByClassName("model::Person");
         assertEquals("FIRST_NAME", mapping.getColumnForProperty("firstName").orElseThrow());
         assertEquals("LAST_NAME", mapping.getColumnForProperty("lastName").orElseThrow());
         assertEquals("AGE_VAL", mapping.getColumnForProperty("age").orElseThrow());
@@ -275,6 +275,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testBuildModelWithAssociationAndJoin() {
         // GIVEN: Pure source with classes, association, database with join
         String pureSource = """
+                import model::*;
+                import store::*;
+
                 Class model::Person
                 {
                     name: String[1];
@@ -312,12 +315,12 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         PureModelBuilder builder = new PureModelBuilder().addSource(pureSource);
 
         // THEN: We have classes, association, tables, and join
-        assertNotNull(builder.getClass("Person"));
-        assertNotNull(builder.getClass("Address"));
+        assertNotNull(builder.getClass("model::Person"));
+        assertNotNull(builder.getClass("model::Address"));
         assertNotNull(builder.getTable("T_PERSON"));
         assertNotNull(builder.getTable("T_ADDRESS"));
 
-        assertTrue(builder.getAssociation("Person_Address").isPresent());
+        assertTrue(builder.getAssociation("model::Person_Address").isPresent());
         assertTrue(builder.getJoin("Person_Address").isPresent());
 
         var join = builder.getJoin("Person_Address").orElseThrow();
@@ -734,6 +737,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::EmpMC { name: String[1]; }
                 Class model::DeptMC { deptName: String[1]; }
                 Association model::Emp_Dept_MC
@@ -781,6 +788,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::EmpMC2 { name: String[1]; }
                 Class model::DeptMC2 { deptName: String[1]; }
                 Association model::Emp_Dept_MC2
@@ -902,6 +913,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Build model with connection and runtime
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Emp { dept: String[1]; sal: Integer[1]; }
                 Database store::EmpDb ( Table T_EMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP dept: [EmpDb] T_EMP.DEPT, sal: [EmpDb] T_EMP.SAL } )
@@ -949,6 +964,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureSyntaxGroupByOnClassFails() throws Exception {
         // GIVEN: A model with a runtime so we can attempt full execution
         String model = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Emp { dept: String[1]; sal: Integer[1]; }
                 Database store::EmpDb ( Table T_EMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP dept: [EmpDb] T_EMP.DEPT, sal: [EmpDb] T_EMP.SAL } )
@@ -977,6 +996,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureSyntaxSortByAndLimit() throws Exception {
         // GIVEN: A model with connection and runtime
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Emp { name: String[1]; sal: Integer[1]; }
                 Database store::EmpDb ( Table T_EMP ( ID INTEGER, NAME VARCHAR(100), SAL INTEGER ) )
                 Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP name: [EmpDb] T_EMP.NAME, sal: [EmpDb] T_EMP.SAL } )
@@ -1025,6 +1048,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureSyntaxRelationSortAndSlice() throws Exception {
         // GIVEN: A model with connection and runtime
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Emp { name: String[1]; sal: Integer[1]; }
                 Database store::EmpDb ( Table T_EMP ( ID INTEGER, NAME VARCHAR(100), SAL INTEGER ) )
                 Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP name: [EmpDb] T_EMP.NAME, sal: [EmpDb] T_EMP.SAL } )
@@ -1075,6 +1102,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithClassQuery_DuckDB() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Adult { name: String[1]; age: Integer[1]; }
                 Database store::AdultDb ( Table T_ADULT ( ID INTEGER, NAME VARCHAR(100), AGE INTEGER ) )
                 Mapping model::AdultMap ( Adult: Relational { ~mainTable [AdultDb] T_ADULT name: [AdultDb] T_ADULT.NAME, age: [AdultDb] T_ADULT.AGE } )
@@ -1126,6 +1157,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithRelationQuery_DuckDB() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Worker { dept: String[1]; salary: Integer[1]; }
                 Database store::WorkerDb ( Table T_WORKER ( ID INTEGER, DEPT VARCHAR(50), SALARY INTEGER ) )
                 Mapping model::WorkerMap ( Worker: Relational { ~mainTable [WorkerDb] T_WORKER dept: [WorkerDb] T_WORKER.DEPT, salary: [WorkerDb] T_WORKER.SALARY } )
@@ -1223,6 +1258,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Build model
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Item { category: String[1]; value: Integer[1]; }
                 Database store::ItemDb ( Table T_ITEMS ( ID INTEGER, CATEGORY VARCHAR(50), VALUE INTEGER ) )
                 Mapping model::ItemMap ( Item: Relational { ~mainTable [ItemDb] T_ITEMS category: [ItemDb] T_ITEMS.CATEGORY, value: [ItemDb] T_ITEMS.VALUE } )
@@ -1286,6 +1325,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Build model
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::User { name: String[1]; }
                 Database store::UserDb (
                     Table T_ACTIVE_USERS ( ID INTEGER, NAME VARCHAR(100) )
@@ -1337,6 +1380,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Stats { dept: String[1]; sal: Integer[1]; }
                 Database store::StatsDb ( Table T_STATS ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::StatsMap ( Stats: Relational { ~mainTable [StatsDb] T_STATS dept: [StatsDb] T_STATS.DEPT, sal: [StatsDb] T_STATS.SAL } )
@@ -1391,6 +1438,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Var { dept: String[1]; sal: Integer[1]; }
                 Database store::VarDb ( Table T_VAR ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::VarMap ( Var: Relational { ~mainTable [VarDb] T_VAR dept: [VarDb] T_VAR.DEPT, sal: [VarDb] T_VAR.SAL } )
@@ -1423,6 +1474,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Med { dept: String[1]; sal: Integer[1]; }
                 Database store::MedDb ( Table T_MED ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::MedMap ( Med: Relational { ~mainTable [MedDb] T_MED dept: [MedDb] T_MED.DEPT, sal: [MedDb] T_MED.SAL } )
@@ -1454,6 +1509,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::StdSamp { dept: String[1]; sal: Integer[1]; }
                 Database store::StdSampDb ( Table T_STDDEV_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::StdSampMap ( StdSamp: Relational { ~mainTable [StdSampDb] T_STDDEV_SAMP dept: [StdSampDb] T_STDDEV_SAMP.DEPT, sal: [StdSampDb] T_STDDEV_SAMP.SAL } )
@@ -1482,6 +1541,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::StdPop { dept: String[1]; sal: Integer[1]; }
                 Database store::StdPopDb ( Table T_STDDEV_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::StdPopMap ( StdPop: Relational { ~mainTable [StdPopDb] T_STDDEV_POP dept: [StdPopDb] T_STDDEV_POP.DEPT, sal: [StdPopDb] T_STDDEV_POP.SAL } )
@@ -1511,6 +1574,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::VarSamp { dept: String[1]; sal: Integer[1]; }
                 Database store::VarSampDb ( Table T_VAR_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::VarSampMap ( VarSamp: Relational { ~mainTable [VarSampDb] T_VAR_SAMP dept: [VarSampDb] T_VAR_SAMP.DEPT, sal: [VarSampDb] T_VAR_SAMP.SAL } )
@@ -1539,6 +1606,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::VarPop { dept: String[1]; sal: Integer[1]; }
                 Database store::VarPopDb ( Table T_VAR_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::VarPopMap ( VarPop: Relational { ~mainTable [VarPopDb] T_VAR_POP dept: [VarPopDb] T_VAR_POP.DEPT, sal: [VarPopDb] T_VAR_POP.SAL } )
@@ -1569,6 +1640,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Corr { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
                 Database store::CorrDb ( Table T_CORR ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
                 Mapping model::CorrMap ( Corr: Relational { ~mainTable [CorrDb] T_CORR dept: [CorrDb] T_CORR.DEPT, sal: [CorrDb] T_CORR.SAL, years: [CorrDb] T_CORR.YEARS } )
@@ -1603,6 +1678,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::CovarSamp { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
                 Database store::CovarSampDb ( Table T_COVAR_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
                 Mapping model::CovarSampMap ( CovarSamp: Relational { ~mainTable [CovarSampDb] T_COVAR_SAMP dept: [CovarSampDb] T_COVAR_SAMP.DEPT, sal: [CovarSampDb] T_COVAR_SAMP.SAL, years: [CovarSampDb] T_COVAR_SAMP.YEARS } )
@@ -1636,6 +1715,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::CovarPop { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
                 Database store::CovarPopDb ( Table T_COVAR_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
                 Mapping model::CovarPopMap ( CovarPop: Relational { ~mainTable [CovarPopDb] T_COVAR_POP dept: [CovarPopDb] T_COVAR_POP.DEPT, sal: [CovarPopDb] T_COVAR_POP.SAL, years: [CovarPopDb] T_COVAR_POP.YEARS } )
@@ -1672,6 +1755,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::PctEmployee { dept: String[1]; sal: Integer[1]; }
                 Database store::PctDb ( Table T_PERCENTILE ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::PctMap ( PctEmployee: Relational { ~mainTable [PctDb] T_PERCENTILE dept: [PctDb] T_PERCENTILE.DEPT, sal: [PctDb] T_PERCENTILE.SAL } )
@@ -1713,6 +1800,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::DiscEmployee { dept: String[1]; sal: Integer[1]; }
                 Database store::DiscDb ( Table T_PERCENTILE_DISC ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
                 Mapping model::DiscMap ( DiscEmployee: Relational { ~mainTable [DiscDb] T_PERCENTILE_DISC dept: [DiscDb] T_PERCENTILE_DISC.DEPT, sal: [DiscDb] T_PERCENTILE_DISC.SAL } )
@@ -1747,6 +1838,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::DatePerson { name: String[1]; birthDate: StrictDate[1]; }
                 Database store::DateDb ( Table T_DATE_TEST ( ID INTEGER, NAME VARCHAR(100), BIRTH_DATE DATE ) )
                 Mapping model::DateMap ( DatePerson: Relational { ~mainTable [DateDb] T_DATE_TEST name: [DateDb] T_DATE_TEST.NAME, birthDate: [DateDb] T_DATE_TEST.BIRTH_DATE } )
@@ -1796,6 +1891,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::TimeEvent { name: String[1]; eventTime: DateTime[1]; }
                 Database store::TimeDb ( Table T_TIME_TEST ( ID INTEGER, NAME VARCHAR(100), EVENT_TIME TIMESTAMP ) )
                 Mapping model::TimeMap ( TimeEvent: Relational { ~mainTable [TimeDb] T_TIME_TEST name: [TimeDb] T_TIME_TEST.NAME, eventTime: [TimeDb] T_TIME_TEST.EVENT_TIME } )
@@ -1843,6 +1942,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Sale { saleDate: StrictDate[1]; amount: Integer[1]; }
                 Database store::QuarterDb ( Table T_QUARTER_TEST ( ID INTEGER, SALE_DATE DATE, AMOUNT INTEGER ) )
                 Mapping model::QuarterMap ( Sale: Relational { ~mainTable [QuarterDb] T_QUARTER_TEST saleDate: [QuarterDb] T_QUARTER_TEST.SALE_DATE, amount: [QuarterDb] T_QUARTER_TEST.AMOUNT } )
@@ -1880,6 +1983,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Event { eventDate: StrictDate[1]; }
                 Database store::DowDb ( Table T_DOW_TEST ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::DowMap ( Event: Relational { ~mainTable [DowDb] T_DOW_TEST eventDate: [DowDb] T_DOW_TEST.EVENT_DATE } )
@@ -1918,6 +2025,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::WeekEvent { eventDate: StrictDate[1]; }
                 Database store::WeekDb ( Table T_WEEK_TEST ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::WeekMap ( WeekEvent: Relational { ~mainTable [WeekDb] T_WEEK_TEST eventDate: [WeekDb] T_WEEK_TEST.EVENT_DATE } )
@@ -1952,6 +2063,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Using StrictDate for date-only and DateTime for timestamp
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::User { name: String[1]; birthDate: StrictDate[1]; lastLogin: DateTime[1]; }
                 Database store::DateTimeDb ( Table T_DATETIME_TEST ( ID INTEGER, NAME VARCHAR(100), BIRTH_DATE DATE, LAST_LOGIN TIMESTAMP ) )
                 Mapping model::DateTimeMap ( User: Relational { ~mainTable [DateTimeDb] T_DATETIME_TEST name: [DateTimeDb] T_DATETIME_TEST.NAME, birthDate: [DateTimeDb] T_DATETIME_TEST.BIRTH_DATE, lastLogin: [DateTimeDb] T_DATETIME_TEST.LAST_LOGIN } )
@@ -1993,6 +2108,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::TestRecord { name: String[1]; }
                 Database store::NowDb ( Table T_NOW_TEST ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::NowMap ( TestRecord: Relational { ~mainTable [NowDb] T_NOW_TEST name: [NowDb] T_NOW_TEST.NAME } )
@@ -2027,6 +2146,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::EventRecord { eventDate: StrictDate[1]; }
                 Database store::FirstDayDb ( Table T_FIRST_DAY_TEST ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::FirstDayMap ( EventRecord: Relational { ~mainTable [FirstDayDb] T_FIRST_DAY_TEST eventDate: [FirstDayDb] T_FIRST_DAY_TEST.EVENT_DATE } )
@@ -2060,6 +2183,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::TruncRecord { eventDate: StrictDate[1]; }
                 Database store::TruncDb ( Table T_TRUNC_TEST ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::TruncMap ( TruncRecord: Relational { ~mainTable [TruncDb] T_TRUNC_TEST eventDate: [TruncDb] T_TRUNC_TEST.EVENT_DATE } )
@@ -2093,6 +2220,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::DateRange { startDate: StrictDate[1]; endDate: StrictDate[1]; }
                 Database store::DateDiffDb ( Table T_DATE_DIFF_TEST ( ID INTEGER, START_DATE DATE, END_DATE DATE ) )
                 Mapping model::DateDiffMap ( DateRange: Relational { ~mainTable [DateDiffDb] T_DATE_DIFF_TEST startDate: [DateDiffDb] T_DATE_DIFF_TEST.START_DATE, endDate: [DateDiffDb] T_DATE_DIFF_TEST.END_DATE } )
@@ -2101,7 +2232,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test dateDiff with DAYS unit
-        String pureQuery = "DateRange.all()->project([{e | dateDiff($e.startDate, $e.endDate, DurationUnit.DAYS)}], ['daysDiff'])";
+        String pureQuery = "DateRange.all()->project([{e | dateDiff($e.startDate, $e.endDate, meta::pure::functions::date::DurationUnit.DAYS)}], ['daysDiff'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dateDiff result: " + result.rows());
@@ -2125,6 +2256,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::AdjustRecord { baseDate: StrictDate[1]; }
                 Database store::AdjustDb ( Table T_ADJUST_TEST ( ID INTEGER, BASE_DATE DATE ) )
                 Mapping model::AdjustMap ( AdjustRecord: Relational { ~mainTable [AdjustDb] T_ADJUST_TEST baseDate: [AdjustDb] T_ADJUST_TEST.BASE_DATE } )
@@ -2133,7 +2268,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test adjust - add 10 days
-        String pureQuery = "AdjustRecord.all()->project([{e | $e.baseDate}, {e | adjust($e.baseDate, 10, DurationUnit.DAYS)}], ['baseDate', 'adjustedDate'])";
+        String pureQuery = "AdjustRecord.all()->project([{e | $e.baseDate}, {e | adjust($e.baseDate, 10, meta::pure::functions::date::DurationUnit.DAYS)}], ['baseDate', 'adjustedDate'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("adjust result: " + result.rows());
@@ -2158,6 +2293,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::AdjustMethodRecord { baseDate: StrictDate[1]; }
                 Database store::AdjustMethodDb ( Table T_ADJUST_METHOD_TEST ( ID INTEGER, BASE_DATE DATE ) )
                 Mapping model::AdjustMethodMap ( AdjustMethodRecord: Relational { ~mainTable [AdjustMethodDb] T_ADJUST_METHOD_TEST baseDate: [AdjustMethodDb] T_ADJUST_METHOD_TEST.BASE_DATE } )
@@ -2314,6 +2453,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::EpochRecord { eventDate: DateTime[1]; }
                 Database store::EpochDb ( Table T_EPOCH_TEST ( ID INTEGER, EVENT_DATE TIMESTAMP ) )
                 Mapping model::EpochMap ( EpochRecord: Relational { ~mainTable [EpochDb] T_EPOCH_TEST eventDate: [EpochDb] T_EPOCH_TEST.EVENT_DATE } )
@@ -2343,6 +2486,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::FromEpochRecord { epochSeconds: Integer[1]; }
                 Database store::FromEpochDb ( Table T_FROM_EPOCH_TEST ( ID INTEGER, EPOCH_SECONDS BIGINT ) )
                 Mapping model::FromEpochMap ( FromEpochRecord: Relational { ~mainTable [FromEpochDb] T_FROM_EPOCH_TEST epochSeconds: [FromEpochDb] T_FROM_EPOCH_TEST.EPOCH_SECONDS } )
@@ -2374,6 +2521,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::DateCompareRecord { date1: DateTime[1]; date2: DateTime[1]; }
                 Database store::DateCompareDb ( Table T_DATE_COMPARE ( ID INTEGER, DATE1 TIMESTAMP, DATE2 TIMESTAMP ) )
                 Mapping model::DateCompareMap ( DateCompareRecord: Relational { ~mainTable [DateCompareDb] T_DATE_COMPARE date1: [DateCompareDb] T_DATE_COMPARE.DATE1, date2: [DateCompareDb] T_DATE_COMPARE.DATE2 } )
@@ -2406,6 +2557,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::AfterBeforeRecord { date1: StrictDate[1]; date2: StrictDate[1]; }
                 Database store::AfterBeforeDb ( Table T_AFTER_BEFORE ( ID INTEGER, DATE1 DATE, DATE2 DATE ) )
                 Mapping model::AfterBeforeMap ( AfterBeforeRecord: Relational { ~mainTable [AfterBeforeDb] T_AFTER_BEFORE date1: [AfterBeforeDb] T_AFTER_BEFORE.DATE1, date2: [AfterBeforeDb] T_AFTER_BEFORE.DATE2 } )
@@ -2441,6 +2596,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::OnOrRecord { date1: StrictDate[1]; date2: StrictDate[1]; }
                 Database store::OnOrDb ( Table T_ON_OR ( ID INTEGER, DATE1 DATE, DATE2 DATE ) )
                 Mapping model::OnOrMap ( OnOrRecord: Relational { ~mainTable [OnOrDb] T_ON_OR date1: [OnOrDb] T_ON_OR.DATE1, date2: [OnOrDb] T_ON_OR.DATE2 } )
@@ -2471,6 +2630,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::DatePartRecord { eventTime: DateTime[1]; }
                 Database store::DatePartDb ( Table T_DATEPART ( ID INTEGER, EVENT_TIME TIMESTAMP ) )
                 Mapping model::DatePartMap ( DatePartRecord: Relational { ~mainTable [DatePartDb] T_DATEPART eventTime: [DatePartDb] T_DATEPART.EVENT_TIME } )
@@ -2500,6 +2663,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::FirstHourRecord { eventTime: DateTime[1]; }
                 Database store::FirstHourDb ( Table T_FIRST_HOUR ( ID INTEGER, EVENT_TIME TIMESTAMP ) )
                 Mapping model::FirstHourMap ( FirstHourRecord: Relational { ~mainTable [FirstHourDb] T_FIRST_HOUR eventTime: [FirstHourDb] T_FIRST_HOUR.EVENT_TIME } )
@@ -2531,6 +2698,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::TimeBucketRecord { eventTime: DateTime[1]; }
                 Database store::TimeBucketDb ( Table T_TIMEBUCKET ( ID INTEGER, EVENT_TIME TIMESTAMP ) )
                 Mapping model::TimeBucketMap ( TimeBucketRecord: Relational { ~mainTable [TimeBucketDb] T_TIMEBUCKET eventTime: [TimeBucketDb] T_TIMEBUCKET.EVENT_TIME } )
@@ -2539,7 +2710,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test with 5-hour buckets
-        String pureQuery = "TimeBucketRecord.all()->project([{e | $e.eventTime->timeBucket(5, DurationUnit.HOURS)}], ['bucket'])";
+        String pureQuery = "TimeBucketRecord.all()->project([{e | $e.eventTime->timeBucket(5, meta::pure::functions::date::DurationUnit.HOURS)}], ['bucket'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("timeBucket (5 hours) result: " + result.rows());
@@ -2567,6 +2738,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::DayBucketRecord { eventDate: StrictDate[1]; }
                 Database store::DayBucketDb ( Table T_TIMEBUCKET_DAYS ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::DayBucketMap ( DayBucketRecord: Relational { ~mainTable [DayBucketDb] T_TIMEBUCKET_DAYS eventDate: [DayBucketDb] T_TIMEBUCKET_DAYS.EVENT_DATE } )
@@ -2575,7 +2750,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test with 7-day (weekly) buckets
-        String pureQuery = "DayBucketRecord.all()->project([{e | $e.eventDate->timeBucket(7, DurationUnit.DAYS)}], ['weekBucket'])";
+        String pureQuery = "DayBucketRecord.all()->project([{e | $e.eventDate->timeBucket(7, meta::pure::functions::date::DurationUnit.DAYS)}], ['weekBucket'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("timeBucket (7 days) result: " + result.rows());
@@ -2600,6 +2775,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::MonthRecord { eventDate: StrictDate[1]; }
                 Database store::MonthDb ( Table T_MONTH ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::MonthMap ( MonthRecord: Relational { ~mainTable [MonthDb] T_MONTH eventDate: [MonthDb] T_MONTH.EVENT_DATE } )
@@ -2632,6 +2811,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::QuarterRecord { eventDate: StrictDate[1]; }
                 Database store::QuarterDb ( Table T_QUARTER ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::QuarterMap ( QuarterRecord: Relational { ~mainTable [QuarterDb] T_QUARTER eventDate: [QuarterDb] T_QUARTER.EVENT_DATE } )
@@ -2663,6 +2846,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::MinMaxRecord { date1: StrictDate[1]; date2: StrictDate[1]; }
                 Database store::MinMaxDb ( Table T_MINMAX_DATE ( ID INTEGER, DATE1 DATE, DATE2 DATE ) )
                 Mapping model::MinMaxMap ( MinMaxRecord: Relational { ~mainTable [MinMaxDb] T_MINMAX_DATE date1: [MinMaxDb] T_MINMAX_DATE.DATE1, date2: [MinMaxDb] T_MINMAX_DATE.DATE2 } )
@@ -2722,6 +2909,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::DowRecord { eventDate: StrictDate[1]; }
                 Database store::DowDb ( Table T_DOW ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::DowMap ( DowRecord: Relational { ~mainTable [DowDb] T_DOW eventDate: [DowDb] T_DOW.EVENT_DATE } )
@@ -2754,6 +2945,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::DoyRecord { eventDate: StrictDate[1]; }
                 Database store::DoyDb ( Table T_DOY ( ID INTEGER, EVENT_DATE DATE ) )
                 Mapping model::DoyMap ( DoyRecord: Relational { ~mainTable [DoyDb] T_DOY eventDate: [DoyDb] T_DOY.EVENT_DATE } )
@@ -2780,6 +2975,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testConstantLambdaSimpleArithmetic() throws Exception {
         // Minimal model - we just need a valid runtime context
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2800,6 +2999,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: multiplication |6*7")
     void testConstantLambdaMultiplication() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2819,6 +3022,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: complex expression |(10 + 5) * 2 - 3")
     void testConstantLambdaComplexExpression() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2839,6 +3046,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: string literal |'hello'")
     void testConstantLambdaStringLiteral() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2858,6 +3069,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: boolean expression |true")
     void testConstantLambdaBooleanLiteral() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2877,6 +3092,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: comparison |5 > 3")
     void testConstantLambdaComparison() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2896,6 +3115,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: qualified function |meta::pure::functions::math::abs(-123)")
     void testConstantLambdaQualifiedFunction() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2915,6 +3138,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: string concatenation |'a' + 'b'")
     void testConstantLambdaStringConcatenation() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2937,6 +3164,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Let statement: simple scalar binding |let x = 42; $x")
     void testLetStatementSimpleScalar() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2956,6 +3187,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Let statement: arithmetic with let-bound variables |let x = 10; let y = 5; $x + $y;")
     void testLetStatementArithmetic() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2975,6 +3210,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Let statement: with newlines like PCT expressions")
     void testLetStatementWithNewlines() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -2994,6 +3233,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("ArrayLiteral: greatest([1, 2]) should return 2")
     void testArrayLiteralGreatest() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -3014,6 +3257,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("ArrayLiteral: least([1, 2]) should return 1")
     void testArrayLiteralLeast() throws Exception {
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Dummy { name: String[1]; }
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
@@ -3051,6 +3298,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Employee {
                     name: String[1];
                     hireDate: Date[1];
@@ -3098,6 +3349,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Employee {
                     name: String[1];
                     hireDate: Date[1];
@@ -3144,6 +3399,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import store::*;
+                import test::*;
+
                 Database store::EventDb ( Table T_EVENTS ( ID INTEGER, EVENT_NAME VARCHAR(100), EVENT_DATE DATE ) )
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::TestRuntime { mappings: []; connections: [ store::EventDb: [ environment: store::TestConn ] ]; }
@@ -3182,6 +3440,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Appointment {
                     title: String[1];
                     scheduledAt: DateTime[1];
@@ -3230,6 +3492,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                import model::*;
+                import store::*;
+                import test::*;
+
                 Class model::Appointment {
                     title: String[1];
                     scheduledAt: DateTime[1];

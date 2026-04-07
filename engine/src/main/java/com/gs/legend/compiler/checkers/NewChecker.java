@@ -3,6 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.plan.GenericType;
 
@@ -47,23 +48,20 @@ public class NewChecker extends AbstractChecker {
 
         return TypeInfo.builder()
                 .instanceLiteral(true)
-                .expressionType(ExpressionType.one(new GenericType.ClassType(data.className())))
+                .expressionType(ExpressionType.one(new GenericType.ClassType(
+                        findClass(data.className()).map(c -> c.qualifiedName()).orElse(data.className()))))
                 .build();
     }
 
     private PureClass resolveClass(ValueSpecificationBuilder.InstanceData data) {
         // Built-in Pure standard library types (no model context needed)
-        String simpleName = data.className().contains("::")
-                ? data.className().substring(data.className().lastIndexOf("::") + 2)
-                : data.className();
+        String simpleName = SymbolTable.extractSimpleName(data.className());
 
         if ("Pair".equals(simpleName) && data.typeArguments().size() == 2) {
             var firstType = GenericType.fromTypeName(data.typeArguments().get(0));
             var secondType = GenericType.fromTypeName(data.typeArguments().get(1));
             return new PureClass(
-                    data.className().contains("::")
-                            ? data.className().substring(0, data.className().lastIndexOf("::"))
-                            : "",
+                    SymbolTable.extractPackagePath(data.className()),
                     "Pair", java.util.List.of(
                             new com.gs.legend.model.m3.Property("first",
                                     com.gs.legend.model.m3.PrimitiveType.fromName(firstType.typeName()),

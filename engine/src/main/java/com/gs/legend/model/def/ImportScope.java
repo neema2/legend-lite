@@ -51,17 +51,18 @@ public class ImportScope {
 
     /**
      * Resolves a type name to its fully-qualified form.
+     * Matches legend-engine's CompileContext.resolve() semantics:
      * 
-     * Resolution order:
      * 1. If already qualified (contains ::), return as-is
      * 2. Check specific imports
-     * 3. Try wildcard imports against known types
-     * 4. Return original name as fallback
+     * 3. Try ALL wildcard imports against known types:
+     *    - 0 matches → return original (may be a primitive)
+     *    - 1 match → return it
+     *    - >1 matches → throw ambiguity error
      * 
      * @param name       The type name (may be simple or already qualified)
      * @param knownTypes Set of all known fully-qualified type names
-     * @return The fully-qualified name, or the original if already qualified or not
-     *         found
+     * @return The fully-qualified name, or the original if not resolvable
      */
     public String resolve(String name, Set<String> knownTypes) {
         if (name == null || name.isEmpty()) {
@@ -79,16 +80,25 @@ public class ImportScope {
             return typeImports.get(name);
         }
 
-        // Try wildcard imports (e.g., "import pkg::*" makes "Firm" -> "pkg::Firm" if
-        // exists)
+        // Try ALL wildcard imports — collect all matches for ambiguity detection
+        List<String> matches = new ArrayList<>();
         for (String pkg : wildcardImports) {
             String candidate = pkg + "::" + name;
             if (knownTypes.contains(candidate)) {
-                return candidate;
+                matches.add(candidate);
             }
         }
 
-        // Fallback: return as-is (may be a primitive or handled elsewhere)
+        if (matches.size() == 1) {
+            return matches.get(0);
+        }
+        if (matches.size() > 1) {
+            throw new IllegalStateException(
+                    "Ambiguous reference '" + name + "' — multiple matches found via imports: " + matches
+                    + ". Use a fully qualified name.");
+        }
+
+        // 0 matches — return as-is (may be a primitive like String, Integer, etc.)
         return name;
     }
 

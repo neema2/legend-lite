@@ -85,6 +85,8 @@ class ParseErrorLocationTest {
         void errorAfterCommentsReportsCorrectLine() {
             // GIVEN: Source with comments before the error
             String pureSource = """
+                    import model::*;
+
                     // This is a comment
                     // Another comment line
 
@@ -110,8 +112,8 @@ class ParseErrorLocationTest {
             // THEN: The exception reports line 7, NOT a lower line
             assertTrue(exception.hasLocation(),
                     "Exception should have location info");
-            assertEquals(7, exception.getLine(),
-                    "Error should be on line 7 (after comments)");
+            assertEquals(9, exception.getLine(),
+                    "Error should be on line 9 (after import + comments)");
         }
     }
 

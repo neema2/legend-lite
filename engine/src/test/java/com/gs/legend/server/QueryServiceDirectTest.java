@@ -29,6 +29,8 @@ class QueryServiceDirectTest {
         // mappings
         String dbPath = tempDbFile.toString().replace("\\", "/");
         sampleModel = """
+                import model::*;
+
                 Class model::Person {
                     firstName: String[1];
                     lastName: String[1];
@@ -45,7 +47,7 @@ class QueryServiceDirectTest {
                 )
 
                 Mapping model::PersonMapping (
-                    Person: Relational {
+                    model::Person: Relational {
                         ~mainTable [TestDatabase] T_PERSON
                         firstName: [TestDatabase] T_PERSON.FIRST_NAME,
                         lastName: [TestDatabase] T_PERSON.LAST_NAME,

@@ -33,6 +33,8 @@ class JavaCodeGeneratorTest {
     void testGenerateEnum() {
         // GIVEN: A Pure Enum definition
         String pureEnum = """
+                import model::*;
+
                 Enum model::Status
                 {
                     ACTIVE,
@@ -62,6 +64,8 @@ class JavaCodeGeneratorTest {
     void testGenerateRecordWithPrimitives() {
         // GIVEN: A Pure Class definition with required properties
         String pureClass = """
+                import model::*;
+
                 Class model::Person
                 {
                     firstName: String[1];
@@ -89,6 +93,8 @@ class JavaCodeGeneratorTest {
     void testGenerateRecordWithOptional() {
         // GIVEN: A Pure Class with optional properties
         String pureClass = """
+                import model::*;
+
                 Class model::Customer
                 {
                     name: String[1];
@@ -116,6 +122,8 @@ class JavaCodeGeneratorTest {
     void testGenerateRecordWithDerivedProperty() {
         // GIVEN: A Pure Class with a derived property
         String pureClass = """
+                import model::*;
+
                 Class model::Person
                 {
                     firstName: String[1];
@@ -141,6 +149,8 @@ class JavaCodeGeneratorTest {
     void testGenerateRecordWithListProperty() {
         // GIVEN: A Pure Class with a to-many property
         String pureClass = """
+                import model::*;
+
                 Class model::Team
                 {
                     name: String[1];
@@ -166,6 +176,8 @@ class JavaCodeGeneratorTest {
     void testGenerateRecordsForAssociation() {
         // GIVEN: Two Pure Classes connected via Association
         String pureSource = """
+                import model::*;
+
                 Class model::Address
                 {
                     street: String[1];
@@ -221,6 +233,8 @@ class JavaCodeGeneratorTest {
     void testGenerateMultipleFiles() {
         // GIVEN: A Pure source with Enum and Class
         String pureSource = """
+                import model::*;
+
                 Enum model::OrderStatus
                 {
                     PENDING,
@@ -264,6 +278,8 @@ class JavaCodeGeneratorTest {
     void testCompleteTypeMapping() {
         // GIVEN: A class with all type variations
         String pureClass = """
+                import app::*;
+
                 Class app::Customer
                 {
                     id: Integer[1];
@@ -296,6 +312,8 @@ class JavaCodeGeneratorTest {
     void testGenerateRecordWithConstraints() {
         // GIVEN: A Pure Class with constraints (constraints come BEFORE class body)
         String pureClass = """
+                import model::*;
+
                 Class model::Person
                 [
                     validAge: $this.age >= 0,

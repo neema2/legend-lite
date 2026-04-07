@@ -32,6 +32,10 @@ class WindowFunctionTest {
 
     // Complete Pure model for Employee tests
     private static final String COMPLETE_MODEL = """
+            import model::*;
+            import store::*;
+            import test::*;
+
             Class model::Employee
             {
                 name: String[1];

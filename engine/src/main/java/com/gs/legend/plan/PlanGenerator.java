@@ -69,7 +69,7 @@ public class PlanGenerator {
         var mappingNames = model.resolveMappingNames(runtimeName);
         var normalizer = new com.gs.legend.compiler.MappingNormalizer(model, mappingNames);
 
-        var vs = com.gs.legend.parser.PureParser.parseQuery(query);
+        var vs = model.resolveQuery(query);
         var unit = new TypeChecker(normalizer.modelContext()).check(vs);
 
         var storeResolutions = new com.gs.legend.compiler.MappingResolver(
@@ -2686,8 +2686,7 @@ public class PlanGenerator {
                     yield new SqlExpr.StringLiteral(value);
                 } else if (params.get(0) instanceof PackageableElementPtr(String fullPath)) {
                     // Class toString: return simplified name
-                    int idx = fullPath.lastIndexOf("::");
-                    yield new SqlExpr.StringLiteral(idx >= 0 ? fullPath.substring(idx + 2) : fullPath);
+                    yield new SqlExpr.StringLiteral(simpleName(fullPath));
                 }
                 yield new SqlExpr.Cast(c.apply(params.get(0)), "String");
             }
@@ -4327,7 +4326,7 @@ public class PlanGenerator {
 
 
     private static String simpleName(String qualifiedName) {
-        return TypeInfo.simpleName(qualifiedName);
+        return com.gs.legend.model.SymbolTable.extractSimpleName(qualifiedName);
     }
 
 

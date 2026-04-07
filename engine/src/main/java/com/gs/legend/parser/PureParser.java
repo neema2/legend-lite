@@ -67,7 +67,15 @@ public final class PureParser {
      * @throws PureParseException if parsing fails
      */
     public static List<PackageableElement> parseModel(String source) {
-        return PackageableElementBuilder.extractAllDefinitions(antlrParse(source));
+        return parseModelWithImports(source).definitions();
+    }
+
+    /**
+     * Parses a Pure model source and returns definitions + imports.
+     * The ImportScope contains all wildcard imports from import statements.
+     */
+    public static PackageableElementBuilder.ParseResult parseModelWithImports(String source) {
+        return PackageableElementBuilder.extractAllDefinitionsWithImports(antlrParse(source));
     }
 
     // ==================== Typed Convenience Methods ====================

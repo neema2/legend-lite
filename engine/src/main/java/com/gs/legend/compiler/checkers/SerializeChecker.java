@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.plan.GenericType;
 
 /**
@@ -40,7 +41,7 @@ public class SerializeChecker extends AbstractChecker {
                 throw new PureCompileException(
                         "serialize(): source must be class-based, got " + sourceInfo.type());
             }
-            String className = TypeInfo.simpleName(classType.qualifiedName());
+            String className = classType.qualifiedName();
             var targetClass = findClass(className)
                     .orElseThrow(() -> new PureCompileException(
                             "serialize(): class '" + className + "' not found in model"));

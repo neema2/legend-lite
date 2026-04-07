@@ -17,6 +17,8 @@ class MappingTestSuiteParserTest {
     @DisplayName("Parse mapping with test suite - relational")
     void testParseMappingWithTestSuite() {
         String pureMapping = """
+                import model::*;
+
                 Mapping model::PersonMapping
                 (
                     Person: Relational
@@ -105,6 +107,8 @@ class MappingTestSuiteParserTest {
     @DisplayName("Parse mapping without test suite")
     void testParseMappingWithoutTestSuite() {
         String pureMapping = """
+                import model::*;
+
                 Mapping model::SimpleMapping
                 (
                     Person: Relational
@@ -126,6 +130,8 @@ class MappingTestSuiteParserTest {
     @DisplayName("Parse M2M mapping with test suite")
     void testParseM2MMappingWithTestSuite() {
         String pureMapping = """
+                import model::*;
+
                 Mapping model::M2MMapping
                 (
                     TargetPerson: Pure
@@ -193,6 +199,8 @@ class MappingTestSuiteParserTest {
     @DisplayName("Parse M2M mapping with DataElement reference")
     void testParseM2MMappingWithDataElementRef() {
         String pureMapping = """
+                import model::*;
+
                 Mapping model::M2MMapping
                 (
                     TargetPerson: Pure

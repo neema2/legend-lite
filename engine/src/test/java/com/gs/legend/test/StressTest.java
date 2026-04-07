@@ -27,6 +27,8 @@ class StressTest {
 
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                import test::*;
+
 
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }

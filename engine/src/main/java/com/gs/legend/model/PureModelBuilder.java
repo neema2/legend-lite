@@ -1,11 +1,13 @@
 package com.gs.legend.model;
 
+import com.gs.legend.antlr.PackageableElementBuilder;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.m3.*;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.store.*;
+import com.gs.legend.parser.NameResolver;
 import com.gs.legend.parser.PureParser;
 
 import java.util.ArrayList;
@@ -13,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Builds runtime model objects from Pure definitions.
@@ -27,22 +30,32 @@ import java.util.Optional;
  */
 public final class PureModelBuilder implements ModelContext {
 
-    private final Map<String, PureClass> classes = new HashMap<>();
-    private final Map<String, ClassDefinition> pendingClassDefinitions = new HashMap<>();
-    private final Map<String, Association> associations = new HashMap<>();
+    private final SymbolTable symbols = new SymbolTable();
+    private final Map<Integer, PureClass> classes = new HashMap<>();
+    private final Map<Integer, ClassDefinition> pendingClassDefinitions = new HashMap<>();
+    private final Map<Integer, Association> associations = new HashMap<>();
     private final Map<String, Table> tables = new HashMap<>();
     private final Map<String, Join> joins = new HashMap<>();
     private final Map<String, View> views = new HashMap<>();
     private final Map<String, Filter> filters = new HashMap<>();
-    private final Map<String, DatabaseDefinition> databases = new HashMap<>();
-    private final Map<String, ProfileDefinition> profiles = new HashMap<>();
-    private final Map<String, FunctionDefinition> functions = new HashMap<>();
-    private final Map<String, ConnectionDefinition> connections = new HashMap<>();
-    private final Map<String, RuntimeDefinition> runtimes = new HashMap<>();
-    private final Map<String, ServiceDefinition> services = new HashMap<>();
-    private final Map<String, EnumDefinition> enums = new HashMap<>();
-    private final Map<String, MappingDefinition> mappingDefinitions = new HashMap<>();
-    private final MappingRegistry mappingRegistry = new MappingRegistry();
+    private final Map<Integer, DatabaseDefinition> databases = new HashMap<>();
+    private final Map<Integer, ProfileDefinition> profiles = new HashMap<>();
+    private final Map<Integer, FunctionDefinition> functions = new HashMap<>();
+    private final Map<Integer, ConnectionDefinition> connections = new HashMap<>();
+    private final Map<Integer, RuntimeDefinition> runtimes = new HashMap<>();
+    private final Map<Integer, ServiceDefinition> services = new HashMap<>();
+    private final Map<Integer, EnumDefinition> enums = new HashMap<>();
+    private final Map<Integer, MappingDefinition> mappingDefinitions = new HashMap<>();
+    private final MappingRegistry mappingRegistry = new MappingRegistry(symbols);
+    private ImportScope imports = new ImportScope();
+    private boolean strict = false;
+
+    /**
+     * Returns the shared SymbolTable for downstream consumers (MappingNormalizer, etc.).
+     */
+    public SymbolTable symbolTable() {
+        return symbols;
+    }
 
     {
         // Register Pure platform enums — these are defined in legend-pure/legend-engine
@@ -79,6 +92,47 @@ public final class PureModelBuilder implements ModelContext {
     // Key: "AssociationName.propertyName", Value: Join
     private final Map<String, Join> explicitAssociationJoins = new HashMap<>();
 
+    /**
+     * Returns the ImportScope for query resolution (same imports as the model source).
+     */
+    public ImportScope imports() {
+        return imports;
+    }
+
+    /**
+     * Returns the set of all known FQNs (for name resolution).
+     */
+    public Set<String> allFqns() {
+        return symbols.allFqns();
+    }
+
+    /**
+     * Parses a Pure query and resolves simple names to FQN using imports.
+     * In strict mode, skips resolution — caller guarantees all names are FQN.
+     */
+    public com.gs.legend.ast.ValueSpecification resolveQuery(String query) {
+        var raw = com.gs.legend.parser.PureParser.parseQuery(query);
+        return strict ? raw
+                : com.gs.legend.parser.NameResolver.resolveQuery(raw, imports, symbols.allFqns());
+    }
+
+    /**
+     * Enables strict mode — skips name resolution.
+     * Caller guarantees all names are already FQN.
+     */
+    public PureModelBuilder strict() {
+        this.strict = true;
+        return this;
+    }
+
+    /**
+     * @return true if strict mode is enabled
+     */
+    public boolean isStrict() {
+        return strict;
+    }
+
+
     // Lazily-built indexes for O(1) association lookups (avoids O(N) scans)
     private Map<String, List<Association>> classToAssociations;  // className → associations referencing that class
     private Map<String, Join> propertyToJoin;                     // propertyName → explicit join
@@ -94,34 +148,58 @@ public final class PureModelBuilder implements ModelContext {
         classToAssociations = null;
         propertyToJoin = null;
 
-        List<PackageableElement> definitions = PureParser.parseModel(pureSource);
+        PackageableElementBuilder.ParseResult parsed = PureParser.parseModelWithImports(pureSource);
+        boolean isStrict = strict || pureSource.stripLeading().startsWith("\"use strict\"");
+        List<PackageableElement> rawDefinitions = parsed.definitions();
 
-        // PHASE 0: Register all enums first (needed for type resolution in classes)
+        // PHASE 0: Register ALL element FQNs (needed by SymbolTable for int-keyed lookups)
+        for (PackageableElement def : rawDefinitions) {
+            symbols.intern(def.qualifiedName());
+        }
+
+        // PHASE 1: Name resolution — resolve simple names to FQN using imports.
+        // In strict mode, skip entirely — caller guarantees all names are FQN.
+        // Imports only feed NameResolver, so skip merging them too.
+        List<PackageableElement> definitions;
+        if (isStrict) {
+            definitions = rawDefinitions;
+        } else {
+            // Merge imports from this source into the builder's import scope
+            for (String pkg : parsed.imports().getWildcardImports()) {
+                imports.addImport(pkg + "::*");
+            }
+            for (var entry : parsed.imports().getTypeImports().entrySet()) {
+                imports.addImport(entry.getValue());
+            }
+            definitions = NameResolver.resolveDefinitions(rawDefinitions, imports, symbols.allFqns());
+        }
+
+        // PHASE 2: Register enums first (needed for type resolution in classes)
         for (PackageableElement def : definitions) {
             if (def instanceof EnumDefinition enumDef) {
                 addEnum(enumDef);
             }
         }
 
-        // PHASE 1a: Register class stubs (names only, no properties yet)
-        // This allows forward references between classes (e.g., TypeForProjectTest → PrimitiveContainer)
+        // PHASE 3a: Register class stubs (names only, no properties yet)
+        // This allows forward references between classes
         for (PackageableElement def : definitions) {
             if (def instanceof ClassDefinition classDef) {
                 registerClassStub(classDef);
             }
         }
 
-        // PHASE 1b: Resolve properties now that all class names are registered
+        // PHASE 3b: Resolve properties now that all class names are registered
         for (PackageableElement def : definitions) {
             if (def instanceof ClassDefinition classDef) {
                 addClass(classDef);
             }
         }
 
-        // PHASE 2: Resolve superclass references now that all classes are registered
+        // PHASE 4: Resolve superclass references now that all classes are registered
         resolveSuperclasses();
 
-        // PHASE 3: Process remaining definitions
+        // PHASE 5: Process remaining definitions
         for (PackageableElement def : definitions) {
             switch (def) {
                 case ClassDefinition classDef -> {
@@ -156,7 +234,7 @@ public final class PureModelBuilder implements ModelContext {
     private void resolveDatabaseIncludes() {
         for (var dbDef : databases.values().stream().distinct().toList()) {
             for (String includedPath : dbDef.includes()) {
-                DatabaseDefinition included = databases.get(includedPath);
+                DatabaseDefinition included = databases.get(symbols.resolveId(includedPath));
                 if (included == null) continue;
                 String dbName = dbDef.simpleName();
 
@@ -214,8 +292,7 @@ public final class PureModelBuilder implements ModelContext {
                 if (includedMappings.isEmpty()) continue;
 
                 // Register each included class mapping under the current mapping's scope
-                for (var entry : includedMappings.entrySet()) {
-                    var cm = entry.getValue();
+                for (var cm : includedMappings.values()) {
                     if (cm instanceof RelationalMapping rm) {
                         mappingRegistry.register(mappingDef.qualifiedName(), rm);
                     } else if (cm instanceof com.gs.legend.model.mapping.PureClassMapping pcm) {
@@ -238,8 +315,7 @@ public final class PureModelBuilder implements ModelContext {
                 List.of(),
                 classDef.stereotypes(),
                 classDef.taggedValues());
-        classes.put(classDef.qualifiedName(), stub);
-        classes.put(classDef.simpleName(), stub);
+        classes.put(symbols.intern(classDef.qualifiedName()), stub);
     }
 
     /**
@@ -249,7 +325,8 @@ public final class PureModelBuilder implements ModelContext {
      */
     public PureModelBuilder addClass(ClassDefinition classDef) {
         // Store the definition for later superclass resolution
-        pendingClassDefinitions.put(classDef.qualifiedName(), classDef);
+        int id = symbols.intern(classDef.qualifiedName());
+        pendingClassDefinitions.put(id, classDef);
 
         List<Property> properties = classDef.properties().stream()
                 .map(this::convertProperty)
@@ -264,8 +341,7 @@ public final class PureModelBuilder implements ModelContext {
                 classDef.stereotypes(),
                 classDef.taggedValues());
 
-        classes.put(classDef.qualifiedName(), pureClass);
-        classes.put(classDef.simpleName(), pureClass); // Also register by simple name
+        classes.put(id, pureClass);
 
         return this;
     }
@@ -277,7 +353,7 @@ public final class PureModelBuilder implements ModelContext {
      */
     private void resolveSuperclasses() {
         for (var entry : pendingClassDefinitions.entrySet()) {
-            String qualifiedName = entry.getKey();
+            int id = entry.getKey();
             ClassDefinition classDef = entry.getValue();
 
             if (classDef.superClasses().isEmpty()) {
@@ -287,24 +363,17 @@ public final class PureModelBuilder implements ModelContext {
             // Resolve superclass references
             List<PureClass> resolvedSuperClasses = new java.util.ArrayList<>();
             for (String superClassName : classDef.superClasses()) {
-                PureClass superClass = classes.get(superClassName);
-                if (superClass == null) {
-                    // Try simple name lookup
-                    String simpleName = superClassName.contains("::")
-                            ? superClassName.substring(superClassName.lastIndexOf("::") + 2)
-                            : superClassName;
-                    superClass = classes.get(simpleName);
-                }
+                PureClass superClass = classes.get(symbols.resolveId(superClassName));
 
                 if (superClass == null) {
                     throw new IllegalStateException(
-                            "Superclass not found: " + superClassName + " for class " + qualifiedName);
+                            "Superclass not found: " + superClassName + " for class " + symbols.nameOf(id));
                 }
                 resolvedSuperClasses.add(superClass);
             }
 
             // Create new PureClass with resolved superclasses (preserve metadata)
-            PureClass existingClass = classes.get(qualifiedName);
+            PureClass existingClass = classes.get(id);
             PureClass updatedClass = new PureClass(
                     existingClass.packagePath(),
                     existingClass.name(),
@@ -314,8 +383,7 @@ public final class PureModelBuilder implements ModelContext {
                     existingClass.taggedValues());
 
             // Replace in registry
-            classes.put(qualifiedName, updatedClass);
-            classes.put(classDef.simpleName(), updatedClass);
+            classes.put(id, updatedClass);
         }
 
         // Clear pending definitions
@@ -341,8 +409,7 @@ public final class PureModelBuilder implements ModelContext {
                         end2.targetClass(),
                         new Multiplicity(end2.lowerBound(), end2.upperBound())));
 
-        associations.put(assocDef.qualifiedName(), association);
-        associations.put(assocDef.simpleName(), association);
+        associations.put(symbols.intern(assocDef.qualifiedName()), association);
 
         return this;
     }
@@ -351,8 +418,7 @@ public final class PureModelBuilder implements ModelContext {
      * Adds a Database definition.
      */
     public PureModelBuilder addDatabase(DatabaseDefinition dbDef) {
-        databases.put(dbDef.qualifiedName(), dbDef);
-        databases.put(dbDef.simpleName(), dbDef);
+        databases.put(symbols.intern(dbDef.qualifiedName()), dbDef);
 
         // Register tables
         for (var tableDef : dbDef.tables()) {
@@ -402,8 +468,7 @@ public final class PureModelBuilder implements ModelContext {
      * Adds a Profile definition.
      */
     public PureModelBuilder addProfile(ProfileDefinition profileDef) {
-        profiles.put(profileDef.qualifiedName(), profileDef);
-        profiles.put(profileDef.simpleName(), profileDef);
+        profiles.put(symbols.intern(profileDef.qualifiedName()), profileDef);
         return this;
     }
 
@@ -411,8 +476,7 @@ public final class PureModelBuilder implements ModelContext {
      * Adds a Function definition.
      */
     public PureModelBuilder addFunction(FunctionDefinition funcDef) {
-        functions.put(funcDef.qualifiedName(), funcDef);
-        functions.put(funcDef.simpleName(), funcDef);
+        functions.put(symbols.intern(funcDef.qualifiedName()), funcDef);
         return this;
     }
 
@@ -420,8 +484,7 @@ public final class PureModelBuilder implements ModelContext {
      * Adds a Connection definition.
      */
     public PureModelBuilder addConnection(ConnectionDefinition connDef) {
-        connections.put(connDef.qualifiedName(), connDef);
-        connections.put(connDef.simpleName(), connDef);
+        connections.put(symbols.intern(connDef.qualifiedName()), connDef);
         return this;
     }
 
@@ -429,8 +492,7 @@ public final class PureModelBuilder implements ModelContext {
      * Adds a Runtime definition.
      */
     public PureModelBuilder addRuntime(RuntimeDefinition runtimeDef) {
-        runtimes.put(runtimeDef.qualifiedName(), runtimeDef);
-        runtimes.put(runtimeDef.simpleName(), runtimeDef);
+        runtimes.put(symbols.intern(runtimeDef.qualifiedName()), runtimeDef);
         return this;
     }
 
@@ -442,8 +504,7 @@ public final class PureModelBuilder implements ModelContext {
      */
     public PureModelBuilder addMapping(MappingDefinition mappingDef) {
         // Store for include resolution
-        mappingDefinitions.put(mappingDef.qualifiedName(), mappingDef);
-        mappingDefinitions.put(mappingDef.simpleName(), mappingDef);
+        mappingDefinitions.put(symbols.intern(mappingDef.qualifiedName()), mappingDef);
 
         // Process association mappings: register join associations
         for (var assocMapping : mappingDef.associationMappings()) {
@@ -452,14 +513,10 @@ public final class PureModelBuilder implements ModelContext {
                     String joinName = prop.joinChain().get(0).joinName();
                     Join join = joins.get(joinName);
                     if (join != null) {
-                        String key = assocMapping.associationName() + "." + prop.propertyName();
+                        // Already FQN from NameResolver
+                        String resolvedAssocName = assocMapping.associationName();
+                        String key = resolvedAssocName + "." + prop.propertyName();
                         explicitAssociationJoins.put(key, join);
-                        // Also register with simple association name
-                        String simpleName = assocMapping.associationName().contains("::")
-                                ? assocMapping.associationName().substring(
-                                        assocMapping.associationName().lastIndexOf("::") + 2)
-                                : assocMapping.associationName();
-                        explicitAssociationJoins.put(simpleName + "." + prop.propertyName(), join);
                     }
                 }
             }
@@ -473,7 +530,7 @@ public final class PureModelBuilder implements ModelContext {
             }
 
             // Find the PureClass
-            PureClass pureClass = classes.get(classMapping.className());
+            PureClass pureClass = classes.get(symbols.resolveId(classMapping.className()));
             if (pureClass == null) {
                 throw new IllegalStateException("Class not found: " + classMapping.className());
             }
@@ -741,8 +798,7 @@ public final class PureModelBuilder implements ModelContext {
      * Services are used by the hosted service runtime for HTTP endpoints.
      */
     public PureModelBuilder addService(ServiceDefinition serviceDef) {
-        services.put(serviceDef.qualifiedName(), serviceDef);
-        services.put(serviceDef.simpleName(), serviceDef);
+        services.put(symbols.intern(serviceDef.qualifiedName()), serviceDef);
         return this;
     }
 
@@ -751,8 +807,7 @@ public final class PureModelBuilder implements ModelContext {
      * Enums are type-safe value sets used for properties.
      */
     public PureModelBuilder addEnum(EnumDefinition enumDef) {
-        enums.put(enumDef.qualifiedName(), enumDef);
-        enums.put(enumDef.simpleName(), enumDef);
+        enums.put(symbols.intern(enumDef.qualifiedName()), enumDef);
         return this;
     }
 
@@ -763,7 +818,7 @@ public final class PureModelBuilder implements ModelContext {
      * @return The EnumDefinition, or null if not found
      */
     public EnumDefinition getEnum(String enumName) {
-        return enums.get(enumName);
+        return enums.get(symbols.resolveId(enumName));
     }
 
     /**
@@ -778,7 +833,7 @@ public final class PureModelBuilder implements ModelContext {
      * @return The PureClass
      */
     public PureClass getClass(String className) {
-        return classes.get(className);
+        return classes.get(symbols.resolveId(className));
     }
 
     /**
@@ -812,7 +867,7 @@ public final class PureModelBuilder implements ModelContext {
      * @return The list of mapping names, or empty if no mappings defined
      */
     public java.util.List<String> resolveMappingNames(String runtimeName) {
-        RuntimeDefinition runtime = runtimes.get(runtimeName);
+        RuntimeDefinition runtime = runtimes.get(symbols.resolveId(runtimeName));
         if (runtime == null || runtime.mappings() == null || runtime.mappings().isEmpty()) {
             return java.util.List.of();
         }
@@ -824,7 +879,7 @@ public final class PureModelBuilder implements ModelContext {
      * @return The Association, if found
      */
     public Optional<Association> getAssociation(String associationName) {
-        return Optional.ofNullable(associations.get(associationName));
+        return Optional.ofNullable(associations.get(symbols.resolveId(associationName)));
     }
 
     /**
@@ -832,7 +887,7 @@ public final class PureModelBuilder implements ModelContext {
      * @return The ConnectionDefinition, or null if not found
      */
     public ConnectionDefinition getConnection(String connectionName) {
-        return connections.get(connectionName);
+        return connections.get(symbols.resolveId(connectionName));
     }
 
     /**
@@ -840,7 +895,7 @@ public final class PureModelBuilder implements ModelContext {
      * @return The RuntimeDefinition, or null if not found
      */
     public RuntimeDefinition getRuntime(String runtimeName) {
-        return runtimes.get(runtimeName);
+        return runtimes.get(symbols.resolveId(runtimeName));
     }
 
     /**
@@ -852,13 +907,13 @@ public final class PureModelBuilder implements ModelContext {
      * @throws java.sql.SQLException If connection cannot be established
      */
     public java.sql.Connection resolveConnection(String runtimeName) throws java.sql.SQLException {
-        RuntimeDefinition runtime = runtimes.get(runtimeName);
+        RuntimeDefinition runtime = runtimes.get(symbols.resolveId(runtimeName));
         if (runtime == null) {
             throw new IllegalArgumentException("Runtime not found: " + runtimeName);
         }
         String storeRef = runtime.connectionBindings().keySet().iterator().next();
         String connectionRef = runtime.connectionBindings().get(storeRef);
-        ConnectionDefinition def = connections.get(connectionRef);
+        ConnectionDefinition def = connections.get(symbols.resolveId(connectionRef));
         if (def == null) {
             throw new IllegalArgumentException("Connection not found: " + connectionRef);
         }
@@ -874,13 +929,13 @@ public final class PureModelBuilder implements ModelContext {
      * @return The SQLDialect for this runtime's connection
      */
     public com.gs.legend.sqlgen.SQLDialect resolveDialect(String runtimeName) {
-        RuntimeDefinition runtime = runtimes.get(runtimeName);
+        RuntimeDefinition runtime = runtimes.get(symbols.resolveId(runtimeName));
         if (runtime == null) {
             throw new IllegalArgumentException("Runtime not found: " + runtimeName);
         }
         String storeRef = runtime.connectionBindings().keySet().iterator().next();
         String connectionRef = runtime.connectionBindings().get(storeRef);
-        ConnectionDefinition def = connections.get(connectionRef);
+        ConnectionDefinition def = connections.get(symbols.resolveId(connectionRef));
         if (def == null) {
             throw new IllegalArgumentException("Connection not found: " + connectionRef);
         }
@@ -892,46 +947,42 @@ public final class PureModelBuilder implements ModelContext {
      * @return The ServiceDefinition, or null if not found
      */
     public ServiceDefinition getService(String serviceName) {
-        return services.get(serviceName);
+        return services.get(symbols.resolveId(serviceName));
     }
 
     // ==================== Bulk Accessors (for NLQ indexing) ====================
 
     /**
-     * Returns all registered classes, deduplicated by qualified name.
-     * Classes registered by both simple and qualified name are included once.
+     * Returns all registered classes (keyed by FQN).
      */
     public Map<String, PureClass> getAllClasses() {
-        Map<String, PureClass> result = new HashMap<>();
+        var result = new HashMap<String, PureClass>(classes.size());
         for (var entry : classes.entrySet()) {
-            PureClass pc = entry.getValue();
-            result.putIfAbsent(pc.qualifiedName(), pc);
+            result.put(symbols.nameOf(entry.getKey()), entry.getValue());
         }
-        return result;
+        return Map.copyOf(result);
     }
 
     /**
-     * Returns all registered associations, deduplicated by qualified name.
+     * Returns all registered associations (keyed by FQN).
      */
     public Map<String, Association> getAllAssociations() {
-        Map<String, Association> result = new HashMap<>();
+        var result = new HashMap<String, Association>(associations.size());
         for (var entry : associations.entrySet()) {
-            Association a = entry.getValue();
-            result.putIfAbsent(a.qualifiedName(), a);
+            result.put(symbols.nameOf(entry.getKey()), entry.getValue());
         }
-        return result;
+        return Map.copyOf(result);
     }
 
     /**
-     * Returns all registered enums, deduplicated by qualified name.
+     * Returns all registered enums (keyed by FQN).
      */
     public Map<String, EnumDefinition> getAllEnums() {
-        Map<String, EnumDefinition> result = new HashMap<>();
+        var result = new HashMap<String, EnumDefinition>(enums.size());
         for (var entry : enums.entrySet()) {
-            EnumDefinition e = entry.getValue();
-            result.putIfAbsent(e.qualifiedName(), e);
+            result.put(symbols.nameOf(entry.getKey()), entry.getValue());
         }
-        return result;
+        return Map.copyOf(result);
     }
 
     // ==================== ModelContext Implementation ====================
@@ -954,7 +1005,7 @@ public final class PureModelBuilder implements ModelContext {
 
     @Override
     public Optional<PureClass> findClass(String className) {
-        return Optional.ofNullable(classes.get(className));
+        return Optional.ofNullable(classes.get(symbols.resolveId(className)));
     }
 
     /**
@@ -965,12 +1016,8 @@ public final class PureModelBuilder implements ModelContext {
     public void addClasses(java.util.Map<String, PureClass> externalClasses) {
         if (externalClasses != null) {
             for (var entry : externalClasses.entrySet()) {
-                classes.putIfAbsent(entry.getKey(), entry.getValue());
-                // Also register by simple name for unqualified lookups
-                String simpleName = entry.getValue().name();
-                if (simpleName != null && !simpleName.equals(entry.getKey())) {
-                    classes.putIfAbsent(simpleName, entry.getValue());
-                }
+                int id = symbols.intern(entry.getKey());
+                classes.putIfAbsent(id, entry.getValue());
             }
         }
     }
@@ -985,23 +1032,13 @@ public final class PureModelBuilder implements ModelContext {
      */
     public java.util.Map<String, Join> findAllPropertyJoins(String className) {
         var result = new java.util.LinkedHashMap<String, Join>();
-        String prefix = className + ".";
+        // Resolve to canonical FQN — keys in explicitAssociationJoins are already FQN-normalized
+        String fqn = className;
+        String prefix = fqn + ".";
         for (var entry : explicitAssociationJoins.entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
                 String propName = entry.getKey().substring(prefix.length());
                 result.putIfAbsent(propName, entry.getValue());
-            }
-        }
-        // Also check simple class name
-        String simpleName = className.contains("::")
-                ? className.substring(className.lastIndexOf("::") + 2) : className;
-        if (!simpleName.equals(className)) {
-            String simplePrefix = simpleName + ".";
-            for (var entry : explicitAssociationJoins.entrySet()) {
-                if (entry.getKey().startsWith(simplePrefix)) {
-                    String propName = entry.getKey().substring(simplePrefix.length());
-                    result.putIfAbsent(propName, entry.getValue());
-                }
             }
         }
         return result;
@@ -1022,17 +1059,19 @@ public final class PureModelBuilder implements ModelContext {
      */
     public java.util.Map<String, FullAssociationNavigation> findAllAssociationNavigationsFull_impl(String className) {
         var result = new java.util.LinkedHashMap<String, FullAssociationNavigation>();
-        for (Association assoc : getAssociationsForClass(className)) {
+        // Resolve to canonical FQN — target classes in associations are already FQN-normalized
+        String fqn = className;
+        for (Association assoc : getAssociationsForClass(fqn)) {
             var prop1 = assoc.property1();
             var prop2 = assoc.property2();
 
-            if (classNameMatches(prop2.targetClass(), className)) {
+            if (prop2.targetClass().equals(fqn)) {
                 boolean isToMany = prop1.multiplicity().isMany();
                 Join join = findJoinForAssociationProperty(assoc.name(), prop1.propertyName());
                 result.putIfAbsent(prop1.propertyName(),
                         new FullAssociationNavigation(prop1.targetClass(), isToMany, join));
             }
-            if (classNameMatches(prop1.targetClass(), className)) {
+            if (prop1.targetClass().equals(fqn)) {
                 boolean isToMany = prop2.multiplicity().isMany();
                 Join join = findJoinForAssociationProperty(assoc.name(), prop2.propertyName());
                 result.putIfAbsent(prop2.propertyName(),
@@ -1042,23 +1081,6 @@ public final class PureModelBuilder implements ModelContext {
         return result;
     }
 
-    /**
-     * Matches class names flexibly: "test::H5" matches both "test::H5" and "H5".
-     * Handles the case where associations store qualified names but lookup uses simple names or vice versa.
-     */
-    private static boolean classNameMatches(String assocClassName, String lookupName) {
-        if (assocClassName.equals(lookupName)) return true;
-        // "test::H5".endsWith("::H5") matches lookupName "H5"
-        if (assocClassName.endsWith("::" + lookupName)) return true;
-        // lookupName "test::H5".endsWith("::H5") matches assocClassName "H5"
-        if (lookupName.endsWith("::" + assocClassName)) return true;
-        return false;
-    }
-
-    private static String simpleName(String name) {
-        int idx = name.lastIndexOf("::");
-        return idx >= 0 ? name.substring(idx + 2) : name;
-    }
 
     /**
      * Returns associations referencing the given class. Uses a lazily-built
@@ -1068,21 +1090,18 @@ public final class PureModelBuilder implements ModelContext {
         if (classToAssociations == null) {
             classToAssociations = buildClassToAssociationsIndex();
         }
-        String simple = simpleName(className);
-        List<Association> result = classToAssociations.get(simple);
+        // className should already be FQN (resolved by caller)
+        List<Association> result = classToAssociations.get(className);
         return result != null ? result : List.of();
     }
 
     private Map<String, List<Association>> buildClassToAssociationsIndex() {
         var index = new HashMap<String, List<Association>>();
-        // Deduplicate: associations map stores each assoc under both qualified and simple name.
-        // Use an identity set to avoid processing the same Association object twice.
-        var seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Association, Boolean>());
+        // Target classes are already FQN-normalized at registration time.
+        // Each association is stored once under its FQN key — no dedup needed.
         for (Association assoc : associations.values()) {
-            if (!seen.add(assoc)) continue;
-            // Index by both ends' target class (simple name)
-            String target1 = simpleName(assoc.property1().targetClass());
-            String target2 = simpleName(assoc.property2().targetClass());
+            String target1 = assoc.property1().targetClass();
+            String target2 = assoc.property2().targetClass();
             index.computeIfAbsent(target1, k -> new ArrayList<>()).add(assoc);
             if (!target1.equals(target2)) {
                 index.computeIfAbsent(target2, k -> new ArrayList<>()).add(assoc);
@@ -1136,19 +1155,19 @@ public final class PureModelBuilder implements ModelContext {
     public Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName) {
         // Search associations for this class that have this property name.
         // Uses classToAssociations index for O(k) instead of O(N).
-        for (Association assoc : getAssociationsForClass(fromClassName)) {
+        String fqn = fromClassName;
+        for (Association assoc : getAssociationsForClass(fqn)) {
             var prop1 = assoc.property1();
             var prop2 = assoc.property2();
 
             // Check if property1's name matches and property2's target is fromClassName
-            // (property1 navigates FROM prop2.targetClass TO prop1.targetClass)
-            if (prop1.propertyName().equals(propertyName) && classNameMatches(prop2.targetClass(), fromClassName)) {
+            if (prop1.propertyName().equals(propertyName) && prop2.targetClass().equals(fqn)) {
                 boolean isToMany = prop1.multiplicity().isMany();
                 return Optional.of(new AssociationNavigation(prop1.targetClass(), isToMany));
             }
 
             // Check if property2's name matches and property1's target is fromClassName
-            if (prop2.propertyName().equals(propertyName) && classNameMatches(prop1.targetClass(), fromClassName)) {
+            if (prop2.propertyName().equals(propertyName) && prop1.targetClass().equals(fqn)) {
                 boolean isToMany = prop2.multiplicity().isMany();
                 return Optional.of(new AssociationNavigation(prop2.targetClass(), isToMany));
             }
@@ -1170,11 +1189,9 @@ public final class PureModelBuilder implements ModelContext {
         Join indexed = getPropertyToJoinIndex().get(propertyName);
         if (indexed != null) return indexed;
 
-        // 2. Check explicit mapping with association name (AssocName.propertyName)
-        String simpleAssocName = associationName.contains("::")
-                ? associationName.substring(associationName.lastIndexOf("::") + 2)
-                : associationName;
-        String key = simpleAssocName + "." + propertyName;
+        // 2. Check explicit mapping with association name (FQN.propertyName)
+        String resolvedAssocName = associationName;
+        String key = resolvedAssocName + "." + propertyName;
         Join explicitJoin = explicitAssociationJoins.get(key);
         if (explicitJoin != null) {
             return explicitJoin;
@@ -1193,10 +1210,8 @@ public final class PureModelBuilder implements ModelContext {
         if (join != null) {
             return Optional.of(join);
         }
-        // Try without package prefix
-        String simpleName = associationName.contains("::")
-                ? associationName.substring(associationName.lastIndexOf("::") + 2)
-                : associationName;
+        // Try simple name (join names are dot-namespaced, not :: FQN)
+        String simpleName = SymbolTable.extractSimpleName(associationName);
         return Optional.ofNullable(joins.get(simpleName));
     }
 
@@ -1211,12 +1226,12 @@ public final class PureModelBuilder implements ModelContext {
 
     @Override
     public Optional<EnumDefinition> findEnum(String enumName) {
-        return Optional.ofNullable(enums.get(enumName));
+        return Optional.ofNullable(enums.get(symbols.resolveId(enumName)));
     }
 
     @Override
     public boolean hasEnumValue(String enumName, String valueName) {
-        EnumDefinition enumDef = enums.get(enumName);
+        EnumDefinition enumDef = enums.get(symbols.resolveId(enumName));
         return enumDef != null && enumDef.hasValue(valueName);
     }
 
@@ -1240,12 +1255,12 @@ public final class PureModelBuilder implements ModelContext {
             case "Decimal" -> PrimitiveType.DECIMAL;
             default -> {
                 // Look up as class reference
-                PureClass classType = classes.get(typeName);
+                PureClass classType = classes.get(symbols.resolveId(typeName));
                 if (classType != null) {
                     yield classType;
                 }
                 // Look up as enum type
-                EnumDefinition enumDef = enums.get(typeName);
+                EnumDefinition enumDef = enums.get(symbols.resolveId(typeName));
                 if (enumDef != null) {
                     yield new PureEnumType(enumDef);
                 }

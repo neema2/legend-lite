@@ -47,6 +47,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Simple table with columns")
         void testSimpleTable() {
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::MyDB
                     (
@@ -82,6 +84,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Simple equi-join")
         void testSimpleEquiJoin() {
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::MyDB
                     (
@@ -113,6 +117,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Multi-column join condition (and) - full expression tree")
         void testMultiColumnJoin() {
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::MyDB
                     (
@@ -150,6 +156,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Function-based join condition - full expression tree")
         void testFunctionJoin() {
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::MyDB
                     (
@@ -185,6 +193,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Self-join with {target} - full expression tree")
         void testSelfJoin() {
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::MyDB
                     (
@@ -218,6 +228,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("View extraction with column mappings")
         void testViewExtraction() {
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::MyDB
                     (
@@ -254,6 +266,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Filter extraction with expression tree")
         void testFilterExtraction() {
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::MyDB
                     (
@@ -279,6 +293,8 @@ class MappingDefinitionExtractionTest {
         void testDatabaseIncludes() {
             // parseDatabase returns first DB, so parse just the one with includes
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::ExtendedDB
                     (
@@ -296,6 +312,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Schema-qualified tables preserve schema info")
         void testSchemaPreservation() {
             var db = parseDatabase("""
+                    import store::*;
+
                     ###Relational
                     Database store::MyDB
                     (
@@ -328,6 +346,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Simple relational class mapping")
         void testSimpleRelationalMapping() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -355,6 +375,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Set ID extraction")
         void testSetIdExtraction() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -374,6 +396,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Root marker extraction")
         void testRootMarkerExtraction() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -394,6 +418,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Extends extraction")
         void testExtendsExtraction() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -414,6 +440,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Mapping filter extraction")
         void testMappingFilterExtraction() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -437,6 +465,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Distinct flag extraction")
         void testDistinctExtraction() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -457,6 +487,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("GroupBy extraction")
         void testGroupByExtraction() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -478,6 +510,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("PrimaryKey extraction")
         void testPrimaryKeyExtraction() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -499,6 +533,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("GAP: Qualified class name preserved")
         void testQualifiedClassNamePreserved() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::PersonMapping
                     (
@@ -511,8 +547,7 @@ class MappingDefinitionExtractionTest {
                     """);
 
             var cm = mapping.classMappings().get(0);
-            assertEquals("Person", cm.className()); // simple name
-            // TODO: cm.qualifiedClassName() should return "model::domain::Person"
+            assertEquals("model::domain::Person", cm.className()); // FQN preserved by parser
         }
     }
 
@@ -526,6 +561,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Simple column mapping")
         void testSimpleColumnMapping() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -548,6 +585,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Single join reference")
         void testSingleJoinReference() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -573,6 +612,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Enum transformer on column")
         void testEnumTransformerColumn() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -595,6 +636,8 @@ class MappingDefinitionExtractionTest {
         void testMultiHopJoinChain() {
             // Legend-pure: prop : [DB]@J1 > @J2 | T.COL
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -620,6 +663,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Join with join type (INNER)")
         void testJoinWithType() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -641,6 +686,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("GAP: Embedded property mapping")
         void testEmbeddedPropertyMapping() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -675,6 +722,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("GAP: Inline property mapping")
         void testInlinePropertyMapping() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -701,6 +750,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Otherwise property mapping")
         void testOtherwisePropertyMapping() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -736,6 +787,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("GAP: DynaFunction expression in property mapping")
         void testDynaFunctionExpression() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -770,6 +823,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("GAP: Local mapping property (+)")
         void testLocalMappingProperty() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -795,6 +850,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("GAP: Source/target mapping IDs on property")
         void testSourceTargetMappingIds() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -824,6 +881,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Association mapping extraction")
         void testAssociationMappingExtraction() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -865,6 +924,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Simple include extraction")
         void testSimpleInclude() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::ExtendedMapping
                     (
@@ -888,6 +949,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Include with store substitution")
         void testIncludeWithStoreSubstitution() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::ExtendedMapping
                     (
@@ -920,6 +983,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Enumeration mapping with single values")
         void testEnumMappingSingleValues() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -941,6 +1006,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Enumeration mapping with array values")
         void testEnumMappingArrayValues() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -962,6 +1029,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Enumeration mapping with integer values")
         void testEnumMappingIntegerValues() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -989,6 +1058,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("Simple M2M mapping")
         void testSimpleM2M() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -1014,6 +1085,8 @@ class MappingDefinitionExtractionTest {
         @DisplayName("M2M mapping with filter")
         void testM2MWithFilter() {
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (
@@ -1044,6 +1117,8 @@ class MappingDefinitionExtractionTest {
             // scope([DB]T) (p1 : C1, p2 : C2) should desugar to
             // p1 : [DB] T.C1, p2 : [DB] T.C2
             var mapping = parseMapping("""
+                    import model::*;
+
                     ###Mapping
                     Mapping model::M
                     (

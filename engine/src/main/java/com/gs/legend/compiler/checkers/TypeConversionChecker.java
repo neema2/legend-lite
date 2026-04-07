@@ -4,6 +4,7 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.GenericTypeInstance;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.plan.GenericType;
 
 import java.util.List;
@@ -25,7 +26,7 @@ public class TypeConversionChecker extends AbstractChecker {
 
     public TypeInfo check(AppliedFunction af, TypeInfo source,
                           TypeChecker.CompilationContext ctx) {
-        String func = TypeInfo.simpleName(af.function());
+        String func = SymbolTable.extractSimpleName(af.function());
         return switch (func) {
             case "toOne" -> checkToOne(af, source, ctx);
             case "toMany" -> checkToMany(af, source, ctx);

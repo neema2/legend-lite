@@ -471,17 +471,4 @@ public record TypeInfo(
         return sortSpecs != null && !sortSpecs.isEmpty();
     }
 
-    /**
-     * Extracts simple name from a qualified name (e.g., "model::Person" →
-     * "Person").
-     * Shared utility used by both TypeChecker and PlanGenerator.
-     */
-    public static String simpleName(String qualifiedName) {
-        if (qualifiedName == null)
-            return null;
-        int idx = qualifiedName.lastIndexOf("::");
-        return idx >= 0 ? qualifiedName.substring(idx + 2) : qualifiedName;
-    }
-
-
 }

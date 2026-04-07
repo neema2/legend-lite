@@ -3,6 +3,7 @@ package com.gs.legend.compiler;
 import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
 import com.gs.legend.model.ModelContext;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.PureFunctionRegistry;
 
 import com.gs.legend.parser.PureParser;
@@ -109,8 +110,7 @@ public class TypeChecker implements TypeCheckEnv {
             // Compile each target class's source relation
             for (String propName : entry.getValue()) {
                 modelContext.findAssociationByProperty(className, propName).ifPresent(nav -> {
-                    String targetClass = TypeInfo.simpleName(nav.targetClassName());
-                    compileSourceRelationIfNeeded(targetClass);
+                    compileSourceRelationIfNeeded(nav.targetClassName());
                 });
             }
         }
@@ -203,9 +203,11 @@ public class TypeChecker implements TypeCheckEnv {
             }
         }
 
-        // 2. Check model registries
-        if (modelContext.findClass(path).isPresent() || modelContext.findClass(name).isPresent()) {
-            return scalarTyped(pe, new GenericType.ClassType(path));
+        // 2. Check model registries — resolve to FQN for consistent downstream keys
+        var classOpt = modelContext.findClass(path);
+        if (classOpt.isEmpty()) classOpt = modelContext.findClass(name);
+        if (classOpt.isPresent()) {
+            return scalarTyped(pe, new GenericType.ClassType(classOpt.get().qualifiedName()));
         }
         if (modelContext.findEnum(path).isPresent() || modelContext.findEnum(name).isPresent()) {
             return scalarTyped(pe, new GenericType.EnumType(path));
@@ -362,7 +364,7 @@ public class TypeChecker implements TypeCheckEnv {
         var ci = (ClassInstance) af.parameters().get(1);
         var data = (ValueSpecificationBuilder.InstanceData) ci.value();
         if (info.type() instanceof GenericType.ClassType(String qn) && modelContext != null) {
-            var pureClass = modelContext.findClass(simpleName(qn)).orElse(null);
+            var pureClass = modelContext.findClass(qn).orElse(null);
             if (pureClass != null) {
                 for (var entry : data.properties().entrySet()) {
                     var propOpt = pureClass.findProperty(entry.getKey());
@@ -388,7 +390,7 @@ public class TypeChecker implements TypeCheckEnv {
     // ========== Extraction Utilities ==========
 
     static String simpleName(String qualifiedName) {
-        return TypeInfo.simpleName(qualifiedName);
+        return SymbolTable.extractSimpleName(qualifiedName);
     }
 
     // ========== Other AST Nodes ==========
@@ -402,8 +404,10 @@ public class TypeChecker implements TypeCheckEnv {
                 try {
                     paramType = GenericType.Primitive.fromTypeName(p.typeName());
                 } catch (IllegalArgumentException e) {
-                    // Non-primitive type (class, enum) — store as ClassType
-                    paramType = new GenericType.ClassType(p.typeName());
+                    // Non-primitive type (class, enum) — resolve to FQN for consistent keys
+                    String resolvedName = modelContext.findClass(p.typeName())
+                            .map(c -> c.qualifiedName()).orElse(p.typeName());
+                    paramType = new GenericType.ClassType(resolvedName);
                 }
             }
             lambdaCtx = lambdaCtx.withLambdaParam(p.name(), paramType);
@@ -513,7 +517,7 @@ public class TypeChecker implements TypeCheckEnv {
                 if (classOpt.isPresent()) {
                     var propOpt = classOpt.get().findProperty(ap.property());
                     if (propOpt.isPresent()) {
-                        classPropertyAccesses.computeIfAbsent(TypeInfo.simpleName(qualifiedName), k -> new HashSet<>()).add(ap.property());
+                        classPropertyAccesses.computeIfAbsent(qualifiedName, k -> new HashSet<>()).add(ap.property());
                         GenericType fieldType = GenericType.fromType(propOpt.get().genericType());
                         var info = TypeInfo.builder()
                                 .expressionType(ExpressionType.one(fieldType))
@@ -530,7 +534,7 @@ public class TypeChecker implements TypeCheckEnv {
                 var assocNav = modelContext.findAssociationByProperty(qualifiedName, ap.property());
                 if (assocNav.isPresent()) {
                     var nav = assocNav.get();
-                    associationNavigations.computeIfAbsent(TypeInfo.simpleName(qualifiedName), k -> new HashSet<>()).add(ap.property());
+                    associationNavigations.computeIfAbsent(qualifiedName, k -> new HashSet<>()).add(ap.property());
                     GenericType targetType = new GenericType.ClassType(nav.targetClassName());
                     var info = TypeInfo.builder()
                             .expressionType(nav.isToMany()
@@ -625,8 +629,7 @@ public class TypeChecker implements TypeCheckEnv {
                     className = qn;
                 }
                 if (className != null) {
-                    String simpleClassName = simpleName(className);
-                    var classOpt = modelContext.findClass(simpleClassName);
+                    var classOpt = modelContext.findClass(className);
                     if (classOpt.isPresent()) {
                         var propOpt = classOpt.get().findProperty(ap.property());
                         if (propOpt.isPresent()) {
@@ -641,10 +644,10 @@ public class TypeChecker implements TypeCheckEnv {
                         }
                     }
                     // Association-injected properties (same pattern as first-hop at line 472)
-                    var assocNav = modelContext.findAssociationByProperty(simpleClassName, ap.property());
+                    var assocNav = modelContext.findAssociationByProperty(className, ap.property());
                     if (assocNav.isPresent()) {
                         var nav = assocNav.get();
-                        associationNavigations.computeIfAbsent(simpleClassName, k -> new HashSet<>()).add(ap.property());
+                        associationNavigations.computeIfAbsent(className, k -> new HashSet<>()).add(ap.property());
                         GenericType targetType = new GenericType.ClassType(nav.targetClassName());
                         List<String> assocPath = collectPropertyChain(ap);
                         var info = TypeInfo.builder()
@@ -685,8 +688,7 @@ public class TypeChecker implements TypeCheckEnv {
         TypeInfo srcInfo = types.get(structSource);
         GenericType fieldType = GenericType.Primitive.ANY;
         if (srcInfo != null && srcInfo.type() instanceof GenericType.ClassType(String qn) && modelContext != null) {
-            String className = simpleName(qn);
-            var classOpt = modelContext.findClass(className);
+            var classOpt = modelContext.findClass(qn);
             if (classOpt.isPresent()) {
                 var propOpt = classOpt.get().findProperty(ap.property());
                 if (propOpt.isPresent()) {

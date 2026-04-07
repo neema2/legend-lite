@@ -196,6 +196,8 @@ class ConnectionRuntimeParserTest {
     void testParseSimpleRuntime() {
         // Exact legend-engine syntax from databricks::lakehouse example
         String source = """
+                import my::*;
+
                 Runtime my::MyRuntime
                 {
                     mappings:
@@ -226,6 +228,8 @@ class ConnectionRuntimeParserTest {
     @DisplayName("Parse Runtime with multiple mappings")
     void testParseRuntimeMultipleMappings() {
         String source = """
+                import app::*;
+
                 Runtime app::AppRuntime
                 {
                     mappings:
@@ -256,6 +260,8 @@ class ConnectionRuntimeParserTest {
     @DisplayName("Parse Runtime with multiple connection bindings")
     void testParseRuntimeMultipleConnections() {
         String source = """
+                import multi::*;
+
                 Runtime multi::MultiStoreRuntime
                 {
                     mappings:
@@ -289,6 +295,10 @@ class ConnectionRuntimeParserTest {
     @DisplayName("PureModelBuilder processes Connection and Runtime definitions")
     void testModelBuilderRegistersConnectionAndRuntime() {
         String source = """
+                import app::*;
+                import model::*;
+                import store::*;
+
                 Class model::Person { name: String[1]; }
                 Database store::PersonDb ( Table T_PERSON ( ID INTEGER, NAME VARCHAR(100) ) )
 

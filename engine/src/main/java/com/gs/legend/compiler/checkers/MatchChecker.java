@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.plan.GenericType;
 
@@ -47,7 +48,7 @@ public class MatchChecker extends AbstractChecker {
             Variable branchParam = branch.parameters().get(0);
             if (branchParam.typeName() == null) continue;
 
-            String branchTypeName = TypeInfo.simpleName(branchParam.typeName());
+            String branchTypeName = SymbolTable.extractSimpleName(branchParam.typeName());
             if (!typeMatches(branchTypeName, inputType)) continue;
 
             // Check multiplicity: if input is many, branch must accept many

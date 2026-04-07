@@ -33,6 +33,8 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Strip ###Pure section header")
         void testStripPureSectionHeader() {
             String source = """
+                    import model::*;
+
                     ###Pure
                     Class model::Person
                     {
@@ -51,6 +53,9 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Strip multiple section headers")
         void testStripMultipleSectionHeaders() {
             String source = """
+                    import model::*;
+                    import store::*;
+
                     ###Pure
                     Class model::Person
                     {
@@ -90,6 +95,9 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Handle various section header formats")
         void testVariousSectionHeaders() {
             String source = """
+                    import model::*;
+                    import store::*;
+
                     ###Pure
                     Class model::A { prop: String[1]; }
                     ###Relational
@@ -130,6 +138,8 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Strip multiple import statements")
         void testStripMultipleImports() {
             String source = """
+                    import simple::mapping::*;
+
                     ###Mapping
                     import simple::model::*;
                     import simple::store::*;
@@ -190,7 +200,7 @@ class LegendEngineCompatibilityTest {
         }
 
         @Test
-        @DisplayName("Multiple wildcard imports - first match wins")
+        @DisplayName("Multiple wildcard imports - ambiguity throws")
         void testMultipleWildcardImports() {
             ImportScope scope = new ImportScope();
             scope.addImport("pkg1::*");
@@ -198,8 +208,9 @@ class LegendEngineCompatibilityTest {
 
             Set<String> knownTypes = Set.of("pkg1::Type", "pkg2::Type");
 
-            // First matching wildcard wins
-            assertEquals("pkg1::Type", scope.resolve("Type", knownTypes));
+            // Ambiguous reference should throw
+            assertThrows(IllegalStateException.class,
+                    () -> scope.resolve("Type", knownTypes));
         }
 
         @Test
@@ -221,6 +232,8 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Look up class by simple name")
         void testLookupClassBySimpleName() {
             String source = """
+                    import model::*;
+
                     Class model::Person
                     {
                         name: String[1];
@@ -229,16 +242,16 @@ class LegendEngineCompatibilityTest {
 
             PureModelBuilder builder = new PureModelBuilder().addSource(source);
 
-            // Both qualified and simple lookups should work
+            // Strict FQN lookup
             assertNotNull(builder.getClass("model::Person"));
-            assertNotNull(builder.getClass("Person"));
-            assertEquals(builder.getClass("model::Person"), builder.getClass("Person"));
         }
 
         @Test
         @DisplayName("Look up association by simple name")
         void testLookupAssociationBySimpleName() {
             String source = """
+                    import model::*;
+
                     Class model::Person { name: String[1]; }
                     Class model::Address { street: String[1]; }
                     Association model::Person_Address
@@ -250,9 +263,8 @@ class LegendEngineCompatibilityTest {
 
             PureModelBuilder builder = new PureModelBuilder().addSource(source);
 
-            // Both qualified and simple lookups should work
+            // Strict FQN lookup
             assertTrue(builder.getAssociation("model::Person_Address").isPresent());
-            assertTrue(builder.getAssociation("Person_Address").isPresent());
         }
     }
 
@@ -264,6 +276,8 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Line comments are ignored")
         void testLineComments() {
             String source = """
+                    import model::*;
+
                     // This is a comment
                     Class model::Person
                     {
@@ -283,6 +297,8 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Block comments are ignored")
         void testBlockComments() {
             String source = """
+                    import model::*;
+
                     /*
                      * Copyright 2022 Goldman Sachs
                      * Licensed under Apache 2.0
@@ -309,6 +325,8 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Parse complete legend-engine style Pure file")
         void testCompleteLegendEngineFormat() {
             String source = """
+                    import simple::mapping::*;
+
                     // Copyright 2022 Goldman Sachs
                     // SPDX-License-Identifier: Apache-2.0
 
@@ -393,6 +411,8 @@ class LegendEngineCompatibilityTest {
         @DisplayName("Parse legend-engine file with all features")
         void testAllFeaturesLegendEngineFormat() {
             String source = """
+                    import simple::mapping::*;
+
                     // Copyright 2022 Goldman Sachs
                     // SPDX-License-Identifier: Apache-2.0
 

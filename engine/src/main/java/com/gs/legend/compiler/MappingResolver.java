@@ -2,6 +2,7 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.model.ModelContext;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.PureClassMapping;
 import com.gs.legend.model.mapping.RelationalMapping;
@@ -91,7 +92,7 @@ public final class MappingResolver {
     }
 
     private void walkFunction(AppliedFunction af, StoreResolution active) {
-        String funcName = TypeInfo.simpleName(af.function());
+        String funcName = SymbolTable.extractSimpleName(af.function());
 
         // getAll and new create NEW resolutions from explicit mappings
         if ("getAll".equals(funcName)) {
@@ -134,7 +135,7 @@ public final class MappingResolver {
         if (!(af.parameters().get(0) instanceof PackageableElementPtr(String fullPath))) {
             return null;
         }
-        String className = TypeInfo.simpleName(fullPath);
+        String className = fullPath;
         ClassMapping mapping = normalized.findClassMapping(className).orElse(null);
         if (mapping == null) return null;
         return resolveClassMapping(mapping, className);
@@ -144,7 +145,7 @@ public final class MappingResolver {
         TypeInfo info = typeResult.types().get(af);
         if (info == null || !info.instanceLiteral()) return null;
         if (!(info.type() instanceof GenericType.ClassType ct)) return null;
-        String className = TypeInfo.simpleName(ct.qualifiedName());
+        String className = ct.qualifiedName();
         // ^Class — create identity mapping from model context
         PureClass pc = modelContext.findClass(className).orElse(null);
         if (pc == null) return null;
@@ -154,11 +155,15 @@ public final class MappingResolver {
     // ==================== ClassMapping → StoreResolution ====================
 
     private StoreResolution resolveClassMapping(ClassMapping mapping, String className) {
+        // Canonicalize to FQN — matches TypeChecker's classPropertyAccesses keys
+        String fqn = modelContext.findClass(className)
+                .map(PureClass::qualifiedName)
+                .orElse(className);
         StoreResolution result = switch (mapping) {
-            case RelationalMapping rm -> resolveRelational(rm, className);
+            case RelationalMapping rm -> resolveRelational(rm, fqn);
             case PureClassMapping pcm -> resolveM2M(pcm);
         };
-        if (result != null) storeClassNames.put(result, className);
+        if (result != null) storeClassNames.put(result, fqn);
         return result;
     }
 
@@ -325,8 +330,7 @@ public final class MappingResolver {
                             .orElse(null);
                     if (nav == null) continue;
 
-                    // Normalize target class name to simple form for consistent lookups
-                    String targetClassName = TypeInfo.simpleName(nav.targetClassName());
+                    String targetClassName = nav.targetClassName();
                     ClassMapping targetMapping = normalized.findClassMapping(targetClassName)
                             .orElseThrow(() -> new PureCompileException(
                                     "Association join for property '" + propName + "' targets class '"
@@ -455,14 +459,16 @@ public final class MappingResolver {
             for (var prop : pureClass.properties()) {
                 if (joins.containsKey(prop.name())) continue; // already resolved via Association
                 if (prop.multiplicity().isSingular()) continue;
-                String typeName = prop.genericType().typeName();
+                var propType = prop.genericType();
                 // Only class-typed properties — skip primitives
-                if (modelContext.findClass(typeName).isEmpty()) continue;
+                if (!(propType instanceof PureClass targetClass)) continue;
+                String targetFqn = targetClass.qualifiedName();
+                if (modelContext.findClass(targetFqn).isEmpty()) continue;
 
                 // Build identity resolution for the element class
-                var elementClass = modelContext.findClass(typeName).get();
+                var elementClass = modelContext.findClass(targetFqn).get();
                 var identityMapping = RelationalMapping.identity(elementClass);
-                StoreResolution targetResolution = resolveClassMapping(identityMapping, typeName);
+                StoreResolution targetResolution = resolveClassMapping(identityMapping, targetFqn);
                 joins.put(prop.name(), new StoreResolution.JoinResolution(
                         null, null, null, true, null, Set.of(), targetResolution));
             }
@@ -624,7 +630,7 @@ public final class MappingResolver {
     private static boolean isTraverseExtend(AppliedFunction extendAf) {
         if (extendAf.parameters().size() < 3) return false;
         return extendAf.parameters().get(1) instanceof AppliedFunction af
-                && "traverse".equals(TypeInfo.simpleName(af.function()));
+                && "traverse".equals(SymbolTable.extractSimpleName(af.function()));
     }
 
     /** Extracts the terminal target table name from a traverse expression. */
@@ -633,7 +639,7 @@ public final class MappingResolver {
         int tableRefIdx = traverseAf.parameters().size() - 2;
         var tableRef = traverseAf.parameters().get(tableRefIdx);
         if (tableRef instanceof AppliedFunction af
-                && "tableReference".equals(TypeInfo.simpleName(af.function()))) {
+                && "tableReference".equals(SymbolTable.extractSimpleName(af.function()))) {
             if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof CString cs) {
                 return cs.value();
             }
@@ -672,7 +678,7 @@ public final class MappingResolver {
         var result = new ArrayList<AppliedFunction>();
         var cur = sourceRel;
         while (cur instanceof AppliedFunction af
-                && "extend".equals(TypeInfo.simpleName(af.function()))) {
+                && "extend".equals(SymbolTable.extractSimpleName(af.function()))) {
             result.add(af);
             cur = af.parameters().get(0);
         }

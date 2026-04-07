@@ -32,29 +32,33 @@ public class PureFunctionRegistry {
             String bodySource
     ) {}
 
-    private final Map<String, FunctionEntry> functions = new HashMap<>();
+    private final Map<String, FunctionEntry> byFqn = new HashMap<>();
+    private final Map<String, String> simpleToFqn = new HashMap<>();
 
     /**
      * Register a function from its full Pure source code.
      */
     public void registerPure(String pureSource) {
         FunctionEntry entry = parseFunctionSource(pureSource);
-        functions.put(entry.qualifiedName(), entry);
-        functions.put(entry.simpleName(), entry);
+        byFqn.put(entry.qualifiedName(), entry);
+        simpleToFqn.putIfAbsent(entry.simpleName(), entry.qualifiedName());
     }
 
     /**
      * Look up a function by name (qualified or simple).
      */
     public Optional<FunctionEntry> getFunction(String name) {
-        return Optional.ofNullable(functions.get(name));
+        FunctionEntry entry = byFqn.get(name);
+        if (entry != null) return Optional.of(entry);
+        String fqn = simpleToFqn.get(name);
+        return fqn != null ? Optional.ofNullable(byFqn.get(fqn)) : Optional.empty();
     }
 
     /**
      * Check if a function is registered.
      */
     public boolean hasFunction(String name) {
-        return functions.containsKey(name);
+        return byFqn.containsKey(name) || simpleToFqn.containsKey(name);
     }
 
     /**

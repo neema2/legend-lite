@@ -51,6 +51,8 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
 
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                import test::*;
+
 
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
@@ -98,6 +100,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
                 "INSERT INTO NAMES VALUES (1, 'John', 'Doe'), (2, 'Jane', 'Smith')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { fullName: String[1]; }
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] NAMES fullName: concat([store::DB] NAMES.FIRST, ' ', [store::DB] NAMES.LAST) } )
@@ -114,6 +119,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T1 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T1 VALUES (1, 'ALICE'), (2, 'BOB')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { lowerName: String[1]; }
                     Database store::DB ( Table T1 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T1 lowerName: toLower([store::DB] T1.NAME) } )
@@ -129,6 +137,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T2 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T2 VALUES (1, 'alice'), (2, 'bob')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { upperName: String[1]; }
                     Database store::DB ( Table T2 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T2 upperName: toUpper([store::DB] T2.NAME) } )
@@ -144,6 +155,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T3 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T3 VALUES (1, '  hello  '), (2, ' world ')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { trimmed: String[1]; }
                     Database store::DB ( Table T3 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T3 trimmed: trim([store::DB] T3.NAME) } )
@@ -159,6 +173,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE CODES (ID INT, CODE VARCHAR(10))",
                 "INSERT INTO CODES VALUES (1, 'US-CA-01'), (2, 'UK-LN-02')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::C { country: String[1]; }
                     Database store::DB ( Table CODES ( ID INTEGER, CODE VARCHAR(10) ) )
                     Mapping model::M ( C: Relational { ~mainTable [store::DB] CODES country: substring([store::DB] CODES.CODE, 0, 2) } )
@@ -174,6 +191,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T4 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T4 VALUES (1, 'foo-bar'), (2, 'foo-baz')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { fixed: String[1]; }
                     Database store::DB ( Table T4 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T4 fixed: replace([store::DB] T4.NAME, 'foo', 'qux') } )
@@ -189,6 +209,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T5 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T5 VALUES (1, 'hi'), (2, 'hello')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { len: Integer[1]; }
                     Database store::DB ( Table T5 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T5 len: length([store::DB] T5.NAME) } )
@@ -205,6 +228,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T6 (ID INT, NAME VARCHAR(10))",
                 "INSERT INTO T6 VALUES (1, 'ab'), (2, 'x')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { repeated: String[1]; }
                     Database store::DB ( Table T6 ( ID INTEGER, NAME VARCHAR(10) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T6 repeated: repeatString([store::DB] T6.NAME, 3) } )
@@ -220,6 +246,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T7 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T7 VALUES (1, 'hello')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { hash: String[1]; }
                     Database store::DB ( Table T7 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T7 hash: md5([store::DB] T7.NAME) } )
@@ -235,6 +264,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T8 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T8 VALUES (1, 'hello')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { hash: String[1]; }
                     Database store::DB ( Table T8 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T8 hash: sha256([store::DB] T8.NAME) } )
@@ -257,6 +289,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TN1 (ID INT, VAL VARCHAR(50))",
                 "INSERT INTO TN1 VALUES (1, 'present'), (2, NULL)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { missing: Boolean[1]; }
                     Database store::DB ( Table TN1 ( ID INTEGER, VAL VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] TN1 missing: isNull([store::DB] TN1.VAL) } )
@@ -273,6 +308,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TN2 (ID INT, VAL VARCHAR(50))",
                 "INSERT INTO TN2 VALUES (1, 'present'), (2, NULL)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { present: Boolean[1]; }
                     Database store::DB ( Table TN2 ( ID INTEGER, VAL VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] TN2 present: isNotNull([store::DB] TN2.VAL) } )
@@ -296,6 +334,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TB1 (ID INT)",
                 "INSERT INTO TB1 VALUES (1), (2)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { flag: Boolean[1]; }
                     Database store::DB ( Table TB1 ( ID INTEGER ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] TB1 flag: sqlTrue() } )
@@ -311,6 +352,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TB2 (ID INT)",
                 "INSERT INTO TB2 VALUES (1), (2)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { flag: Boolean[1]; }
                     Database store::DB ( Table TB2 ( ID INTEGER ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] TB2 flag: sqlFalse() } )
@@ -333,6 +377,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TA1 (ID INT, A INT, B INT)",
                 "INSERT INTO TA1 VALUES (1, 10, 20), (2, 30, 40)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { total: Integer[1]; }
                     Database store::DB ( Table TA1 ( ID INTEGER, A INTEGER, B INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TA1 total: plus([store::DB] TA1.A, [store::DB] TA1.B) } )
@@ -349,6 +396,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TA2 (ID INT, A INT, B INT)",
                 "INSERT INTO TA2 VALUES (1, 50, 20), (2, 100, 30)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { diff: Integer[1]; }
                     Database store::DB ( Table TA2 ( ID INTEGER, A INTEGER, B INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TA2 diff: sub([store::DB] TA2.A, [store::DB] TA2.B) } )
@@ -365,6 +415,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TA3 (ID INT, A INT, B INT)",
                 "INSERT INTO TA3 VALUES (1, 10, 3), (2, 22, 7)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { ratio: Float[1]; }
                     Database store::DB ( Table TA3 ( ID INTEGER, A INTEGER, B INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TA3 ratio: divideRound([store::DB] TA3.A, [store::DB] TA3.B, 2) } )
@@ -392,6 +445,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TC1 (ID INT, A VARCHAR(10), B VARCHAR(10))",
                 "INSERT INTO TC1 VALUES (1, 'x', 'x'), (2, 'x', 'y')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { different: Boolean[1]; }
                     Database store::DB ( Table TC1 ( ID INTEGER, A VARCHAR(10), B VARCHAR(10) ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TC1 different: notEqualAnsi([store::DB] TC1.A, [store::DB] TC1.B) } )
@@ -408,6 +464,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TC2 (ID INT, A VARCHAR(10), B VARCHAR(10))",
                 "INSERT INTO TC2 VALUES (1, 'x', 'x'), (2, 'x', NULL), (3, NULL, NULL)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { distinct: Boolean[1]; }
                     Database store::DB ( Table TC2 ( ID INTEGER, A VARCHAR(10), B VARCHAR(10) ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TC2 distinct: isDistinct([store::DB] TC2.A, [store::DB] TC2.B) } )
@@ -434,6 +493,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE STATUS (ID INT, CODE VARCHAR(10))",
                 "INSERT INTO STATUS VALUES (1, 'A'), (2, 'I')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { label: String[1]; }
                     Database store::DB ( Table STATUS ( ID INTEGER, CODE VARCHAR(10) ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] STATUS label: if(equal([store::DB] STATUS.CODE, 'A'), 'Active', 'Inactive') } )
@@ -457,6 +519,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TM1 (ID INT, VAL INT)",
                 "INSERT INTO TM1 VALUES (1, 42), (2, 99)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { val: Integer[1]; }
                     Database store::DB ( Table TM1 ( ID INTEGER, VAL INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TM1 val: group([store::DB] TM1.VAL) } )
@@ -473,6 +538,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TM2 (ID INT)",
                 "INSERT INTO TM2 VALUES (1)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { userId: String[1]; }
                     Database store::DB ( Table TM2 ( ID INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TM2 userId: currentUserId() } )
@@ -495,6 +563,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
                 "INSERT INTO NAMES VALUES (1, 'John', 'DOE')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { email: String[1]; }
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] NAMES email: toLower(concat([store::DB] NAMES.FIRST, [store::DB] NAMES.LAST)) } )
@@ -509,6 +580,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE EMPS (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50), SALARY INT, BONUS INT)",
                 "INSERT INTO EMPS VALUES (1, 'Alice', 'Wonder', 100, 20), (2, 'Bob', 'Builder', 200, 30)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::E { fullName: String[1]; totalComp: Integer[1]; upperLast: String[1]; }
                     Database store::DB ( Table EMPS ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50), SALARY INTEGER, BONUS INTEGER ) )
                     Mapping model::M ( E: Relational { ~mainTable [store::DB] EMPS
@@ -530,6 +604,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE ITEMS (ID INT, NAME VARCHAR(50), PRICE INT, QTY INT)",
                 "INSERT INTO ITEMS VALUES (1, 'Widget', 10, 5), (2, 'Gadget', 20, 3), (3, 'Doohickey', 5, 100)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::I { lowerName: String[1]; total: Integer[1]; }
                     Database store::DB ( Table ITEMS ( ID INTEGER, NAME VARCHAR(50), PRICE INTEGER, QTY INTEGER ) )
                     Mapping model::M ( I: Relational { ~mainTable [store::DB] ITEMS
@@ -551,6 +628,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE CALC (ID INT, A INT, B INT, C INT)",
                 "INSERT INTO CALC VALUES (1, 10, 20, 5), (2, 100, 50, 25)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { result: Integer[1]; }
                     Database store::DB ( Table CALC ( ID INTEGER, A INTEGER, B INTEGER, C INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] CALC result: sub(plus([store::DB] CALC.A, [store::DB] CALC.B), [store::DB] CALC.C) } )
@@ -567,6 +647,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE MIX (ID INT, CODE VARCHAR(5), NAME VARCHAR(50))",
                 "INSERT INTO MIX VALUES (1, 'A', 'Hello'), (2, 'B', 'World')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::R { display: String[1]; }
                     Database store::DB ( Table MIX ( ID INTEGER, CODE VARCHAR(5), NAME VARCHAR(50) ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] MIX display: if(equal([store::DB] MIX.CODE, 'A'), toLower([store::DB] MIX.NAME), toUpper([store::DB] MIX.NAME)) } )
@@ -585,6 +668,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                 "CREATE TABLE EMP (ID INT, NAME VARCHAR(50), DEPT_ID INT)",
                 "INSERT INTO EMP VALUES (1, 'Alice', 1), (2, 'Bob', 2)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::E { label: String[1]; }
                     Database store::DB (
                         Table EMP ( ID INTEGER, NAME VARCHAR(50), DEPT_ID INTEGER )
@@ -607,6 +693,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE WORDS (ID INT, WORD VARCHAR(50))",
                 "INSERT INTO WORDS VALUES (1, 'banana'), (2, 'apple'), (3, 'cherry')");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::W { upper: String[1]; }
                     Database store::DB ( Table WORDS ( ID INTEGER, WORD VARCHAR(50) ) )
                     Mapping model::M ( W: Relational { ~mainTable [store::DB] WORDS upper: toUpper([store::DB] WORDS.WORD) } )
@@ -623,6 +712,9 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE PEOPLE (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50), AGE INT)",
                 "INSERT INTO PEOPLE VALUES (1, 'John', 'Doe', 30), (2, 'Jane', 'Smith', 25)");
             String model = withRuntime("""
+                    import model::*;
+                    import store::*;
+
                     Class model::P { fullName: String[1]; age: Integer[1]; }
                     Database store::DB ( Table PEOPLE ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50), AGE INTEGER ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] PEOPLE

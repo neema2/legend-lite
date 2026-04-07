@@ -18,6 +18,8 @@ class ServiceTestSuiteParserTest {
     @DisplayName("Parse service with complex pattern")
     void testParseServiceWithTestSuite() {
         String pureService = """
+                import api::*;
+
                 Service api::PersonService
                 {
                     pattern: '/api/persons/{lastName}';
@@ -45,6 +47,8 @@ class ServiceTestSuiteParserTest {
     @DisplayName("Parse service without test suite")
     void testParseServiceWithoutTestSuite() {
         String pureService = """
+                import api::*;
+
                 Service api::SimpleService
                 {
                     pattern: '/api/simple';
@@ -65,6 +69,8 @@ class ServiceTestSuiteParserTest {
     @DisplayName("Parse service with multiple path params")
     void testParseServiceWithMultipleParams() {
         String pureService = """
+                import api::*;
+
                 Service api::AddressService
                 {
                     pattern: '/api/persons/{personId}/addresses/{addressId}';

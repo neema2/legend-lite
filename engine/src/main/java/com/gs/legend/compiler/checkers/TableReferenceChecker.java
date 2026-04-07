@@ -3,6 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.CString;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.store.Table;
 import com.gs.legend.plan.GenericType;
@@ -44,9 +45,7 @@ public class TableReferenceChecker extends AbstractChecker {
         if (dotIdx > 0) {
             String dbRef = tableRef.substring(0, dotIdx);
             tableName = tableRef.substring(dotIdx + 1);
-            simpleDbName = dbRef.contains("::")
-                    ? dbRef.substring(dbRef.lastIndexOf("::") + 2)
-                    : dbRef;
+            simpleDbName = SymbolTable.extractSimpleName(dbRef);
         }
 
         String tableKey = simpleDbName + "." + tableName;

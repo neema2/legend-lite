@@ -1,8 +1,10 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.model.ModelContext;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.mapping.ClassMapping;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -17,6 +19,9 @@ import java.util.Optional;
  * MappingResolver. All M2M chains are pre-resolved at construction time —
  * no mutation methods exist.
  *
+ * <p>All lookups resolve through {@link SymbolTable#resolveId(String)} —
+ * both FQN and simple name lookups work without dual-key storage.
+ *
  * <h3>Encapsulation Boundaries</h3>
  * <ul>
  *   <li><b>TypeChecker</b> sees only {@link #findMappingExpression(String)}
@@ -30,22 +35,26 @@ import java.util.Optional;
  */
 public final class NormalizedMapping {
 
-    private final Map<String, ClassMapping> classMappings;
-    private final Map<String, ModelContext.MappingExpression> expressions;
+    private final SymbolTable symbols;
+    private final Map<Integer, ClassMapping> classMappings;
+    private final Map<Integer, ModelContext.MappingExpression> expressions;
 
     public NormalizedMapping(
-            Map<String, ClassMapping> classMappings,
-            Map<String, ModelContext.MappingExpression> expressions) {
+            SymbolTable symbols,
+            Map<Integer, ClassMapping> classMappings,
+            Map<Integer, ModelContext.MappingExpression> expressions) {
+        this.symbols = symbols;
         this.classMappings = Map.copyOf(classMappings);
         this.expressions = Map.copyOf(expressions);
     }
 
     /**
-     * Finds a fully-resolved class mapping by class name.
+     * Finds a fully-resolved class mapping by class name (simple or qualified).
      * Used by MappingResolver (replaces registry.findAnyMapping).
      */
     public Optional<ClassMapping> findClassMapping(String className) {
-        return Optional.ofNullable(classMappings.get(className));
+        int id = symbols.resolveId(className);
+        return id >= 0 ? Optional.ofNullable(classMappings.get(id)) : Optional.empty();
     }
 
     /**
@@ -64,20 +73,32 @@ public final class NormalizedMapping {
      * Used by TypeChecker via ModelContext.findMappingExpression() delegation.
      */
     public Optional<ModelContext.MappingExpression> findMappingExpression(String className) {
-        return Optional.ofNullable(expressions.get(className));
+        int id = symbols.resolveId(className);
+        return id >= 0 ? Optional.ofNullable(expressions.get(id)) : Optional.empty();
     }
 
     /**
-     * @return all class mappings in this scope
+     * @return true if this snapshot contains any class mappings
+     */
+    public boolean hasClassMappings() {
+        return !classMappings.isEmpty();
+    }
+
+    /**
+     * @return all class mappings in this scope (keyed by FQN)
      */
     public Map<String, ClassMapping> allClassMappings() {
-        return classMappings;
+        var result = new LinkedHashMap<String, ClassMapping>(classMappings.size());
+        for (var entry : classMappings.entrySet()) {
+            result.put(symbols.nameOf(entry.getKey()), entry.getValue());
+        }
+        return Map.copyOf(result);
     }
 
     /**
      * Empty snapshot — no mappings, no expressions.
      */
     public static NormalizedMapping empty() {
-        return new NormalizedMapping(Map.of(), Map.of());
+        return new NormalizedMapping(new SymbolTable(), Map.of(), Map.of());
     }
 }

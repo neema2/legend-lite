@@ -419,10 +419,10 @@ public class BuiltinFunctionRegistry {
 
         // Join
         reg.registerSignature("join",
-                "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], joinKind:JoinKind[1], f:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<T+V>[1];");
+                "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<T+V>[1];");
         // Join with right-side prefix (syntactic sugar for rename on right source)
         reg.registerSignature("join",
-                "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], joinKind:JoinKind[1], f:Function<{T[1],V[1]->Boolean[1]}>[1], prefix:String[1]):Relation<T+V>[1];");
+                "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:Function<{T[1],V[1]->Boolean[1]}>[1], prefix:String[1]):Relation<T+V>[1];");
         reg.registerSignature("asOfJoin",
                 "native function asOfJoin<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], match:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<T+V>[1];");
         reg.registerSignature("asOfJoin",
@@ -568,7 +568,7 @@ public class BuiltinFunctionRegistry {
                 "native function toLowerFirstCharacter(str:String[1]):String[1];");
         reg.registerSignature("encodeBase64", "native function encodeBase64(str:String[1]):String[1];");
         reg.registerSignature("decodeBase64", "native function decodeBase64(str:String[1]):String[1];");
-        reg.registerSignature("hash", "native function hash(str:String[1], algorithm:HashType[1]):String[1];");
+        reg.registerSignature("hash", "native function hash(str:String[1], algorithm:meta::pure::functions::hash::HashType[1]):String[1];");
         reg.registerSignature("hash", "native function hash(str:String[1]):String[1];");
         reg.registerSignature("levenshteinDistance",
                 "native function levenshteinDistance(s1:String[1], s2:String[1]):Integer[1];");
@@ -737,7 +737,7 @@ public class BuiltinFunctionRegistry {
 
         // ===== Date/Time =====
         reg.registerSignature("dateDiff",
-                "native function dateDiff(d1:Date[1], d2:Date[1], du:DurationUnit[1]):Integer[1];");
+                "native function dateDiff(d1:Date[1], d2:Date[1], du:meta::pure::functions::date::DurationUnit[1]):Integer[1];");
         reg.registerSignature("datePart", "native function datePart(d:Date[1]):StrictDate[1];");
         // date(year) → Date, date(year,month) → Date, date(y,m,d) → StrictDate, etc.
         reg.registerSignature("date", "native function date(year:Integer[1]):Date[1];");
@@ -755,9 +755,9 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("date",
                 "native function date(year:Integer[1], month:Integer[1], day:Integer[1], hour:Integer[1], minute:Integer[1], second:Number[1]):DateTime[1];");
         reg.registerSignature("adjust",
-                "native function adjust(d:Date[1], amount:Integer[1], unit:DurationUnit[1]):Date[1];");
+                "native function adjust(d:Date[1], amount:Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):Date[1];");
         reg.registerSignature("timeBucket",
-                "native function timeBucket(d:Date[1], amount:Integer[1], unit:DurationUnit[1]):Date[1];");
+                "native function timeBucket(d:Date[1], amount:Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):Date[1];");
         reg.registerSignature("year", "native function year(d:Date[1]):Integer[1];");
         reg.registerSignature("monthNumber", "native function monthNumber(d:Date[1]):Integer[1];");
         reg.registerSignature("dayOfMonth", "native function dayOfMonth(d:Date[1]):Integer[1];");
@@ -775,11 +775,11 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("hasSubsecondWithAtLeastPrecision",
                 "native function hasSubsecondWithAtLeastPrecision(d:Date[1], precision:Integer[1]):Boolean[1];");
         // Date extraction functions
-        reg.registerSignature("month", "native function month(d:Date[1]):Month[1];");
-        reg.registerSignature("quarter", "native function quarter(d:Date[1]):Quarter[1];");
+        reg.registerSignature("month", "native function month(d:Date[1]):meta::pure::functions::date::Month[1];");
+        reg.registerSignature("quarter", "native function quarter(d:Date[1]):meta::pure::functions::date::Quarter[1];");
         reg.registerSignature("quarterNumber", "native function quarterNumber(d:Date[1]):Integer[1];");
         reg.registerSignature("weekOfYear", "native function weekOfYear(d:Date[1]):Integer[1];");
-        reg.registerSignature("dayOfWeek", "native function dayOfWeek(d:Date[1]):DayOfWeek[1];");
+        reg.registerSignature("dayOfWeek", "native function dayOfWeek(d:Date[1]):meta::pure::functions::date::DayOfWeek[1];");
         reg.registerSignature("dayOfWeekNumber", "native function dayOfWeekNumber(d:Date[1]):Integer[1];");
         reg.registerSignature("dayOfYear", "native function dayOfYear(d:Date[1]):Integer[1];");
         // Date navigation
@@ -791,10 +791,10 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("firstSecondOfMinute", "native function firstSecondOfMinute(d:Date[1]):DateTime[1];");
         reg.registerSignature("firstMillisecondOfSecond", "native function firstMillisecondOfSecond(d:Date[1]):DateTime[1];");
         // Epoch conversion
-        reg.registerSignature("toEpochValue", "native function toEpochValue(d:Date[1], unit:DurationUnit[1]):Integer[1];");
+        reg.registerSignature("toEpochValue", "native function toEpochValue(d:Date[1], unit:meta::pure::functions::date::DurationUnit[1]):Integer[1];");
         // 1-arg: defaults to seconds
         reg.registerSignature("toEpochValue", "native function toEpochValue(d:Date[1]):Integer[1];");
-        reg.registerSignature("fromEpochValue", "native function fromEpochValue(epoch:Integer[1], unit:DurationUnit[1]):Date[1];");
+        reg.registerSignature("fromEpochValue", "native function fromEpochValue(epoch:Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):Date[1];");
         // 1-arg: defaults to seconds
         reg.registerSignature("fromEpochValue", "native function fromEpochValue(epoch:Integer[1]):Date[1];");
         // Date comparison predicates

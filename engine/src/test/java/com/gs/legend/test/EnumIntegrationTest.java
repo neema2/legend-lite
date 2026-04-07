@@ -52,6 +52,8 @@ class EnumIntegrationTest {
         void testEnumParsedAndStored() {
             // GIVEN: Pure source with enum definition
             String pureSource = """
+                    import model::*;
+
                     Enum model::OrderStatus
                     {
                         PENDING,
@@ -67,7 +69,7 @@ class EnumIntegrationTest {
             builder.addSource(pureSource);
 
             // THEN: The enum is stored and retrievable by simple name
-            EnumDefinition retrieved = builder.getEnum("OrderStatus");
+            EnumDefinition retrieved = builder.getEnum("model::OrderStatus");
             assertNotNull(retrieved, "Enum should be retrievable by simple name");
             assertEquals("model::OrderStatus", retrieved.qualifiedName());
             assertEquals(5, retrieved.values().size());
@@ -81,6 +83,8 @@ class EnumIntegrationTest {
         void testEnumRetrievableByQualifiedName() {
             // GIVEN: Pure source with enum
             String pureSource = """
+                    import com::example::*;
+
                     Enum com::example::Priority { LOW, MEDIUM, HIGH }
                     """;
 
@@ -99,6 +103,8 @@ class EnumIntegrationTest {
         void testMultipleEnums() {
             // GIVEN: Pure source with multiple enum definitions
             String pureSource = """
+                    import model::*;
+
                     Enum model::Priority { LOW, MEDIUM, HIGH, CRITICAL }
 
                     Enum model::Status { ACTIVE, INACTIVE, PENDING }
@@ -111,20 +117,20 @@ class EnumIntegrationTest {
             builder.addSource(pureSource);
 
             // THEN: All enums are stored
-            assertNotNull(builder.getEnum("Priority"));
-            assertNotNull(builder.getEnum("Status"));
-            assertNotNull(builder.getEnum("Color"));
+            assertNotNull(builder.getEnum("model::Priority"));
+            assertNotNull(builder.getEnum("model::Status"));
+            assertNotNull(builder.getEnum("model::Color"));
 
             // AND: Each has correct values
-            assertEquals(4, builder.getEnum("Priority").values().size());
-            assertEquals(3, builder.getEnum("Status").values().size());
-            assertEquals(4, builder.getEnum("Color").values().size());
+            assertEquals(4, builder.getEnum("model::Priority").values().size());
+            assertEquals(3, builder.getEnum("model::Status").values().size());
+            assertEquals(4, builder.getEnum("model::Color").values().size());
 
             // AND: hasEnumValue works correctly
-            assertTrue(builder.hasEnumValue("Priority", "CRITICAL"));
-            assertTrue(builder.hasEnumValue("Status", "ACTIVE"));
-            assertTrue(builder.hasEnumValue("Color", "BLUE"));
-            assertFalse(builder.hasEnumValue("Priority", "LOW_PRIORITY"));
+            assertTrue(builder.hasEnumValue("model::Priority", "CRITICAL"));
+            assertTrue(builder.hasEnumValue("model::Status", "ACTIVE"));
+            assertTrue(builder.hasEnumValue("model::Color", "BLUE"));
+            assertFalse(builder.hasEnumValue("model::Priority", "LOW_PRIORITY"));
         }
 
         @Test
@@ -132,6 +138,8 @@ class EnumIntegrationTest {
         void testEnumWithClass() {
             // GIVEN: Full model with enum and class using it
             String pureSource = """
+                    import model::*;
+
                     Enum model::OrderStatus
                     {
                         PENDING,
@@ -153,11 +161,11 @@ class EnumIntegrationTest {
             builder.addSource(pureSource);
 
             // THEN: Both enum and class are stored
-            assertNotNull(builder.getEnum("OrderStatus"));
-            assertNotNull(builder.getClass("Order"));
+            assertNotNull(builder.getEnum("model::OrderStatus"));
+            assertNotNull(builder.getClass("model::Order"));
 
             // AND: The class has the expected properties
-            var orderClass = builder.getClass("Order");
+            var orderClass = builder.getClass("model::Order");
             assertNotNull(orderClass.getProperty("status"));
             assertNotNull(orderClass.getProperty("orderId"));
 
@@ -171,6 +179,9 @@ class EnumIntegrationTest {
         void testCompleteModelWithEnum() {
             // GIVEN: Complete Pure model
             String pureSource = """
+                    import model::*;
+                    import store::*;
+
                     Enum model::TaskStatus
                     {
                         TODO,
@@ -213,17 +224,17 @@ class EnumIntegrationTest {
             builder.addSource(pureSource);
 
             // THEN: All elements are stored
-            assertNotNull(builder.getEnum("TaskStatus"));
-            assertNotNull(builder.getClass("Task"));
+            assertNotNull(builder.getEnum("model::TaskStatus"));
+            assertNotNull(builder.getClass("model::Task"));
             assertNotNull(builder.getTable("TASKS"));
-            assertTrue(builder.getMappingRegistry().findByClassName("Task").isPresent());
+            assertTrue(builder.getMappingRegistry().findByClassName("model::Task").isPresent());
 
             // AND: Enum values are validated
-            assertTrue(builder.hasEnumValue("TaskStatus", "TODO"));
-            assertTrue(builder.hasEnumValue("TaskStatus", "IN_PROGRESS"));
-            assertTrue(builder.hasEnumValue("TaskStatus", "DONE"));
-            assertTrue(builder.hasEnumValue("TaskStatus", "BLOCKED"));
-            assertFalse(builder.hasEnumValue("TaskStatus", "CANCELLED"));
+            assertTrue(builder.hasEnumValue("model::TaskStatus", "TODO"));
+            assertTrue(builder.hasEnumValue("model::TaskStatus", "IN_PROGRESS"));
+            assertTrue(builder.hasEnumValue("model::TaskStatus", "DONE"));
+            assertTrue(builder.hasEnumValue("model::TaskStatus", "BLOCKED"));
+            assertFalse(builder.hasEnumValue("model::TaskStatus", "CANCELLED"));
         }
 
         @Test
@@ -231,6 +242,8 @@ class EnumIntegrationTest {
         void testModelContextFindEnum() {
             // GIVEN: Pure source with enum
             String pureSource = """
+                    import model::*;
+
                     Enum model::PaymentMethod
                     {
                         CREDIT_CARD,
@@ -248,15 +261,15 @@ class EnumIntegrationTest {
             ModelContext context = builder;
 
             // THEN: findEnum works via interface
-            var found = context.findEnum("PaymentMethod");
+            var found = context.findEnum("model::PaymentMethod");
             assertTrue(found.isPresent());
             assertEquals("model::PaymentMethod", found.get().qualifiedName());
             assertEquals(5, found.get().values().size());
 
             // AND: hasEnumValue works via interface default method
-            assertTrue(context.hasEnumValue("PaymentMethod", "PAYPAL"));
-            assertTrue(context.hasEnumValue("PaymentMethod", "CRYPTO"));
-            assertFalse(context.hasEnumValue("PaymentMethod", "CASH"));
+            assertTrue(context.hasEnumValue("model::PaymentMethod", "PAYPAL"));
+            assertTrue(context.hasEnumValue("model::PaymentMethod", "CRYPTO"));
+            assertFalse(context.hasEnumValue("model::PaymentMethod", "CASH"));
         }
 
         @Test
@@ -264,6 +277,8 @@ class EnumIntegrationTest {
         void testEnumWithSingleValue() {
             // GIVEN: Pure source with single-value enum
             String pureSource = """
+                    import model::*;
+
                     Enum model::SingletonStatus { ONLY_VALUE }
                     """;
 
@@ -272,7 +287,7 @@ class EnumIntegrationTest {
             builder.addSource(pureSource);
 
             // THEN: Enum is stored correctly
-            EnumDefinition enumDef = builder.getEnum("SingletonStatus");
+            EnumDefinition enumDef = builder.getEnum("model::SingletonStatus");
             assertNotNull(enumDef);
             assertEquals(1, enumDef.values().size());
             assertTrue(enumDef.hasValue("ONLY_VALUE"));
@@ -367,6 +382,10 @@ class EnumIntegrationTest {
 
             // AND: Complete Pure model with enum, class, db, mapping, connection, runtime
             String pureSource = """
+                    import app::*;
+                    import model::*;
+                    import store::*;
+
                     Enum model::TaskStatus
                     {
                         PENDING,
@@ -444,6 +463,10 @@ class EnumIntegrationTest {
             }
 
             String pureSource = """
+                    import app::*;
+                    import model::*;
+                    import store::*;
+
                     Enum model::Priority { LOW, MEDIUM, HIGH, CRITICAL }
 
                     Class model::Issue
@@ -514,6 +537,10 @@ class EnumIntegrationTest {
             }
 
             String pureSource = """
+                    import app::*;
+                    import model::*;
+                    import store::*;
+
                     Enum model::OrderStatus { PENDING, SHIPPED, DELIVERED, CANCELLED }
 
                     Class model::Order
@@ -594,6 +621,10 @@ class EnumIntegrationTest {
 
             // Pure source with EnumerationMapping (legend-engine syntax)
             String pureSource = """
+                    import app::*;
+                    import model::*;
+                    import store::*;
+
                     Enum model::OrderStatus
                     {
                         PENDING,
@@ -679,6 +710,10 @@ class EnumIntegrationTest {
             stmt.execute("INSERT INTO TASKS VALUES (4, 'Task D', 'COMPLETE')"); // COMPLETE -> DONE
 
             String pureSource = """
+                    import app::*;
+                    import model::*;
+                    import store::*;
+
                     Enum model::TaskStatus { PENDING, IN_PROGRESS, DONE }
 
                     Class model::Task

@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.plan.GenericType;
 
@@ -161,7 +162,7 @@ public class FoldChecker extends AbstractChecker {
         String elemParam = lf.parameters().get(0).name();
         String accParam = lf.parameters().get(1).name();
         if (lf.body().get(0) instanceof AppliedFunction bodyAf
-                && TypeInfo.simpleName(bodyAf.function()).equals("add")
+                && SymbolTable.extractSimpleName(bodyAf.function()).equals("add")
                 && bodyAf.parameters().size() == 2) {
             var addSource = bodyAf.parameters().get(0);
             var addElem = bodyAf.parameters().get(1);
@@ -188,7 +189,7 @@ public class FoldChecker extends AbstractChecker {
             return null;
         if (af.parameters().size() != 2)
             return null;
-        String op = TypeInfo.simpleName(af.function());
+        String op = SymbolTable.extractSimpleName(af.function());
 
         ValueSpecification left = af.parameters().get(0);
         ValueSpecification right = af.parameters().get(1);
@@ -199,7 +200,7 @@ public class FoldChecker extends AbstractChecker {
 
         // Recursive: left is same op chain containing acc
         if (left instanceof AppliedFunction leftAf
-                && TypeInfo.simpleName(leftAf.function()).equals(op)) {
+                && SymbolTable.extractSimpleName(leftAf.function()).equals(op)) {
             ValueSpecification stripped = extractElementTransform(left, accParam);
             if (stripped != null)
                 return new AppliedFunction(af.function(), List.of(stripped, right));

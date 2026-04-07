@@ -60,6 +60,8 @@ class LegendHttpServerIntegrationTest {
     private static String buildSampleModel() {
         String dbPath = tempDbFile.toString().replace("\\", "/");
         String template = """
+                import model::*;
+
                 Class model::Person {
                     firstName: String[1];
                     lastName: String[1];
@@ -76,7 +78,7 @@ class LegendHttpServerIntegrationTest {
                 )
 
                 Mapping model::PersonMapping (
-                    Person: Relational {
+                    model::Person: Relational {
                         ~mainTable [TestDatabase] T_PERSON
                         firstName: [TestDatabase] T_PERSON.FIRST_NAME,
                         lastName: [TestDatabase] T_PERSON.LAST_NAME,
@@ -337,6 +339,8 @@ class LegendHttpServerIntegrationTest {
     void testFullE2EWorkflow() throws Exception {
         // Use InMemory DuckDB (no file) to test connection caching
         String pureModel = """
+                import model::*;
+
                 Class model::Employee {
                     name: String[1];
                     department: String[1];
@@ -353,7 +357,7 @@ class LegendHttpServerIntegrationTest {
                 )
 
                 Mapping model::EmployeeMapping (
-                    Employee: Relational {
+                    model::Employee: Relational {
                         ~mainTable [EmployeeDB] T_EMPLOYEE
                         name: [EmployeeDB] T_EMPLOYEE.NAME,
                         department: [EmployeeDB] T_EMPLOYEE.DEPARTMENT,

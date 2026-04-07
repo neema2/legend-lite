@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.plan.GraphFetchSpec;
 
 /**
@@ -44,7 +45,7 @@ public class GraphFetchChecker extends AbstractChecker {
         }
 
         // (2) Root class must match source class
-        String className = TypeInfo.simpleName(classType.qualifiedName());
+        String className = classType.qualifiedName();
         var targetClass = findClass(className)
                 .orElseThrow(() -> new PureCompileException(
                         "graphFetch(): class '" + className + "' not found in model"));
