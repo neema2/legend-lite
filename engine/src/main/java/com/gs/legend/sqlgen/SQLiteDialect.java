@@ -19,6 +19,12 @@ public final class SQLiteDialect implements SQLDialect {
 
     @Override
     public String quoteIdentifier(String identifier) {
+        // Schema-qualified: "schema"."table"
+        if (identifier != null && identifier.contains(".")) {
+            return java.util.Arrays.stream(identifier.split("\\."))
+                    .map(seg -> "\"" + seg.replace("\"", "\"\"") + "\"")
+                    .collect(java.util.stream.Collectors.joining("."));
+        }
         // SQLite uses double quotes for identifiers (or backticks, but double quotes
         // are more standard)
         // Escape any existing double quotes by doubling them

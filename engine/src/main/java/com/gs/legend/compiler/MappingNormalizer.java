@@ -96,7 +96,7 @@ public final class MappingNormalizer {
                 // View macro: resolve PMs through the view once, store the resolved mapping.
                 // MappingResolver reads the resolved PMs — no second resolution needed.
                 var resolvedPMs = resolvePropertyMappingsThroughView(
-                        rm.propertyMappings(), rm.view(), rm.table().name());
+                        rm.propertyMappings(), rm.view(), rm.table().qualifiedName());
                 var resolved = rm.withPropertyMappings(resolvedPMs);
                 // View ~groupBy: resolve key columns to class property names
                 if (!rm.view().groupBy().isEmpty()) {
@@ -195,7 +195,7 @@ public final class MappingNormalizer {
             com.gs.legend.ast.ValueSpecification source,
             Map<String, ClassMapping> resolvedMappings) {
 
-        String sourceTable = rm.table().name();
+        String sourceTable = rm.table().qualifiedName();
 
         for (var navEntry : model.findAllAssociationNavigationsFull(className).entrySet()) {
             String propName = navEntry.getKey();
@@ -296,8 +296,8 @@ public final class MappingNormalizer {
      * </ol>
      */
     private com.gs.legend.ast.ValueSpecification synthesizeSourceRelation(RelationalMapping rm) {
-        // 1. Base: tableReference("db.TABLE")
-        String tableName = rm.table().name();
+        // 1. Base: tableReference("db.TABLE") or tableReference("schema.TABLE")
+        String tableName = rm.table().qualifiedName();
         com.gs.legend.ast.ValueSpecification source = new com.gs.legend.ast.AppliedFunction(
                 "tableReference",
                 java.util.List.of(new com.gs.legend.ast.CString(tableName)),
@@ -457,7 +457,7 @@ public final class MappingNormalizer {
             RelationalMapping rm,
             com.gs.legend.ast.ValueSpecification source) {
 
-        String mainTable = rm.table().name();
+        String mainTable = rm.table().qualifiedName();
 
         for (var pm : rm.propertyMappings()) {
             if (!pm.hasMultiJoinChains()) continue;

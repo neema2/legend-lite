@@ -159,7 +159,7 @@ public final class PureModelBuilder implements ModelContext {
                 }
                 for (var schema : included.schemas()) {
                     for (var tableDef : schema.tables()) {
-                        Table table = convertTable(tableDef);
+                        Table table = convertTable(schema.name(), tableDef);
                         tables.putIfAbsent(dbName + "." + schema.name() + "." + tableDef.name(), table);
                         tables.putIfAbsent(schema.name() + "." + tableDef.name(), table);
                         tables.putIfAbsent(tableDef.name(), table);
@@ -355,7 +355,7 @@ public final class PureModelBuilder implements ModelContext {
         // Register schema tables (schema-qualified and simple name)
         for (var schema : dbDef.schemas()) {
             for (var tableDef : schema.tables()) {
-                Table table = convertTable(tableDef);
+                Table table = convertTable(schema.name(), tableDef);
                 tables.put(tableDef.name(), table);
                 tables.put(schema.name() + "." + tableDef.name(), table);
                 tables.put(dbDef.simpleName() + "." + schema.name() + "." + tableDef.name(), table);
@@ -1178,10 +1178,14 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     private Table convertTable(DatabaseDefinition.TableDefinition tableDef) {
+        return convertTable("", tableDef);
+    }
+
+    private Table convertTable(String schema, DatabaseDefinition.TableDefinition tableDef) {
         List<Column> columns = tableDef.columns().stream()
                 .map(this::convertColumn)
                 .toList();
-        return new Table(tableDef.name(), columns);
+        return new Table(schema, tableDef.name(), columns);
     }
 
     /**

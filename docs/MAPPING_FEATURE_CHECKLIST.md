@@ -57,8 +57,8 @@ Status key: ✅ = working E2E, ⚠️ = partial, ❌ = not implemented, 🔧 = n
 | D4 | Join (function) | `Join J(concat(...) = T.C)` | ✅ | testFunctionInJoin |
 | D5 | Self-join | `Join J(T.pid = {target}.id)` | ✅ | testSelfJoin |
 | D6 | Filter | `Filter F(T.col = 1)` | ✅ | testMappingFilter uses Filter |
-| D7 | View | `View V (col: expr)` | ❌ | testViewAsDataSource (disabled) |
-| D8 | Schema | `Schema S (Table ...)` | ❌ | — |
+| D7 | View | `View V (col: expr)` | ✅ | testViewAsDataSource, testViewAllFeatures, testViewJoinPruning, testViewEndToEnd, testViewWithFilterDistinctJoinDyna, testViewMultiJoinChains, testViewDynaWithTwoJoinChains, testViewWithGroupBy |
+| D8 | Schema | `Schema S (Table ...)` | ✅ | testSchemaTable |
 | D9 | Database include | `include otherDb` | ✅ | testDatabaseInclude |
 | D10 | TabularFunction | `TabularFunction F(...)` | ❌ | — |
 | D11 | MultiGrainFilter | `MultiGrainFilter F(...)` | ❌ | — |
@@ -99,7 +99,7 @@ Ordered by: dependencies, impact, difficulty. Each item is independently testabl
 
 | Step | Feature | Ref | Depends on | Effort |
 |------|---------|-----|------------|--------|
-| 2 | ~~~Computed from 2 joins (F1)~~~ | — | — | ✅ Done |
+| 2 | ~~~Computed from 2 joins (F1)~~~ | — | — | Done |
 | 3 | Set ID lookup by ID (B8) | Group F | — | Low |
 | 4 | Mapping extends (B9) | Group F | B8 | Medium |
 | 5 | Store substitution (C2) | Group G | C1 | Medium |
@@ -110,11 +110,11 @@ Ordered by: dependencies, impact, difficulty. Each item is independently testabl
 
 | Step | Feature | Ref | Effort |
 |------|---------|-----|--------|
-| 8 | Views as data source (D7) | Group H | Medium |
-| 9 | ~~~groupBy (B5)~~~ | — | ✅ Done |
+| 8 | ~~~Views as data source (D7)~~~ | — | Done |
+| 9 | ~~~groupBy (B5)~~~ | — | Done |
 | 10 | ~primaryKey (B6) | — | Low |
 | 11 | ~filter via join (B3) | — | Medium |
-| 12 | Schema support (D8) | — | Low |
+| 12 | ~~~Schema support (D8)~~~ | — | Done |
 
 ### Tier 4: Advanced / Grammar Additions
 
@@ -143,7 +143,7 @@ These are stubs in GapComposition — fill in and enable as prerequisite feature
 | Extends + filter inheritance | B9 |
 | Mapping include + join navigation | C1 (done) |
 | Store substitution + query | C2 |
-| View + join + filter | D7 |
+| View + join + filter | D7 (done) |
 | DB filter + mapping filter stacking | B2 (done), D6 (done) |
 | Local property + join + filter | C5 |
 | Association mapping + multi-table chain | C3 (done) |

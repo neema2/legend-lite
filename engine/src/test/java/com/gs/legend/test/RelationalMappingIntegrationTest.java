@@ -2661,6 +2661,44 @@ class RelationalMappingIntegrationTest {
             assertEquals(200, totals.get(westIdx));
         }
 
+        @Test
+        @DisplayName("Schema-qualified table in mapping")
+        void testSchemaTable() throws SQLException {
+            sql("CREATE SCHEMA IF NOT EXISTS hr",
+                "CREATE TABLE hr.EMPLOYEES (ID INT, NAME VARCHAR, DEPT VARCHAR)",
+                "INSERT INTO hr.EMPLOYEES VALUES (1, 'Alice', 'Eng'), (2, 'Bob', 'Sales')");
+
+            String model = withRuntime("""
+                Class test::Employee {
+                    empId: Integer[1];
+                    name: String[1];
+                    dept: String[1];
+                }
+                Database store::DB (
+                    Schema hr (
+                        Table EMPLOYEES (ID INT, NAME VARCHAR(50), DEPT VARCHAR(50))
+                    )
+                )
+                Mapping test::M (
+                    test::Employee: Relational {
+                        ~mainTable [store::DB] hr.EMPLOYEES
+                        empId: [store::DB] hr.EMPLOYEES.ID,
+                        name: [store::DB] hr.EMPLOYEES.NAME,
+                        dept: [store::DB] hr.EMPLOYEES.DEPT
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            var r = exec(model, "test::Employee.all()->project(~[empId, name, dept])");
+            assertEquals(2, r.rows().size());
+            assertEquals("Alice", colStr(r, 1).get(0));
+
+            // Verify schema-qualified SQL
+            String sql = planSql(model, "test::Employee.all()->project(~[empId, name])");
+            assertTrue(sql.contains("\"hr\".\"EMPLOYEES\""),
+                    "SQL should contain schema-qualified table. SQL: " + sql);
+        }
+
         // --- Database Filters ---
 
         @Test @Disabled("GAP: Database filters not extracted")
