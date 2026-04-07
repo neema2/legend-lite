@@ -8,6 +8,7 @@ import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.store.*;
 import com.gs.legend.parser.PureParser;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +79,10 @@ public final class PureModelBuilder implements ModelContext {
     // Key: "AssociationName.propertyName", Value: Join
     private final Map<String, Join> explicitAssociationJoins = new HashMap<>();
 
+    // Lazily-built indexes for O(1) association lookups (avoids O(N) scans)
+    private Map<String, List<Association>> classToAssociations;  // className → associations referencing that class
+    private Map<String, Join> propertyToJoin;                     // propertyName → explicit join
+
     /**
      * Adds Pure definitions from source code.
      * 
@@ -85,6 +90,10 @@ public final class PureModelBuilder implements ModelContext {
      * @return this builder for chaining
      */
     public PureModelBuilder addSource(String pureSource) {
+        // Invalidate lazy indexes — new definitions may add associations/joins
+        classToAssociations = null;
+        propertyToJoin = null;
+
         List<PackageableElement> definitions = PureParser.parseModel(pureSource);
 
         // PHASE 0: Register all enums first (needed for type resolution in classes)
@@ -1013,7 +1022,7 @@ public final class PureModelBuilder implements ModelContext {
      */
     public java.util.Map<String, FullAssociationNavigation> findAllAssociationNavigationsFull_impl(String className) {
         var result = new java.util.LinkedHashMap<String, FullAssociationNavigation>();
-        for (Association assoc : associations.values()) {
+        for (Association assoc : getAssociationsForClass(className)) {
             var prop1 = assoc.property1();
             var prop2 = assoc.property2();
 
@@ -1046,6 +1055,65 @@ public final class PureModelBuilder implements ModelContext {
         return false;
     }
 
+    private static String simpleName(String name) {
+        int idx = name.lastIndexOf("::");
+        return idx >= 0 ? name.substring(idx + 2) : name;
+    }
+
+    /**
+     * Returns associations referencing the given class. Uses a lazily-built
+     * index (className → List&lt;Association&gt;) for O(k) instead of O(N).
+     */
+    private List<Association> getAssociationsForClass(String className) {
+        if (classToAssociations == null) {
+            classToAssociations = buildClassToAssociationsIndex();
+        }
+        String simple = simpleName(className);
+        List<Association> result = classToAssociations.get(simple);
+        return result != null ? result : List.of();
+    }
+
+    private Map<String, List<Association>> buildClassToAssociationsIndex() {
+        var index = new HashMap<String, List<Association>>();
+        // Deduplicate: associations map stores each assoc under both qualified and simple name.
+        // Use an identity set to avoid processing the same Association object twice.
+        var seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Association, Boolean>());
+        for (Association assoc : associations.values()) {
+            if (!seen.add(assoc)) continue;
+            // Index by both ends' target class (simple name)
+            String target1 = simpleName(assoc.property1().targetClass());
+            String target2 = simpleName(assoc.property2().targetClass());
+            index.computeIfAbsent(target1, k -> new ArrayList<>()).add(assoc);
+            if (!target1.equals(target2)) {
+                index.computeIfAbsent(target2, k -> new ArrayList<>()).add(assoc);
+            }
+        }
+        return index;
+    }
+
+    /**
+     * Returns the propertyName → Join index. Built lazily from explicitAssociationJoins.
+     */
+    private Map<String, Join> getPropertyToJoinIndex() {
+        if (propertyToJoin == null) {
+            propertyToJoin = buildPropertyToJoinIndex();
+        }
+        return propertyToJoin;
+    }
+
+    private Map<String, Join> buildPropertyToJoinIndex() {
+        var index = new HashMap<String, Join>();
+        for (var entry : explicitAssociationJoins.entrySet()) {
+            String key = entry.getKey(); // "AssocName.propertyName" or "ClassName.propertyName"
+            int dot = key.lastIndexOf('.');
+            if (dot >= 0) {
+                String propName = key.substring(dot + 1);
+                index.putIfAbsent(propName, entry.getValue());
+            }
+        }
+        return index;
+    }
+
     @Override
     public Map<String, AssociationNavigation> findAllAssociationNavigations(String className) {
         var result = new java.util.LinkedHashMap<String, AssociationNavigation>();
@@ -1066,9 +1134,9 @@ public final class PureModelBuilder implements ModelContext {
 
     @Override
     public Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName) {
-        // Search all associations for one that has this property navigating from the
-        // given class. Returns lightweight AssociationNavigation for TypeChecker.
-        for (Association assoc : associations.values()) {
+        // Search associations for this class that have this property name.
+        // Uses classToAssociations index for O(k) instead of O(N).
+        for (Association assoc : getAssociationsForClass(fromClassName)) {
             var prop1 = assoc.property1();
             var prop2 = assoc.property2();
 
@@ -1098,13 +1166,9 @@ public final class PureModelBuilder implements ModelContext {
      * @return The Join to use, or null if not found
      */
     private Join findJoinForAssociationProperty(String associationName, String propertyName) {
-        // 1. Check explicit mapping from class mapping (ClassName.propertyName)
-        // This is stored when parsing [DB]@JoinName in property mappings
-        for (String key : explicitAssociationJoins.keySet()) {
-            if (key.endsWith("." + propertyName)) {
-                return explicitAssociationJoins.get(key);
-            }
-        }
+        // 1. Check property-name index (O(1) instead of scanning all keys)
+        Join indexed = getPropertyToJoinIndex().get(propertyName);
+        if (indexed != null) return indexed;
 
         // 2. Check explicit mapping with association name (AssocName.propertyName)
         String simpleAssocName = associationName.contains("::")
