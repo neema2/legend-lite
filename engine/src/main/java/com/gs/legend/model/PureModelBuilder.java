@@ -1017,13 +1017,13 @@ public final class PureModelBuilder implements ModelContext {
             var prop1 = assoc.property1();
             var prop2 = assoc.property2();
 
-            if (prop2.targetClass().equals(className)) {
+            if (classNameMatches(prop2.targetClass(), className)) {
                 boolean isToMany = prop1.multiplicity().isMany();
                 Join join = findJoinForAssociationProperty(assoc.name(), prop1.propertyName());
                 result.putIfAbsent(prop1.propertyName(),
                         new FullAssociationNavigation(prop1.targetClass(), isToMany, join));
             }
-            if (prop1.targetClass().equals(className)) {
+            if (classNameMatches(prop1.targetClass(), className)) {
                 boolean isToMany = prop2.multiplicity().isMany();
                 Join join = findJoinForAssociationProperty(assoc.name(), prop2.propertyName());
                 result.putIfAbsent(prop2.propertyName(),
@@ -1031,6 +1031,19 @@ public final class PureModelBuilder implements ModelContext {
             }
         }
         return result;
+    }
+
+    /**
+     * Matches class names flexibly: "test::H5" matches both "test::H5" and "H5".
+     * Handles the case where associations store qualified names but lookup uses simple names or vice versa.
+     */
+    private static boolean classNameMatches(String assocClassName, String lookupName) {
+        if (assocClassName.equals(lookupName)) return true;
+        // "test::H5".endsWith("::H5") matches lookupName "H5"
+        if (assocClassName.endsWith("::" + lookupName)) return true;
+        // lookupName "test::H5".endsWith("::H5") matches assocClassName "H5"
+        if (lookupName.endsWith("::" + assocClassName)) return true;
+        return false;
     }
 
     @Override
@@ -1061,13 +1074,13 @@ public final class PureModelBuilder implements ModelContext {
 
             // Check if property1's name matches and property2's target is fromClassName
             // (property1 navigates FROM prop2.targetClass TO prop1.targetClass)
-            if (prop1.propertyName().equals(propertyName) && prop2.targetClass().equals(fromClassName)) {
+            if (prop1.propertyName().equals(propertyName) && classNameMatches(prop2.targetClass(), fromClassName)) {
                 boolean isToMany = prop1.multiplicity().isMany();
                 return Optional.of(new AssociationNavigation(prop1.targetClass(), isToMany));
             }
 
             // Check if property2's name matches and property1's target is fromClassName
-            if (prop2.propertyName().equals(propertyName) && prop1.targetClass().equals(fromClassName)) {
+            if (prop2.propertyName().equals(propertyName) && classNameMatches(prop1.targetClass(), fromClassName)) {
                 boolean isToMany = prop2.multiplicity().isMany();
                 return Optional.of(new AssociationNavigation(prop2.targetClass(), isToMany));
             }

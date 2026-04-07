@@ -120,15 +120,10 @@ public class GetAllChecker extends AbstractChecker {
         // with fn1=traverse. compileExpr walks the full chain including those.
         var ctx = new TypeChecker.CompilationContext();
         env.compileExpr(rel.sourceRelation(), ctx);
+        env.markSourceRelationCompiled(TypeInfo.simpleName(rel.className()));
 
-        // Recurse into association target classes to compile their expressions
-        for (var nav : env.modelContext().findAllAssociationNavigations(rel.className()).values()) {
-            env.modelContext().findMappingExpression(nav.targetClassName())
-                    .ifPresent(mapExpr -> {
-                        if (mapExpr instanceof MappingExpression.Relational targetRel) {
-                            compileRelationalExpressions(targetRel, visited);
-                        }
-                    });
-        }
+        // Target classes' source relations are compiled on-demand by
+        // TypeChecker.compileNeededAssociationTargets() (pass 2) — only for
+        // associations the query actually navigates.
     }
 }

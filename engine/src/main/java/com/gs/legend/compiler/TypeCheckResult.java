@@ -18,11 +18,13 @@ import java.util.Set;
  * @param root                   Top-level AST node (raw ValueSpecification, no wrapper)
  * @param types                  Per-node type info side table (node → TypeInfo)
  * @param classPropertyAccesses  Class property accesses observed during compilation (className → property names)
+ * @param associationNavigations Association navigations observed during compilation (className → association property names)
  */
 public record TypeCheckResult(
         ValueSpecification root,
         IdentityHashMap<ValueSpecification, TypeInfo> types,
-        Map<String, Set<String>> classPropertyAccesses) {
+        Map<String, Set<String>> classPropertyAccesses,
+        Map<String, Set<String>> associationNavigations) {
 
     /** Looks up the TypeInfo for a specific AST node. Throws if not stamped — that's a compiler bug. */
     public TypeInfo typeInfoFor(ValueSpecification node) {

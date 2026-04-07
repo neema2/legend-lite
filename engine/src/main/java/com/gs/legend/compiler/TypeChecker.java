@@ -47,6 +47,10 @@ public class TypeChecker implements TypeCheckEnv {
     private final IdentityHashMap<ValueSpecification, TypeInfo> types = new IdentityHashMap<>();
     /** Class property accesses observed during compilation (className → property names). */
     private final Map<String, Set<String>> classPropertyAccesses = new HashMap<>();
+    /** Association navigations observed during compilation (className → association property names). */
+    private final Map<String, Set<String>> associationNavigations = new HashMap<>();
+    /** Classes whose source relations have been compiled (prevents double-compilation in pass 2). */
+    private final Set<String> compiledSourceRelations = new HashSet<>();
 
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
@@ -59,6 +63,11 @@ public class TypeChecker implements TypeCheckEnv {
     @Override
     public TypeInfo lookupCompiled(ValueSpecification vs) {
         return types.get(vs);
+    }
+
+    @Override
+    public void markSourceRelationCompiled(String className) {
+        compiledSourceRelations.add(className);
     }
 
     /**
@@ -77,7 +86,44 @@ public class TypeChecker implements TypeCheckEnv {
                     "TypeChecker: expressionType not stamped for root " + vs.getClass().getSimpleName());
         }
 
-        return new TypeCheckResult(vs, types, classPropertyAccesses);
+        compileNeededAssociationTargets();
+        return new TypeCheckResult(vs, types, classPropertyAccesses, associationNavigations);
+    }
+
+    /**
+     * Pass 2: compile source relations for classes whose associations the query navigates.
+     * After pass 1 (compileExpr), {@code associationNavigations} contains every
+     * className→propName pair the query touches. For each entry:
+     * 1. Compile the source class's source relation (if not already done) — stamps TypeInfo
+     *    on its traverse conditions.
+     * 2. Compile each target class's source relation — stamps TypeInfo on any join-chain
+     *    traverses the target class has (e.g., Firm with a @FirmCountry join chain).
+     */
+    private void compileNeededAssociationTargets() {
+        if (modelContext == null) return;
+        // Iterate a snapshot — associationNavigations is not modified by compileExpr on source relations
+        for (var entry : new ArrayList<>(associationNavigations.entrySet())) {
+            String className = entry.getKey();
+            // Compile this class's source relation if not already done
+            compileSourceRelationIfNeeded(className);
+            // Compile each target class's source relation
+            for (String propName : entry.getValue()) {
+                modelContext.findAssociationByProperty(className, propName).ifPresent(nav -> {
+                    String targetClass = TypeInfo.simpleName(nav.targetClassName());
+                    compileSourceRelationIfNeeded(targetClass);
+                });
+            }
+        }
+    }
+
+    private void compileSourceRelationIfNeeded(String className) {
+        if (compiledSourceRelations.contains(className)) return;
+        modelContext.findMappingExpression(className).ifPresent(mapExpr -> {
+            if (mapExpr instanceof ModelContext.MappingExpression.Relational rel) {
+                compiledSourceRelations.add(className);
+                compileExpr(rel.sourceRelation(), new CompilationContext());
+            }
+        });
     }
 
     /**
@@ -484,6 +530,7 @@ public class TypeChecker implements TypeCheckEnv {
                 var assocNav = modelContext.findAssociationByProperty(qualifiedName, ap.property());
                 if (assocNav.isPresent()) {
                     var nav = assocNav.get();
+                    associationNavigations.computeIfAbsent(TypeInfo.simpleName(qualifiedName), k -> new HashSet<>()).add(ap.property());
                     GenericType targetType = new GenericType.ClassType(nav.targetClassName());
                     var info = TypeInfo.builder()
                             .expressionType(nav.isToMany()
@@ -597,6 +644,7 @@ public class TypeChecker implements TypeCheckEnv {
                     var assocNav = modelContext.findAssociationByProperty(simpleClassName, ap.property());
                     if (assocNav.isPresent()) {
                         var nav = assocNav.get();
+                        associationNavigations.computeIfAbsent(simpleClassName, k -> new HashSet<>()).add(ap.property());
                         GenericType targetType = new GenericType.ClassType(nav.targetClassName());
                         List<String> assocPath = collectPropertyChain(ap);
                         var info = TypeInfo.builder()

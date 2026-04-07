@@ -301,6 +301,10 @@ public final class MappingResolver {
             String className, String tableName) {
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
 
+        // Demand-driven: only resolve associations the query actually navigates
+        Set<String> neededAssocs = typeResult.associationNavigations()
+                .getOrDefault(className, Set.of());
+
         // 1. Walk extend nodes in sourceRelation to find association extends
         var sourceRelation = normalized.findSourceRelation(className);
         if (sourceRelation != null) {
@@ -311,6 +315,8 @@ public final class MappingResolver {
                     if (!ExtendChecker.isAssociationExtend(cs)) continue;
 
                     String propName = cs.name();
+                    // Skip associations not navigated by the query
+                    if (!neededAssocs.contains(propName)) continue;
                     // Extract traverse call from fn1's body
                     AppliedFunction traverseAf = (AppliedFunction) cs.function1().body().get(0);
 
@@ -319,16 +325,18 @@ public final class MappingResolver {
                             .orElse(null);
                     if (nav == null) continue;
 
-                    ClassMapping targetMapping = normalized.findClassMapping(nav.targetClassName())
+                    // Normalize target class name to simple form for consistent lookups
+                    String targetClassName = TypeInfo.simpleName(nav.targetClassName());
+                    ClassMapping targetMapping = normalized.findClassMapping(targetClassName)
                             .orElseThrow(() -> new PureCompileException(
                                     "Association join for property '" + propName + "' targets class '"
-                                            + nav.targetClassName() + "' which has no mapping in scope"));
+                                            + targetClassName + "' which has no mapping in scope"));
 
                     StoreResolution targetResolution;
-                    if (resolving.contains(nav.targetClassName())) {
+                    if (resolving.contains(targetClassName)) {
                         targetResolution = buildShallowResolution(targetMapping);
                     } else {
-                        targetResolution = resolveClassMapping(targetMapping, nav.targetClassName());
+                        targetResolution = resolveClassMapping(targetMapping, targetClassName);
                     }
                     String targetTable = targetMapping.sourceTable().name();
 
