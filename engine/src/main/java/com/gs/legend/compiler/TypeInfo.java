@@ -80,12 +80,13 @@ public record TypeInfo(
          */
         FoldSpec foldSpec,
         /**
-         * Traverse specification for extend(traverse(...), colSpec).
-         * Each hop describes a LEFT JOIN to a target table with an arbitrary condition.
+         * Traverse specifications for extend(traverse(...), colSpec).
+         * Each TraversalSpec describes a chain of LEFT JOINs. Single-traverse has one element;
+         * multi-traverse (multi-join DynaFunction) has multiple.
          * Stamped by ExtendChecker, consumed by PlanGenerator to emit flat JOINs.
          * Null for non-traverse expressions.
          */
-        TraversalSpec traversalSpec,
+        List<TraversalSpec> traversalSpecs,
         /**
          * Resolved physical table name for tableReference() expressions.
          * Stamped by TableReferenceChecker. Used by PlanGenerator and ExtendChecker.
@@ -359,7 +360,7 @@ public record TypeInfo(
         private boolean lambdaParam;
         private NativeFunctionDef resolvedFunc;
         private FoldSpec foldSpec;
-        private TraversalSpec traversalSpec;
+        private List<TraversalSpec> traversalSpecs;
         private String resolvedTableName;
         private List<String> associationPath;
 
@@ -381,7 +382,7 @@ public record TypeInfo(
             this.lambdaParam = src.lambdaParam();
             this.resolvedFunc = src.resolvedFunc();
             this.foldSpec = src.foldSpec();
-            this.traversalSpec = src.traversalSpec();
+            this.traversalSpecs = src.traversalSpecs();
             this.resolvedTableName = src.resolvedTableName();
             this.associationPath = src.associationPath();
         }
@@ -401,7 +402,8 @@ public record TypeInfo(
         public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
         public Builder resolvedFunc(NativeFunctionDef v) { this.resolvedFunc = v; return this; }
         public Builder foldSpec(FoldSpec v) { this.foldSpec = v; return this; }
-        public Builder traversalSpec(TraversalSpec v) { this.traversalSpec = v; return this; }
+        public Builder traversalSpec(TraversalSpec v) { this.traversalSpecs = v == null ? null : List.of(v); return this; }
+        public Builder traversalSpecs(List<TraversalSpec> v) { this.traversalSpecs = v; return this; }
         public Builder resolvedTableName(String v) { this.resolvedTableName = v; return this; }
         public Builder associationPath(List<String> v) { this.associationPath = v; return this; }
 
@@ -413,7 +415,7 @@ public record TypeInfo(
             return new TypeInfo(instanceLiteral, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
                     joinColumnRenames, graphFetchSpec, tdsLiteral, expressionType,
-                    lambdaParam, resolvedFunc, foldSpec, traversalSpec,
+                    lambdaParam, resolvedFunc, foldSpec, traversalSpecs,
                     resolvedTableName, associationPath);
         }
     }

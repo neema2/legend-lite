@@ -177,7 +177,10 @@ public final class MappingResolver {
             propToCol.put(prop, col);
 
             var exprAccess = pm.expressionAccess();
-            if (pm.hasDynaExpression() && !pm.hasJoinChain()) {
+            if (pm.hasMultiJoinChains()) {
+                // Multi-traverse: extend already computes the column
+                properties.put(prop, new StoreResolution.PropertyResolution.Column(prop));
+            } else if (pm.hasDynaExpression() && !pm.hasJoinChain()) {
                 if (!rm.groupByColumns().isEmpty()) {
                     // ~groupBy active: DynaFunction is incorporated into the groupBy call
                     // in sourceRelation — output column is aliased as the property name.

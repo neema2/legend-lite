@@ -505,7 +505,28 @@ public final class PureModelBuilder implements ModelContext {
                         }
                         if (pm.hasMappingExpression()) {
                             // DynaFunction expression: convert RelationalOperation → ValueSpecification
-                            var joinNav = findFirstJoinNavigation(pm.mappingExpression());
+                            var joinNavs = findAllJoinNavigations(pm.mappingExpression());
+                            if (joinNavs.size() >= 2 && classMapping.mainTable() != null) {
+                                // Multi-join DynaFunction: build tableToParam for all referenced tables
+                                String mainTableName = classMapping.mainTable().tableName();
+                                var tableToParam = new java.util.HashMap<String, String>();
+                                tableToParam.put(mainTableName, "src");
+                                var allJoinChains = new java.util.ArrayList<java.util.List<String>>();
+                                for (int ji = 0; ji < joinNavs.size(); ji++) {
+                                    var nav = joinNavs.get(ji);
+                                    String paramName = "t" + (ji + 1);
+                                    var termTables = RelationalMappingConverter.collectTableNames(nav.terminal());
+                                    String termTable = termTables.stream()
+                                            .filter(t -> !t.equals(mainTableName))
+                                            .findFirst().orElse(termTables.iterator().next());
+                                    tableToParam.put(termTable, paramName);
+                                    allJoinChains.add(nav.joinChain().stream()
+                                            .map(com.gs.legend.model.def.JoinChainElement::joinName).toList());
+                                }
+                                var vsExpr = RelationalMappingConverter.convert(pm.mappingExpression(), tableToParam);
+                                return PropertyMapping.dynaFunctionWithMultiJoin(pm.propertyName(), vsExpr, allJoinChains);
+                            }
+                            var joinNav = joinNavs.isEmpty() ? null : joinNavs.get(0);
                             if (joinNav != null && classMapping.mainTable() != null) {
                                 // Combined join + DynaFunction: expression references columns across tables
                                 String mainTableName = classMapping.mainTable().tableName();
@@ -1187,29 +1208,36 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
-     * Finds the first {@link com.gs.legend.model.def.RelationalOperation.JoinNavigation} in a RelationalOperation tree.
-     * Returns null if none found.
+     * Finds ALL {@link com.gs.legend.model.def.RelationalOperation.JoinNavigation} nodes in a RelationalOperation tree.
+     * Returns them in encounter order (left-to-right, depth-first).
      */
-    private static com.gs.legend.model.def.RelationalOperation.JoinNavigation findFirstJoinNavigation(
+    private static java.util.List<com.gs.legend.model.def.RelationalOperation.JoinNavigation> findAllJoinNavigations(
             com.gs.legend.model.def.RelationalOperation op) {
-        return switch (op) {
-            case com.gs.legend.model.def.RelationalOperation.JoinNavigation nav -> nav;
-            case com.gs.legend.model.def.RelationalOperation.FunctionCall func -> func.args().stream()
-                    .map(PureModelBuilder::findFirstJoinNavigation)
-                    .filter(java.util.Objects::nonNull).findFirst().orElse(null);
+        var result = new java.util.ArrayList<com.gs.legend.model.def.RelationalOperation.JoinNavigation>();
+        collectJoinNavigations(op, result);
+        return result;
+    }
+
+    private static void collectJoinNavigations(
+            com.gs.legend.model.def.RelationalOperation op,
+            java.util.List<com.gs.legend.model.def.RelationalOperation.JoinNavigation> out) {
+        switch (op) {
+            case com.gs.legend.model.def.RelationalOperation.JoinNavigation nav -> out.add(nav);
+            case com.gs.legend.model.def.RelationalOperation.FunctionCall func ->
+                    func.args().forEach(a -> collectJoinNavigations(a, out));
             case com.gs.legend.model.def.RelationalOperation.Comparison cmp -> {
-                var left = findFirstJoinNavigation(cmp.left());
-                yield left != null ? left : findFirstJoinNavigation(cmp.right());
+                collectJoinNavigations(cmp.left(), out);
+                collectJoinNavigations(cmp.right(), out);
             }
             case com.gs.legend.model.def.RelationalOperation.BooleanOp bool -> {
-                var left = findFirstJoinNavigation(bool.left());
-                yield left != null ? left : findFirstJoinNavigation(bool.right());
+                collectJoinNavigations(bool.left(), out);
+                collectJoinNavigations(bool.right(), out);
             }
-            case com.gs.legend.model.def.RelationalOperation.Group g -> findFirstJoinNavigation(g.inner());
-            case com.gs.legend.model.def.RelationalOperation.IsNull n -> findFirstJoinNavigation(n.operand());
-            case com.gs.legend.model.def.RelationalOperation.IsNotNull n -> findFirstJoinNavigation(n.operand());
-            default -> null;
-        };
+            case com.gs.legend.model.def.RelationalOperation.Group g -> collectJoinNavigations(g.inner(), out);
+            case com.gs.legend.model.def.RelationalOperation.IsNull n -> collectJoinNavigations(n.operand(), out);
+            case com.gs.legend.model.def.RelationalOperation.IsNotNull n -> collectJoinNavigations(n.operand(), out);
+            default -> { }
+        }
     }
 
     /**

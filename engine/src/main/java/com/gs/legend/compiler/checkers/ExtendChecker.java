@@ -43,7 +43,8 @@ public class ExtendChecker extends AbstractChecker {
         // compileOverClause validates each sub-component (ascending, rows, unbounded, etc.)
         // individually via resolveOverload — no top-level over() resolution needed.
         TypeInfo.OverSpec overSpec = null;
-        TypeInfo.TraversalSpec traversalSpec = null;
+        List<TypeInfo.TraversalSpec> traversalSpecs = null;
+        List<GenericType.Relation.Schema> terminalSchemas = null;
         GenericType.Relation.Schema colSpecSchema = sourceSchema;
         for (int i = 1; i < params.size(); i++) {
             if (params.get(i) instanceof AppliedFunction paf) {
@@ -52,8 +53,19 @@ public class ExtendChecker extends AbstractChecker {
                     overSpec = compileOverClause(paf, sourceSchema);
                 } else if ("traverse".equals(fn)) {
                     var result = compileTraverseClause(paf, sourceSchema, ctx);
-                    traversalSpec = result.spec;
+                    traversalSpecs = List.of(result.spec);
                     colSpecSchema = result.terminalSchema;
+                }
+            } else if (params.get(i) instanceof com.gs.legend.ast.PureCollection pc) {
+                // Multi-traverse: PureCollection of traverse() calls
+                traversalSpecs = new ArrayList<>();
+                terminalSchemas = new ArrayList<>();
+                for (var elem : pc.values()) {
+                    if (elem instanceof AppliedFunction taf && "traverse".equals(simpleName(taf.function()))) {
+                        var result = compileTraverseClause(taf, sourceSchema, ctx);
+                        traversalSpecs.add(result.spec);
+                        terminalSchemas.add(result.terminalSchema);
+                    }
                 }
             }
         }
@@ -64,6 +76,7 @@ public class ExtendChecker extends AbstractChecker {
         for (int i = 1; i < params.size(); i++) {
             var p = params.get(i);
             if (p instanceof AppliedFunction) continue; // over()/traverse() — already handled
+            if (p instanceof com.gs.legend.ast.PureCollection) continue; // multi-traverse — already handled
             if (p instanceof ClassInstance ci) {
                 List<ColSpec> colSpecs = extractColSpecs(ci);
                 for (ColSpec cs : colSpecs) {
@@ -73,7 +86,7 @@ public class ExtendChecker extends AbstractChecker {
                     if (isAssociationExtend(cs)) {
                         AppliedFunction innerTraverse = (AppliedFunction) cs.function1().body().get(0);
                         var result = compileTraverseClause(innerTraverse, sourceSchema, ctx);
-                        traversalSpec = result.spec;
+                        traversalSpecs = List.of(result.spec);
                         colSpecSchema = result.terminalSchema;
                         continue;
                     }
@@ -82,7 +95,14 @@ public class ExtendChecker extends AbstractChecker {
                     if (isEmbeddedExtend(cs)) {
                         continue;
                     }
-                    var result = compileColSpec(cs, colSpecSchema, sourceSchema, source, ctx, overSpec, def);
+                    ColSpecResult result;
+                    if (terminalSchemas != null && cs.function1() != null
+                            && cs.function1().parameters().size() > 2) {
+                        // Multi-traverse: procedurally bind lambda params (src, t1, t2, ...)
+                        result = compileMultiTraverseColSpec(cs, sourceSchema, terminalSchemas, source, ctx);
+                    } else {
+                        result = compileColSpec(cs, colSpecSchema, sourceSchema, source, ctx, overSpec, def);
+                    }
                     if (newColumns.containsKey(result.alias)) {
                         throw new PureCompileException(
                                 "extend(): column '" + result.alias
@@ -100,8 +120,8 @@ public class ExtendChecker extends AbstractChecker {
         var builder = TypeInfo.builder()
                 .windowSpecs(windowSpecs)
                 .expressionType(ExpressionType.one(new GenericType.Relation(schema)));
-        if (traversalSpec != null) {
-            builder.traversalSpec(traversalSpec);
+        if (traversalSpecs != null) {
+            builder.traversalSpecs(traversalSpecs);
         }
         return builder.build();
     }
@@ -229,6 +249,38 @@ public class ExtendChecker extends AbstractChecker {
                 ? new TypeInfo.WindowSpec(resolvedFunc, overSpec, alias, returnType, null)
                 : null;
         return new ColSpecResult(alias, returnType, ws);
+    }
+
+    /**
+     * Compiles a multi-traverse ColSpec by procedurally binding lambda params to
+     * the source schema and each terminal schema. Bypasses signature matching since
+     * the lambda arity (N+1) doesn't match any fixed extend() signature.
+     */
+    private ColSpecResult compileMultiTraverseColSpec(
+            ColSpec cs,
+            GenericType.Relation.Schema sourceSchema,
+            List<GenericType.Relation.Schema> terminalSchemas,
+            TypeInfo source,
+            TypeChecker.CompilationContext ctx) {
+        String alias = cs.name();
+        LambdaFunction fn1 = cs.function1();
+        var lambdaParams = fn1.parameters();
+
+        // Bind param 0 → source schema (Tuple), params 1..N → terminal schemas
+        TypeChecker.CompilationContext fn1Ctx = ctx;
+        // param 0 = src
+        fn1Ctx = bindLambdaParam(fn1Ctx, lambdaParams.get(0).name(),
+                new GenericType.Tuple(sourceSchema), source);
+        // params 1..N = t1, t2, ...
+        for (int ti = 0; ti < terminalSchemas.size() && (ti + 1) < lambdaParams.size(); ti++) {
+            fn1Ctx = bindLambdaParam(fn1Ctx, lambdaParams.get(ti + 1).name(),
+                    new GenericType.Tuple(terminalSchemas.get(ti)), source);
+        }
+
+        TypeInfo fn1Result = compileLambdaBody(fn1, fn1Ctx);
+        GenericType returnType = fn1Result.type() != null
+                ? fn1Result.type() : GenericType.Primitive.STRING;
+        return new ColSpecResult(alias, returnType, null);
     }
 
     /**

@@ -4452,5 +4452,39 @@ class RelationalMappingIntegrationTest {
             assertEquals("Widget-EU", colStr(r, 0).get(2));
             assertEquals(20, ((Number) r.rows().get(2).get(1)).intValue());
         }
+
+        @Test
+        @DisplayName("F1: Computed property from 2 different join paths")
+        void testComputedFromTwoJoins() throws SQLException {
+            sql("CREATE TABLE ORDERS (ID INT, CUST_ID INT, PROD_ID INT)",
+                "CREATE TABLE CUSTOMERS (ID INT, NAME VARCHAR(50))",
+                "CREATE TABLE PRODUCTS (ID INT, NAME VARCHAR(50))",
+                "INSERT INTO CUSTOMERS VALUES (1, 'Alice'), (2, 'Bob')",
+                "INSERT INTO PRODUCTS VALUES (10, 'Widget'), (20, 'Gadget')",
+                "INSERT INTO ORDERS VALUES (1, 1, 10), (2, 2, 20), (3, 1, 20)");
+            String model = withRuntime("""
+                    Class test::Order { summary: String[1]; custName: String[1]; prodName: String[1]; }
+                    Database store::DB (
+                        Table ORDERS (ID INTEGER, CUST_ID INTEGER, PROD_ID INTEGER)
+                        Table CUSTOMERS (ID INTEGER, NAME VARCHAR(50))
+                        Table PRODUCTS (ID INTEGER, NAME VARCHAR(50))
+                        Join OrdCust(ORDERS.CUST_ID = CUSTOMERS.ID)
+                        Join OrdProd(ORDERS.PROD_ID = PRODUCTS.ID)
+                    )
+                    Mapping test::M (
+                        test::Order: Relational {
+                            ~mainTable [store::DB] ORDERS
+                            summary: concat(@OrdCust | [store::DB] CUSTOMERS.NAME, ' bought ', @OrdProd | [store::DB] PRODUCTS.NAME),
+                            custName: @OrdCust | [store::DB] CUSTOMERS.NAME,
+                            prodName: @OrdProd | [store::DB] PRODUCTS.NAME
+                        }
+                    )
+                    """, "store::DB", "test::M");
+            var r = exec(model, "Order.all()->project(~[s:o|$o.summary])->sort(~s->ascending())");
+            assertEquals(3, r.rowCount());
+            assertEquals("Alice bought Gadget", colStr(r, 0).get(0));
+            assertEquals("Alice bought Widget", colStr(r, 0).get(1));
+            assertEquals("Bob bought Gadget", colStr(r, 0).get(2));
+        }
     }
 }

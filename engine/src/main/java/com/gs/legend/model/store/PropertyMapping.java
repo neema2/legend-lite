@@ -40,7 +40,8 @@ public record PropertyMapping(
         Map<String, List<Object>> enumMapping,
         String enumType,
         List<String> joinChain,
-        ValueSpecification dynaExpression) {
+        ValueSpecification dynaExpression,
+        List<List<String>> multiJoinChains) {
     public PropertyMapping {
         Objects.requireNonNull(propertyName, "Property name cannot be null");
         Objects.requireNonNull(columnName, "Column name cannot be null");
@@ -54,27 +55,30 @@ public record PropertyMapping(
         if (joinChain != null) {
             joinChain = List.copyOf(joinChain);
         }
+        if (multiJoinChains != null) {
+            multiJoinChains = multiJoinChains.stream().map(List::copyOf).toList();
+        }
     }
 
     /**
      * Creates a simple column mapping.
      */
     public PropertyMapping(String propertyName, String columnName) {
-        this(propertyName, columnName, null, null, null, null, null);
+        this(propertyName, columnName, null, null, null, null, null, null);
     }
 
     /**
      * Creates a simple column mapping.
      */
     public static PropertyMapping column(String propertyName, String columnName) {
-        return new PropertyMapping(propertyName, columnName, null, null, null, null, null);
+        return new PropertyMapping(propertyName, columnName, null, null, null, null, null, null);
     }
 
     /**
      * Creates an expression-based mapping.
      */
     public static PropertyMapping expression(String propertyName, String columnName, String expression) {
-        return new PropertyMapping(propertyName, columnName, expression, null, null, null, null);
+        return new PropertyMapping(propertyName, columnName, expression, null, null, null, null, null);
     }
 
     /**
@@ -87,7 +91,7 @@ public record PropertyMapping(
      */
     public static PropertyMapping enumColumn(String propertyName, String columnName,
             String enumType, Map<String, List<Object>> enumMapping) {
-        return new PropertyMapping(propertyName, columnName, null, Map.copyOf(enumMapping), enumType, null, null);
+        return new PropertyMapping(propertyName, columnName, null, Map.copyOf(enumMapping), enumType, null, null, null);
     }
 
     /**
@@ -101,7 +105,7 @@ public record PropertyMapping(
      */
     public static PropertyMapping joinChain(String propertyName, String columnName,
             List<String> joinNames) {
-        return new PropertyMapping(propertyName, columnName, null, null, null, joinNames, null);
+        return new PropertyMapping(propertyName, columnName, null, null, null, joinNames, null, null);
     }
 
     /**
@@ -112,7 +116,7 @@ public record PropertyMapping(
      * @param expr         Pre-compiled ValueSpecification expression tree
      */
     public static PropertyMapping dynaFunction(String propertyName, ValueSpecification expr) {
-        return new PropertyMapping(propertyName, propertyName, null, null, null, null, expr);
+        return new PropertyMapping(propertyName, propertyName, null, null, null, null, expr, null);
     }
 
     /**
@@ -126,7 +130,25 @@ public record PropertyMapping(
      */
     public static PropertyMapping dynaFunctionWithJoin(String propertyName, ValueSpecification expr,
             List<String> joinNames) {
-        return new PropertyMapping(propertyName, propertyName, null, null, null, joinNames, expr);
+        return new PropertyMapping(propertyName, propertyName, null, null, null, joinNames, expr, null);
+    }
+
+    /**
+     * Creates a multi-join DynaFunction mapping: expression references columns across multiple
+     * joined tables. Each element of joinChains is a separate join path from the main table.
+     * Pure syntax: {@code prop: concat(@J1|T1.COL, ' ', @J2|T2.COL)}
+     */
+    public static PropertyMapping dynaFunctionWithMultiJoin(String propertyName,
+            ValueSpecification expr, List<List<String>> joinChains) {
+        return new PropertyMapping(propertyName, propertyName, null, null, null,
+                null, expr, List.copyOf(joinChains));
+    }
+
+    /**
+     * @return true if this property uses multiple join chains (multi-traverse)
+     */
+    public boolean hasMultiJoinChains() {
+        return multiJoinChains != null && !multiJoinChains.isEmpty();
     }
 
     /**

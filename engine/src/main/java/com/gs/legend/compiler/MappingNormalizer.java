@@ -308,6 +308,9 @@ public final class MappingNormalizer {
         // 3. Property mapping join chains → ->extend(traverse(...), ~[colSpecs])
         source = addTraverseExtends(rm, source);
 
+        // 3b. Multi-join DynaFunction mappings → ->extend(PureCollection[traverse1, traverse2], ~[prop:{src,t1,t2|expr}])
+        source = addMultiTraverseExtends(rm, source);
+
         // 4. DynaFunction property mappings → ->extend(~[prop:row|<dynaExpr>])
         //    When ~groupBy is active, DynaFunction mappings become aggregate columns
         //    in the groupBy call (step 6), so skip extends for them here.
@@ -413,6 +416,50 @@ public final class MappingNormalizer {
     }
 
     /**
+     * Adds {@code ->extend(PureCollection[traverse1, traverse2, ...], ~[prop:{src,t1,t2|expr}])}
+     * for multi-join DynaFunction property mappings. Each property gets its own extend call
+     * with a PureCollection of traverse expressions and a colSpec lambda whose parameters
+     * are bound to the source table and each terminal table.
+     */
+    private com.gs.legend.ast.ValueSpecification addMultiTraverseExtends(
+            RelationalMapping rm,
+            com.gs.legend.ast.ValueSpecification source) {
+
+        String mainTable = rm.table().name();
+
+        for (var pm : rm.propertyMappings()) {
+            if (!pm.hasMultiJoinChains()) continue;
+
+            // Build a traverse expression for each join chain
+            var traverseExprs = new java.util.ArrayList<com.gs.legend.ast.ValueSpecification>();
+            for (var chain : pm.multiJoinChains()) {
+                traverseExprs.add(buildTraverseChain(mainTable, chain));
+            }
+
+            // Wrap in PureCollection so ExtendChecker sees multiple traverses
+            var traverseCollection = new com.gs.legend.ast.PureCollection(traverseExprs);
+
+            // Build colSpec lambda: {src, t1, t2, ... | <dynaExpr>}
+            // The dynaExpr already uses $src, $t1, $t2 references from RelationalMappingConverter
+            var lambdaParams = new java.util.ArrayList<com.gs.legend.ast.Variable>();
+            lambdaParams.add(new com.gs.legend.ast.Variable("src"));
+            for (int i = 0; i < pm.multiJoinChains().size(); i++) {
+                lambdaParams.add(new com.gs.legend.ast.Variable("t" + (i + 1)));
+            }
+            var lambda = new com.gs.legend.ast.LambdaFunction(lambdaParams, pm.dynaExpression());
+            var colSpec = new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda);
+            var colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpec);
+
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "extend",
+                    java.util.List.of(source, traverseCollection, colSpecCI),
+                    true);
+        }
+
+        return source;
+    }
+
+    /**
      * Adds {@code ->extend(~[prop:row|<dynaExpr>, ...])} for DynaFunction property mappings.
      * Each DynaFunction property carries a pre-compiled ValueSpecification expression tree
      * (e.g., {@code concat($row.FIRST, ' ', $row.LAST)}). These are wrapped in ColSpec lambdas
@@ -427,6 +474,7 @@ public final class MappingNormalizer {
         for (var pm : rm.propertyMappings()) {
             if (!pm.hasDynaExpression()) continue;
             if (pm.hasJoinChain()) continue; // handled by addTraverseExtends
+            if (pm.hasMultiJoinChains()) continue; // handled by addMultiTraverseExtends
 
             var rowVar = new com.gs.legend.ast.Variable("row");
             // The dynaExpression already uses $row.COLUMN references (from RelationalMappingConverter)

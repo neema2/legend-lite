@@ -1815,8 +1815,8 @@ public class PlanGenerator {
         }
 
         // --- Traverse extend: flat LEFT JOINs + colSpec from terminal table ---
-        if (info != null && info.traversalSpec() != null) {
-            var spec = info.traversalSpec();
+        if (info != null && info.traversalSpecs() != null) {
+            var specs = info.traversalSpecs();
             String sourceAlias = unquote(source.getFromAlias());
             String prevAlias = sourceAlias;
 
@@ -1824,7 +1824,7 @@ public class PlanGenerator {
             // or not (class-based project / scalar extend → aliased columns → must wrap).
             TypeInfo sourceInfo = unit.types().get(params.get(0));
             boolean sourceIsTableBased = sourceInfo != null
-                    && (sourceInfo.resolvedTableName() != null || sourceInfo.traversalSpec() != null);
+                    && (sourceInfo.resolvedTableName() != null || sourceInfo.traversalSpecs() != null);
 
             if (!sourceIsTableBased) {
                 // Source has aliased columns (class-based project or scalar extend).
@@ -1841,25 +1841,29 @@ public class PlanGenerator {
             }
             // else: table-ref based source with JOINs (prior traverse) — keep flat
 
-            // Add flat LEFT JOINs for each hop
-            for (var hop : spec.hops()) {
-                String hopAlias = nextTableAlias();
-                var aliases = Map.of(hop.prevParam(), prevAlias, hop.hopParam(), hopAlias);
-                SqlExpr on = generateScalar(hop.conditionBody(), null, null, null, aliases);
-                source.addJoin(SqlBuilder.JoinType.LEFT,
-                        dialect.quoteIdentifier(hop.tableName()),
-                        dialect.quoteIdentifier(hopAlias), on);
-                prevAlias = hopAlias;
+            // Add flat LEFT JOINs for each TraversalSpec, tracking each terminal alias
+            var terminalAliases = new java.util.ArrayList<String>();
+            for (var spec : specs) {
+                prevAlias = sourceAlias;
+                for (var hop : spec.hops()) {
+                    String hopAlias = nextTableAlias();
+                    var aliases = Map.of(hop.prevParam(), prevAlias, hop.hopParam(), hopAlias);
+                    SqlExpr on = generateScalar(hop.conditionBody(), null, null, null, aliases);
+                    source.addJoin(SqlBuilder.JoinType.LEFT,
+                            dialect.quoteIdentifier(hop.tableName()),
+                            dialect.quoteIdentifier(hopAlias), on);
+                    prevAlias = hopAlias;
+                }
+                terminalAliases.add(prevAlias);
             }
 
-            // Compile colSpecs — map lambda param to terminal alias
-            String terminalAlias = prevAlias;
+            // Compile colSpecs — map lambda params to terminal aliases
             List<ColSpec> traverseColSpecs = new java.util.ArrayList<>();
             for (int i = 1; i < params.size(); i++) {
                 if (params.get(i) instanceof ClassInstance ci) {
                     if (ci.value() instanceof ColSpec cs) traverseColSpecs.add(cs);
-                    else if (ci.value() instanceof ColSpecArray(List<ColSpec> specs))
-                        traverseColSpecs.addAll(specs);
+                    else if (ci.value() instanceof ColSpecArray(List<ColSpec> specs2))
+                        traverseColSpecs.addAll(specs2);
                 }
             }
             for (ColSpec cs : traverseColSpecs) {
@@ -1867,13 +1871,21 @@ public class PlanGenerator {
                 if (cs.function1() != null) {
                     var lambdaParams = cs.function1().parameters();
                     Map<String, String> varAliases;
-                    if (lambdaParams.size() >= 2) {
+                    if (specs.size() > 1 && lambdaParams.size() > 2) {
+                        // Multi-traverse: {src, t1, t2, ...}
+                        var aliasMap = new java.util.HashMap<String, String>();
+                        aliasMap.put(lambdaParams.get(0).name(), sourceAlias);
+                        for (int ti = 0; ti < terminalAliases.size() && (ti + 1) < lambdaParams.size(); ti++) {
+                            aliasMap.put(lambdaParams.get(ti + 1).name(), terminalAliases.get(ti));
+                        }
+                        varAliases = aliasMap;
+                    } else if (lambdaParams.size() >= 2) {
                         // 2-param lambda {src, tgt | ...}: src → source, tgt → terminal
                         varAliases = Map.of(
                                 lambdaParams.get(0).name(), sourceAlias,
-                                lambdaParams.get(1).name(), terminalAlias);
+                                lambdaParams.get(1).name(), terminalAliases.get(terminalAliases.size() - 1));
                     } else if (lambdaParams.size() == 1) {
-                        varAliases = Map.of(lambdaParams.get(0).name(), terminalAlias);
+                        varAliases = Map.of(lambdaParams.get(0).name(), terminalAliases.get(terminalAliases.size() - 1));
                     } else {
                         varAliases = null;
                     }
