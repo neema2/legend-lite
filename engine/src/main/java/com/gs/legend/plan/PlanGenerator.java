@@ -743,7 +743,6 @@ public class PlanGenerator {
         boolean canInline = source.isSelectStar()
                 && !source.hasGroupBy()
                 && !source.hasJoins();
-
         SqlBuilder builder;
         if (canInline) {
             // Replace SELECT * with explicit columns

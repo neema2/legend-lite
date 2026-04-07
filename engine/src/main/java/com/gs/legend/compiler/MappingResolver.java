@@ -168,6 +168,7 @@ public final class MappingResolver {
         Map<String, String> propToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
 
+        // PMs are already view-resolved by MappingNormalizer Phase 1 — use directly.
         for (PropertyMapping pm : rm.propertyMappings()) {
             String prop = pm.propertyName();
             // Join-chain properties: extend(traverse(), ~propName:t|$t.COL) names them directly

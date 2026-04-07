@@ -2270,16 +2270,395 @@ class RelationalMappingIntegrationTest {
 
         // --- Views ---
 
-        @Test @Disabled("GAP: Views not extracted from database definition")
-        @DisplayName("GAP: View as data source in mapping")
+        @Test
+        @DisplayName("View as data source in mapping — simple column refs")
         void testViewAsDataSource() throws SQLException {
-            // View ActiveUsers (user_id: USERS.ID PRIMARY KEY, name: USERS.NAME)
+            sql("CREATE TABLE EMPLOYEES (ID INT, NAME VARCHAR, DEPT_ID INT)",
+                "INSERT INTO EMPLOYEES VALUES (1, 'Alice', 10), (2, 'Bob', 20)");
+
+            String model = withRuntime("""
+                Class test::Employee { empId: Integer[1]; empName: String[1]; }
+                Database store::DB (
+                    Table EMPLOYEES (ID INT, NAME VARCHAR(100), DEPT_ID INT)
+                    View EmpView (
+                        emp_id: EMPLOYEES.ID PRIMARY KEY,
+                        emp_name: EMPLOYEES.NAME
+                    )
+                    Join EmpDept(EMPLOYEES.DEPT_ID = EMPLOYEES.ID)
+                )
+                Mapping test::M (
+                    test::Employee: Relational {
+                        ~mainTable [store::DB] EmpView
+                        empId: [store::DB] EmpView.emp_id,
+                        empName: [store::DB] EmpView.emp_name
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            var r = exec(model, "test::Employee.all()->project(~[empId, empName])");
+            assertEquals(2, r.columnCount());
+            assertEquals(2, r.rows().size());
+            assertEquals(List.of(1, 2), colInt(r, 0));
+            assertEquals(List.of("Alice", "Bob"), colStr(r, 1));
         }
 
-        @Test @Disabled("GAP: View filter not supported")
-        @DisplayName("GAP: View with filter condition")
-        void testViewWithFilter() throws SQLException {
-            // View ActiveUsers (~filter ...) (...)
+        @Test
+        @DisplayName("View with all features — simple column, join column, DynaFunction column")
+        void testViewAllFeatures() throws SQLException {
+            sql("CREATE TABLE EMPLOYEES (ID INT, FIRST VARCHAR, LAST VARCHAR, DEPT_ID INT)",
+                "CREATE TABLE DEPARTMENTS (ID INT, NAME VARCHAR)",
+                "INSERT INTO DEPARTMENTS VALUES (10, 'Engineering'), (20, 'Sales')",
+                "INSERT INTO EMPLOYEES VALUES (1, 'Alice', 'Smith', 10), (2, 'Bob', 'Jones', 20)");
+
+            String model = withRuntime("""
+                Class test::Employee {
+                    empId: Integer[1];
+                    fullName: String[1];
+                    deptName: String[1];
+                }
+                Database store::DB (
+                    Table EMPLOYEES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50), DEPT_ID INT)
+                    Table DEPARTMENTS (ID INT, NAME VARCHAR(100))
+                    Join EmpDept(EMPLOYEES.DEPT_ID = DEPARTMENTS.ID)
+                    View EmpView (
+                        emp_id: EMPLOYEES.ID PRIMARY KEY,
+                        full_name: concat(EMPLOYEES.FIRST, ' ', EMPLOYEES.LAST),
+                        dept_name: @EmpDept | DEPARTMENTS.NAME
+                    )
+                )
+                Mapping test::M (
+                    test::Employee: Relational {
+                        ~mainTable [store::DB] EmpView
+                        empId: [store::DB] EmpView.emp_id,
+                        fullName: [store::DB] EmpView.full_name,
+                        deptName: [store::DB] EmpView.dept_name
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            var r = exec(model, "test::Employee.all()->project(~[empId, fullName, deptName])");
+            assertEquals(3, r.columnCount());
+            assertEquals(2, r.rows().size());
+            assertEquals(List.of(1, 2), colInt(r, 0));
+            assertEquals(List.of("Alice Smith", "Bob Jones"), colStr(r, 1));
+            assertEquals(List.of("Engineering", "Sales"), colStr(r, 2));
+        }
+
+        @Test
+        @DisplayName("View join pruning — unused join column produces 0 JOINs")
+        void testViewJoinPruning() throws SQLException {
+            String model = withRuntime("""
+                Class test::Employee {
+                    empId: Integer[1];
+                    empName: String[1];
+                    deptName: String[1];
+                }
+                Database store::DB (
+                    Table EMPLOYEES (ID INT, NAME VARCHAR(50), DEPT_ID INT)
+                    Table DEPARTMENTS (ID INT, NAME VARCHAR(100))
+                    Join EmpDept(EMPLOYEES.DEPT_ID = DEPARTMENTS.ID)
+                    View EmpView (
+                        emp_id: EMPLOYEES.ID PRIMARY KEY,
+                        emp_name: EMPLOYEES.NAME,
+                        dept_name: @EmpDept | DEPARTMENTS.NAME
+                    )
+                )
+                Mapping test::M (
+                    test::Employee: Relational {
+                        ~mainTable [store::DB] EmpView
+                        empId: [store::DB] EmpView.emp_id,
+                        empName: [store::DB] EmpView.emp_name,
+                        deptName: [store::DB] EmpView.dept_name
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            // Only project empId + empName (local columns) — deptName's JOIN should be pruned
+            String sql = planSql(model,
+                    "test::Employee.all()->project(~[empId, empName])");
+            assertFalse(sql.toUpperCase().contains("JOIN"),
+                    "No deptName access → no JOIN. SQL: " + sql);
+            assertFalse(sql.toUpperCase().contains("DEPARTMENTS"),
+                    "DEPARTMENTS should not appear. SQL: " + sql);
+
+            // Project deptName — JOIN should appear
+            String sql2 = planSql(model,
+                    "test::Employee.all()->project(~[empId, deptName])");
+            assertTrue(sql2.toUpperCase().contains("JOIN"),
+                    "deptName access → JOIN expected. SQL: " + sql2);
+            assertTrue(sql2.toUpperCase().contains("DEPARTMENTS"),
+                    "DEPARTMENTS should appear for deptName. SQL: " + sql2);
+        }
+
+        @Test
+        @DisplayName("View end-to-end: filter + join + groupBy + distinct + DynaFunction")
+        void testViewEndToEnd() throws SQLException {
+            sql("CREATE TABLE SALES (ID INT, PRODUCT VARCHAR, AMOUNT INT, REGION VARCHAR, REP_ID INT)",
+                "CREATE TABLE REPS (ID INT, NAME VARCHAR)",
+                "INSERT INTO REPS VALUES (1, 'Alice'), (2, 'Bob')",
+                "INSERT INTO SALES VALUES (1, 'Widget', 100, 'East', 1), " +
+                        "(2, 'Widget', 200, 'East', 2), " +
+                        "(3, 'Gadget', 50, 'West', 1), " +
+                        "(4, 'Widget', 150, 'West', 2)");
+
+            String model = withRuntime("""
+                Class test::Sale {
+                    saleId: Integer[1];
+                    product: String[1];
+                    amount: Integer[1];
+                    region: String[1];
+                    repName: String[1];
+                    label: String[1];
+                }
+                Database store::DB (
+                    Table SALES (ID INT, PRODUCT VARCHAR(50), AMOUNT INT, REGION VARCHAR(50), REP_ID INT)
+                    Table REPS (ID INT, NAME VARCHAR(50))
+                    Join SalesRep(SALES.REP_ID = REPS.ID)
+                    View SaleView (
+                        sale_id: SALES.ID PRIMARY KEY,
+                        product: SALES.PRODUCT,
+                        amount: SALES.AMOUNT,
+                        region: SALES.REGION,
+                        rep_name: @SalesRep | REPS.NAME,
+                        label: concat(SALES.PRODUCT, ' [', SALES.REGION, ']')
+                    )
+                )
+                Mapping test::M (
+                    test::Sale: Relational {
+                        ~mainTable [store::DB] SaleView
+                        saleId: [store::DB] SaleView.sale_id,
+                        product: [store::DB] SaleView.product,
+                        amount: [store::DB] SaleView.amount,
+                        region: [store::DB] SaleView.region,
+                        repName: [store::DB] SaleView.rep_name,
+                        label: [store::DB] SaleView.label
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            // 1. Filter + join + dyna: filter on amount, project join & dyna columns
+            var r1 = exec(model,
+                    "test::Sale.all()->filter({s|$s.amount > 50})->project(~[saleId, repName, label])");
+            assertEquals(3, r1.rows().size());
+
+            // 2. GroupBy on view-resolved column: total amount by region
+            var r2 = exec(model,
+                    "test::Sale.all()->project(~[region, amount])" +
+                    "->groupBy(~region, ~[total:x|$x.amount:y|$y->sum()])");
+            assertEquals(2, r2.rows().size()); // East, West
+
+            // 3. Distinct on view-resolved column
+            var r3 = exec(model,
+                    "test::Sale.all()->project(~[product])->distinct()");
+            assertEquals(2, r3.rows().size()); // Widget, Gadget
+        }
+
+        @Test
+        @DisplayName("View with ~filter, ~distinct, join chain, and DynaFunction")
+        void testViewWithFilterDistinctJoinDyna() throws SQLException {
+            sql("CREATE TABLE ORDERS (ID INT, PRODUCT VARCHAR, AMOUNT INT, STATUS VARCHAR, CUST_ID INT)",
+                "CREATE TABLE CUSTOMERS (ID INT, NAME VARCHAR)",
+                "INSERT INTO CUSTOMERS VALUES (1, 'Alice'), (2, 'Bob')",
+                "INSERT INTO ORDERS VALUES " +
+                        "(1, 'Widget', 100, 'ACTIVE', 1), " +
+                        "(2, 'Gadget', 200, 'ACTIVE', 2), " +
+                        "(3, 'Widget', 50, 'CLOSED', 1), " +
+                        "(4, 'Gadget', 150, 'ACTIVE', 1)");
+
+            String model = withRuntime("""
+                Class test::Order {
+                    orderId: Integer[1];
+                    product: String[1];
+                    amount: Integer[1];
+                    custName: String[1];
+                    label: String[1];
+                }
+                Database store::DB (
+                    Table ORDERS (ID INT, PRODUCT VARCHAR(50), AMOUNT INT, STATUS VARCHAR(20), CUST_ID INT)
+                    Table CUSTOMERS (ID INT, NAME VARCHAR(50))
+                    Filter ActiveOnly(ORDERS.STATUS = 'ACTIVE')
+                    Join OrderCust(ORDERS.CUST_ID = CUSTOMERS.ID)
+                    View ActiveOrderView (
+                        ~filter ActiveOnly
+                        ~distinct
+                        order_id: ORDERS.ID PRIMARY KEY,
+                        product: ORDERS.PRODUCT,
+                        amount: ORDERS.AMOUNT,
+                        cust_name: @OrderCust | CUSTOMERS.NAME,
+                        label: concat(ORDERS.PRODUCT, ' $', ORDERS.AMOUNT)
+                    )
+                )
+                Mapping test::M (
+                    test::Order: Relational {
+                        ~mainTable [store::DB] ActiveOrderView
+                        orderId: [store::DB] ActiveOrderView.order_id,
+                        product: [store::DB] ActiveOrderView.product,
+                        amount: [store::DB] ActiveOrderView.amount,
+                        custName: [store::DB] ActiveOrderView.cust_name,
+                        label: [store::DB] ActiveOrderView.label
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            // Should only return ACTIVE orders (view ~filter), with DISTINCT applied
+            var r = exec(model, "test::Order.all()->project(~[orderId, product, amount, custName, label])");
+            // 3 active rows, all distinct
+            assertEquals(3, r.rows().size());
+            // Verify filter: no CLOSED order (id=3) should appear
+            var ids = colInt(r, 0);
+            assertFalse(ids.contains(3), "CLOSED order (id=3) should be filtered out");
+            // Verify join: custName should be resolved
+            var names = colStr(r, 3);
+            assertTrue(names.contains("Alice"));
+            assertTrue(names.contains("Bob"));
+            // Verify dyna: label should have formatted strings
+            var labels = colStr(r, 4);
+            assertTrue(labels.stream().anyMatch(l -> l.contains("Widget $")));
+        }
+
+        @Test
+        @DisplayName("View with multi-hop and independent join chains")
+        void testViewMultiJoinChains() throws SQLException {
+            sql("CREATE TABLE PERSONS (ID INT, NAME VARCHAR, DEPT_ID INT, OFFICE_ID INT)",
+                "CREATE TABLE DEPTS (ID INT, NAME VARCHAR, ORG_ID INT)",
+                "CREATE TABLE ORGS (ID INT, NAME VARCHAR)",
+                "CREATE TABLE OFFICES (ID INT, CITY VARCHAR)",
+                "INSERT INTO ORGS VALUES (1, 'Acme Corp')",
+                "INSERT INTO DEPTS VALUES (10, 'Engineering', 1)",
+                "INSERT INTO OFFICES VALUES (100, 'New York')",
+                "INSERT INTO PERSONS VALUES (1, 'Alice', 10, 100)");
+
+            String model = withRuntime("""
+                Class test::Person {
+                    name: String[1];
+                    deptName: String[1];
+                    orgName: String[1];
+                    city: String[1];
+                }
+                Database store::DB (
+                    Table PERSONS (ID INT, NAME VARCHAR(50), DEPT_ID INT, OFFICE_ID INT)
+                    Table DEPTS (ID INT, NAME VARCHAR(50), ORG_ID INT)
+                    Table ORGS (ID INT, NAME VARCHAR(50))
+                    Table OFFICES (ID INT, CITY VARCHAR(50))
+                    Join PersonDept(PERSONS.DEPT_ID = DEPTS.ID)
+                    Join DeptOrg(DEPTS.ORG_ID = ORGS.ID)
+                    Join PersonOffice(PERSONS.OFFICE_ID = OFFICES.ID)
+                    View PersonView (
+                        person_name: PERSONS.NAME PRIMARY KEY,
+                        dept_name: @PersonDept | DEPTS.NAME,
+                        org_name: @PersonDept > @DeptOrg | ORGS.NAME,
+                        city: @PersonOffice | OFFICES.CITY
+                    )
+                )
+                Mapping test::M (
+                    test::Person: Relational {
+                        ~mainTable [store::DB] PersonView
+                        name: [store::DB] PersonView.person_name,
+                        deptName: [store::DB] PersonView.dept_name,
+                        orgName: [store::DB] PersonView.org_name,
+                        city: [store::DB] PersonView.city
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            // All join chains: 1-hop dept, 2-hop org, independent 1-hop office
+            var r = exec(model, "test::Person.all()->project(~[name, deptName, orgName, city])");
+            assertEquals(1, r.rows().size());
+            assertEquals("Alice", colStr(r, 0).get(0));
+            assertEquals("Engineering", colStr(r, 1).get(0));
+            assertEquals("Acme Corp", colStr(r, 2).get(0));
+            assertEquals("New York", colStr(r, 3).get(0));
+
+            // Pruning: only project name + city — dept/org joins should be pruned
+            String sql = planSql(model, "test::Person.all()->project(~[name, city])");
+            assertFalse(sql.toUpperCase().contains("DEPTS"),
+                    "DEPTS should not appear when deptName/orgName not projected. SQL: " + sql);
+            assertFalse(sql.toUpperCase().contains("ORGS"),
+                    "ORGS should not appear. SQL: " + sql);
+            assertTrue(sql.toUpperCase().contains("OFFICES"),
+                    "OFFICES should appear for city. SQL: " + sql);
+        }
+
+        @Test
+        @DisplayName("View DynaFunction referencing two independent join chains")
+        void testViewDynaWithTwoJoinChains() throws SQLException {
+            sql("CREATE TABLE ORDERS (ID INT, CUST_ID INT, VENDOR_ID INT)",
+                "CREATE TABLE CUSTOMERS (ID INT, NAME VARCHAR)",
+                "CREATE TABLE VENDORS (ID INT, NAME VARCHAR)",
+                "INSERT INTO CUSTOMERS VALUES (1, 'Alice')",
+                "INSERT INTO VENDORS VALUES (1, 'Acme')",
+                "INSERT INTO ORDERS VALUES (1, 1, 1)");
+
+            String model = withRuntime("""
+                Class test::Order {
+                    orderId: Integer[1];
+                    parties: String[1];
+                }
+                Database store::DB (
+                    Table ORDERS (ID INT, CUST_ID INT, VENDOR_ID INT)
+                    Table CUSTOMERS (ID INT, NAME VARCHAR(50))
+                    Table VENDORS (ID INT, NAME VARCHAR(50))
+                    Join OrderCust(ORDERS.CUST_ID = CUSTOMERS.ID)
+                    Join OrderVendor(ORDERS.VENDOR_ID = VENDORS.ID)
+                    View OrderView (
+                        order_id: ORDERS.ID PRIMARY KEY,
+                        parties: concat(@OrderCust | CUSTOMERS.NAME, ' / ', @OrderVendor | VENDORS.NAME)
+                    )
+                )
+                Mapping test::M (
+                    test::Order: Relational {
+                        ~mainTable [store::DB] OrderView
+                        orderId: [store::DB] OrderView.order_id,
+                        parties: [store::DB] OrderView.parties
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            var r = exec(model, "test::Order.all()->project(~[orderId, parties])");
+            assertEquals(1, r.rows().size());
+            assertEquals(1, colInt(r, 0).get(0));
+            assertEquals("Alice / Acme", colStr(r, 1).get(0));
+        }
+
+        @Test
+        @DisplayName("View with ~groupBy — aggregate through view macro")
+        void testViewWithGroupBy() throws SQLException {
+            sql("CREATE TABLE SALES (ID INT, REGION VARCHAR, AMOUNT INT)",
+                "INSERT INTO SALES VALUES (1, 'East', 100), (2, 'East', 200), " +
+                        "(3, 'West', 150), (4, 'West', 50)");
+
+            String model = withRuntime("""
+                Class test::RegionTotal {
+                    region: String[1];
+                    total: Integer[1];
+                }
+                Database store::DB (
+                    Table SALES (ID INT, REGION VARCHAR(50), AMOUNT INT)
+                    View RegionSales (
+                        ~groupBy (SALES.REGION)
+                        region: SALES.REGION,
+                        total: sum(SALES.AMOUNT)
+                    )
+                )
+                Mapping test::M (
+                    test::RegionTotal: Relational {
+                        ~mainTable [store::DB] RegionSales
+                        region: [store::DB] RegionSales.region,
+                        total: [store::DB] RegionSales.total
+                    }
+                )
+                """, "store::DB", "test::M");
+
+            var r = exec(model, "test::RegionTotal.all()->project(~[region, total])");
+            assertEquals(2, r.rows().size());
+            var regions = colStr(r, 0);
+            var totals = colInt(r, 1);
+            // East: 100+200=300, West: 150+50=200
+            int eastIdx = regions.indexOf("East");
+            int westIdx = regions.indexOf("West");
+            assertTrue(eastIdx >= 0 && westIdx >= 0, "Both regions should appear");
+            assertEquals(300, totals.get(eastIdx));
+            assertEquals(200, totals.get(westIdx));
         }
 
         // --- Database Filters ---

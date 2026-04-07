@@ -469,13 +469,26 @@ public final class PureModelBuilder implements ModelContext {
                 throw new IllegalStateException("Class not found: " + classMapping.className());
             }
 
-            // Find the Table
+            // Find the Table (or View → infer base table)
             Table table = null;
+            View view = null;
             if (classMapping.mainTable() != null) {
                 String tableName = classMapping.mainTable().tableName();
                 table = tables.get(tableName);
                 if (table == null) {
-                    throw new IllegalStateException("Table not found: " + tableName);
+                    // Views are usable as tables in mappings (same as legend-engine)
+                    view = views.get(tableName);
+                    if (view != null) {
+                        String baseTableName = inferViewMainTable(view);
+                        table = tables.get(baseTableName);
+                        if (table == null) {
+                            throw new IllegalStateException(
+                                    "View '" + tableName + "' references table '" + baseTableName + "' which was not found");
+                        }
+                    }
+                }
+                if (table == null) {
+                    throw new IllegalStateException("Table or View not found: " + tableName);
                 }
             }
 
@@ -668,7 +681,7 @@ public final class PureModelBuilder implements ModelContext {
             // Create and register the mapping
             RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings,
                     false, setId, isRoot, distinct, filterName, filterDbName, embeddedMappings,
-                    groupByColumns);
+                    groupByColumns, view);
             mappingRegistry.register(mappingDef.qualifiedName(), mapping);
         }
 
@@ -1171,6 +1184,35 @@ public final class PureModelBuilder implements ModelContext {
         return new Table(tableDef.name(), columns);
     }
 
+    /**
+     * Infers the view's main table by scanning ALL non-join column expressions for ColumnRefs.
+     * Collects distinct table names and errors if 0 or >1 (matches legend-engine's identifyMainTable).
+     */
+    private String inferViewMainTable(View view) {
+        var tableNames = new java.util.LinkedHashSet<String>();
+        for (var col : view.columnMappings()) {
+            var expr = col.expression();
+            // Skip columns that reference joined tables (direct JoinNavigation or DynaFunc containing joins)
+            if (expr instanceof com.gs.legend.model.def.RelationalOperation.JoinNavigation) {
+                continue;
+            }
+            if (!findAllJoinNavigations(expr).isEmpty()) {
+                continue;
+            }
+            tableNames.addAll(RelationalMappingConverter.collectTableNames(expr));
+        }
+        if (tableNames.isEmpty()) {
+            throw new IllegalStateException(
+                    "View '" + view.name() + "': cannot infer main table — no column references found");
+        }
+        if (tableNames.size() > 1) {
+            throw new IllegalStateException(
+                    "View '" + view.name() + "' references multiple tables " + tableNames
+                    + " — there should be only one root table for views");
+        }
+        return tableNames.iterator().next();
+    }
+
     private View convertView(DatabaseDefinition.ViewDefinition viewDef) {
         List<View.ViewColumn> viewColumns = viewDef.columnMappings().stream()
                 .map(vc -> new View.ViewColumn(vc.name(), vc.expression(), vc.primaryKey()))
@@ -1211,7 +1253,7 @@ public final class PureModelBuilder implements ModelContext {
      * Finds ALL {@link com.gs.legend.model.def.RelationalOperation.JoinNavigation} nodes in a RelationalOperation tree.
      * Returns them in encounter order (left-to-right, depth-first).
      */
-    private static java.util.List<com.gs.legend.model.def.RelationalOperation.JoinNavigation> findAllJoinNavigations(
+    public static java.util.List<com.gs.legend.model.def.RelationalOperation.JoinNavigation> findAllJoinNavigations(
             com.gs.legend.model.def.RelationalOperation op) {
         var result = new java.util.ArrayList<com.gs.legend.model.def.RelationalOperation.JoinNavigation>();
         collectJoinNavigations(op, result);

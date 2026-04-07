@@ -79,7 +79,7 @@ Status key: ✅ = working E2E, ⚠️ = partial, ❌ = not implemented, 🔧 = n
 
 | # | Description | Status | Test(s) |
 |---|-------------|--------|---------|
-| F1 | Computed from 2 joins: `plus(@J1\|col, @J2\|col)` only resolves 1st | ❌ | testStringConcatTwoJoins (disabled) |
+| F1 | Computed from 2 joins: `plus(@J1\|col, @J2\|col)` only resolves 1st | ✅ | testComputedFromTwoJoins |
 
 ---
 
@@ -99,7 +99,7 @@ Ordered by: dependencies, impact, difficulty. Each item is independently testabl
 
 | Step | Feature | Ref | Depends on | Effort |
 |------|---------|-----|------------|--------|
-| 2 | Computed from 2 joins (F1) | COMPUTED2JOIN | — | Medium |
+| 2 | ~~~Computed from 2 joins (F1)~~~ | — | — | ✅ Done |
 | 3 | Set ID lookup by ID (B8) | Group F | — | Low |
 | 4 | Mapping extends (B9) | Group F | B8 | Medium |
 | 5 | Store substitution (C2) | Group G | C1 | Medium |

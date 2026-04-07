@@ -8,6 +8,7 @@ import com.gs.legend.model.store.Column;
 import com.gs.legend.model.store.PropertyMapping;
 import com.gs.legend.model.store.SqlDataType;
 import com.gs.legend.model.store.Table;
+import com.gs.legend.model.store.View;
 import com.gs.legend.plan.GenericType;
 
 import java.util.List;
@@ -34,6 +35,8 @@ import java.util.stream.Collectors;
  *                           e.g., firm → [legalName→FIRM_NAME, revenue→FIRM_REVENUE].
  *                           Empty if no embedded properties.
  * @param groupByColumns     Column names for ~groupBy (empty if none)
+ * @param view               The raw View object when ~mainTable references a view (null for regular tables).
+ *                           MappingNormalizer uses this to synthesize the view's source relation.
  */
 public record RelationalMapping(
         PureClass pureClass,
@@ -46,14 +49,15 @@ public record RelationalMapping(
         String filterName,
         String filterDbName,
         Map<String, List<PropertyMapping>> embeddedMappings,
-        List<String> groupByColumns) implements ClassMapping {
+        List<String> groupByColumns,
+        View view) implements ClassMapping {
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
-        this(pureClass, table, propertyMappings, false, null, false, false, null, null, Map.of(), List.of());
+        this(pureClass, table, propertyMappings, false, null, false, false, null, null, Map.of(), List.of(), null);
     }
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings, boolean nested) {
-        this(pureClass, table, propertyMappings, nested, null, false, false, null, null, Map.of(), List.of());
+        this(pureClass, table, propertyMappings, nested, null, false, false, null, null, Map.of(), List.of(), null);
     }
 
     public RelationalMapping {
@@ -65,6 +69,20 @@ public record RelationalMapping(
         propertyMappings = List.copyOf(propertyMappings);
         if (embeddedMappings == null) embeddedMappings = Map.of();
         if (groupByColumns == null) groupByColumns = List.of();
+    }
+
+    /**
+     * Returns a copy with the given property mappings (all other fields unchanged).
+     * Used by MappingNormalizer to store view-resolved PMs.
+     */
+    public RelationalMapping withPropertyMappings(List<PropertyMapping> resolvedPMs) {
+        return new RelationalMapping(pureClass, table, resolvedPMs, nested, setId, isRoot,
+                distinct, filterName, filterDbName, embeddedMappings, groupByColumns, view);
+    }
+
+    public RelationalMapping withGroupByColumns(List<String> resolvedGroupBy) {
+        return new RelationalMapping(pureClass, table, propertyMappings, nested, setId, isRoot,
+                distinct, filterName, filterDbName, embeddedMappings, resolvedGroupBy, view);
     }
 
     /**

@@ -92,6 +92,18 @@ public final class MappingNormalizer {
             if (cm instanceof PureClassMapping pcm) {
                 ClassMapping resolved = resolveM2MChain(pcm, allMappings, resolving);
                 resolvedMappings.put(className, resolved);
+            } else if (cm instanceof RelationalMapping rm && rm.view() != null) {
+                // View macro: resolve PMs through the view once, store the resolved mapping.
+                // MappingResolver reads the resolved PMs — no second resolution needed.
+                var resolvedPMs = resolvePropertyMappingsThroughView(
+                        rm.propertyMappings(), rm.view(), rm.table().name());
+                var resolved = rm.withPropertyMappings(resolvedPMs);
+                // View ~groupBy: resolve key columns to class property names
+                if (!rm.view().groupBy().isEmpty()) {
+                    resolved = resolved.withGroupByColumns(
+                            resolveViewGroupByKeys(rm.view(), resolvedPMs));
+                }
+                resolvedMappings.put(className, resolved);
             } else {
                 resolvedMappings.put(className, cm);
             }
@@ -291,7 +303,28 @@ public final class MappingNormalizer {
                 java.util.List.of(new com.gs.legend.ast.CString(tableName)),
                 false);
 
-        // 2. ~filter → ->filter({row | <condition>})
+        // PMs are already view-resolved (Phase 1 macro expansion) — use directly.
+        java.util.List<com.gs.legend.model.store.PropertyMapping> effectivePMs = rm.propertyMappings();
+
+        // 1c. View ~filter → ->filter({row | <viewFilterExpr>})
+        if (rm.view() != null && rm.view().filterMapping() != null) {
+            var filterBody = resolveViewFilter(rm.view());
+            if (filterBody != null) {
+                var lambda = new com.gs.legend.ast.LambdaFunction(
+                        java.util.List.of(new com.gs.legend.ast.Variable("row")),
+                        filterBody);
+                source = new com.gs.legend.ast.AppliedFunction(
+                        "filter", java.util.List.of(source, lambda), true);
+            }
+        }
+
+        // 1d. View ~distinct → ->distinct()
+        if (rm.view() != null && rm.view().distinct()) {
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "distinct", java.util.List.of(source), true);
+        }
+
+        // 2. Mapping ~filter → ->filter({row | <condition>})
         if (rm.filterName() != null) {
             var filterBody = resolveFilterCondition(rm);
             if (filterBody != null) {
@@ -305,8 +338,8 @@ public final class MappingNormalizer {
             }
         }
 
-        // 3. Property mapping join chains → ->extend(traverse(...), ~[colSpecs])
-        source = addTraverseExtends(rm, source);
+        // 3. Property mapping join chains → ->extend(traverse(...), ~[prop:t|$t.COL])
+        source = addTraverseExtends(effectivePMs, tableName, source);
 
         // 3b. Multi-join DynaFunction mappings → ->extend(PureCollection[traverse1, traverse2], ~[prop:{src,t1,t2|expr}])
         source = addMultiTraverseExtends(rm, source);
@@ -315,7 +348,7 @@ public final class MappingNormalizer {
         //    When ~groupBy is active, DynaFunction mappings become aggregate columns
         //    in the groupBy call (step 6), so skip extends for them here.
         if (rm.groupByColumns().isEmpty()) {
-            source = addDynaFunctionExtends(rm, source);
+            source = addDynaFunctionExtends(effectivePMs, source);
         }
 
         // 5. Embedded property mappings → ->extend(~prop:{->~[sub1:r|$r.COL1, ...]})
@@ -355,20 +388,19 @@ public final class MappingNormalizer {
      * extend call with multiple colSpecs. Different chains get separate extends.
      */
     private com.gs.legend.ast.ValueSpecification addTraverseExtends(
-            RelationalMapping rm,
+            java.util.List<com.gs.legend.model.store.PropertyMapping> propertyMappings,
+            String mainTable,
             com.gs.legend.ast.ValueSpecification source) {
 
         // Group join-chain properties by their full chain path
         var chainGroups = new LinkedHashMap<java.util.List<String>,
                 java.util.List<com.gs.legend.model.store.PropertyMapping>>();
-        for (var pm : rm.propertyMappings()) {
+        for (var pm : propertyMappings) {
             if (!pm.hasJoinChain()) continue;
             chainGroups.computeIfAbsent(pm.joinChain(), k -> new java.util.ArrayList<>()).add(pm);
         }
 
         if (chainGroups.isEmpty()) return source;
-
-        String mainTable = rm.table().name();
 
         for (var entry : chainGroups.entrySet()) {
             java.util.List<String> chainNames = entry.getKey();
@@ -466,12 +498,12 @@ public final class MappingNormalizer {
      * and added as extend columns so TypeChecker can stamp them with TypeInfo.
      */
     private com.gs.legend.ast.ValueSpecification addDynaFunctionExtends(
-            RelationalMapping rm,
+            java.util.List<com.gs.legend.model.store.PropertyMapping> propertyMappings,
             com.gs.legend.ast.ValueSpecification source) {
 
         var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
 
-        for (var pm : rm.propertyMappings()) {
+        for (var pm : propertyMappings) {
             if (!pm.hasDynaExpression()) continue;
             if (pm.hasJoinChain()) continue; // handled by addTraverseExtends
             if (pm.hasMultiJoinChains()) continue; // handled by addMultiTraverseExtends
@@ -497,6 +529,104 @@ public final class MappingNormalizer {
                 "extend",
                 java.util.List.of(source, colSpecCI),
                 true);
+    }
+
+    // ========== View Macro Resolution ==========
+
+    /**
+     * Resolves mapping property mappings through the View definition.
+     * Each mapping PM's column name is looked up in the View's column mappings,
+     * and the PM is rewritten to reference the physical column/join/dyna directly.
+     * The view acts as a macro — its column names are resolved away.
+     *
+     * <ul>
+     *   <li>{@code ColumnRef(T, col)} → rewrite PM to use physical column name</li>
+     *   <li>{@code JoinNavigation(@J|T.col)} → rewrite PM to joinChain</li>
+     *   <li>{@code FunctionCall/complex} → rewrite PM to dynaFunction</li>
+     * </ul>
+     */
+    static java.util.List<com.gs.legend.model.store.PropertyMapping> resolvePropertyMappingsThroughView(
+            java.util.List<com.gs.legend.model.store.PropertyMapping> mappingPMs,
+            com.gs.legend.model.store.View view,
+            String mainTable) {
+        var result = new java.util.ArrayList<com.gs.legend.model.store.PropertyMapping>();
+        for (var pm : mappingPMs) {
+            // Look up the PM's column name in the view
+            var viewCol = view.findColumn(pm.columnName());
+            if (viewCol.isEmpty()) {
+                // Not a view column — pass through unchanged (e.g., join/dyna PMs from the mapping itself)
+                result.add(pm);
+                continue;
+            }
+            var expr = viewCol.get().expression();
+            String propName = pm.propertyName();
+            switch (expr) {
+                case com.gs.legend.model.def.RelationalOperation.ColumnRef ref ->
+                        // Simple column: empId:EmpView.emp_id → emp_id maps to EMPLOYEES.ID → column("empId", "ID")
+                        result.add(com.gs.legend.model.store.PropertyMapping.column(propName, ref.column()));
+
+                case com.gs.legend.model.def.RelationalOperation.JoinNavigation nav -> {
+                    java.util.List<String> joinNames = nav.joinChain().stream()
+                            .map(com.gs.legend.model.def.JoinChainElement::joinName).toList();
+                    if (nav.terminal() instanceof com.gs.legend.model.def.RelationalOperation.ColumnRef cr) {
+                        result.add(com.gs.legend.model.store.PropertyMapping.joinChain(
+                                propName, cr.column(), joinNames));
+                    } else if (nav.terminal() != null) {
+                        var terminalTables = RelationalMappingConverter.collectTableNames(nav.terminal());
+                        String terminalTable = terminalTables.stream()
+                                .filter(t -> !t.equals(mainTable))
+                                .findFirst().orElse(terminalTables.iterator().next());
+                        var tableToParam = new java.util.HashMap<String, String>();
+                        tableToParam.put(mainTable, "src");
+                        tableToParam.put(terminalTable, "tgt");
+                        var vsExpr = RelationalMappingConverter.convert(nav.terminal(), tableToParam);
+                        result.add(com.gs.legend.model.store.PropertyMapping.dynaFunctionWithJoin(
+                                propName, vsExpr, joinNames));
+                    }
+                }
+
+                default -> {
+                    var joinNavs = PureModelBuilder.findAllJoinNavigations(expr);
+                    if (!joinNavs.isEmpty() && joinNavs.size() == 1) {
+                        var nav = joinNavs.get(0);
+                        var terminalTables = RelationalMappingConverter.collectTableNames(nav.terminal());
+                        String terminalTable = terminalTables.stream()
+                                .filter(t -> !t.equals(mainTable))
+                                .findFirst().orElse(terminalTables.iterator().next());
+                        var tableToParam = new java.util.HashMap<String, String>();
+                        tableToParam.put(mainTable, "src");
+                        tableToParam.put(terminalTable, "tgt");
+                        java.util.List<String> joinNames = nav.joinChain().stream()
+                                .map(com.gs.legend.model.def.JoinChainElement::joinName).toList();
+                        var vsExpr = RelationalMappingConverter.convert(expr, tableToParam);
+                        result.add(com.gs.legend.model.store.PropertyMapping.dynaFunctionWithJoin(
+                                propName, vsExpr, joinNames));
+                    } else if (joinNavs.size() >= 2) {
+                        var tableToParam = new java.util.HashMap<String, String>();
+                        tableToParam.put(mainTable, "src");
+                        var allJoinChains = new java.util.ArrayList<java.util.List<String>>();
+                        for (int ji = 0; ji < joinNavs.size(); ji++) {
+                            var nav = joinNavs.get(ji);
+                            String paramName = "t" + (ji + 1);
+                            var termTables = RelationalMappingConverter.collectTableNames(nav.terminal());
+                            String termTable = termTables.stream()
+                                    .filter(t -> !t.equals(mainTable))
+                                    .findFirst().orElse(termTables.iterator().next());
+                            tableToParam.put(termTable, paramName);
+                            allJoinChains.add(nav.joinChain().stream()
+                                    .map(com.gs.legend.model.def.JoinChainElement::joinName).toList());
+                        }
+                        var vsExpr = RelationalMappingConverter.convert(expr, tableToParam);
+                        result.add(com.gs.legend.model.store.PropertyMapping.dynaFunctionWithMultiJoin(
+                                propName, vsExpr, allJoinChains));
+                    } else {
+                        var vsExpr = RelationalMappingConverter.convert(expr);
+                        result.add(com.gs.legend.model.store.PropertyMapping.dynaFunction(propName, vsExpr));
+                    }
+                }
+            }
+        }
+        return result;
     }
 
     /**
@@ -784,6 +914,53 @@ public final class MappingNormalizer {
         }
 
         return traverseExpr;
+    }
+
+    /**
+     * Resolves View ~groupBy key columns to class property names.
+     * For each groupBy ColumnRef, finds the view column whose expression matches,
+     * then finds the resolved PM whose physical column name matches.
+     */
+    private static java.util.List<String> resolveViewGroupByKeys(
+            com.gs.legend.model.store.View view,
+            java.util.List<com.gs.legend.model.store.PropertyMapping> resolvedPMs) {
+        var keys = new java.util.ArrayList<String>();
+        for (var groupByOp : view.groupBy()) {
+            if (groupByOp instanceof com.gs.legend.model.def.RelationalOperation.ColumnRef gbRef) {
+                // Find the view column whose expression matches this groupBy key
+                for (var vc : view.columnMappings()) {
+                    if (vc.expression() instanceof com.gs.legend.model.def.RelationalOperation.ColumnRef vcRef
+                            && vcRef.column().equals(gbRef.column())) {
+                        // Use the physical column name — the source TDS has physical columns
+                        keys.add(vcRef.column());
+                        break;
+                    }
+                }
+            }
+        }
+        return keys;
+    }
+
+    /**
+     * Resolves a View's ~filter (named filter reference) to a ValueSpecification condition body.
+     * The filter reference is stored as a Literal "~filter:FilterName" by the parser.
+     */
+    private com.gs.legend.ast.ValueSpecification resolveViewFilter(com.gs.legend.model.store.View view) {
+        var filterOp = view.filterMapping();
+        if (filterOp instanceof com.gs.legend.model.def.RelationalOperation.Literal lit) {
+            String text = lit.value().toString();
+            if (text.startsWith("~filter:")) {
+                String filterName = text.substring("~filter:".length());
+                var filter = model.getFilter(filterName).orElse(null);
+                if (filter != null) {
+                    return com.gs.legend.model.RelationalMappingConverter.convert(filter.condition());
+                }
+                throw new IllegalStateException(
+                        "View filter '" + filterName + "' not found in database for view " + view.name());
+            }
+        }
+        // Inline expression (future): convert directly
+        return com.gs.legend.model.RelationalMappingConverter.convert(filterOp);
     }
 
     /**
