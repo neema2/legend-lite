@@ -182,17 +182,17 @@ public final class MappingResolver {
             properties.put(prop, new StoreResolution.PropertyResolution.Column(col));
         }
 
-        // 2. Walk sourceRelation extends ONCE — override computed properties with
+        // 2. Walk sourceSpec extends ONCE — override computed properties with
         //    DynaFunction(expression) derived from the extend's lambda body.
         //    Also resolves association joins, embedded extends, and traverse extends.
-        var sourceRelation = normalized.findSourceRelation(className);
+        var sourceSpec = normalized.findSourceSpec(className);
         Map<String, StoreResolution.JoinResolution> joins =
-                resolveSourceRelationExtends(className, tableName, sourceRelation, propToCol, properties);
+                resolveSourceSpecExtends(className, tableName, sourceSpec, propToCol, properties);
 
         resolving.remove(className);
         return new StoreResolution(
                 tableName, propToCol, properties, joins,
-                null, rm.nested(), sourceRelation);
+                null, rm.nested(), sourceSpec);
     }
 
     private StoreResolution resolveM2M(PureClassMapping pcm) {
@@ -204,80 +204,121 @@ public final class MappingResolver {
                             + "' has unresolved source '" + pcm.sourceClassName()
                             + "' — MappingNormalizer should have resolved this");
         }
-        StoreResolution sourceResolution = resolveClassMapping(pcm.sourceMapping(), pcm.sourceClassName());
 
-        String tableName = pcm.sourceTable().name();
-        Map<String, String> propToCol = new LinkedHashMap<>();
-        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
+        // 1. Resolve source → sourceStore
+        StoreResolution sourceStore = resolveClassMapping(pcm.sourceMapping(), pcm.sourceClassName());
 
+        // 2. Inherit source's properties + propToCol (DynaFunction bodies resolve through these)
+        Map<String, String> propToCol = new LinkedHashMap<>(sourceStore.propertyToColumn());
+        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>(sourceStore.properties());
+        Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
+
+        // 3. For each M2M property expression: classify as Column, DynaFunction, or association
         for (var entry : pcm.propertyExpressions().entrySet()) {
             String prop = entry.getKey();
-            properties.put(prop, new StoreResolution.PropertyResolution.M2MExpression(
-                    entry.getValue(), sourceResolution));
+            var expr = entry.getValue();
+
+            if (isSimplePropertyAccess(expr)) {
+                String srcProp = ((AppliedProperty) expr).property();
+                // Check if it's an association navigation
+                var srcJoin = sourceStore.hasJoins() ? sourceStore.joins().get(srcProp) : null;
+                if (srcJoin != null) {
+                    // Forward association join, but use M2M TARGET class multiplicity
+                    // (e.g., PersonWithSingleAddress.address is [0..1] even though
+                    // RawPerson.rawAddresses is [*])
+                    boolean isToMany = srcJoin.isToMany();
+                    var targetClassOpt = modelContext.findClass(pcm.targetClassName());
+                    if (targetClassOpt.isPresent()) {
+                        var propOpt = targetClassOpt.get().findProperty(prop);
+                        if (propOpt.isPresent()) {
+                            isToMany = !propOpt.get().multiplicity().isSingular();
+                        }
+                    }
+                    if (isToMany != srcJoin.isToMany()) {
+                        srcJoin = new StoreResolution.JoinResolution(
+                                srcJoin.targetTable(), srcJoin.sourceParam(), srcJoin.targetParam(),
+                                isToMany, srcJoin.joinCondition(), srcJoin.sourceColumns(),
+                                srcJoin.targetResolution(), srcJoin.embedded());
+                    }
+                    joins.put(prop, srcJoin);
+                } else {
+                    // Simple property → inherit source's resolution (Column or DynaFunction)
+                    var srcRes = sourceStore.resolveProperty(srcProp);
+                    if (srcRes != null) {
+                        properties.put(prop, srcRes);
+                    } else {
+                        String col = sourceStore.columnFor(srcProp);
+                        properties.put(prop, new StoreResolution.PropertyResolution.Column(
+                                col != null ? col : srcProp));
+                    }
+                }
+            } else {
+                // Complex expression → DynaFunction (body stays in class-space,
+                // resolved at SQL time against the inherited properties)
+                properties.put(prop, new StoreResolution.PropertyResolution.DynaFunction(expr));
+            }
             propToCol.put(prop, prop);
         }
 
-        // Resolve M2M association navigations by walking the source class's sourceRelation
-        // extend nodes. For each M2M property matching $src.assocProp, find the traverse
-        // embedded in the source class's extend node for that association property.
-        Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
-        var srcSourceRelation = normalized.findSourceRelation(pcm.sourceClassName());
-        if (srcSourceRelation != null) {
-            for (var propEntry : pcm.propertyExpressions().entrySet()) {
-                String m2mPropName = propEntry.getKey();
-                var expr = propEntry.getValue();
-
-                // Match pattern: AppliedProperty(assocPropName, [Variable("src")])
-                if (!(expr instanceof AppliedProperty ap)) continue;
-                if (ap.parameters().size() != 1) continue;
-                if (!(ap.parameters().get(0) instanceof Variable v)) continue;
-                if (!"src".equals(v.name())) continue;
-
-                String assocPropName = ap.property();
-
-                // Find the traverse for this property in the source's sourceRelation
-                AppliedFunction traverseAf = findTraverseForProp(srcSourceRelation, assocPropName);
-                if (traverseAf == null) continue;
-
-                // Look up association for target class + multiplicity
-                var nav = modelContext.findAssociationByProperty(pcm.sourceClassName(), assocPropName)
-                        .orElse(null);
-                if (nav == null) continue;
-
-                // Determine isToMany from M2M target class property multiplicity
-                boolean isToMany = nav.isToMany();
-                var targetClassOpt = modelContext.findClass(pcm.targetClassName());
-                if (targetClassOpt.isPresent()) {
-                    var propOpt = targetClassOpt.get().findProperty(m2mPropName);
-                    if (propOpt.isPresent()) {
-                        isToMany = !propOpt.get().multiplicity().isSingular();
-                    }
-                }
-
-                ClassMapping targetMapping = normalized.findClassMapping(nav.targetClassName())
-                        .orElseThrow(() -> new PureCompileException(
-                                "M2M Association navigation targets class '" + nav.targetClassName()
-                                        + "' which has no mapping in scope"));
-                StoreResolution targetResolution = resolveClassMapping(targetMapping, nav.targetClassName());
-                String targetTable = targetMapping.sourceTable().name();
-                joins.put(m2mPropName, buildJoinResolution(
-                        targetTable, isToMany, traverseAf, targetResolution));
-            }
+        // 4. Get M2M sourceSpec and stamp stores on chain nodes
+        var sourceSpec = normalized.findSourceSpec(pcm.targetClassName());
+        if (sourceSpec != null) {
+            stampM2MSourceSpecStores(sourceSpec, sourceStore, properties, propToCol, joins);
         }
 
         return new StoreResolution(
-                tableName, propToCol, properties, joins,
-                pcm.filter(), false);
+                sourceStore.tableName(), propToCol, properties, joins,
+                null, false, sourceSpec);
+    }
+
+    /**
+     * Checks if a ValueSpecification is a simple property access: {@code $src.propName}.
+     */
+    private boolean isSimplePropertyAccess(ValueSpecification expr) {
+        return expr instanceof AppliedProperty ap
+                && ap.parameters().size() == 1
+                && ap.parameters().get(0) instanceof Variable;
+    }
+
+    /**
+     * Stamps StoreResolution on every AppliedFunction node in the M2M sourceSpec chain.
+     * The chain is linear (each node's first param is the next node down).
+     * Inner getAll gets sourceStore (so PlanGen follows sourceStore.sourceSpec());
+     * all other nodes get the M2M target store.
+     */
+    private void stampM2MSourceSpecStores(
+            ValueSpecification sourceSpec,
+            StoreResolution sourceStore,
+            Map<String, StoreResolution.PropertyResolution> properties,
+            Map<String, String> propToCol,
+            Map<String, StoreResolution.JoinResolution> joins) {
+
+        var targetStore = new StoreResolution(
+                sourceStore.tableName(), propToCol, properties, joins,
+                null, false, sourceStore.sourceSpec());
+
+        ValueSpecification current = sourceSpec;
+        while (current instanceof AppliedFunction af) {
+            // Leaf (no params or first param is not AF) → stamp sourceStore
+            // so PlanGen can follow sourceStore.sourceSpec() for the physical chain.
+            if (af.parameters().isEmpty()
+                    || !(af.parameters().get(0) instanceof AppliedFunction)) {
+                resolutions.put(af, sourceStore);
+                return;
+            }
+            resolutions.put(af, targetStore);
+            current = af.parameters().get(0);
+        }
     }
 
     // ==================== Association / Join Resolution ====================
 
     /**
-     * Single-pass walk of sourceRelation extend nodes. Handles all extend types:
+     * Single-pass walk of sourceSpec extend nodes. Handles all extend types:
      * <ul>
      *   <li><b>Scalar extends</b> — 1-param lambda (dynaFunction, enum, expression access).
      *       Overrides the default Column resolution with DynaFunction(lambdaBody),
-     *       deriving the expression from the sourceRelation instead of from PropertyMapping.</li>
+     *       deriving the expression from the sourceSpec instead of from PropertyMapping.</li>
      *   <li><b>Association extends</b> — 0-param lambda wrapping traverse(). Builds JoinResolution.</li>
      *   <li><b>Embedded extends</b> — 0-param lambda wrapping ColSpecArray. Builds embedded JoinResolution.</li>
      *   <li><b>Traverse extends</b> — 3-param extend(source, traverse, colSpecs). Builds JoinResolution.</li>
@@ -286,13 +327,13 @@ public final class MappingResolver {
      * @param properties  mutable — scalar extends override Column entries with DynaFunction
      * @param propToCol   mutable — scalar extends override col with propName
      */
-    private Map<String, StoreResolution.JoinResolution> resolveSourceRelationExtends(
-            String className, String tableName, ValueSpecification sourceRelation,
+    private Map<String, StoreResolution.JoinResolution> resolveSourceSpecExtends(
+            String className, String tableName, ValueSpecification sourceSpec,
             Map<String, String> propToCol,
             Map<String, StoreResolution.PropertyResolution> properties) {
 
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
-        if (sourceRelation == null) {
+        if (sourceSpec == null) {
             addStructArrayJoins(className, joins);
             return joins;
         }
@@ -301,7 +342,7 @@ public final class MappingResolver {
         Set<String> neededAssocs = typeResult.associationNavigations()
                 .getOrDefault(className, Set.of());
 
-        for (AppliedFunction extendAf : findExtendNodes(sourceRelation)) {
+        for (AppliedFunction extendAf : findExtendNodes(sourceSpec)) {
 
             // --- Traverse extends: extend(source, traverse(...), colSpecCI) ---
             if (isTraverseExtend(extendAf)) {
@@ -335,7 +376,7 @@ public final class MappingResolver {
     }
 
     /**
-     * Resolves a single ColSpec from a sourceRelation extend node.
+     * Resolves a single ColSpec from a sourceSpec extend node.
      * Classifies the ColSpec and updates the appropriate output map.
      */
     private void resolveColSpec(ColSpec cs, String className, String tableName,
@@ -518,23 +559,6 @@ public final class MappingResolver {
                 null, rm.nested(), null);
     }
 
-    /**
-     * Finds the traverse AppliedFunction for a given property name by walking
-     * the sourceRelation's extend nodes. Returns null if not found.
-     */
-    private static AppliedFunction findTraverseForProp(ValueSpecification sourceRel, String propName) {
-        for (AppliedFunction extendAf : findExtendNodes(sourceRel)) {
-            for (int i = 1; i < extendAf.parameters().size(); i++) {
-                if (!(extendAf.parameters().get(i) instanceof ClassInstance ci)) continue;
-                if (!(ci.value() instanceof ColSpec cs)) continue;
-                if (!cs.name().equals(propName)) continue;
-                if (!ExtendChecker.isAssociationExtend(cs)) continue;
-                return (AppliedFunction) cs.function1().body().get(0);
-            }
-        }
-        return null;
-    }
-
     // ==================== Join Condition Helpers ====================
 
     /**
@@ -604,7 +628,7 @@ public final class MappingResolver {
     // ==================== Extend Override Stamping ====================
 
     /**
-     * Stamps {@link StoreResolution.ExtendOverride} on sourceRelation extend nodes
+     * Stamps {@link StoreResolution.ExtendOverride} on sourceSpec extend nodes
      * whose columns are not all used by the query.
      *
      * <p>Reads {@code typeResult.classPropertyAccesses()} (populated by TypeChecker)
@@ -619,14 +643,14 @@ public final class MappingResolver {
         // M2M source stores are in storeClassNames but not in resolutions.
         for (var entry : storeClassNames.entrySet()) {
             StoreResolution store = entry.getKey();
-            if (store.sourceRelation() == null) continue;
+            if (store.sourceSpec() == null) continue;
 
             String className = entry.getValue();
 
             Set<String> usedProps = typeResult.classPropertyAccesses()
                     .getOrDefault(className, Set.of());
 
-            for (AppliedFunction extendAf : findExtendNodes(store.sourceRelation())) {
+            for (AppliedFunction extendAf : findExtendNodes(store.sourceSpec())) {
                 Set<String> extendCols = extractColSpecNames(extendAf);
                 if (extendCols.isEmpty()) continue;
 
@@ -691,7 +715,7 @@ public final class MappingResolver {
         return null;
     }
 
-    /** Walks the sourceRelation chain to find extend nodes (outermost first). */
+    /** Walks the sourceSpec chain to find extend nodes (outermost first). */
     private static List<AppliedFunction> findExtendNodes(ValueSpecification sourceRel) {
         var result = new ArrayList<AppliedFunction>();
         var cur = sourceRel;

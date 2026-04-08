@@ -21,7 +21,7 @@ import java.util.Map;
  * @param joins            Association property → join resolution
  * @param filterExpr       Pre-compiled ~filter expression (null if none). Used by M2M filters only.
  * @param nested           True for struct-literal identity mappings (nested field access)
- * @param sourceRelation   Synthesized source Relation ValueSpec for relational mappings (null for M2M/identity).
+ * @param sourceSpec   Synthesized source Relation ValueSpec for relational mappings (null for M2M/identity).
  *                         Encapsulates tableReference + filter + distinct + join chains.
  * @param extendOverride   Cancellation info for extend nodes (null = not an extend node / all active).
  */
@@ -32,7 +32,7 @@ public record StoreResolution(
         Map<String, JoinResolution> joins,
         ValueSpecification filterExpr,
         boolean nested,
-        ValueSpecification sourceRelation,
+        ValueSpecification sourceSpec,
         ExtendOverride extendOverride) {
 
     /** Constructor without extendOverride (default for all non-extend nodes). */
@@ -43,11 +43,11 @@ public record StoreResolution(
             Map<String, JoinResolution> joins,
             ValueSpecification filterExpr,
             boolean nested,
-            ValueSpecification sourceRelation) {
-        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, sourceRelation, null);
+            ValueSpecification sourceSpec) {
+        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, sourceSpec, null);
     }
 
-    /** Constructor without sourceRelation or extendOverride (for M2M and identity mappings). */
+    /** Constructor without sourceSpec or extendOverride (for M2M and identity mappings). */
     public StoreResolution(
             String tableName,
             Map<String, String> propertyToColumn,
@@ -65,7 +65,7 @@ public record StoreResolution(
 
     /**
      * Column-level cancellation info for extend nodes.
-     * Stamped by MappingResolver on sourceRelation extend nodes;
+     * Stamped by MappingResolver on sourceSpec extend nodes;
      * read by PlanGenerator in generateExtend.
      *
      * @param activeColumns Columns to keep (null = all active, empty = skip entire node)
@@ -83,14 +83,6 @@ public record StoreResolution(
     public sealed interface PropertyResolution {
         /** Simple column: property maps directly to a column name. */
         record Column(String columnName) implements PropertyResolution {}
-
-        /**
-         * M2M expression: property computed from source via a Pure expression.
-         * The expression AST is pre-compiled by TypeChecker; PlanGenerator
-         * calls generateScalar on it with the sourceResolution for context.
-         */
-        record M2MExpression(ValueSpecification expression, StoreResolution sourceResolution)
-                implements PropertyResolution {}
 
         /**
          * DynaFunction expression: property computed from a relational expression.
@@ -168,13 +160,4 @@ public record StoreResolution(
         return extendOverride != null;
     }
 
-    /** Extracts the source StoreResolution from M2M property expressions (for filter context). */
-    public StoreResolution sourceResolution() {
-        for (var res : properties.values()) {
-            if (res instanceof PropertyResolution.M2MExpression m2m && m2m.sourceResolution() != null) {
-                return m2m.sourceResolution();
-            }
-        }
-        return null;
-    }
 }

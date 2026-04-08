@@ -66,7 +66,7 @@ public final class MappingNormalizer {
     }
 
     /**
-     * Full mapping data for MappingResolver — findClassMapping + findSourceRelation.
+     * Full mapping data for MappingResolver — findClassMapping + findSourceSpec.
      * TypeChecker never sees this.
      */
     public NormalizedMapping normalizedMapping() {
@@ -114,7 +114,7 @@ public final class MappingNormalizer {
         }
 
         // Phase 2a: Build Relational MappingExpressions.
-        // Association traversals are embedded in sourceRelation as extend() nodes
+        // Association traversals are embedded in sourceSpec as extend() nodes
         // with fn1=traverse — no separate AssociationJoinInfo needed.
         for (var entry : resolvedMappings.entrySet()) {
             int classId = entry.getKey();
@@ -122,22 +122,23 @@ public final class MappingNormalizer {
             ClassMapping cm = entry.getValue();
             if (!(cm instanceof RelationalMapping rm)) continue;
 
-            var sourceRelation = synthesizeSourceRelation(rm);
-            sourceRelation = addAssociationExtends(rm, className, sourceRelation, resolvedMappings);
+            var sourceSpec = synthesizeSourceSpec(rm);
+            sourceSpec = addAssociationExtends(rm, className, sourceSpec, resolvedMappings);
             expressions.put(classId, new ModelContext.MappingExpression.Relational(
-                    className, sourceRelation));
+                    className, sourceSpec));
         }
 
-        // Phase 2b: Build M2M MappingExpressions.
-        // M2M association navigations are resolved by MappingResolver at resolve time
-        // by walking the source class's sourceRelation extend nodes.
+        // Phase 2b: Build M2M MappingExpressions with sourceSpec chain.
+        // Like relational, the sourceSpec is the single source of truth:
+        //   getAll("SrcClass") → filter(src|cond) → extend(~[prop:src|expr, ...])
         for (var entry : resolvedMappings.entrySet()) {
             int classId = entry.getKey();
             ClassMapping cm = entry.getValue();
             if (!(cm instanceof PureClassMapping pcm)) continue;
 
+            var sourceSpec = synthesizeM2MSourceSpec(pcm);
             expressions.put(classId, new ModelContext.MappingExpression.M2M(
-                    pcm.sourceClassName(), pcm.propertyExpressions(), pcm.filter()));
+                    pcm.sourceClassName(), sourceSpec));
         }
 
         return new NormalizedMapping(symbols, resolvedMappings, expressions);
@@ -188,7 +189,7 @@ public final class MappingNormalizer {
     // ==================== Association Extends ====================
 
     /**
-     * Adds association extend nodes to the sourceRelation chain.
+     * Adds association extend nodes to the sourceSpec chain.
      * Each association becomes: {@code extend(source, ~propName:traverse(target, {prev,hop|cond}))}
      * where the ColSpec's fn1 is a 0-param lambda wrapping the traverse() call.
      *
@@ -235,7 +236,7 @@ public final class MappingNormalizer {
     // ==================== Embedded Extends ====================
 
     /**
-     * Adds embedded property extend nodes to the sourceRelation chain.
+     * Adds embedded property extend nodes to the sourceSpec chain.
      * Each embedded property becomes:
      * {@code extend(source, ~propName:{-> ~[sub1:r|$r.COL1, sub2:r|$r.COL2]})}
      * where fn1 is a 0-param lambda whose body is a ColSpecArray of sub-property mappings.
@@ -290,7 +291,7 @@ public final class MappingNormalizer {
     // ==================== Source Relation Synthesis ====================
 
     /**
-     * Synthesizes a sourceRelation ValueSpecification for a RelationalMapping.
+     * Synthesizes a sourceSpec ValueSpecification for a RelationalMapping.
      * This is the single source of truth for the mapping's data source.
      *
      * <p>Canonical ordering:
@@ -301,7 +302,7 @@ public final class MappingNormalizer {
      *   <li>→distinct() — ~distinct (if set)</li>
      * </ol>
      */
-    private com.gs.legend.ast.ValueSpecification synthesizeSourceRelation(RelationalMapping rm) {
+    private com.gs.legend.ast.ValueSpecification synthesizeSourceSpec(RelationalMapping rm) {
         // 1. Base: tableReference("db.TABLE") or tableReference("schema.TABLE")
         String tableName = rm.table().qualifiedName();
         com.gs.legend.ast.ValueSpecification source = new com.gs.legend.ast.AppliedFunction(
@@ -373,6 +374,53 @@ public final class MappingNormalizer {
                     "distinct",
                     java.util.List.of(source),
                     true);
+        }
+
+        return source;
+    }
+
+    /**
+     * Builds the class-space sourceSpec chain for an M2M mapping:
+     * {@code getAll("SrcClass") → filter(src|cond) → extend(~[prop:src|expr, ...])}.
+     *
+     * <p>Mirrors {@link #synthesizeSourceSpec(RelationalMapping)} for relational.
+     * The chain is walked by MappingResolver to derive StoreResolution, and by
+     * PlanGenerator to generate SQL (filter in chain, not bespoke filterExpr).
+     */
+    private com.gs.legend.ast.ValueSpecification synthesizeM2MSourceSpec(PureClassMapping pcm) {
+        // 1. Base: getAll(sourceClass)
+        com.gs.legend.ast.ValueSpecification source = new com.gs.legend.ast.AppliedFunction(
+                "getAll",
+                java.util.List.of(new com.gs.legend.ast.PackageableElementPtr(pcm.sourceClassName())),
+                false);
+
+        // 2. Filter: → filter(src | filterExpr)
+        if (pcm.filter() != null) {
+            var lambda = new com.gs.legend.ast.LambdaFunction(
+                    java.util.List.of(new com.gs.legend.ast.Variable("src")),
+                    pcm.filter());
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "filter", java.util.List.of(source, lambda), true);
+        }
+
+        // 3. Extends: → extend(~[prop:src|expr, ...])
+        var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
+        for (var entry : pcm.propertyExpressions().entrySet()) {
+            var srcVar = new com.gs.legend.ast.Variable("src");
+            var lambda = new com.gs.legend.ast.LambdaFunction(
+                    java.util.List.of(srcVar), entry.getValue());
+            colSpecs.add(new com.gs.legend.ast.ColSpec(entry.getKey(), lambda));
+        }
+        if (!colSpecs.isEmpty()) {
+            com.gs.legend.ast.ClassInstance colSpecCI;
+            if (colSpecs.size() == 1) {
+                colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpecs.get(0));
+            } else {
+                colSpecCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
+                        new com.gs.legend.ast.ColSpecArray(colSpecs));
+            }
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "extend", java.util.List.of(source, colSpecCI), true);
         }
 
         return source;

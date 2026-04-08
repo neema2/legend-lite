@@ -424,33 +424,17 @@ public class PlanGenerator {
             throw new PureCompileException("getAll: StoreResolution not resolved for " + af.function());
         }
 
-        // sourceRelation path: Relation ValueSpec chain (tableRef + filter + distinct + joins)
-        if (store.sourceRelation() != null) {
-            return generateRelation(store.sourceRelation());
+        // sourceSpec path: Relation ValueSpec chain (tableRef + filter + distinct + joins)
+        if (store.sourceSpec() != null) {
+            return generateRelation(store.sourceSpec());
         }
 
-        // M2M: if the source class has a sourceRelation (join chains), use it
-        // so that chain-derived columns (e.g., deptName via @Emp_Dept) are available.
-        StoreResolution srcRes = store.sourceResolution();
-        if (srcRes != null && srcRes.sourceRelation() != null) {
-            return generateRelation(srcRes.sourceRelation());
-        }
-
-        // Fallback: simple SELECT * FROM table (for non-relational getAll, e.g. identity mappings)
+        // Fallback: simple SELECT * FROM table (for identity mappings)
         String tableName = store.tableName();
         String alias = nextTableAlias();
-        var builder = new SqlBuilder()
+        return new SqlBuilder()
                 .selectStar()
                 .from(dialect.quoteIdentifier(tableName), dialect.quoteIdentifier(alias));
-
-        // M2M filters (sourceResolution != null) are handled in generateGraphFetch.
-        if (store.hasFilter() && store.sourceResolution() == null) {
-            SqlExpr whereClause = generateScalar(
-                    store.filterExpr(), "$row", null, unquote(alias));
-            builder.addWhere(whereClause);
-        }
-
-        return builder;
     }
 
     /**
@@ -478,13 +462,6 @@ public class PlanGenerator {
         // Step 2: Get table alias and store resolution
         var store = storeFor(af);
         String tableAlias = unquote(source.getFromAlias());
-
-        // Step 2b: Apply ~filter from M2M mapping (if present)
-        if (store != null && store.hasFilter()) {
-            SqlExpr whereClause = generateScalar(
-                    store.filterExpr(), "$src", store.sourceResolution(), tableAlias);
-            source.addWhere(whereClause);
-        }
 
         // Step 3: Project mapped properties into source builder
         // Also track parent join columns needed for nested correlated subqueries
@@ -716,14 +693,6 @@ public class PlanGenerator {
 
         // Step 1: Compile the source (getAll, filter, struct collection, etc.)
         SqlBuilder source = generateRelation(params.get(0));
-
-        // Step 1b: Apply ~filter from M2M mapping (if present)
-        if (store != null && store.hasFilter()) {
-            String srcAlias = source.getFromAlias() != null ? unquote(source.getFromAlias()) : "t0";
-            SqlExpr whereClause = generateScalar(
-                    store.filterExpr(), "$src", store.sourceResolution(), srcAlias);
-            source.addWhere(whereClause);
-        }
 
         // Step 2: Determine table alias from source builder
         String tableAlias;
@@ -985,8 +954,6 @@ public class PlanGenerator {
             case StoreResolution.PropertyResolution.Column col ->
                     alias != null ? new SqlExpr.Column(alias, col.columnName())
                             : new SqlExpr.ColumnRef(col.columnName());
-            case StoreResolution.PropertyResolution.M2MExpression m2m ->
-                    generateScalar(m2m.expression(), "src", m2m.sourceResolution(), alias);
             case StoreResolution.PropertyResolution.DynaFunction dyna ->
                     generateScalar(dyna.expression(), null, store, alias);
             case StoreResolution.PropertyResolution.EmbeddedColumn emb ->

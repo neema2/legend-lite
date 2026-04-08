@@ -59,55 +59,20 @@ public class GetAllChecker extends AbstractChecker {
     }
 
     /**
-     * Type-checks M2M property expressions and filter.
-     * Recursively compiles source chain if source is also M2M.
-     * Uses withLambdaParam("src", ClassType) — $src is a class instance,
-     * resolved via compileProperty's existing ClassType path (findClass → findProperty).
+     * Compiles the M2M sourceSpec chain — same pattern as relational.
+     * The inner getAll("SrcClass") triggers recursive compilation of the source
+     * mapping via GetAllChecker.check(), so no manual recursion needed.
      */
     private void compileM2MExpressions(String targetClassName, MappingExpression.M2M m2m, Set<String> visited) {
         if (!visited.add(targetClassName)) return;
+        if (m2m.sourceSpec() == null) return;
 
-        // Recursively compile source mapping expressions.
-        // If source is M2M, recurse into it. If source is Relational, compile its
-        // traverse expressions so join conditions get TypeInfo for PlanGenerator.
-        env.modelContext().findMappingExpression(m2m.sourceClassName())
-                .ifPresent(src -> {
-                    switch (src) {
-                        case MappingExpression.M2M srcM2M -> compileM2MExpressions(m2m.sourceClassName(), srcM2M, visited);
-                        case MappingExpression.Relational srcRel -> compileRelationalExpressions(srcRel);
-                    }
-                });
-
-        // $src is a class instance — resolve to FQN for consistent keys with MappingResolver.
-        String srcFqn = findClass(m2m.sourceClassName()).map(c -> c.qualifiedName()).orElse(m2m.sourceClassName());
-        var srcCtx = new TypeChecker.CompilationContext()
-                .withLambdaParam("src", new GenericType.ClassType(srcFqn));
-
-        // Compile each property expression + filter
-        for (var expr : m2m.propertyExpressions().values()) {
-            env.compileExpr(expr, srcCtx);
-        }
-        if (m2m.filter() != null) {
-            env.compileExpr(m2m.filter(), srcCtx);
-        }
-
-        // Recursively compile M2M mappings for nested class-typed properties.
-        // E.g., PersonWithAddress has property address:Address[*]. If Address has
-        // its own M2M mapping, compile it so PlanGenerator has TypeInfo for its expressions.
-        env.modelContext().findClass(targetClassName).ifPresent(pc -> {
-            for (var prop : pc.properties()) {
-                String propTypeName = prop.genericType().typeName();
-                env.modelContext().findMappingExpression(propTypeName).ifPresent(propExpr -> {
-                    if (propExpr instanceof MappingExpression.M2M propM2M) {
-                        compileM2MExpressions(propTypeName, propM2M, visited);
-                    }
-                });
-            }
-        });
+        var ctx = new TypeChecker.CompilationContext();
+        env.compileExpr(m2m.sourceSpec(), ctx);
     }
 
     /**
-     * Compiles the sourceRelation ValueSpec chain synthesized by MappingNormalizer,
+     * Compiles the sourceSpec ValueSpec chain synthesized by MappingNormalizer,
      * then compiles all join traversals (association primitives).
      * Recursively follows associations to compile transitively reachable classes'
      * traversals — needed for multi-hop joins (Person → Firm → Country).
@@ -119,11 +84,11 @@ public class GetAllChecker extends AbstractChecker {
     private void compileRelationalExpressions(MappingExpression.Relational rel, Set<String> visited) {
         if (!visited.add(rel.className())) return;
 
-        // sourceRelation already contains association traversals as extend() nodes
+        // sourceSpec already contains association traversals as extend() nodes
         // with fn1=traverse. compileExpr walks the full chain including those.
         var ctx = new TypeChecker.CompilationContext();
-        env.compileExpr(rel.sourceRelation(), ctx);
-        env.markSourceRelationCompiled(rel.className());
+        env.compileExpr(rel.sourceSpec(), ctx);
+        env.markSourceSpecCompiled(rel.className());
 
         // Target classes' source relations are compiled on-demand by
         // TypeChecker.compileNeededAssociationTargets() (pass 2) — only for

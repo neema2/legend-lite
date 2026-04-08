@@ -90,30 +90,29 @@ public interface ModelContext {
     sealed interface MappingExpression {
 
         /**
-         * M2M (Pure) mapping: property expressions are Pure AST, compiled
-         * with {@code $src} as a ClassType instance.
+         * M2M (Pure) mapping: sourceSpec is the single source of truth.
+         * The sourceSpec is a ValueSpecification chain synthesized by MappingNormalizer:
+         * {@code getAll("SrcClass") -> filter({src|cond}) -> extend(~[prop:{src|expr}, ...])}
          *
-         * @param sourceClassName         The source class being mapped from (~src)
-         * @param propertyExpressions     Map of property name → pre-parsed AST expression
-         * @param filter                  Optional filter expression (~filter)
+         * @param sourceClassName  The source class being mapped from (~src)
+         * @param sourceSpec       Synthesized class-space chain: getAll → filter → extend
          */
         record M2M(
                 String sourceClassName,
-                Map<String, ValueSpecification> propertyExpressions,
-                ValueSpecification filter) implements MappingExpression {}
+                ValueSpecification sourceSpec) implements MappingExpression {}
 
         /**
          * Relational mapping: source relation is the single source of truth.
-         * The sourceRelation is a ValueSpecification chain synthesized by MappingNormalizer:
+         * The sourceSpec is a ValueSpecification chain synthesized by MappingNormalizer:
          * {@code tableReference("db.TABLE") -> filter(...) -> join(...) -> extend(traverse()) -> distinct()}
          * Association traversals are embedded as extend() nodes with fn1=traverse.
          *
          * @param className        The class being mapped
-         * @param sourceRelation   Synthesized Relation ValueSpec (tableRef + filter + joins + extends + distinct)
+         * @param sourceSpec   Synthesized Relation ValueSpec (tableRef + filter + joins + extends + distinct)
          */
         record Relational(
                 String className,
-                ValueSpecification sourceRelation) implements MappingExpression {}
+                ValueSpecification sourceSpec) implements MappingExpression {}
     }
 
     /**

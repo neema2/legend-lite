@@ -51,7 +51,7 @@ public class TypeChecker implements TypeCheckEnv {
     /** Association navigations observed during compilation (className → association property names). */
     private final Map<String, Set<String>> associationNavigations = new HashMap<>();
     /** Classes whose source relations have been compiled (prevents double-compilation in pass 2). */
-    private final Set<String> compiledSourceRelations = new HashSet<>();
+    private final Set<String> compiledSourceSpecs = new HashSet<>();
 
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
@@ -67,8 +67,8 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     @Override
-    public void markSourceRelationCompiled(String className) {
-        compiledSourceRelations.add(className);
+    public void markSourceSpecCompiled(String className) {
+        compiledSourceSpecs.add(className);
     }
 
     /**
@@ -106,22 +106,22 @@ public class TypeChecker implements TypeCheckEnv {
         for (var entry : new ArrayList<>(associationNavigations.entrySet())) {
             String className = entry.getKey();
             // Compile this class's source relation if not already done
-            compileSourceRelationIfNeeded(className);
+            compileSourceSpecIfNeeded(className);
             // Compile each target class's source relation
             for (String propName : entry.getValue()) {
                 modelContext.findAssociationByProperty(className, propName).ifPresent(nav -> {
-                    compileSourceRelationIfNeeded(nav.targetClassName());
+                    compileSourceSpecIfNeeded(nav.targetClassName());
                 });
             }
         }
     }
 
-    private void compileSourceRelationIfNeeded(String className) {
-        if (compiledSourceRelations.contains(className)) return;
+    private void compileSourceSpecIfNeeded(String className) {
+        if (compiledSourceSpecs.contains(className)) return;
         modelContext.findMappingExpression(className).ifPresent(mapExpr -> {
             if (mapExpr instanceof ModelContext.MappingExpression.Relational rel) {
-                compiledSourceRelations.add(className);
-                compileExpr(rel.sourceRelation(), new CompilationContext());
+                compiledSourceSpecs.add(className);
+                compileExpr(rel.sourceSpec(), new CompilationContext());
             }
         });
     }

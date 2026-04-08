@@ -27,8 +27,8 @@ import java.util.Optional;
  *   <li><b>TypeChecker</b> sees only {@link #findMappingExpression(String)}
  *       (via ModelContext delegation)</li>
  *   <li><b>MappingResolver</b> sees {@link #findClassMapping(String)}
- *       and {@link #findSourceRelation(String)} — read-only.
- *       Association joins are embedded in sourceRelation as extend() nodes
+ *       and {@link #findSourceSpec(String)} — read-only.
+ *       Association joins are embedded in sourceSpec as extend() nodes
  *       with fn1=traverse (walked by MappingResolver directly).</li>
  *   <li>Neither sees {@code MappingRegistry} directly</li>
  * </ul>
@@ -58,13 +58,15 @@ public final class NormalizedMapping {
     }
 
     /**
-     * Returns the synthesized sourceRelation for a relational class.
+     * Returns the synthesized sourceSpec for a class (relational or M2M).
      * Used by MappingResolver to build StoreResolution without touching MappingExpression.
      */
-    public com.gs.legend.ast.ValueSpecification findSourceRelation(String className) {
+    public com.gs.legend.ast.ValueSpecification findSourceSpec(String className) {
         return findMappingExpression(className)
-                .filter(e -> e instanceof ModelContext.MappingExpression.Relational)
-                .map(e -> ((ModelContext.MappingExpression.Relational) e).sourceRelation())
+                .map(e -> switch (e) {
+                    case ModelContext.MappingExpression.Relational r -> r.sourceSpec();
+                    case ModelContext.MappingExpression.M2M m -> m.sourceSpec();
+                })
                 .orElse(null);
     }
 

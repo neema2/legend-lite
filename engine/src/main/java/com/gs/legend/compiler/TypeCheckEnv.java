@@ -21,6 +21,6 @@ public interface TypeCheckEnv {
     /** Look up the TypeInfo for a previously compiled AST node (by identity). */
     TypeInfo lookupCompiled(ValueSpecification vs);
 
-    /** Mark a class's source relation as compiled (for demand-driven pass 2). */
-    void markSourceRelationCompiled(String className);
+    /** Mark a class's source spec as compiled (for demand-driven pass 2). */
+    void markSourceSpecCompiled(String className);
 }
