@@ -1070,12 +1070,12 @@ class RelationalMappingCompositionTest {
             assertEquals("Beta Inc", firms.get(2));
         }
 
-        @Test @Disabled("GAP: collection groupBy on Class.all() not supported — arity-4 overload doesn't match")
-        @DisplayName("groupBy (collection) with assoc in key function")
-        void groupByCollectionWithAssocKey() throws SQLException {
+        @Test
+        @DisplayName("groupBy (class-source) with assoc in key function")
+        void groupByClassSourceWithAssocKey() throws SQLException {
             setupData();
             var r = exec(assocPlusChainModel(),
-                    "Employee.all()->groupBy([{e|$e.firm.legalName}], [agg({e|$e.name}, {y|$y->count()})], ['firm', 'cnt'])");
+                    "Employee.all()->groupBy(~[firm:e|$e.firm.legalName], ~cnt:x|$x.name:y|$y->count())");
             assertEquals(2, r.rowCount());
         }
     }

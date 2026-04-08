@@ -13,6 +13,10 @@
     <artifactId>legend-lite-engine</artifactId>
     <packaging>jar</packaging>
     <name>Legend Lite - Engine</name>
+
+    <properties>
+        <surefire.excludedGroups>heavy</surefire.excludedGroups>
+    </properties>
     <description>Core Legend Lite engine with Pure parser, compiler, and SQL generator.</description>
 
     <dependencies>
@@ -101,7 +105,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <excludedGroups>heavy</excludedGroups>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
                 </configuration>
             </plugin>
         </plugins>

@@ -1564,19 +1564,79 @@ public class PlanGenerator {
             builder = new SqlBuilder().fromSubquery(source, tableAlias);
         }
 
+        // Track association joins for class-source (same pattern as generateProject)
+        record AssocJoinInfo(String alias, String parentAlias,
+                             StoreResolution.JoinResolution joinRes) {}
+        java.util.Map<String, AssocJoinInfo> assocJoins = new java.util.LinkedHashMap<>();
+
         // Key columns — from projections (class source) or columnSpecs (Relation)
         if (classSource) {
             for (var proj : info.projections()) {
-                SqlExpr colExpr = resolveColumnExpr(
-                        proj.associationPath().getLast(), store, tableAlias);
-                builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
-                builder.addGroupBy(colExpr);
+                if (proj.isAssociation()) {
+                    // Association navigation: walk hops and add JOINs (same as generateProject)
+                    List<String> path = proj.associationPath();
+                    String leafProp = path.getLast();
+                    StoreResolution curStore = store;
+                    String curAlias = tableAlias;
+
+                    for (int hop = 0; hop < path.size() - 1; hop++) {
+                        String hopProp = path.get(hop);
+                        String chainKey = String.join(".", path.subList(0, hop + 1));
+                        AssocJoinInfo joinInfo = assocJoins.get(chainKey);
+                        if (joinInfo == null) {
+                            var joinRes = curStore != null && curStore.hasJoins()
+                                    ? curStore.joins().get(hopProp) : null;
+                            if (joinRes == null) joinRes = findJoinResolution(hopProp);
+                            if (joinRes == null) {
+                                throw new PureCompileException(
+                                        "No join resolution for association '" + hopProp + "' in groupBy");
+                            }
+                            if (joinRes.embedded()) {
+                                assocJoins.put(chainKey, new AssocJoinInfo(curAlias, curAlias, joinRes));
+                                curStore = joinRes.targetResolution();
+                            } else {
+                                String hopAlias = "j" + (assocJoins.size() + 1);
+                                assocJoins.put(chainKey, new AssocJoinInfo(hopAlias, curAlias, joinRes));
+                                curAlias = hopAlias;
+                                curStore = joinRes.targetResolution();
+                            }
+                        } else {
+                            curAlias = joinInfo.alias();
+                            curStore = joinInfo.joinRes().targetResolution();
+                        }
+                    }
+                    SqlExpr colExpr = resolveColumnExpr(leafProp, curStore, curAlias);
+                    builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
+                    builder.addGroupBy(colExpr);
+                } else {
+                    SqlExpr colExpr = resolveColumnExpr(
+                            proj.associationPath().getLast(), store, tableAlias);
+                    builder.addSelect(colExpr, dialect.quoteIdentifier(proj.alias()));
+                    builder.addGroupBy(colExpr);
+                }
             }
         } else {
             for (var cs : info.columnSpecs()) {
                 SqlExpr colRef = new SqlExpr.ColumnRef(cs.columnName());
                 builder.addSelect(colRef, null);
                 builder.addGroupBy(colRef);
+            }
+        }
+
+        // Emit LEFT JOINs for association hops (same pattern as generateProject Step 5)
+        for (var entry : assocJoins.entrySet()) {
+            var ji = entry.getValue();
+            if (ji.joinRes().embedded()) {
+                continue;
+            }
+            if (ji.joinRes().joinCondition() != null) {
+                String targetTableName = ji.joinRes().targetTable();
+                SqlExpr onCondition = generateScalar(ji.joinRes().joinCondition(), null, null, null,
+                        Map.of(ji.joinRes().sourceParam(), ji.parentAlias(),
+                               ji.joinRes().targetParam(), ji.alias()));
+                builder.addJoin(SqlBuilder.JoinType.LEFT,
+                        dialect.quoteIdentifier(targetTableName),
+                        dialect.quoteIdentifier(ji.alias()), onCondition);
             }
         }
 
