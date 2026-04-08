@@ -461,7 +461,16 @@ public class PlanGenerator {
 
         // Step 2: Get table alias and store resolution
         var store = storeFor(af);
-        String tableAlias = unquote(source.getFromAlias());
+        String tableAlias;
+        if (source.hasJoins()) {
+            // Source has JOINs (from traverse extends) — wrap in subquery so
+            // traverse-computed column aliases are accessible on the wrapper alias.
+            // Same pattern as generateProject's canInline=false wrapping.
+            tableAlias = "gf_src";
+            source = new SqlBuilder().selectStar().fromSubquery(source, tableAlias);
+        } else {
+            tableAlias = unquote(source.getFromAlias());
+        }
 
         // Step 3: Project mapped properties into source builder
         // Also track parent join columns needed for nested correlated subqueries

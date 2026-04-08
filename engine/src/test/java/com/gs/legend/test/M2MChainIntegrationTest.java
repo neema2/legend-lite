@@ -63,6 +63,14 @@ class M2MChainIntegrationTest {
                 dept: String[1];
                 salary: Float[1];
                 isActive: Boolean[1];
+                deptName: String[1];
+                deptLocation: String[1];
+                orgName: String[1];
+            }
+
+            Class model::Organization
+            {
+                name: String[1];
             }
 
             Class model::Department
@@ -111,12 +119,35 @@ class M2MChainIntegrationTest {
                 entry: String[1];
             }
 
-            // ===== Deep fetch classes =====
+            // ===== Shared classes =====
             Class model::DeptInfo
             {
                 name: String[1];
                 location: String[1];
             }
+
+            // ===== Traverse-column M2M classes =====
+            Class model::StaffDetail
+            {
+                fullName: String[1];
+                deptName: String[1];
+                deptLocation: String[1];
+            }
+
+            Class model::StaffProfile
+            {
+                fullName: String[1];
+                orgName: String[1];
+            }
+
+            Class model::StaffFull
+            {
+                fullName: String[1];
+                deptName: String[1];
+                department: model::DeptInfo[*];
+            }
+
+            // ===== Deep fetch classes =====
 
             Class model::StaffWithDept
             {
@@ -142,9 +173,16 @@ class M2MChainIntegrationTest {
                 (
                     ID INTEGER PRIMARY KEY,
                     NAME VARCHAR(100) NOT NULL,
-                    LOCATION VARCHAR(100) NOT NULL
+                    LOCATION VARCHAR(100) NOT NULL,
+                    ORG_ID INTEGER
+                )
+                Table T_ORGANIZATION
+                (
+                    ID INTEGER PRIMARY KEY,
+                    NAME VARCHAR(100) NOT NULL
                 )
                 Join EmpDept(T_EMPLOYEE.DEPT_ID = T_DEPARTMENT.ID)
+                Join DeptOrg(T_DEPARTMENT.ORG_ID = T_ORGANIZATION.ID)
             )
 
             // ===== Relational mappings =====
@@ -159,7 +197,10 @@ class M2MChainIntegrationTest {
                     dept: [CompanyDB] T_EMPLOYEE.DEPT,
                     salary: [CompanyDB] T_EMPLOYEE.SALARY,
                     isActive: [CompanyDB] T_EMPLOYEE.IS_ACTIVE,
-                    department: [CompanyDB] @EmpDept
+                    department: [CompanyDB] @EmpDept,
+                    deptName: [CompanyDB] @EmpDept | T_DEPARTMENT.NAME,
+                    deptLocation: [CompanyDB] @EmpDept | T_DEPARTMENT.LOCATION,
+                    orgName: [CompanyDB] @EmpDept > @DeptOrg | T_ORGANIZATION.NAME
                 }
                 Department: Relational
                 {
@@ -225,6 +266,45 @@ class M2MChainIntegrationTest {
                 }
             )
 
+            // ===== Traverse-column M2M mappings =====
+            Mapping model::StaffDetailMapping
+            (
+                StaffDetail: Pure
+                {
+                    ~src Employee
+                    fullName: $src.firstName + ' ' + $src.lastName,
+                    deptName: $src.deptName,
+                    deptLocation: $src.deptLocation
+                }
+            )
+
+            Mapping model::StaffProfileMapping
+            (
+                StaffProfile: Pure
+                {
+                    ~src Employee
+                    fullName: $src.firstName + ' ' + $src.lastName,
+                    orgName: $src.orgName
+                }
+            )
+
+            Mapping model::StaffFullMapping
+            (
+                StaffFull: Pure
+                {
+                    ~src Employee
+                    fullName: $src.firstName + ' ' + $src.lastName,
+                    deptName: $src.deptName,
+                    department: $src.department
+                }
+                DeptInfo: Pure
+                {
+                    ~src Department
+                    name: $src.name,
+                    location: $src.location
+                }
+            )
+
             // ===== Deep fetch M2M mappings =====
             Mapping model::DeepFetchMapping
             (
@@ -260,7 +340,10 @@ class M2MChainIntegrationTest {
                     model::StaffCardMapping,
                     model::StaffBadgeMapping,
                     model::DirectoryMapping,
-                    model::DeepFetchMapping
+                    model::DeepFetchMapping,
+                    model::StaffDetailMapping,
+                    model::StaffProfileMapping,
+                    model::StaffFullMapping
                 ];
                 connections:
                 [
@@ -296,11 +379,20 @@ class M2MChainIntegrationTest {
                     CREATE TABLE T_DEPARTMENT (
                         ID INTEGER PRIMARY KEY,
                         NAME VARCHAR(100),
-                        LOCATION VARCHAR(100)
+                        LOCATION VARCHAR(100),
+                        ORG_ID INTEGER
                     )""");
-            s.execute("INSERT INTO T_DEPARTMENT VALUES (1, 'Engineering', 'San Francisco')");
-            s.execute("INSERT INTO T_DEPARTMENT VALUES (2, 'Sales', 'New York')");
-            s.execute("INSERT INTO T_DEPARTMENT VALUES (3, 'Marketing', 'Chicago')");
+            s.execute("INSERT INTO T_DEPARTMENT VALUES (1, 'Engineering', 'San Francisco', 1)");
+            s.execute("INSERT INTO T_DEPARTMENT VALUES (2, 'Sales', 'New York', 1)");
+            s.execute("INSERT INTO T_DEPARTMENT VALUES (3, 'Marketing', 'Chicago', 2)");
+
+            s.execute("""
+                    CREATE TABLE T_ORGANIZATION (
+                        ID INTEGER PRIMARY KEY,
+                        NAME VARCHAR(100)
+                    )""");
+            s.execute("INSERT INTO T_ORGANIZATION VALUES (1, 'Acme Corp')");
+            s.execute("INSERT INTO T_ORGANIZATION VALUES (2, 'Globex Inc')");
         }
     }
 
@@ -516,6 +608,81 @@ class M2MChainIntegrationTest {
             var r = exec("DirectoryEntry.all()->filter({x|$x.entry->contains('Sales')})->project(~[entry:x|$x.entry])");
             assertEquals(1, r.rowCount());
             assertEquals("BOB JONES - Sales", col(r, 0).get(0));
+        }
+    }
+
+    // ==================== Join Chains: M2M with traverse-column properties ====================
+
+    @Nested
+    @DisplayName("Join Chains: M2M referencing traverse-column properties")
+    class JoinChainTests {
+
+        @Test
+        @DisplayName("project(): single-hop traverse columns through M2M")
+        void testProjectSingleHopTraverse() throws SQLException {
+            var r = exec("StaffDetail.all()->project(~[fullName:x|$x.fullName, deptName:x|$x.deptName, deptLocation:x|$x.deptLocation])");
+            assertEquals(4, r.rowCount());
+            var names = col(r, 0);
+            var depts = col(r, 1);
+            var locs  = col(r, 2);
+            assertTrue(names.contains("Alice Smith"));
+            assertTrue(depts.contains("Engineering"));
+            assertTrue(locs.contains("San Francisco"));
+            assertTrue(depts.contains("Sales"));
+            assertTrue(locs.contains("New York"));
+        }
+
+        @Test
+        @DisplayName("graphFetch(): single-hop traverse columns through M2M")
+        void testGraphFetchSingleHopTraverse() throws SQLException {
+            var json = execGraph("""
+                    StaffDetail.all()
+                        ->graphFetch(#{ StaffDetail { fullName, deptName, deptLocation } }#)
+                        ->serialize(#{ StaffDetail { fullName, deptName, deptLocation } }#)
+                    """);
+            assertTrue(json.contains("Alice Smith"));
+            assertTrue(json.contains("Engineering"));
+            assertTrue(json.contains("San Francisco"));
+            assertTrue(json.contains("Bob Jones"));
+            assertTrue(json.contains("New York"));
+        }
+
+        @Test
+        @DisplayName("project(): filter on traverse column through M2M")
+        void testProjectTraverseWithFilter() throws SQLException {
+            var r = exec("StaffDetail.all()->filter({x|$x.deptLocation == 'San Francisco'})->project(~[fullName:x|$x.fullName, deptName:x|$x.deptName])");
+            assertEquals(2, r.rowCount(), "Alice and Carol are in Engineering (San Francisco)");
+            var names = col(r, 0);
+            assertTrue(names.contains("Alice Smith"));
+            assertTrue(names.contains("Carol White"));
+        }
+
+        @Test
+        @DisplayName("project(): multi-hop traverse column through M2M")
+        void testProjectMultiHopTraverse() throws SQLException {
+            var r = exec("StaffProfile.all()->project(~[fullName:x|$x.fullName, orgName:x|$x.orgName])");
+            assertEquals(4, r.rowCount());
+            var orgs = col(r, 1);
+            // Eng & Sales → Acme Corp (org 1), Marketing → Globex Inc (org 2)
+            assertTrue(orgs.contains("Acme Corp"));
+            assertTrue(orgs.contains("Globex Inc"));
+        }
+
+        @Test
+        @DisplayName("graphFetch(): mixed scalar traverse + association in same M2M")
+        void testGraphFetchMixedTraverseAndAssociation() throws SQLException {
+            var json = execGraph("""
+                    StaffFull.all()
+                        ->graphFetch(#{ StaffFull { fullName, deptName, department { name, location } } }#)
+                        ->serialize(#{ StaffFull { fullName, deptName, department { name, location } } }#)
+                    """);
+            // Scalar traverse column
+            assertTrue(json.contains("Engineering"));
+            assertTrue(json.contains("Sales"));
+            // Association navigation (nested objects)
+            assertTrue(json.contains("San Francisco"));
+            assertTrue(json.contains("New York"));
+            assertTrue(json.contains("Alice Smith"));
         }
     }
 

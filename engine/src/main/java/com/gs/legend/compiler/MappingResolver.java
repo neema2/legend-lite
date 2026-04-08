@@ -223,24 +223,45 @@ public final class MappingResolver {
                 // Check if it's an association navigation
                 var srcJoin = sourceStore.hasJoins() ? sourceStore.joins().get(srcProp) : null;
                 if (srcJoin != null) {
-                    // Forward association join, but use M2M TARGET class multiplicity
-                    // (e.g., PersonWithSingleAddress.address is [0..1] even though
-                    // RawPerson.rawAddresses is [*])
-                    boolean isToMany = srcJoin.isToMany();
+                    // Distinguish scalar traverse columns from association joins.
+                    // Scalar traverse: target property is primitive (String, Integer, etc.)
+                    //   → resolve as Column(srcProp); the relational sourceSpec already
+                    //     handles the LEFT JOIN + column alias via traverse extend.
+                    // Association: target property is class-typed (PureClass)
+                    //   → forward as JoinResolution for graphFetch correlated subquery.
+                    boolean isScalarTraverse = true;
                     var targetClassOpt = modelContext.findClass(pcm.targetClassName());
                     if (targetClassOpt.isPresent()) {
                         var propOpt = targetClassOpt.get().findProperty(prop);
-                        if (propOpt.isPresent()) {
-                            isToMany = !propOpt.get().multiplicity().isSingular();
+                        if (propOpt.isPresent()
+                                && propOpt.get().genericType() instanceof PureClass) {
+                            isScalarTraverse = false;
                         }
                     }
-                    if (isToMany != srcJoin.isToMany()) {
-                        srcJoin = new StoreResolution.JoinResolution(
-                                srcJoin.targetTable(), srcJoin.sourceParam(), srcJoin.targetParam(),
-                                isToMany, srcJoin.joinCondition(), srcJoin.sourceColumns(),
-                                srcJoin.targetResolution(), srcJoin.embedded());
+
+                    if (isScalarTraverse) {
+                        // Traverse column: relational sourceSpec chain already generates
+                        // the LEFT JOIN. Just reference the column alias.
+                        properties.put(prop, new StoreResolution.PropertyResolution.Column(srcProp));
+                    } else {
+                        // Association join: forward with M2M TARGET class multiplicity
+                        // (e.g., PersonWithSingleAddress.address is [0..1] even though
+                        // RawPerson.rawAddresses is [*])
+                        boolean isToMany = srcJoin.isToMany();
+                        if (targetClassOpt.isPresent()) {
+                            var propOpt = targetClassOpt.get().findProperty(prop);
+                            if (propOpt.isPresent()) {
+                                isToMany = !propOpt.get().multiplicity().isSingular();
+                            }
+                        }
+                        if (isToMany != srcJoin.isToMany()) {
+                            srcJoin = new StoreResolution.JoinResolution(
+                                    srcJoin.targetTable(), srcJoin.sourceParam(), srcJoin.targetParam(),
+                                    isToMany, srcJoin.joinCondition(), srcJoin.sourceColumns(),
+                                    srcJoin.targetResolution(), srcJoin.embedded());
+                        }
+                        joins.put(prop, srcJoin);
                     }
-                    joins.put(prop, srcJoin);
                 } else {
                     // Simple property → inherit source's resolution (Column or DynaFunction)
                     var srcRes = sourceStore.resolveProperty(srcProp);
