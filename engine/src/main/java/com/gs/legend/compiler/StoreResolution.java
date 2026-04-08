@@ -2,7 +2,6 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.ast.ValueSpecification;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -84,14 +83,6 @@ public record StoreResolution(
     public sealed interface PropertyResolution {
         /** Simple column: property maps directly to a column name. */
         record Column(String columnName) implements PropertyResolution {}
-
-        /** Expression access: variant/JSON column with key extraction + optional cast. */
-        record Expression(String columnName, String jsonKey, String castType)
-                implements PropertyResolution {}
-
-        /** Enum mapping: column value translated via CASE WHEN. */
-        record Enum(String columnName, Map<String, List<Object>> enumMap)
-                implements PropertyResolution {}
 
         /**
          * M2M expression: property computed from source via a Pure expression.

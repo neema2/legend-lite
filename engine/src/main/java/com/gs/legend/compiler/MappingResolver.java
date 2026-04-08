@@ -173,46 +173,21 @@ public final class MappingResolver {
         Map<String, String> propToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
 
-        // PMs are already view-resolved by MappingNormalizer Phase 1 — use directly.
+        // 1. Default: simple column PMs → Column(physicalCol).
+        //    Join-chain PMs → Column(propName) (traverse extend names them directly).
         for (PropertyMapping pm : rm.propertyMappings()) {
             String prop = pm.propertyName();
-            // Join-chain properties: extend(traverse(), ~propName:t|$t.COL) names them directly
-            String col = pm.hasJoinChain()
-                    ? pm.propertyName()
-                    : pm.columnName();
+            String col = pm.hasJoinChain() ? pm.propertyName() : pm.columnName();
             propToCol.put(prop, col);
-
-            var exprAccess = pm.expressionAccess();
-            if (pm.hasMultiJoinChains()) {
-                // Multi-traverse: extend already computes the column
-                properties.put(prop, new StoreResolution.PropertyResolution.Column(prop));
-            } else if (pm.hasDynaExpression() && !pm.hasJoinChain()) {
-                if (!rm.groupByColumns().isEmpty()) {
-                    // ~groupBy active: DynaFunction is incorporated into the groupBy call
-                    // in sourceRelation — output column is aliased as the property name.
-                    properties.put(prop, new StoreResolution.PropertyResolution.Column(prop));
-                } else {
-                    properties.put(prop, new StoreResolution.PropertyResolution.DynaFunction(
-                            pm.dynaExpression()));
-                }
-            } else if (exprAccess.isPresent()) {
-                var ea = exprAccess.get();
-                properties.put(prop, new StoreResolution.PropertyResolution.Expression(
-                        col, ea.jsonKey(), ea.castType()));
-            } else if (pm.hasEnumMapping()) {
-                properties.put(prop, new StoreResolution.PropertyResolution.Enum(
-                        col, pm.enumMapping()));
-            } else {
-                properties.put(prop, new StoreResolution.PropertyResolution.Column(col));
-            }
+            properties.put(prop, new StoreResolution.PropertyResolution.Column(col));
         }
 
-        // Resolve association joins from NormalizedMapping (pre-resolved by MappingNormalizer)
-        Map<String, StoreResolution.JoinResolution> joins =
-                resolveAssociationJoins(className, tableName);
-
-        // sourceRelation from NormalizedMapping (dedicated accessor — no MappingExpression needed)
+        // 2. Walk sourceRelation extends ONCE — override computed properties with
+        //    DynaFunction(expression) derived from the extend's lambda body.
+        //    Also resolves association joins, embedded extends, and traverse extends.
         var sourceRelation = normalized.findSourceRelation(className);
+        Map<String, StoreResolution.JoinResolution> joins =
+                resolveSourceRelationExtends(className, tableName, sourceRelation, propToCol, properties);
 
         resolving.remove(className);
         return new StoreResolution(
@@ -298,183 +273,226 @@ public final class MappingResolver {
     // ==================== Association / Join Resolution ====================
 
     /**
-     * Resolves association joins for a relational mapping by walking the sourceRelation's
-     * extend nodes. Each association extend has a ColSpec with fn1=traverse (0-param lambda).
-     * Also discovers inline struct-array properties (UNNEST candidates) from the model.
+     * Single-pass walk of sourceRelation extend nodes. Handles all extend types:
+     * <ul>
+     *   <li><b>Scalar extends</b> — 1-param lambda (dynaFunction, enum, expression access).
+     *       Overrides the default Column resolution with DynaFunction(lambdaBody),
+     *       deriving the expression from the sourceRelation instead of from PropertyMapping.</li>
+     *   <li><b>Association extends</b> — 0-param lambda wrapping traverse(). Builds JoinResolution.</li>
+     *   <li><b>Embedded extends</b> — 0-param lambda wrapping ColSpecArray. Builds embedded JoinResolution.</li>
+     *   <li><b>Traverse extends</b> — 3-param extend(source, traverse, colSpecs). Builds JoinResolution.</li>
+     * </ul>
+     *
+     * @param properties  mutable — scalar extends override Column entries with DynaFunction
+     * @param propToCol   mutable — scalar extends override col with propName
      */
-    private Map<String, StoreResolution.JoinResolution> resolveAssociationJoins(
-            String className, String tableName) {
+    private Map<String, StoreResolution.JoinResolution> resolveSourceRelationExtends(
+            String className, String tableName, ValueSpecification sourceRelation,
+            Map<String, String> propToCol,
+            Map<String, StoreResolution.PropertyResolution> properties) {
+
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
+        if (sourceRelation == null) {
+            addStructArrayJoins(className, joins);
+            return joins;
+        }
 
         // Demand-driven: only resolve associations the query actually navigates
         Set<String> neededAssocs = typeResult.associationNavigations()
                 .getOrDefault(className, Set.of());
 
-        // 1. Walk extend nodes in sourceRelation to find association extends
-        var sourceRelation = normalized.findSourceRelation(className);
-        if (sourceRelation != null) {
-            for (AppliedFunction extendAf : findExtendNodes(sourceRelation)) {
-                for (int i = 1; i < extendAf.parameters().size(); i++) {
-                    if (!(extendAf.parameters().get(i) instanceof ClassInstance ci)) continue;
-                    if (!(ci.value() instanceof ColSpec cs)) continue;
-                    if (!ExtendChecker.isAssociationExtend(cs)) continue;
+        for (AppliedFunction extendAf : findExtendNodes(sourceRelation)) {
 
-                    String propName = cs.name();
-                    // Skip associations not navigated by the query
-                    if (!neededAssocs.contains(propName)) continue;
-                    // Extract traverse call from fn1's body
-                    AppliedFunction traverseAf = (AppliedFunction) cs.function1().body().get(0);
-
-                    // Look up association for target class and multiplicity
-                    var nav = modelContext.findAssociationByProperty(className, propName)
-                            .orElse(null);
-                    if (nav == null) continue;
-
-                    String targetClassName = nav.targetClassName();
-                    ClassMapping targetMapping = normalized.findClassMapping(targetClassName)
-                            .orElseThrow(() -> new PureCompileException(
-                                    "Association join for property '" + propName + "' targets class '"
-                                            + targetClassName + "' which has no mapping in scope"));
-
-                    StoreResolution targetResolution;
-                    if (resolving.contains(targetClassName)) {
-                        targetResolution = buildShallowResolution(targetMapping);
-                    } else {
-                        targetResolution = resolveClassMapping(targetMapping, targetClassName);
-                    }
-                    String targetTable = targetMapping.sourceTable().name();
-
-                    joins.put(propName, buildJoinResolution(
-                            targetTable, nav.isToMany(), traverseAf, targetResolution));
-                }
+            // --- Traverse extends: extend(source, traverse(...), colSpecCI) ---
+            if (isTraverseExtend(extendAf)) {
+                resolveTraverseExtend(extendAf, joins);
+                continue;
             }
-        }
 
-        // 2. Embedded extends: fn1 is 0-param lambda wrapping ColSpecArray.
-        //    No JOIN — sub-properties resolve to parent table columns.
-        if (sourceRelation != null) {
-            for (AppliedFunction extendAf : findExtendNodes(sourceRelation)) {
-                for (int i = 1; i < extendAf.parameters().size(); i++) {
-                    if (!(extendAf.parameters().get(i) instanceof ClassInstance ci)) continue;
-                    if (!(ci.value() instanceof ColSpec cs)) continue;
-                    if (!ExtendChecker.isEmbeddedExtend(cs)) continue;
+            // --- ColSpec-based extends (scalar, association, embedded) ---
+            for (int i = 1; i < extendAf.parameters().size(); i++) {
+                if (!(extendAf.parameters().get(i) instanceof ClassInstance ci)) continue;
 
-                    String propName = cs.name();
-                    // Extract sub-ColSpecs from the ColSpecArray
-                    ClassInstance innerCI = (ClassInstance) cs.function1().body().get(0);
-                    ColSpecArray subArray = (ColSpecArray) innerCI.value();
-
-                    // Build embedded sub-property resolutions
-                    Map<String, String> subPropToCol = new LinkedHashMap<>();
-                    Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
-                    for (ColSpec sub : subArray.colSpecs()) {
-                        // fn1 body is AppliedProperty(columnName, [Variable("row")])
-                        var subBody = sub.function1().body().get(0);
-                        if (subBody instanceof AppliedProperty ap) {
-                            String colName = ap.property();
-                            subPropToCol.put(sub.name(), colName);
-                            subProperties.put(sub.name(),
-                                    new StoreResolution.PropertyResolution.EmbeddedColumn(colName));
-                        }
-                    }
-
-                    // Otherwise merge: if association JoinResolution already exists for this
-                    // property, merge embedded columns INTO the association's target resolution.
-                    // Embedded sub-properties use parent alias; others use join alias.
-                    var existingJoin = joins.get(propName);
-                    if (existingJoin != null && !existingJoin.embedded()) {
-                        // Merge: start with association's target, override with EmbeddedColumn
-                        var assocTarget = existingJoin.targetResolution();
-                        var mergedPropToCol = new LinkedHashMap<>(assocTarget.propertyToColumn());
-                        mergedPropToCol.putAll(subPropToCol);
-                        var mergedProperties = new LinkedHashMap<>(assocTarget.properties());
-                        mergedProperties.putAll(subProperties);
-                        var mergedResolution = new StoreResolution(
-                                assocTarget.tableName(), mergedPropToCol, mergedProperties,
-                                assocTarget.joins(), assocTarget.filterExpr(), assocTarget.nested());
-                        joins.put(propName, new StoreResolution.JoinResolution(
-                                existingJoin.targetTable(), existingJoin.sourceParam(),
-                                existingJoin.targetParam(), existingJoin.isToMany(),
-                                existingJoin.joinCondition(), existingJoin.sourceColumns(),
-                                mergedResolution, false));
-                    } else {
-                        // Pure embedded (no fallback join)
-                        var embeddedResolution = new StoreResolution(
-                                tableName, subPropToCol, subProperties, Map.of(),
-                                null, false);
-                        joins.put(propName, new StoreResolution.JoinResolution(
-                                null, null, null, false, null, Set.of(), embeddedResolution, true));
+                // Single ColSpec
+                if (ci.value() instanceof ColSpec cs) {
+                    resolveColSpec(cs, className, tableName, neededAssocs,
+                            propToCol, properties, joins);
+                }
+                // ColSpecArray — batch of ColSpecs
+                else if (ci.value() instanceof ColSpecArray csa) {
+                    for (ColSpec cs : csa.colSpecs()) {
+                        resolveColSpec(cs, className, tableName, neededAssocs,
+                                propToCol, properties, joins);
                     }
                 }
             }
         }
 
-        // 4. Traverse extends: extend(source, traverse(...), ~[col:{src,tgt|$tgt.COL}])
-        //    Join-chain properties that require an additional JOIN. The traverse expression
-        //    encodes the join condition; ColSpecs encode the projected columns on the target table.
-        if (sourceRelation != null) {
-            for (AppliedFunction extendAf : findExtendNodes(sourceRelation)) {
-                if (!isTraverseExtend(extendAf)) continue;
-
-                AppliedFunction traverseAf = (AppliedFunction) extendAf.parameters().get(1);
-                String targetTable = extractTraverseTargetTable(traverseAf);
-                if (targetTable == null) continue;
-
-                List<ColSpec> colSpecs = extractTraverseColSpecs(extendAf);
-                if (colSpecs.isEmpty()) continue;
-
-                // Build targetResolution mapping propName → physicalCol for all ColSpecs
-                Map<String, String> subPropToCol = new LinkedHashMap<>();
-                Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
-                for (ColSpec cs : colSpecs) {
-                    String physCol = extractTraversePhysicalColumn(cs);
-                    if (physCol != null) {
-                        subPropToCol.put(cs.name(), physCol);
-                        subProperties.put(cs.name(),
-                                new StoreResolution.PropertyResolution.Column(physCol));
-                    } else if (cs.function1() != null && !cs.function1().body().isEmpty()) {
-                        // DynaFunction body (e.g., concat($src.A, $tgt.B))
-                        subPropToCol.put(cs.name(), cs.name());
-                        subProperties.put(cs.name(),
-                                new StoreResolution.PropertyResolution.DynaFunction(
-                                        cs.function1().body().get(0)));
-                    }
-                }
-
-                var targetResolution = new StoreResolution(
-                        targetTable, subPropToCol, subProperties, Map.of(), null, false);
-                var joinRes = buildJoinResolution(
-                        targetTable, false, traverseAf, targetResolution);
-
-                for (ColSpec cs : colSpecs) {
-                    joins.put(cs.name(), joinRes);
-                }
-            }
-        }
-
-        // 3. Inline struct-array properties (to-many class-typed on the class itself).
-        //    These are UNNEST candidates (join=null) for ^Class patterns.
-        var pureClass = modelContext.findClass(className).orElse(null);
-        if (pureClass != null) {
-            for (var prop : pureClass.properties()) {
-                if (joins.containsKey(prop.name())) continue; // already resolved via Association
-                if (prop.multiplicity().isSingular()) continue;
-                var propType = prop.genericType();
-                // Only class-typed properties — skip primitives
-                if (!(propType instanceof PureClass targetClass)) continue;
-                String targetFqn = targetClass.qualifiedName();
-                if (modelContext.findClass(targetFqn).isEmpty()) continue;
-
-                // Build identity resolution for the element class
-                var elementClass = modelContext.findClass(targetFqn).get();
-                var identityMapping = RelationalMapping.identity(elementClass);
-                StoreResolution targetResolution = resolveClassMapping(identityMapping, targetFqn);
-                joins.put(prop.name(), new StoreResolution.JoinResolution(
-                        null, null, null, true, null, Set.of(), targetResolution));
-            }
-        }
+        // Inline struct-array properties (UNNEST candidates)
+        addStructArrayJoins(className, joins);
 
         return joins;
+    }
+
+    /**
+     * Resolves a single ColSpec from a sourceRelation extend node.
+     * Classifies the ColSpec and updates the appropriate output map.
+     */
+    private void resolveColSpec(ColSpec cs, String className, String tableName,
+                                Set<String> neededAssocs,
+                                Map<String, String> propToCol,
+                                Map<String, StoreResolution.PropertyResolution> properties,
+                                Map<String, StoreResolution.JoinResolution> joins) {
+        String propName = cs.name();
+
+        // Association extend: 0-param lambda wrapping traverse()
+        if (ExtendChecker.isAssociationExtend(cs)) {
+            if (!neededAssocs.contains(propName)) return;
+            resolveAssociationExtend(cs, className, joins);
+            return;
+        }
+
+        // Embedded extend: 0-param lambda wrapping ColSpecArray
+        if (ExtendChecker.isEmbeddedExtend(cs)) {
+            resolveEmbeddedExtend(cs, tableName, joins);
+            return;
+        }
+
+        // Scalar extend: exactly 1-param lambda ({row|expr}) with computed expression body.
+        // Override the default Column resolution with DynaFunction(expression).
+        // Multi-param lambdas ({t1,t2|...}) reference join aliases — keep as Column(propName)
+        // since the multi-join extend already computes the result.
+        if (cs.function1() != null && cs.function1().parameters().size() == 1
+                && !cs.function1().body().isEmpty()) {
+            propToCol.put(propName, propName);
+            properties.put(propName, new StoreResolution.PropertyResolution.DynaFunction(
+                    cs.function1().body().get(0)));
+        }
+    }
+
+    /** Resolves an association extend ColSpec into a JoinResolution. */
+    private void resolveAssociationExtend(ColSpec cs, String className,
+                                          Map<String, StoreResolution.JoinResolution> joins) {
+        String propName = cs.name();
+        AppliedFunction traverseAf = (AppliedFunction) cs.function1().body().get(0);
+
+        var nav = modelContext.findAssociationByProperty(className, propName).orElse(null);
+        if (nav == null) return;
+
+        String targetClassName = nav.targetClassName();
+        ClassMapping targetMapping = normalized.findClassMapping(targetClassName)
+                .orElseThrow(() -> new PureCompileException(
+                        "Association join for property '" + propName + "' targets class '"
+                                + targetClassName + "' which has no mapping in scope"));
+
+        StoreResolution targetResolution;
+        if (resolving.contains(targetClassName)) {
+            targetResolution = buildShallowResolution(targetMapping);
+        } else {
+            targetResolution = resolveClassMapping(targetMapping, targetClassName);
+        }
+        String targetTable = targetMapping.sourceTable().name();
+
+        joins.put(propName, buildJoinResolution(
+                targetTable, nav.isToMany(), traverseAf, targetResolution));
+    }
+
+    /** Resolves an embedded extend ColSpec into a JoinResolution (no physical JOIN). */
+    private void resolveEmbeddedExtend(ColSpec cs, String tableName,
+                                       Map<String, StoreResolution.JoinResolution> joins) {
+        String propName = cs.name();
+        ClassInstance innerCI = (ClassInstance) cs.function1().body().get(0);
+        ColSpecArray subArray = (ColSpecArray) innerCI.value();
+
+        Map<String, String> subPropToCol = new LinkedHashMap<>();
+        Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
+        for (ColSpec sub : subArray.colSpecs()) {
+            var subBody = sub.function1().body().get(0);
+            if (subBody instanceof AppliedProperty ap) {
+                String colName = ap.property();
+                subPropToCol.put(sub.name(), colName);
+                subProperties.put(sub.name(),
+                        new StoreResolution.PropertyResolution.EmbeddedColumn(colName));
+            }
+        }
+
+        var existingJoin = joins.get(propName);
+        if (existingJoin != null && !existingJoin.embedded()) {
+            // Merge embedded columns into association's target resolution
+            var assocTarget = existingJoin.targetResolution();
+            var mergedPropToCol = new LinkedHashMap<>(assocTarget.propertyToColumn());
+            mergedPropToCol.putAll(subPropToCol);
+            var mergedProperties = new LinkedHashMap<>(assocTarget.properties());
+            mergedProperties.putAll(subProperties);
+            var mergedResolution = new StoreResolution(
+                    assocTarget.tableName(), mergedPropToCol, mergedProperties,
+                    assocTarget.joins(), assocTarget.filterExpr(), assocTarget.nested());
+            joins.put(propName, new StoreResolution.JoinResolution(
+                    existingJoin.targetTable(), existingJoin.sourceParam(),
+                    existingJoin.targetParam(), existingJoin.isToMany(),
+                    existingJoin.joinCondition(), existingJoin.sourceColumns(),
+                    mergedResolution, false));
+        } else {
+            var embeddedResolution = new StoreResolution(
+                    tableName, subPropToCol, subProperties, Map.of(), null, false);
+            joins.put(propName, new StoreResolution.JoinResolution(
+                    null, null, null, false, null, Set.of(), embeddedResolution, true));
+        }
+    }
+
+    /** Resolves a traverse extend: extend(source, traverse(...), colSpecCI). */
+    private void resolveTraverseExtend(AppliedFunction extendAf,
+                                       Map<String, StoreResolution.JoinResolution> joins) {
+        AppliedFunction traverseAf = (AppliedFunction) extendAf.parameters().get(1);
+        String targetTable = extractTraverseTargetTable(traverseAf);
+        if (targetTable == null) return;
+
+        List<ColSpec> colSpecs = extractTraverseColSpecs(extendAf);
+        if (colSpecs.isEmpty()) return;
+
+        Map<String, String> subPropToCol = new LinkedHashMap<>();
+        Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
+        for (ColSpec cs : colSpecs) {
+            String physCol = extractTraversePhysicalColumn(cs);
+            if (physCol != null) {
+                subPropToCol.put(cs.name(), physCol);
+                subProperties.put(cs.name(),
+                        new StoreResolution.PropertyResolution.Column(physCol));
+            } else if (cs.function1() != null && !cs.function1().body().isEmpty()) {
+                subPropToCol.put(cs.name(), cs.name());
+                subProperties.put(cs.name(),
+                        new StoreResolution.PropertyResolution.DynaFunction(
+                                cs.function1().body().get(0)));
+            }
+        }
+
+        var targetResolution = new StoreResolution(
+                targetTable, subPropToCol, subProperties, Map.of(), null, false);
+        var joinRes = buildJoinResolution(targetTable, false, traverseAf, targetResolution);
+        for (ColSpec cs : colSpecs) {
+            joins.put(cs.name(), joinRes);
+        }
+    }
+
+    /** Adds inline struct-array properties (UNNEST candidates) from the model. */
+    private void addStructArrayJoins(String className,
+                                     Map<String, StoreResolution.JoinResolution> joins) {
+        var pureClass = modelContext.findClass(className).orElse(null);
+        if (pureClass == null) return;
+        for (var prop : pureClass.properties()) {
+            if (joins.containsKey(prop.name())) continue;
+            if (prop.multiplicity().isSingular()) continue;
+            var propType = prop.genericType();
+            if (!(propType instanceof PureClass targetClass)) continue;
+            String targetFqn = targetClass.qualifiedName();
+            if (modelContext.findClass(targetFqn).isEmpty()) continue;
+
+            var elementClass = modelContext.findClass(targetFqn).get();
+            var identityMapping = RelationalMapping.identity(elementClass);
+            StoreResolution targetResolution = resolveClassMapping(identityMapping, targetFqn);
+            joins.put(prop.name(), new StoreResolution.JoinResolution(
+                    null, null, null, true, null, Set.of(), targetResolution));
+        }
     }
 
     /**

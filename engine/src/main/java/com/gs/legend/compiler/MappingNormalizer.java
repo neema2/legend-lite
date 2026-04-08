@@ -360,10 +360,6 @@ public final class MappingNormalizer {
         // 5. Embedded property mappings → ->extend(~prop:{->~[sub1:r|$r.COL1, ...]})
         source = addEmbeddedExtends(rm, source);
 
-        // 6. Non-join property mappings → ->extend(~[name:row|$row.COL, ...])
-        // TEMPORARILY DISABLED for debugging — uncomment after Phase 3
-        // source = addPropertyExtends(rm, source);
-
         // 6. ~groupBy → ->groupBy(source, ~[keyCols], ~[aggAlias:fn1:fn2])
         //    DynaFunction property mappings become aggregate columns;
         //    ~groupBy columns become the GROUP BY keys.
@@ -378,10 +374,6 @@ public final class MappingNormalizer {
                     java.util.List.of(source),
                     true);
         }
-
-        // TODO Phase 3: add ->select(~[prop1, prop2, ...]) here once resolveColumnExpr
-        // is updated to identity mapping. For now, both physical columns and mapped
-        // property names coexist in the TDS.
 
         return source;
     }
@@ -510,14 +502,27 @@ public final class MappingNormalizer {
         var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
 
         for (var pm : propertyMappings) {
-            if (!pm.hasDynaExpression()) continue;
             if (pm.hasJoinChain()) continue; // handled by addTraverseExtends
             if (pm.hasMultiJoinChains()) continue; // handled by addMultiTraverseExtends
 
             var rowVar = new com.gs.legend.ast.Variable("row");
-            // The dynaExpression already uses $row.COLUMN references (from RelationalMappingConverter)
+            com.gs.legend.ast.ValueSpecification body;
+
+            if (pm.hasDynaExpression()) {
+                // DynaFunction: already a ValueSpec tree (from RelationalMappingConverter)
+                body = pm.dynaExpression();
+            } else if (pm.hasEnumMapping()) {
+                // Enum mapping: if(equal($row.COL, dbVal1), 'ENUM1', if(..., null))
+                body = synthesizeEnumIf(rowVar, pm);
+            } else if (pm.hasExpression()) {
+                // Expression access: get($row.COLUMN, 'key') with optional cast
+                body = synthesizeExpressionAccess(rowVar, pm);
+            } else {
+                continue; // simple column rename — handled by select at the end
+            }
+
             var lambda = new com.gs.legend.ast.LambdaFunction(
-                    java.util.List.of(rowVar), pm.dynaExpression());
+                    java.util.List.of(rowVar), body);
             colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda));
         }
 
@@ -700,85 +705,6 @@ public final class MappingNormalizer {
     }
 
     /**
-     * Synthesizes a single {@code ->extend(~[prop:row|expr, ...])} for all non-join
-     * property mappings: column renames, expression access, and enum mappings.
-     * All are batched into one FuncColSpecArray to avoid nested subqueries.
-     */
-    private com.gs.legend.ast.ValueSpecification addPropertyExtends(
-            RelationalMapping rm,
-            com.gs.legend.ast.ValueSpecification source) {
-
-        var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
-
-        for (var pm : rm.propertyMappings()) {
-            if (pm.hasJoinChain()) continue; // handled by addTraverseExtends
-
-            var rowVar = new com.gs.legend.ast.Variable("row");
-            com.gs.legend.ast.ValueSpecification body;
-
-            if (pm.hasEnumMapping()) {
-                // Enum mapping: if(equal($row.COL, dbVal1), 'ENUM1', if(..., null))
-                body = synthesizeEnumIf(rowVar, pm);
-            } else if (pm.hasExpression()) {
-                // Expression access: get($row.COLUMN, 'key') with optional cast
-                body = synthesizeExpressionAccess(rowVar, pm);
-            } else {
-                // Simple column rename: $row.COLUMN_NAME
-                body = new com.gs.legend.ast.AppliedProperty(
-                        pm.columnName(), java.util.List.of(rowVar));
-            }
-
-            var lambda = new com.gs.legend.ast.LambdaFunction(
-                    java.util.List.of(rowVar), body);
-            colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda));
-        }
-
-        if (colSpecs.isEmpty()) return source;
-
-        com.gs.legend.ast.ClassInstance colSpecCI;
-        if (colSpecs.size() == 1) {
-            colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpecs.get(0));
-        } else {
-            colSpecCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
-                    new com.gs.legend.ast.ColSpecArray(colSpecs));
-        }
-
-        return new com.gs.legend.ast.AppliedFunction(
-                "extend",
-                java.util.List.of(source, colSpecCI),
-                true);
-    }
-
-    /**
-     * Adds {@code ->select(~[prop1, prop2, ...])} to project only the mapped property names.
-     * This removes the original table columns, leaving only the Pure property names.
-     */
-    private com.gs.legend.ast.ValueSpecification addSelectProjection(
-            RelationalMapping rm,
-            com.gs.legend.ast.ValueSpecification source) {
-
-        var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
-        for (var pm : rm.propertyMappings()) {
-            colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName()));
-        }
-
-        if (colSpecs.isEmpty()) return source;
-
-        com.gs.legend.ast.ClassInstance colSpecCI;
-        if (colSpecs.size() == 1) {
-            colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpecs.get(0));
-        } else {
-            colSpecCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
-                    new com.gs.legend.ast.ColSpecArray(colSpecs));
-        }
-
-        return new com.gs.legend.ast.AppliedFunction(
-                "select",
-                java.util.List.of(source, colSpecCI),
-                true);
-    }
-
-    /**
      * Synthesizes an if/else chain for enum mapping:
      * {@code if(equal($row.COL, dbVal1), 'ENUM1', if(equal($row.COL, dbVal2), 'ENUM2', null))}
      */
@@ -828,8 +754,12 @@ public final class MappingNormalizer {
     }
 
     /**
-     * Synthesizes expression access: {@code get($row.COLUMN, 'key')} with optional
-     * {@code cast(get(...), @Type)} if a cast type is specified.
+     * Synthesizes expression access: {@code to(get($row.COLUMN, 'key'), @Type)}.
+     *
+     * <p>Uses {@code to()} (not {@code cast()}) because PlanGenerator's {@code to()} converts
+     * {@code VariantAccess} ({@code ->}) to {@code VariantTextAccess} ({@code ->>}) before
+     * casting, which strips JSON string quotes. The castType comes from the mapping grammar
+     * ({@code ->get('key', @Type)}) or is auto-inferred from the class property type.
      */
     private com.gs.legend.ast.ValueSpecification synthesizeExpressionAccess(
             com.gs.legend.ast.Variable rowVar,
@@ -842,18 +772,18 @@ public final class MappingNormalizer {
                     pm.columnName(), java.util.List.of(rowVar));
         }
 
-        // get($row.COLUMN, 'key')
+        // get($row.COLUMN, 'key') → variant access (-> in SQL)
         var colAccess = new com.gs.legend.ast.AppliedProperty(
                 pm.columnName(), java.util.List.of(rowVar));
         com.gs.legend.ast.ValueSpecification body = new com.gs.legend.ast.AppliedFunction(
                 "get", java.util.List.of(colAccess, new com.gs.legend.ast.CString(parsedAccess.jsonKey())));
 
-        // Optional cast: cast(get(...), @Type)
+        // to(get(...), @Type) → text extraction (->> in SQL) + CAST
         if (parsedAccess.castType() != null) {
             var prim = com.gs.legend.plan.GenericType.Primitive.fromTypeName(parsedAccess.castType());
             var typeRef = new com.gs.legend.ast.GenericTypeInstance(parsedAccess.castType(), prim);
             body = new com.gs.legend.ast.AppliedFunction(
-                    "cast", java.util.List.of(body, typeRef));
+                    "to", java.util.List.of(body, typeRef));
         }
 
         return body;

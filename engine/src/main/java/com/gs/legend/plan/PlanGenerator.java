@@ -985,13 +985,6 @@ public class PlanGenerator {
             case StoreResolution.PropertyResolution.Column col ->
                     alias != null ? new SqlExpr.Column(alias, col.columnName())
                             : new SqlExpr.ColumnRef(col.columnName());
-            case StoreResolution.PropertyResolution.Expression expr -> {
-                SqlExpr base = new SqlExpr.Column(alias, expr.columnName());
-                SqlExpr va = new SqlExpr.VariantTextExtract(base, expr.jsonKey());
-                yield expr.castType() != null ? new SqlExpr.Cast(va, expr.castType()) : va;
-            }
-            case StoreResolution.PropertyResolution.Enum enumRes ->
-                    buildEnumCase(alias, enumRes.columnName(), enumRes.enumMap());
             case StoreResolution.PropertyResolution.M2MExpression m2m ->
                     generateScalar(m2m.expression(), "src", m2m.sourceResolution(), alias);
             case StoreResolution.PropertyResolution.DynaFunction dyna ->
@@ -1000,30 +993,6 @@ public class PlanGenerator {
                     alias != null ? new SqlExpr.Column(alias, emb.columnName())
                             : new SqlExpr.ColumnRef(emb.columnName());
         };
-    }
-
-    /**
-     * Builds a CASE WHEN expression for enum value translation.
-     */
-    private SqlExpr buildEnumCase(String alias, String columnName, Map<String, List<Object>> enumMap) {
-        SqlExpr colExpr = alias != null
-                ? new SqlExpr.Column(alias, columnName)
-                : new SqlExpr.ColumnRef(columnName);
-        var branches = new java.util.ArrayList<SqlExpr.SearchedCase.WhenBranch>();
-        for (var entry : enumMap.entrySet()) {
-            String enumValue = entry.getKey();
-            List<Object> sourceValues = entry.getValue();
-            List<SqlExpr> conditions = sourceValues.stream()
-                    .map(sv -> (SqlExpr) new SqlExpr.Binary(colExpr, "=",
-                            new SqlExpr.StringLiteral(sv.toString())))
-                    .toList();
-            SqlExpr condition = conditions.size() == 1
-                    ? conditions.get(0)
-                    : new SqlExpr.Or(conditions);
-            branches.add(new SqlExpr.SearchedCase.WhenBranch(
-                    condition, new SqlExpr.StringLiteral(enumValue)));
-        }
-        return new SqlExpr.SearchedCase(branches, new SqlExpr.NullLiteral());
     }
 
     /**
@@ -1833,6 +1802,13 @@ public class PlanGenerator {
 
     private SqlBuilder generateExtend(AppliedFunction af) {
         List<ValueSpecification> params = af.parameters();
+
+        // --- Class-source extend: passthrough (stays in object space) ---
+        // extend(C[*]) is an intermediate step — downstream project/graphFetch generates SQL.
+        TypeInfo extendInfo = unit.types().get(af);
+        if (extendInfo != null && extendInfo.type() instanceof GenericType.ClassType) {
+            return generateRelation(params.get(0));
+        }
 
         // --- Cancellation check (from StoreResolution sidecar) ---
         var store = storeFor(af);

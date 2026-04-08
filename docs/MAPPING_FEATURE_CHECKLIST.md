@@ -87,13 +87,11 @@ Status key: ✅ = working E2E, ⚠️ = partial, ❌ = not implemented, 🔧 = n
 
 Ordered by: dependencies, impact, difficulty. Each item is independently testable.
 
-### Tier 1: Composition Quick Wins (may already work, just need tests written)
+### Tier 1: Composition Quick Wins ✅
 
-| Step | Feature | What to do |
-|------|---------|------------|
-| 1a | Self-join + filter + sort | Write full test body, try enabling |
-| 1b | Complex join + aggregation | Write full test body, try enabling |
-| 1c | Association mapping + multi-hop join | Write full test body, try enabling |
+All composition tests pass (sections 1–21 in RelationalMappingCompositionTest):
+- Self-join, complex join, association + multi-hop chain — all verified
+- Class-source groupBy with association key fixed (fb12a84)
 
 ### Tier 2: Core Missing Features
 

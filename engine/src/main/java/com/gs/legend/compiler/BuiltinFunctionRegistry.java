@@ -324,11 +324,16 @@ public class BuiltinFunctionRegistry {
         reg.registerSignature("rename",
                 "native function rename<T,Z,V>(r:Relation<T>[1], oldCols:ColSpecArray<Z⊆T>[1], newCols:ColSpecArray<V>[1]):Relation<T-Z+V>[1];");
 
-        // Extend — scalar
+        // Extend — scalar (Relation source)
         reg.registerSignature("extend",
                 "native function extend<T,Z>(r:Relation<T>[1], f:FuncColSpec<{T[1]->Any[0..1]},Z>[1]):Relation<T+Z>[1];");
         reg.registerSignature("extend",
                 "native function extend<T,Z>(r:Relation<T>[1], fs:FuncColSpecArray<{T[1]->Any[*]},Z>[1]):Relation<T+Z>[1];");
+        // Extend — scalar (Class source): stays in object space (C[*] -> C[*])
+        reg.registerSignature("extend",
+                "native function extend<C,Z>(cl:C[*], f:FuncColSpec<{C[1]->Any[0..1]},Z>[1]):C[*];");
+        reg.registerSignature("extend",
+                "native function extend<C,Z>(cl:C[*], fs:FuncColSpecArray<{C[1]->Any[*]},Z>[1]):C[*];");
         // Extend — aggregate
         reg.registerSignature("extend",
                 "native function extend<T,K,V,R>(r:Relation<T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");

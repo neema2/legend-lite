@@ -32,6 +32,13 @@ public class ExtendChecker extends AbstractChecker {
         unify(def, source.expressionType());
         List<ValueSpecification> params = af.parameters();
 
+        // Class-source overload: extend(C[*], FuncColSpec/FuncColSpecArray) -> C[*]
+        // Stays in object space — compiles lambdas against ClassType for type safety,
+        // returns ClassType[*] unchanged. Downstream project/graphFetch handles SQL.
+        if (source.type() instanceof GenericType.ClassType) {
+            return checkClassSource(af, def, source, ctx);
+        }
+
         GenericType.Relation.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException("extend() requires a Relation source with a known schema");
@@ -125,6 +132,64 @@ public class ExtendChecker extends AbstractChecker {
             builder.traversalSpecs(traversalSpecs);
         }
         return builder.build();
+    }
+
+    // ========== Class-source overload ==========
+
+    /**
+     * Handles class-source extend: {@code extend(cl:C[*], FuncColSpec/FuncColSpecArray) -> C[*]}.
+     *
+     * <p>Compiles lambda bodies against ClassType for type safety. Returns ClassType[*]
+     * (stays in object space). Tracks projections so downstream project/graphFetch
+     * and PlanGenerator can resolve the extend columns via StoreResolution.
+     */
+    private TypeInfo checkClassSource(AppliedFunction af, NativeFunctionDef def,
+                                       TypeInfo source, TypeChecker.CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        var bindings = unify(def, source.expressionType());
+
+        // Resolve lambda param type from signature (C[1])
+        PType.FunctionType ft = extractFunctionType(def.params().get(1));
+        GenericType resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+                "extend() class-source lambda param");
+
+        if (!(params.get(1) instanceof ClassInstance ci)) {
+            throw new PureCompileException(
+                    "extend() class-source: param 2 must be FuncColSpec/FuncColSpecArray, got "
+                            + params.get(1).getClass().getSimpleName());
+        }
+        List<ColSpec> colSpecs = extractColSpecs(ci);
+        List<TypeInfo.ProjectionSpec> projectionSpecs = new ArrayList<>();
+
+        for (ColSpec cs : colSpecs) {
+            String alias = cs.name();
+            LambdaFunction lambda = cs.function1();
+
+            if (lambda == null) {
+                // Simple property reference: ~prop → synthesize identity lambda
+                lambda = new LambdaFunction(
+                        List.of(new Variable("x")),
+                        List.of(new AppliedProperty(alias, List.of(new Variable("x")))));
+            }
+
+            String paramName = lambda.parameters().isEmpty() ? "x"
+                    : lambda.parameters().get(0).name();
+            TypeChecker.CompilationContext lambdaCtx = bindLambdaParam(
+                    ctx, paramName, resolvedParamType, source);
+
+            compileLambdaBody(lambda, lambdaCtx);
+
+            // Read association path from TypeInfo (stamped by TypeChecker.compileProperty)
+            TypeInfo bodyInfo = env.lookupCompiled(lambda.body().get(0));
+            List<String> associationPath = bodyInfo != null ? bodyInfo.associationPath() : null;
+            projectionSpecs.add(new TypeInfo.ProjectionSpec(associationPath, alias));
+        }
+
+        // Return ClassType[*] — stays in object space
+        return TypeInfo.builder()
+                .projections(projectionSpecs)
+                .expressionType(source.expressionType())
+                .build();
     }
 
     // ========== Public helpers for PlanGenerator ==========
