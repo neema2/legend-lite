@@ -141,4 +141,9 @@ public final class SQLiteDialect implements SQLDialect {
     public String renderVariantCast(String expr) {
         throw new UnsupportedOperationException("SQLite does not support Variant types");
     }
+
+    @Override
+    public String renderSourceUrl(String url) {
+        throw new UnsupportedOperationException("SQLite does not support external data source URLs");
+    }
 }

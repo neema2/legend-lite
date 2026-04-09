@@ -190,9 +190,15 @@ public final class MappingResolver {
                 resolveSourceSpecExtends(className, tableName, sourceSpec, propToCol, properties);
 
         resolving.remove(className);
-        return new StoreResolution(
+        var store = new StoreResolution(
                 tableName, propToCol, properties, joins,
                 null, rm.nested(), sourceSpec);
+        // Thread sourceUrl for external data sources (JSON data: / file: URIs)
+        if (rm.sourceUrl() != null) {
+            store = new StoreResolution(tableName, propToCol, properties, joins,
+                    null, rm.nested(), sourceSpec, null, rm.sourceUrl());
+        }
+        return store;
     }
 
     private StoreResolution resolveM2M(PureClassMapping pcm) {

@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
  * @param groupByColumns     Column names for ~groupBy (empty if none)
  * @param view               The raw View object when ~mainTable references a view (null for regular tables).
  *                           MappingNormalizer uses this to synthesize the view's source relation.
+ * @param sourceUrl          URL for external data sources (e.g., JSON data: or file: URI). Null for regular tables.
  */
 public record RelationalMapping(
         PureClass pureClass,
@@ -50,14 +51,15 @@ public record RelationalMapping(
         String filterDbName,
         Map<String, List<PropertyMapping>> embeddedMappings,
         List<String> groupByColumns,
-        View view) implements ClassMapping {
+        View view,
+        String sourceUrl) implements ClassMapping {
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
-        this(pureClass, table, propertyMappings, false, null, false, false, null, null, Map.of(), List.of(), null);
+        this(pureClass, table, propertyMappings, false, null, false, false, null, null, Map.of(), List.of(), null, null);
     }
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings, boolean nested) {
-        this(pureClass, table, propertyMappings, nested, null, false, false, null, null, Map.of(), List.of(), null);
+        this(pureClass, table, propertyMappings, nested, null, false, false, null, null, Map.of(), List.of(), null, null);
     }
 
     public RelationalMapping {
@@ -77,12 +79,12 @@ public record RelationalMapping(
      */
     public RelationalMapping withPropertyMappings(List<PropertyMapping> resolvedPMs) {
         return new RelationalMapping(pureClass, table, resolvedPMs, nested, setId, isRoot,
-                distinct, filterName, filterDbName, embeddedMappings, groupByColumns, view);
+                distinct, filterName, filterDbName, embeddedMappings, groupByColumns, view, sourceUrl);
     }
 
     public RelationalMapping withGroupByColumns(List<String> resolvedGroupBy) {
         return new RelationalMapping(pureClass, table, propertyMappings, nested, setId, isRoot,
-                distinct, filterName, filterDbName, embeddedMappings, resolvedGroupBy, view);
+                distinct, filterName, filterDbName, embeddedMappings, resolvedGroupBy, view, sourceUrl);
     }
 
     /**
@@ -194,6 +196,40 @@ public record RelationalMapping(
         var table = new Table(tableName, columns);
 
         return new RelationalMapping(pureClass, table, mappings, true);
+    }
+
+    /**
+     * Creates a variant identity mapping for a JSON-backed source class.
+     * The table has a single SEMISTRUCTURED {@code data} column; each primitive
+     * property maps via expression access: {@code data->get('propName', @Type)}.
+     *
+     * <p>The {@code sourceUrl} is threaded through to StoreResolution so the
+     * dialect can render the appropriate inline VARIANT subquery in the FROM clause.
+     *
+     * @param pureClass The Pure class whose properties define the mapping
+     * @param sourceUrl The data URL (data: URI, file:, or http:)
+     * @return A RelationalMapping with expression-access PropertyMappings and sourceUrl
+     */
+    public static RelationalMapping variantIdentity(PureClass pureClass, String sourceUrl) {
+        var columns = java.util.List.of(Column.nullable("data", SqlDataType.SEMISTRUCTURED));
+        // Internal table name — not registered, only used for mapping structure
+        String simpleName = pureClass.name();
+        String internalName = "_json_" + simpleName;
+        var table = new Table(internalName, columns);
+
+        var mappings = new java.util.ArrayList<PropertyMapping>();
+        for (var prop : pureClass.allProperties()) {
+            String pureType = null;
+            if (prop.genericType() instanceof com.gs.legend.model.m3.PrimitiveType pt) {
+                pureType = pt.typeName();
+            }
+            String expr = "->get('" + prop.name() + "'" +
+                    (pureType != null ? ", @" + pureType : "") + ")";
+            mappings.add(PropertyMapping.expression(prop.name(), "data", expr));
+        }
+
+        return new RelationalMapping(pureClass, table, mappings, false, null, false, false,
+                null, null, Map.of(), List.of(), null, sourceUrl);
     }
 
     @Override

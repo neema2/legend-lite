@@ -10,13 +10,8 @@ import java.sql.Statement;
 /**
  * Executes a {@link SingleExecutionPlan} against a JDBC connection.
  *
- * <p>
- * Stateless — the plan already contains the rendered SQL and the
- * expressionType, so no dialect or other state is needed.
- *
- * <p>
- * Returns a typed {@link ExecutionResult} (TabularResult, ScalarResult,
- * CollectionResult) based on the plan's expressionType.
+ * <p>The plan's SQL is fully self-contained — JSON sources are inlined
+ * as VARIANT subqueries in the FROM clause. No temp tables, no parameters.
  *
  * <pre>
  * var result = PlanExecutor.execute(plan, connection);
@@ -25,10 +20,6 @@ import java.sql.Statement;
  */
 public class PlanExecutor {
 
-    /**
-     * Executes the plan and returns a typed ExecutionResult based on the
-     * plan's expressionType.
-     */
     public static ExecutionResult execute(SingleExecutionPlan plan, Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(plan.sql())) {

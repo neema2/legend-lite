@@ -308,7 +308,7 @@ class StressTestDense {
                 resolveUs = (System.nanoTime() - t) / 1000;
                 phase = "planGen";
                 t = System.nanoTime();
-                var plan = new com.gs.legend.plan.PlanGenerator(
+                new com.gs.legend.plan.PlanGenerator(
                         unit, dialect, storeRes).generate();
                 planUs = (System.nanoTime() - t) / 1000;
                 System.out.println("    parse=" + parseUs + "us  typeCheck=" + typeUs + "us  resolve=" + resolveUs + "us  planGen=" + planUs + "us");

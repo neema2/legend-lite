@@ -682,4 +682,22 @@ public final class DuckDBDialect implements SQLDialect {
         }
         return sb.toString();
     }
+
+    @Override
+    public String renderSourceUrl(String url) {
+        if (url.startsWith("data:")) {
+            // data:application/json,[...] → extract JSON after comma, inline as literal
+            int commaIdx = url.indexOf(',');
+            if (commaIdx < 0) throw new IllegalArgumentException("Invalid data URI: " + url);
+            String content = url.substring(commaIdx + 1);
+            return "SELECT unnest(CAST(" + quoteStringLiteral(content)
+                    + " AS JSON[])) AS \"data\"";
+        }
+        if (url.startsWith("file:")) {
+            String path = java.net.URI.create(url).getPath();
+            return "SELECT json AS \"data\" FROM read_json_objects("
+                    + quoteStringLiteral(path) + ")";
+        }
+        throw new UnsupportedOperationException("DuckDB: unsupported source URL scheme: " + url);
+    }
 }

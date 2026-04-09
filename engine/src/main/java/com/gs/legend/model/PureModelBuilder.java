@@ -492,9 +492,28 @@ public final class PureModelBuilder implements ModelContext {
 
     /**
      * Adds a Runtime definition.
+     * If the runtime has JsonModelConnections, registers a variant identity
+     * RelationalMapping for each one — so downstream sees a normal relational
+     * mapping with expression-access properties on a SEMISTRUCTURED column.
      */
     public PureModelBuilder addRuntime(RuntimeDefinition runtimeDef) {
         runtimes.put(symbols.intern(runtimeDef.qualifiedName()), runtimeDef);
+
+        // Register variant identity mappings for JSON-backed source classes
+        if (runtimeDef.hasJsonConnections()) {
+            for (var jmc : runtimeDef.jsonConnections()) {
+                var pc = findClass(jmc.className()).orElse(null);
+                if (pc == null) continue; // class not yet registered — skip silently
+                var rm = RelationalMapping.variantIdentity(pc, jmc.url());
+                // Register under each mapping referenced by this runtime
+                for (String mappingName : runtimeDef.mappings()) {
+                    mappingRegistry.register(mappingName, rm);
+                }
+                // Register synthetic table so compiler's findTable() works during sourceSpec synthesis
+                tables.put(rm.table().name(), rm.table());
+            }
+        }
+
         return this;
     }
 
@@ -749,7 +768,7 @@ public final class PureModelBuilder implements ModelContext {
             // Create and register the mapping
             RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings,
                     false, setId, isRoot, distinct, filterName, filterDbName, embeddedMappings,
-                    groupByColumns, view);
+                    groupByColumns, view, null);
             mappingRegistry.register(mappingDef.qualifiedName(), mapping);
         }
 

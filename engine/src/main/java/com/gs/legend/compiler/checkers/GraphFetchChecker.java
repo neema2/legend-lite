@@ -2,7 +2,6 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.model.SymbolTable;
 import com.gs.legend.plan.GraphFetchSpec;
 
 /**

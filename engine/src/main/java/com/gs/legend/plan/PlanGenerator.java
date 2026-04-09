@@ -424,6 +424,15 @@ public class PlanGenerator {
             throw new PureCompileException("getAll: StoreResolution not resolved for " + af.function());
         }
 
+        // External data source: subquery FROM rendered by dialect (takes priority)
+        if (store.sourceUrl() != null) {
+            String alias = nextTableAlias();
+            return new SqlBuilder()
+                    .selectStar()
+                    .fromSourceExpr(new SqlExpr.SourceUrl(store.sourceUrl()),
+                            dialect.quoteIdentifier(alias));
+        }
+
         // sourceSpec path: Relation ValueSpec chain (tableRef + filter + distinct + joins)
         if (store.sourceSpec() != null) {
             return generateRelation(store.sourceSpec());

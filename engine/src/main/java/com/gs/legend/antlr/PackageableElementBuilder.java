@@ -2283,6 +2283,8 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             }
         }
 
+        List<com.gs.legend.model.def.JsonModelConnection> jsonConnections = new ArrayList<>();
+
         // Extract connections - legend-engine format: connections: [ store: [ id:
         // connRef ] ]
         for (var connectionsCtx : ctx.runtimeConnections()) {
@@ -2295,12 +2297,19 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                         connectionBindings.put(storeName, connectionRef);
                         break; // Take first connection for simplified model
                     }
+                    // Handle embedded connections: #{ JsonModelConnection { class: ...; url: '...'; } }#
+                    if (identConnCtx.embeddedConnection() != null) {
+                        var jmc = parseEmbeddedJsonModelConnection(identConnCtx.embeddedConnection());
+                        if (jmc != null) {
+                            jsonConnections.add(jmc);
+                        }
+                    }
                 }
             }
         }
 
         return new com.gs.legend.model.def.RuntimeDefinition(
-                qualifiedName, mappings, connectionBindings);
+                qualifiedName, mappings, connectionBindings, jsonConnections);
     }
 
     /**
@@ -2327,6 +2336,38 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             PureParser.DefinitionContext definitionCtx) {
         List<com.gs.legend.model.def.RuntimeDefinition> defs = extractRuntimeDefinitions(definitionCtx);
         return defs.isEmpty() ? Optional.empty() : Optional.of(defs.get(0));
+    }
+
+    // ==================== Embedded Connection Parsing ====================
+
+    private static final java.util.regex.Pattern JMC_CLASS_PATTERN =
+            java.util.regex.Pattern.compile("class\\s*:\\s*([\\w:]+)\\s*;");
+    private static final java.util.regex.Pattern JMC_URL_PATTERN =
+            java.util.regex.Pattern.compile("url\\s*:\\s*'([^']*)'\\s*;");
+
+    /**
+     * Parses an embedded connection island into a JsonModelConnection.
+     * Extracts class name and URL from the raw text content.
+     * Returns null if the content is not a JsonModelConnection.
+     */
+    private com.gs.legend.model.def.JsonModelConnection parseEmbeddedJsonModelConnection(
+            PureParser.EmbeddedConnectionContext ctx) {
+        // Reconstruct raw text from island tokens
+        var sb = new StringBuilder();
+        for (var content : ctx.embeddedConnectionContent()) {
+            sb.append(content.getText());
+        }
+        String raw = sb.toString().trim();
+        // Must start with "JsonModelConnection"
+        if (!raw.startsWith("JsonModelConnection")) return null;
+
+        var classMatcher = JMC_CLASS_PATTERN.matcher(raw);
+        var urlMatcher = JMC_URL_PATTERN.matcher(raw);
+        if (!classMatcher.find() || !urlMatcher.find()) return null;
+
+        String qualifiedClass = classMatcher.group(1);
+        return new com.gs.legend.model.def.JsonModelConnection(
+                qualifiedClass, urlMatcher.group(1));
     }
 
     // ==================== Native Function Parsing ====================

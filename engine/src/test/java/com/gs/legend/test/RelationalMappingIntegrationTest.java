@@ -68,11 +68,6 @@ class RelationalMappingIntegrationTest {
         }
     }
 
-    /** Get all values from column index across all rows. */
-    private List<Object> col(ExecutionResult r, int idx) {
-        return r.rows().stream().map(row -> row.get(idx)).collect(Collectors.toList());
-    }
-
     /** Get all values from column index as strings. */
     private List<String> colStr(ExecutionResult r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? row.get(idx).toString() : null)

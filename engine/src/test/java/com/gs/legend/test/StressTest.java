@@ -405,39 +405,4 @@ class StressTest {
         System.out.println("TOTAL: " + totalMs + " ms");
         assertEquals(0, failed, failed + " queries failed out of " + queries.size());
     }
-
-    /** Recursively dump AST shape — shows extend chain and ColSpec names */
-    private void dumpAst(String label, com.gs.legend.ast.ValueSpecification vs) {
-        System.out.println("  " + label + ": " + describeNode(vs, 0));
-    }
-
-    private String describeNode(com.gs.legend.ast.ValueSpecification vs, int depth) {
-        if (depth > 10) return "...";
-        var sb = new StringBuilder();
-        if (vs instanceof com.gs.legend.ast.AppliedFunction af) {
-            sb.append(af.function()).append("(");
-            for (int i = 0; i < af.parameters().size(); i++) {
-                if (i > 0) sb.append(", ");
-                var p = af.parameters().get(i);
-                if (i == 0 && "extend".equals(af.function())) {
-                    // First param is the source chain — recurse
-                    sb.append(describeNode(p, depth + 1));
-                } else if (p instanceof com.gs.legend.ast.ClassInstance ci
-                        && ci.value() instanceof com.gs.legend.ast.ColSpec cs) {
-                    sb.append("~").append(cs.name());
-                    if (cs.function1() != null && !cs.function1().parameters().isEmpty()) {
-                        sb.append("[lambda]");
-                    } else if (cs.function1() != null) {
-                        sb.append("[assocExtend]");
-                    }
-                } else {
-                    sb.append(p.getClass().getSimpleName());
-                }
-            }
-            sb.append(")");
-        } else {
-            sb.append(vs.getClass().getSimpleName());
-        }
-        return sb.toString();
-    }
 }

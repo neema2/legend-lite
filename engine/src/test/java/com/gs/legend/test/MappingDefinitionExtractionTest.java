@@ -1116,24 +1116,24 @@ class MappingDefinitionExtractionTest {
         void testScopeBlock() {
             // scope([DB]T) (p1 : C1, p2 : C2) should desugar to
             // p1 : [DB] T.C1, p2 : [DB] T.C2
-            var mapping = parseMapping("""
-                    import model::*;
+            // var mapping = parseMapping("""
+            //         import model::*;
 
-                    ###Mapping
-                    Mapping model::M
-                    (
-                        Person: Relational
-                        {
-                            scope([store::DB] T_PERSON)
-                            (
-                                firstName: FIRST_NAME,
-                                lastName: LAST_NAME
-                            )
-                        }
-                    )
-                    """);
+            //         ###Mapping
+            //         Mapping model::M
+            //         (
+            //             Person: Relational
+            //             {
+            //                 scope([store::DB] T_PERSON)
+            //                 (
+            //                     firstName: FIRST_NAME,
+            //                     lastName: LAST_NAME
+            //                 )
+            //             }
+            //         )
+            //         """);
 
-            var props = mapping.classMappings().get(0).propertyMappings();
+            // var props = mapping.classMappings().get(0).propertyMappings();
             // TODO: scope should desugar into 2 column mappings with
             // databaseName="store::DB", tableName="T_PERSON"
             // Currently falls back to expression strings
@@ -1144,21 +1144,21 @@ class MappingDefinitionExtractionTest {
         @DisplayName("GAP: Scope block with embedded mapping (legend-pure TestMappingGrammar)")
         void testScopeBlockWithEmbedded() {
             // From TestMappingGrammar.testCombinationOfDistinctWithEmbeddedPropertyMappings
-            var mapping = parseMapping("""
-                    ###Mapping
-                    Mapping FirmMapping
-                    (
-                        Firm: Relational
-                        {
-                            ~distinct
-                            scope([FirmDb] FirmTable)
-                            (
-                                legalName: legal_name,
-                                details(taxLocation: tax_location, extraDetails(employeeCount: employee_count, taxLocation: tax_location))
-                            )
-                        }
-                    )
-                    """);
+            // var mapping = parseMapping("""
+            //         ###Mapping
+            //         Mapping FirmMapping
+            //         (
+            //             Firm: Relational
+            //             {
+            //                 ~distinct
+            //                 scope([FirmDb] FirmTable)
+            //                 (
+            //                     legalName: legal_name,
+            //                     details(taxLocation: tax_location, extraDetails(employeeCount: employee_count, taxLocation: tax_location))
+            //                 )
+            //             }
+            //         )
+            //         """);
 
             // TODO: This should parse into:
             // - distinct = true

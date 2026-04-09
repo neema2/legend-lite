@@ -305,4 +305,21 @@ public interface SQLDialect {
     default String renderJsonArrayAgg(String expr) {
         return "json_group_array(" + expr + ")";
     }
+
+    // ==================== External Data Source ====================
+
+    /**
+     * Renders a complete SELECT subquery for an external data source URL.
+     * The subquery must produce a single VARIANT column named "data".
+     *
+     * <p>DuckDB examples:
+     * <ul>
+     *   <li>{@code data:} URI → {@code SELECT unnest(CAST('...' AS JSON[]))::VARIANT AS "data"}</li>
+     *   <li>{@code file:} URI → {@code SELECT json::VARIANT AS "data" FROM read_json_objects('...')}</li>
+     * </ul>
+     *
+     * @param url The data source URL (data: URI, file:, or http:)
+     * @return Complete SELECT SQL to be used as a subquery in FROM
+     */
+    String renderSourceUrl(String url);
 }

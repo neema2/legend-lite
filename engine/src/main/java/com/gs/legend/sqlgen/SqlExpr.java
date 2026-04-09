@@ -602,4 +602,14 @@ public sealed interface SqlExpr {
             return dialect.renderVariantCast(expr.toSql(dialect));
         }
     }
+
+    // ==================== External Data Source ====================
+
+    /** External data source rendered as a subquery. Dialect renders the URL scheme. */
+    record SourceUrl(String url) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderSourceUrl(url);
+        }
+    }
 }

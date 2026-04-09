@@ -22,7 +22,20 @@ import java.util.Map;
 public record RuntimeDefinition(
         String qualifiedName,
         List<String> mappings,
-        Map<String, String> connectionBindings) implements PackageableElement {
+        Map<String, String> connectionBindings,
+        List<JsonModelConnection> jsonConnections) implements PackageableElement {
+
+    /**
+     * Backward-compatible constructor (no JSON connections).
+     */
+    public RuntimeDefinition(String qualifiedName, List<String> mappings,
+            Map<String, String> connectionBindings) {
+        this(qualifiedName, mappings, connectionBindings, List.of());
+    }
+
+    public RuntimeDefinition {
+        if (jsonConnections == null) jsonConnections = List.of();
+    }
 
     /**
      * Returns the simple name (last part after ::).
@@ -45,5 +58,12 @@ public record RuntimeDefinition(
      */
     public String getConnectionForStore(String storeName) {
         return connectionBindings.get(storeName);
+    }
+
+    /**
+     * @return true if this runtime has any JSON model connections
+     */
+    public boolean hasJsonConnections() {
+        return jsonConnections != null && !jsonConnections.isEmpty();
     }
 }

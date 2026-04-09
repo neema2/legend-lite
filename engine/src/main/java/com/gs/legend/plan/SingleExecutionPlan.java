@@ -7,8 +7,7 @@ import java.util.Objects;
  * A single-root execution plan, aligned with legend-engine's
  * {@code SingleExecutionPlan}.
  *
- * <p>
- * Contains a single {@link ExecutionNode} tree rooted at
+ * <p>Contains a single {@link ExecutionNode} tree rooted at
  * {@link #rootExecutionNode} and the unified {@link ExpressionType}
  * of the compiled expression.
  */

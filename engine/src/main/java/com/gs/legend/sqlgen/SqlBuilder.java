@@ -42,6 +42,7 @@ public class SqlBuilder {
     private String fromAlias;
     private String fromSchema;
     private SqlBuilder fromSubquery;
+    private SqlExpr fromSourceExpr;
     private ValuesClause fromValues;
 
     // ──── JOIN ────
@@ -150,6 +151,13 @@ public class SqlBuilder {
 
     public SqlBuilder fromSubquery(SqlBuilder subquery, String alias) {
         this.fromSubquery = subquery;
+        this.fromAlias = alias;
+        return this;
+    }
+
+    /** FROM (sqlExpr) AS alias — the SqlExpr is rendered by the dialect at toSql time. */
+    public SqlBuilder fromSourceExpr(SqlExpr sourceExpr, String alias) {
+        this.fromSourceExpr = sourceExpr;
         this.fromAlias = alias;
         return this;
     }
@@ -421,6 +429,11 @@ public class SqlBuilder {
             }
         } else if (fromSubquery != null) {
             sql.append(" FROM (").append(fromSubquery.toSql(dialect)).append(")");
+            if (fromAlias != null) {
+                sql.append(" AS ").append(fromAlias);
+            }
+        } else if (fromSourceExpr != null) {
+            sql.append(" FROM (").append(fromSourceExpr.toSql(dialect)).append(")");
             if (fromAlias != null) {
                 sql.append(" AS ").append(fromAlias);
             }

@@ -24,6 +24,8 @@ import java.util.Map;
  * @param sourceSpec   Synthesized source Relation ValueSpec for relational mappings (null for M2M/identity).
  *                         Encapsulates tableReference + filter + distinct + join chains.
  * @param extendOverride   Cancellation info for extend nodes (null = not an extend node / all active).
+ * @param sourceUrl        URL for external data sources (e.g., JSON data: or file: URI). Null for regular tables.
+ *                         When set, PlanGenerator uses dialect.renderSourceUrl() instead of bare table name.
  */
 public record StoreResolution(
         String tableName,
@@ -33,9 +35,10 @@ public record StoreResolution(
         ValueSpecification filterExpr,
         boolean nested,
         ValueSpecification sourceSpec,
-        ExtendOverride extendOverride) {
+        ExtendOverride extendOverride,
+        String sourceUrl) {
 
-    /** Constructor without extendOverride (default for all non-extend nodes). */
+    /** Constructor without extendOverride or sourceUrl (default for all non-extend nodes). */
     public StoreResolution(
             String tableName,
             Map<String, String> propertyToColumn,
@@ -44,10 +47,10 @@ public record StoreResolution(
             ValueSpecification filterExpr,
             boolean nested,
             ValueSpecification sourceSpec) {
-        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, sourceSpec, null);
+        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, sourceSpec, null, null);
     }
 
-    /** Constructor without sourceSpec or extendOverride (for M2M and identity mappings). */
+    /** Constructor without sourceSpec, extendOverride, or sourceUrl (for M2M and identity mappings). */
     public StoreResolution(
             String tableName,
             Map<String, String> propertyToColumn,
@@ -55,12 +58,12 @@ public record StoreResolution(
             Map<String, JoinResolution> joins,
             ValueSpecification filterExpr,
             boolean nested) {
-        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, null, null);
+        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, null, null, null);
     }
 
     /** Factory for extend-only StoreResolutions (carries only cancellation info). */
     public static StoreResolution forExtend(ExtendOverride override) {
-        return new StoreResolution(null, Map.of(), Map.of(), Map.of(), null, false, null, override);
+        return new StoreResolution(null, Map.of(), Map.of(), Map.of(), null, false, null, override, null);
     }
 
     /**
