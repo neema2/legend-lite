@@ -1109,6 +1109,11 @@ public class BuiltinFunctionRegistry {
                 "native function graphFetch<T>(source:T[*], tree:RootGraphFetchTree<T>[1]):T[*];");
         reg.registerSignature("graphFetch",
                 "native function graphFetch<T>(source:T[*], tree:RootGraphFetchTree<T>[1], batchSize:Integer[1]):T[*];");
+        // graphFetch with ColSpec/ColSpecArray — desugared form of #{...}#
+        reg.registerSignature("graphFetch",
+                "native function graphFetch<T>(source:T[*], col:ColSpec<T>[1]):String[1];");
+        reg.registerSignature("graphFetch",
+                "native function graphFetch<T>(source:T[*], cols:ColSpecArray<T>[1]):String[1];");
         reg.registerSignature("serialize",
                 "native function serialize<T>(source:T[*], tree:RootGraphFetchTree<T>[1]):String[1];");
         reg.registerSignature("serialize",

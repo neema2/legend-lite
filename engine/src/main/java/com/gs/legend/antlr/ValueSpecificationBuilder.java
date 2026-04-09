@@ -472,10 +472,22 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
         return current;
     }
 
+    /**
+     * Desugars a graphFetch tree {@code #{Person { name, firm { legalName } }}#} into
+     * ColSpec-based AST. The root class name is stored in a wrapper ClassInstance
+     * so GraphFetchChecker can validate it.
+     *
+     * <p>Desugaring rules:
+     * <ul>
+     *   <li>Simple property {@code name} → {@code ColSpec("name", {x|$x.name})}</li>
+     *   <li>Nested property {@code firm { legalName }} →
+     *       {@code ColSpec("firm", {x|$x.firm->get(~[legalName: y|$y.legalName])})}</li>
+     * </ul>
+     *
+     * <p>The result is a {@code ClassInstance("rootGraphFetchTree__colSpec", ColSpecArray)}
+     * where the type string encodes the root class name for validation by GraphFetchChecker.
+     */
     private ValueSpecification parseGraphFetchTree(String content) {
-        // Sub-parse the island content through PureParser.graphFetchTree() rule.
-        // The island grammar captures #{...}# as raw text; we re-lex/parse to get
-        // structured GraphFetchTree nodes with full ANTLR validation.
         PureLexer lexer = new PureLexer(CharStreams.fromString(content));
         PureParser parser = new PureParser(new CommonTokenStream(lexer));
         parser.removeErrorListeners();
@@ -490,56 +502,48 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
         });
 
         PureParser.GraphFetchTreeContext tree = parser.graphFetchTree();
-        GraphFetchTree gft = buildGraphFetchTree(tree);
-        return new ClassInstance("rootGraphFetchTree", gft);
+        // Root class (tree.qualifiedName()) is dropped — graphFetch gets it from arg[0]
+        ColSpecArray colSpecArray = desugarGraphPaths(tree.graphDefinition(), 0);
+        return new ClassInstance("colSpecArray", colSpecArray);
     }
 
-    /**
-     * Builds a GraphFetchTree from the parser context.
-     */
-    private GraphFetchTree buildGraphFetchTree(PureParser.GraphFetchTreeContext ctx) {
-        String rootClass = ctx.qualifiedName().getText();
-        List<GraphFetchTree.PropertyFetch> properties = buildGraphPaths(ctx.graphDefinition());
-        return new GraphFetchTree(rootClass, properties);
-    }
 
     /**
-     * Builds property fetches from a graphDefinition: { graphPaths }
+     * Desugars a graphDefinition ({@code { prop1, prop2 { sub } }}) into a ColSpecArray.
      */
-    private List<GraphFetchTree.PropertyFetch> buildGraphPaths(PureParser.GraphDefinitionContext ctx) {
-        List<GraphFetchTree.PropertyFetch> props = new ArrayList<>();
+    private ColSpecArray desugarGraphPaths(PureParser.GraphDefinitionContext ctx, int depth) {
+        List<ColSpec> colSpecs = new ArrayList<>();
         if (ctx.graphPaths() != null) {
             for (PureParser.GraphPathContext gp : ctx.graphPaths().graphPath()) {
-                props.add(buildPropertyFetch(gp));
-            }
-            // Handle subTypeGraphPath if present (future extension)
-            for (PureParser.SubTypeGraphPathContext stgp : ctx.graphPaths().subTypeGraphPath()) {
-                // For now, we could support subtypes but skip for simplicity
-                String subTypeName = stgp.subtype().qualifiedName().getText();
-                List<GraphFetchTree.PropertyFetch> subProps = buildGraphPaths(stgp.graphDefinition());
-                // Represent as a special property fetch with subtype marker
-                GraphFetchTree subTree = new GraphFetchTree(subTypeName, subProps);
-                props.add(new GraphFetchTree.PropertyFetch("@" + subTypeName, subTree));
+                colSpecs.add(desugarGraphPath(gp, depth));
             }
         }
-        return props;
+        return new ColSpecArray(colSpecs);
     }
 
     /**
-     * Builds a single PropertyFetch from a graphPath: alias? identifier params? subtype? graphDefinition?
+     * Desugars a single graphPath into a ColSpec with synthetic lambdas.
+     *
+     * <p>Simple: {@code name} → {@code ColSpec("name", fn1={x|$x.name}, fn2=null)}
+     * <p>Nested: {@code firm { legalName }} →
+     *    {@code ColSpec("firm", fn1={x|$x.firm}, fn2={-> ~[legalName: y|$y.legalName]})}
      */
-    private GraphFetchTree.PropertyFetch buildPropertyFetch(PureParser.GraphPathContext ctx) {
+    private ColSpec desugarGraphPath(PureParser.GraphPathContext ctx, int depth) {
         String propName = getIdentifierText(ctx.identifier());
+        String paramName = "_gf" + depth;
+        Variable param = new Variable(paramName);
+        AppliedProperty propAccess = new AppliedProperty(propName, List.of(param));
+        LambdaFunction fn1 = new LambdaFunction(List.of(param), List.of(propAccess));
 
-        // Check for nested graph definition
         if (ctx.graphDefinition() != null) {
-            List<GraphFetchTree.PropertyFetch> nested = buildGraphPaths(ctx.graphDefinition());
-            // For nested, the rootClass is the property name (or resolved class)
-            GraphFetchTree subTree = new GraphFetchTree(propName, nested);
-            return GraphFetchTree.PropertyFetch.nested(propName, subTree);
+            // Nested: fn2 = 0-param lambda wrapping the nested ColSpecArray
+            ColSpecArray nestedSpecs = desugarGraphPaths(ctx.graphDefinition(), depth + 1);
+            ClassInstance nestedCI = new ClassInstance("colSpecArray", nestedSpecs);
+            LambdaFunction fn2 = new LambdaFunction(List.of(), List.of(nestedCI));
+            return new ColSpec(propName, fn1, fn2);
         }
 
-        return GraphFetchTree.PropertyFetch.simple(propName);
+        return new ColSpec(propName, fn1);
     }
 
     private ValueSpecification parseRelationLiteral(String content) {

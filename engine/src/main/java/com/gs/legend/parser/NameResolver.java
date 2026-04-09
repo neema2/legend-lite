@@ -221,7 +221,7 @@ public final class NameResolver {
      * <p>Walks the AST tree and resolves:
      * <ul>
      *   <li>{@link PackageableElementPtr#fullPath()} — e.g., {@code Employee} in {@code Employee.all()}</li>
-     *   <li>{@link GraphFetchTree#rootClass()} — e.g., {@code Employee} in {@code #{Employee{...}}#}</li>
+     *   <li>Desugared graphFetch root class — e.g., {@code Employee} in {@code #{Employee{...}}#}</li>
      *   <li>{@link GenericTypeInstance#fullPath()} — e.g., {@code Employee} in {@code @Employee}</li>
      * </ul>
      *
@@ -292,32 +292,7 @@ public final class NameResolver {
 
     private static Object resolveClassInstanceValue(
             Object value, ImportScope imports, Set<String> knownFqns) {
-        if (value instanceof GraphFetchTree gft) {
-            return resolveGraphFetchTree(gft, imports, knownFqns);
-        }
+        // ClassInstance values (ColSpecArray, ColSpec, etc.) contain no class names to resolve.
         return value;
-    }
-
-    private static GraphFetchTree resolveGraphFetchTree(
-            GraphFetchTree tree, ImportScope imports, Set<String> knownFqns) {
-        String resolvedRoot = imports.resolve(tree.rootClass(), knownFqns);
-
-        // Recursively resolve nested sub-trees
-        boolean propsChanged = false;
-        List<GraphFetchTree.PropertyFetch> resolvedProps = new ArrayList<>(tree.properties().size());
-        for (GraphFetchTree.PropertyFetch pf : tree.properties()) {
-            if (pf.isNested()) {
-                GraphFetchTree resolvedSub = resolveGraphFetchTree(pf.subTree(), imports, knownFqns);
-                if (resolvedSub != pf.subTree()) {
-                    resolvedProps.add(GraphFetchTree.PropertyFetch.nested(pf.name(), resolvedSub));
-                    propsChanged = true;
-                    continue;
-                }
-            }
-            resolvedProps.add(pf);
-        }
-
-        if (resolvedRoot.equals(tree.rootClass()) && !propsChanged) return tree;
-        return new GraphFetchTree(resolvedRoot, propsChanged ? resolvedProps : tree.properties());
     }
 }

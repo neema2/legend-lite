@@ -47,13 +47,6 @@ public record TypeInfo(
          * Empty when no conflicts. Used by PlanGenerator to alias right-side columns.
          */
         Map<String, String> joinColumnRenames,
-
-        /**
-         * Graph fetch specification for JSON output.
-         * When non-null, PlanGenerator wraps SQL output in json_group_array(json_object(...)).
-         * Compiler-resolved from parsed GraphFetchTree — no parser types cross this boundary.
-         */
-        com.gs.legend.plan.GraphFetchSpec graphFetchSpec,
         /**
          * Parsed TDS literal data (columns + rows).
          * Stamped by TypeChecker for tds() calls, consumed by PlanGenerator to generate VALUES SQL.
@@ -354,7 +347,6 @@ public record TypeInfo(
         private List<WindowSpec> windowSpecs = List.of();
         private ValueSpecification inlinedBody;
         private Map<String, String> joinColumnRenames = Map.of();
-        private com.gs.legend.plan.GraphFetchSpec graphFetchSpec;
         private com.gs.legend.ast.TdsLiteral tdsLiteral;
         private ExpressionType expressionType;
         private boolean lambdaParam;
@@ -376,7 +368,6 @@ public record TypeInfo(
             this.windowSpecs = src.windowSpecs();
             this.inlinedBody = src.inlinedBody();
             this.joinColumnRenames = src.joinColumnRenames();
-            this.graphFetchSpec = src.graphFetchSpec();
             this.tdsLiteral = src.tdsLiteral();
             this.expressionType = src.expressionType();
             this.lambdaParam = src.lambdaParam();
@@ -396,7 +387,6 @@ public record TypeInfo(
         public Builder windowSpecs(List<WindowSpec> v) { this.windowSpecs = v; return this; }
         public Builder inlinedBody(ValueSpecification v) { this.inlinedBody = v; return this; }
         public Builder joinColumnRenames(Map<String, String> v) { this.joinColumnRenames = v; return this; }
-        public Builder graphFetchSpec(com.gs.legend.plan.GraphFetchSpec v) { this.graphFetchSpec = v; return this; }
         public Builder tdsLiteral(com.gs.legend.ast.TdsLiteral v) { this.tdsLiteral = v; return this; }
         public Builder expressionType(ExpressionType v) { this.expressionType = v; return this; }
         public Builder lambdaParam(boolean v) { this.lambdaParam = v; return this; }
@@ -414,7 +404,7 @@ public record TypeInfo(
             }
             return new TypeInfo(instanceLiteral, sortSpecs, projections,
                     columnSpecs, aggColumnSpecs, joinType, windowSpecs, inlinedBody,
-                    joinColumnRenames, graphFetchSpec, tdsLiteral, expressionType,
+                    joinColumnRenames, tdsLiteral, expressionType,
                     lambdaParam, resolvedFunc, foldSpec, traversalSpecs,
                     resolvedTableName, associationPath);
         }

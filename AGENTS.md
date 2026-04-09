@@ -17,15 +17,24 @@ Parser → Compiler → PlanGenerator → Dialect → Execute
 - It MUST resolve all variant access patterns, cast targets, list types, etc.
 - If TypeInfo is missing for something, **the Compiler has a bug — fix the Compiler**
 
-### 2. PlanGenerator Does NO AST Walking or Typing
+### 2. PlanGenerator Does No Type Inference
 
-- PlanGen MUST NOT inspect AST node types for type dispatch (no `instanceof CInteger` to decide behavior)
-- PlanGen MUST NOT parse function names to guess types (no `funcName.contains("Int")`)
-- PlanGen MUST NOT contain any SQL dialect-specific code (no DuckDB, JSON, INTEGER, BIGINT, VARCHAR, TIMESTAMP_NS)
-- PlanGen MUST NOT hardcode SQL type strings — use Pure type names; the Dialect maps them
-- PlanGen reads TypeInfo from `CompilationUnit` — that is the ONLY source of type knowledge
-- If PlanGen needs type queries, **add utility methods to TypeInfo** (e.g., `isList()`, `isString()`, `isDate()`) — never leak type or AST work into PlanGen
-- PlanGen emits `SqlExpr` nodes — never raw SQL strings
+PlanGenerator reads the **annotated AST** — structure from AST nodes, types and resolved metadata from TypeInfo sidecar.
+
+PlanGenerator MUST NOT:
+- Infer or resolve types (no model lookups, no type compatibility checks)
+- Validate correctness (that's the Compiler's job)
+- Inspect AST node types for **type** dispatch (no `instanceof CInteger` to decide SQL type)
+- Parse function names to guess types (no `funcName.contains("Int")`)
+- Contain any SQL dialect-specific code (no DuckDB, JSON, INTEGER, BIGINT, VARCHAR, TIMESTAMP_NS)
+- Hardcode SQL type strings — use Pure type names; the Dialect maps them
+
+PlanGenerator MAY:
+- Read AST structure: function names, parameters, lambda bodies, ColSpec names, nesting
+- Read TypeInfo annotations: expression types, store resolutions, sort specs
+- Pattern-match on AST node kinds for **structural** dispatch (e.g., `AppliedFunction` → `generateFunction`, lambda body → compile body)
+
+PlanGen emits `SqlExpr` nodes — never raw SQL strings.
 
 ### 3. Dialect Owns All SQL Rendering
 
@@ -57,5 +66,5 @@ Parser → Compiler → PlanGenerator → Dialect → Execute
 4. **Adding normalizations instead of fixing root cause** — fix the actual generation
 5. **Adding fallbacks/defaults** — fail loudly; fix the Compiler instead
 6. **Fixing fallbacks by changing the default** — if you find a fallback/default branch being hit, do NOT change what it defaults to. Instead: (a) make it throw, (b) find why the Compiler produced null/missing TypeInfo, (c) fix the Compiler. The fallback existing at all is the bug.
-7. **Taking the "simplest" approach over the correct one** — never extract information from AST in PlanGenerator just because it's easier. If PlanGenerator needs a piece of information (e.g., a lambda parameter name, a resolved type), **add it to the TypeInfo/sidecar record in the Compiler**. The correct approach always respects the side-table invariant: Compiler resolves and stores, PlanGenerator reads and renders.
+7. **Doing type inference in PlanGenerator** — PlanGenerator may read AST for structure (property names, function names, lambda bodies) but must NEVER infer or resolve types. If PlanGenerator needs a **type** (e.g., "is this a list?", "what class is this?"), it must come from TypeInfo. Structural information (e.g., ColSpec names, nesting) can be read directly from the AST.
 8. **Making the Compiler lenient on missing model elements** — the Compiler MUST throw if a referenced class, property, or type is not found in the model context. This is literally the compiler's job. If a test fails because a class isn't found, **fix the test to set up the model correctly** (add the class to `commonClassDefs()` or `TypeEnvironment`). NEVER make the Compiler silently degrade (e.g., fall back to `ANY`, skip compilation). Silent degradation hides bugs and causes downstream issues (e.g., PlanGenerator routing `contains` to `STRPOS` because the struct array wasn't tagged as a list).

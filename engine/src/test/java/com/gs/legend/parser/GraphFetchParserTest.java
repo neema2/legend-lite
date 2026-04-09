@@ -1,18 +1,15 @@
 package com.gs.legend.parser;
 
-import com.gs.legend.ast.AppliedFunction;
-import com.gs.legend.ast.ClassInstance;
-import com.gs.legend.ast.GraphFetchTree;
-import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.ast.*;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for graphFetch/serialize parsing via g4 sub-parse in ValueSpecificationBuilder.
- * 
- * Verifies that #{...}# island content is sub-parsed through
- * PureParser.graphFetchTree() into structured GraphFetchTree records.
+ *
+ * Verifies that #{...}# island content is desugared into ColSpec-based AST
+ * with fn1 for property access and fn2 for nested properties.
  */
 class GraphFetchParserTest {
 
@@ -26,18 +23,18 @@ class GraphFetchParserTest {
         AppliedFunction af = (AppliedFunction) vs;
         assertEquals("graphFetch", af.function());
 
-        // Second parameter is ClassInstance wrapping GraphFetchTree
+        // Second parameter is ClassInstance wrapping ColSpecArray (desugared)
         ClassInstance ci = (ClassInstance) af.parameters().get(1);
-        assertEquals("rootGraphFetchTree", ci.type());
-        assertInstanceOf(GraphFetchTree.class, ci.value());
+        assertEquals("colSpecArray", ci.type());
+        assertInstanceOf(ColSpecArray.class, ci.value());
 
-        GraphFetchTree tree = (GraphFetchTree) ci.value();
-        assertEquals("Person", tree.rootClass());
-        assertEquals(2, tree.properties().size());
-        assertEquals("firstName", tree.properties().get(0).name());
-        assertEquals("lastName", tree.properties().get(1).name());
-        assertFalse(tree.properties().get(0).isNested());
-        assertFalse(tree.properties().get(1).isNested());
+        ColSpecArray csa = (ColSpecArray) ci.value();
+        assertEquals(2, csa.colSpecs().size());
+        assertEquals("firstName", csa.colSpecs().get(0).name());
+        assertEquals("lastName", csa.colSpecs().get(1).name());
+        // Each has fn1 lambda: {x|$x.prop}
+        assertNotNull(csa.colSpecs().get(0).function1());
+        assertNotNull(csa.colSpecs().get(1).function1());
     }
 
     @Test
@@ -54,16 +51,16 @@ class GraphFetchParserTest {
         AppliedFunction graphFetch = (AppliedFunction) serialize.parameters().get(0);
         assertEquals("graphFetch", graphFetch.function());
 
-        // serialize tree
+        // serialize tree — desugared ColSpecArray
         ClassInstance serializeCi = (ClassInstance) serialize.parameters().get(1);
-        GraphFetchTree serializeTree = (GraphFetchTree) serializeCi.value();
-        assertEquals("Person", serializeTree.rootClass());
-        assertEquals(2, serializeTree.properties().size());
+        ColSpecArray serializeCsa = (ColSpecArray) serializeCi.value();
+        assertEquals(2, serializeCsa.colSpecs().size());
 
-        // graphFetch tree
+        // graphFetch tree — desugared ColSpecArray
         ClassInstance fetchCi = (ClassInstance) graphFetch.parameters().get(1);
-        GraphFetchTree fetchTree = (GraphFetchTree) fetchCi.value();
-        assertEquals("Person", fetchTree.rootClass());
+        assertEquals("colSpecArray", fetchCi.type());
+        ColSpecArray fetchCsa = (ColSpecArray) fetchCi.value();
+        assertEquals(2, fetchCsa.colSpecs().size());
     }
 
     @Test
@@ -75,12 +72,11 @@ class GraphFetchParserTest {
         AppliedFunction serialize = (AppliedFunction) vs;
         assertEquals("serialize", serialize.function());
 
-        // Verify the tree inside serialize
+        // Verify the desugared ColSpecArray inside serialize
         ClassInstance ci = (ClassInstance) serialize.parameters().get(1);
-        GraphFetchTree tree = (GraphFetchTree) ci.value();
-        assertEquals("Person", tree.rootClass());
-        assertEquals(1, tree.properties().size());
-        assertEquals("name", tree.properties().get(0).name());
+        ColSpecArray csa = (ColSpecArray) ci.value();
+        assertEquals(1, csa.colSpecs().size());
+        assertEquals("name", csa.colSpecs().get(0).name());
     }
 
     @Test
@@ -90,22 +86,35 @@ class GraphFetchParserTest {
 
         AppliedFunction af = (AppliedFunction) vs;
         ClassInstance ci = (ClassInstance) af.parameters().get(1);
-        GraphFetchTree tree = (GraphFetchTree) ci.value();
+        ColSpecArray csa = (ColSpecArray) ci.value();
 
-        assertEquals("Person", tree.rootClass());
-        assertEquals(2, tree.properties().size());
+        assertEquals(2, csa.colSpecs().size());
 
-        // Simple property
-        assertEquals("firstName", tree.properties().get(0).name());
-        assertFalse(tree.properties().get(0).isNested());
+        // Simple property: ColSpec("firstName", {x|$x.firstName})
+        ColSpec firstNameSpec = csa.colSpecs().get(0);
+        assertEquals("firstName", firstNameSpec.name());
+        assertNotNull(firstNameSpec.function1());
+        // Lambda body is AppliedProperty
+        assertInstanceOf(AppliedProperty.class, firstNameSpec.function1().body().get(0));
 
-        // Nested property
-        GraphFetchTree.PropertyFetch addressFetch = tree.properties().get(1);
-        assertEquals("addresses", addressFetch.name());
-        assertTrue(addressFetch.isNested());
-        assertEquals(2, addressFetch.subTree().properties().size());
-        assertEquals("street", addressFetch.subTree().properties().get(0).name());
-        assertEquals("city", addressFetch.subTree().properties().get(1).name());
+        // Nested property: ColSpec("addresses", fn1={x|$x.addresses}, fn2={-> ~[street, city]})
+        ColSpec addressesSpec = csa.colSpecs().get(1);
+        assertEquals("addresses", addressesSpec.name());
+        assertNotNull(addressesSpec.function1());
+        // fn1 body is AppliedProperty (just $x.addresses)
+        assertInstanceOf(AppliedProperty.class, addressesSpec.function1().body().get(0));
+        assertEquals("addresses", ((AppliedProperty) addressesSpec.function1().body().get(0)).property());
+        // fn2 is non-null — carries nested ColSpecArray
+        assertNotNull(addressesSpec.function2());
+        assertTrue(addressesSpec.function2().parameters().isEmpty()); // 0-param lambda
+        ClassInstance nestedCi = (ClassInstance) addressesSpec.function2().body().get(0);
+        ColSpecArray nestedCsa = (ColSpecArray) nestedCi.value();
+        assertEquals(2, nestedCsa.colSpecs().size());
+        assertEquals("street", nestedCsa.colSpecs().get(0).name());
+        assertEquals("city", nestedCsa.colSpecs().get(1).name());
+        // Nested ColSpecs are scalar — fn2 is null
+        assertNull(nestedCsa.colSpecs().get(0).function2());
+        assertNull(nestedCsa.colSpecs().get(1).function2());
     }
 
     @Test

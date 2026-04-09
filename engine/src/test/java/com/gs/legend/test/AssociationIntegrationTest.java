@@ -81,6 +81,12 @@ class AssociationIntegrationTest {
                 .collect(Collectors.toList());
     }
 
+    private String execGraph(String model, String query) throws SQLException {
+        var result = exec(model, query);
+        assertInstanceOf(ExecutionResult.GraphResult.class, result);
+        return result.asGraph().json();
+    }
+
     // ==================== Shared Test Data ====================
 
     /**
@@ -1647,6 +1653,141 @@ class AssociationIntegrationTest {
             assertNull(map.get("CEO"));       // CEO has no manager
             assertEquals("CEO", map.get("VP"));    // VP's manager is CEO
             assertEquals("VP", map.get("Dev"));    // Dev's manager is VP
+        }
+    }
+
+    // ==================== GraphFetch with To-Many Associations ====================
+
+    @Nested
+    @DisplayName("GraphFetch: To-Many Association Navigation")
+    class GraphFetchToMany {
+
+        @BeforeEach
+        void setup() throws SQLException { setupTables(); }
+
+        @Test
+        @DisplayName("graphFetch: to-many addresses as nested JSON array")
+        void testGraphFetchToManyAddresses() throws SQLException {
+            var json = execGraph(fullModel(), """
+                    Person.all()->sort({p|$p.name})
+                        ->graphFetch(#{ Person { name, addresses { city } } }#)
+                        ->serialize(#{ Person { name, addresses { city } } }#)
+                    """);
+            // Alice has 2 addresses, Bob has 1, Charlie has 0, Diana has 0
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("NYC"));
+            assertTrue(json.contains("LA"));
+            assertTrue(json.contains("Bob"));
+            assertTrue(json.contains("Chicago"));
+            assertTrue(json.contains("Charlie"));
+            assertTrue(json.contains("Diana"));
+        }
+
+        @Test
+        @DisplayName("graphFetch: to-one firm as nested JSON object")
+        void testGraphFetchToOneFirm() throws SQLException {
+            var json = execGraph(fullModel(), """
+                    Person.all()->sort({p|$p.name})
+                        ->graphFetch(#{ Person { name, firm { legalName } } }#)
+                        ->serialize(#{ Person { name, firm { legalName } } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("Acme"));
+            assertTrue(json.contains("Charlie"));
+            assertTrue(json.contains("Globex"));
+        }
+
+        @Test
+        @DisplayName("graphFetch: mixed to-one + to-many in same fetch")
+        void testGraphFetchMixedToOneAndToMany() throws SQLException {
+            var json = execGraph(fullModel(), """
+                    Person.all()->sort({p|$p.name})
+                        ->graphFetch(#{ Person { name, firm { legalName }, addresses { city } } }#)
+                        ->serialize(#{ Person { name, firm { legalName }, addresses { city } } }#)
+                    """);
+            // Alice: firm=Acme, addresses=[NYC, LA]
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("Acme"));
+            assertTrue(json.contains("NYC"));
+            assertTrue(json.contains("LA"));
+            // Bob: firm=Acme, addresses=[Chicago]
+            assertTrue(json.contains("Bob"));
+            assertTrue(json.contains("Chicago"));
+        }
+
+        @Test
+        @DisplayName("graphFetch: person with no addresses gets empty array")
+        void testGraphFetchToManyEmpty() throws SQLException {
+            var json = execGraph(fullModel(), """
+                    Person.all()->filter({p|$p.name == 'Charlie'})
+                        ->graphFetch(#{ Person { name, addresses { city } } }#)
+                        ->serialize(#{ Person { name, addresses { city } } }#)
+                    """);
+            assertTrue(json.contains("Charlie"));
+            // Charlie has no addresses — should get empty array or null, not crash
+            assertFalse(json.contains("NYC"));
+            assertFalse(json.contains("LA"));
+            assertFalse(json.contains("Chicago"));
+        }
+
+        @Test
+        @DisplayName("graphFetch: filter then to-many — only Alice's addresses")
+        void testGraphFetchFilterThenToMany() throws SQLException {
+            var json = execGraph(fullModel(), """
+                    Person.all()->filter({p|$p.name == 'Alice'})
+                        ->graphFetch(#{ Person { name, addresses { city } } }#)
+                        ->serialize(#{ Person { name, addresses { city } } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("NYC"));
+            assertTrue(json.contains("LA"));
+            assertFalse(json.contains("Bob"));
+            assertFalse(json.contains("Chicago"));
+        }
+
+        @Test
+        @DisplayName("graphFetch: to-many with multiple child properties")
+        void testGraphFetchToManyMultipleChildProps() throws SQLException {
+            // Address has id and city — fetch both
+            var json = execGraph(fullModel(), """
+                    Person.all()->filter({p|$p.name == 'Alice'})
+                        ->graphFetch(#{ Person { name, addresses { id, city } } }#)
+                        ->serialize(#{ Person { name, addresses { id, city } } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("NYC"));
+            assertTrue(json.contains("LA"));
+        }
+
+        @Test
+        @DisplayName("graphFetch: NULL FK person gets null nested object for to-one")
+        void testGraphFetchNullFkToOne() throws SQLException {
+            var json = execGraph(fullModel(), """
+                    Person.all()->filter({p|$p.name == 'Diana'})
+                        ->graphFetch(#{ Person { name, firm { legalName } } }#)
+                        ->serialize(#{ Person { name, firm { legalName } } }#)
+                    """);
+            assertTrue(json.contains("Diana"));
+            // Diana has NULL firm_id — firm should be null/absent
+            assertFalse(json.contains("Acme"));
+            assertFalse(json.contains("Globex"));
+        }
+
+        @Test
+        @DisplayName("graphFetch: scalar props only — no association overhead")
+        void testGraphFetchScalarOnly() throws SQLException {
+            var json = execGraph(fullModel(), """
+                    Person.all()->sort({p|$p.name})
+                        ->graphFetch(#{ Person { name, id } }#)
+                        ->serialize(#{ Person { name, id } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("Bob"));
+            assertTrue(json.contains("Charlie"));
+            assertTrue(json.contains("Diana"));
+            // No nested objects
+            assertFalse(json.contains("Acme"));
+            assertFalse(json.contains("NYC"));
         }
     }
 }

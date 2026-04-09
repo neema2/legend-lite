@@ -132,30 +132,25 @@ public class PlanGenerator {
      * FROM (tabular_sql) AS _sub
      * </pre>
      *
-     * Uses GraphFetchSpec properties as JSON keys.
-     * The inner tabular query must have SELECT columns matching the spec's property names.
+     * Reads property names directly from the ColSpec AST.
      */
     private SqlBuilder wrapJsonOutput(SqlBuilder tabular,
-            com.gs.legend.plan.GraphFetchSpec spec, TypeInfo info,
+            java.util.List<com.gs.legend.ast.ColSpec> colSpecs,
             java.util.Map<String, SqlExpr> nestedSubqueries) {
         // Build json_object key-value pairs: 'key', _sub."key", ...
         var kvPairs = new java.util.ArrayList<SqlExpr>();
-        for (var prop : spec.properties()) {
-            kvPairs.add(new SqlExpr.StringLiteral(prop.name()));
-            if (prop.isNested() && nestedSubqueries.containsKey(prop.name())) {
-                // Nested property: correlated subquery expression
-                kvPairs.add(nestedSubqueries.get(prop.name()));
+        for (var cs : colSpecs) {
+            kvPairs.add(new SqlExpr.StringLiteral(cs.name()));
+            if (nestedSubqueries.containsKey(cs.name())) {
+                kvPairs.add(nestedSubqueries.get(cs.name()));
             } else {
-                // ColumnRef.toSql() calls dialect.quoteIdentifier() — pass raw name
-                kvPairs.add(new SqlExpr.ColumnRef(prop.name()));
+                kvPairs.add(new SqlExpr.ColumnRef(cs.name()));
             }
         }
 
-        // Dialect-delegated JSON expressions (no DuckDB names in PlanGenerator)
         var jsonObjectExpr = new SqlExpr.JsonObject(kvPairs);
         var jsonArrayExpr = new SqlExpr.JsonArrayAgg(jsonObjectExpr);
 
-        // Outer query: SELECT json_array_agg(json_object(...)) AS "result" FROM (inner) AS "_sub"
         var outer = new SqlBuilder();
         outer.addSelect(jsonArrayExpr, dialect.quoteIdentifier("result"));
         outer.fromSubquery(tabular, dialect.quoteIdentifier("_sub"));
@@ -447,23 +442,15 @@ public class PlanGenerator {
     }
 
     /**
-     * Generates SQL for graphFetch: projects mapped properties from the source,
-     * then wraps with JSON output based on the GraphFetchSpec.
+     * Generates SQL for graphFetch: reads the ColSpec tree from the AST,
+     * projects mapped properties, and wraps in JSON output.
      *
-     * <p>Like generateProject, resolves mapped property expressions via
-     * resolveColumnExpr. The projected columns are then wrapped with
-     * json_group_array(json_object(...)).
-     *
-     * <p>Currently handles flat fetch (all scalar properties).
-     * Phase 3: extend to handle nested properties via correlated subqueries.
+     * <p>Scalar ColSpecs → SELECT columns. Nested ColSpecs (lambda body is
+     * {@code $x.prop->get(~[...])}) → correlated subqueries with json_object.
      */
     private SqlBuilder generateGraphFetch(AppliedFunction af) {
-        TypeInfo info = unit.typeInfoFor(af);
-        var spec = info.graphFetchSpec();
-        if (spec == null) {
-            throw new PureCompileException(
-                    "generateGraphFetch: graphFetchSpec not found in TypeInfo — compiler bug");
-        }
+        // Read ColSpec tree directly from AST — no spec record needed
+        var colSpecs = extractGraphFetchColSpecs(af.parameters().get(1));
 
         // Step 1: Build source SQL (e.g., Person.all() → SELECT * FROM T_RAW_PERSON)
         SqlBuilder source = generateRelation(af.parameters().get(0));
@@ -472,49 +459,43 @@ public class PlanGenerator {
         var store = storeFor(af);
         String tableAlias;
         if (source.hasJoins()) {
-            // Source has JOINs (from traverse extends) — wrap in subquery so
-            // traverse-computed column aliases are accessible on the wrapper alias.
-            // Same pattern as generateProject's canInline=false wrapping.
             tableAlias = "gf_src";
             source = new SqlBuilder().selectStar().fromSubquery(source, tableAlias);
         } else {
             tableAlias = unquote(source.getFromAlias());
         }
 
-        // Step 3: Project mapped properties into source builder
-        // Also track parent join columns needed for nested correlated subqueries
+        // Step 3: Project mapped properties — read structure from ColSpec AST
         source.clearSelect();
         var nestedSubqueries = new java.util.LinkedHashMap<String, SqlExpr>();
-        for (var prop : spec.properties()) {
-            if (prop.isNested()) {
-                // Resolve join for this nested property
-                var joinRes = store != null && store.hasJoins() ? store.joins().get(prop.name()) : null;
+        for (var cs : colSpecs) {
+            var nestedCsa = extractNestedColSpecs(cs);
+            if (nestedCsa != null) {
+                // Nested property: fn2 carries the nested ColSpecArray
+                var joinRes = store != null && store.hasJoins() ? store.joins().get(cs.name()) : null;
                 if (joinRes == null) {
                     throw new PureCompileException(
-                            "Nested property '" + prop.name() + "' has no resolved join in StoreResolution");
+                            "Nested property '" + cs.name() + "' has no resolved join in StoreResolution");
                 }
 
-                // Ensure parent join columns are projected (may be multiple for compound conditions)
                 if (joinRes.joinCondition() != null) {
                     for (String col : joinRes.sourceColumns()) {
                         source.addSelect(new SqlExpr.Column(tableAlias, col), dialect.quoteIdentifier(col));
                     }
                 }
 
-                // Build correlated subquery for nested object
                 String childTable = joinRes.targetTable();
-                String childAlias = "c_" + prop.name();
+                String childAlias = "c_" + cs.name();
 
-                // Build json_object for child properties
+                // Build json_object for child properties (read names from nested ColSpecs)
                 var childKvPairs = new java.util.ArrayList<SqlExpr>();
-                for (var childProp : prop.nested().properties()) {
-                    childKvPairs.add(new SqlExpr.StringLiteral(childProp.name()));
-                    SqlExpr childColExpr = resolveColumnExpr(childProp.name(), joinRes.targetResolution(), childAlias);
+                for (var childCs : nestedCsa) {
+                    childKvPairs.add(new SqlExpr.StringLiteral(childCs.name()));
+                    SqlExpr childColExpr = resolveColumnExpr(childCs.name(), joinRes.targetResolution(), childAlias);
                     childKvPairs.add(childColExpr);
                 }
                 var childJsonObj = new SqlExpr.JsonObject(childKvPairs);
 
-                // Correlated WHERE: full join condition with _sub as source, childAlias as target
                 SqlExpr correlation = (joinRes.joinCondition() != null)
                         ? generateScalar(joinRes.joinCondition(), null, null, null,
                             Map.of(joinRes.sourceParam(), "_sub", joinRes.targetParam(), childAlias))
@@ -522,25 +503,44 @@ public class PlanGenerator {
 
                 SqlBuilder childQuery = new SqlBuilder();
                 if (joinRes.isToMany()) {
-                    // 1-to-many: SELECT json_group_array(json_object(...))
                     childQuery.addSelect(new SqlExpr.JsonArrayAgg(childJsonObj),
                             dialect.quoteIdentifier("_arr"));
                 } else {
-                    // 1-to-1: scalar subquery — enforces [0..1] by throwing if >1 row
                     childQuery.addSelect(childJsonObj, dialect.quoteIdentifier("_obj"));
                 }
                 childQuery.from(dialect.quoteIdentifier(childTable), dialect.quoteIdentifier(childAlias));
                 childQuery.addWhere(correlation);
 
-                nestedSubqueries.put(prop.name(), new SqlExpr.Subquery(childQuery));
+                nestedSubqueries.put(cs.name(), new SqlExpr.Subquery(childQuery));
             } else {
-                SqlExpr colExpr = resolveColumnExpr(prop.name(), store, tableAlias);
-                source.addSelect(colExpr, dialect.quoteIdentifier(prop.name()));
+                // Scalar property
+                SqlExpr colExpr = resolveColumnExpr(cs.name(), store, tableAlias);
+                source.addSelect(colExpr, dialect.quoteIdentifier(cs.name()));
             }
         }
 
-        // Step 4: Wrap projected query in JSON output (with nested subqueries)
-        return wrapJsonOutput(source, spec, info, nestedSubqueries);
+        // Step 4: Wrap projected query in JSON output
+        return wrapJsonOutput(source, colSpecs, nestedSubqueries);
+    }
+
+    /** Extracts ColSpec list from a graphFetch argument (ClassInstance wrapping ColSpecArray). */
+    private static java.util.List<com.gs.legend.ast.ColSpec> extractGraphFetchColSpecs(ValueSpecification arg) {
+        if (arg instanceof com.gs.legend.ast.ClassInstance ci
+                && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa) {
+            return csa.colSpecs();
+        }
+        throw new PureCompileException("generateGraphFetch: expected ColSpecArray argument");
+    }
+
+    /** If a ColSpec has fn2 (nested), extracts the ColSpec list. Returns null for scalar. */
+    private static java.util.List<com.gs.legend.ast.ColSpec> extractNestedColSpecs(com.gs.legend.ast.ColSpec cs) {
+        if (cs.function2() == null || cs.function2().body().isEmpty()) return null;
+        var body = cs.function2().body().get(0);
+        if (body instanceof com.gs.legend.ast.ClassInstance ci
+                && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa) {
+            return csa.colSpecs();
+        }
+        return null;
     }
 
     private SqlBuilder generateTableAccess(AppliedFunction af) {
