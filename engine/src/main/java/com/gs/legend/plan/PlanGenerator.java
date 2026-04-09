@@ -675,10 +675,10 @@ public class PlanGenerator {
         if (source.isSelectStar() && source.hasWhere()
                 && !source.hasGroupBy() && !source.hasOrderBy()
                 && !source.hasWindowColumns()) {
-            String mergeAlias = source.getFromAlias() != null ? unquote(source.getFromAlias()) : null;
-            SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, store);
+            String mergeAlias = unquote(source.getFromAlias());
+            SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName, store, mergeAlias);
             // Resolve association paths → EXISTS subqueries
-            if (store != null && mergeAlias != null) {
+            if (store != null && store.hasJoins()) {
                 whereClause = resolveAssociationRefs(whereClause, store, mergeAlias);
             }
             source.addWhere(whereClause);

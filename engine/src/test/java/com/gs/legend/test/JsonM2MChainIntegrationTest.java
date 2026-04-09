@@ -445,6 +445,14 @@ class JsonM2MChainIntegrationTest {
         }
 
         @Test
+        @DisplayName("project: mapping filter + user filter compose")
+        void testProjectMappingAndUserFilter() throws SQLException {
+            var r = exec("ActiveStaff.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
+            assertEquals(1, r.rowCount(), "Only Alice is active + Engineering");
+            assertEquals("Alice Smith", col(r, 0).get(0));
+        }
+
+        @Test
         @DisplayName("graphFetch: ActiveStaff mapping filter + partial selection")
         void testGraphFetchMappingFilterPartial() throws SQLException {
             var json = execGraph("""
