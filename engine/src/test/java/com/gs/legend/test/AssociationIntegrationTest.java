@@ -1790,4 +1790,261 @@ class AssociationIntegrationTest {
             assertFalse(json.contains("NYC"));
         }
     }
+
+    // ==================== GraphFetch: Deep Nesting (2+ levels) ====================
+
+    @Nested
+    @DisplayName("GraphFetch: Deep Nesting")
+    class GraphFetchDeepNesting {
+
+        /**
+         * Extended schema for deep nesting:
+         * <pre>
+         * T_PERSON  → T_DEPT    (PersonDept,    to-one)
+         * T_DEPT    → T_ORG     (DeptOrg,       to-one)
+         * T_PERSON  → T_ADDRESS (PersonAddress,  to-many)
+         * T_ADDRESS → T_COUNTRY (AddressCountry, to-one)
+         * T_ADDRESS → T_TAG     (AddressTag,     to-many)  ← nested to-many
+         * T_PERSON  → T_FIRM    (PersonFirm,     to-one)
+         * T_PERSON  → T_PHONE   (PersonPhone,    to-many)  ← disjoint to-many
+         * </pre>
+         * Alice: firm=Acme, dept=Engineering(org=AcmeCorp), addresses=[NYC(USA,tags=[home,work]), London(UK,tags=[vacation])], phones=[555-1111, 555-2222]
+         * Bob: firm=Acme, dept=Sales(org=NULL), addresses=[Chicago(USA,tags=[])], phones=[555-3333]
+         * Charlie: firm=Globex, dept=Engineering(org=AcmeCorp), addresses=[Paris(country=NULL,tags=[travel])], phones=[]
+         * Diana: firm=NULL, dept=NULL, addresses=[], phones=[]
+         */
+        @BeforeEach
+        void setup() throws SQLException {
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INT, DEPT_ID INT)",
+                "CREATE TABLE T_FIRM (ID INT PRIMARY KEY, LEGAL_NAME VARCHAR(100))",
+                "CREATE TABLE T_DEPT (ID INT PRIMARY KEY, NAME VARCHAR(50), ORG_ID INT)",
+                "CREATE TABLE T_ORG (ID INT PRIMARY KEY, NAME VARCHAR(100))",
+                "CREATE TABLE T_ADDRESS (ID INT PRIMARY KEY, PERSON_ID INT, CITY VARCHAR(100), COUNTRY_ID INT)",
+                "CREATE TABLE T_COUNTRY (ID INT PRIMARY KEY, NAME VARCHAR(100))",
+                "CREATE TABLE T_TAG (ID INT PRIMARY KEY, ADDRESS_ID INT, LABEL VARCHAR(50))",
+                "CREATE TABLE T_PHONE (ID INT PRIMARY KEY, PERSON_ID INT, NUMBER VARCHAR(20))",
+                "INSERT INTO T_ORG VALUES (1, 'Acme Corp')",
+                "INSERT INTO T_FIRM VALUES (1, 'Acme'), (2, 'Globex')",
+                "INSERT INTO T_DEPT VALUES (1, 'Engineering', 1), (2, 'Sales', NULL)",
+                "INSERT INTO T_COUNTRY VALUES (1, 'USA'), (2, 'UK')",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1, 1), (2, 'Bob', 1, 2), (3, 'Charlie', 2, 1), (4, 'Diana', NULL, NULL)",
+                "INSERT INTO T_ADDRESS VALUES (1, 1, 'NYC', 1), (2, 1, 'London', 2), (3, 2, 'Chicago', 1), (4, 3, 'Paris', NULL)",
+                "INSERT INTO T_TAG VALUES (1, 1, 'home'), (2, 1, 'work'), (3, 2, 'vacation'), (4, 4, 'travel')",
+                "INSERT INTO T_PHONE VALUES (1, 1, '555-1111'), (2, 1, '555-2222'), (3, 2, '555-3333')");
+        }
+
+        private String deepModel() {
+            return withRuntime("""
+                import store::*;
+                import test::*;
+
+                Class test::Person { id: Integer[1]; name: String[1]; }
+                Class test::Firm { id: Integer[1]; legalName: String[1]; }
+                Class test::Dept { id: Integer[1]; name: String[1]; }
+                Class test::Org { id: Integer[1]; name: String[1]; }
+                Class test::Address { id: Integer[1]; city: String[1]; }
+                Class test::Country { id: Integer[1]; name: String[1]; }
+                Class test::Tag { id: Integer[1]; label: String[1]; }
+                Class test::Phone { id: Integer[1]; number: String[1]; }
+                Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                Association test::PersonDept { dept: Dept[0..1]; members: Person[*]; }
+                Association test::PersonAddress { addresses: Address[*]; person: Person[1]; }
+                Association test::DeptOrg { org: Org[0..1]; departments: Dept[*]; }
+                Association test::AddressCountry { country: Country[0..1]; addressesInCountry: Address[*]; }
+                Association test::AddressTag { tags: Tag[*]; address: Address[1]; }
+                Association test::PersonPhone { phones: Phone[*]; owner: Person[1]; }
+                Database store::DB
+                (
+                    Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
+                    Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
+                    Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                    Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                    Table T_ADDRESS (ID INTEGER PRIMARY KEY, PERSON_ID INTEGER, CITY VARCHAR(100), COUNTRY_ID INTEGER)
+                    Table T_COUNTRY (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                    Table T_TAG (ID INTEGER PRIMARY KEY, ADDRESS_ID INTEGER, LABEL VARCHAR(50))
+                    Table T_PHONE (ID INTEGER PRIMARY KEY, PERSON_ID INTEGER, NUMBER VARCHAR(20))
+                    Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
+                    Join PersonDept(T_PERSON.DEPT_ID = T_DEPT.ID)
+                    Join PersonAddress(T_PERSON.ID = T_ADDRESS.PERSON_ID)
+                    Join DeptOrg(T_DEPT.ORG_ID = T_ORG.ID)
+                    Join AddressCountry(T_ADDRESS.COUNTRY_ID = T_COUNTRY.ID)
+                    Join AddressTag(T_ADDRESS.ID = T_TAG.ADDRESS_ID)
+                    Join PersonPhone(T_PERSON.ID = T_PHONE.PERSON_ID)
+                )
+                Mapping test::M
+                (
+                    Person: Relational { ~mainTable [store::DB] T_PERSON  id: [store::DB] T_PERSON.ID, name: [store::DB] T_PERSON.NAME }
+                    Firm: Relational { ~mainTable [store::DB] T_FIRM  id: [store::DB] T_FIRM.ID, legalName: [store::DB] T_FIRM.LEGAL_NAME }
+                    Dept: Relational { ~mainTable [store::DB] T_DEPT  id: [store::DB] T_DEPT.ID, name: [store::DB] T_DEPT.NAME }
+                    Org: Relational { ~mainTable [store::DB] T_ORG  id: [store::DB] T_ORG.ID, name: [store::DB] T_ORG.NAME }
+                    Address: Relational { ~mainTable [store::DB] T_ADDRESS  id: [store::DB] T_ADDRESS.ID, city: [store::DB] T_ADDRESS.CITY }
+                    Country: Relational { ~mainTable [store::DB] T_COUNTRY  id: [store::DB] T_COUNTRY.ID, name: [store::DB] T_COUNTRY.NAME }
+                    Tag: Relational { ~mainTable [store::DB] T_TAG  id: [store::DB] T_TAG.ID, label: [store::DB] T_TAG.LABEL }
+                    Phone: Relational { ~mainTable [store::DB] T_PHONE  id: [store::DB] T_PHONE.ID, number: [store::DB] T_PHONE.NUMBER }
+                    test::PersonFirm: AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm )
+                    test::PersonDept: AssociationMapping ( members: [store::DB]@PersonDept, dept: [store::DB]@PersonDept )
+                    test::PersonAddress: AssociationMapping ( person: [store::DB]@PersonAddress, addresses: [store::DB]@PersonAddress )
+                    test::DeptOrg: AssociationMapping ( departments: [store::DB]@DeptOrg, org: [store::DB]@DeptOrg )
+                    test::AddressCountry: AssociationMapping ( addressesInCountry: [store::DB]@AddressCountry, country: [store::DB]@AddressCountry )
+                    test::AddressTag: AssociationMapping ( address: [store::DB]@AddressTag, tags: [store::DB]@AddressTag )
+                    test::PersonPhone: AssociationMapping ( owner: [store::DB]@PersonPhone, phones: [store::DB]@PersonPhone )
+                )
+                """, "store::DB", "test::M");
+        }
+
+        @Test
+        @DisplayName("2-level to-one: Person → Dept → Org")
+        void testDeepNestingToOneToOne() throws SQLException {
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Alice'})
+                        ->graphFetch(#{ Person { name, dept { name, org { name } } } }#)
+                        ->serialize(#{ Person { name, dept { name, org { name } } } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("Engineering"));
+            assertTrue(json.contains("Acme Corp"));
+        }
+
+        @Test
+        @DisplayName("2-level with to-many: Person → addresses[*] → country")
+        void testDeepNestingToManyThenToOne() throws SQLException {
+            // Alice has 2 addresses: NYC (USA), London (UK)
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Alice'})
+                        ->graphFetch(#{ Person { name, addresses { city, country { name } } } }#)
+                        ->serialize(#{ Person { name, addresses { city, country { name } } } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("NYC"));
+            assertTrue(json.contains("USA"));
+            assertTrue(json.contains("London"));
+            assertTrue(json.contains("UK"));
+        }
+
+        @Test
+        @DisplayName("Multiple disjoint nesting: Person { firm {}, dept {}, addresses {} }")
+        void testMultipleDisjointNesting() throws SQLException {
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Alice'})
+                        ->graphFetch(#{ Person { name, firm { legalName }, dept { name, org { name } }, addresses { city, country { name } } } }#)
+                        ->serialize(#{ Person { name, firm { legalName }, dept { name, org { name } }, addresses { city, country { name } } } }#)
+                    """);
+            // Alice: firm=Acme, dept=Engineering→Acme Corp, addresses=[NYC(USA), London(UK)]
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("Acme"));           // firm
+            assertTrue(json.contains("Engineering"));     // dept
+            assertTrue(json.contains("Acme Corp"));       // org (2nd level)
+            assertTrue(json.contains("NYC"));             // address
+            assertTrue(json.contains("USA"));             // country (2nd level via to-many)
+            assertTrue(json.contains("London"));
+            assertTrue(json.contains("UK"));
+        }
+
+        @Test
+        @DisplayName("NULL FK at depth 2: Dept with NULL ORG_ID → org is null")
+        void testDeepNestingNullFkAtDepth2() throws SQLException {
+            // Bob is in Sales dept which has ORG_ID=NULL
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Bob'})
+                        ->graphFetch(#{ Person { name, dept { name, org { name } } } }#)
+                        ->serialize(#{ Person { name, dept { name, org { name } } } }#)
+                    """);
+            assertTrue(json.contains("Bob"));
+            assertTrue(json.contains("Sales"));
+            assertFalse(json.contains("Acme Corp"));
+        }
+
+        @Test
+        @DisplayName("NULL FK at depth 2 in to-many: Address with NULL COUNTRY_ID → country is null")
+        void testDeepNestingNullFkToManyAtDepth2() throws SQLException {
+            // Charlie has 1 address (Paris) with COUNTRY_ID=NULL
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Charlie'})
+                        ->graphFetch(#{ Person { name, addresses { city, country { name } } } }#)
+                        ->serialize(#{ Person { name, addresses { city, country { name } } } }#)
+                    """);
+            assertTrue(json.contains("Charlie"));
+            assertTrue(json.contains("Paris"));
+            assertFalse(json.contains("USA"));
+            assertFalse(json.contains("UK"));
+        }
+
+        @Test
+        @DisplayName("Nested to-many: Person → addresses[*] → tags[*]")
+        void testNestedToManyInToMany() throws SQLException {
+            // Alice: NYC has tags [home, work], London has tag [vacation]
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Alice'})
+                        ->graphFetch(#{ Person { name, addresses { city, tags { label } } } }#)
+                        ->serialize(#{ Person { name, addresses { city, tags { label } } } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("NYC"));
+            assertTrue(json.contains("home"));
+            assertTrue(json.contains("work"));
+            assertTrue(json.contains("London"));
+            assertTrue(json.contains("vacation"));
+        }
+
+        @Test
+        @DisplayName("Nested to-many with empty child: Bob's Chicago address has no tags")
+        void testNestedToManyEmpty() throws SQLException {
+            // Bob: Chicago address has no tags
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Bob'})
+                        ->graphFetch(#{ Person { name, addresses { city, tags { label } } } }#)
+                        ->serialize(#{ Person { name, addresses { city, tags { label } } } }#)
+                    """);
+            assertTrue(json.contains("Bob"));
+            assertTrue(json.contains("Chicago"));
+            assertFalse(json.contains("home"));
+            assertFalse(json.contains("work"));
+        }
+
+        @Test
+        @DisplayName("Disjoint to-many: Person { addresses[*] {}, phones[*] {} }")
+        void testDisjointToMany() throws SQLException {
+            // Alice: addresses=[NYC, London], phones=[555-1111, 555-2222]
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Alice'})
+                        ->graphFetch(#{ Person { name, addresses { city }, phones { number } } }#)
+                        ->serialize(#{ Person { name, addresses { city }, phones { number } } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("NYC"));
+            assertTrue(json.contains("London"));
+            assertTrue(json.contains("555-1111"));
+            assertTrue(json.contains("555-2222"));
+        }
+
+        @Test
+        @DisplayName("Disjoint to-many + to-one: Person { firm {}, addresses[*] {}, phones[*] {} }")
+        void testDisjointToManyPlusToOne() throws SQLException {
+            // Alice: firm=Acme, addresses=[NYC, London], phones=[555-1111, 555-2222]
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Alice'})
+                        ->graphFetch(#{ Person { name, firm { legalName }, addresses { city }, phones { number } } }#)
+                        ->serialize(#{ Person { name, firm { legalName }, addresses { city }, phones { number } } }#)
+                    """);
+            assertTrue(json.contains("Alice"));
+            assertTrue(json.contains("Acme"));       // to-one firm
+            assertTrue(json.contains("NYC"));         // to-many addresses
+            assertTrue(json.contains("London"));
+            assertTrue(json.contains("555-1111"));    // to-many phones
+            assertTrue(json.contains("555-2222"));
+        }
+
+        @Test
+        @DisplayName("Disjoint to-many with empty: Diana has no addresses and no phones")
+        void testDisjointToManyBothEmpty() throws SQLException {
+            var json = execGraph(deepModel(), """
+                    Person.all()->filter({p|$p.name == 'Diana'})
+                        ->graphFetch(#{ Person { name, addresses { city }, phones { number } } }#)
+                        ->serialize(#{ Person { name, addresses { city }, phones { number } } }#)
+                    """);
+            assertTrue(json.contains("Diana"));
+            assertFalse(json.contains("NYC"));
+            assertFalse(json.contains("555"));
+        }
+    }
 }
