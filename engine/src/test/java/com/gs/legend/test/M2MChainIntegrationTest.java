@@ -79,10 +79,22 @@ class M2MChainIntegrationTest {
                 location: String[1];
             }
 
+            Class model::Project
+            {
+                name: String[1];
+                budget: Integer[1];
+            }
+
             Association model::EmpDept
             {
                 employees: Employee[*];
                 department: Department[1];
+            }
+
+            Association model::EmpProject
+            {
+                employee: Employee[1];
+                projects: Project[*];
             }
 
             // ===== L1: Single-hop M2M =====
@@ -117,6 +129,12 @@ class M2MChainIntegrationTest {
             Class model::DirectoryEntry
             {
                 entry: String[1];
+            }
+
+            // ===== L4: 4-hop M2M =====
+            Class model::Badge
+            {
+                text: String[1];
             }
 
             // ===== Shared classes =====
@@ -155,6 +173,19 @@ class M2MChainIntegrationTest {
                 department: model::DeptInfo[*];
             }
 
+            Class model::ProjectInfo
+            {
+                name: String[1];
+                budget: Integer[1];
+            }
+
+            Class model::StaffComplete
+            {
+                fullName: String[1];
+                department: model::DeptInfo[*];
+                projects: model::ProjectInfo[*];
+            }
+
             // ===== Database =====
             Database store::CompanyDB
             (
@@ -181,8 +212,16 @@ class M2MChainIntegrationTest {
                     ID INTEGER PRIMARY KEY,
                     NAME VARCHAR(100) NOT NULL
                 )
+                Table T_PROJECT
+                (
+                    ID INTEGER PRIMARY KEY,
+                    NAME VARCHAR(100) NOT NULL,
+                    BUDGET INTEGER NOT NULL,
+                    EMP_ID INTEGER NOT NULL
+                )
                 Join EmpDept(T_EMPLOYEE.DEPT_ID = T_DEPARTMENT.ID)
                 Join DeptOrg(T_DEPARTMENT.ORG_ID = T_ORGANIZATION.ID)
+                Join EmpProject(T_EMPLOYEE.ID = T_PROJECT.EMP_ID)
             )
 
             // ===== Relational mappings =====
@@ -208,6 +247,13 @@ class M2MChainIntegrationTest {
                     name: [CompanyDB] T_DEPARTMENT.NAME,
                     location: [CompanyDB] T_DEPARTMENT.LOCATION,
                     employees: [CompanyDB] @EmpDept
+                }
+                Project: Relational
+                {
+                    ~mainTable [CompanyDB] T_PROJECT
+                    name: [CompanyDB] T_PROJECT.NAME,
+                    budget: [CompanyDB] T_PROJECT.BUDGET,
+                    employee: [CompanyDB] @EmpProject
                 }
             )
 
@@ -263,6 +309,16 @@ class M2MChainIntegrationTest {
                 {
                     ~src StaffCard
                     entry: $src.displayName + ' - ' + $src.department
+                }
+            )
+
+            // ===== L4 M2M mapping (4-hop) =====
+            Mapping model::BadgeMapping
+            (
+                Badge: Pure
+                {
+                    ~src DirectoryEntry
+                    text: '[' + $src.entry + ']'
                 }
             )
 
@@ -322,6 +378,30 @@ class M2MChainIntegrationTest {
                 }
             )
 
+            // ===== Disjoint 1-to-many M2M mapping =====
+            Mapping model::DisjointDeepFetchMapping
+            (
+                StaffComplete: Pure
+                {
+                    ~src Employee
+                    fullName: $src.firstName + ' ' + $src.lastName,
+                    department: $src.department,
+                    projects: $src.projects
+                }
+                DeptInfo: Pure
+                {
+                    ~src Department
+                    name: $src.name,
+                    location: $src.location
+                }
+                ProjectInfo: Pure
+                {
+                    ~src Project
+                    name: $src.name,
+                    budget: $src.budget
+                }
+            )
+
             // ===== Runtime =====
             RelationalDatabaseConnection store::Conn
             {
@@ -340,7 +420,9 @@ class M2MChainIntegrationTest {
                     model::StaffCardMapping,
                     model::StaffBadgeMapping,
                     model::DirectoryMapping,
+                    model::BadgeMapping,
                     model::DeepFetchMapping,
+                    model::DisjointDeepFetchMapping,
                     model::StaffDetailMapping,
                     model::StaffProfileMapping,
                     model::StaffFullMapping
@@ -393,6 +475,19 @@ class M2MChainIntegrationTest {
                     )""");
             s.execute("INSERT INTO T_ORGANIZATION VALUES (1, 'Acme Corp')");
             s.execute("INSERT INTO T_ORGANIZATION VALUES (2, 'Globex Inc')");
+
+            s.execute("""
+                    CREATE TABLE T_PROJECT (
+                        ID INTEGER PRIMARY KEY,
+                        NAME VARCHAR(100),
+                        BUDGET INTEGER,
+                        EMP_ID INTEGER
+                    )""");
+            // Alice: 2 projects, Bob: 1 project, Carol: 0 projects, Dave: 1 project
+            s.execute("INSERT INTO T_PROJECT VALUES (1, 'Alpha',  500000, 1)");
+            s.execute("INSERT INTO T_PROJECT VALUES (2, 'Beta',   300000, 1)");
+            s.execute("INSERT INTO T_PROJECT VALUES (3, 'Gamma',  750000, 2)");
+            s.execute("INSERT INTO T_PROJECT VALUES (4, 'Delta', 1200000, 4)");
         }
     }
 
@@ -611,6 +706,95 @@ class M2MChainIntegrationTest {
         }
     }
 
+    // ==================== L4: 4-hop M2M chain ====================
+
+    @Nested
+    @DisplayName("L4: Four-hop M2M chains")
+    class L4FourHop {
+
+        @Test
+        @DisplayName("project(): Badge through DirectoryEntry → StaffCard → StaffMember → Employee → Table")
+        void testProjectFourHop() throws SQLException {
+            var r = exec("Badge.all()->project(~[text:x|$x.text])");
+            assertEquals(4, r.rowCount());
+            var texts = col(r, 0);
+            assertTrue(texts.contains("[ALICE SMITH - Engineering]"));
+            assertTrue(texts.contains("[BOB JONES - Sales]"));
+            assertTrue(texts.contains("[CAROL WHITE - Engineering]"));
+            assertTrue(texts.contains("[DAVE BROWN - Marketing]"));
+        }
+
+        @Test
+        @DisplayName("graphFetch(): Badge 4-hop")
+        void testGraphFetchFourHop() throws SQLException {
+            var json = execGraph("""
+                    Badge.all()
+                        ->graphFetch(#{ Badge { text } }#)
+                        ->serialize(#{ Badge { text } }#)
+                    """);
+            assertTrue(json.contains("[ALICE SMITH - Engineering]"));
+            assertTrue(json.contains("[BOB JONES - Sales]"));
+        }
+
+        @Test
+        @DisplayName("project(): 4-hop + user query filter")
+        void testProjectFourHopWithFilter() throws SQLException {
+            var r = exec("Badge.all()->filter({x|$x.text->contains('Marketing')})->project(~[text:x|$x.text])");
+            assertEquals(1, r.rowCount());
+            assertEquals("[DAVE BROWN - Marketing]", col(r, 0).get(0));
+        }
+    }
+
+    // ==================== Edge Cases ====================
+
+    @Nested
+    @DisplayName("Edge Cases")
+    class EdgeCases {
+
+        @Test
+        @DisplayName("filter eliminates all rows")
+        void testFilterEliminatesAll() throws SQLException {
+            var r = exec("StaffMember.all()->filter({x|$x.age > 100})->project(~[fullName:x|$x.fullName])");
+            assertEquals(0, r.rowCount());
+        }
+
+        @Test
+        @DisplayName("filter keeps exactly one row")
+        void testFilterKeepsOne() throws SQLException {
+            var r = exec("StaffMember.all()->filter({x|$x.firstName == 'Alice'})->project(~[fullName:x|$x.fullName])");
+            assertEquals(1, r.rowCount());
+            assertEquals("Alice Smith", col(r, 0).get(0));
+        }
+
+        @Test
+        @DisplayName("compound filter with AND")
+        void testCompoundFilter() throws SQLException {
+            var r = exec("StaffMember.all()->filter({x|($x.age > 25) && ($x.dept == 'Engineering')})->project(~[fullName:x|$x.fullName])");
+            assertEquals(2, r.rowCount());
+            var names = col(r, 0);
+            assertTrue(names.contains("Alice Smith"));
+            assertTrue(names.contains("Carol White"));
+        }
+
+        @Test
+        @DisplayName("sort through M2M chain")
+        void testSortThroughChain() throws SQLException {
+            var r = exec("StaffMember.all()->sort({x|$x.age})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
+            assertEquals(4, r.rowCount());
+            assertEquals("Carol White", col(r, 0).get(0));
+            assertEquals("Dave Brown", col(r, 0).get(3));
+        }
+
+        @Test
+        @DisplayName("2-hop + sort")
+        void testTwoHopSort() throws SQLException {
+            var r = exec("StaffCard.all()->sort({x|$x.displayName})->project(~[displayName:x|$x.displayName])");
+            assertEquals(4, r.rowCount());
+            assertEquals("ALICE SMITH", col(r, 0).get(0));
+            assertEquals("BOB JONES", col(r, 0).get(1));
+        }
+    }
+
     // ==================== Join Chains: M2M with traverse-column properties ====================
 
     @Nested
@@ -751,6 +935,99 @@ class M2MChainIntegrationTest {
             assertTrue(json.contains("San Francisco"));
             assertTrue(json.contains("New York"));
             assertTrue(json.contains("Chicago"));
+        }
+
+        // ---------- Disjoint 1-to-many: department (via @EmpDept) + projects (via @EmpProject) ----------
+
+        @Test
+        @DisplayName("graphFetch(): 2 disjoint 1-to-many — department + projects")
+        void testDisjointOneToMany() throws SQLException {
+            var json = execGraph("""
+                    StaffComplete.all()
+                        ->graphFetch(#{ StaffComplete { fullName, department { name }, projects { name, budget } } }#)
+                        ->serialize(#{ StaffComplete { fullName, department { name }, projects { name, budget } } }#)
+                    """);
+            // Alice has 2 projects + Engineering dept
+            assertTrue(json.contains("Alice Smith"));
+            assertTrue(json.contains("Alpha"));
+            assertTrue(json.contains("Beta"));
+            assertTrue(json.contains("Engineering"));
+            // Bob has 1 project + Sales dept
+            assertTrue(json.contains("Bob Jones"));
+            assertTrue(json.contains("Gamma"));
+            assertTrue(json.contains("Sales"));
+            // Dave has 1 project + Marketing dept
+            assertTrue(json.contains("Dave Brown"));
+            assertTrue(json.contains("Delta"));
+            assertTrue(json.contains("Marketing"));
+        }
+
+        @Test
+        @DisplayName("graphFetch(): disjoint 1-to-many — only dept (no project subquery)")
+        void testDisjointOnlyDept() throws SQLException {
+            var json = execGraph("""
+                    StaffComplete.all()
+                        ->graphFetch(#{ StaffComplete { fullName, department { name, location } } }#)
+                        ->serialize(#{ StaffComplete { fullName, department { name, location } } }#)
+                    """);
+            assertTrue(json.contains("Engineering"));
+            assertTrue(json.contains("San Francisco"));
+            assertFalse(json.contains("Alpha"), "projects not requested");
+        }
+
+        @Test
+        @DisplayName("graphFetch(): disjoint 1-to-many — only projects (no dept subquery)")
+        void testDisjointOnlyProjects() throws SQLException {
+            var json = execGraph("""
+                    StaffComplete.all()
+                        ->graphFetch(#{ StaffComplete { fullName, projects { name, budget } } }#)
+                        ->serialize(#{ StaffComplete { fullName, projects { name, budget } } }#)
+                    """);
+            assertTrue(json.contains("Alpha"));
+            assertTrue(json.contains("500000"));
+            assertFalse(json.contains("Engineering"), "department not requested");
+        }
+
+        @Test
+        @DisplayName("graphFetch(): disjoint 1-to-many — root only (0 subqueries)")
+        void testDisjointRootOnly() throws SQLException {
+            var json = execGraph("""
+                    StaffComplete.all()
+                        ->graphFetch(#{ StaffComplete { fullName } }#)
+                        ->serialize(#{ StaffComplete { fullName } }#)
+                    """);
+            assertTrue(json.contains("Alice Smith"));
+            assertTrue(json.contains("Bob Jones"));
+            assertFalse(json.contains("Engineering"), "department not requested");
+            assertFalse(json.contains("Alpha"), "projects not requested");
+        }
+
+        @Test
+        @DisplayName("graphFetch(): disjoint 1-to-many — employee with 0 projects")
+        void testDisjointZeroProjects() throws SQLException {
+            var json = execGraph("""
+                    StaffComplete.all()
+                        ->graphFetch(#{ StaffComplete { fullName, projects { name } } }#)
+                        ->serialize(#{ StaffComplete { fullName, projects { name } } }#)
+                    """);
+            // Carol has 0 projects — should still appear with empty projects array
+            assertTrue(json.contains("Carol White"));
+        }
+
+        @Test
+        @DisplayName("graphFetch(): disjoint 1-to-many — Alice has 2 projects")
+        void testDisjointMultipleProjects() throws SQLException {
+            var json = execGraph("""
+                    StaffComplete.all()
+                        ->filter({x|$x.fullName == 'Alice Smith'})
+                        ->graphFetch(#{ StaffComplete { fullName, projects { name, budget } } }#)
+                        ->serialize(#{ StaffComplete { fullName, projects { name, budget } } }#)
+                    """);
+            assertTrue(json.contains("Alice Smith"));
+            assertTrue(json.contains("Alpha"));
+            assertTrue(json.contains("Beta"));
+            assertTrue(json.contains("500000"));
+            assertTrue(json.contains("300000"));
         }
     }
 }

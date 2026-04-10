@@ -152,32 +152,34 @@ graph TD
 
 ### 3.2 Feature Summary Table
 
-| Feature | Syntax | Description |
-|---|---|---|
-| **Root marker** | `*ClassName` | Marks as root/default mapping for a class |
-| **Mapping ID** | `[id]` | Named ID for referencing in unions, etc. |
-| **Default ID** | _(omitted)_ | Compiler assigns `fully_qualified_ClassName` |
-| **Extends** | `extends [parentMappingId]` | Inherits from another class mapping |
-| **Primary Key** | `~primaryKey(...)` | Overrides default PK |
-| **Main Table** | `~mainTable [db]Table` | Specifies the primary table |
-| **Filter** | `~filter [db]FilterName` | Applies a row-level filter |
-| **Filter via join** | `~filter [db]@Join[db]FilterName` | Filter on a joined table |
-| **Distinct** | `~distinct` | Adds DISTINCT to query |
-| **GroupBy** | `~groupBy(...)` | Adds GROUP BY clause |
-| **Join chains** | `@JoinName > @JoinName2` | Traverses joins between tables |
-| **Join types** | `@J1 > (INNER) @J2` | Explicit join type (INNER, LEFT OUTER, RIGHT OUTER) |
-| **Scope blocks** | `scope([db]schema.table) (...)` | Sets DB/schema/table context for nested mappings |
-| **Enum transformer** | `EnumerationMapping EnumMapId:` | Transforms DB values to enum members |
-| **Binding transformer** | `Binding my::Binding:` | Deserializes from external format |
-| **Embedded** | `prop() { ... }` | Inlines sub-class mappings |
-| **Otherwise** | `prop() { ... } Otherwise(...)` | Embedded with fallback |
-| **Inline** | `prop() Inline[id]` | Reuses another mapping by ID |
-| **Local properties** | `+prop: Type[mult]: ...` | Adds properties not in the class |
-| **Source/Target IDs** | `prop[srcId, tgtId]: ...` | Explicit source/target mapping references |
-| **Cross-DB refs** | `[otherDb]Table.col` | References columns across databases |
-| **DynaFunction transforms** | `concat(...)`, `year(...)`, etc. | SQL function expressions (see §4) |
-| **Milestoning** | Business/Processing milestoning | Temporal data support at table level |
-| **Stereotypes/Tags** | `<<stereotype>>` / `{tag.value}` | Metadata on database elements |
+> Each Rosetta doc includes a **"Tests in legend-lite"** section with links to real test files, line numbers, and test strategies for unimplemented features.
+
+| Feature | Syntax | Description | Rosetta |
+|---|---|---|---|
+| **Root marker** | `*ClassName` | Marks as root/default mapping for a class | [identity-extends](rosetta/identity-extends.md) |
+| **Mapping ID** | `[id]` | Named ID for referencing in unions, etc. | [identity-extends](rosetta/identity-extends.md) |
+| **Default ID** | _(omitted)_ | Compiler assigns `fully_qualified_ClassName` | [identity-extends](rosetta/identity-extends.md) |
+| **Extends** | `extends [parentMappingId]` | Inherits from another class mapping | [identity-extends](rosetta/identity-extends.md) |
+| **Primary Key** | `~primaryKey(...)` | Overrides default PK | [class-directives](rosetta/class-directives.md) |
+| **Main Table** | `~mainTable [db]Table` | Specifies the primary table | [class-directives](rosetta/class-directives.md) |
+| **Filter** | `~filter [db]FilterName` | Applies a row-level filter | [class-directives](rosetta/class-directives.md) |
+| **Filter via join** | `~filter [db]@Join[db]FilterName` | Filter on a joined table | [class-directives](rosetta/class-directives.md) |
+| **Distinct** | `~distinct` | Adds DISTINCT to query | [class-directives](rosetta/class-directives.md) |
+| **GroupBy** | `~groupBy(...)` | Adds GROUP BY clause | [class-directives](rosetta/class-directives.md) |
+| **Join chains** | `@JoinName > @JoinName2` | Traverses joins between tables | [join-navigation](rosetta/join-navigation.md) |
+| **Join types** | `@J1 > (INNER) @J2` | Explicit join type (INNER, LEFT OUTER, RIGHT OUTER) | [join-navigation](rosetta/join-navigation.md) |
+| **Scope blocks** | `scope([db]schema.table) (...)` | Sets DB/schema/table context for nested mappings | [class-directives](rosetta/class-directives.md) |
+| **Enum transformer** | `EnumerationMapping EnumMapId:` | Transforms DB values to enum members | [enum-mappings](rosetta/enum-mappings.md) |
+| **Binding transformer** | `Binding my::Binding:` | Deserializes from external format | [binding-transformer](rosetta/binding-transformer.md) |
+| **Embedded** | `prop() { ... }` | Inlines sub-class mappings | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| **Otherwise** | `prop() { ... } Otherwise(...)` | Embedded with fallback | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| **Inline** | `prop() Inline[id]` | Reuses another mapping by ID | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| **Local properties** | `+prop: Type[mult]: ...` | Adds properties not in the class | [local-properties](rosetta/local-properties.md) |
+| **Source/Target IDs** | `prop[srcId, tgtId]: ...` | Explicit source/target mapping references | [xstore-crossdb](rosetta/xstore-crossdb.md) |
+| **Cross-DB refs** | `[otherDb]Table.col` | References columns across databases | [xstore-crossdb](rosetta/xstore-crossdb.md) |
+| **DynaFunction transforms** | `concat(...)`, `year(...)`, etc. | SQL function expressions (see §4) | [property-mappings](rosetta/property-mappings.md) |
+| **Milestoning** | Business/Processing milestoning | Temporal data support at table level | [milestoning](rosetta/milestoning.md) |
+| **Stereotypes/Tags** | `<<stereotype>>` / `{tag.value}` | Metadata on database elements | — |
 
 ### 3.3 Enumeration Mapping — Full Syntax
 
@@ -524,53 +526,53 @@ Person : Relational
 
 ### 6.1 Class-Level Features → Relation
 
-| Mapping Feature | Mapping Syntax | Relation Equivalent | Difficulty |
-|---|---|---|---|
-| **Main table** | `~mainTable [db]PersonTable` | `#>{db.PersonTable}#` | 🟢 Trivial |
-| **Primary key** | `~primaryKey([db]T.id)` | Column metadata / `->select(~id)` | 🟢 Trivial |
-| **Filter** | `~filter [db]ActiveFilter` | `->filter(r \| <filter predicate>)` | 🟢 Easy |
-| **Filter via join** | `~filter [db]@J1[db]Filter` | `->join(...) ->filter(...)` | 🟡 Medium |
-| **Distinct** | `~distinct` | `->distinct()` | 🟢 Trivial |
-| **GroupBy** | `~groupBy([db]T.dept)` | `->groupBy(~dept, ~aggs)` | 🟢 Easy |
-| **Root marker (*)** | `*Person[id]` | Query routing metadata (not a data operation) | 🟢 Metadata |
-| **Mapping ID** | `[person]` | Named variable / function reference | 🟢 Metadata |
-| **Extends** | `extends [parentId]` | Compose: parent Relation expression + extend with child columns | 🟡 Medium |
+| Mapping Feature | Mapping Syntax | Relation Equivalent | Difficulty | Rosetta |
+|---|---|---|---|---|
+| **Main table** | `~mainTable [db]PersonTable` | `#>{db.PersonTable}#` | 🟢 Trivial | [class-directives](rosetta/class-directives.md) |
+| **Primary key** | `~primaryKey([db]T.id)` | Column metadata / `->select(~id)` | 🟢 Trivial | [class-directives](rosetta/class-directives.md) |
+| **Filter** | `~filter [db]ActiveFilter` | `->filter(r \| <filter predicate>)` | 🟢 Easy | [class-directives](rosetta/class-directives.md) |
+| **Filter via join** | `~filter [db]@J1[db]Filter` | `->join(...) ->filter(...)` | 🟡 Medium | [class-directives](rosetta/class-directives.md) |
+| **Distinct** | `~distinct` | `->distinct()` | 🟢 Trivial | [class-directives](rosetta/class-directives.md) |
+| **GroupBy** | `~groupBy([db]T.dept)` | `->groupBy(~dept, ~aggs)` | 🟢 Easy | [class-directives](rosetta/class-directives.md) |
+| **Root marker (*)** | `*Person[id]` | Query routing metadata (not a data operation) | 🟢 Metadata | [identity-extends](rosetta/identity-extends.md) |
+| **Mapping ID** | `[person]` | Named variable / function reference | 🟢 Metadata | [identity-extends](rosetta/identity-extends.md) |
+| **Extends** | `extends [parentId]` | Compose: parent Relation expression + extend with child columns | 🟡 Medium | [identity-extends](rosetta/identity-extends.md) |
 
 ### 6.2 Property Mapping → Relation Column
 
-| Mapping Feature | Mapping Syntax | Relation Equivalent | Difficulty |
-|---|---|---|---|
-| **Simple column** | `firstName: [db]T.first_name` | `->project(~firstName: r \| $r.first_name)` or `->rename(~first_name, ~firstName)` | 🟢 Trivial |
-| **Join + column** | `firmName: [db]@PF \| FirmT.name` | `->join(#>{db.FirmT}#, INNER, {a,b \| ...}) ->project(~firmName: r \| $r.name)` | 🟢 Easy |
-| **Multi-hop join** | `city: [db]@PF > @FC \| CityT.name` | `->join(...) ->join(...) ->project(...)` | 🟡 Medium |
-| **DynaFunction** | `fullName: concat([db]T.first, ' ', [db]T.last)` | `->extend(~fullName: r \| $r.first + ' ' + $r.last)` | 🟢 Easy |
-| **Year extract** | `birthYear: year([db]T.birth_date)` | `->extend(~birthYear: r \| $r.birth_date->year())` | 🟢 Easy |
-| **Enum transformer** | `EnumerationMapping M: [db]T.code` | `->extend(~status: r \| case($r.code, 'P', 'PENDING', ...))` | 🟡 Medium |
-| **Multi-value enum** | `PENDING: ['P', 'PEND']` | `->extend(~status: r \| if(in($r.code, ['P','PEND']), 'PENDING', ...))` | 🟡 Medium |
-| **Binding transformer** | `Binding my::B: [db]T.json` | Post-processing: extract column, deserialize | 🔴 Hard |
-| **Cross-DB ref** | `[otherDb]T.col` | Multi-source: `#>{otherDb.T}#` + cross-join | 🟡 Medium |
+| Mapping Feature | Mapping Syntax | Relation Equivalent | Difficulty | Rosetta |
+|---|---|---|---|---|
+| **Simple column** | `firstName: [db]T.first_name` | `->project(~firstName: r \| $r.first_name)` or `->rename(~first_name, ~firstName)` | 🟢 Trivial | [property-mappings](rosetta/property-mappings.md) |
+| **Join + column** | `firmName: [db]@PF \| FirmT.name` | `->join(#>{db.FirmT}#, INNER, {a,b \| ...}) ->project(~firmName: r \| $r.name)` | 🟢 Easy | [join-navigation](rosetta/join-navigation.md) |
+| **Multi-hop join** | `city: [db]@PF > @FC \| CityT.name` | `->join(...) ->join(...) ->project(...)` | 🟡 Medium | [join-navigation](rosetta/join-navigation.md) |
+| **DynaFunction** | `fullName: concat([db]T.first, ' ', [db]T.last)` | `->extend(~fullName: r \| $r.first + ' ' + $r.last)` | 🟢 Easy | [property-mappings](rosetta/property-mappings.md) |
+| **Year extract** | `birthYear: year([db]T.birth_date)` | `->extend(~birthYear: r \| $r.birth_date->year())` | 🟢 Easy | [property-mappings](rosetta/property-mappings.md) |
+| **Enum transformer** | `EnumerationMapping M: [db]T.code` | `->extend(~status: r \| case($r.code, 'P', 'PENDING', ...))` | 🟡 Medium | [enum-mappings](rosetta/enum-mappings.md) |
+| **Multi-value enum** | `PENDING: ['P', 'PEND']` | `->extend(~status: r \| if(in($r.code, ['P','PEND']), 'PENDING', ...))` | 🟡 Medium | [enum-mappings](rosetta/enum-mappings.md) |
+| **Binding transformer** | `Binding my::B: [db]T.json` | Post-processing: extract column, deserialize | 🔴 Hard | [binding-transformer](rosetta/binding-transformer.md) |
+| **Cross-DB ref** | `[otherDb]T.col` | Multi-source: `#>{otherDb.T}#` + cross-join | 🟡 Medium | [xstore-crossdb](rosetta/xstore-crossdb.md) |
 
 ### 6.3 Complex Property Mappings → Relation
 
-| Mapping Feature | Mapping Syntax | Relation Equivalent | Difficulty |
-|---|---|---|---|
-| **Embedded** | `address() { street: [db]T.street, city: [db]T.city }` | `->project(~[address_street: r\|$r.street, address_city: r\|$r.city])` + unflatten post-processing | 🟡 Medium |
-| **Otherwise embedded** | `address() { ... } Otherwise([id]:[db]@J)` | `->extend(coalesce logic)` + embedded fallback to `->join()` | 🟡 Medium |
-| **Inline embedded** | `address() Inline[addrMapping]` | Inline the referenced mapping's Relation expression | 🟡 Medium |
-| **~primaryKey in embedded** | `~primaryKey ([db]T.legalName)` | `->distinct()` on the embedded columns | 🟢 Easy |
+| Mapping Feature | Mapping Syntax | Relation Equivalent | Difficulty | Rosetta |
+|---|---|---|---|---|
+| **Embedded** | `address() { street: [db]T.street, city: [db]T.city }` | `->project(~[address_street: r\|$r.street, address_city: r\|$r.city])` + unflatten post-processing | 🟡 Medium | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| **Otherwise embedded** | `address() { ... } Otherwise([id]:[db]@J)` | `->extend(coalesce logic)` + embedded fallback to `->join()` | 🟡 Medium | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| **Inline embedded** | `address() Inline[addrMapping]` | Inline the referenced mapping's Relation expression | 🟡 Medium | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| **~primaryKey in embedded** | `~primaryKey ([db]T.legalName)` | `->distinct()` on the embedded columns | 🟢 Easy | [class-directives](rosetta/class-directives.md) |
 
 ### 6.4 Structural Features → Relation
 
-| Mapping Feature | Mapping Syntax | Relation Equivalent | Difficulty |
-|---|---|---|---|
-| **Union mapping** | `operation: union(set1, set2)` | `rel1->concatenate(rel2)` | 🟢 Easy |
-| **Merge/Intersection** | `operation: intersection(s1, s2)` | `rel1->join(rel2, ...) + merge lambda` | 🟡 Medium |
-| **Mapping include** | `include my::OtherMapping` | Compose: import other mapping's Relation expressions | 🟢 Easy |
-| **Store substitution** | `include M [Db1 -> Db2]` | Replace `#>{Db1.T}#` with `#>{Db2.T}#` in included expressions | 🟡 Medium |
-| **Association mapping** | `[db]@PersonFirmJoin` | Explicit `->join(otherRel, type, pred)` | 🟢 Easy |
-| **XStore mapping** | `$this.firmId == $that.id` | Cross-source join — federated execution layer | 🔴 Hard |
-| **Inheritance (extends)** | `Child extends [parent]` | `parentRel->extend(~childProp: ...)` | 🟡 Medium |
-| **Inheritance (fresh)** | Separate mapping with joins | `#>{childTable}# ->join(parentTable, ...)` | 🟢 Easy |
+| Mapping Feature | Mapping Syntax | Relation Equivalent | Difficulty | Rosetta |
+|---|---|---|---|---|
+| **Union mapping** | `operation: union(set1, set2)` | `rel1->concatenate(rel2)` | 🟢 Easy | [union-merge](rosetta/union-merge.md) |
+| **Merge/Intersection** | `operation: intersection(s1, s2)` | `rel1->join(rel2, ...) + merge lambda` | 🟡 Medium | [union-merge](rosetta/union-merge.md) |
+| **Mapping include** | `include my::OtherMapping` | Compose: import other mapping's Relation expressions | 🟢 Easy | [includes-substitution](rosetta/includes-substitution.md) |
+| **Store substitution** | `include M [Db1 -> Db2]` | Replace `#>{Db1.T}#` with `#>{Db2.T}#` in included expressions | 🟡 Medium | [includes-substitution](rosetta/includes-substitution.md) |
+| **Association mapping** | `[db]@PersonFirmJoin` | Explicit `->join(otherRel, type, pred)` | 🟢 Easy | [association-mappings](rosetta/association-mappings.md) |
+| **XStore mapping** | `$this.firmId == $that.id` | Cross-source join — federated execution layer | 🔴 Hard | [xstore-crossdb](rosetta/xstore-crossdb.md) |
+| **Inheritance (extends)** | `Child extends [parent]` | `parentRel->extend(~childProp: ...)` | 🟡 Medium | [identity-extends](rosetta/identity-extends.md) |
+| **Inheritance (fresh)** | Separate mapping with joins | `#>{childTable}# ->join(parentTable, ...)` | 🟢 Easy | [identity-extends](rosetta/identity-extends.md) |
 
 ### 6.5 DynaFunction Transforms → Relation extend()
 
@@ -589,15 +591,15 @@ Every DynaFunction used in a property mapping RHS maps to a `->extend()` express
 
 ### 6.6 Database Objects → Relation
 
-| DB Object | Relation Equivalent | Difficulty |
-|---|---|---|
-| **Table** | `#>{db.Table}#` — direct Relation access | 🟢 Trivial |
-| **View** | Named function returning `Relation<...>[1]` — the `~func` pattern | 🟢 Easy |
-| **Join** | `->join(otherRel, joinType, predicate)` | 🟢 Easy |
-| **Self-join (`{target}`)** | `->join(#>{db.SameTable}#, type, {a, b \| $a.parent_id == $b.id})` | 🟢 Easy |
-| **Filter** | `->filter(predicate)` | 🟢 Trivial |
-| **Schema** | Part of table path: `#>{db.schema.Table}#` | 🟢 Trivial |
-| **Include** | Database composition — resolved at compilation | 🟢 Metadata |
+| DB Object | Relation Equivalent | Difficulty | Rosetta |
+|---|---|---|---|
+| **Table** | `#>{db.Table}#` — direct Relation access | 🟢 Trivial | [database-objects](rosetta/database-objects.md) |
+| **View** | Named function returning `Relation<...>[1]` — the `~func` pattern | 🟢 Easy | [database-objects](rosetta/database-objects.md) |
+| **Join** | `->join(otherRel, joinType, predicate)` | 🟢 Easy | [join-navigation](rosetta/join-navigation.md) |
+| **Self-join (`{target}`)** | `->join(#>{db.SameTable}#, type, {a, b \| $a.parent_id == $b.id})` | 🟢 Easy | [join-navigation](rosetta/join-navigation.md) |
+| **Filter** | `->filter(predicate)` | 🟢 Trivial | [database-objects](rosetta/database-objects.md) |
+| **Schema** | Part of table path: `#>{db.schema.Table}#` | 🟢 Trivial | [database-objects](rosetta/database-objects.md) |
+| **Include** | Database composition — resolved at compilation | 🟢 Metadata | [database-objects](rosetta/database-objects.md) |
 
 ---
 

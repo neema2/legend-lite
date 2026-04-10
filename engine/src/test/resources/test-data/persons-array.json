@@ -1,0 +1,6 @@
+[
+  {"firstName":"Alice","lastName":"Smith","age":30,"dept":"Engineering","salary":95000,"active":true},
+  {"firstName":"Bob","lastName":"Jones","age":45,"dept":"Sales","salary":120000,"active":true},
+  {"firstName":"Carol","lastName":"White","age":28,"dept":"Engineering","salary":85000,"active":false},
+  {"firstName":"Dave","lastName":"Brown","age":55,"dept":"Marketing","salary":110000,"active":true}
+]

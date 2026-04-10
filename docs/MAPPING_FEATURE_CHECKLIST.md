@@ -8,72 +8,72 @@ Status key: ✅ = working E2E, ⚠️ = partial, ❌ = not implemented, 🔧 = n
 
 ## A. Property Mapping Types
 
-| # | Feature | Syntax | Status | Test(s) |
-|---|---------|--------|--------|---------|
-| A1 | Simple column | `prop: [db]T.col` | ✅ | many |
-| A2 | Join chain + column | `prop: @J1 > @J2 \| T.col` | ✅ | testJoinChainPropertyMapping |
-| A3 | DynaFunction | `prop: concat(T.A, ' ', T.B)` | ✅ | testDynaFunctionConcat + 5 more |
-| A4 | DynaFunction + join | `prop: upper(@J \| T.col)` | ✅ | DynaFunctionIntegrationTest |
-| A5 | Enum transformer | `EnumerationMapping M: T.code` | ✅ | EnumIntegrationTest |
-| A6 | Embedded | `prop() { sub: T.col }` | ✅ | testEmbeddedPropertyAccess |
-| A7 | Otherwise embedded | `prop() { ... } Otherwise(...)` | ✅ | OtherwiseMappings (8 tests) |
-| A8 | Inline embedded | `prop() Inline[setId]` | ✅ | testInlineMapping |
-| A9 | Binding transformer | `Binding B: T.json` | ❌ | — |
-| A10 | Source/Target IDs | `prop[src, tgt]: @J` | ❌ | — |
-| A11 | Cross-DB reference | `[otherDb]T.col` | ❌ | — |
+| # | Feature | Syntax | Status | Test(s) | Rosetta |
+|---|---------|--------|--------|---------|---------|
+| A1 | Simple column | `prop: [db]T.col` | ✅ | many | [property-mappings](rosetta/property-mappings.md) |
+| A2 | Join chain + column | `prop: @J1 > @J2 \| T.col` | ✅ | testJoinChainPropertyMapping | [join-navigation](rosetta/join-navigation.md) |
+| A3 | DynaFunction | `prop: concat(T.A, ' ', T.B)` | ✅ | testDynaFunctionConcat + 5 more | [property-mappings](rosetta/property-mappings.md) |
+| A4 | DynaFunction + join | `prop: upper(@J \| T.col)` | ✅ | DynaFunctionIntegrationTest | [property-mappings](rosetta/property-mappings.md) |
+| A5 | Enum transformer | `EnumerationMapping M: T.code` | ✅ | EnumIntegrationTest | [enum-mappings](rosetta/enum-mappings.md) |
+| A6 | Embedded | `prop() { sub: T.col }` | ✅ | testEmbeddedPropertyAccess | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| A7 | Otherwise embedded | `prop() { ... } Otherwise(...)` | ✅ | OtherwiseMappings (8 tests) | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| A8 | Inline embedded | `prop() Inline[setId]` | ✅ | testInlineMapping | [embedded-otherwise-inline](rosetta/embedded-otherwise-inline.md) |
+| A9 | Binding transformer | `Binding B: T.json` | ❌ | — | [binding-transformer](rosetta/binding-transformer.md) |
+| A10 | Source/Target IDs | `prop[src, tgt]: @J` | ❌ | — | [xstore-crossdb](rosetta/xstore-crossdb.md) |
+| A11 | Cross-DB reference | `[otherDb]T.col` | ❌ | — | [xstore-crossdb](rosetta/xstore-crossdb.md) |
 
 ## B. Class Mapping Directives
 
-| # | Feature | Syntax | Status | Test(s) |
-|---|---------|--------|--------|---------|
-| B1 | ~mainTable | `~mainTable [db]T` | ✅ | many |
-| B2 | ~filter | `~filter [db]FilterName` | ✅ | testMappingFilter |
-| B3 | ~filter via join | `~filter [db]@J [db]Filter` | ❌ | — |
-| B4 | ~distinct | `~distinct` | ✅ | testMappingDistinct |
-| B5 | ~groupBy | `~groupBy(T.col)` | ✅ | testMappingGroupBy |
-| B6 | ~primaryKey | `~primaryKey(T.col)` | ❌ | — |
-| B7 | Root marker | `*ClassName[id]` | ✅ | testSetIdsAndRoot |
-| B8 | Mapping ID (set ID) | `[myId]` | ⚠️ extracted, not queryable by ID | — |
-| B9 | Extends | `extends [parentId]` | ❌ | testMappingExtends (disabled) |
-| B10 | Scope blocks | `scope([db]T) (...)` | ❌🔧 | testScopeBlock (disabled) |
+| # | Feature | Syntax | Status | Test(s) | Rosetta |
+|---|---------|--------|--------|---------|---------|
+| B1 | ~mainTable | `~mainTable [db]T` | ✅ | many | [class-directives](rosetta/class-directives.md) |
+| B2 | ~filter | `~filter [db]FilterName` | ✅ | testMappingFilter | [class-directives](rosetta/class-directives.md) |
+| B3 | ~filter via join | `~filter [db]@J [db]Filter` | ❌ | — | [class-directives](rosetta/class-directives.md) |
+| B4 | ~distinct | `~distinct` | ✅ | testMappingDistinct | [class-directives](rosetta/class-directives.md) |
+| B5 | ~groupBy | `~groupBy(T.col)` | ✅ | testMappingGroupBy | [class-directives](rosetta/class-directives.md) |
+| B6 | ~primaryKey | `~primaryKey(T.col)` | ❌ | — | [class-directives](rosetta/class-directives.md) |
+| B7 | Root marker | `*ClassName[id]` | ✅ | testSetIdsAndRoot | [identity-extends](rosetta/identity-extends.md) |
+| B8 | Mapping ID (set ID) | `[myId]` | ⚠️ extracted, not queryable by ID | — | [identity-extends](rosetta/identity-extends.md) |
+| B9 | Extends | `extends [parentId]` | ❌ | testMappingExtends (disabled) | [identity-extends](rosetta/identity-extends.md) |
+| B10 | Scope blocks | `scope([db]T) (...)` | ❌🔧 | testScopeBlock (disabled) | [class-directives](rosetta/class-directives.md) |
 
 ## C. Mapping-Level Features
 
-| # | Feature | Syntax | Status | Test(s) |
-|---|---------|--------|--------|---------|
-| C1 | Mapping includes | `include other::Mapping` | ✅ | testMappingInclude |
-| C2 | Store substitution | `include M [DB1 -> DB2]` | ❌ | testStoreSubstitution (disabled) |
-| C3 | Association mapping | `Assoc: AssociationMapping(...)` | ✅ | testExplicitAssociationMapping |
-| C4 | Enumeration mapping | `Enum: EnumerationMapping {...}` | ✅ | EnumIntegrationTest |
-| C5 | Local properties | `+prop: Type[m]: T.col` | ❌ | testLocalProperty (disabled) |
+| # | Feature | Syntax | Status | Test(s) | Rosetta |
+|---|---------|--------|--------|---------|---------|
+| C1 | Mapping includes | `include other::Mapping` | ✅ | testMappingInclude | [includes-substitution](rosetta/includes-substitution.md) |
+| C2 | Store substitution | `include M [DB1 -> DB2]` | ❌ | testStoreSubstitution (disabled) | [includes-substitution](rosetta/includes-substitution.md) |
+| C3 | Association mapping | `Assoc: AssociationMapping(...)` | ✅ | testExplicitAssociationMapping | [association-mappings](rosetta/association-mappings.md) |
+| C4 | Enumeration mapping | `Enum: EnumerationMapping {...}` | ✅ | EnumIntegrationTest | [enum-mappings](rosetta/enum-mappings.md) |
+| C5 | Local properties | `+prop: Type[m]: T.col` | ❌ | testLocalProperty (disabled) | [local-properties](rosetta/local-properties.md) |
 
 ## D. Database Objects
 
-| # | Feature | Syntax | Status | Test(s) |
-|---|---------|--------|--------|---------|
-| D1 | Table | `Table T (col TYPE)` | ✅ | many |
-| D2 | Join (simple) | `Join J(T1.C = T2.C)` | ✅ | many |
-| D3 | Join (complex) | `Join J(T1.A = T2.A and ...)` | ✅ | testMultiColumnJoin |
-| D4 | Join (function) | `Join J(concat(...) = T.C)` | ✅ | testFunctionInJoin |
-| D5 | Self-join | `Join J(T.pid = {target}.id)` | ✅ | testSelfJoin |
-| D6 | Filter | `Filter F(T.col = 1)` | ✅ | testMappingFilter uses Filter |
-| D7 | View | `View V (col: expr)` | ✅ | testViewAsDataSource, testViewAllFeatures, testViewJoinPruning, testViewEndToEnd, testViewWithFilterDistinctJoinDyna, testViewMultiJoinChains, testViewDynaWithTwoJoinChains, testViewWithGroupBy |
-| D8 | Schema | `Schema S (Table ...)` | ✅ | testSchemaTable |
-| D9 | Database include | `include otherDb` | ✅ | testDatabaseInclude |
-| D10 | TabularFunction | `TabularFunction F(...)` | ❌ | — |
-| D11 | MultiGrainFilter | `MultiGrainFilter F(...)` | ❌ | — |
+| # | Feature | Syntax | Status | Test(s) | Rosetta |
+|---|---------|--------|--------|---------|---------|
+| D1 | Table | `Table T (col TYPE)` | ✅ | many | [database-objects](rosetta/database-objects.md) |
+| D2 | Join (simple) | `Join J(T1.C = T2.C)` | ✅ | many | [join-navigation](rosetta/join-navigation.md) |
+| D3 | Join (complex) | `Join J(T1.A = T2.A and ...)` | ✅ | testMultiColumnJoin | [join-navigation](rosetta/join-navigation.md) |
+| D4 | Join (function) | `Join J(concat(...) = T.C)` | ✅ | testFunctionInJoin | [join-navigation](rosetta/join-navigation.md) |
+| D5 | Self-join | `Join J(T.pid = {target}.id)` | ✅ | testSelfJoin | [join-navigation](rosetta/join-navigation.md) |
+| D6 | Filter | `Filter F(T.col = 1)` | ✅ | testMappingFilter uses Filter | [database-objects](rosetta/database-objects.md) |
+| D7 | View | `View V (col: expr)` | ✅ | testViewAsDataSource, testViewAllFeatures, testViewJoinPruning, testViewEndToEnd, testViewWithFilterDistinctJoinDyna, testViewMultiJoinChains, testViewDynaWithTwoJoinChains, testViewWithGroupBy | [database-objects](rosetta/database-objects.md) |
+| D8 | Schema | `Schema S (Table ...)` | ✅ | testSchemaTable | [database-objects](rosetta/database-objects.md) |
+| D9 | Database include | `include otherDb` | ✅ | testDatabaseInclude | [database-objects](rosetta/database-objects.md) |
+| D10 | TabularFunction | `TabularFunction F(...)` | ❌ | — | [database-objects](rosetta/database-objects.md) |
+| D11 | MultiGrainFilter | `MultiGrainFilter F(...)` | ❌ | — | [database-objects](rosetta/database-objects.md) |
 
 ## E. Class Mapping Types
 
-| # | Feature | Syntax | Status | Test(s) |
-|---|---------|--------|--------|---------|
-| E1 | Relational | `Class: Relational { ... }` | ✅ | many |
-| E2 | Pure (M2M) | `Class: Pure { ~src S, ... }` | ✅ | M2MIntegrationTest |
-| E3 | XStore | `Assoc: XStore { ... }` | ❌🔧 | testXStore (disabled) |
-| E4 | AggregationAware | `Class: AggregationAware { ... }` | ❌🔧 | testAggregationAware (disabled) |
-| E5 | Relation | `Class: Relation { ~func ... }` | ❌🔧 | testRelationClassMapping (disabled) |
-| E6 | Union | `operation: union(s1, s2)` | ❌ | — |
-| E7 | Merge/Intersection | `operation: intersection(...)` | ❌ | — |
+| # | Feature | Syntax | Status | Test(s) | Rosetta |
+|---|---------|--------|--------|---------|---------|
+| E1 | Relational | `Class: Relational { ... }` | ✅ | many | [property-mappings](rosetta/property-mappings.md) |
+| E2 | Pure (M2M) | `Class: Pure { ~src S, ... }` | ✅ | M2MIntegrationTest | [m2m-mapping](rosetta/m2m-mapping.md) |
+| E3 | XStore | `Assoc: XStore { ... }` | ❌🔧 | testXStore (disabled) | [xstore-crossdb](rosetta/xstore-crossdb.md) |
+| E4 | AggregationAware | `Class: AggregationAware { ... }` | ❌🔧 | testAggregationAware (disabled) | [aggregation-aware](rosetta/aggregation-aware.md) |
+| E5 | Relation | `Class: Relation { ~func ... }` | ❌🔧 | testRelationClassMapping (disabled) | [relation-class-mapping](rosetta/relation-class-mapping.md) |
+| E6 | Union | `operation: union(s1, s2)` | ❌ | — | [union-merge](rosetta/union-merge.md) |
+| E7 | Merge/Intersection | `operation: intersection(...)` | ❌ | — | [union-merge](rosetta/union-merge.md) |
 
 ## F. Known Bugs
 

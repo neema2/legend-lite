@@ -886,4 +886,258 @@ class JsonM2MChainIntegrationTest {
             assertEquals(3, depts.rowCount());
         }
     }
+
+    // ==================== File-based JSON source ====================
+
+    /**
+     * Tests M2M from external JSON files in all 3 DuckDB-supported formats:
+     *
+     * <pre>
+     * Format              File                        DuckDB reads via
+     * ─────────────────── ─────────────────────────── ──────────────────────────────
+     * NDJSON              persons.json                read_json_objects (newline_delimited)
+     * JSON Array          persons-array.json          read_json_objects (array)
+     * Unstructured        persons-unstructured.json   read_json_objects (unstructured)
+     * </pre>
+     *
+     * All 3 formats contain the same 4 persons. DuckDB auto-detects the format.
+     */
+    @Nested
+    @DisplayName("File Source: M2M from external JSON files (NDJSON / Array / Unstructured)")
+    class FileSource {
+
+        /**
+         * Resolves a classpath resource to a file: URL for use in Pure JsonModelConnection.
+         */
+        private String fileUrl(String resourcePath) {
+            var url = getClass().getClassLoader().getResource(resourcePath);
+            assertNotNull(url, resourcePath + " must be on classpath");
+            return url.toString();
+        }
+
+        private String fileModel(String resourcePath) {
+            return """
+                    import model::*;
+                    import store::*;
+
+                    Class model::RawPerson
+                    {
+                        firstName: String[1];
+                        lastName:  String[1];
+                        age:       Integer[1];
+                        dept:      String[1];
+                        salary:    Integer[1];
+                        active:    Boolean[1];
+                    }
+
+                    Class model::StaffMember
+                    {
+                        fullName:  String[1];
+                        age:       Integer[1];
+                        dept:      String[1];
+                    }
+
+                    Class model::StaffCard
+                    {
+                        displayName: String[1];
+                        department:  String[1];
+                    }
+
+                    Mapping model::StaffMemberMapping
+                    (
+                        StaffMember: Pure
+                        {
+                            ~src RawPerson
+                            fullName: $src.firstName + ' ' + $src.lastName,
+                            age: $src.age,
+                            dept: $src.dept
+                        }
+                    )
+
+                    Mapping model::StaffCardMapping
+                    (
+                        StaffCard: Pure
+                        {
+                            ~src StaffMember
+                            displayName: $src.fullName->toUpper(),
+                            department: $src.dept
+                        }
+                    )
+
+                    RelationalDatabaseConnection store::Conn
+                    {
+                        type: DuckDB;
+                        specification: InMemory { };
+                        auth: NoAuth { };
+                    }
+
+                    Runtime test::FileRT
+                    {
+                        mappings: [ model::StaffMemberMapping, model::StaffCardMapping ];
+                        connections:
+                        [
+                            store::TestDb: [ env: store::Conn ],
+                            ModelStore:
+                            [
+                                json: #{
+                                    JsonModelConnection
+                                    {
+                                        class: model::RawPerson;
+                                        url: '""" + fileUrl(resourcePath) + """
+                    ';
+                                    }
+                                }#
+                            ]
+                        ];
+                    }
+                    """;
+        }
+
+        // ---------- shared assertions ----------
+
+        private void assertL1Project(String resourcePath) throws SQLException {
+            var r = exec(fileModel(resourcePath), "test::FileRT",
+                    "StaffMember.all()->project(~[fullName:x|$x.fullName, age:x|$x.age, dept:x|$x.dept])");
+            assertEquals(4, r.rowCount());
+            var names = col(r, 0);
+            assertTrue(names.contains("Alice Smith"));
+            assertTrue(names.contains("Bob Jones"));
+            assertTrue(names.contains("Carol White"));
+            assertTrue(names.contains("Dave Brown"));
+        }
+
+        private void assertL1GraphFetch(String resourcePath) throws SQLException {
+            var json = execGraph(fileModel(resourcePath), "test::FileRT", """
+                    StaffMember.all()
+                        ->graphFetch(#{ StaffMember { fullName, age, dept } }#)
+                        ->serialize(#{ StaffMember { fullName, age, dept } }#)
+                    """);
+            assertTrue(json.contains("Alice Smith"));
+            assertTrue(json.contains("30"));
+            assertTrue(json.contains("Engineering"));
+        }
+
+        private void assertL1Filter(String resourcePath) throws SQLException {
+            var r = exec(fileModel(resourcePath), "test::FileRT",
+                    "StaffMember.all()->filter({x|$x.age > 40})->project(~[fullName:x|$x.fullName])");
+            assertEquals(2, r.rowCount());
+            var names = col(r, 0);
+            assertTrue(names.contains("Bob Jones"));
+            assertTrue(names.contains("Dave Brown"));
+        }
+
+        private void assertL2Chain(String resourcePath) throws SQLException {
+            var r = exec(fileModel(resourcePath), "test::FileRT",
+                    "StaffCard.all()->project(~[displayName:x|$x.displayName, department:x|$x.department])");
+            assertEquals(4, r.rowCount());
+            var names = col(r, 0);
+            assertTrue(names.contains("ALICE SMITH"));
+            assertTrue(names.contains("BOB JONES"));
+        }
+
+        private void assertL2Filter(String resourcePath) throws SQLException {
+            var r = exec(fileModel(resourcePath), "test::FileRT",
+                    "StaffCard.all()->filter({x|$x.department == 'Engineering'})->project(~[displayName:x|$x.displayName])");
+            assertEquals(2, r.rowCount());
+            var names = col(r, 0);
+            assertTrue(names.contains("ALICE SMITH"));
+            assertTrue(names.contains("CAROL WHITE"));
+        }
+
+        // ---------- NDJSON (newline-delimited) ----------
+
+        @Test
+        @DisplayName("NDJSON: L1 project")
+        void testNdjsonProject() throws SQLException {
+            assertL1Project("test-data/persons-ndjson.txt");
+        }
+
+        @Test
+        @DisplayName("NDJSON: L1 graphFetch")
+        void testNdjsonGraphFetch() throws SQLException {
+            assertL1GraphFetch("test-data/persons-ndjson.txt");
+        }
+
+        @Test
+        @DisplayName("NDJSON: L1 filter")
+        void testNdjsonFilter() throws SQLException {
+            assertL1Filter("test-data/persons-ndjson.txt");
+        }
+
+        @Test
+        @DisplayName("NDJSON: L2 chain")
+        void testNdjsonTwoHop() throws SQLException {
+            assertL2Chain("test-data/persons-ndjson.txt");
+        }
+
+        @Test
+        @DisplayName("NDJSON: L2 filter")
+        void testNdjsonTwoHopFilter() throws SQLException {
+            assertL2Filter("test-data/persons-ndjson.txt");
+        }
+
+        // ---------- JSON Array ----------
+
+        @Test
+        @DisplayName("JSON Array: L1 project")
+        void testArrayProject() throws SQLException {
+            assertL1Project("test-data/persons-array.json");
+        }
+
+        @Test
+        @DisplayName("JSON Array: L1 graphFetch")
+        void testArrayGraphFetch() throws SQLException {
+            assertL1GraphFetch("test-data/persons-array.json");
+        }
+
+        @Test
+        @DisplayName("JSON Array: L1 filter")
+        void testArrayFilter() throws SQLException {
+            assertL1Filter("test-data/persons-array.json");
+        }
+
+        @Test
+        @DisplayName("JSON Array: L2 chain")
+        void testArrayTwoHop() throws SQLException {
+            assertL2Chain("test-data/persons-array.json");
+        }
+
+        @Test
+        @DisplayName("JSON Array: L2 filter")
+        void testArrayTwoHopFilter() throws SQLException {
+            assertL2Filter("test-data/persons-array.json");
+        }
+
+        // ---------- Unstructured (whitespace-separated objects) ----------
+
+        @Test
+        @DisplayName("Unstructured: L1 project")
+        void testUnstructuredProject() throws SQLException {
+            assertL1Project("test-data/persons-unstructured.txt");
+        }
+
+        @Test
+        @DisplayName("Unstructured: L1 graphFetch")
+        void testUnstructuredGraphFetch() throws SQLException {
+            assertL1GraphFetch("test-data/persons-unstructured.txt");
+        }
+
+        @Test
+        @DisplayName("Unstructured: L1 filter")
+        void testUnstructuredFilter() throws SQLException {
+            assertL1Filter("test-data/persons-unstructured.txt");
+        }
+
+        @Test
+        @DisplayName("Unstructured: L2 chain")
+        void testUnstructuredTwoHop() throws SQLException {
+            assertL2Chain("test-data/persons-unstructured.txt");
+        }
+
+        @Test
+        @DisplayName("Unstructured: L2 filter")
+        void testUnstructuredTwoHopFilter() throws SQLException {
+            assertL2Filter("test-data/persons-unstructured.txt");
+        }
+    }
 }
