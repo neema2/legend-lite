@@ -1,3 +1,10 @@
+RelationalDatabaseConnection store::Conn
+{
+    type: DuckDB;
+    specification: InMemory { };
+    auth: NoAuth { };
+}
+
 Runtime stress::RT
 {
     mappings:
@@ -22,5 +29,9 @@ Runtime stress::RT
         tax::TaxMapping,
         research::ResearchMapping,
         prime::PrimeMapping
+    ];
+    connections:
+    [
+        store::DB: [ environment: store::Conn ]
     ];
 }

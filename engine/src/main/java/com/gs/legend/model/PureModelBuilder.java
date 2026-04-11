@@ -1006,6 +1006,17 @@ public final class PureModelBuilder implements ModelContext {
         return Map.copyOf(result);
     }
 
+    /**
+     * Returns all registered services (keyed by FQN).
+     */
+    public Map<String, ServiceDefinition> getAllServices() {
+        var result = new HashMap<String, ServiceDefinition>(services.size());
+        for (var entry : services.entrySet()) {
+            result.put(symbols.nameOf(entry.getKey()), entry.getValue());
+        }
+        return Map.copyOf(result);
+    }
+
     // ==================== ModelContext Implementation ====================
 
     public Optional<ClassMapping> findMapping(String className) {

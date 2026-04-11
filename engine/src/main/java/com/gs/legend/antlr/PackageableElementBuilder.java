@@ -2053,7 +2053,9 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             documentation = unquoteString(docCtx.STRING().getText());
         }
 
-        // Extract function body from execution
+        // Extract function body, mapping, and runtime from execution
+        String mappingRef = null;
+        String runtimeRef = null;
         if (ctx.serviceExec() != null && !ctx.serviceExec().isEmpty()) {
             var execCtx = ctx.serviceExec().get(0);
             if (execCtx.serviceSingleExec() != null) {
@@ -2067,6 +2069,12 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                         functionBody = functionBody.substring(1).trim();
                     }
                 }
+                if (singleExec.serviceMappingRef() != null && !singleExec.serviceMappingRef().isEmpty()) {
+                    mappingRef = singleExec.serviceMappingRef().get(0).qualifiedName().getText();
+                }
+                if (singleExec.serviceRuntimeRef() != null && !singleExec.serviceRuntimeRef().isEmpty()) {
+                    runtimeRef = singleExec.serviceRuntimeRef().get(0).qualifiedName().getText();
+                }
             }
         }
 
@@ -2078,6 +2086,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 pattern != null ? pattern : "/",
                 functionBody != null ? functionBody : "",
                 documentation,
+                mappingRef, runtimeRef,
                 testSuites);
     }
 

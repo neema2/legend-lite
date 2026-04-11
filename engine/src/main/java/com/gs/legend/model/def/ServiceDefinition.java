@@ -35,6 +35,8 @@ public record ServiceDefinition(
         String functionBody,
         List<String> pathParams,
         String documentation,
+        String mappingRef,
+        String runtimeRef,
         List<MappingDefinition.TestSuiteDefinition> testSuites) implements PackageableElement {
 
     private static final Pattern PATH_PARAM_PATTERN = Pattern.compile("\\{(\\w+)\\}");
@@ -45,6 +47,16 @@ public record ServiceDefinition(
         Objects.requireNonNull(functionBody, "Function body cannot be null");
         pathParams = pathParams != null ? List.copyOf(pathParams) : List.of();
         testSuites = testSuites != null ? List.copyOf(testSuites) : List.of();
+    }
+
+    /**
+     * Convenience constructor without mapping/runtime/testSuites.
+     */
+    public ServiceDefinition(String qualifiedName, String pattern, String functionBody,
+            List<String> pathParams, String documentation,
+            List<MappingDefinition.TestSuiteDefinition> testSuites) {
+        this(qualifiedName, pattern, functionBody, pathParams, documentation,
+                null, null, testSuites);
     }
 
     /**
@@ -108,7 +120,8 @@ public record ServiceDefinition(
                 pattern,
                 functionBody,
                 extractPathParams(pattern),
-                documentation);
+                documentation,
+                null, null, List.of());
     }
 
     /**
@@ -124,6 +137,24 @@ public record ServiceDefinition(
                 functionBody,
                 extractPathParams(pattern),
                 documentation,
+                null, null,
+                testSuites);
+    }
+
+    /**
+     * Creates a ServiceDefinition with mapping, runtime, and automatic path parameter extraction.
+     */
+    public static ServiceDefinition of(String qualifiedName, String pattern,
+            String functionBody, String documentation,
+            String mappingRef, String runtimeRef,
+            List<MappingDefinition.TestSuiteDefinition> testSuites) {
+        return new ServiceDefinition(
+                qualifiedName,
+                pattern,
+                functionBody,
+                extractPathParams(pattern),
+                documentation,
+                mappingRef, runtimeRef,
                 testSuites);
     }
 }
