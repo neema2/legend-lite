@@ -4,8 +4,6 @@ import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
-import com.gs.legend.model.PureFunctionRegistry;
-
 import com.gs.legend.parser.PureParser;
 import com.gs.legend.plan.GenericType;
 
@@ -41,7 +39,6 @@ public class TypeChecker implements TypeCheckEnv {
      * passthrough.
      */
     private static final BuiltinFunctionRegistry builtinRegistry = BuiltinFunctionRegistry.instance();
-    private static final PureFunctionRegistry functionRegistry = PureFunctionRegistry.withBuiltins();
 
     private final ModelContext modelContext;
     /** Per-node type info, consumed by PlanGenerator. */
@@ -186,8 +183,8 @@ public class TypeChecker implements TypeCheckEnv {
 
         // 1. Check function registries
         //    Direct match first (e.g., "removeDuplicates")
-        if (builtinRegistry.isRegistered(name) || functionRegistry.hasFunction(path)
-                || functionRegistry.hasFunction(name)) {
+        if (builtinRegistry.isRegistered(name) || !modelContext.findFunction(path).isEmpty()
+                || !modelContext.findFunction(name).isEmpty()) {
             return scalarTyped(pe, new GenericType.FunctionReference(path));
         }
         //    Signature-encoded name (e.g., "eq_Any_1__Any_1__Boolean_1_"):
@@ -231,6 +228,14 @@ public class TypeChecker implements TypeCheckEnv {
      * the pre-compiled source and access af.parameters() directly.
      */
     private TypeInfo compileFunction(AppliedFunction af, CompilationContext ctx) {
+        // User function — FQN-first lookup, before built-in switch
+        var userFuncs = modelContext.findFunction(af.function());
+        if (!userFuncs.isEmpty()) {
+            TypeInfo info = inlineUserFunction(af, userFuncs, ctx);
+            types.put(af, info);
+            return info;
+        }
+
         String funcName = simpleName(af.function());
 
         // Compile first arg (source) for most functions.
@@ -286,13 +291,8 @@ public class TypeChecker implements TypeCheckEnv {
             case "serialize" -> new com.gs.legend.compiler.checkers.SerializeChecker(this).check(af, source, ctx);
             case "eval" -> new com.gs.legend.compiler.checkers.EvalChecker(this).check(af, source, ctx);
             case "match" -> new com.gs.legend.compiler.checkers.MatchChecker(this).check(af, source, ctx);
-            // --- Unknown: user function → builtin → error ---
+            // --- Unknown: builtin → error ---
             default -> {
-                String qualifiedName = af.function();
-                var fn = functionRegistry.getFunction(qualifiedName)
-                        .or(() -> functionRegistry.getFunction(funcName));
-                if (fn.isPresent())
-                    yield inlineUserFunction(af, fn.get(), ctx);
                 if (builtinRegistry.isRegistered(funcName))
                     yield new com.gs.legend.compiler.checkers.ScalarChecker(this).check(af, source, ctx);
                 throw new PureCompileException(
@@ -308,46 +308,296 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Inlines a user-defined Pure function by:
-     * 1. Substituting $param with argument source text
-     * 2. Re-parsing the expanded body into new AST
-     * 3. Compiling the inlined AST recursively
+     * Inlines a user-defined Pure function via AST-level parameter substitution.
+     *
+     * <p>Steps:
+     * <ol>
+     *   <li>Recursion guard — increment depth, throw if > 32</li>
+     *   <li>Overload resolution — filter by arity, then by compiled arg types</li>
+     *   <li>Parse + resolve body (pre-resolved at model-build time)</li>
+     *   <li>Build bindings: paramName → argument AST node</li>
+     *   <li>Substitute params in each statement (capture-avoiding)</li>
+     *   <li>Compile body with let-chaining</li>
+     *   <li>Stamp TypeInfo with inlinedBody for PlanGenerator</li>
+     * </ol>
      */
     private TypeInfo inlineUserFunction(AppliedFunction af,
-            PureFunctionRegistry.FunctionEntry entry, CompilationContext ctx) {
-        String body = entry.bodySource();
-        List<String> paramNames = entry.paramNames();
+            List<com.gs.legend.model.def.FunctionDefinition> candidates, CompilationContext ctx) {
+        // 1. Recursion guard
+        CompilationContext inlineCtx = ctx.withIncrementedDepth();
 
-        // Substitute parameters with argument source text
-        if (af.hasReceiver() && af.sourceText() != null) {
-            // Arrow call: $param0 = sourceText, $param1.. = argTexts
-            if (!paramNames.isEmpty()) {
-                body = body.replace("$" + paramNames.get(0), af.sourceText());
-            }
-            for (int i = 1; i < paramNames.size() && i <= af.argTexts().size(); i++) {
-                String argText = af.argTexts().get(i - 1);
-                if (argText != null && !argText.isEmpty()) {
-                    body = body.replace("$" + paramNames.get(i), argText);
+        int argCount = af.parameters().size();
+
+        // 2. Arity filter
+        var arityMatches = candidates.stream()
+                .filter(f -> f.parameters().size() == argCount)
+                .toList();
+        if (arityMatches.isEmpty()) {
+            throw new PureCompileException(
+                    "No overload of '" + af.function() + "' accepts " + argCount + " argument(s). "
+                            + "Available arities: " + candidates.stream()
+                                    .map(f -> String.valueOf(f.parameters().size()))
+                                    .distinct().sorted().toList());
+        }
+
+        // 3. Compile args and resolve overload by type.
+        // Bidirectional: for function-typed params, push expected types into lambda params.
+        var firstMatch = arityMatches.get(0);
+        List<TypeInfo> argTypes = new ArrayList<>(argCount);
+        for (int i = 0; i < argCount; i++) {
+            var arg = af.parameters().get(i);
+            var paramDef = firstMatch.parameters().get(i);
+            if (paramDef.functionType() != null && arg instanceof LambdaFunction lambda) {
+                // Arity check before bidirectional compilation
+                int expectedArity = paramDef.functionType().paramTypes().size();
+                if (lambda.parameters().size() != expectedArity) {
+                    throw new PureCompileException(
+                            "Function '" + af.function() + "' parameter '" + paramDef.name()
+                                    + "' expects a lambda with " + expectedArity + " param(s), "
+                                    + "but got " + lambda.parameters().size());
                 }
+                argTypes.add(compileLambdaWithExpectedType(lambda, paramDef.functionType(), inlineCtx));
+            } else {
+                argTypes.add(compileExpr(arg, inlineCtx));
             }
-        } else {
-            // Standalone call: all params from argTexts
-            for (int i = 0; i < paramNames.size() && i < af.argTexts().size(); i++) {
-                String argText = af.argTexts().get(i);
-                if (argText != null && !argText.isEmpty()) {
-                    body = body.replace("$" + paramNames.get(i), argText);
+        }
+        var funcDef = resolveOverload(af.function(), arityMatches, argTypes);
+
+        // 4. Call-site type check: validate scalar arg types against declared param types.
+        // Function-typed params are already validated in step 3 (arity + bidirectional body check).
+        for (int i = 0; i < funcDef.parameters().size(); i++) {
+            var paramDef = funcDef.parameters().get(i);
+            var argInfo = argTypes.get(i);
+
+            if (paramDef.functionType() != null) continue; // already checked in step 3
+
+            // Scalar param: compare compiled arg type vs declared type
+            if (argInfo.type() != null) {
+                String declaredType = SymbolTable.extractSimpleName(paramDef.type());
+                String actualType = argInfo.type().typeName();
+                // Allow Any (declared) to accept anything; skip if declared is a type var
+                if (!"Any".equals(declaredType) && !isTypeCompatible(actualType, declaredType)) {
+                    throw new PureCompileException(
+                            "Function '" + af.function() + "' parameter '" + paramDef.name()
+                                    + "' expects " + declaredType + " but got " + actualType);
                 }
             }
         }
 
-        // Re-parse inlined body into new AST and compile
-        ValueSpecification inlinedNode = PureParser.parseQuery(body);
-        TypeInfo bodyResult = compileExpr(inlinedNode, ctx);
-        // Store inlined body in TypeInfo — PlanGenerator processes it instead of the
-        // original call
-        TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(inlinedNode).build();
+        // 5. Get pre-resolved body
+        List<ValueSpecification> bodyStmts = funcDef.resolvedBody();
+        if (bodyStmts == null) {
+            bodyStmts = PureParser.parseCodeBlock(funcDef.body());
+        }
+
+        // 6. Build bindings: paramName → argument AST
+        var bindings = new HashMap<String, ValueSpecification>();
+        for (int i = 0; i < funcDef.parameters().size(); i++) {
+            bindings.put(funcDef.parameters().get(i).name(), af.parameters().get(i));
+        }
+
+        // 7. Substitute params in each body statement
+        List<ValueSpecification> substituted = bodyStmts.stream()
+                .map(stmt -> substituteParams(stmt, bindings))
+                .toList();
+
+        // 8. Compile body with let-chaining
+        TypeInfo bodyResult = compileBodyStatements(substituted, inlineCtx);
+        ValueSpecification resultNode = substituted.getLast();
+
+        // 9. Return type validation
+        if (bodyResult.type() != null) {
+            String declaredReturn = SymbolTable.extractSimpleName(funcDef.returnType());
+            String actualReturn = bodyResult.type().typeName();
+            if (!"Any".equals(declaredReturn) && !isTypeCompatible(actualReturn, declaredReturn)) {
+                throw new PureCompileException(
+                        "Function '" + af.function() + "' declares return type " + declaredReturn
+                                + " but body returns " + actualReturn);
+            }
+        }
+
+        // 10. Stamp TypeInfo with inlinedBody for PlanGenerator
+        TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(resultNode).build();
         types.put(af, result);
         return result;
+    }
+
+    /**
+     * Resolves which overload to use when multiple functions match by arity.
+     * If only one match, returns it. If multiple, uses compiled arg types to disambiguate.
+     */
+    private com.gs.legend.model.def.FunctionDefinition resolveOverload(
+            String funcName,
+            List<com.gs.legend.model.def.FunctionDefinition> arityMatches,
+            List<TypeInfo> argTypes) {
+        if (arityMatches.size() == 1) return arityMatches.get(0);
+
+        // Score each candidate by how many arg types match declared param types
+        var scored = new ArrayList<Map.Entry<com.gs.legend.model.def.FunctionDefinition, Integer>>();
+        for (var candidate : arityMatches) {
+            int matches = 0;
+            for (int i = 0; i < candidate.parameters().size(); i++) {
+                String declaredType = SymbolTable.extractSimpleName(candidate.parameters().get(i).type());
+                if ("Any".equals(declaredType)) {
+                    matches++; // Any matches everything
+                } else if (argTypes.get(i).type() != null
+                        && isTypeCompatible(argTypes.get(i).type().typeName(), declaredType)) {
+                    matches++;
+                }
+            }
+            scored.add(Map.entry(candidate, matches));
+        }
+
+        // Sort by match count descending
+        scored.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+
+        if (scored.size() >= 2 && scored.get(0).getValue().equals(scored.get(1).getValue())) {
+            throw new PureCompileException(
+                    "Ambiguous overload for '" + funcName + "': multiple candidates match with "
+                            + scored.get(0).getValue() + " matching params");
+        }
+
+        return scored.get(0).getKey();
+    }
+
+    /**
+     * Checks if an actual type is compatible with a declared type.
+     * Handles the numeric hierarchy: Integer < Number, Float < Number, etc.
+     */
+    private static boolean isTypeCompatible(String actualType, String declaredType) {
+        if (declaredType.equals(actualType)) return true;
+        if ("Number".equals(declaredType)) {
+            return "Integer".equals(actualType) || "Float".equals(actualType)
+                    || "Decimal".equals(actualType) || "Number".equals(actualType);
+        }
+        if ("Any".equals(declaredType)) return true;
+        return false;
+    }
+
+    // ========== Body Compilation ==========
+
+    /**
+     * Compiles a list of body statements with let-chaining.
+     * Intermediate let-statements enrich the context; the final statement is the result.
+     * Used by inlineUserFunction, compileLambda, and compileLambdaWithExpectedType.
+     */
+    private TypeInfo compileBodyStatements(List<ValueSpecification> stmts, CompilationContext ctx) {
+        CompilationContext bodyCtx = ctx;
+        for (int i = 0; i < stmts.size() - 1; i++) {
+            var stmt = stmts.get(i);
+            if (stmt instanceof AppliedFunction letAf
+                    && simpleName(letAf.function()).equals("letFunction")
+                    && letAf.parameters().size() >= 2
+                    && letAf.parameters().get(0) instanceof CString(String letName)) {
+                ValueSpecification valueExpr = letAf.parameters().get(1);
+                compileExpr(valueExpr, bodyCtx);
+                bodyCtx = bodyCtx.withLetBinding(letName, valueExpr);
+            } else {
+                compileExpr(stmt, bodyCtx);
+            }
+        }
+        return compileExpr(stmts.getLast(), bodyCtx);
+    }
+
+    // ========== Bidirectional Lambda Typing ==========
+
+    /**
+     * Compiles a lambda argument using expected types from a declared FunctionType.
+     * This is bidirectional type checking: the expected parameter types from the
+     * function signature are pushed into the lambda params before compiling the body.
+     *
+     * <p>Same pattern as {@code AbstractChecker.compileLambdaArg} for built-in functions.
+     */
+    private TypeInfo compileLambdaWithExpectedType(
+            LambdaFunction lambda, PType.FunctionType expectedFT, CompilationContext ctx) {
+        // 1. Bind lambda params from expected FunctionType
+        CompilationContext lambdaCtx = ctx;
+        int paramCount = Math.min(lambda.parameters().size(), expectedFT.paramTypes().size());
+        for (int i = 0; i < paramCount; i++) {
+            String paramName = lambda.parameters().get(i).name();
+            GenericType paramType = resolvePTypeToGenericType(expectedFT.paramTypes().get(i).type());
+            lambdaCtx = lambdaCtx.withLambdaParam(paramName, paramType);
+        }
+
+        // 2. Compile body with let-chaining
+        if (lambda.body().isEmpty()) {
+            throw new PureCompileException("Empty lambda body");
+        }
+        TypeInfo bodyResult = compileBodyStatements(lambda.body(), lambdaCtx);
+
+        // 3. Validate return type against expected
+        if (bodyResult.type() != null && expectedFT.returnType() instanceof PType.Concrete c) {
+            GenericType expectedReturn = c.toGenericType();
+            if (expectedReturn != null) {
+                String expectedName = expectedReturn.typeName();
+                String actualName = bodyResult.type().typeName();
+                if (!"Any".equals(expectedName) && !isTypeCompatible(actualName, expectedName)) {
+                    throw new PureCompileException(
+                            "Lambda return type mismatch: expected " + expectedName
+                                    + " but body returns " + actualName);
+                }
+            }
+        }
+
+        // Stamp the lambda itself with the body result type
+        if (bodyResult.isScalar() && bodyResult.type() != null) {
+            return scalarTyped(lambda, bodyResult.type());
+        }
+        return bodyResult;
+    }
+
+    /**
+     * Converts a PType (parse-time type) to GenericType (compile-time type).
+     * Only concrete types are allowed in user function signatures — type variables
+     * (generics) require a unification framework we don't have.
+     */
+    private GenericType resolvePTypeToGenericType(PType ptype) {
+        return switch (ptype) {
+            case PType.Concrete c -> {
+                GenericType gt = c.toGenericType();
+                if (gt != null) yield gt;
+                // Non-primitive: try as class name
+                yield GenericType.fromTypeName(c.name());
+            }
+            case PType.TypeVar tv -> throw new PureCompileException(
+                    "Type variables (generics) are not supported in user function signatures: " + tv.name());
+            default -> throw new PureCompileException(
+                    "Unsupported type in user function signature: " + ptype);
+        };
+    }
+
+    // ========== AST-level Parameter Substitution ==========
+
+    /**
+     * Capture-avoiding substitution: replaces Variable nodes matching binding names
+     * with the corresponding AST subtrees. Lambda parameters shadow outer bindings.
+     *
+     * <p>Only 5 of 17 ValueSpecification subtypes can contain nested Variables:
+     * Variable, AppliedFunction, AppliedProperty, LambdaFunction, PureCollection.
+     * All others (13 literal/terminal types) are returned as-is.
+     */
+    private ValueSpecification substituteParams(ValueSpecification node,
+            Map<String, ValueSpecification> bindings) {
+        return switch (node) {
+            case Variable v -> bindings.getOrDefault(v.name(), v);
+            case AppliedFunction af -> new AppliedFunction(af.function(),
+                    af.parameters().stream().map(p -> substituteParams(p, bindings)).toList(),
+                    af.hasReceiver(), af.sourceText(), af.argTexts());
+            case AppliedProperty ap -> new AppliedProperty(ap.property(),
+                    ap.parameters().stream().map(p -> substituteParams(p, bindings)).toList());
+            case LambdaFunction lf -> {
+                var inner = new HashMap<>(bindings);
+                lf.parameters().forEach(p -> inner.remove(p.name())); // capture-avoiding
+                yield new LambdaFunction(lf.parameters(),
+                        lf.body().stream().map(e -> substituteParams(e, inner)).toList());
+            }
+            case PureCollection c -> new PureCollection(
+                    c.values().stream().map(v -> substituteParams(v, bindings)).toList());
+            default -> node; // CInteger, CFloat, CDecimal, CString, CBoolean, CDateTime,
+                             // CStrictDate, CStrictTime, CLatestDate, CByteArray, EnumValue,
+                             // UnitInstance, PackageableElementPtr, GenericTypeInstance,
+                             // ClassInstance — no Variable children
+        };
     }
 
     /**
@@ -418,24 +668,7 @@ public class TypeChecker implements TypeCheckEnv {
 
         // Multi-statement body: process let bindings, compile final expression
         // Matches legend-pure's M3 model: lambda body IS the statement list
-        List<ValueSpecification> body = lf.body();
-        for (int i = 0; i < body.size() - 1; i++) {
-            var stmt = body.get(i);
-            if (stmt instanceof AppliedFunction letAf
-                    && simpleName(letAf.function()).equals("letFunction")
-                    && letAf.parameters().size() >= 2
-                    && letAf.parameters().get(0) instanceof CString(String value)) {
-                // let x = valueExpr → compile value, store binding in context
-                ValueSpecification valueExpr = letAf.parameters().get(1);
-                compileExpr(valueExpr, lambdaCtx);
-                lambdaCtx = lambdaCtx.withLetBinding(value, valueExpr);
-            } else {
-                compileExpr(stmt, lambdaCtx);
-            }
-        }
-
-        // Compile the final (result) expression with enriched context
-        TypeInfo bodyInfo = compileExpr(body.getLast(), lambdaCtx);
+        TypeInfo bodyInfo = compileBodyStatements(lf.body(), lambdaCtx);
         if (bodyInfo.isScalar() && bodyInfo.type() != null) {
             // Propagate multiplicity from body — if body is MANY (list-producing),
             // the lambda must also be MANY so UNNEST is applied at the root.
@@ -792,28 +1025,40 @@ public class TypeChecker implements TypeCheckEnv {
     public record CompilationContext(
             Map<String, GenericType.Relation.Schema> relationTypes,
             Map<String, GenericType> lambdaParams,
-            Map<String, ValueSpecification> letBindings) {
+            Map<String, ValueSpecification> letBindings,
+            int inlineDepth) {
+
+        private static final int MAX_INLINE_DEPTH = 32;
 
         public CompilationContext() {
-            this(Map.of(), Map.of(), Map.of());
+            this(Map.of(), Map.of(), Map.of(), 0);
         }
 
         public CompilationContext withRelationType(String paramName, GenericType.Relation.Schema type) {
             var newTypes = new HashMap<>(relationTypes);
             newTypes.put(paramName, type);
-            return new CompilationContext(Map.copyOf(newTypes), lambdaParams, letBindings);
+            return new CompilationContext(Map.copyOf(newTypes), lambdaParams, letBindings, inlineDepth);
         }
 
         public CompilationContext withLambdaParam(String name, GenericType type) {
             var m = new HashMap<>(lambdaParams);
             m.put(name, type); // type may be null for untyped params (e.g., forAll(e|...))
-            return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings);
+            return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings, inlineDepth);
         }
 
         public CompilationContext withLetBinding(String name, ValueSpecification value) {
             var m = new HashMap<>(letBindings);
             m.put(name, value);
-            return new CompilationContext(relationTypes, lambdaParams, Map.copyOf(m));
+            return new CompilationContext(relationTypes, lambdaParams, Map.copyOf(m), inlineDepth);
+        }
+
+        public CompilationContext withIncrementedDepth() {
+            if (inlineDepth >= MAX_INLINE_DEPTH) {
+                throw new PureCompileException(
+                        "Maximum function inline depth (" + MAX_INLINE_DEPTH + ") exceeded. "
+                                + "This usually indicates a recursive function, which is not supported.");
+            }
+            return new CompilationContext(relationTypes, lambdaParams, letBindings, inlineDepth + 1);
         }
 
         public boolean isLambdaParam(String name) {

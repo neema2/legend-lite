@@ -30,8 +30,7 @@ public class FunctionParserTest {
         FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
 
         assertEquals("my::utils::greet", func.qualifiedName());
-        assertEquals("greet", func.simpleName());
-        assertEquals("my::utils", func.packagePath());
+        assertTrue(func.qualifiedName().endsWith("greet"));
         assertEquals(1, func.parameters().size());
         assertEquals("name", func.parameters().get(0).name());
         assertEquals("String", func.parameters().get(0).type());
@@ -93,7 +92,7 @@ public class FunctionParserTest {
 
         FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
 
-        assertEquals("getAllNames", func.simpleName());
+        assertEquals("query::getAllNames", func.qualifiedName());
         assertEquals("String", func.returnType());
         assertEquals(0, func.returnLowerBound());
         assertNull(func.returnUpperBound()); // null means unbounded (*)

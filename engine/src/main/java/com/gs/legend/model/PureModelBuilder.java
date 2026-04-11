@@ -40,7 +40,7 @@ public final class PureModelBuilder implements ModelContext {
     private final Map<String, Filter> filters = new HashMap<>();
     private final Map<Integer, DatabaseDefinition> databases = new HashMap<>();
     private final Map<Integer, ProfileDefinition> profiles = new HashMap<>();
-    private final Map<Integer, FunctionDefinition> functions = new HashMap<>();
+    private final Map<Integer, List<FunctionDefinition>> functions = new HashMap<>();
     private final Map<Integer, ConnectionDefinition> connections = new HashMap<>();
     private final Map<Integer, RuntimeDefinition> runtimes = new HashMap<>();
     private final Map<Integer, ServiceDefinition> services = new HashMap<>();
@@ -225,6 +225,11 @@ public final class PureModelBuilder implements ModelContext {
         // PHASE 5: Resolve mapping includes (copy class mappings from included mappings)
         resolveMappingIncludes();
 
+        // PHASE 6: Pre-resolve function bodies — parse body text into AST and resolve names
+        if (!isStrict) {
+            resolveFunctionBodies();
+        }
+
         return this;
     }
 
@@ -300,6 +305,28 @@ public final class PureModelBuilder implements ModelContext {
                     } else if (cm instanceof com.gs.legend.model.mapping.PureClassMapping pcm) {
                         mappingRegistry.registerPureClassMapping(mappingDef.qualifiedName(), pcm);
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * Pre-resolves function bodies: parses body text into AST and resolves names
+     * using the current import scope and known FQNs. Replaces each FunctionDefinition
+     * with one carrying a resolvedBody.
+     */
+    private void resolveFunctionBodies() {
+        for (var funcList : functions.values()) {
+            for (int i = 0; i < funcList.size(); i++) {
+                FunctionDefinition fd = funcList.get(i);
+                if (fd.resolvedBody() == null) {
+                    List<com.gs.legend.ast.ValueSpecification> body =
+                            com.gs.legend.parser.PureParser.parseCodeBlock(fd.body());
+                    List<com.gs.legend.ast.ValueSpecification> resolved = body.stream()
+                            .map(stmt -> com.gs.legend.parser.NameResolver.resolveQuery(
+                                    stmt, imports, symbols.allFqns()))
+                            .toList();
+                    funcList.set(i, fd.withResolvedBody(resolved));
                 }
             }
         }
@@ -478,8 +505,14 @@ public final class PureModelBuilder implements ModelContext {
      * Adds a Function definition.
      */
     public PureModelBuilder addFunction(FunctionDefinition funcDef) {
-        functions.put(symbols.intern(funcDef.qualifiedName()), funcDef);
+        functions.computeIfAbsent(symbols.intern(funcDef.qualifiedName()), k -> new ArrayList<>()).add(funcDef);
         return this;
+    }
+
+    @Override
+    public List<FunctionDefinition> findFunction(String name) {
+        List<FunctionDefinition> result = functions.get(symbols.resolveId(name));
+        return result != null ? result : List.of();
     }
 
     /**

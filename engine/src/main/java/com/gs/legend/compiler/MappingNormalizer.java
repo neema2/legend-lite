@@ -59,6 +59,7 @@ public final class MappingNormalizer {
             @Override public java.util.Optional<com.gs.legend.model.store.Table> findTable(String n) { return model.findTable(n); }
             @Override public java.util.Optional<com.gs.legend.model.def.EnumDefinition> findEnum(String n) { return model.findEnum(n); }
             @Override public java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String c) { return model.findAllAssociationNavigations(c); }
+            @Override public java.util.List<com.gs.legend.model.def.FunctionDefinition> findFunction(String n) { return model.findFunction(n); }
             @Override public java.util.Optional<MappingExpression> findMappingExpression(String className) {
                 return normalized.findMappingExpression(className);
             }

@@ -85,6 +85,26 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 Mapping model::DoyMap ( DoyRecord: Relational { ~mainTable [DoyDb] T_DOY eventDate: [DoyDb] T_DOY.EVENT_DATE } )
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
+
+                function meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues(val: Integer[*]):Boolean[1]
+                {
+                    $val->filter(y | $y->mod(2) == 0)->size() == 2
+                }
+
+                function meta::pure::functions::lang::tests::letFn::letAsLastStatement():String[1]
+                {
+                    let last = 'last statement string'
+                }
+
+                function meta::pure::functions::lang::tests::letFn::letWithParam(val: String[1]):Any[*]
+                {
+                    let a = $val
+                }
+
+                function meta::pure::functions::lang::tests::letFn::letChainedWithAnotherFunction(elements: ModelElement[*]):ModelElement[*]
+                {
+                    let classes = $elements->removeDuplicates()
+                }
             """;
 
     private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");

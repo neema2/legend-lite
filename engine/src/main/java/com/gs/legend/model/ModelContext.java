@@ -80,6 +80,16 @@ public interface ModelContext {
     }
 
     /**
+     * Finds user-defined function definitions by name (FQN or simple name).
+     *
+     * @param name Function name (qualified or simple)
+     * @return List of matching function definitions (empty if none found; multiple for overloads)
+     */
+    default java.util.List<com.gs.legend.model.def.FunctionDefinition> findFunction(String name) {
+        return java.util.List.of();
+    }
+
+    /**
      * Compiler-visible view of a mapping — expressions only, no routing info.
      * Sealed interface with two variants: M2M (Pure expression-based) and
      * Relational (column-based with optional filter).

@@ -227,7 +227,34 @@ public abstract class AbstractDatabaseTest {
             """;
 
     /**
-     * Complete Pure model (Classes + Association + Database + Mapping + PCT classes).
+     * User-defined function definitions for PCT and integration tests.
+     * Previously hardcoded in PureFunctionRegistry; now part of the Pure model
+     * so PureModelBuilder.addSource() picks them up via normal parsing.
+     */
+    protected static final String FUNCTION_DEFS = """
+            function meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues(val: Integer[*]):Boolean[1]
+            {
+                $val->filter(y | $y->mod(2) == 0)->size() == 2
+            }
+
+            function meta::pure::functions::lang::tests::letFn::letAsLastStatement():String[1]
+            {
+                let last = 'last statement string'
+            }
+
+            function meta::pure::functions::lang::tests::letFn::letWithParam(val: String[1]):Any[*]
+            {
+                let a = $val
+            }
+
+            function meta::pure::functions::lang::tests::letFn::letChainedWithAnotherFunction(elements: ModelElement[*]):ModelElement[*]
+            {
+                let classes = $elements->removeDuplicates()
+            }
+            """;
+
+    /**
+     * Complete Pure model (Classes + Association + Database + Mapping + PCT classes + Functions).
      */
     protected static final String COMPLETE_PURE_MODEL = PERSON_CLASS + "\n" +
             ADDRESS_CLASS + "\n" +
@@ -235,6 +262,7 @@ public abstract class AbstractDatabaseTest {
             PERSON_PRIMARY_ADDRESS_ASSOCIATION + "\n" +
             STRUCT_TEST_CLASSES + "\n" +
             PCT_CLASS_DEFS + "\n" +
+            FUNCTION_DEFS + "\n" +
             PERSON_DATABASE + "\n" +
             PERSON_MAPPING;
 

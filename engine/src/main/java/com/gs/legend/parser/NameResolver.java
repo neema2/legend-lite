@@ -64,6 +64,7 @@ public final class NameResolver {
             case ClassDefinition classDef -> resolveClass(classDef, imports, knownFqns);
             case AssociationDefinition assocDef -> resolveAssociation(assocDef, imports, knownFqns);
             case MappingDefinition mappingDef -> resolveMapping(mappingDef, imports, knownFqns);
+            case FunctionDefinition funcDef -> resolveFunction(funcDef, imports, knownFqns);
             default -> def; // Database, Runtime, Service, etc. — no simple name fields
         };
     }
@@ -131,6 +132,34 @@ public final class NameResolver {
         String resolvedType = imports.resolve(param.type(), knownFqns);
         if (resolvedType.equals(param.type())) return param;
         return new ParameterDefinition(param.name(), resolvedType, param.lowerBound(), param.upperBound());
+    }
+
+    // ==================== FunctionDefinition ====================
+
+    private static FunctionDefinition resolveFunction(
+            FunctionDefinition funcDef, ImportScope imports, Set<String> knownFqns) {
+
+        String resolvedReturnType = imports.resolve(funcDef.returnType(), knownFqns);
+        List<FunctionDefinition.ParameterDefinition> resolvedParams = funcDef.parameters().stream()
+                .map(p -> resolveFuncParam(p, imports, knownFqns))
+                .toList();
+
+        if (resolvedReturnType.equals(funcDef.returnType())
+                && resolvedParams.equals(funcDef.parameters())) {
+            return funcDef;
+        }
+
+        return new FunctionDefinition(funcDef.qualifiedName(), resolvedParams,
+                resolvedReturnType, funcDef.returnLowerBound(), funcDef.returnUpperBound(),
+                funcDef.body(), funcDef.stereotypes(), funcDef.taggedValues());
+    }
+
+    private static FunctionDefinition.ParameterDefinition resolveFuncParam(
+            FunctionDefinition.ParameterDefinition param, ImportScope imports, Set<String> knownFqns) {
+        String resolvedType = imports.resolve(param.type(), knownFqns);
+        if (resolvedType.equals(param.type())) return param;
+        return new FunctionDefinition.ParameterDefinition(
+                param.name(), resolvedType, param.lowerBound(), param.upperBound(), param.functionType());
     }
 
     // ==================== AssociationDefinition ====================
@@ -247,9 +276,10 @@ public final class NameResolver {
                 yield resolved.equals(gti.fullPath()) ? gti : new GenericTypeInstance(resolved, gti.resolvedType());
             }
             case AppliedFunction af -> {
+                String resolvedFunc = imports.resolve(af.function(), knownFqns);
                 List<ValueSpecification> resolvedParams = resolveList(af.parameters(), imports, knownFqns);
-                yield resolvedParams == af.parameters() ? af
-                        : new AppliedFunction(af.function(), resolvedParams, af.hasReceiver(),
+                yield (resolvedFunc.equals(af.function()) && resolvedParams == af.parameters()) ? af
+                        : new AppliedFunction(resolvedFunc, resolvedParams, af.hasReceiver(),
                                 af.sourceText(), af.argTexts());
             }
             case LambdaFunction lf -> {

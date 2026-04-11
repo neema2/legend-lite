@@ -1,5 +1,7 @@
 package com.gs.legend.model.def;
 
+import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.compiler.PType;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,15 +37,18 @@ public record FunctionDefinition(
         Integer returnUpperBound,
         String body,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues) implements PackageableElement {
+        List<TaggedValue> taggedValues,
+        List<ValueSpecification> resolvedBody) implements PackageableElement {
 
     public FunctionDefinition {
         Objects.requireNonNull(qualifiedName, "Function name cannot be null");
         Objects.requireNonNull(returnType, "Return type cannot be null");
         Objects.requireNonNull(body, "Function body cannot be null");
+        if (body.isBlank()) throw new IllegalArgumentException("Function body cannot be empty");
         parameters = parameters == null ? List.of() : List.copyOf(parameters);
         stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+        // resolvedBody is null until PureModelBuilder Phase 6 pre-resolves it
     }
 
     /**
@@ -51,23 +56,22 @@ public record FunctionDefinition(
      */
     public FunctionDefinition(String qualifiedName, List<ParameterDefinition> parameters,
             String returnType, int returnLowerBound, Integer returnUpperBound, String body) {
-        this(qualifiedName, parameters, returnType, returnLowerBound, returnUpperBound, body, List.of(), List.of());
+        this(qualifiedName, parameters, returnType, returnLowerBound, returnUpperBound, body, List.of(), List.of(), null);
+    }
+
+    public FunctionDefinition(String qualifiedName, List<ParameterDefinition> parameters,
+            String returnType, int returnLowerBound, Integer returnUpperBound, String body,
+            List<StereotypeApplication> stereotypes, List<TaggedValue> taggedValues) {
+        this(qualifiedName, parameters, returnType, returnLowerBound, returnUpperBound, body,
+                stereotypes, taggedValues, null);
     }
 
     /**
-     * @return The simple function name (without package)
+     * Returns a copy with the pre-resolved body AST.
      */
-    public String simpleName() {
-        int idx = qualifiedName.lastIndexOf("::");
-        return idx >= 0 ? qualifiedName.substring(idx + 2) : qualifiedName;
-    }
-
-    /**
-     * @return The package path (without function name)
-     */
-    public String packagePath() {
-        int idx = qualifiedName.lastIndexOf("::");
-        return idx >= 0 ? qualifiedName.substring(0, idx) : "";
+    public FunctionDefinition withResolvedBody(List<ValueSpecification> resolved) {
+        return new FunctionDefinition(qualifiedName, parameters, returnType,
+                returnLowerBound, returnUpperBound, body, stereotypes, taggedValues, resolved);
     }
 
     /**
@@ -91,19 +95,26 @@ public record FunctionDefinition(
     /**
      * Represents a function parameter.
      * 
-     * @param name       Parameter name
-     * @param type       Parameter type
-     * @param lowerBound Lower multiplicity bound
-     * @param upperBound Upper multiplicity bound (null for *)
+     * @param name         Parameter name
+     * @param type         Parameter type (simple name or FQN)
+     * @param lowerBound   Lower multiplicity bound
+     * @param upperBound   Upper multiplicity bound (null for *)
+     * @param functionType Structured function type for Function<{...}> params;
+     *                     null for non-function params (String, Integer, etc.)
      */
     public record ParameterDefinition(
             String name,
             String type,
             int lowerBound,
-            Integer upperBound) {
+            Integer upperBound,
+            PType.FunctionType functionType) {
         public ParameterDefinition {
             Objects.requireNonNull(name, "Parameter name cannot be null");
             Objects.requireNonNull(type, "Parameter type cannot be null");
+        }
+
+        public ParameterDefinition(String name, String type, int lowerBound, Integer upperBound) {
+            this(name, type, lowerBound, upperBound, null);
         }
 
         /**
@@ -124,17 +135,7 @@ public record FunctionDefinition(
          * @return Type with multiplicity as string (e.g., "String[1]")
          */
         public String typeWithMultiplicity() {
-            return type + "[" + multiplicityString(lowerBound, upperBound) + "]";
-        }
-
-        private static String multiplicityString(int lower, Integer upper) {
-            if (upper == null) {
-                return lower == 0 ? "*" : lower + "..*";
-            }
-            if (lower == upper) {
-                return String.valueOf(lower);
-            }
-            return lower + ".." + upper;
+            return type + "[" + FunctionDefinition.multiplicityString(lowerBound, upperBound) + "]";
         }
     }
 }

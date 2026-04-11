@@ -56,6 +56,39 @@ public final class PureParser {
         return visitor.visit(tree);
     }
 
+    /**
+     * Parses a Pure code block (one or more semicolon-separated statements).
+     * Used for multi-statement function bodies.
+     *
+     * @param body The Pure body source code
+     * @return List of parsed ValueSpecification statements
+     * @throws PureParseException if parsing fails
+     */
+    public static List<com.gs.legend.ast.ValueSpecification> parseCodeBlock(String body) {
+        PureLexer lexer = new PureLexer(CharStreams.fromString(body));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(new ErrorListener());
+
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        com.gs.legend.antlr.PureParser parser = new com.gs.legend.antlr.PureParser(tokens);
+        parser.removeErrorListeners();
+        parser.addErrorListener(new ErrorListener());
+
+        com.gs.legend.antlr.PureParser.CodeBlockContext tree = parser.codeBlock();
+        com.gs.legend.antlr.ValueSpecificationBuilder visitor = new com.gs.legend.antlr.ValueSpecificationBuilder();
+        visitor.setInputSource(body);
+
+        List<com.gs.legend.antlr.PureParser.ProgramLineContext> lines = tree.programLine();
+        if (lines.isEmpty()) {
+            throw new PureParseException("Empty function body");
+        }
+        List<com.gs.legend.ast.ValueSpecification> stmts = new ArrayList<>();
+        for (com.gs.legend.antlr.PureParser.ProgramLineContext line : lines) {
+            stmts.add(visitor.visit(line));
+        }
+        return stmts;
+    }
+
     // ==================== Model Parsing ====================
 
     /**

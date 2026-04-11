@@ -651,8 +651,16 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             String paramType = paramCtx.type().getText();
             String multText = paramCtx.multiplicity().getText();
             int[] bounds = parseMultiplicity(multText);
+            // Parse structured function type for Function<{...}> params
+            PType parsedType = visitPureType(paramCtx.type());
+            PType.FunctionType fnType = (parsedType instanceof PType.FunctionType ft) ? ft
+                    : (parsedType instanceof PType.Parameterized p
+                            && "Function".equals(p.rawType())
+                            && !p.typeArgs().isEmpty()
+                            && p.typeArgs().get(0) instanceof PType.FunctionType ft2) ? ft2
+                    : null;
             parameters.add(new com.gs.legend.model.def.FunctionDefinition.ParameterDefinition(
-                    paramName, paramType, bounds[0], bounds[1] == -1 ? null : bounds[1]));
+                    paramName, paramType, bounds[0], bounds[1] == -1 ? null : bounds[1], fnType));
         }
 
         // Extract return type and multiplicity
