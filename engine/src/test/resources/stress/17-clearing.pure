@@ -1,0 +1,200 @@
+// ============================================================
+// Clearing Domain — CCP, cleared trades, default fund
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class clearing::ClearingMember
+{
+    memberId: String[1];
+    memberName: String[1];
+    memberType: String[1];
+    status: String[1];
+    joinDate: StrictDate[1];
+    creditRating: String[0..1];
+    defaultFundContribution: Float[0..1];
+    guaranteeFundContribution: Float[0..1];
+    isActive: Boolean[1];
+    jurisdiction: String[1];
+    lei: String[0..1];
+    currency: String[1];
+}
+
+Class clearing::ClearedTrade
+{
+    clearedTradeId: String[1];
+    clearingDate: StrictDate[1];
+    originalTradeId: String[1];
+    notional: Float[1];
+    clearingFee: Float[1];
+    status: String[1];
+    productType: String[1];
+    currency: String[1];
+    maturityDate: StrictDate[0..1];
+    isCompressed: Boolean[1];
+    compressionDate: StrictDate[0..1];
+    novationDate: StrictDate[0..1];
+}
+
+Class clearing::CCPMarginCall
+{
+    ccpMarginId: String[1];
+    callDate: StrictDate[1];
+    initialMargin: Float[1];
+    variationMargin: Float[1];
+    additionalMargin: Float[0..1];
+    totalMargin: Float[1];
+    currency: String[1];
+    status: String[1];
+    dueDate: StrictDate[1];
+    paidAmount: Float[0..1];
+    isPaid: Boolean[1];
+    callType: String[1];
+}
+
+Class clearing::DefaultFund
+{
+    fundId: String[1];
+    fundName: String[1];
+    totalSize: Float[1];
+    utilizedAmount: Float[0..1];
+    availableAmount: Float[1];
+    currency: String[1];
+    asOfDate: StrictDate[1];
+    lastAssessmentDate: StrictDate[0..1];
+    nextAssessmentDate: StrictDate[0..1];
+    isAdequate: Boolean[1];
+    targetSize: Float[0..1];
+}
+
+Class clearing::ClearingHouse
+{
+    clearingHouseId: String[1];
+    name: String[1];
+    shortName: String[1];
+    jurisdiction: String[1];
+    regulator: String[1];
+    isQCCP: Boolean[1];
+    productTypes: String[1];
+    website: String[0..1];
+    lei: String[0..1];
+    memberCount: Integer[0..1];
+    dailyVolume: Float[0..1];
+    currency: String[1];
+}
+
+Class clearing::NovationRequest
+{
+    novationId: String[1];
+    requestDate: StrictDate[1];
+    requestType: String[1];
+    status: String[1];
+    steppingInParty: String[1];
+    steppingOutParty: String[1];
+    remainingParty: String[1];
+    notional: Float[1];
+    currency: String[1];
+    effectiveDate: StrictDate[0..1];
+    approvedDate: StrictDate[0..1];
+    isApproved: Boolean[0..1];
+}
+
+Class clearing::TradeCompression
+{
+    compressionId: String[1];
+    compressionDate: StrictDate[1];
+    tradesBefore: Integer[1];
+    tradesAfter: Integer[1];
+    notionalBefore: Float[1];
+    notionalAfter: Float[1];
+    reductionPct: Float[1];
+    status: String[1];
+    cycle: String[1];
+    currency: String[1];
+    productType: String[1];
+    isSuccessful: Boolean[1];
+}
+
+Class clearing::PortfolioReconciliation
+{
+    reconId: String[1];
+    reconDate: StrictDate[1];
+    totalPositions: Integer[1];
+    matchedPositions: Integer[1];
+    unmatchedPositions: Integer[1];
+    matchRate: Float[1];
+    status: String[1];
+    frequency: String[1];
+    daysToResolve: Integer[0..1];
+    isComplete: Boolean[1];
+    notionalDifference: Float[0..1];
+    currency: String[0..1];
+}
+
+Class clearing::ClearingFee
+{
+    feeId: String[1];
+    feeDate: StrictDate[1];
+    feeType: String[1];
+    amount: Float[1];
+    currency: String[1];
+    feeSchedule: String[1];
+    volumeDiscount: Float[0..1];
+    netFee: Float[1];
+    status: String[1];
+    invoiceId: String[0..1];
+    isPaid: Boolean[1];
+}
+
+Class clearing::PositionTransfer
+{
+    transferId: String[1];
+    transferDate: StrictDate[1];
+    fromMember: String[1];
+    toMember: String[1];
+    notional: Float[1];
+    tradeCount: Integer[1];
+    status: String[1];
+    reason: String[1];
+    approvedBy: String[0..1];
+    effectiveDate: StrictDate[1];
+    currency: String[1];
+    isRegulatory: Boolean[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association clearing::ClearingHouse_ClearingMember
+{
+    clearingHouse: clearing::ClearingHouse[1];
+    members: clearing::ClearingMember[*];
+}
+
+Association clearing::ClearingMember_ClearedTrade
+{
+    clearingMember: clearing::ClearingMember[1];
+    clearedTrades: clearing::ClearedTrade[*];
+}
+
+Association clearing::ClearingMember_CCPMarginCall
+{
+    clearingMember: clearing::ClearingMember[1];
+    ccpMarginCalls: clearing::CCPMarginCall[*];
+}
+
+Association clearing::ClearingHouse_DefaultFund
+{
+    clearingHouse: clearing::ClearingHouse[1];
+    defaultFunds: clearing::DefaultFund[*];
+}
+
+Association clearing::ClearingMember_ClearingFee
+{
+    clearingMember: clearing::ClearingMember[1];
+    clearingFees: clearing::ClearingFee[*];
+}
+
+Association clearing::ClearedTrade_NovationRequest
+{
+    clearedTrade: clearing::ClearedTrade[0..1];
+    novationRequests: clearing::NovationRequest[*];
+}

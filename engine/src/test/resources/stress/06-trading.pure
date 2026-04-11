@@ -1,0 +1,250 @@
+// ============================================================
+// Trading Domain — Orders, trades, executions, allocations
+// 10 classes, ~15 properties each + enums
+// ============================================================
+
+Enum trading::OrderType
+{
+    MARKET,
+    LIMIT,
+    STOP,
+    STOP_LIMIT,
+    IOC,
+    FOK
+}
+
+Enum trading::OrderStatus
+{
+    NEW,
+    PARTIALLY_FILLED,
+    FILLED,
+    CANCELLED,
+    REJECTED,
+    EXPIRED
+}
+
+Class trading::Trade
+{
+    tradeId: String[1];
+    tradeDate: StrictDate[1];
+    settlementDate: StrictDate[1];
+    quantity: Float[1];
+    price: Float[1];
+    notional: Float[1];
+    side: String[1];
+    status: String[1];
+    tradeType: String[1];
+    currency: String[1];
+    commission: Float[0..1];
+    fees: Float[0..1];
+    executionVenue: String[0..1];
+    isBlock: Boolean[1];
+    createdTime: DateTime[1];
+    lastModifiedTime: DateTime[0..1];
+}
+
+Class trading::Order
+{
+    orderId: String[1];
+    orderDate: StrictDate[1];
+    side: String[1];
+    quantity: Float[1];
+    filledQuantity: Float[0..1];
+    remainingQuantity: Float[0..1];
+    limitPrice: Float[0..1];
+    stopPrice: Float[0..1];
+    timeInForce: String[1];
+    status: String[1];
+    priority: Integer[0..1];
+    createdTime: DateTime[1];
+    lastModifiedTime: DateTime[0..1];
+    expiryDate: StrictDate[0..1];
+    isAlgoOrder: Boolean[1];
+    algoStrategy: String[0..1];
+}
+
+Class trading::Execution
+{
+    executionId: String[1];
+    executionTime: DateTime[1];
+    filledQuantity: Float[1];
+    fillPrice: Float[1];
+    venue: String[1];
+    broker: String[0..1];
+    commission: Float[0..1];
+    fillType: String[1];
+    executionAlgo: String[0..1];
+    arrivalPrice: Float[0..1];
+    slippage: Float[0..1];
+    marketImpact: Float[0..1];
+    isPartialFill: Boolean[1];
+    sequenceNumber: Integer[1];
+    lastMarket: String[0..1];
+}
+
+Class trading::Allocation
+{
+    allocationId: String[1];
+    quantity: Float[1];
+    price: Float[1];
+    notional: Float[1];
+    account: String[1];
+    allocationDate: StrictDate[1];
+    status: String[1];
+    commission: Float[0..1];
+    fees: Float[0..1];
+    settlementDate: StrictDate[0..1];
+    currency: String[1];
+    isConfirmed: Boolean[1];
+}
+
+Class trading::TradeLifecycleEvent
+{
+    eventId: String[1];
+    eventType: String[1];
+    eventDate: DateTime[1];
+    reason: String[0..1];
+    previousValue: String[0..1];
+    newValue: String[0..1];
+    fieldChanged: String[0..1];
+    performedBy: String[1];
+    isSystemGenerated: Boolean[1];
+    approvedBy: String[0..1];
+    approvalDate: DateTime[0..1];
+    comment: String[0..1];
+}
+
+Class trading::Block
+{
+    blockId: String[1];
+    blockDate: StrictDate[1];
+    totalQuantity: Float[1];
+    averagePrice: Float[1];
+    totalNotional: Float[1];
+    numberOfAllocations: Integer[1];
+    status: String[1];
+    side: String[1];
+    currency: String[1];
+    broker: String[0..1];
+    isComplete: Boolean[1];
+    completedTime: DateTime[0..1];
+}
+
+Class trading::OrderRoute
+{
+    routeId: String[1];
+    routeDate: DateTime[1];
+    destination: String[1];
+    routeQuantity: Float[1];
+    routedPrice: Float[0..1];
+    status: String[1];
+    routeType: String[1];
+    priority: Integer[0..1];
+    latencyMs: Integer[0..1];
+    isSmartRouted: Boolean[1];
+    rejectReason: String[0..1];
+    broker: String[0..1];
+}
+
+Class trading::FillDetail
+{
+    fillId: String[1];
+    fillTime: DateTime[1];
+    fillQuantity: Float[1];
+    fillPrice: Float[1];
+    venue: String[1];
+    counterpartyId: String[0..1];
+    liquidityType: String[1];
+    isMidpoint: Boolean[1];
+    isDarkPool: Boolean[1];
+    sequenceNumber: Integer[1];
+    fees: Float[0..1];
+    rebate: Float[0..1];
+}
+
+Class trading::TradeCorrection
+{
+    correctionId: String[1];
+    correctionDate: DateTime[1];
+    correctionType: String[1];
+    originalValue: String[1];
+    correctedValue: String[1];
+    fieldCorrected: String[1];
+    reason: String[1];
+    performedBy: String[1];
+    approvedBy: String[0..1];
+    status: String[1];
+    isReversed: Boolean[1];
+}
+
+Class trading::AveragePriceTrade
+{
+    avgTradeId: String[1];
+    avgPrice: Float[1];
+    totalQuantity: Float[1];
+    totalNotional: Float[1];
+    numberOfFills: Integer[1];
+    vwapPrice: Float[0..1];
+    twapPrice: Float[0..1];
+    arrivalPrice: Float[0..1];
+    closePrice: Float[0..1];
+    tradeDate: StrictDate[1];
+    side: String[1];
+    currency: String[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association trading::Order_Trade
+{
+    order: trading::Order[0..1];
+    trades: trading::Trade[*];
+}
+
+Association trading::Order_Execution
+{
+    order: trading::Order[1];
+    executions: trading::Execution[*];
+}
+
+Association trading::Trade_Allocation
+{
+    trade: trading::Trade[1];
+    allocations: trading::Allocation[*];
+}
+
+Association trading::Trade_LifecycleEvent
+{
+    trade: trading::Trade[1];
+    lifecycleEvents: trading::TradeLifecycleEvent[*];
+}
+
+Association trading::Trade_Block
+{
+    block: trading::Block[0..1];
+    trades: trading::Trade[*];
+}
+
+Association trading::Order_OrderRoute
+{
+    order: trading::Order[1];
+    routes: trading::OrderRoute[*];
+}
+
+Association trading::Execution_FillDetail
+{
+    execution: trading::Execution[1];
+    fillDetails: trading::FillDetail[*];
+}
+
+Association trading::Trade_TradeCorrection
+{
+    trade: trading::Trade[1];
+    corrections: trading::TradeCorrection[*];
+}
+
+Association trading::Trade_AveragePriceTrade
+{
+    avgPriceTrade: trading::AveragePriceTrade[0..1];
+    trades: trading::Trade[*];
+}

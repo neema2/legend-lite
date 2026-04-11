@@ -1,0 +1,26 @@
+Runtime stress::RT
+{
+    mappings:
+    [
+        products::ProductsMapping,
+        refdata::RefdataMapping,
+        counterparty::CounterpartyMapping,
+        org::OrgMapping,
+        positions::PositionsMapping,
+        trading::TradingMapping,
+        pnl::PnlMapping,
+        risk::RiskMapping,
+        settlement::SettlementMapping,
+        ops::OpsMapping,
+        collateral::CollateralMapping,
+        sales::SalesMapping,
+        regulatory::RegulatoryMapping,
+        marketdata::MarketdataMapping,
+        funding::FundingMapping,
+        accounting::AccountingMapping,
+        clearing::ClearingMapping,
+        tax::TaxMapping,
+        research::ResearchMapping,
+        prime::PrimeMapping
+    ];
+}

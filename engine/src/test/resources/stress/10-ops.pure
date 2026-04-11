@@ -1,0 +1,192 @@
+// ============================================================
+// Operations Domain — Confirmations, netting, exceptions
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class ops::Confirmation
+{
+    confirmId: String[1];
+    status: String[1];
+    sentDate: StrictDate[0..1];
+    affirmedDate: StrictDate[0..1];
+    confirmMethod: String[1];
+    affirmedBy: String[0..1];
+    daysOutstanding: Integer[0..1];
+    isOverdue: Boolean[0..1];
+    templateType: String[0..1];
+    version: Integer[1];
+    lastSentTime: DateTime[0..1];
+    counterpartyRef: String[0..1];
+    isElectronic: Boolean[1];
+}
+
+Class ops::NettingSet
+{
+    nettingSetId: String[1];
+    agreementType: String[1];
+    effectiveDate: StrictDate[1];
+    terminationDate: StrictDate[0..1];
+    currency: String[1];
+    isActive: Boolean[1];
+    memberCount: Integer[0..1];
+    lastNettingDate: StrictDate[0..1];
+    nettingFrequency: String[1];
+    threshold: Float[0..1];
+    description: String[0..1];
+}
+
+Class ops::NettingResult
+{
+    resultId: String[1];
+    nettingDate: StrictDate[1];
+    grossAmount: Float[1];
+    netAmount: Float[1];
+    tradeCount: Integer[1];
+    savingsAmount: Float[1];
+    savingsPct: Float[1];
+    currency: String[1];
+    status: String[1];
+    isFinalized: Boolean[1];
+    runTime: DateTime[1];
+    version: Integer[1];
+}
+
+Class ops::TradeException
+{
+    exceptionId: String[1];
+    exceptionType: String[1];
+    severity: String[1];
+    detectedDate: DateTime[1];
+    description: String[1];
+    status: String[1];
+    assignedTo: String[0..1];
+    resolvedDate: DateTime[0..1];
+    resolvedBy: String[0..1];
+    resolution: String[0..1];
+    ageInDays: Integer[0..1];
+    priority: Integer[1];
+    isEscalated: Boolean[1];
+}
+
+Class ops::BreakResolution
+{
+    resolutionId: String[1];
+    resolutionDate: DateTime[1];
+    resolutionType: String[1];
+    action: String[1];
+    performedBy: String[1];
+    approvedBy: String[0..1];
+    comment: String[0..1];
+    isAutoResolved: Boolean[1];
+    timeTakenMinutes: Integer[0..1];
+    costImpact: Float[0..1];
+    status: String[1];
+}
+
+Class ops::ReconciliationRun
+{
+    runId: String[1];
+    runDate: StrictDate[1];
+    runTime: DateTime[1];
+    source: String[1];
+    target: String[1];
+    totalItems: Integer[1];
+    matchedItems: Integer[1];
+    unmatchedItems: Integer[1];
+    matchRate: Float[1];
+    status: String[1];
+    durationSeconds: Integer[0..1];
+    runType: String[1];
+    isAutomatic: Boolean[1];
+}
+
+Class ops::DataQualityIssue
+{
+    issueId: String[1];
+    issueType: String[1];
+    severity: String[1];
+    detectedDate: DateTime[1];
+    source: String[1];
+    fieldName: String[1];
+    expectedValue: String[0..1];
+    actualValue: String[0..1];
+    status: String[1];
+    assignedTo: String[0..1];
+    resolvedDate: DateTime[0..1];
+    impactScope: String[0..1];
+    isBlocking: Boolean[1];
+}
+
+Class ops::OperationalIncident
+{
+    incidentId: String[1];
+    incidentType: String[1];
+    severity: String[1];
+    occurredDate: DateTime[1];
+    description: String[1];
+    impactAssessment: String[0..1];
+    rootCause: String[0..1];
+    status: String[1];
+    assignedTo: String[1];
+    resolvedDate: DateTime[0..1];
+    lossAmount: Float[0..1];
+    currency: String[0..1];
+    isReportable: Boolean[1];
+}
+
+Class ops::STPRate
+{
+    stpId: String[1];
+    measureDate: StrictDate[1];
+    totalTrades: Integer[1];
+    stpTrades: Integer[1];
+    manualTrades: Integer[1];
+    stpRate: Float[1];
+    assetClass: String[1];
+    region: String[0..1];
+    target: Float[1];
+    isAboveTarget: Boolean[1];
+    trend: String[0..1];
+}
+
+Class ops::ProcessingQueue
+{
+    queueId: String[1];
+    queueName: String[1];
+    itemCount: Integer[1];
+    oldestItemDate: DateTime[0..1];
+    priority: String[1];
+    status: String[1];
+    assignedTeam: String[1];
+    avgProcessingTimeMs: Integer[0..1];
+    slaMinutes: Integer[1];
+    isBreachingSLA: Boolean[1];
+    lastProcessedTime: DateTime[0..1];
+    throughputPerHour: Integer[0..1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association ops::NettingSet_NettingResult
+{
+    nettingSet: ops::NettingSet[1];
+    nettingResults: ops::NettingResult[*];
+}
+
+Association ops::TradeException_BreakResolution
+{
+    tradeException: ops::TradeException[1];
+    resolutions: ops::BreakResolution[*];
+}
+
+Association ops::ReconciliationRun_DataQualityIssue
+{
+    reconciliationRun: ops::ReconciliationRun[1];
+    dataQualityIssues: ops::DataQualityIssue[*];
+}
+
+Association ops::OperationalIncident_TradeException
+{
+    incident: ops::OperationalIncident[0..1];
+    exceptions: ops::TradeException[*];
+}

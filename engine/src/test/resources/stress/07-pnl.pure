@@ -1,0 +1,225 @@
+// ============================================================
+// P&L Domain — Daily PnL, attribution, adjustments
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class pnl::DailyPnL
+{
+    pnlId: String[1];
+    pnlDate: StrictDate[1];
+    totalPnL: Float[1];
+    realizedPnL: Float[1];
+    unrealizedPnL: Float[1];
+    newTradePnL: Float[0..1];
+    carryPnL: Float[0..1];
+    fxPnL: Float[0..1];
+    commissions: Float[0..1];
+    fees: Float[0..1];
+    currency: String[1];
+    isOfficial: Boolean[1];
+    publishedTime: DateTime[0..1];
+    version: Integer[1];
+}
+
+Class pnl::PnLAttribution
+{
+    attributionId: String[1];
+    attributionDate: StrictDate[1];
+    category: String[1];
+    amount: Float[1];
+    currency: String[1];
+    riskFactor: String[0..1];
+    model: String[0..1];
+    confidence: Float[0..1];
+    isResidual: Boolean[1];
+    explanation: String[0..1];
+    version: Integer[1];
+}
+
+Class pnl::HypotheticalPnL
+{
+    hypotheticalId: String[1];
+    scenarioName: String[1];
+    calcDate: StrictDate[1];
+    hypotheticalPnL: Float[1];
+    cleanPnL: Float[0..1];
+    deltaApprox: Float[0..1];
+    fullReval: Float[0..1];
+    currency: String[1];
+    model: String[1];
+    isBacktest: Boolean[1];
+    backtestDate: StrictDate[0..1];
+    confidence: Float[0..1];
+}
+
+Class pnl::PnLAdjustment
+{
+    adjustmentId: String[1];
+    adjustmentDate: StrictDate[1];
+    adjustmentType: String[1];
+    amount: Float[1];
+    reason: String[1];
+    approvedBy: String[1];
+    approvalDate: StrictDate[1];
+    status: String[1];
+    currency: String[1];
+    originalPnL: Float[1];
+    adjustedPnL: Float[1];
+    comment: String[0..1];
+    isReversed: Boolean[1];
+}
+
+Class pnl::RevenueAllocation
+{
+    allocationId: String[1];
+    allocationDate: StrictDate[1];
+    revenue: Float[1];
+    allocationBasis: String[1];
+    percentage: Float[1];
+    allocatedAmount: Float[1];
+    currency: String[1];
+    period: String[1];
+    isManualOverride: Boolean[1];
+    overrideBy: String[0..1];
+    comment: String[0..1];
+}
+
+Class pnl::AccrualEntry
+{
+    accrualId: String[1];
+    accrualDate: StrictDate[1];
+    accrualType: String[1];
+    amount: Float[1];
+    startDate: StrictDate[1];
+    endDate: StrictDate[1];
+    dayCount: Integer[1];
+    rate: Float[0..1];
+    currency: String[1];
+    status: String[1];
+    isReversed: Boolean[1];
+    reversalDate: StrictDate[0..1];
+}
+
+Class pnl::ValuationAdjustment
+{
+    adjustmentId: String[1];
+    adjustmentType: String[1];
+    amount: Float[1];
+    calcDate: StrictDate[1];
+    methodology: String[1];
+    currency: String[1];
+    confidenceLevel: Float[0..1];
+    previousAmount: Float[0..1];
+    changeAmount: Float[0..1];
+    approvedBy: String[0..1];
+    status: String[1];
+    isActive: Boolean[1];
+}
+
+Class pnl::PnLExplain
+{
+    explainId: String[1];
+    explainDate: StrictDate[1];
+    marketMove: Float[1];
+    carryRollDown: Float[1];
+    theta: Float[0..1];
+    newTradeImpact: Float[0..1];
+    crossEffect: Float[0..1];
+    residual: Float[0..1];
+    totalExplained: Float[1];
+    unexplained: Float[1];
+    currency: String[1];
+    model: String[1];
+    isComplete: Boolean[1];
+}
+
+Class pnl::MTDPnL
+{
+    mtdId: String[1];
+    monthStartDate: StrictDate[1];
+    asOfDate: StrictDate[1];
+    mtdPnL: Float[1];
+    mtdRealizedPnL: Float[1];
+    mtdUnrealizedPnL: Float[1];
+    mtdFees: Float[0..1];
+    mtdCommissions: Float[0..1];
+    currency: String[1];
+    tradingDays: Integer[1];
+    bestDay: Float[0..1];
+    worstDay: Float[0..1];
+    isFinalized: Boolean[1];
+}
+
+Class pnl::YTDPnL
+{
+    ytdId: String[1];
+    yearStartDate: StrictDate[1];
+    asOfDate: StrictDate[1];
+    ytdPnL: Float[1];
+    ytdRealizedPnL: Float[1];
+    ytdUnrealizedPnL: Float[1];
+    ytdFees: Float[0..1];
+    ytdCommissions: Float[0..1];
+    currency: String[1];
+    tradingDays: Integer[1];
+    bestMonth: Float[0..1];
+    worstMonth: Float[0..1];
+    annualizedReturn: Float[0..1];
+    isFinalized: Boolean[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association pnl::DailyPnL_PnLAttribution
+{
+    dailyPnL: pnl::DailyPnL[1];
+    attributions: pnl::PnLAttribution[*];
+}
+
+Association pnl::DailyPnL_PnLExplain
+{
+    dailyPnL: pnl::DailyPnL[1];
+    explains: pnl::PnLExplain[*];
+}
+
+Association pnl::DailyPnL_PnLAdjustment
+{
+    dailyPnL: pnl::DailyPnL[1];
+    adjustments: pnl::PnLAdjustment[*];
+}
+
+Association pnl::DailyPnL_HypotheticalPnL
+{
+    dailyPnL: pnl::DailyPnL[1];
+    hypotheticals: pnl::HypotheticalPnL[*];
+}
+
+Association pnl::DailyPnL_AccrualEntry
+{
+    dailyPnL: pnl::DailyPnL[1];
+    accruals: pnl::AccrualEntry[*];
+}
+
+Association pnl::DailyPnL_ValuationAdjustment
+{
+    dailyPnL: pnl::DailyPnL[1];
+    valuationAdjustments: pnl::ValuationAdjustment[*];
+}
+
+Association pnl::DailyPnL_RevenueAllocation
+{
+    dailyPnL: pnl::DailyPnL[1];
+    revenueAllocations: pnl::RevenueAllocation[*];
+}
+
+Association pnl::MTDPnL_DailyPnL
+{
+    mtdPnL: pnl::MTDPnL[0..1];
+    dailyPnLs: pnl::DailyPnL[*];
+}
+
+Association pnl::YTDPnL_MTDPnL
+{
+    ytdPnL: pnl::YTDPnL[0..1];
+    monthlyPnLs: pnl::MTDPnL[*];
+}

@@ -1,0 +1,223 @@
+// ============================================================
+// Counterparty Domain — Clients, contacts, KYC
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class counterparty::Counterparty
+{
+    counterpartyId: String[1];
+    legalName: String[1];
+    shortName: String[1];
+    lei: String[0..1];
+    counterpartyType: String[1];
+    domicile: String[1];
+    incorporationCountry: String[1];
+    isActive: Boolean[1];
+    onboardDate: StrictDate[1];
+    creditRating: String[0..1];
+    ratingAgency: String[0..1];
+    tier: String[1];
+    parentEntityId: String[0..1];
+    industry: String[0..1];
+    website: String[0..1];
+}
+
+Class counterparty::Contact
+{
+    contactId: String[1];
+    firstName: String[1];
+    lastName: String[1];
+    email: String[1];
+    phone: String[0..1];
+    role: String[1];
+    department: String[0..1];
+    isPrimary: Boolean[1];
+    isActive: Boolean[1];
+    lastContactDate: StrictDate[0..1];
+    preferredChannel: String[0..1];
+    title: String[0..1];
+}
+
+Class counterparty::CreditRating
+{
+    ratingId: String[1];
+    agency: String[1];
+    longTermRating: String[1];
+    shortTermRating: String[0..1];
+    outlook: String[1];
+    ratingDate: StrictDate[1];
+    previousRating: String[0..1];
+    previousDate: StrictDate[0..1];
+    watchStatus: String[0..1];
+    isInvestmentGrade: Boolean[1];
+    reviewDate: StrictDate[0..1];
+    analystName: String[0..1];
+}
+
+Class counterparty::Agreement
+{
+    agreementId: String[1];
+    agreementType: String[1];
+    effectiveDate: StrictDate[1];
+    terminationDate: StrictDate[0..1];
+    governingLaw: String[1];
+    status: String[1];
+    version: Integer[1];
+    signedDate: StrictDate[0..1];
+    lastAmendDate: StrictDate[0..1];
+    threshold: Float[0..1];
+    minimumTransferAmount: Float[0..1];
+    independentAmount: Float[0..1];
+    currency: String[1];
+}
+
+Class counterparty::Classification
+{
+    classificationId: String[1];
+    classificationType: String[1];
+    mifidClassification: String[0..1];
+    doddfFrankClassification: String[0..1];
+    emirClassification: String[0..1];
+    isFinancialCounterparty: Boolean[1];
+    isSmallFinancial: Boolean[0..1];
+    effectiveDate: StrictDate[1];
+    reviewDate: StrictDate[0..1];
+    approvedBy: String[0..1];
+    notes: String[0..1];
+}
+
+Class counterparty::Account
+{
+    accountId: String[1];
+    accountName: String[1];
+    accountType: String[1];
+    currency: String[1];
+    status: String[1];
+    openDate: StrictDate[1];
+    closeDate: StrictDate[0..1];
+    custodian: String[0..1];
+    brokerId: String[0..1];
+    clearingMemberId: String[0..1];
+    marginType: String[0..1];
+    isSegregated: Boolean[1];
+}
+
+Class counterparty::BeneficialOwner
+{
+    ownerId: String[1];
+    name: String[1];
+    ownershipPercentage: Float[1];
+    nationality: String[1];
+    dateOfBirth: StrictDate[0..1];
+    isPEP: Boolean[1];
+    isVerified: Boolean[1];
+    verificationDate: StrictDate[0..1];
+    idType: String[0..1];
+    idNumber: String[0..1];
+    address: String[0..1];
+}
+
+Class counterparty::CounterpartyLimit
+{
+    limitId: String[1];
+    limitType: String[1];
+    limitAmount: Float[1];
+    currentUtilization: Float[1];
+    utilizationPct: Float[1];
+    currency: String[1];
+    effectiveDate: StrictDate[1];
+    expiryDate: StrictDate[0..1];
+    status: String[1];
+    approvedBy: String[0..1];
+    approvalDate: StrictDate[0..1];
+    breachCount: Integer[0..1];
+}
+
+Class counterparty::KYCRecord
+{
+    kycId: String[1];
+    status: String[1];
+    riskRating: String[1];
+    dueDiligenceLevel: String[1];
+    lastReviewDate: StrictDate[1];
+    nextReviewDate: StrictDate[1];
+    reviewedBy: String[1];
+    approvedBy: String[0..1];
+    approvalDate: StrictDate[0..1];
+    documentCount: Integer[1];
+    isComplete: Boolean[1];
+    expiryDate: StrictDate[0..1];
+    notes: String[0..1];
+}
+
+Class counterparty::SanctionsCheck
+{
+    checkId: String[1];
+    checkDate: DateTime[1];
+    screeningProvider: String[1];
+    result: String[1];
+    matchCount: Integer[1];
+    falsePositiveCount: Integer[0..1];
+    trueMatchCount: Integer[0..1];
+    status: String[1];
+    resolvedDate: DateTime[0..1];
+    resolvedBy: String[0..1];
+    listChecked: String[1];
+    isCleared: Boolean[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association counterparty::Counterparty_Contact
+{
+    counterparty: counterparty::Counterparty[1];
+    contacts: counterparty::Contact[*];
+}
+
+Association counterparty::Counterparty_CreditRating
+{
+    counterparty: counterparty::Counterparty[1];
+    creditRatings: counterparty::CreditRating[*];
+}
+
+Association counterparty::Counterparty_Agreement
+{
+    counterparty: counterparty::Counterparty[1];
+    agreements: counterparty::Agreement[*];
+}
+
+Association counterparty::Counterparty_Classification
+{
+    counterparty: counterparty::Counterparty[1];
+    classification: counterparty::Classification[0..1];
+}
+
+Association counterparty::Counterparty_Account
+{
+    counterparty: counterparty::Counterparty[1];
+    accounts: counterparty::Account[*];
+}
+
+Association counterparty::Counterparty_BeneficialOwner
+{
+    counterparty: counterparty::Counterparty[1];
+    beneficialOwners: counterparty::BeneficialOwner[*];
+}
+
+Association counterparty::Counterparty_CounterpartyLimit
+{
+    counterparty: counterparty::Counterparty[1];
+    limits: counterparty::CounterpartyLimit[*];
+}
+
+Association counterparty::Counterparty_KYC
+{
+    counterparty: counterparty::Counterparty[1];
+    kycRecords: counterparty::KYCRecord[*];
+}
+
+Association counterparty::Counterparty_SanctionsCheck
+{
+    counterparty: counterparty::Counterparty[1];
+    sanctionsChecks: counterparty::SanctionsCheck[*];
+}

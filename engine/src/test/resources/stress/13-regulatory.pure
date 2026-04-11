@@ -1,0 +1,193 @@
+// ============================================================
+// Regulatory Domain — Trade reports, compliance, TCA
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class regulatory::TradeReport
+{
+    reportId: String[1];
+    regime: String[1];
+    status: String[1];
+    submissionDate: DateTime[0..1];
+    reportType: String[1];
+    uti: String[0..1];
+    usi: String[0..1];
+    reportingEntity: String[1];
+    reportingCounterparty: String[0..1];
+    rejectReason: String[0..1];
+    retryCount: Integer[0..1];
+    isLateReport: Boolean[1];
+    dueDate: StrictDate[1];
+}
+
+Class regulatory::TransactionCost
+{
+    tcaId: String[1];
+    costBps: Float[1];
+    implementationShortfall: Float[1];
+    marketImpactBps: Float[1];
+    benchmark: String[1];
+    analysisDate: StrictDate[1];
+    arrivalPrice: Float[1];
+    executionPrice: Float[1];
+    vwapPrice: Float[0..1];
+    closingPrice: Float[0..1];
+    currency: String[1];
+    isBestExecution: Boolean[1];
+    model: String[0..1];
+}
+
+Class regulatory::RegulatoryFiling
+{
+    filingId: String[1];
+    filingType: String[1];
+    regime: String[1];
+    filingDate: StrictDate[1];
+    dueDate: StrictDate[1];
+    status: String[1];
+    submittedBy: String[0..1];
+    approvedBy: String[0..1];
+    isAmendment: Boolean[1];
+    previousFilingId: String[0..1];
+    referenceNumber: String[0..1];
+    periodStart: StrictDate[1];
+    periodEnd: StrictDate[1];
+}
+
+Class regulatory::ComplianceAlert
+{
+    alertId: String[1];
+    alertType: String[1];
+    severity: String[1];
+    triggeredDate: DateTime[1];
+    description: String[1];
+    status: String[1];
+    assignedTo: String[0..1];
+    resolvedDate: DateTime[0..1];
+    resolution: String[0..1];
+    isFalsePositive: Boolean[0..1];
+    ruleId: String[1];
+    escalationLevel: Integer[0..1];
+    dueDate: StrictDate[0..1];
+}
+
+Class regulatory::SanctionsScreening
+{
+    screeningId: String[1];
+    screeningDate: DateTime[1];
+    screeningType: String[1];
+    listType: String[1];
+    result: String[1];
+    matchScore: Float[0..1];
+    matchedName: String[0..1];
+    status: String[1];
+    reviewedBy: String[0..1];
+    reviewDate: DateTime[0..1];
+    isFalsePositive: Boolean[0..1];
+    provider: String[1];
+}
+
+Class regulatory::BestExecutionReport
+{
+    reportId: String[1];
+    reportDate: StrictDate[1];
+    venue: String[1];
+    assetClass: String[1];
+    executionQuality: Float[1];
+    priceImprovement: Float[0..1];
+    fillRate: Float[1];
+    avgLatencyMs: Integer[0..1];
+    orderCount: Integer[1];
+    totalVolume: Float[1];
+    currency: String[1];
+    isPassing: Boolean[1];
+    period: String[1];
+}
+
+Class regulatory::PositionLimit
+{
+    limitId: String[1];
+    limitType: String[1];
+    regime: String[1];
+    limitAmount: Float[1];
+    currentPosition: Float[1];
+    utilizationPct: Float[1];
+    effectiveDate: StrictDate[1];
+    expiryDate: StrictDate[0..1];
+    status: String[1];
+    isBreached: Boolean[1];
+    lastChecked: DateTime[1];
+    reportingThreshold: Float[0..1];
+}
+
+Class regulatory::TradeReportStatus
+{
+    statusId: String[1];
+    statusDate: DateTime[1];
+    previousStatus: String[1];
+    newStatus: String[1];
+    reason: String[0..1];
+    updatedBy: String[1];
+    isAutomatic: Boolean[1];
+    trRepository: String[1];
+    responseCode: String[0..1];
+    responseMessage: String[0..1];
+}
+
+Class regulatory::RegulatoryCapital
+{
+    capitalId: String[1];
+    calcDate: StrictDate[1];
+    rwaAmount: Float[1];
+    capitalRequirement: Float[1];
+    tier1Capital: Float[1];
+    tier2Capital: Float[0..1];
+    totalCapital: Float[1];
+    capitalRatio: Float[1];
+    leverageRatio: Float[0..1];
+    currency: String[1];
+    framework: String[1];
+    isCompliant: Boolean[1];
+}
+
+Class regulatory::LiquidityCoverage
+{
+    lcrId: String[1];
+    calcDate: StrictDate[1];
+    hqla: Float[1];
+    netCashOutflows: Float[1];
+    lcr: Float[1];
+    nsfr: Float[0..1];
+    currency: String[1];
+    stressScenario: String[0..1];
+    isCompliant: Boolean[1];
+    minimumRequired: Float[1];
+    buffer: Float[0..1];
+    lastUpdated: DateTime[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association regulatory::TradeReport_TradeReportStatus
+{
+    tradeReport: regulatory::TradeReport[1];
+    statusHistory: regulatory::TradeReportStatus[*];
+}
+
+Association regulatory::ComplianceAlert_SanctionsScreening
+{
+    complianceAlert: regulatory::ComplianceAlert[0..1];
+    screenings: regulatory::SanctionsScreening[*];
+}
+
+Association regulatory::RegulatoryFiling_RegulatoryCapital
+{
+    filing: regulatory::RegulatoryFiling[0..1];
+    capitalCalcs: regulatory::RegulatoryCapital[*];
+}
+
+Association regulatory::RegulatoryFiling_LiquidityCoverage
+{
+    filing: regulatory::RegulatoryFiling[0..1];
+    liquidityCalcs: regulatory::LiquidityCoverage[*];
+}

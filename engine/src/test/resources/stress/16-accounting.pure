@@ -1,0 +1,197 @@
+// ============================================================
+// Accounting Domain — GL, journal entries, trial balance
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class accounting::JournalEntry
+{
+    entryId: String[1];
+    entryDate: StrictDate[1];
+    postingDate: StrictDate[1];
+    debitAmount: Float[1];
+    creditAmount: Float[1];
+    currency: String[1];
+    description: String[1];
+    reference: String[0..1];
+    status: String[1];
+    postedBy: String[1];
+    approvedBy: String[0..1];
+    isReversal: Boolean[1];
+    reversalOf: String[0..1];
+    period: String[1];
+}
+
+Class accounting::GeneralLedgerAccount
+{
+    accountId: String[1];
+    accountName: String[1];
+    accountNumber: String[1];
+    accountType: String[1];
+    normalBalance: String[1];
+    currency: String[1];
+    isActive: Boolean[1];
+    parentAccountId: String[0..1];
+    level: Integer[1];
+    openDate: StrictDate[1];
+    closeDate: StrictDate[0..1];
+    description: String[0..1];
+}
+
+Class accounting::SubledgerEntry
+{
+    subledgerEntryId: String[1];
+    entryDate: StrictDate[1];
+    amount: Float[1];
+    subledgerType: String[1];
+    reference: String[1];
+    currency: String[1];
+    status: String[1];
+    isPostedToGL: Boolean[1];
+    postingDate: StrictDate[0..1];
+    source: String[1];
+    lineNumber: Integer[1];
+    description: String[0..1];
+}
+
+Class accounting::AccountingRule
+{
+    ruleId: String[1];
+    ruleName: String[1];
+    ruleType: String[1];
+    debitAccountId: String[1];
+    creditAccountId: String[1];
+    effectiveDate: StrictDate[1];
+    expiryDate: StrictDate[0..1];
+    isActive: Boolean[1];
+    priority: Integer[1];
+    condition: String[0..1];
+    description: String[0..1];
+    lastModified: DateTime[1];
+}
+
+Class accounting::TrialBalance
+{
+    trialBalanceId: String[1];
+    periodEnd: StrictDate[1];
+    totalDebits: Float[1];
+    totalCredits: Float[1];
+    isBalanced: Boolean[1];
+    difference: Float[0..1];
+    currency: String[1];
+    status: String[1];
+    generatedDate: DateTime[1];
+    generatedBy: String[1];
+    period: String[1];
+    version: Integer[1];
+}
+
+Class accounting::BalanceSheet
+{
+    balanceSheetId: String[1];
+    reportDate: StrictDate[1];
+    totalAssets: Float[1];
+    totalLiabilities: Float[1];
+    totalEquity: Float[1];
+    currency: String[1];
+    isAudited: Boolean[1];
+    period: String[1];
+    version: Integer[1];
+    preparedBy: String[0..1];
+    approvedBy: String[0..1];
+    status: String[1];
+}
+
+Class accounting::IncomeStatement
+{
+    statementId: String[1];
+    periodStart: StrictDate[1];
+    periodEnd: StrictDate[1];
+    totalRevenue: Float[1];
+    totalExpenses: Float[1];
+    netIncome: Float[1];
+    currency: String[1];
+    isAudited: Boolean[1];
+    version: Integer[1];
+    preparedBy: String[0..1];
+    approvedBy: String[0..1];
+    status: String[1];
+}
+
+Class accounting::CostAllocation
+{
+    allocationId: String[1];
+    allocationDate: StrictDate[1];
+    amount: Float[1];
+    fromCostCenter: String[1];
+    toCostCenter: String[1];
+    allocationBasis: String[1];
+    percentage: Float[1];
+    currency: String[1];
+    period: String[1];
+    status: String[1];
+    approvedBy: String[0..1];
+    isReversed: Boolean[1];
+}
+
+Class accounting::AccrualSchedule
+{
+    scheduleId: String[1];
+    scheduleName: String[1];
+    startDate: StrictDate[1];
+    endDate: StrictDate[1];
+    totalAmount: Float[1];
+    monthlyAmount: Float[1];
+    accruedToDate: Float[0..1];
+    remainingAmount: Float[0..1];
+    currency: String[1];
+    status: String[1];
+    isActive: Boolean[1];
+    frequency: String[1];
+}
+
+Class accounting::AuditTrail
+{
+    auditId: String[1];
+    auditDate: DateTime[1];
+    action: String[1];
+    tableName: String[1];
+    recordId: String[1];
+    fieldName: String[0..1];
+    oldValue: String[0..1];
+    newValue: String[0..1];
+    performedBy: String[1];
+    ipAddress: String[0..1];
+    isSystemAction: Boolean[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association accounting::JournalEntry_GLAccount
+{
+    glAccount: accounting::GeneralLedgerAccount[1];
+    journalEntries: accounting::JournalEntry[*];
+}
+
+Association accounting::SubledgerEntry_JournalEntry
+{
+    journalEntry: accounting::JournalEntry[0..1];
+    subledgerEntries: accounting::SubledgerEntry[*];
+}
+
+Association accounting::GLAccount_AccountingRule
+{
+    glAccount: accounting::GeneralLedgerAccount[0..1];
+    accountingRules: accounting::AccountingRule[*];
+}
+
+Association accounting::TrialBalance_BalanceSheet
+{
+    trialBalance: accounting::TrialBalance[0..1];
+    balanceSheets: accounting::BalanceSheet[*];
+}
+
+Association accounting::TrialBalance_IncomeStatement
+{
+    trialBalance: accounting::TrialBalance[0..1];
+    incomeStatements: accounting::IncomeStatement[*];
+}

@@ -1,0 +1,208 @@
+// ============================================================
+// Research Domain — Analyst recommendations, estimates, reports
+// 10 classes, ~12 properties each
+// ============================================================
+
+Class research::AnalystRecommendation
+{
+    recommendationId: String[1];
+    recommendation: String[1];
+    previousRecommendation: String[0..1];
+    targetPrice: Float[1];
+    previousTargetPrice: Float[0..1];
+    ratingDate: StrictDate[1];
+    upside: Float[0..1];
+    conviction: String[0..1];
+    timeHorizon: String[0..1];
+    isInitiation: Boolean[1];
+    sector: String[0..1];
+    currency: String[1];
+}
+
+Class research::ResearchReport
+{
+    reportId: String[1];
+    title: String[1];
+    publishDate: StrictDate[1];
+    reportType: String[1];
+    pageCount: Integer[0..1];
+    isPublished: Boolean[1];
+    abstractText: String[0..1];
+    sector: String[0..1];
+    region: String[0..1];
+    downloadCount: Integer[0..1];
+    language: String[1];
+    isPrimaryResearch: Boolean[1];
+}
+
+Class research::EarningsEstimate
+{
+    estimateId: String[1];
+    fiscalYear: Integer[1];
+    fiscalQuarter: Integer[0..1];
+    epsEstimate: Float[1];
+    revenueEstimate: Float[1];
+    previousEPS: Float[0..1];
+    previousRevenue: Float[0..1];
+    estimateDate: StrictDate[1];
+    currency: String[1];
+    confidence: String[0..1];
+    isConsensus: Boolean[1];
+    numberOfAnalysts: Integer[0..1];
+}
+
+Class research::TargetPrice
+{
+    targetPriceId: String[1];
+    targetPrice: Float[1];
+    currentPrice: Float[1];
+    upside: Float[1];
+    targetDate: StrictDate[0..1];
+    setDate: StrictDate[1];
+    methodology: String[0..1];
+    timeHorizon: String[1];
+    currency: String[1];
+    previousTarget: Float[0..1];
+    confidence: String[0..1];
+}
+
+Class research::SectorOutlook
+{
+    outlookId: String[1];
+    sector: String[1];
+    outlook: String[1];
+    previousOutlook: String[0..1];
+    outlookDate: StrictDate[1];
+    keyTheme: String[0..1];
+    riskLevel: String[1];
+    timeHorizon: String[1];
+    region: String[0..1];
+    topPick: String[0..1];
+    isPublished: Boolean[1];
+}
+
+Class research::CompanyProfile
+{
+    profileId: String[1];
+    companyName: String[1];
+    ticker: String[1];
+    sector: String[1];
+    marketCap: Float[1];
+    employees: Integer[0..1];
+    founded: Integer[0..1];
+    headquarters: String[0..1];
+    ceo: String[0..1];
+    description: String[0..1];
+    website: String[0..1];
+    currency: String[1];
+    fiscalYearEnd: String[0..1];
+}
+
+Class research::PeerComparison
+{
+    comparisonId: String[1];
+    comparisonDate: StrictDate[1];
+    metric: String[1];
+    value: Float[1];
+    peerAverage: Float[1];
+    peerMedian: Float[0..1];
+    percentile: Float[0..1];
+    rank: Integer[0..1];
+    peerGroupSize: Integer[1];
+    isAbovePeer: Boolean[1];
+    currency: String[0..1];
+}
+
+Class research::AnalystCoverage
+{
+    coverageId: String[1];
+    startDate: StrictDate[1];
+    endDate: StrictDate[0..1];
+    isActive: Boolean[1];
+    region: String[1];
+    sector: String[1];
+    coverageType: String[1];
+    publishedReportCount: Integer[0..1];
+    lastPublishDate: StrictDate[0..1];
+    accuracy: Float[0..1];
+}
+
+Class research::ConsensusForecast
+{
+    forecastId: String[1];
+    forecastDate: StrictDate[1];
+    metric: String[1];
+    consensusValue: Float[1];
+    highEstimate: Float[1];
+    lowEstimate: Float[1];
+    numberOfEstimates: Integer[1];
+    standardDeviation: Float[0..1];
+    period: String[1];
+    currency: String[1];
+    previousConsensus: Float[0..1];
+}
+
+Class research::ResearchNote
+{
+    noteId: String[1];
+    noteDate: StrictDate[1];
+    noteType: String[1];
+    subject: String[1];
+    content: String[0..1];
+    isUrgent: Boolean[1];
+    sentiment: String[0..1];
+    impactLevel: String[0..1];
+    sector: String[0..1];
+    region: String[0..1];
+    isPublished: Boolean[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association research::CompanyProfile_AnalystRecommendation
+{
+    company: research::CompanyProfile[1];
+    recommendations: research::AnalystRecommendation[*];
+}
+
+Association research::CompanyProfile_EarningsEstimate
+{
+    company: research::CompanyProfile[1];
+    earningsEstimates: research::EarningsEstimate[*];
+}
+
+Association research::CompanyProfile_TargetPrice
+{
+    company: research::CompanyProfile[1];
+    targetPrices: research::TargetPrice[*];
+}
+
+Association research::CompanyProfile_PeerComparison
+{
+    company: research::CompanyProfile[1];
+    peerComparisons: research::PeerComparison[*];
+}
+
+Association research::AnalystCoverage_ResearchReport
+{
+    coverage: research::AnalystCoverage[1];
+    reports: research::ResearchReport[*];
+}
+
+Association research::AnalystCoverage_ResearchNote
+{
+    coverage: research::AnalystCoverage[1];
+    notes: research::ResearchNote[*];
+}
+
+Association research::SectorOutlook_CompanyProfile
+{
+    sectorOutlook: research::SectorOutlook[0..1];
+    companies: research::CompanyProfile[*];
+}
+
+Association research::ConsensusForecast_CompanyProfile
+{
+    company: research::CompanyProfile[1];
+    consensusForecasts: research::ConsensusForecast[*];
+}

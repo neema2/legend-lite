@@ -1,0 +1,236 @@
+// ============================================================
+// Products Domain — Financial instruments and derivatives
+// 10 classes, ~15 properties each
+// ============================================================
+
+Class products::Instrument
+{
+    instrumentId: String[1];
+    ticker: String[1];
+    name: String[1];
+    isin: String[0..1];
+    cusip: String[0..1];
+    sedol: String[0..1];
+    assetClass: String[1];
+    productType: String[1];
+    isActive: Boolean[1];
+    listingDate: StrictDate[0..1];
+    maturityDate: StrictDate[0..1];
+    notionalAmount: Float[0..1];
+    currency: String[1];
+    description: String[0..1];
+    issueDate: StrictDate[0..1];
+}
+
+Class products::Equity
+{
+    equityId: String[1];
+    ticker: String[1];
+    companyName: String[1];
+    shareClass: String[1];
+    marketCap: Float[1];
+    sharesOutstanding: Float[1];
+    dividendYield: Float[0..1];
+    peRatio: Float[0..1];
+    beta: Float[0..1];
+    primaryExchange: String[1];
+    isADR: Boolean[1];
+    lotSize: Integer[1];
+    lastPrice: Float[1];
+    priceDate: StrictDate[1];
+}
+
+Class products::Bond
+{
+    bondId: String[1];
+    issuerName: String[1];
+    couponRate: Float[1];
+    couponFrequency: Integer[1];
+    faceValue: Float[1];
+    maturityDate: StrictDate[1];
+    issueDate: StrictDate[1];
+    creditRating: String[1];
+    yieldToMaturity: Float[0..1];
+    duration: Float[0..1];
+    convexity: Float[0..1];
+    isCallable: Boolean[1];
+    callDate: StrictDate[0..1];
+    callPrice: Float[0..1];
+    bondType: String[1];
+    currency: String[1];
+}
+
+Class products::Option
+{
+    optionId: String[1];
+    optionType: String[1];
+    strikePrice: Float[1];
+    expirationDate: StrictDate[1];
+    premium: Float[1];
+    impliedVolatility: Float[0..1];
+    delta: Float[0..1];
+    gamma: Float[0..1];
+    theta: Float[0..1];
+    vega: Float[0..1];
+    exerciseStyle: String[1];
+    isInTheMoney: Boolean[1];
+    underlyingPrice: Float[1];
+    contractSize: Integer[1];
+    openInterest: Integer[0..1];
+}
+
+Class products::Future
+{
+    futureId: String[1];
+    contractName: String[1];
+    contractMonth: String[1];
+    contractYear: Integer[1];
+    tickSize: Float[1];
+    contractSize: Integer[1];
+    lastTradingDate: StrictDate[1];
+    firstNoticeDate: StrictDate[0..1];
+    settlementType: String[1];
+    marginRequired: Float[1];
+    dailyLimit: Float[0..1];
+    openInterest: Integer[0..1];
+}
+
+Class products::FxForward
+{
+    forwardId: String[1];
+    baseCurrency: String[1];
+    quoteCurrency: String[1];
+    forwardRate: Float[1];
+    spotRate: Float[1];
+    forwardPoints: Float[1];
+    notionalBase: Float[1];
+    notionalQuote: Float[1];
+    valueDate: StrictDate[1];
+    tradeDate: StrictDate[1];
+    tenor: String[1];
+    isNDF: Boolean[1];
+}
+
+Class products::Swap
+{
+    swapId: String[1];
+    swapType: String[1];
+    notional: Float[1];
+    fixedRate: Float[0..1];
+    floatingIndex: String[0..1];
+    floatingSpread: Float[0..1];
+    startDate: StrictDate[1];
+    endDate: StrictDate[1];
+    paymentFrequency: String[1];
+    dayCountConvention: String[1];
+    currency: String[1];
+    isCleared: Boolean[1];
+    clearingHouse: String[0..1];
+    currentNPV: Float[0..1];
+}
+
+Class products::CreditDefaultSwap
+{
+    cdsId: String[1];
+    referenceEntity: String[1];
+    notional: Float[1];
+    spread: Float[1];
+    premiumLeg: Float[1];
+    protectionLeg: Float[1];
+    maturityDate: StrictDate[1];
+    effectiveDate: StrictDate[1];
+    recoveryRate: Float[0..1];
+    isTriggered: Boolean[1];
+    triggerDate: StrictDate[0..1];
+    currency: String[1];
+    seniority: String[1];
+}
+
+Class products::StructuredProduct
+{
+    productId: String[1];
+    productName: String[1];
+    underlyingType: String[1];
+    notional: Float[1];
+    issueDate: StrictDate[1];
+    maturityDate: StrictDate[1];
+    knockInBarrier: Float[0..1];
+    knockOutBarrier: Float[0..1];
+    participationRate: Float[0..1];
+    couponRate: Float[0..1];
+    principalProtection: Float[0..1];
+    currency: String[1];
+}
+
+Class products::ETF
+{
+    etfId: String[1];
+    ticker: String[1];
+    fundName: String[1];
+    assetClass: String[1];
+    expenseRatio: Float[1];
+    totalAssets: Float[1];
+    nav: Float[1];
+    navDate: StrictDate[1];
+    trackingError: Float[0..1];
+    indexName: String[0..1];
+    isLeveraged: Boolean[1];
+    leverageMultiple: Float[0..1];
+    dividendFrequency: String[0..1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association products::Equity_Instrument
+{
+    instrument: products::Instrument[1];
+    equity: products::Equity[0..1];
+}
+
+Association products::Bond_Instrument
+{
+    instrument: products::Instrument[1];
+    bond: products::Bond[0..1];
+}
+
+Association products::Option_Underlying
+{
+    underlying: products::Instrument[1];
+    options: products::Option[*];
+}
+
+Association products::Future_Instrument
+{
+    instrument: products::Instrument[1];
+    future: products::Future[0..1];
+}
+
+Association products::FxForward_Instrument
+{
+    instrument: products::Instrument[1];
+    fxForward: products::FxForward[0..1];
+}
+
+Association products::Swap_Instrument
+{
+    instrument: products::Instrument[1];
+    swap: products::Swap[0..1];
+}
+
+Association products::CDS_Instrument
+{
+    instrument: products::Instrument[1];
+    cds: products::CreditDefaultSwap[0..1];
+}
+
+Association products::StructuredProduct_Instrument
+{
+    instrument: products::Instrument[1];
+    structuredProduct: products::StructuredProduct[0..1];
+}
+
+Association products::ETF_Instrument
+{
+    instrument: products::Instrument[1];
+    etf: products::ETF[0..1];
+}

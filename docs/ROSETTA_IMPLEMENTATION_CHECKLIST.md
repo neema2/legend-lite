@@ -69,7 +69,7 @@ These foundational pieces are **done** and enable all feature work below:
 | B9 | Extends | ❌ | `parentRel->extend(~childProp: ...)` — child inherits parent's Relation expression + adds columns | Builder processes `extends [parentId]`; MappingNormalizer merges parent property mappings; `redefine()` for overrides | [identity-extends](rosetta/identity-extends.md) |
 | C2 | Store substitution | ❌ | Replace `#>{Db1.T}#` → `#>{Db2.T}#` in included mapping's Relation expression | Transitive include resolution at model build time; parameterized store accessor `#>{$store.T}#` | [includes-substitution](rosetta/includes-substitution.md) |
 | B10 | Scope blocks | ❌🔧 | Pure syntax sugar — `scope([DB]T)(p1:c1, p2:c2)` desugars to `->project([~c1->as(~p1), ~c2->as(~p2)])` | Grammar rule for `scope` keyword; parse-time desugaring in Builder (no runtime impact) | [class-directives](rosetta/class-directives.md) |
-| C5 | Local properties | ❌ | `->extend(~localProp: r \| expr)` — mapping-only column not in class model | Builder recognizes `+prop` prefix; MappingNormalizer emits `extend()` ColSpec; property not in class model (XStore join keys, internal use) | [local-properties](rosetta/local-properties.md) |
+| C5 | Local properties | ❌ | `->extend(~localProp: r \| expr)` — mapping-only column not in class model | Builder recognizes `+prop` prefix; MappingNormalizer emits `extend()` ColSpec; property not in class model. **Depends on E3** — without XStore, local properties are dead code (filtered out of execution, invisible to user queries) | [xstore-crossdb](rosetta/xstore-crossdb.md) |
 
 ### Tier 3: Database Features
 
@@ -204,6 +204,7 @@ converted to Pure equivalents in `RelationalMappingConverter`.
 
 - **B9 (extends)** depends on B8 (set ID lookup) — child references parent by set ID
 - **C2 (store substitution)** depends on transitive include resolution at model build time
+- **C5 (local properties)** depends on E3 (XStore) — local properties exist only as XStore join keys; dead code without XStore
 - **E3/A11 (xStore/cross-DB)** both need executor federation infrastructure
 - **E4 (AggregationAware)** is a query optimizer — highest complexity; needs query shape analysis
 - **E6/E7 (union/merge)** depend on B8 (set ID) — operation references set IDs

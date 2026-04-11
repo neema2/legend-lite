@@ -1,0 +1,209 @@
+// ============================================================
+// Organization Domain — Internal structure, desks, traders
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class org::Desk
+{
+    deskId: String[1];
+    name: String[1];
+    deskType: String[1];
+    assetClass: String[1];
+    region: String[1];
+    isActive: Boolean[1];
+    headTrader: String[0..1];
+    costCenter: String[1];
+    floor: String[0..1];
+    building: String[0..1];
+    phone: String[0..1];
+    riskLimit: Float[0..1];
+    pnlTarget: Float[0..1];
+}
+
+Class org::Trader
+{
+    traderId: String[1];
+    firstName: String[1];
+    lastName: String[1];
+    badge: String[1];
+    email: String[1];
+    hireDate: StrictDate[1];
+    seniority: String[1];
+    isActive: Boolean[1];
+    specialization: String[0..1];
+    license: String[0..1];
+    maxNotional: Float[0..1];
+    pnlYTD: Float[0..1];
+    phone: String[0..1];
+}
+
+Class org::PortfolioManager
+{
+    pmId: String[1];
+    firstName: String[1];
+    lastName: String[1];
+    email: String[1];
+    strategy: String[1];
+    aum: Float[1];
+    hireDate: StrictDate[1];
+    isActive: Boolean[1];
+    performanceYTD: Float[0..1];
+    benchmark: String[0..1];
+    riskBudget: Float[0..1];
+    investmentStyle: String[0..1];
+    cfa: Boolean[0..1];
+}
+
+Class org::BusinessUnit
+{
+    buId: String[1];
+    name: String[1];
+    head: String[1];
+    division: String[1];
+    isActive: Boolean[1];
+    headcount: Integer[0..1];
+    budget: Float[0..1];
+    costCenter: String[1];
+    region: String[1];
+    establishedDate: StrictDate[0..1];
+    description: String[0..1];
+}
+
+Class org::LegalEntity
+{
+    leId: String[1];
+    name: String[1];
+    jurisdiction: String[1];
+    lei: String[0..1];
+    entityType: String[1];
+    incorporationDate: StrictDate[0..1];
+    registrationNumber: String[0..1];
+    regulatoryStatus: String[1];
+    isActive: Boolean[1];
+    capitalBase: Float[0..1];
+    parentEntityId: String[0..1];
+    taxId: String[0..1];
+}
+
+Class org::Region
+{
+    regionId: String[1];
+    name: String[1];
+    code: String[1];
+    timezone: String[1];
+    headOfRegion: String[0..1];
+    isActive: Boolean[1];
+    headcount: Integer[0..1];
+    revenueTarget: Float[0..1];
+    costTarget: Float[0..1];
+    description: String[0..1];
+}
+
+Class org::CostCenter
+{
+    costCenterId: String[1];
+    name: String[1];
+    department: String[1];
+    budgetAmount: Float[1];
+    spentAmount: Float[0..1];
+    remainingAmount: Float[0..1];
+    fiscalYear: Integer[1];
+    manager: String[1];
+    isActive: Boolean[1];
+    approvalThreshold: Float[0..1];
+    currency: String[1];
+}
+
+Class org::Department
+{
+    departmentId: String[1];
+    name: String[1];
+    head: String[1];
+    headcount: Integer[0..1];
+    isActive: Boolean[1];
+    budget: Float[0..1];
+    floor: String[0..1];
+    building: String[0..1];
+    phone: String[0..1];
+    establishedDate: StrictDate[0..1];
+    parentDepartmentId: String[0..1];
+}
+
+Class org::Team
+{
+    teamId: String[1];
+    name: String[1];
+    lead: String[1];
+    teamSize: Integer[1];
+    isActive: Boolean[1];
+    focus: String[0..1];
+    formationDate: StrictDate[0..1];
+    objective: String[0..1];
+    performanceRating: Float[0..1];
+    slackChannel: String[0..1];
+}
+
+Class org::Approver
+{
+    approverId: String[1];
+    firstName: String[1];
+    lastName: String[1];
+    email: String[1];
+    approvalLevel: Integer[1];
+    maxApprovalAmount: Float[1];
+    department: String[1];
+    isActive: Boolean[1];
+    delegateTo: String[0..1];
+    title: String[0..1];
+    currency: String[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association org::Desk_Trader
+{
+    desk: org::Desk[1];
+    traders: org::Trader[*];
+}
+
+Association org::Desk_BusinessUnit
+{
+    businessUnit: org::BusinessUnit[1];
+    desks: org::Desk[*];
+}
+
+Association org::BusinessUnit_LegalEntity
+{
+    legalEntity: org::LegalEntity[1];
+    businessUnits: org::BusinessUnit[*];
+}
+
+Association org::LegalEntity_Region
+{
+    region: org::Region[1];
+    legalEntities: org::LegalEntity[*];
+}
+
+Association org::Department_Team
+{
+    department: org::Department[1];
+    teams: org::Team[*];
+}
+
+Association org::Department_CostCenter
+{
+    costCenter: org::CostCenter[1];
+    departments: org::Department[*];
+}
+
+Association org::BusinessUnit_Department
+{
+    businessUnit: org::BusinessUnit[1];
+    departments: org::Department[*];
+}
+
+Association org::Team_Approver
+{
+    team: org::Team[1];
+    approvers: org::Approver[*];
+}

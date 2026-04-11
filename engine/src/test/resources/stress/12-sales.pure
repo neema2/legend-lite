@@ -1,0 +1,210 @@
+// ============================================================
+// Sales Domain — Salespeople, coverage, pipeline, commissions
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class sales::SalesCredit
+{
+    creditId: String[1];
+    creditAmount: Float[1];
+    creditDate: StrictDate[1];
+    creditType: String[1];
+    currency: String[1];
+    splitPct: Float[0..1];
+    status: String[1];
+    isOverride: Boolean[1];
+    overrideBy: String[0..1];
+    originalAmount: Float[0..1];
+    region: String[0..1];
+    productArea: String[0..1];
+}
+
+Class sales::SalesPerson
+{
+    salesPersonId: String[1];
+    firstName: String[1];
+    lastName: String[1];
+    email: String[1];
+    region: String[1];
+    tier: String[1];
+    hireDate: StrictDate[1];
+    isActive: Boolean[1];
+    revenueYTD: Float[0..1];
+    revenueTarget: Float[0..1];
+    clientCount: Integer[0..1];
+    specialization: String[0..1];
+    phone: String[0..1];
+}
+
+Class sales::ClientCoverage
+{
+    coverageId: String[1];
+    role: String[1];
+    startDate: StrictDate[1];
+    endDate: StrictDate[0..1];
+    productArea: String[1];
+    region: String[1];
+    isActive: Boolean[1];
+    coverageType: String[1];
+    revenueSplit: Float[0..1];
+    lastContactDate: StrictDate[0..1];
+    notes: String[0..1];
+}
+
+Class sales::SalesPipeline
+{
+    pipelineId: String[1];
+    dealName: String[1];
+    stage: String[1];
+    expectedRevenue: Float[1];
+    probability: Float[1];
+    expectedCloseDate: StrictDate[1];
+    currency: String[1];
+    productType: String[1];
+    createdDate: StrictDate[1];
+    lastUpdated: DateTime[1];
+    isWon: Boolean[0..1];
+    lostReason: String[0..1];
+    competitorName: String[0..1];
+}
+
+Class sales::ClientInteraction
+{
+    interactionId: String[1];
+    interactionDate: DateTime[1];
+    interactionType: String[1];
+    subject: String[1];
+    duration: Integer[0..1];
+    outcome: String[0..1];
+    followUpDate: StrictDate[0..1];
+    attendees: Integer[0..1];
+    isFollowUpComplete: Boolean[0..1];
+    channel: String[1];
+    sentiment: String[0..1];
+    notes: String[0..1];
+}
+
+Class sales::RevenueBudget
+{
+    budgetId: String[1];
+    fiscalYear: Integer[1];
+    quarter: Integer[0..1];
+    budgetAmount: Float[1];
+    actualAmount: Float[0..1];
+    varianceAmount: Float[0..1];
+    variancePct: Float[0..1];
+    currency: String[1];
+    region: String[1];
+    productArea: String[1];
+    isFinalized: Boolean[1];
+    lastUpdated: DateTime[1];
+}
+
+Class sales::ClientTier
+{
+    tierId: String[1];
+    tierName: String[1];
+    minRevenue: Float[1];
+    maxRevenue: Float[0..1];
+    serviceLevel: String[1];
+    discountPct: Float[0..1];
+    isActive: Boolean[1];
+    description: String[0..1];
+    reviewFrequency: String[1];
+    lastReviewDate: StrictDate[0..1];
+}
+
+Class sales::SalesTerritory
+{
+    territoryId: String[1];
+    name: String[1];
+    region: String[1];
+    countries: String[0..1];
+    headcount: Integer[0..1];
+    revenueTarget: Float[0..1];
+    actualRevenue: Float[0..1];
+    isActive: Boolean[1];
+    description: String[0..1];
+    managerName: String[0..1];
+}
+
+Class sales::CommissionStructure
+{
+    structureId: String[1];
+    structureName: String[1];
+    commissionPct: Float[1];
+    minDealSize: Float[0..1];
+    maxDealSize: Float[0..1];
+    productArea: String[1];
+    effectiveDate: StrictDate[1];
+    expiryDate: StrictDate[0..1];
+    isActive: Boolean[1];
+    acceleratorPct: Float[0..1];
+    capAmount: Float[0..1];
+    currency: String[1];
+}
+
+Class sales::ClientActivity
+{
+    activityId: String[1];
+    activityDate: StrictDate[1];
+    activityType: String[1];
+    tradeCount: Integer[0..1];
+    tradeVolume: Float[0..1];
+    revenue: Float[0..1];
+    commission: Float[0..1];
+    productArea: String[0..1];
+    isActive: Boolean[1];
+    currency: String[0..1];
+    region: String[0..1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association sales::SalesCredit_SalesPerson
+{
+    salesPerson: sales::SalesPerson[1];
+    salesCredits: sales::SalesCredit[*];
+}
+
+Association sales::SalesPerson_ClientCoverage
+{
+    salesPerson: sales::SalesPerson[1];
+    coverages: sales::ClientCoverage[*];
+}
+
+Association sales::SalesPerson_Pipeline
+{
+    salesPerson: sales::SalesPerson[1];
+    pipelines: sales::SalesPipeline[*];
+}
+
+Association sales::SalesPerson_ClientInteraction
+{
+    salesPerson: sales::SalesPerson[1];
+    interactions: sales::ClientInteraction[*];
+}
+
+Association sales::SalesPerson_RevenueBudget
+{
+    salesPerson: sales::SalesPerson[1];
+    budgets: sales::RevenueBudget[*];
+}
+
+Association sales::SalesPerson_Territory
+{
+    territory: sales::SalesTerritory[0..1];
+    salesPeople: sales::SalesPerson[*];
+}
+
+Association sales::SalesPerson_Commission
+{
+    commissionStructure: sales::CommissionStructure[0..1];
+    salesPeople: sales::SalesPerson[*];
+}
+
+Association sales::ClientActivity_ClientCoverage
+{
+    coverage: sales::ClientCoverage[1];
+    activities: sales::ClientActivity[*];
+}

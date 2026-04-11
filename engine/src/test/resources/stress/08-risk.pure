@@ -1,0 +1,203 @@
+// ============================================================
+// Risk Domain — VaR, Greeks, limits, stress testing
+// 10 classes, ~14 properties each
+// ============================================================
+
+Class risk::VaRResult
+{
+    varId: String[1];
+    calcDate: StrictDate[1];
+    varAmount: Float[1];
+    confidenceLevel: Float[1];
+    holdingPeriod: Integer[1];
+    methodology: String[1];
+    currency: String[1];
+    componentVaR: Float[0..1];
+    marginalVaR: Float[0..1];
+    incrementalVaR: Float[0..1];
+    diversificationBenefit: Float[0..1];
+    isBreached: Boolean[1];
+    model: String[1];
+    runTime: DateTime[1];
+}
+
+Class risk::Greeks
+{
+    greeksId: String[1];
+    calcDate: StrictDate[1];
+    delta: Float[1];
+    gamma: Float[1];
+    vega: Float[1];
+    theta: Float[1];
+    rho: Float[0..1];
+    charm: Float[0..1];
+    vanna: Float[0..1];
+    volga: Float[0..1];
+    currency: String[1];
+    model: String[1];
+    isEOD: Boolean[1];
+    underlyingPrice: Float[1];
+}
+
+Class risk::RiskLimit
+{
+    limitId: String[1];
+    limitType: String[1];
+    limitAmount: Float[1];
+    currentUtilization: Float[1];
+    utilizationPct: Float[1];
+    currency: String[1];
+    effectiveDate: StrictDate[1];
+    expiryDate: StrictDate[0..1];
+    status: String[1];
+    approvedBy: String[0..1];
+    approvalDate: StrictDate[0..1];
+    warningThreshold: Float[0..1];
+    hardLimit: Float[1];
+    isActive: Boolean[1];
+}
+
+Class risk::LimitBreach
+{
+    breachId: String[1];
+    breachDate: DateTime[1];
+    breachAmount: Float[1];
+    severity: String[1];
+    status: String[1];
+    escalationLevel: Integer[1];
+    resolvedDate: DateTime[0..1];
+    resolvedBy: String[0..1];
+    resolution: String[0..1];
+    peakExposure: Float[0..1];
+    durationMinutes: Integer[0..1];
+    isActive: Boolean[1];
+}
+
+Class risk::StressScenario
+{
+    scenarioId: String[1];
+    name: String[1];
+    category: String[1];
+    description: String[0..1];
+    createdDate: StrictDate[1];
+    createdBy: String[1];
+    isActive: Boolean[1];
+    isRegulatory: Boolean[1];
+    shockMagnitude: Float[0..1];
+    historicalDate: StrictDate[0..1];
+    riskFactorCount: Integer[0..1];
+    lastRunDate: StrictDate[0..1];
+}
+
+Class risk::StressResult
+{
+    resultId: String[1];
+    calcDate: StrictDate[1];
+    stressedPnL: Float[1];
+    stressedVaR: Float[0..1];
+    baselinePnL: Float[0..1];
+    deltaFromBaseline: Float[0..1];
+    currency: String[1];
+    model: String[1];
+    runTime: DateTime[1];
+    isBreached: Boolean[1];
+    breachAmount: Float[0..1];
+    confidence: Float[0..1];
+}
+
+Class risk::SensitivityResult
+{
+    sensitivityId: String[1];
+    sensitivityType: String[1];
+    riskFactor: String[1];
+    sensitivityValue: Float[1];
+    calcDate: StrictDate[1];
+    tenor: String[0..1];
+    currency: String[1];
+    model: String[1];
+    bumpSize: Float[0..1];
+    previousValue: Float[0..1];
+    changeAmount: Float[0..1];
+    isSignificant: Boolean[1];
+}
+
+Class risk::RiskFactor
+{
+    factorId: String[1];
+    name: String[1];
+    factorType: String[1];
+    assetClass: String[1];
+    currency: String[0..1];
+    tenor: String[0..1];
+    currentLevel: Float[1];
+    previousLevel: Float[0..1];
+    dailyChange: Float[0..1];
+    volatility: Float[0..1];
+    source: String[1];
+    lastUpdated: DateTime[1];
+    isActive: Boolean[1];
+}
+
+Class risk::ExposureSnapshot
+{
+    snapshotId: String[1];
+    snapshotDate: StrictDate[1];
+    grossExposure: Float[1];
+    netExposure: Float[1];
+    longExposure: Float[1];
+    shortExposure: Float[1];
+    leverage: Float[0..1];
+    currency: String[1];
+    assetClass: String[0..1];
+    region: String[0..1];
+    isEOD: Boolean[1];
+    runTime: DateTime[1];
+}
+
+Class risk::ConcentrationRisk
+{
+    concentrationId: String[1];
+    calcDate: StrictDate[1];
+    dimensionType: String[1];
+    dimensionValue: String[1];
+    exposure: Float[1];
+    exposurePct: Float[1];
+    limit: Float[0..1];
+    isBreached: Boolean[1];
+    currency: String[1];
+    rank: Integer[1];
+    previousExposure: Float[0..1];
+    changeAmount: Float[0..1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association risk::RiskLimit_LimitBreach
+{
+    riskLimit: risk::RiskLimit[1];
+    breaches: risk::LimitBreach[*];
+}
+
+Association risk::StressScenario_StressResult
+{
+    scenario: risk::StressScenario[1];
+    results: risk::StressResult[*];
+}
+
+Association risk::RiskFactor_SensitivityResult
+{
+    riskFactor: risk::RiskFactor[1];
+    sensitivities: risk::SensitivityResult[*];
+}
+
+Association risk::VaRResult_ExposureSnapshot
+{
+    varResult: risk::VaRResult[0..1];
+    exposureSnapshots: risk::ExposureSnapshot[*];
+}
+
+Association risk::VaRResult_ConcentrationRisk
+{
+    varResult: risk::VaRResult[0..1];
+    concentrations: risk::ConcentrationRisk[*];
+}

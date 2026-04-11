@@ -1,0 +1,300 @@
+// ============================================================
+// Cross-Domain Associations
+// Links classes across domain boundaries for deep navigation
+// ============================================================
+
+// ---- Trading ↔ Products ----
+Association cross::Trade_Instrument
+{
+    instrument: products::Instrument[1];
+    trades: trading::Trade[*];
+}
+
+Association cross::Order_Instrument
+{
+    instrument: products::Instrument[1];
+    orders: trading::Order[*];
+}
+
+// ---- Trading ↔ Positions ----
+Association cross::Trade_Book
+{
+    book: positions::Book[1];
+    trades: trading::Trade[*];
+}
+
+Association cross::Allocation_Book
+{
+    book: positions::Book[1];
+    allocations: trading::Allocation[*];
+}
+
+// ---- Trading ↔ Org ----
+Association cross::Trade_Trader
+{
+    trader: org::Trader[1];
+    trades: trading::Trade[*];
+}
+
+// ---- Trading ↔ Counterparty ----
+Association cross::Trade_Counterparty
+{
+    counterparty: counterparty::Counterparty[1];
+    trades: trading::Trade[*];
+}
+
+// ---- Positions ↔ Org ----
+Association cross::Book_Desk
+{
+    desk: org::Desk[1];
+    books: positions::Book[*];
+}
+
+Association cross::Portfolio_PortfolioManager
+{
+    manager: org::PortfolioManager[1];
+    portfolios: positions::Portfolio[*];
+}
+
+// ---- Positions ↔ Products ----
+Association cross::Position_Instrument
+{
+    instrument: products::Instrument[1];
+    positions: positions::Position[*];
+}
+
+// ---- Settlement ↔ Trading ----
+Association cross::Settlement_Trade
+{
+    trade: trading::Trade[1];
+    settlements: settlement::Settlement[*];
+}
+
+// ---- Settlement ↔ Products ----
+Association cross::CorporateAction_Instrument
+{
+    instrument: products::Instrument[1];
+    corporateActions: settlement::CorporateAction[*];
+}
+
+// ---- P&L ↔ Positions ----
+Association cross::DailyPnL_Book
+{
+    book: positions::Book[1];
+    dailyPnLs: pnl::DailyPnL[*];
+}
+
+// ---- P&L ↔ Org ----
+Association cross::DailyPnL_Trader
+{
+    trader: org::Trader[1];
+    dailyPnLs: pnl::DailyPnL[*];
+}
+
+Association cross::DailyPnL_Desk
+{
+    desk: org::Desk[1];
+    dailyPnLs: pnl::DailyPnL[*];
+}
+
+// ---- Risk ↔ Positions ----
+Association cross::VaRResult_Portfolio
+{
+    portfolio: positions::Portfolio[1];
+    varResults: risk::VaRResult[*];
+}
+
+Association cross::Greeks_Position
+{
+    position: positions::Position[1];
+    greeks: risk::Greeks[*];
+}
+
+Association cross::RiskLimit_Desk
+{
+    desk: org::Desk[1];
+    riskLimits: risk::RiskLimit[*];
+}
+
+// ---- Collateral ↔ Counterparty ----
+Association cross::CollateralAgreement_Counterparty
+{
+    counterparty: counterparty::Counterparty[1];
+    collateralAgreements: collateral::CollateralAgreement[*];
+}
+
+Association cross::MarginCall_Counterparty
+{
+    counterparty: counterparty::Counterparty[1];
+    marginCalls: collateral::MarginCall[*];
+}
+
+// ---- Sales ↔ Counterparty ----
+Association cross::ClientCoverage_Counterparty
+{
+    counterparty: counterparty::Counterparty[1];
+    coverages: sales::ClientCoverage[*];
+}
+
+// ---- Sales ↔ Trading ----
+Association cross::SalesCredit_Trade
+{
+    trade: trading::Trade[1];
+    salesCredits: sales::SalesCredit[*];
+}
+
+// ---- Sales ↔ Org ----
+Association cross::SalesPerson_Desk
+{
+    desk: org::Desk[1];
+    salesPeople: sales::SalesPerson[*];
+}
+
+// ---- Ops ↔ Trading ----
+Association cross::Confirmation_Trade
+{
+    trade: trading::Trade[1];
+    confirmations: ops::Confirmation[*];
+}
+
+Association cross::TradeException_Trade
+{
+    trade: trading::Trade[1];
+    exceptions: ops::TradeException[*];
+}
+
+// ---- Regulatory ↔ Trading ----
+Association cross::TradeReport_Trade
+{
+    trade: trading::Trade[1];
+    tradeReports: regulatory::TradeReport[*];
+}
+
+Association cross::TransactionCost_Execution
+{
+    execution: trading::Execution[1];
+    transactionCosts: regulatory::TransactionCost[*];
+}
+
+// ---- Products ↔ Refdata ----
+Association cross::Instrument_Sector
+{
+    sector: refdata::Sector[1];
+    instruments: products::Instrument[*];
+}
+
+Association cross::Instrument_Currency
+{
+    instrumentCurrency: refdata::Currency[1];
+    instrumentsByCurrency: products::Instrument[*];
+}
+
+Association cross::Instrument_Exchange
+{
+    exchange: refdata::Exchange[1];
+    listedInstruments: products::Instrument[*];
+}
+
+Association cross::Bond_Issuer
+{
+    issuer: refdata::Issuer[1];
+    bonds: products::Bond[*];
+}
+
+// ---- Counterparty ↔ Refdata ----
+Association cross::Counterparty_Country
+{
+    country: refdata::Country[1];
+    counterparties: counterparty::Counterparty[*];
+}
+
+// ---- Market Data ↔ Products ----
+Association cross::MarketQuote_Instrument
+{
+    instrument: products::Instrument[1];
+    quotes: marketdata::MarketQuote[*];
+}
+
+// ---- Funding ↔ Positions ----
+Association cross::CashFlow_Book
+{
+    book: positions::Book[1];
+    cashFlows: funding::CashFlow[*];
+}
+
+// ---- Tax ↔ Positions ----
+Association cross::TaxLot_Position
+{
+    position: positions::Position[1];
+    taxLots: tax::TaxLot[*];
+}
+
+// ---- Research ↔ Products ----
+Association cross::AnalystRecommendation_Instrument
+{
+    instrument: products::Instrument[1];
+    recommendations: research::AnalystRecommendation[*];
+}
+
+// ---- Clearing ↔ Trading ----
+Association cross::ClearedTrade_Trade
+{
+    trade: trading::Trade[0..1];
+    clearedTrades: clearing::ClearedTrade[*];
+}
+
+// ---- Prime ↔ Counterparty ----
+Association cross::PBAccount_Counterparty
+{
+    counterparty: counterparty::Counterparty[1];
+    pbAccounts: prime::PrimeBrokerAccount[*];
+}
+
+// ---- Prime ↔ Products ----
+Association cross::SyntheticPosition_Instrument
+{
+    instrument: products::Instrument[1];
+    syntheticPositions: prime::SyntheticPosition[*];
+}
+
+// ---- Accounting ↔ Org ----
+Association cross::JournalEntry_CostCenter
+{
+    costCenter: org::CostCenter[1];
+    journalEntries: accounting::JournalEntry[*];
+}
+
+// ---- Regulatory ↔ Org ----
+Association cross::RegulatoryCapital_LegalEntity
+{
+    legalEntity: org::LegalEntity[1];
+    capitalCalcs: regulatory::RegulatoryCapital[*];
+}
+
+// ---- Org ↔ Org (PortfolioManager → Desk) ----
+Association cross::PortfolioManager_Desk
+{
+    desk: org::Desk[0..1];
+    portfolioManagers: org::PortfolioManager[*];
+}
+
+// ---- Market Data ↔ Refdata ----
+Association cross::FxRate_Currency
+{
+    baseCurrency: refdata::Currency[1];
+    fxRatesForCurrency: marketdata::FxRate[*];
+}
+
+// ---- Risk ↔ Products ----
+Association cross::Greeks_Instrument
+{
+    instrument: products::Instrument[1];
+    instrumentGreeks: risk::Greeks[*];
+}
+
+// ---- Settlement ↔ Counterparty ----
+Association cross::Settlement_Counterparty
+{
+    counterparty: counterparty::Counterparty[1];
+    settlementsWithCpty: settlement::Settlement[*];
+}

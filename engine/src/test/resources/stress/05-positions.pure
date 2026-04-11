@@ -1,0 +1,223 @@
+// ============================================================
+// Positions Domain — Books, portfolios, positions
+// 10 classes, ~14 properties each
+// ============================================================
+
+Class positions::Book
+{
+    bookId: String[1];
+    name: String[1];
+    bookType: String[1];
+    currency: String[1];
+    isActive: Boolean[1];
+    openDate: StrictDate[1];
+    closeDate: StrictDate[0..1];
+    legalEntity: String[0..1];
+    strategy: String[0..1];
+    pnlYTD: Float[0..1];
+    positionCount: Integer[0..1];
+    riskLimit: Float[0..1];
+    description: String[0..1];
+}
+
+Class positions::Position
+{
+    positionId: String[1];
+    quantity: Float[1];
+    averageCost: Float[1];
+    marketValue: Float[1];
+    unrealizedPnL: Float[1];
+    realizedPnL: Float[0..1];
+    currency: String[1];
+    positionDate: StrictDate[1];
+    direction: String[1];
+    costBasis: Float[1];
+    accruedInterest: Float[0..1];
+    lastUpdated: DateTime[1];
+    isOpen: Boolean[1];
+    settlementDate: StrictDate[0..1];
+}
+
+Class positions::Portfolio
+{
+    portfolioId: String[1];
+    name: String[1];
+    strategy: String[1];
+    inception: StrictDate[1];
+    aum: Float[1];
+    currency: String[1];
+    benchmark: String[0..1];
+    isActive: Boolean[1];
+    nav: Float[0..1];
+    navDate: StrictDate[0..1];
+    returnYTD: Float[0..1];
+    returnMTD: Float[0..1];
+    sharpeRatio: Float[0..1];
+    maxDrawdown: Float[0..1];
+}
+
+Class positions::CashBalance
+{
+    balanceId: String[1];
+    balance: Float[1];
+    currency: String[1];
+    balanceDate: StrictDate[1];
+    balanceType: String[1];
+    accountId: String[0..1];
+    availableBalance: Float[1];
+    pendingAmount: Float[0..1];
+    isOverdrawn: Boolean[1];
+    overdraftLimit: Float[0..1];
+    lastUpdated: DateTime[1];
+}
+
+Class positions::Inventory
+{
+    inventoryId: String[1];
+    availableQuantity: Float[1];
+    lockedQuantity: Float[0..1];
+    borrowedQuantity: Float[0..1];
+    lentQuantity: Float[0..1];
+    totalQuantity: Float[1];
+    inventoryDate: StrictDate[1];
+    source: String[1];
+    locationType: String[1];
+    isSettled: Boolean[1];
+    lastUpdated: DateTime[1];
+    custodian: String[0..1];
+}
+
+Class positions::LotPosition
+{
+    lotId: String[1];
+    quantity: Float[1];
+    costPrice: Float[1];
+    costBasis: Float[1];
+    acquireDate: StrictDate[1];
+    lotType: String[1];
+    isOpen: Boolean[1];
+    closeDate: StrictDate[0..1];
+    closePrice: Float[0..1];
+    realizedGain: Float[0..1];
+    holdingPeriod: Integer[0..1];
+    taxMethod: String[1];
+}
+
+Class positions::BookTransfer
+{
+    transferId: String[1];
+    fromBookId: String[1];
+    toBookId: String[1];
+    quantity: Float[1];
+    price: Float[1];
+    transferDate: StrictDate[1];
+    reason: String[1];
+    status: String[1];
+    approvedBy: String[0..1];
+    approvalDate: StrictDate[0..1];
+    currency: String[1];
+    notional: Float[1];
+}
+
+Class positions::PositionBreak
+{
+    breakId: String[1];
+    breakType: String[1];
+    expectedQuantity: Float[1];
+    actualQuantity: Float[1];
+    difference: Float[1];
+    breakDate: StrictDate[1];
+    status: String[1];
+    priority: String[1];
+    assignedTo: String[0..1];
+    resolvedDate: StrictDate[0..1];
+    resolution: String[0..1];
+    ageInDays: Integer[0..1];
+}
+
+Class positions::ReconciliationItem
+{
+    reconId: String[1];
+    source: String[1];
+    target: String[1];
+    sourceValue: Float[1];
+    targetValue: Float[1];
+    difference: Float[1];
+    reconDate: StrictDate[1];
+    status: String[1];
+    matchType: String[1];
+    isMatched: Boolean[1];
+    comment: String[0..1];
+    resolvedBy: String[0..1];
+}
+
+Class positions::PositionSnapshot
+{
+    snapshotId: String[1];
+    snapshotDate: StrictDate[1];
+    snapshotTime: DateTime[1];
+    quantity: Float[1];
+    marketValue: Float[1];
+    unrealizedPnL: Float[1];
+    costBasis: Float[1];
+    currency: String[1];
+    source: String[1];
+    isEOD: Boolean[1];
+    version: Integer[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association positions::Position_Book
+{
+    book: positions::Book[1];
+    positions: positions::Position[*];
+}
+
+Association positions::Portfolio_Position
+{
+    portfolio: positions::Portfolio[1];
+    positions: positions::Position[*];
+}
+
+Association positions::CashBalance_Book
+{
+    book: positions::Book[1];
+    cashBalances: positions::CashBalance[*];
+}
+
+Association positions::Inventory_Book
+{
+    book: positions::Book[1];
+    inventory: positions::Inventory[*];
+}
+
+Association positions::LotPosition_Position
+{
+    position: positions::Position[1];
+    lots: positions::LotPosition[*];
+}
+
+Association positions::BookTransfer_Book
+{
+    sourceBook: positions::Book[1];
+    outgoingTransfers: positions::BookTransfer[*];
+}
+
+Association positions::PositionBreak_Position
+{
+    position: positions::Position[1];
+    breaks: positions::PositionBreak[*];
+}
+
+Association positions::ReconciliationItem_Position
+{
+    position: positions::Position[1];
+    reconItems: positions::ReconciliationItem[*];
+}
+
+Association positions::PositionSnapshot_Position
+{
+    position: positions::Position[1];
+    snapshots: positions::PositionSnapshot[*];
+}

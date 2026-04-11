@@ -1,0 +1,196 @@
+// ============================================================
+// Reference Data Domain — Static/master data
+// 10 classes, ~12 properties each
+// ============================================================
+
+Class refdata::Currency
+{
+    code: String[1];
+    name: String[1];
+    numericCode: Integer[0..1];
+    minorUnit: Integer[1];
+    symbol: String[0..1];
+    isActive: Boolean[1];
+    region: String[0..1];
+    isMajor: Boolean[1];
+    centralBank: String[0..1];
+    fixingSource: String[0..1];
+}
+
+Class refdata::Exchange
+{
+    mic: String[1];
+    name: String[1];
+    city: String[1];
+    timezone: String[1];
+    openTime: String[1];
+    closeTime: String[1];
+    isElectronic: Boolean[1];
+    operatingMic: String[0..1];
+    website: String[0..1];
+    regulatoryBody: String[0..1];
+}
+
+Class refdata::Sector
+{
+    sectorId: String[1];
+    name: String[1];
+    gicsCode: String[0..1];
+    level: Integer[1];
+    description: String[0..1];
+    isActive: Boolean[1];
+    parentSectorId: String[0..1];
+    marketCapWeight: Float[0..1];
+    numberOfCompanies: Integer[0..1];
+    lastUpdated: StrictDate[0..1];
+}
+
+Class refdata::Industry
+{
+    industryId: String[1];
+    name: String[1];
+    sicCode: String[0..1];
+    naicsCode: String[0..1];
+    description: String[0..1];
+    isActive: Boolean[1];
+    subIndustryOf: String[0..1];
+    averagePE: Float[0..1];
+    averageDividendYield: Float[0..1];
+    lastUpdated: StrictDate[0..1];
+}
+
+Class refdata::Issuer
+{
+    issuerId: String[1];
+    name: String[1];
+    lei: String[0..1];
+    ticker: String[0..1];
+    creditRating: String[0..1];
+    ratingAgency: String[0..1];
+    domicile: String[1];
+    issuerType: String[1];
+    isActive: Boolean[1];
+    incorporationDate: StrictDate[0..1];
+    totalDebtOutstanding: Float[0..1];
+    website: String[0..1];
+}
+
+Class refdata::Country
+{
+    countryCode: String[1];
+    name: String[1];
+    iso3Code: String[1];
+    region: String[1];
+    subRegion: String[0..1];
+    continent: String[1];
+    capitalCity: String[0..1];
+    timeZone: String[1];
+    gdp: Float[0..1];
+    population: Integer[0..1];
+    isEU: Boolean[1];
+    isOECD: Boolean[1];
+}
+
+Class refdata::Calendar
+{
+    calendarId: String[1];
+    name: String[1];
+    calendarType: String[1];
+    year: Integer[1];
+    numberOfHolidays: Integer[1];
+    isActive: Boolean[1];
+    source: String[0..1];
+    lastUpdated: StrictDate[0..1];
+    description: String[0..1];
+    timezone: String[1];
+}
+
+Class refdata::Rating
+{
+    ratingId: String[1];
+    agency: String[1];
+    ratingValue: String[1];
+    ratingDate: StrictDate[1];
+    outlook: String[0..1];
+    watchStatus: String[0..1];
+    isInvestmentGrade: Boolean[1];
+    previousRating: String[0..1];
+    previousDate: StrictDate[0..1];
+    ratingType: String[1];
+    sector: String[0..1];
+}
+
+Class refdata::Index
+{
+    indexId: String[1];
+    name: String[1];
+    ticker: String[1];
+    provider: String[1];
+    assetClass: String[1];
+    geography: String[1];
+    currency: String[1];
+    numberOfConstituents: Integer[0..1];
+    launchDate: StrictDate[0..1];
+    rebalanceFrequency: String[0..1];
+    methodology: String[0..1];
+    lastLevel: Float[0..1];
+    lastLevelDate: StrictDate[0..1];
+}
+
+Class refdata::IndexConstituent
+{
+    constituentId: String[1];
+    effectiveDate: StrictDate[1];
+    weight: Float[1];
+    sharesHeld: Float[0..1];
+    marketCap: Float[0..1];
+    freeFloatFactor: Float[0..1];
+    addedDate: StrictDate[0..1];
+    removedDate: StrictDate[0..1];
+    isActive: Boolean[1];
+    sector: String[0..1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association refdata::Sector_Industry
+{
+    sector: refdata::Sector[1];
+    industries: refdata::Industry[*];
+}
+
+Association refdata::Country_Exchange
+{
+    country: refdata::Country[1];
+    exchanges: refdata::Exchange[*];
+}
+
+Association refdata::Issuer_Country
+{
+    country: refdata::Country[1];
+    issuers: refdata::Issuer[*];
+}
+
+Association refdata::Index_IndexConstituent
+{
+    index: refdata::Index[1];
+    constituents: refdata::IndexConstituent[*];
+}
+
+Association refdata::Rating_Issuer
+{
+    issuer: refdata::Issuer[1];
+    ratings: refdata::Rating[*];
+}
+
+Association refdata::Calendar_Country
+{
+    country: refdata::Country[1];
+    calendars: refdata::Calendar[*];
+}
+
+Association refdata::Currency_Country
+{
+    country: refdata::Country[1];
+    currencies: refdata::Currency[*];
+}

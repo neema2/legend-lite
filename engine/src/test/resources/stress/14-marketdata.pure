@@ -1,0 +1,192 @@
+// ============================================================
+// Market Data Domain — Quotes, rates, curves, vol surfaces
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class marketdata::MarketQuote
+{
+    quoteId: String[1];
+    quoteTime: DateTime[1];
+    bid: Float[1];
+    ask: Float[1];
+    mid: Float[1];
+    last: Float[0..1];
+    volume: Float[0..1];
+    openPrice: Float[0..1];
+    highPrice: Float[0..1];
+    lowPrice: Float[0..1];
+    closePrice: Float[0..1];
+    source: String[1];
+    isDelayed: Boolean[1];
+}
+
+Class marketdata::FxRate
+{
+    rateId: String[1];
+    currencyPair: String[1];
+    spotRate: Float[1];
+    bidRate: Float[0..1];
+    askRate: Float[0..1];
+    rateDate: DateTime[1];
+    source: String[1];
+    midRate: Float[1];
+    dailyChange: Float[0..1];
+    dailyChangePct: Float[0..1];
+    isOfficial: Boolean[1];
+    fixingTime: String[0..1];
+}
+
+Class marketdata::VolatilitySurface
+{
+    surfaceId: String[1];
+    surfaceDate: StrictDate[1];
+    underlying: String[1];
+    surfaceType: String[1];
+    atmVol: Float[1];
+    skew25D: Float[0..1];
+    butterfly25D: Float[0..1];
+    riskReversal25D: Float[0..1];
+    source: String[1];
+    model: String[1];
+    isEOD: Boolean[1];
+    lastUpdated: DateTime[1];
+}
+
+Class marketdata::YieldCurve
+{
+    curveId: String[1];
+    curveDate: StrictDate[1];
+    curveName: String[1];
+    currency: String[1];
+    curveType: String[1];
+    interpolation: String[1];
+    pointCount: Integer[1];
+    source: String[1];
+    isOfficial: Boolean[1];
+    overnightRate: Float[0..1];
+    oneYearRate: Float[0..1];
+    tenYearRate: Float[0..1];
+    thirtyYearRate: Float[0..1];
+    lastUpdated: DateTime[1];
+}
+
+Class marketdata::CreditSpread
+{
+    spreadId: String[1];
+    spreadDate: StrictDate[1];
+    referenceEntity: String[1];
+    tenor: String[1];
+    spread: Float[1];
+    previousSpread: Float[0..1];
+    changeAmount: Float[0..1];
+    seniority: String[1];
+    currency: String[1];
+    source: String[1];
+    isInverted: Boolean[1];
+    recoveryRate: Float[0..1];
+}
+
+Class marketdata::BenchmarkRate
+{
+    rateId: String[1];
+    rateName: String[1];
+    rateDate: StrictDate[1];
+    rateValue: Float[1];
+    previousRate: Float[0..1];
+    changeAmount: Float[0..1];
+    tenor: String[1];
+    currency: String[1];
+    source: String[1];
+    isOfficial: Boolean[1];
+    fixingTime: String[0..1];
+    administrator: String[1];
+}
+
+Class marketdata::CorporateSpread
+{
+    spreadId: String[1];
+    spreadDate: StrictDate[1];
+    sector: String[1];
+    rating: String[1];
+    tenor: String[1];
+    spread: Float[1];
+    benchmarkSpread: Float[0..1];
+    zSpread: Float[0..1];
+    oasSpread: Float[0..1];
+    currency: String[1];
+    source: String[1];
+    numberOfBonds: Integer[0..1];
+}
+
+Class marketdata::DividendForecast
+{
+    forecastId: String[1];
+    exDate: StrictDate[1];
+    paymentDate: StrictDate[0..1];
+    amount: Float[1];
+    currency: String[1];
+    dividendType: String[1];
+    frequency: String[1];
+    yield: Float[0..1];
+    isConfirmed: Boolean[1];
+    source: String[1];
+    previousAmount: Float[0..1];
+    growthRate: Float[0..1];
+}
+
+Class marketdata::ImpliedVolPoint
+{
+    pointId: String[1];
+    volDate: StrictDate[1];
+    strike: Float[1];
+    expiry: StrictDate[1];
+    impliedVol: Float[1];
+    delta: Float[0..1];
+    moneyness: Float[0..1];
+    source: String[1];
+    model: String[1];
+    isATM: Boolean[1];
+    bidVol: Float[0..1];
+    askVol: Float[0..1];
+}
+
+Class marketdata::MarketDataSnapshot
+{
+    snapshotId: String[1];
+    snapshotTime: DateTime[1];
+    snapshotType: String[1];
+    source: String[1];
+    itemCount: Integer[1];
+    isComplete: Boolean[1];
+    isOfficial: Boolean[1];
+    status: String[1];
+    processingTimeMs: Integer[0..1];
+    version: Integer[1];
+    description: String[0..1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association marketdata::VolatilitySurface_ImpliedVolPoint
+{
+    surface: marketdata::VolatilitySurface[1];
+    volPoints: marketdata::ImpliedVolPoint[*];
+}
+
+Association marketdata::YieldCurve_BenchmarkRate
+{
+    yieldCurve: marketdata::YieldCurve[0..1];
+    benchmarkRates: marketdata::BenchmarkRate[*];
+}
+
+Association marketdata::MarketDataSnapshot_MarketQuote
+{
+    snapshot: marketdata::MarketDataSnapshot[0..1];
+    quotes: marketdata::MarketQuote[*];
+}
+
+Association marketdata::MarketDataSnapshot_FxRate
+{
+    snapshot: marketdata::MarketDataSnapshot[0..1];
+    fxRates: marketdata::FxRate[*];
+}

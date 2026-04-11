@@ -1,0 +1,231 @@
+// ============================================================
+// Collateral Domain — Margin calls, agreements, postings
+// 10 classes, ~13 properties each + enum
+// ============================================================
+
+Enum collateral::CollateralType
+{
+    CASH,
+    GOVT_BOND,
+    CORP_BOND,
+    EQUITY,
+    LETTER_OF_CREDIT
+}
+
+Class collateral::MarginCall
+{
+    marginCallId: String[1];
+    callDate: StrictDate[1];
+    callAmount: Float[1];
+    currency: String[1];
+    direction: String[1];
+    status: String[1];
+    responseDeadline: DateTime[1];
+    agreedAmount: Float[0..1];
+    disputedAmount: Float[0..1];
+    callType: String[1];
+    isDisputed: Boolean[1];
+    disputeReason: String[0..1];
+    settledDate: StrictDate[0..1];
+    version: Integer[1];
+}
+
+Class collateral::CollateralAgreement
+{
+    agreementId: String[1];
+    agreementType: String[1];
+    effectiveDate: StrictDate[1];
+    terminationDate: StrictDate[0..1];
+    minimumTransferAmount: Float[1];
+    threshold: Float[1];
+    independentAmount: Float[0..1];
+    roundingAmount: Float[0..1];
+    currency: String[1];
+    eligibleCollateral: String[1];
+    valuationFrequency: String[1];
+    disputeResolutionDays: Integer[0..1];
+    isActive: Boolean[1];
+    governingLaw: String[1];
+}
+
+Class collateral::CollateralPosting
+{
+    postingId: String[1];
+    amount: Float[1];
+    collateralType: String[1];
+    postingDate: StrictDate[1];
+    direction: String[1];
+    status: String[1];
+    marketValue: Float[1];
+    haircut: Float[0..1];
+    haircutPct: Float[0..1];
+    adjValue: Float[1];
+    currency: String[1];
+    custodian: String[0..1];
+    settledDate: StrictDate[0..1];
+}
+
+Class collateral::CollateralBalance
+{
+    balanceId: String[1];
+    balanceDate: StrictDate[1];
+    postedAmount: Float[1];
+    receivedAmount: Float[1];
+    netAmount: Float[1];
+    requiredAmount: Float[1];
+    excessDeficit: Float[1];
+    currency: String[1];
+    collateralType: String[0..1];
+    isDeficit: Boolean[1];
+    lastUpdated: DateTime[1];
+}
+
+Class collateral::HaircutSchedule
+{
+    haircutId: String[1];
+    collateralType: String[1];
+    haircut: Float[1];
+    tenor: String[0..1];
+    creditRating: String[0..1];
+    currency: String[0..1];
+    effectiveDate: StrictDate[1];
+    expiryDate: StrictDate[0..1];
+    isRegulatory: Boolean[1];
+    source: String[1];
+}
+
+Class collateral::EligibilityRule
+{
+    ruleId: String[1];
+    ruleName: String[1];
+    collateralType: String[1];
+    minRating: String[0..1];
+    maxTenor: String[0..1];
+    maxConcentration: Float[0..1];
+    currency: String[0..1];
+    isActive: Boolean[1];
+    effectiveDate: StrictDate[1];
+    description: String[0..1];
+    priority: Integer[1];
+}
+
+Class collateral::CollateralSubstitution
+{
+    substitutionId: String[1];
+    requestDate: StrictDate[1];
+    outCollateralType: String[1];
+    outAmount: Float[1];
+    inCollateralType: String[1];
+    inAmount: Float[1];
+    status: String[1];
+    approvedBy: String[0..1];
+    approvalDate: StrictDate[0..1];
+    reason: String[0..1];
+    currency: String[1];
+    isApproved: Boolean[0..1];
+}
+
+Class collateral::InitialMargin
+{
+    imId: String[1];
+    calcDate: StrictDate[1];
+    imAmount: Float[1];
+    methodology: String[1];
+    currency: String[1];
+    isRegulatory: Boolean[1];
+    postedAmount: Float[0..1];
+    receivedAmount: Float[0..1];
+    excessDeficit: Float[0..1];
+    model: String[1];
+    runTime: DateTime[1];
+    version: Integer[1];
+}
+
+Class collateral::VariationMargin
+{
+    vmId: String[1];
+    calcDate: StrictDate[1];
+    vmAmount: Float[1];
+    mtm: Float[1];
+    previousMtm: Float[0..1];
+    changeMtm: Float[0..1];
+    currency: String[1];
+    postedAmount: Float[0..1];
+    receivedAmount: Float[0..1];
+    excessDeficit: Float[0..1];
+    status: String[1];
+    lastUpdated: DateTime[1];
+}
+
+Class collateral::CollateralDispute
+{
+    disputeId: String[1];
+    disputeDate: StrictDate[1];
+    disputedAmount: Float[1];
+    ourAmount: Float[1];
+    theirAmount: Float[1];
+    reason: String[1];
+    status: String[1];
+    currency: String[1];
+    resolvedDate: StrictDate[0..1];
+    resolvedAmount: Float[0..1];
+    escalationLevel: Integer[0..1];
+    ageInDays: Integer[0..1];
+    assignedTo: String[0..1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association collateral::MarginCall_Agreement
+{
+    agreement: collateral::CollateralAgreement[1];
+    marginCalls: collateral::MarginCall[*];
+}
+
+Association collateral::MarginCall_Posting
+{
+    marginCall: collateral::MarginCall[1];
+    postings: collateral::CollateralPosting[*];
+}
+
+Association collateral::Agreement_Balance
+{
+    agreement: collateral::CollateralAgreement[1];
+    balances: collateral::CollateralBalance[*];
+}
+
+Association collateral::Agreement_HaircutSchedule
+{
+    agreement: collateral::CollateralAgreement[1];
+    haircutSchedules: collateral::HaircutSchedule[*];
+}
+
+Association collateral::Agreement_EligibilityRule
+{
+    agreement: collateral::CollateralAgreement[1];
+    eligibilityRules: collateral::EligibilityRule[*];
+}
+
+Association collateral::MarginCall_Substitution
+{
+    marginCall: collateral::MarginCall[0..1];
+    substitutions: collateral::CollateralSubstitution[*];
+}
+
+Association collateral::MarginCall_Dispute
+{
+    marginCall: collateral::MarginCall[1];
+    disputes: collateral::CollateralDispute[*];
+}
+
+Association collateral::Agreement_InitialMargin
+{
+    agreement: collateral::CollateralAgreement[1];
+    initialMargins: collateral::InitialMargin[*];
+}
+
+Association collateral::Agreement_VariationMargin
+{
+    agreement: collateral::CollateralAgreement[1];
+    variationMargins: collateral::VariationMargin[*];
+}

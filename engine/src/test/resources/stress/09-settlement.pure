@@ -1,0 +1,220 @@
+// ============================================================
+// Settlement Domain — Settlement, corporate actions, instructions
+// 10 classes, ~13 properties each + enum
+// ============================================================
+
+Enum settlement::SettlementMethod
+{
+    DVP,
+    FOP,
+    PAYMENT,
+    PHYSICAL
+}
+
+Class settlement::Settlement
+{
+    settlementId: String[1];
+    settlementDate: StrictDate[1];
+    amount: Float[1];
+    currency: String[1];
+    status: String[1];
+    settledDate: StrictDate[0..1];
+    settlementMethod: String[1];
+    custodian: String[0..1];
+    depository: String[0..1];
+    settledAmount: Float[0..1];
+    failReason: String[0..1];
+    isPartial: Boolean[1];
+    priority: Integer[0..1];
+    lastUpdated: DateTime[1];
+}
+
+Class settlement::SettlementInstruction
+{
+    instructionId: String[1];
+    instructionType: String[1];
+    createdDate: DateTime[1];
+    effectiveDate: StrictDate[1];
+    beneficiaryAccount: String[1];
+    beneficiaryName: String[1];
+    intermediaryBank: String[0..1];
+    swiftCode: String[0..1];
+    iban: String[0..1];
+    currency: String[1];
+    isStanding: Boolean[1];
+    status: String[1];
+    approvedBy: String[0..1];
+}
+
+Class settlement::CashSettlement
+{
+    cashSettlementId: String[1];
+    paymentDate: StrictDate[1];
+    amount: Float[1];
+    currency: String[1];
+    paymentMethod: String[1];
+    debitAccount: String[1];
+    creditAccount: String[1];
+    status: String[1];
+    valueDate: StrictDate[1];
+    isNetting: Boolean[1];
+    reference: String[0..1];
+    confirmedDate: DateTime[0..1];
+}
+
+Class settlement::SecuritiesSettlement
+{
+    secSettlementId: String[1];
+    settlementDate: StrictDate[1];
+    quantity: Float[1];
+    deliveryType: String[1];
+    custodian: String[1];
+    depository: String[1];
+    status: String[1];
+    matchStatus: String[1];
+    isDelivery: Boolean[1];
+    settledQuantity: Float[0..1];
+    failedQuantity: Float[0..1];
+    lastUpdated: DateTime[1];
+    priority: String[1];
+}
+
+Class settlement::SettlementFail
+{
+    failId: String[1];
+    failDate: StrictDate[1];
+    failReason: String[1];
+    originalSettlementDate: StrictDate[1];
+    revisedSettlementDate: StrictDate[0..1];
+    amount: Float[1];
+    currency: String[1];
+    penaltyAmount: Float[0..1];
+    status: String[1];
+    ageInDays: Integer[1];
+    isResolved: Boolean[1];
+    resolvedDate: StrictDate[0..1];
+    escalationLevel: Integer[0..1];
+}
+
+Class settlement::CorporateAction
+{
+    corpActionId: String[1];
+    actionType: String[1];
+    exDate: StrictDate[1];
+    recordDate: StrictDate[1];
+    paymentDate: StrictDate[0..1];
+    ratio: Float[0..1];
+    cashAmount: Float[0..1];
+    currency: String[0..1];
+    status: String[1];
+    isMandatory: Boolean[1];
+    electionDeadline: StrictDate[0..1];
+    description: String[0..1];
+    announcementDate: StrictDate[1];
+}
+
+Class settlement::CorporateActionElection
+{
+    electionId: String[1];
+    electionDate: StrictDate[1];
+    electionType: String[1];
+    quantity: Float[1];
+    cashAmount: Float[0..1];
+    status: String[1];
+    submittedBy: String[1];
+    approvedBy: String[0..1];
+    isDefault: Boolean[1];
+    deadline: StrictDate[1];
+    currency: String[0..1];
+}
+
+Class settlement::SettlementLadder
+{
+    ladderId: String[1];
+    ladderDate: StrictDate[1];
+    t0Amount: Float[1];
+    t1Amount: Float[1];
+    t2Amount: Float[1];
+    t3PlusAmount: Float[0..1];
+    totalAmount: Float[1];
+    currency: String[1];
+    direction: String[1];
+    assetType: String[1];
+    isProjected: Boolean[1];
+    lastUpdated: DateTime[1];
+}
+
+Class settlement::NostroAccount
+{
+    accountId: String[1];
+    accountName: String[1];
+    currency: String[1];
+    bank: String[1];
+    swiftCode: String[1];
+    accountNumber: String[1];
+    balance: Float[1];
+    balanceDate: StrictDate[1];
+    isActive: Boolean[1];
+    openDate: StrictDate[1];
+    dailyLimit: Float[0..1];
+    description: String[0..1];
+}
+
+Class settlement::SettlementNetting
+{
+    nettingId: String[1];
+    nettingDate: StrictDate[1];
+    grossPayAmount: Float[1];
+    grossReceiveAmount: Float[1];
+    netAmount: Float[1];
+    currency: String[1];
+    tradeCount: Integer[1];
+    status: String[1];
+    isMultilateral: Boolean[1];
+    netDirection: String[1];
+    savingsAmount: Float[0..1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association settlement::Settlement_Instruction
+{
+    settlement: settlement::Settlement[1];
+    instructions: settlement::SettlementInstruction[*];
+}
+
+Association settlement::Settlement_CashSettlement
+{
+    settlement: settlement::Settlement[1];
+    cashSettlements: settlement::CashSettlement[*];
+}
+
+Association settlement::Settlement_SecuritiesSettlement
+{
+    settlement: settlement::Settlement[1];
+    securitiesSettlements: settlement::SecuritiesSettlement[*];
+}
+
+Association settlement::Settlement_SettlementFail
+{
+    settlement: settlement::Settlement[1];
+    fails: settlement::SettlementFail[*];
+}
+
+Association settlement::CorporateAction_Election
+{
+    corporateAction: settlement::CorporateAction[1];
+    elections: settlement::CorporateActionElection[*];
+}
+
+Association settlement::Settlement_Netting
+{
+    netting: settlement::SettlementNetting[0..1];
+    settlements: settlement::Settlement[*];
+}
+
+Association settlement::CashSettlement_NostroAccount
+{
+    nostroAccount: settlement::NostroAccount[1];
+    cashSettlements: settlement::CashSettlement[*];
+}

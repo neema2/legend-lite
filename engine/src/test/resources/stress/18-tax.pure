@@ -1,0 +1,190 @@
+// ============================================================
+// Tax Domain — Tax lots, withholding, reclaims, cost basis
+// 10 classes, ~12 properties each
+// ============================================================
+
+Class tax::TaxLot
+{
+    lotId: String[1];
+    acquireDate: StrictDate[1];
+    quantity: Float[1];
+    costPrice: Float[1];
+    costBasis: Float[1];
+    currentValue: Float[0..1];
+    unrealizedGain: Float[0..1];
+    taxMethod: String[1];
+    holdingPeriod: String[1];
+    isOpen: Boolean[1];
+    closeDate: StrictDate[0..1];
+    currency: String[1];
+}
+
+Class tax::WithholdingTax
+{
+    withholdingId: String[1];
+    paymentDate: StrictDate[1];
+    grossAmount: Float[1];
+    withholdingRate: Float[1];
+    withholdingAmount: Float[1];
+    netAmount: Float[1];
+    currency: String[1];
+    taxJurisdiction: String[1];
+    incomeType: String[1];
+    isReclaimable: Boolean[1];
+    treatyRate: Float[0..1];
+    status: String[1];
+}
+
+Class tax::TaxReclaim
+{
+    reclaimId: String[1];
+    reclaimDate: StrictDate[1];
+    reclaimAmount: Float[1];
+    currency: String[1];
+    jurisdiction: String[1];
+    status: String[1];
+    submittedDate: StrictDate[0..1];
+    receivedDate: StrictDate[0..1];
+    receivedAmount: Float[0..1];
+    ageInDays: Integer[0..1];
+    claimType: String[1];
+    isPartial: Boolean[0..1];
+}
+
+Class tax::CostBasis
+{
+    costBasisId: String[1];
+    originalCost: Float[1];
+    adjustedCost: Float[1];
+    adjustmentAmount: Float[0..1];
+    adjustmentReason: String[0..1];
+    acquisitionDate: StrictDate[1];
+    method: String[1];
+    currency: String[1];
+    isAdjusted: Boolean[1];
+    washSaleAmount: Float[0..1];
+    accruedMarketDiscount: Float[0..1];
+}
+
+Class tax::TaxJurisdiction
+{
+    jurisdictionId: String[1];
+    jurisdictionName: String[1];
+    countryCode: String[1];
+    domesticRate: Float[1];
+    treatyRate: Float[0..1];
+    dividendRate: Float[0..1];
+    interestRate: Float[0..1];
+    capitalGainsRate: Float[0..1];
+    isActive: Boolean[1];
+    effectiveDate: StrictDate[1];
+    lastUpdated: DateTime[1];
+}
+
+Class tax::TaxTreaty
+{
+    treatyId: String[1];
+    country1: String[1];
+    country2: String[1];
+    effectiveDate: StrictDate[1];
+    dividendRate: Float[1];
+    interestRate: Float[1];
+    royaltyRate: Float[0..1];
+    capitalGainsExempt: Boolean[1];
+    isActive: Boolean[1];
+    lastAmendDate: StrictDate[0..1];
+    source: String[1];
+}
+
+Class tax::TaxReport
+{
+    reportId: String[1];
+    reportType: String[1];
+    reportYear: Integer[1];
+    totalIncome: Float[1];
+    totalWithholding: Float[1];
+    totalGains: Float[0..1];
+    totalLosses: Float[0..1];
+    netTaxable: Float[1];
+    currency: String[1];
+    status: String[1];
+    generatedDate: StrictDate[1];
+    filingDeadline: StrictDate[0..1];
+}
+
+Class tax::CapitalGain
+{
+    gainId: String[1];
+    saleDate: StrictDate[1];
+    saleProceeds: Float[1];
+    costBasis: Float[1];
+    gainLoss: Float[1];
+    holdingPeriod: String[1];
+    isShortTerm: Boolean[1];
+    washSaleDisallowed: Float[0..1];
+    adjustedGain: Float[0..1];
+    currency: String[1];
+    taxRate: Float[0..1];
+}
+
+Class tax::TaxProvision
+{
+    provisionId: String[1];
+    provisionDate: StrictDate[1];
+    currentTax: Float[1];
+    deferredTax: Float[1];
+    totalProvision: Float[1];
+    effectiveRate: Float[1];
+    statutoryRate: Float[0..1];
+    rateDifference: Float[0..1];
+    currency: String[1];
+    jurisdiction: String[1];
+    period: String[1];
+    status: String[1];
+}
+
+Class tax::WHTRate
+{
+    rateId: String[1];
+    jurisdiction: String[1];
+    incomeType: String[1];
+    standardRate: Float[1];
+    treatyRate: Float[0..1];
+    effectiveDate: StrictDate[1];
+    expiryDate: StrictDate[0..1];
+    isActive: Boolean[1];
+    source: String[1];
+    lastUpdated: DateTime[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association tax::TaxLot_CapitalGain
+{
+    taxLot: tax::TaxLot[1];
+    capitalGains: tax::CapitalGain[*];
+}
+
+Association tax::WithholdingTax_TaxReclaim
+{
+    withholdingTax: tax::WithholdingTax[1];
+    taxReclaims: tax::TaxReclaim[*];
+}
+
+Association tax::TaxJurisdiction_WHTRate
+{
+    jurisdiction: tax::TaxJurisdiction[1];
+    whtRates: tax::WHTRate[*];
+}
+
+Association tax::TaxJurisdiction_TaxTreaty
+{
+    jurisdiction: tax::TaxJurisdiction[1];
+    treaties: tax::TaxTreaty[*];
+}
+
+Association tax::TaxReport_TaxProvision
+{
+    taxReport: tax::TaxReport[1];
+    provisions: tax::TaxProvision[*];
+}

@@ -1,0 +1,198 @@
+// ============================================================
+// Funding Domain — Cash flows, repos, sec lending, treasury
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class funding::CashFlow
+{
+    cashFlowId: String[1];
+    amount: Float[1];
+    cashFlowType: String[1];
+    paymentDate: StrictDate[1];
+    currency: String[1];
+    direction: String[1];
+    status: String[1];
+    projectedDate: StrictDate[0..1];
+    settledDate: StrictDate[0..1];
+    isProjected: Boolean[1];
+    source: String[0..1];
+    reference: String[0..1];
+    priority: Integer[0..1];
+}
+
+Class funding::FundingRate
+{
+    rateId: String[1];
+    rateDate: StrictDate[1];
+    rateBps: Float[1];
+    tenor: String[1];
+    rateType: String[1];
+    currency: String[1];
+    benchmark: String[0..1];
+    spread: Float[0..1];
+    allInRate: Float[1];
+    source: String[1];
+    isActive: Boolean[1];
+    lastUpdated: DateTime[1];
+}
+
+Class funding::RepoTrade
+{
+    repoId: String[1];
+    tradeDate: StrictDate[1];
+    startDate: StrictDate[1];
+    endDate: StrictDate[0..1];
+    repoRate: Float[1];
+    notional: Float[1];
+    collateralType: String[1];
+    haircut: Float[1];
+    direction: String[1];
+    status: String[1];
+    currency: String[1];
+    isOpen: Boolean[1];
+    maturityType: String[1];
+    dailyAccrual: Float[0..1];
+}
+
+Class funding::SecuritiesLoan
+{
+    loanId: String[1];
+    loanDate: StrictDate[1];
+    quantity: Float[1];
+    lendingFee: Float[1];
+    rebateRate: Float[0..1];
+    collateralType: String[1];
+    collateralValue: Float[1];
+    direction: String[1];
+    status: String[1];
+    returnDate: StrictDate[0..1];
+    currency: String[1];
+    isRecallable: Boolean[1];
+    recallDate: StrictDate[0..1];
+}
+
+Class funding::FundingRequirement
+{
+    requirementId: String[1];
+    requirementDate: StrictDate[1];
+    amount: Float[1];
+    currency: String[1];
+    urgency: String[1];
+    source: String[1];
+    status: String[1];
+    dueDate: StrictDate[1];
+    filledAmount: Float[0..1];
+    gapAmount: Float[0..1];
+    isMetByDeadline: Boolean[0..1];
+    costEstimate: Float[0..1];
+}
+
+Class funding::LiquidityPool
+{
+    poolId: String[1];
+    poolName: String[1];
+    totalAmount: Float[1];
+    availableAmount: Float[1];
+    reservedAmount: Float[0..1];
+    currency: String[1];
+    poolType: String[1];
+    isActive: Boolean[1];
+    minBalance: Float[0..1];
+    maxCapacity: Float[0..1];
+    lastUpdated: DateTime[1];
+}
+
+Class funding::TreasuryTransaction
+{
+    transactionId: String[1];
+    transactionDate: StrictDate[1];
+    amount: Float[1];
+    transactionType: String[1];
+    currency: String[1];
+    fromAccount: String[1];
+    toAccount: String[1];
+    status: String[1];
+    approvedBy: String[0..1];
+    reference: String[0..1];
+    valueDate: StrictDate[1];
+    isIntercompany: Boolean[1];
+}
+
+Class funding::FundingCost
+{
+    costId: String[1];
+    costDate: StrictDate[1];
+    costAmount: Float[1];
+    costType: String[1];
+    currency: String[1];
+    rateBps: Float[1];
+    notional: Float[1];
+    dayCount: Integer[0..1];
+    accrualPeriod: String[0..1];
+    isAllocated: Boolean[1];
+    allocatedTo: String[0..1];
+}
+
+Class funding::IntercompanyLoan
+{
+    loanId: String[1];
+    lender: String[1];
+    borrower: String[1];
+    principal: Float[1];
+    interestRate: Float[1];
+    startDate: StrictDate[1];
+    maturityDate: StrictDate[1];
+    currency: String[1];
+    status: String[1];
+    outstandingBalance: Float[1];
+    accruedInterest: Float[0..1];
+    isSubordinated: Boolean[1];
+}
+
+Class funding::CashForecast
+{
+    forecastId: String[1];
+    forecastDate: StrictDate[1];
+    horizon: String[1];
+    projectedInflows: Float[1];
+    projectedOutflows: Float[1];
+    netCashFlow: Float[1];
+    openingBalance: Float[1];
+    closingBalance: Float[1];
+    currency: String[1];
+    confidence: Float[0..1];
+    scenario: String[0..1];
+    lastUpdated: DateTime[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association funding::CashFlow_FundingCost
+{
+    cashFlow: funding::CashFlow[0..1];
+    fundingCosts: funding::FundingCost[*];
+}
+
+Association funding::RepoTrade_FundingRate
+{
+    fundingRate: funding::FundingRate[0..1];
+    repoTrades: funding::RepoTrade[*];
+}
+
+Association funding::SecuritiesLoan_FundingRate
+{
+    fundingRate: funding::FundingRate[0..1];
+    securitiesLoans: funding::SecuritiesLoan[*];
+}
+
+Association funding::LiquidityPool_FundingRequirement
+{
+    liquidityPool: funding::LiquidityPool[0..1];
+    requirements: funding::FundingRequirement[*];
+}
+
+Association funding::CashForecast_LiquidityPool
+{
+    liquidityPool: funding::LiquidityPool[0..1];
+    forecasts: funding::CashForecast[*];
+}

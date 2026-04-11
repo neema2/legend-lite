@@ -1,0 +1,214 @@
+// ============================================================
+// Prime Brokerage Domain — PB accounts, financing, margin
+// 10 classes, ~13 properties each
+// ============================================================
+
+Class prime::PrimeBrokerAccount
+{
+    pbAccountId: String[1];
+    accountName: String[1];
+    accountType: String[1];
+    currency: String[1];
+    status: String[1];
+    openDate: StrictDate[1];
+    closeDate: StrictDate[0..1];
+    marginType: String[1];
+    isSegregated: Boolean[1];
+    custodian: String[0..1];
+    legalEntity: String[0..1];
+    serviceTier: String[1];
+    annualFee: Float[0..1];
+}
+
+Class prime::ClientBalance
+{
+    balanceId: String[1];
+    balanceDate: StrictDate[1];
+    cashBalance: Float[1];
+    longMarketValue: Float[1];
+    shortMarketValue: Float[1];
+    netEquity: Float[1];
+    marginRequirement: Float[1];
+    excessDeficit: Float[1];
+    currency: String[1];
+    isDeficit: Boolean[1];
+    pendingActivity: Float[0..1];
+    lastUpdated: DateTime[1];
+}
+
+Class prime::FinancingRate
+{
+    rateId: String[1];
+    rateDate: StrictDate[1];
+    longRate: Float[1];
+    shortRate: Float[1];
+    spreadBps: Float[1];
+    benchmark: String[1];
+    currency: String[1];
+    tier: String[1];
+    effectiveDate: StrictDate[1];
+    expiryDate: StrictDate[0..1];
+    isNegotiable: Boolean[1];
+    lastUpdated: DateTime[1];
+}
+
+Class prime::MarginRequirement
+{
+    marginId: String[1];
+    calcDate: StrictDate[1];
+    regTMargin: Float[1];
+    houseMargin: Float[1];
+    concentrationMargin: Float[0..1];
+    totalMargin: Float[1];
+    currency: String[1];
+    methodology: String[1];
+    isBreached: Boolean[1];
+    breachAmount: Float[0..1];
+    callAmount: Float[0..1];
+    dueDate: StrictDate[0..1];
+}
+
+Class prime::ShortLocate
+{
+    locateId: String[1];
+    requestDate: DateTime[1];
+    quantity: Float[1];
+    locatedQuantity: Float[0..1];
+    rate: Float[0..1];
+    status: String[1];
+    expiryDate: StrictDate[1];
+    source: String[1];
+    isPreBorrow: Boolean[1];
+    fillPct: Float[0..1];
+    priority: String[1];
+    requestedBy: String[1];
+}
+
+Class prime::BorrowAvailability
+{
+    availabilityId: String[1];
+    availDate: StrictDate[1];
+    availableQuantity: Float[1];
+    borrowedQuantity: Float[0..1];
+    rate: Float[1];
+    rateType: String[1];
+    source: String[1];
+    isEasyToBorrow: Boolean[1];
+    specialRate: Float[0..1];
+    lastUpdated: DateTime[1];
+    expiryDate: StrictDate[0..1];
+}
+
+Class prime::SyntheticPosition
+{
+    syntheticId: String[1];
+    quantity: Float[1];
+    entryPrice: Float[1];
+    currentPrice: Float[0..1];
+    unrealizedPnL: Float[0..1];
+    financingCost: Float[0..1];
+    currency: String[1];
+    startDate: StrictDate[1];
+    endDate: StrictDate[0..1];
+    resetFrequency: String[1];
+    isOpen: Boolean[1];
+    dividendEntitlement: Float[0..1];
+}
+
+Class prime::SwapFinancing
+{
+    financingId: String[1];
+    financingDate: StrictDate[1];
+    notional: Float[1];
+    financingRate: Float[1];
+    financingCost: Float[1];
+    dayCount: Integer[1];
+    currency: String[1];
+    benchmark: String[0..1];
+    spread: Float[0..1];
+    isAccrued: Boolean[1];
+    accrualPeriod: String[1];
+    status: String[1];
+}
+
+Class prime::PortfolioSwap
+{
+    swapId: String[1];
+    swapType: String[1];
+    notional: Float[1];
+    startDate: StrictDate[1];
+    endDate: StrictDate[0..1];
+    resetDate: StrictDate[0..1];
+    financingRate: Float[1];
+    dividendPct: Float[0..1];
+    currency: String[1];
+    status: String[1];
+    nav: Float[0..1];
+    isOpen: Boolean[1];
+}
+
+Class prime::ClientStatement
+{
+    statementId: String[1];
+    statementDate: StrictDate[1];
+    openingBalance: Float[1];
+    closingBalance: Float[1];
+    totalDebits: Float[1];
+    totalCredits: Float[1];
+    financingCharges: Float[0..1];
+    fees: Float[0..1];
+    currency: String[1];
+    period: String[1];
+    status: String[1];
+    generatedDate: DateTime[1];
+}
+
+// ---- Intra-domain Associations ----
+
+Association prime::PBAccount_ClientBalance
+{
+    pbAccount: prime::PrimeBrokerAccount[1];
+    balances: prime::ClientBalance[*];
+}
+
+Association prime::PBAccount_FinancingRate
+{
+    pbAccount: prime::PrimeBrokerAccount[1];
+    financingRates: prime::FinancingRate[*];
+}
+
+Association prime::PBAccount_MarginRequirement
+{
+    pbAccount: prime::PrimeBrokerAccount[1];
+    marginRequirements: prime::MarginRequirement[*];
+}
+
+Association prime::PBAccount_ShortLocate
+{
+    pbAccount: prime::PrimeBrokerAccount[1];
+    shortLocates: prime::ShortLocate[*];
+}
+
+Association prime::PBAccount_SyntheticPosition
+{
+    pbAccount: prime::PrimeBrokerAccount[1];
+    syntheticPositions: prime::SyntheticPosition[*];
+}
+
+Association prime::SyntheticPosition_SwapFinancing
+{
+    syntheticPosition: prime::SyntheticPosition[1];
+    financingEntries: prime::SwapFinancing[*];
+}
+
+Association prime::PBAccount_PortfolioSwap
+{
+    pbAccount: prime::PrimeBrokerAccount[1];
+    portfolioSwaps: prime::PortfolioSwap[*];
+}
+
+Association prime::PBAccount_ClientStatement
+{
+    pbAccount: prime::PrimeBrokerAccount[1];
+    statements: prime::ClientStatement[*];
+}
