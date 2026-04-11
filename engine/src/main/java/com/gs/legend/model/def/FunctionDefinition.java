@@ -26,8 +26,10 @@ import java.util.Objects;
  *                         optional)
  * @param returnUpperBound Upper multiplicity bound for return (null for *)
  * @param body             The function body expression
- * @param stereotypes      Applied stereotypes
- * @param taggedValues     Applied tagged values
+ * @param stereotypes        Applied stereotypes
+ * @param taggedValues       Applied tagged values
+ * @param parsedReturnType   Full parsed PType for the return type; null when not available.
+ *                           Used by the compiler for schema-aware return type validation.
  */
 public record FunctionDefinition(
         String qualifiedName,
@@ -38,7 +40,8 @@ public record FunctionDefinition(
         String body,
         List<StereotypeApplication> stereotypes,
         List<TaggedValue> taggedValues,
-        List<ValueSpecification> resolvedBody) implements PackageableElement {
+        List<ValueSpecification> resolvedBody,
+        PType parsedReturnType) implements PackageableElement {
 
     public FunctionDefinition {
         Objects.requireNonNull(qualifiedName, "Function name cannot be null");
@@ -56,14 +59,14 @@ public record FunctionDefinition(
      */
     public FunctionDefinition(String qualifiedName, List<ParameterDefinition> parameters,
             String returnType, int returnLowerBound, Integer returnUpperBound, String body) {
-        this(qualifiedName, parameters, returnType, returnLowerBound, returnUpperBound, body, List.of(), List.of(), null);
+        this(qualifiedName, parameters, returnType, returnLowerBound, returnUpperBound, body, List.of(), List.of(), null, null);
     }
 
     public FunctionDefinition(String qualifiedName, List<ParameterDefinition> parameters,
             String returnType, int returnLowerBound, Integer returnUpperBound, String body,
             List<StereotypeApplication> stereotypes, List<TaggedValue> taggedValues) {
         this(qualifiedName, parameters, returnType, returnLowerBound, returnUpperBound, body,
-                stereotypes, taggedValues, null);
+                stereotypes, taggedValues, null, null);
     }
 
     /**
@@ -71,7 +74,7 @@ public record FunctionDefinition(
      */
     public FunctionDefinition withResolvedBody(List<ValueSpecification> resolved) {
         return new FunctionDefinition(qualifiedName, parameters, returnType,
-                returnLowerBound, returnUpperBound, body, stereotypes, taggedValues, resolved);
+                returnLowerBound, returnUpperBound, body, stereotypes, taggedValues, resolved, parsedReturnType);
     }
 
     /**
@@ -101,20 +104,29 @@ public record FunctionDefinition(
      * @param upperBound   Upper multiplicity bound (null for *)
      * @param functionType Structured function type for Function<{...}> params;
      *                     null for non-function params (String, Integer, etc.)
+     * @param parsedType   Full parsed PType from the grammar; null when not available.
+     *                     Used by the compiler to resolve parameterized types like
+     *                     Relation<(col:Type)> to GenericType for schema validation.
      */
     public record ParameterDefinition(
             String name,
             String type,
             int lowerBound,
             Integer upperBound,
-            PType.FunctionType functionType) {
+            PType.FunctionType functionType,
+            PType parsedType) {
         public ParameterDefinition {
             Objects.requireNonNull(name, "Parameter name cannot be null");
             Objects.requireNonNull(type, "Parameter type cannot be null");
         }
 
+        public ParameterDefinition(String name, String type, int lowerBound, Integer upperBound,
+                                    PType.FunctionType functionType) {
+            this(name, type, lowerBound, upperBound, functionType, null);
+        }
+
         public ParameterDefinition(String name, String type, int lowerBound, Integer upperBound) {
-            this(name, type, lowerBound, upperBound, null);
+            this(name, type, lowerBound, upperBound, null, null);
         }
 
         /**

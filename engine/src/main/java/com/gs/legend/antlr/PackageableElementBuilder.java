@@ -660,13 +660,14 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                             && p.typeArgs().get(0) instanceof PType.FunctionType ft2) ? ft2
                     : null;
             parameters.add(new com.gs.legend.model.def.FunctionDefinition.ParameterDefinition(
-                    paramName, paramType, bounds[0], bounds[1] == -1 ? null : bounds[1], fnType));
+                    paramName, paramType, bounds[0], bounds[1] == -1 ? null : bounds[1], fnType, parsedType));
         }
 
         // Extract return type and multiplicity
         String returnType = sigCtx.type().getText();
         String returnMultText = sigCtx.multiplicity().getText();
         int[] returnBounds = parseMultiplicity(returnMultText);
+        PType parsedReturnType = visitPureType(sigCtx.type());
 
         // Extract function body from codeBlock
         String body = getOriginalText(ctx.codeBlock());
@@ -679,7 +680,9 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 returnBounds[1] == -1 ? null : returnBounds[1],
                 body,
                 stereotypes,
-                taggedValues);
+                taggedValues,
+                null,
+                parsedReturnType);
     }
 
     /**

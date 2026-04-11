@@ -94,6 +94,16 @@ class UserFunctionIntegrationTest {
             stmt.execute("INSERT INTO T_PERSON VALUES (1, 'John', 'Smith', 30)");
             stmt.execute("INSERT INTO T_PERSON VALUES (2, 'Jane', 'Smith', 28)");
             stmt.execute("INSERT INTO T_PERSON VALUES (3, 'Bob', 'Jones', 45)");
+            stmt.execute("""
+                CREATE TABLE T_EMPLOYEE (
+                    ID INTEGER PRIMARY KEY,
+                    FIRST_NAME VARCHAR(100),
+                    LAST_NAME VARCHAR(100),
+                    AGE_VAL INTEGER,
+                    DEPT VARCHAR(100)
+                )""");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (10, 'Alice', 'Dev', 32, 'Engineering')");
+            stmt.execute("INSERT INTO T_EMPLOYEE VALUES (11, 'Charlie', 'Mgr', 40, 'Sales')");
         }
     }
 
@@ -762,6 +772,465 @@ class UserFunctionIntegrationTest {
             var values = intColumn(result, 0);
             assertTrue(values.contains(93), "31*2+31=93: " + values);
             assertTrue(values.contains(138), "46*2+46=138: " + values);
+        }
+    }
+
+    // ==================== Query-Returning Functions ====================
+
+    @Nested
+    @DisplayName("Query-Returning Functions — functions that return class queries or relations")
+    class QueryReturning {
+
+        @Test
+        @DisplayName("Zero-param class query function, chain project at call site")
+        void testZeroParamClassQuery() throws SQLException {
+            String model = modelWith("""
+                    function test::allPersons():Person[*]
+                    {
+                        model::Person.all()
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::allPersons()->project([p|$p.firstName], ['name'])");
+            assertEquals(3, result.rowCount(), "All 3 persons");
+            var names = column(result, 0, String.class);
+            assertTrue(names.contains("John"), "Names: " + names);
+            assertTrue(names.contains("Bob"), "Names: " + names);
+        }
+
+        @Test
+        @DisplayName("Parameterized class query, chain project at call site")
+        void testParameterizedClassQuery() throws SQLException {
+            String model = modelWith("""
+                    function test::olderThan(minAge: Integer[1]):Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.age > $minAge)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::olderThan(30)->project([p|$p.firstName], ['name'])");
+            assertEquals(1, result.rowCount(), "Only Bob(45) > 30");
+            assertEquals("Bob", result.rows().get(0).get(0));
+        }
+
+        @Test
+        @DisplayName("Class query + chain filter at call site")
+        void testClassQueryChainFilter() throws SQLException {
+            String model = modelWith("""
+                    function test::smiths():Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.lastName == 'Smith')
+                    }
+                    """);
+            // Chain another filter on top: age > 29 → John(30) only
+            var result = exec(model,
+                    "|test::smiths()->filter(x|$x.age > 29)->project([p|$p.firstName], ['name'])");
+            assertEquals(1, result.rowCount(), "Only John Smith(30) > 29");
+            assertEquals("John", result.rows().get(0).get(0));
+        }
+
+        @Test
+        @DisplayName("Class query + chain sort at call site")
+        void testClassQueryChainSort() throws SQLException {
+            String model = modelWith("""
+                    function test::allPersons():Person[*]
+                    {
+                        model::Person.all()
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::allPersons()->project([p|$p.firstName, p|$p.age], ['name', 'age'])->sort('age', SortDirection.ASC)");
+            assertEquals(3, result.rowCount());
+            var ages = intColumn(result, 1);
+            assertEquals(List.of(28, 30, 45), ages, "Sorted ascending by age");
+        }
+
+        @Test
+        @DisplayName("Multi-param class query: name filter + age threshold")
+        void testMultiParamClassQuery() throws SQLException {
+            String model = modelWith("""
+                    function test::nameAndAge(surname: String[1], minAge: Integer[1]):Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.lastName == $surname && $p.age >= $minAge)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::nameAndAge('Smith', 30)->project([p|$p.firstName], ['name'])");
+            assertEquals(1, result.rowCount(), "Only John Smith(30) >= 30");
+            assertEquals("John", result.rows().get(0).get(0));
+        }
+
+        @Test
+        @DisplayName("Relation-returning: table reference in body, chain filter at call site")
+        void testRelationReturningTableRef() throws SQLException {
+            String model = modelWith("""
+                    function test::personRelation():Any[*]
+                    {
+                        #>{store::PersonDatabase.T_PERSON}#->select(~[FIRST_NAME, AGE_VAL])
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::personRelation()->filter(x|$x.AGE_VAL > 30)");
+            assertEquals(1, result.rowCount(), "Only Bob(45) > 30");
+            assertEquals("Bob", result.rows().get(0).get(0));
+        }
+
+        @Test
+        @DisplayName("Parameterized relation-returning: threshold in body filter")
+        void testParameterizedRelationReturning() throws SQLException {
+            String model = modelWith("""
+                    function test::personAbove(minAge: Integer[1]):Any[*]
+                    {
+                        #>{store::PersonDatabase.T_PERSON}#->select(~[FIRST_NAME, AGE_VAL])->filter(x|$x.AGE_VAL > $minAge)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::personAbove(28)");
+            assertEquals(2, result.rowCount(), "John(30) and Bob(45) > 28");
+            var names = column(result, 0, String.class);
+            assertTrue(names.contains("John"), "Names: " + names);
+            assertTrue(names.contains("Bob"), "Names: " + names);
+        }
+
+        @Test
+        @DisplayName("Class query as parameter: addLabel processes filtered input")
+        void testClassQueryAsParameter() throws SQLException {
+            String model = modelWith("""
+                    function test::nameList(people: Person[*]):Any[*]
+                    {
+                        $people->project([p|$p.firstName, p|$p.age], ['name', 'age'])
+                    }
+                    """);
+            // Pass filtered class query as argument
+            var result = exec(model,
+                    "|test::nameList(model::Person.all()->filter(p|$p.lastName == 'Smith'))");
+            assertEquals(2, result.rowCount(), "2 Smiths");
+            var names = column(result, 0, String.class);
+            assertTrue(names.contains("John"), "Names: " + names);
+            assertTrue(names.contains("Jane"), "Names: " + names);
+        }
+
+        @Test
+        @DisplayName("Query-returning fn calls another query-returning fn (nested inlining)")
+        void testNestedQueryFunctions() throws SQLException {
+            String model = modelWith("""
+                    function test::adults():Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.age >= 28)
+                    }
+                    function test::adultSmiths():Person[*]
+                    {
+                        test::adults()->filter(p|$p.lastName == 'Smith')
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::adultSmiths()->project([p|$p.firstName, p|$p.age], ['name', 'age'])");
+            assertEquals(2, result.rowCount(), "John(30) and Jane(28)");
+            var names = column(result, 0, String.class);
+            assertTrue(names.contains("John"), "Names: " + names);
+            assertTrue(names.contains("Jane"), "Names: " + names);
+        }
+
+        @Test
+        @DisplayName("Scalar fn applied to query-returning fn result in project")
+        void testScalarOnQueryReturning() throws SQLException {
+            String model = modelWith("""
+                    function test::adults():Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.age >= 28)
+                    }
+                    function test::doubleAge(n: Integer[1]):Integer[1]
+                    {
+                        $n * 2
+                    }
+                    """);
+            // Query fn for source, scalar fn in projection
+            var result = exec(model,
+                    "|test::adults()->project([p|test::doubleAge($p.age)], ['doubled'])");
+            var values = intColumn(result, 0);
+            assertTrue(values.contains(60), "30*2=60: " + values);
+            assertTrue(values.contains(56), "28*2=56: " + values);
+            assertTrue(values.contains(90), "45*2=90: " + values);
+        }
+
+        @Test
+        @DisplayName("Type check: wrong class query for typed param rejects at compile time")
+        void testWrongClassParamRejected() {
+            // Declare param as Person[*], but we'll need a different class to pass
+            // Since we only have Person in the model, declare param as String[*]
+            // and pass Person.all() → should fail: "Person" vs "String"
+            String model = modelWith("""
+                    function test::badParam(names: String[*]):Any[*]
+                    {
+                        $names
+                    }
+                    """);
+            var ex = assertThrows(Exception.class, () ->
+                    exec(model, "|test::badParam(model::Person.all())"));
+            assertTrue(ex.getMessage().contains("expects String but got Person"),
+                    "Should report type mismatch: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Type check: class query matches declared class param")
+        void testClassParamTypeChecked() throws SQLException {
+            String model = modelWith("""
+                    function test::getNames(people: Person[*]):Any[*]
+                    {
+                        $people->project([p|$p.firstName], ['name'])
+                    }
+                    """);
+            // Correct type: Person.all() → Person[*] matches Person[*] param
+            var result = exec(model, "|test::getNames(model::Person.all())");
+            assertEquals(3, result.rowCount());
+        }
+
+        @Test
+        @DisplayName("Type check: subtype accepted for supertype param (Employee extends Person)")
+        void testSubtypeAccepted() throws SQLException {
+            // Full standalone model: Employee extends Person, own table, own mapping
+            String model = """
+                    Class model::Person
+                    {
+                        firstName: String[1];
+                        lastName: String[1];
+                        age: Integer[1];
+                    }
+                    Class model::Employee extends model::Person
+                    {
+                        dept: String[1];
+                    }
+                    Database store::PersonDatabase
+                    (
+                        Table T_EMPLOYEE (
+                            ID INTEGER PRIMARY KEY,
+                            FIRST_NAME VARCHAR(100),
+                            LAST_NAME VARCHAR(100),
+                            AGE_VAL INTEGER,
+                            DEPT VARCHAR(100)
+                        )
+                    )
+                    Mapping model::EmpMapping
+                    (
+                        model::Employee: Relational
+                        {
+                            ~mainTable [PersonDatabase] T_EMPLOYEE
+                            firstName: [PersonDatabase] T_EMPLOYEE.FIRST_NAME,
+                            lastName: [PersonDatabase] T_EMPLOYEE.LAST_NAME,
+                            age: [PersonDatabase] T_EMPLOYEE.AGE_VAL,
+                            dept: [PersonDatabase] T_EMPLOYEE.DEPT
+                        }
+                    )
+                    RelationalDatabaseConnection store::TestConnection
+                    {
+                        type: DuckDB;
+                        specification: InMemory { };
+                        auth: NoAuth { };
+                    }
+                    Runtime test::TestRuntime
+                    {
+                        mappings: [ model::EmpMapping ];
+                        connections: [ store::PersonDatabase: [ environment: store::TestConnection ] ];
+                    }
+                    function test::getNames(people: Person[*]):Any[*]
+                    {
+                        $people->project([p|$p.firstName], ['name'])
+                    }
+                    """;
+            // Employee extends Person, so Employee.all() passes Person[*] type check
+            // Then runs E2E: Employee.all() → project firstName → real SQL → real DuckDB data
+            var result = exec(model, "|test::getNames(model::Employee.all())");
+            assertEquals(2, result.rowCount(), "Alice and Charlie");
+            var names = column(result, 0, String.class);
+            assertTrue(names.contains("Alice"), "Names: " + names);
+            assertTrue(names.contains("Charlie"), "Names: " + names);
+        }
+
+        @Test
+        @DisplayName("Type check: unrelated class rejected for typed param")
+        void testUnrelatedClassRejected() {
+            String model = BASE_MODEL + """
+                    Class model::Firm
+                    {
+                        legalName: String[1];
+                    }
+                    function test::getNames(people: Person[*]):Any[*]
+                    {
+                        $people->project([p|$p.firstName], ['name'])
+                    }
+                    """;
+            var ex = assertThrows(Exception.class, () ->
+                    exec(model, "|test::getNames(model::Firm.all())"));
+            assertTrue(ex.getMessage().contains("expects Person but got Firm"),
+                    "Should reject unrelated class: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Return type check: declares Person but body returns Integer rejects")
+        void testReturnTypeMismatchRejected() {
+            String model = modelWith("""
+                    function test::badReturn():Person[*]
+                    {
+                        1 + 2
+                    }
+                    """);
+            var ex = assertThrows(Exception.class, () ->
+                    exec(model, "|test::badReturn()"));
+            assertTrue(ex.getMessage().contains("declares return type Person but body returns Integer"),
+                    "Should report return type mismatch: " + ex.getMessage());
+        }
+
+        // ===== Typed Relation<(schema)> param + return tests =====
+
+        @Test
+        @DisplayName("Typed Relation: superset param accepted, typed return validated")
+        void testTypedRelationParamSuperset() throws SQLException {
+            // Param declares (FIRST_NAME:String), return declares same.
+            // Caller passes superset (FIRST_NAME + AGE_VAL) — param superset OK.
+            // Body filter preserves all columns — body schema ⊇ return schema (covariant OK).
+            String model = modelWith("""
+                    function test::justNames(data: Relation<(FIRST_NAME:String)>[1]):Relation<(FIRST_NAME:String)>[1]
+                    {
+                        $data->filter(x|$x.FIRST_NAME == 'John')
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::justNames(#>{store::PersonDatabase.T_PERSON}#->select(~[FIRST_NAME, AGE_VAL]))");
+            assertEquals(1, result.rowCount(), "Only John");
+            assertEquals("John", result.rows().get(0).get(0));
+        }
+
+        @Test
+        @DisplayName("Typed Relation: missing column rejected at param boundary")
+        void testTypedRelationParamMissingColumn() {
+            // Declares FIRST_NAME in schema, caller passes only AGE_VAL → param check fails
+            String model = modelWith("""
+                    function test::needsName(data: Relation<(FIRST_NAME:String)>[1]):Relation<(FIRST_NAME:String)>[1]
+                    {
+                        $data->filter(x|$x.FIRST_NAME == 'John')
+                    }
+                    """);
+            var ex = assertThrows(Exception.class, () ->
+                    exec(model,
+                            "|test::needsName(#>{store::PersonDatabase.T_PERSON}#->select(~[AGE_VAL]))"));
+            assertTrue(ex.getMessage().contains("schema mismatch") && ex.getMessage().contains("missing column")
+                            && ex.getMessage().contains("FIRST_NAME"),
+                    "Should report missing column at boundary: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Typed Relation: column type hierarchy — Integer satisfies Number")
+        void testTypedRelationParamColumnTypeHierarchy() throws SQLException {
+            // Declares AGE_VAL as Number — actual is Integer (subtype). Covariant return same.
+            String model = modelWith("""
+                    function test::ageFilter(data: Relation<(AGE_VAL:Number)>[1]):Relation<(AGE_VAL:Number)>[1]
+                    {
+                        $data->filter(x|$x.AGE_VAL > 30)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::ageFilter(#>{store::PersonDatabase.T_PERSON}#->select(~[AGE_VAL]))");
+            assertEquals(1, result.rowCount(), "Only Bob(45)");
+        }
+
+        @Test
+        @DisplayName("Typed Relation: column type mismatch rejected at param boundary")
+        void testTypedRelationParamColumnTypeMismatch() {
+            // Declares AGE_VAL as String — actual is Integer → type mismatch at param
+            String model = modelWith("""
+                    function test::badType(data: Relation<(AGE_VAL:String)>[1]):Relation<(AGE_VAL:String)>[1]
+                    {
+                        $data->filter(x|$x.AGE_VAL == 'foo')
+                    }
+                    """);
+            var ex = assertThrows(Exception.class, () ->
+                    exec(model,
+                            "|test::badType(#>{store::PersonDatabase.T_PERSON}#->select(~[AGE_VAL]))"));
+            assertTrue(ex.getMessage().contains("schema mismatch") && ex.getMessage().contains("AGE_VAL")
+                            && ex.getMessage().contains("expects String") && ex.getMessage().contains("got Integer"),
+                    "Should report column type mismatch at boundary: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Bare Relation param (no schema): still works via structural inlining")
+        void testBareRelationParamStillWorks() throws SQLException {
+            // Bare Any[*] without schema — no boundary check, structural validation via inlining
+            String model = modelWith("""
+                    function test::bigAges(data: Any[*]):Any[*]
+                    {
+                        $data->filter(x|$x.AGE_VAL > 30)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::bigAges(#>{store::PersonDatabase.T_PERSON}#->select(~[FIRST_NAME, AGE_VAL]))->filter(y|$y.FIRST_NAME == 'Bob')");
+            assertEquals(1, result.rowCount(), "Only Bob(45) > 30");
+            assertEquals("Bob", result.rows().get(0).get(0));
+        }
+
+        @Test
+        @DisplayName("Typed Relation: multi-column schema with typed return, full E2E")
+        void testTypedRelationParamMultiColumn() throws SQLException {
+            // Both param and return declare full schema — covariant return check passes
+            String model = modelWith("""
+                    function test::nameAndAge(data: Relation<(FIRST_NAME:String, AGE_VAL:Integer)>[1]):Relation<(FIRST_NAME:String, AGE_VAL:Integer)>[1]
+                    {
+                        $data->filter(x|$x.AGE_VAL > 30)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::nameAndAge(#>{store::PersonDatabase.T_PERSON}#->select(~[FIRST_NAME, AGE_VAL]))");
+            assertEquals(1, result.rowCount(), "Only Bob(45)");
+            assertEquals("Bob", result.rows().get(0).get(0));
+        }
+
+        @Test
+        @DisplayName("Covariant return: param has superset, return declares subset — body preserves all")
+        void testCovariantReturnSubsetDeclared() throws SQLException {
+            // Param declares (FIRST_NAME, AGE_VAL), return declares only (FIRST_NAME).
+            // filter preserves all columns → body schema ⊇ return schema → covariant OK.
+            // Caller chains on AGE_VAL (available via inlining even though not in return decl).
+            String model = modelWith("""
+                    function test::filterAge(data: Relation<(FIRST_NAME:String, AGE_VAL:Integer)>[1]):Relation<(FIRST_NAME:String)>[1]
+                    {
+                        $data->filter(x|$x.AGE_VAL > 30)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::filterAge(#>{store::PersonDatabase.T_PERSON}#->select(~[FIRST_NAME, AGE_VAL]))");
+            assertEquals(1, result.rowCount(), "Only Bob(45)");
+            assertEquals("Bob", result.rows().get(0).get(0));
+        }
+
+        // ===== Multiplicity validation tests =====
+
+        @Test
+        @DisplayName("Multiplicity: [1] param accepts scalar [1] argument")
+        void testMultiplicityOneAcceptsOne() throws SQLException {
+            // Integer[1] param with a scalar literal → OK
+            String model = modelWith("""
+                    function test::addOne(x: Integer[1]):Integer[1]
+                    {
+                        $x + 1
+                    }
+                    """);
+            var result = exec(model, "|test::addOne(5)");
+            assertEquals(1, result.rowCount());
+            assertEquals(6, ((Number) result.rows().get(0).get(0)).intValue());
+        }
+
+        @Test
+        @DisplayName("Multiplicity: [0..1] param accepts scalar [1] argument")
+        void testMultiplicityOptionalAcceptsOne() throws SQLException {
+            // Integer[0..1] param — passing [1] is valid (narrower range fits)
+            String model = modelWith("""
+                    function test::maybeAdd(x: Integer[0..1]):Integer[1]
+                    {
+                        $x + 1
+                    }
+                    """);
+            var result = exec(model, "|test::maybeAdd(5)");
+            assertEquals(1, result.rowCount());
+            assertEquals(6, ((Number) result.rows().get(0).get(0)).intValue());
         }
     }
 }

@@ -374,13 +374,49 @@ public class TypeChecker implements TypeCheckEnv {
             // Scalar param: compare compiled arg type vs declared type
             if (argInfo.type() != null) {
                 String declaredType = SymbolTable.extractSimpleName(paramDef.type());
-                String actualType = argInfo.type().typeName();
-                // Allow Any (declared) to accept anything; skip if declared is a type var
-                if (!"Any".equals(declaredType) && !isTypeCompatible(actualType, declaredType)) {
+                if ("Any".equals(declaredType)) continue;
+
+                // Schema-aware check for Relation<(col:Type)> params
+                if (paramDef.parsedType() instanceof PType.Parameterized p
+                        && "Relation".equals(p.rawType())
+                        && !p.typeArgs().isEmpty()
+                        && p.typeArgs().get(0) instanceof PType.RelationTypeVar) {
+                    GenericType declaredGeneric = resolvePTypeToGenericType(paramDef.parsedType());
+                    checkRelationSchemaCompatibility(
+                            af.function(), paramDef.name(), argInfo.type(), declaredGeneric);
+                    continue;
+                }
+
+                if (!isSubtype(argInfo.type(), GenericType.fromTypeName(declaredType))) {
                     throw new PureCompileException(
                             "Function '" + af.function() + "' parameter '" + paramDef.name()
-                                    + "' expects " + declaredType + " but got " + actualType);
+                                    + "' expects " + declaredType + " but got " + argInfo.type().typeName());
                 }
+            }
+        }
+
+        // 4b. Multiplicity check: actual range must fit within declared range.
+        // [1] accepts only [1]; [0..1] accepts [1] or [0..1]; [*] accepts anything.
+        for (int i = 0; i < funcDef.parameters().size(); i++) {
+            var paramDef = funcDef.parameters().get(i);
+            var argInfo = argTypes.get(i);
+            if (paramDef.functionType() != null) continue;
+
+            var actualMult = argInfo.expressionType().multiplicity();
+            int declLower = paramDef.lowerBound();
+            Integer declUpper = paramDef.upperBound(); // null = unbounded
+
+            // actual.lower must be ≥ declared.lower (actual guarantees enough)
+            boolean lowerOk = actualMult.lowerBound() >= declLower;
+            // actual.upper must be ≤ declared.upper (actual doesn't exceed max)
+            boolean upperOk = declUpper == null // declared [*] or [1..*] → no upper limit
+                    || (actualMult.upperBound() != null && actualMult.upperBound() <= declUpper);
+
+            if (!lowerOk || !upperOk) {
+                throw new PureCompileException(
+                        "Function '" + af.function() + "' parameter '" + paramDef.name()
+                                + "' expects multiplicity " + paramDef.typeWithMultiplicity()
+                                + " but got " + actualMult);
             }
         }
 
@@ -408,11 +444,21 @@ public class TypeChecker implements TypeCheckEnv {
         // 9. Return type validation
         if (bodyResult.type() != null) {
             String declaredReturn = SymbolTable.extractSimpleName(funcDef.returnType());
-            String actualReturn = bodyResult.type().typeName();
-            if (!"Any".equals(declaredReturn) && !isTypeCompatible(actualReturn, declaredReturn)) {
-                throw new PureCompileException(
-                        "Function '" + af.function() + "' declares return type " + declaredReturn
-                                + " but body returns " + actualReturn);
+            if (!"Any".equals(declaredReturn)) {
+                // Schema-aware return check for Relation<(col:Type)> return types (covariant)
+                if (funcDef.parsedReturnType() instanceof PType.Parameterized p
+                        && "Relation".equals(p.rawType())
+                        && !p.typeArgs().isEmpty()
+                        && p.typeArgs().get(0) instanceof PType.RelationTypeVar) {
+                    GenericType declaredGeneric = resolvePTypeToGenericType(funcDef.parsedReturnType());
+                    // Covariant: body's actual schema must be ⊇ declared return schema
+                    checkRelationSchemaCompatibility(
+                            af.function(), "<return>", bodyResult.type(), declaredGeneric);
+                } else if (!isSubtype(bodyResult.type(), GenericType.fromTypeName(declaredReturn))) {
+                    throw new PureCompileException(
+                            "Function '" + af.function() + "' declares return type " + declaredReturn
+                                    + " but body returns " + bodyResult.type().typeName());
+                }
             }
         }
 
@@ -441,7 +487,7 @@ public class TypeChecker implements TypeCheckEnv {
                 if ("Any".equals(declaredType)) {
                     matches++; // Any matches everything
                 } else if (argTypes.get(i).type() != null
-                        && isTypeCompatible(argTypes.get(i).type().typeName(), declaredType)) {
+                        && isSubtype(argTypes.get(i).type(), GenericType.fromTypeName(declaredType))) {
                     matches++;
                 }
             }
@@ -461,17 +507,63 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Checks if an actual type is compatible with a declared type.
-     * Handles the numeric hierarchy: Integer < Number, Float < Number, etc.
+     * Unified subtype check for all GenericTypes.
+     * Primitive hierarchy via Primitive.isSubtypeOf.
+     * Class hierarchy via model superclass walk.
      */
-    private static boolean isTypeCompatible(String actualType, String declaredType) {
-        if (declaredType.equals(actualType)) return true;
-        if ("Number".equals(declaredType)) {
-            return "Integer".equals(actualType) || "Float".equals(actualType)
-                    || "Decimal".equals(actualType) || "Number".equals(actualType);
+    private boolean isSubtype(GenericType actual, GenericType declared) {
+        if (actual.typeName().equals(declared.typeName())) return true;
+        if (declared == GenericType.Primitive.ANY) return true;
+        if (actual.isPrimitive() && declared.isPrimitive()) {
+            return actual.asPrimitive().isSubtypeOf(declared.asPrimitive());
         }
-        if ("Any".equals(declaredType)) return true;
+        if (actual instanceof GenericType.ClassType ct && modelContext != null) {
+            var cls = modelContext.findClass(ct.qualifiedName());
+            if (cls.isPresent()) {
+                for (var superClass : cls.get().superClasses()) {
+                    if (isSubtype(new GenericType.ClassType(superClass.qualifiedName()), declared)) {
+                        return true;
+                    }
+                }
+            }
+        }
         return false;
+    }
+
+    /**
+     * Validates that an actual Relation argument matches a declared Relation schema.
+     * Checks each declared column: must exist in actual with a compatible type.
+     * Superset is OK — actual may have extra columns. Throws with precise diagnostics.
+     */
+    private void checkRelationSchemaCompatibility(
+            String funcName, String paramName, GenericType actualType, GenericType declaredType) {
+        if (!(declaredType instanceof GenericType.Relation declaredRel)) {
+            throw new PureCompileException(
+                    "Function '" + funcName + "' parameter '" + paramName
+                            + "': internal error — expected Relation declared type but got " + declaredType.typeName());
+        }
+        if (!(actualType instanceof GenericType.Relation actualRel)) {
+            throw new PureCompileException(
+                    "Function '" + funcName + "' parameter '" + paramName
+                            + "' expects Relation but got " + actualType.typeName());
+        }
+        for (var entry : declaredRel.schema().columns().entrySet()) {
+            String colName = entry.getKey();
+            GenericType declaredColType = entry.getValue();
+            GenericType actualColType = actualRel.schema().columns().get(colName);
+            if (actualColType == null) {
+                throw new PureCompileException(
+                        "Function '" + funcName + "' parameter '" + paramName
+                                + "': schema mismatch — missing column '" + colName
+                                + "'. Available columns: " + actualRel.schema().columns().keySet());
+            }
+            if (!isSubtype(actualColType, declaredColType)) {
+                throw new PureCompileException(
+                        "Function '" + funcName + "' parameter '" + paramName
+                                + "': schema mismatch — column '" + colName + "' expects "
+                                + declaredColType.typeName() + " but got " + actualColType.typeName());
+            }
+        }
     }
 
     // ========== Body Compilation ==========
@@ -530,11 +622,10 @@ public class TypeChecker implements TypeCheckEnv {
             GenericType expectedReturn = c.toGenericType();
             if (expectedReturn != null) {
                 String expectedName = expectedReturn.typeName();
-                String actualName = bodyResult.type().typeName();
-                if (!"Any".equals(expectedName) && !isTypeCompatible(actualName, expectedName)) {
+                if (!"Any".equals(expectedName) && !isSubtype(bodyResult.type(), GenericType.fromTypeName(expectedName))) {
                     throw new PureCompileException(
                             "Lambda return type mismatch: expected " + expectedName
-                                    + " but body returns " + actualName);
+                                    + " but body returns " + bodyResult.type().typeName());
                 }
             }
         }
@@ -558,6 +649,16 @@ public class TypeChecker implements TypeCheckEnv {
                 if (gt != null) yield gt;
                 // Non-primitive: try as class name
                 yield GenericType.fromTypeName(c.name());
+            }
+            case PType.Parameterized p when "Relation".equals(p.rawType())
+                    && !p.typeArgs().isEmpty()
+                    && p.typeArgs().get(0) instanceof PType.RelationTypeVar rtv -> {
+                // Relation<(col1:Type1, col2:Type2)> → GenericType.Relation(Schema)
+                var columns = new java.util.LinkedHashMap<String, GenericType>();
+                for (var col : rtv.columns()) {
+                    columns.put(col.name(), resolvePTypeToGenericType(col.type()));
+                }
+                yield new GenericType.Relation(GenericType.Relation.Schema.withoutPivot(columns));
             }
             case PType.TypeVar tv -> throw new PureCompileException(
                     "Type variables (generics) are not supported in user function signatures: " + tv.name());
@@ -638,6 +739,7 @@ public class TypeChecker implements TypeCheckEnv {
     // moved to TableReferenceChecker, TdsChecker, NewChecker respectively
 
     // ========== Extraction Utilities ==========
+
 
     static String simpleName(String qualifiedName) {
         return SymbolTable.extractSimpleName(qualifiedName);

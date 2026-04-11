@@ -151,7 +151,8 @@ public final class NameResolver {
 
         return new FunctionDefinition(funcDef.qualifiedName(), resolvedParams,
                 resolvedReturnType, funcDef.returnLowerBound(), funcDef.returnUpperBound(),
-                funcDef.body(), funcDef.stereotypes(), funcDef.taggedValues());
+                funcDef.body(), funcDef.stereotypes(), funcDef.taggedValues(),
+                null, funcDef.parsedReturnType());
     }
 
     private static FunctionDefinition.ParameterDefinition resolveFuncParam(
@@ -159,7 +160,8 @@ public final class NameResolver {
         String resolvedType = imports.resolve(param.type(), knownFqns);
         if (resolvedType.equals(param.type())) return param;
         return new FunctionDefinition.ParameterDefinition(
-                param.name(), resolvedType, param.lowerBound(), param.upperBound(), param.functionType());
+                param.name(), resolvedType, param.lowerBound(), param.upperBound(),
+                param.functionType(), param.parsedType());
     }
 
     // ==================== AssociationDefinition ====================

@@ -77,6 +77,13 @@ public final class MappingResolver {
         TypeInfo info = typeResult.types().get(vs);
         if (info != null && info.inlinedBody() != null) {
             walkNode(info.inlinedBody(), active);
+            // Propagate resolution from inlined body to original node.
+            // Enables query-returning user functions: test::adults() inlines to
+            // getAll()->filter(), and the StoreResolution bubbles to the call site.
+            StoreResolution inlinedRes = resolutions.get(info.inlinedBody());
+            if (inlinedRes != null && !resolutions.containsKey(vs)) {
+                resolutions.put(vs, inlinedRes);
+            }
         }
 
         switch (vs) {
