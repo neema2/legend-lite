@@ -35,8 +35,10 @@ public class GraphFetchChecker extends AbstractChecker {
         ColSpecArray colSpecs = extractColSpecs(af.parameters().get(1));
         compileColSpecs(colSpecs, classType, ctx);
 
-        return TypeInfo.from(sourceInfo)
-                .expressionType(ExpressionType.one(GenericType.Primitive.JSON))
+        // Preserve source ClassType — graphFetch is a projection, not a type change.
+        // The JSON formatting is an execution concern handled by PlanGenerator.
+        return TypeInfo.builder()
+                .expressionType(sourceInfo.expressionType())
                 .build();
     }
 

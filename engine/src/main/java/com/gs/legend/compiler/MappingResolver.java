@@ -128,8 +128,13 @@ public final class MappingResolver {
         // If we don't have an active resolution yet, bubble up from source (first param).
         // This handles chains like getAll()->filter()->project() where getAll creates
         // the resolution and downstream functions inherit it.
+        // Skip identity stores (instanceLiteral) — they're synthetic for struct literals
+        // and must not leak to parent functions like find(), eq(), etc.
         if (active == null && !params.isEmpty()) {
-            active = resolutions.get(params.get(0));
+            TypeInfo firstParamInfo = typeResult.types().get(params.get(0));
+            if (firstParamInfo == null || !firstParamInfo.instanceLiteral()) {
+                active = resolutions.get(params.get(0));
+            }
         }
         if (active != null) {
             resolutions.put(af, active);

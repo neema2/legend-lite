@@ -97,13 +97,12 @@ public class PlanGenerator {
         }
 
         SqlBuilder builder;
-        if (info.isScalar() && storeFor(vs) == null) {
-            builder = generateScalarQuery(vs);
-        } else {
+        boolean isTableQuery = storeFor(vs) != null && !info.instanceLiteral();
+        if (info.isRelational() || isTableQuery) {
             builder = generateRelation(vs);
+        } else {
+            builder = generateScalarQuery(vs);
         }
-
-        // JSON wrapping now handled inside generateGraphFetch — no top-level intercept needed.
 
         // expressionType MUST be stamped by TypeChecker — no silent fallback.
         var expressionType = info.expressionType();
@@ -114,13 +113,31 @@ public class PlanGenerator {
                             + " — this is a compiler bug, not a query error");
         }
 
+        // Determine ResultFormat based on what SQL was generated.
+        // Compiler stamps expressionType (language type) — PlanGenerator stamps
+        // resultFormat (execution format). ExecutionResult dispatches on format.
+        ResultFormat format;
+        if (info.isRelational()) {
+            format = new ResultFormat.Tabular();
+        } else if (isTableQuery && expressionType.type() instanceof GenericType.ClassType) {
+            // Bare ClassType table query: wrap in JSON like graphFetch.
+            // generate() is the root — only place that knows no serialize/graphFetch is on top.
+            builder = wrapJsonFromStore(builder, storeFor(vs));
+            format = new ResultFormat.Graph();
+        } else if (isTableQuery) {
+            // serialize/graphFetch: table query, SQL already JSON-wrapped by generateGraphFetch
+            format = new ResultFormat.Graph();
+        } else {
+            format = new ResultFormat.Scalar();
+        }
+
         String sql = builder.toSql(dialect);
         var sqlNode = new SQLExecutionNode(
                 sql,
                 info != null ? info.schema() : null,
                 null // connectionRef resolved by QueryService at execution time
         );
-        return new SingleExecutionPlan(sqlNode, expressionType);
+        return new SingleExecutionPlan(sqlNode, expressionType, format);
     }
 
     /**
@@ -153,6 +170,28 @@ public class PlanGenerator {
 
         var outer = new SqlBuilder();
         outer.addSelect(jsonArrayExpr, dialect.quoteIdentifier("result"));
+        outer.fromSubquery(tabular, dialect.quoteIdentifier("_sub"));
+        return outer;
+    }
+
+    /**
+     * Wraps a bare ClassType table query in JSON output using
+     * {@link StoreResolution#propertyToColumn()} — all mapped scalar properties.
+     *
+     * <p>Same pattern as {@link #wrapJsonOutput} (used by graphFetch) but reads
+     * property names from the store resolution instead of a ColSpec tree.
+     * Embedded/association properties are in {@code joins}, not {@code propertyToColumn},
+     * and are excluded — matching legend-engine's ClassResultType behavior.
+     */
+    private SqlBuilder wrapJsonFromStore(SqlBuilder tabular, StoreResolution store) {
+        var kvPairs = new java.util.ArrayList<SqlExpr>();
+        for (var entry : store.propertyToColumn().entrySet()) {
+            kvPairs.add(new SqlExpr.StringLiteral(entry.getKey()));
+            kvPairs.add(new SqlExpr.ColumnRef(entry.getValue()));
+        }
+        var outer = new SqlBuilder();
+        outer.addSelect(new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(kvPairs)),
+                dialect.quoteIdentifier("result"));
         outer.fromSubquery(tabular, dialect.quoteIdentifier("_sub"));
         return outer;
     }

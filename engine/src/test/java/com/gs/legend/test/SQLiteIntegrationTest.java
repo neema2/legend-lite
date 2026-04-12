@@ -1,5 +1,6 @@
 package com.gs.legend.test;
 
+import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.DatabaseDefinition;
 import com.gs.legend.model.m3.PureClass;
@@ -345,8 +346,13 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         String functionBody = "Adult.all()->filter({p | $p.age >= 18})";
         var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
-        // THEN: Should return only adults (age >= 18)
-        assertEquals(2, result.rows().size(), "Should return 2 adults (Alice and Charlie)");
+        // THEN: Bare class query → JSON-wrapped GraphResult
+        assertInstanceOf(ExecutionResult.GraphResult.class, result);
+        String json = result.asGraph().json();
+        assertNotNull(json);
+        assertTrue(json.contains("Alice"), "JSON should contain Alice (age 25)");
+        assertTrue(json.contains("Charlie"), "JSON should contain Charlie (age 30)");
+        assertFalse(json.contains("Bob"), "JSON should NOT contain Bob (age 15, filtered out)");
     }
 
     @Test

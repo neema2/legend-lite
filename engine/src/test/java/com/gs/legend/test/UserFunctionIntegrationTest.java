@@ -864,7 +864,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Relation-returning: table reference in body, chain filter at call site")
         void testRelationReturningTableRef() throws SQLException {
             String model = modelWith("""
-                    function test::personRelation():Any[*]
+                    function test::personRelation():Relation<(FIRST_NAME:String, AGE_VAL:Integer)>[1]
                     {
                         #>{store::PersonDatabase.T_PERSON}#->select(~[FIRST_NAME, AGE_VAL])
                     }
@@ -879,7 +879,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Parameterized relation-returning: threshold in body filter")
         void testParameterizedRelationReturning() throws SQLException {
             String model = modelWith("""
-                    function test::personAbove(minAge: Integer[1]):Any[*]
+                    function test::personAbove(minAge: Integer[1]):Relation<(FIRST_NAME:String, AGE_VAL:Integer)>[1]
                     {
                         #>{store::PersonDatabase.T_PERSON}#->select(~[FIRST_NAME, AGE_VAL])->filter(x|$x.AGE_VAL > $minAge)
                     }
@@ -1078,6 +1078,72 @@ class UserFunctionIntegrationTest {
                     exec(model, "|test::badReturn()"));
             assertTrue(ex.getMessage().contains("declares return type Person but body returns Integer"),
                     "Should report return type mismatch: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Return type check: declares Person but body returns wrong class — rejected")
+        void testClassReturnWrongClassRejected() {
+            String model = BASE_MODEL + """
+                    Class model::Firm
+                    {
+                        legalName: String[1];
+                    }
+                    function test::getPeople():Person[*]
+                    {
+                        model::Firm.all()
+                    }
+                    """;
+            var ex = assertThrows(Exception.class, () ->
+                    exec(model, "|test::getPeople()->project([p|$p.firstName], ['name'])"));
+            assertTrue(ex.getMessage().contains("declares return type Person but body returns Firm"),
+                    "Should reject wrong class return: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Return type check: Class[*] return — caller chains Person-specific props E2E")
+        void testClassReturnTypeValidated() throws SQLException {
+            // Declares Person[*], body returns Person.all()->filter(...)
+            // Caller chains filter($p.lastName) + project($p.firstName, $p.age) — Person-specific
+            String model = modelWith("""
+                    function test::youngPeople():Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.age < 35)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::youngPeople()->filter(p|$p.lastName == 'Smith')->project([p|$p.firstName, p|$p.age], ['name', 'age'])");
+            assertEquals(2, result.rowCount(), "John(30) and Jane(28) < 35 and Smith");
+            var names = column(result, 0, String.class);
+            assertTrue(names.contains("John"), "Names: " + names);
+            assertTrue(names.contains("Jane"), "Names: " + names);
+        }
+
+        @Test
+        @DisplayName("Baseline: graphFetch on Person.all() directly (no user function)")
+        void testGraphFetchBaseline() throws SQLException {
+            var result = exec(BASE_MODEL,
+                    "|model::Person.all()->graphFetch(#{Person{firstName, age}}#)->serialize(#{Person{firstName, age}}#)");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertTrue(json.contains("John"), "JSON: " + json);
+            assertTrue(json.contains("Jane"), "JSON: " + json);
+        }
+
+        @Test
+        @DisplayName("Return type check: Class[*] return — graphFetch requires Person, full E2E")
+        void testClassReturnGraphFetch() throws SQLException {
+            String model = modelWith("""
+                    function test::youngPeople():Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.age < 35)
+                    }
+                    """);
+            var result = exec(model,
+                    "|test::youngPeople()->graphFetch(#{Person{firstName, age}}#)->serialize(#{Person{firstName, age}}#)");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertTrue(json.contains("John"), "JSON: " + json);
+            assertTrue(json.contains("Jane"), "JSON: " + json);
         }
 
         // ===== Typed Relation<(schema)> param + return tests =====

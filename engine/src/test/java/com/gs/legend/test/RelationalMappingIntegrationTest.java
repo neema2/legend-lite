@@ -5131,4 +5131,78 @@ class RelationalMappingIntegrationTest {
             assertEquals("Bob bought Gadget", colStr(r, 0).get(2));
         }
     }
+
+    // ==================== Bare Class Queries (no terminal) ====================
+
+    @Nested
+    @DisplayName("Bare Class Queries — JSON-wrapped GraphResult")
+    class BareClassQueries {
+
+        private String personModel() throws SQLException {
+            sql("CREATE TABLE T1 (ID INT, NAME VARCHAR(100), AGE INT)",
+                "INSERT INTO T1 VALUES (1, 'Alice', 25), (2, 'Bob', 30)");
+            return singleTableModel("P", "T1", "store::DB", "model::M",
+                    "Class model::P { name: String[1]; age: Integer[1]; }",
+                    "ID INTEGER, NAME VARCHAR(100), AGE INTEGER",
+                    "name: [store::DB] T1.NAME, age: [store::DB] T1.AGE");
+        }
+
+        @Test
+        @DisplayName("P.all()->filter() returns GraphResult with filtered JSON")
+        void testBareFilter() throws SQLException {
+            String m = personModel();
+            var result = exec(m, "|P.all()->filter(x|$x.age > 20)");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertNotNull(json);
+            // Both Alice (25) and Bob (30) pass age > 20
+            assertTrue(json.contains("Alice"), "JSON should contain Alice");
+            assertTrue(json.contains("Bob"), "JSON should contain Bob");
+            assertTrue(json.contains("name"), "JSON should contain 'name' property");
+            assertTrue(json.contains("age"), "JSON should contain 'age' property");
+        }
+
+        @Test
+        @DisplayName("P.all()->sortBy() returns GraphResult with sorted JSON")
+        void testBareSort() throws SQLException {
+            String m = personModel();
+            var result = exec(m, "|P.all()->sortBy({p|$p.name})");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertNotNull(json);
+            assertTrue(json.contains("Alice"), "JSON should contain Alice");
+            assertTrue(json.contains("Bob"), "JSON should contain Bob");
+            // Alice should appear before Bob in ascending name order
+            assertTrue(json.indexOf("Alice") < json.indexOf("Bob"),
+                    "Alice should appear before Bob in ascending order");
+        }
+
+        @Test
+        @DisplayName("P.all()->limit() returns GraphResult with limited JSON")
+        void testBareLimit() throws SQLException {
+            String m = personModel();
+            var result = exec(m, "|P.all()->limit(1)");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertNotNull(json);
+            // Should contain exactly 1 person (either Alice or Bob, not both)
+            assertTrue(json.contains("name"), "JSON should contain 'name' property");
+            assertTrue(json.contains("age"), "JSON should contain 'age' property");
+        }
+
+        @Test
+        @DisplayName("P.all()->groupBy() returns GraphResult with aggregated JSON")
+        void testBareGroupBy() throws SQLException {
+            sql("CREATE TABLE T2 (ID INT, NAME VARCHAR(100), AGE INT)",
+                "INSERT INTO T2 VALUES (1, 'Alice', 25), (2, 'Alice', 30), (3, 'Bob', 20)");
+            String m = singleTableModel("Q", "T2", "store::DB2", "model::M2",
+                    "Class model::Q { name: String[1]; age: Integer[1]; }",
+                    "ID INTEGER, NAME VARCHAR(100), AGE INTEGER",
+                    "name: [store::DB2] T2.NAME, age: [store::DB2] T2.AGE");
+            var result = exec(m, "|Q.all()->groupBy(~[grp:x|$x.name], ~[cnt:x|$x.name:y|$y->count()])");
+            // groupBy returns Relation (not ClassType) → TabularResult
+            assertInstanceOf(ExecutionResult.TabularResult.class, result);
+            assertEquals(2, result.rows().size(), "Should have 2 groups (Alice, Bob)");
+        }
+    }
 }

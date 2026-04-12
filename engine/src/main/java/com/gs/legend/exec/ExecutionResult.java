@@ -259,16 +259,16 @@ public sealed interface ExecutionResult {
 
     /**
      * Reads a JDBC ResultSet and creates the right ExecutionResult variant
-     * based on the compiler-provided ExpressionType. The ResultSet is fully
-     * consumed.
+     * based on the plan's {@link com.gs.legend.plan.ResultFormat}.
      *
-     * Column types come from the compiler's GenericType/GenericType.Relation.Schema — NOT JDBC
-     * metadata.
+     * <p>Dispatch is format-based (set by PlanGenerator), not type-based
+     * (set by Compiler). Column types still come from the compiler's schema.
      * Exception: pivot results use JDBC metadata for column names since pivot
      * output columns are data-dependent and unknown at compile time.
      */
-    static ExecutionResult fromResultSet(com.gs.legend.compiler.ExpressionType exprType, ResultSet rs)
+    static ExecutionResult fromResultSet(com.gs.legend.plan.SingleExecutionPlan plan, ResultSet rs)
             throws SQLException {
+        var exprType = plan.expressionType();
         java.util.Objects.requireNonNull(exprType, "exprType must not be null");
 
         GenericType returnType = exprType.type();
@@ -281,10 +281,18 @@ public sealed interface ExecutionResult {
             rows.add(Row.fromResultSet(rs, colCount));
         }
 
-        // Single dispatch: type determines shape, multiplicity distinguishes scalar vs
-        // collection
-        return switch (returnType) {
-            case GenericType.Relation r -> {
+        return switch (plan.resultFormat()) {
+            case com.gs.legend.plan.ResultFormat.Graph g -> {
+                // JSON-wrapped class instances or serialize output — single JSON string.
+                String json = rows.isEmpty() ? "[]"
+                        : (rows.get(0).get(0) != null ? rows.get(0).get(0).toString() : "[]");
+                yield new GraphResult(json, returnType);
+            }
+            case com.gs.legend.plan.ResultFormat.Tabular t -> {
+                if (!(returnType instanceof GenericType.Relation r)) {
+                    throw new IllegalStateException(
+                            "Tabular format requires Relation type — got " + returnType);
+                }
                 List<Column> columns;
                 if (r.schema().dynamicPivotColumns().isEmpty()) {
                     columns = columnsFromSchema(r.schema());
@@ -293,23 +301,7 @@ public sealed interface ExecutionResult {
                 }
                 yield new TabularResult(columns, rows, r.schema(), returnType);
             }
-            case GenericType.ClassType ct -> {
-                // Class-based query (Person.all()->filter()): tabular result
-                // with columns from JDBC metadata (no compiler schema available)
-                List<Column> columns = new ArrayList<>(colCount);
-                for (int i = 1; i <= colCount; i++) {
-                    String name = meta.getColumnLabel(i);
-                    String typeName = meta.getColumnTypeName(i);
-                    columns.add(new Column(name, typeName, typeName));
-                }
-                yield new TabularResult(columns, rows, null, returnType);
-            }
-            case GenericType.Primitive p when p == GenericType.Primitive.JSON -> {
-                String json = rows.isEmpty() ? "[]"
-                        : (rows.get(0).get(0) != null ? rows.get(0).get(0).toString() : "[]");
-                yield new GraphResult(json, returnType);
-            }
-            default -> {
+            case com.gs.legend.plan.ResultFormat.Scalar s -> {
                 if (exprType.isMany()) {
                     List<Object> values = rows.stream().map(r -> r.get(0)).toList();
                     yield new CollectionResult(values, returnType);

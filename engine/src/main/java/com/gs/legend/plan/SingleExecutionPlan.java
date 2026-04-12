@@ -13,10 +13,12 @@ import java.util.Objects;
  */
 public record SingleExecutionPlan(
         ExecutionNode rootExecutionNode,
-        ExpressionType expressionType) {
+        ExpressionType expressionType,
+        ResultFormat resultFormat) {
 
     public SingleExecutionPlan {
         Objects.requireNonNull(expressionType, "expressionType must not be null — compiler bug if missing");
+        Objects.requireNonNull(resultFormat, "resultFormat must not be null — PlanGenerator bug if missing");
     }
 
     /**

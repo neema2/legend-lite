@@ -112,8 +112,16 @@ public final class PureModelBuilder implements ModelContext {
      */
     public com.gs.legend.ast.ValueSpecification resolveQuery(String query) {
         var raw = com.gs.legend.parser.PureParser.parseQuery(query);
-        return strict ? raw
+        var resolved = strict ? raw
                 : com.gs.legend.parser.NameResolver.resolveQuery(raw, imports, symbols.allFqns());
+        // Strip the | lambda wrapper — standard Pure query syntax |expr produces a
+        // zero-parameter LambdaFunction. Unwrap so the pipeline sees the same AST
+        // for |Person.all()->graphFetch() and Person.all()->graphFetch().
+        if (resolved instanceof com.gs.legend.ast.LambdaFunction lf
+                && lf.parameters().isEmpty() && !lf.body().isEmpty()) {
+            return lf.body().size() == 1 ? lf.body().getFirst() : resolved;
+        }
+        return resolved;
     }
 
     /**

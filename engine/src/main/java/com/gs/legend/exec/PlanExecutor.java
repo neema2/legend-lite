@@ -23,7 +23,7 @@ public class PlanExecutor {
     public static ExecutionResult execute(SingleExecutionPlan plan, Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(plan.sql())) {
-            return ExecutionResult.fromResultSet(plan.expressionType(), rs);
+            return ExecutionResult.fromResultSet(plan, rs);
         }
     }
 }

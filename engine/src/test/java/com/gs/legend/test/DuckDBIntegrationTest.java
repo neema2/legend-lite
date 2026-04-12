@@ -1,5 +1,6 @@
 package com.gs.legend.test;
 
+import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.m3.PrimitiveType;
 import com.gs.legend.model.m3.Property;
@@ -1039,8 +1040,15 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String pureQuery = "Emp.all()->sortByReversed({e | $e.sal})->limit(3)";
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
 
-        // Should get top 3 salaries in descending order
-        assertEquals(3, result.rows().size(), "Should return 3 rows");
+        // Bare class query: JSON-wrapped GraphResult with top 3 salaries
+        assertInstanceOf(ExecutionResult.GraphResult.class, result);
+        String json = result.asGraph().json();
+        assertNotNull(json);
+        // Should contain 3 employees (Jane=80k, Alice=70k, Bob=60k), not John=50k
+        assertTrue(json.contains("Jane"), "JSON should contain Jane (sal 80000)");
+        assertTrue(json.contains("Alice"), "JSON should contain Alice (sal 70000)");
+        assertTrue(json.contains("Bob"), "JSON should contain Bob (sal 60000)");
+        assertFalse(json.contains("John"), "JSON should NOT contain John (sal 50000, dropped by limit)");
     }
 
     @Test
@@ -1148,8 +1156,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String functionBody = "Adult.all()->filter({p | $p.age >= 18})";
         var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
-        // THEN: Should return only adults (age >= 18)
-        assertEquals(2, result.rows().size(), "Should return 2 adults (Alice and Charlie)");
+        // THEN: Bare class query → JSON-wrapped GraphResult
+        assertInstanceOf(ExecutionResult.GraphResult.class, result);
+        String json = result.asGraph().json();
+        assertNotNull(json);
+        assertTrue(json.contains("Alice"), "JSON should contain Alice (age 25)");
+        assertTrue(json.contains("Charlie"), "JSON should contain Charlie (age 30)");
+        assertFalse(json.contains("Bob"), "JSON should NOT contain Bob (age 15, filtered out)");
     }
 
     @Test
