@@ -156,9 +156,7 @@ public final class PureModelBuilder implements ModelContext {
         classToAssociations = null;
         propertyToJoin = null;
 
-        PackageableElementBuilder.ParseResult parsed = pureSource.length() > PureParser.CHUNK_THRESHOLD
-                ? PureParser.parseModelChunked(pureSource)
-                : PureParser.parseModelWithImports(pureSource);
+        PackageableElementBuilder.ParseResult parsed = PureParser.parseModelWithImports(pureSource);
         boolean isStrict = strict || pureSource.stripLeading().startsWith("\"use strict\"");
         List<PackageableElement> rawDefinitions = parsed.definitions();
 
@@ -226,6 +224,7 @@ public final class PureModelBuilder implements ModelContext {
                 case RuntimeDefinition runtimeDef -> addRuntime(runtimeDef);
             }
         }
+
 
         // PHASE 4: Resolve database includes (merge tables/joins/views/filters from included DBs)
         resolveDatabaseIncludes();

@@ -302,13 +302,12 @@ class StressTestChaotic {
             if (ci.hasConcat) concatC++;
         }
 
-        int numChunks = com.gs.legend.parser.PureParser.splitDefinitions(model, com.gs.legend.parser.PureParser.CHUNK_THRESHOLD).size();
         System.out.println("=== STRESS TEST: Chaotic 100K ===");
         System.out.println("Classes: " + N + " (tiny=" + tiny + ", small=" + small
                 + ", med=" + med + ", large=" + large + ", huge=" + huge + ")");
         System.out.println("Enum classes: " + enumC + ", Filtered: " + filterC + ", Concat: " + concatC);
         System.out.println("Associations: " + assocCount);
-        System.out.println("Pure source size: " + (model.length() / 1024) + " KB (" + numChunks + " chunks)");
+        System.out.println("Pure source size: " + (model.length() / 1024) + " KB");
         System.out.println("Phase 0 (generate source): " + genMs + " ms");
 
         // ---- Phase 1: Parse + build ----

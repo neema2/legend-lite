@@ -22,8 +22,9 @@ class QueryServiceDirectTest {
     static void setup() throws Exception {
         queryService = new QueryService();
 
-        // Create temp file for DuckDB
+        // Create temp path for DuckDB — DuckDB needs to create it fresh
         tempDbFile = Files.createTempFile("query-test-", ".duckdb");
+        Files.delete(tempDbFile);
 
         // Build the model following AbstractDatabaseTest pattern - use SIMPLE names in
         // mappings

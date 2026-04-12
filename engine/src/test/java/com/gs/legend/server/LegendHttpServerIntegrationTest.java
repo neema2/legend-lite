@@ -28,8 +28,10 @@ class LegendHttpServerIntegrationTest {
 
     @BeforeAll
     static void setup() throws IOException {
-        // Create temp file for DuckDB (file-based for persistence)
+        // Create temp path for DuckDB (file-based for persistence)
+        // DuckDB needs to create the file itself — just get a unique path
         tempDbFile = Files.createTempFile("legend-test-", ".duckdb");
+        Files.delete(tempDbFile); // DuckDB will create it fresh
 
         // Start server on random available port
         server = new LegendHttpServer(0);
