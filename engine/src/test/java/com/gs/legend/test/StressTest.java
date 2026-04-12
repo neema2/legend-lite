@@ -380,16 +380,25 @@ class StressTest {
 
         // ---- Phase 5: Run all 100 queries ----
         int passed = 0, failed = 0;
+        long parseNs = 0, typeNs = 0, resolveNs = 0, planNs = 0;
         long queryStartAll = System.nanoTime();
         for (int q = 0; q < queries.size(); q++) {
             String query = queries.get(q);
             try {
+                long t = System.nanoTime();
                 var vs = com.gs.legend.parser.PureParser.parseQuery(query);
+                parseNs += System.nanoTime() - t;
+                t = System.nanoTime();
                 var unit = new com.gs.legend.compiler.TypeChecker(modelCtx).check(vs);
+                typeNs += System.nanoTime() - t;
+                t = System.nanoTime();
                 var storeRes = new com.gs.legend.compiler.MappingResolver(
                         unit, normalizedMapping, builder).resolve();
+                resolveNs += System.nanoTime() - t;
+                t = System.nanoTime();
                 var plan = new com.gs.legend.plan.PlanGenerator(
                         unit, dialect, storeRes).generate();
+                planNs += System.nanoTime() - t;
                 assertNotNull(plan.sql(), "Query " + q + " produced null SQL");
                 assertFalse(plan.sql().isBlank(), "Query " + q + " produced blank SQL");
                 passed++;
@@ -402,6 +411,8 @@ class StressTest {
         long queryMs = (System.nanoTime() - queryStartAll) / 1_000_000;
         long totalMs = (System.nanoTime() - t0) / 1_000_000;
         System.out.println("\n100 queries: " + passed + " passed, " + failed + " failed in " + queryMs + " ms");
+        System.out.printf("  Pipeline: parse=%dms  typeCheck=%dms  resolve=%dms  planGen=%dms%n",
+                parseNs / 1_000_000, typeNs / 1_000_000, resolveNs / 1_000_000, planNs / 1_000_000);
         System.out.println("TOTAL: " + totalMs + " ms");
         assertEquals(0, failed, failed + " queries failed out of " + queries.size());
     }

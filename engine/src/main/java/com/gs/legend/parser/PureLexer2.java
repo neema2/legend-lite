@@ -410,12 +410,18 @@ public final class PureLexer2 {
         char next = source.charAt(pos);
         if (next >= '0' && next <= '9') {
             boolean hasDash = false;
+            boolean hasColon = false;
             int scanPos = pos;
             while (scanPos < length) {
                 char sc = source.charAt(scanPos);
                 if (sc >= '0' && sc <= '9') { scanPos++; continue; }
-                if (sc == '-') { hasDash = true; scanPos++; continue; }
-                if (sc == ':' || sc == 'T' || sc == '.') { scanPos++; continue; }
+                if (sc == '-') {
+                    // Don't consume '->' (arrow operator)
+                    if (scanPos + 1 < length && source.charAt(scanPos + 1) == '>') break;
+                    hasDash = true; scanPos++; continue;
+                }
+                if (sc == ':') { hasColon = true; scanPos++; continue; }
+                if (sc == 'T' || sc == '.') { scanPos++; continue; }
                 if ((sc == '+') && scanPos > pos) { scanPos++; continue; }
                 break;
             }
@@ -427,7 +433,9 @@ public final class PureLexer2 {
                 while (pos < length && source.charAt(pos) >= '0' && source.charAt(pos) <= '9' && d < 4) { pos++; d++; }
                 if (d != 4) pos = tzStart;
             }
-            emit(hasDash ? TokenType.DATE : TokenType.STRICTTIME, start, pos);
+            // StrictTime only if colons present but no dashes (e.g. %10:30:00)
+            // Everything else (dates, datetimes, year-only, year-month) is DATE
+            emit(hasColon && !hasDash ? TokenType.STRICTTIME : TokenType.DATE, start, pos);
             return;
         }
 

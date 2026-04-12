@@ -98,6 +98,7 @@ class StressDomainTest {
 
         System.out.println("\n=== SERVICE EXECUTION ===");
         int passed = 0, failed = 0;
+        long parseNsTotal = 0, typeNsTotal = 0, resolveNsTotal = 0, planNsTotal = 0;
         long queryStartAll = System.nanoTime();
         for (var entry : stressServices) {
             var svc = entry.getValue();
@@ -107,21 +108,29 @@ class StressDomainTest {
             try {
                 long qStart = System.nanoTime();
                 var vs = com.gs.legend.parser.PureParser.parseQuery(query);
-                long parseUs = (System.nanoTime() - qStart) / 1_000;
+                long parseNs = System.nanoTime() - qStart;
+                long parseUs = parseNs / 1_000;
+                parseNsTotal += parseNs;
                 phase = "typeCheck";
                 long t = System.nanoTime();
                 var unit = new com.gs.legend.compiler.TypeChecker(modelCtx).check(vs);
-                long typeUs = (System.nanoTime() - t) / 1_000;
+                long typeElapsed = System.nanoTime() - t;
+                long typeUs = typeElapsed / 1_000;
+                typeNsTotal += typeElapsed;
                 phase = "resolve";
                 t = System.nanoTime();
                 var storeRes = new com.gs.legend.compiler.MappingResolver(
                         unit, normalizedMapping, builder).resolve();
-                long resolveUs = (System.nanoTime() - t) / 1_000;
+                long resolveElapsed = System.nanoTime() - t;
+                long resolveUs = resolveElapsed / 1_000;
+                resolveNsTotal += resolveElapsed;
                 phase = "planGen";
                 t = System.nanoTime();
                 var plan = new com.gs.legend.plan.PlanGenerator(
                         unit, dialect, storeRes).generate();
-                long planUs = (System.nanoTime() - t) / 1_000;
+                long planElapsed = System.nanoTime() - t;
+                long planUs = planElapsed / 1_000;
+                planNsTotal += planElapsed;
                 long totalUs = (System.nanoTime() - qStart) / 1_000;
                 assertNotNull(plan.sql(), svcName + " produced null SQL");
                 assertFalse(plan.sql().isBlank(), svcName + " produced blank SQL");
@@ -141,6 +150,8 @@ class StressDomainTest {
         long queryMs = (System.nanoTime() - queryStartAll) / 1_000_000;
         long totalMs = (System.nanoTime() - t0) / 1_000_000;
         System.out.println("\n" + stressServices.size() + " services: " + passed + " passed, " + failed + " failed in " + queryMs + " ms");
+        System.out.printf("  Pipeline: parse=%dms  typeCheck=%dms  resolve=%dms  planGen=%dms%n",
+                parseNsTotal / 1_000_000, typeNsTotal / 1_000_000, resolveNsTotal / 1_000_000, planNsTotal / 1_000_000);
         System.out.println("TOTAL: " + totalMs + " ms");
         assertEquals(0, failed, failed + " services failed out of " + stressServices.size());
     }

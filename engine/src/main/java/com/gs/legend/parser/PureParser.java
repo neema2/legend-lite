@@ -25,7 +25,15 @@ import java.util.List;
 public final class PureParser {
 
     /** Set to true to use the hand-rolled parser for model definitions. */
-    static boolean USE_HANDROLLED = true;
+    static boolean USE_HANDROLLED_MODEL = true;
+    /** Set to true to use the hand-rolled parser for query expressions. */
+    static boolean USE_HANDROLLED_QUERY = true;
+
+    // Timing instrumentation for query parsing
+    static long queryParseTimeNs = 0;
+    static int queryParseCount = 0;
+    public static void resetQueryStats() { queryParseTimeNs = 0; queryParseCount = 0; }
+    public static String queryStats() { return queryParseCount + " queries in " + (queryParseTimeNs / 1_000_000) + " ms (" + (queryParseCount > 0 ? queryParseTimeNs / queryParseCount / 1000 : 0) + " us/query)"; }
 
     private PureParser() {
     }
@@ -43,6 +51,14 @@ public final class PureParser {
      * @throws PureParseException if parsing fails
      */
     public static com.gs.legend.ast.ValueSpecification parseQuery(String query) {
+        if (USE_HANDROLLED_QUERY) {
+            long t0 = System.nanoTime();
+            var result = PureQueryParser.parseQuery(query);
+            queryParseTimeNs += System.nanoTime() - t0;
+            queryParseCount++;
+            return result;
+        }
+        long t0 = System.nanoTime();
         PureLexer lexer = new PureLexer(CharStreams.fromString(query));
         lexer.removeErrorListeners();
         lexer.addErrorListener(new ErrorListener());
@@ -55,7 +71,10 @@ public final class PureParser {
         com.gs.legend.antlr.PureParser.ProgramLineContext tree = parser.programLine();
         com.gs.legend.antlr.ValueSpecificationBuilder visitor = new com.gs.legend.antlr.ValueSpecificationBuilder();
         visitor.setInputSource(query);
-        return visitor.visit(tree);
+        var result = visitor.visit(tree);
+        queryParseTimeNs += System.nanoTime() - t0;
+        queryParseCount++;
+        return result;
     }
 
     /**
@@ -67,6 +86,13 @@ public final class PureParser {
      * @throws PureParseException if parsing fails
      */
     public static List<com.gs.legend.ast.ValueSpecification> parseCodeBlock(String body) {
+        if (USE_HANDROLLED_QUERY) {
+            long t0 = System.nanoTime();
+            var result = PureQueryParser.parseCodeBlock(body);
+            queryParseTimeNs += System.nanoTime() - t0;
+            queryParseCount++;
+            return result;
+        }
         PureLexer lexer = new PureLexer(CharStreams.fromString(body));
         lexer.removeErrorListeners();
         lexer.addErrorListener(new ErrorListener());
@@ -112,7 +138,7 @@ public final class PureParser {
      * The ImportScope contains all wildcard imports from import statements.
      */
     public static PackageableElementBuilder.ParseResult parseModelWithImports(String source) {
-        if (USE_HANDROLLED) {
+        if (USE_HANDROLLED_MODEL) {
             PureLexer2 lexer = new PureLexer2(source);
             lexer.tokenize();
             return new PureModelParser(lexer).parseDefinition();
