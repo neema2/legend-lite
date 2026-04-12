@@ -1,7 +1,7 @@
 # Stress Test Benchmarks
 
 Measured on MacOS, Apple Silicon, JDK 21, single-threaded.
-Commit: `f74cbef` (strict FQN resolution).
+Commit: `c0997b5` (hand-rolled parser + zero-alloc textEquals + ArrayList int-indexed maps).
 
 ## Test Classes
 
@@ -17,7 +17,6 @@ All stress tests live in `engine/src/test/java/com/gs/legend/test/`:
 | `StressTestChaotic.java` ⚠️ | 100K non-uniform (1-50 props, all types) | 200 | Heterogeneity at scale |
 
 ⚠️ `StressTestChaotic` is tagged `@Tag("heavy")` and excluded from the default test suite.
-It requires `-Xmx6g` due to ANTLR parse tree size (chunked parsing reduces this from 16g).
 
 Reproduce (standard suite):
 ```bash
@@ -26,7 +25,7 @@ mvn test -pl engine -Dtest="StressTest,StressTest10K,StressTest100K,StressTestDe
 
 Reproduce (chaotic only):
 ```bash
-mvn test -pl engine -Dtest="StressTestChaotic" -DargLine="-Xmx6g"
+mvn test -pl engine -Dtest="StressTestChaotic" -Dsurefire.excludedGroups=""
 ```
 
 ## Model Size Scaling
@@ -37,21 +36,17 @@ Same 10 query patterns (simple project, filter, sort, 1-hop, 2-hop association n
 
 | Phase | 1K | 10K | 100K | Scaling |
 |---|---|---|---|---|
-| Generate source | 1 ms | 10 ms | 55 ms | Linear |
-| Parse + build | 228 ms | 818 ms | 5,246 ms | ~Linear |
-| Normalize | 12 ms | 69 ms | 484 ms | ~Linear |
-| 100 queries | 85 ms | 78 ms | 113 ms | **Flat (O(1))** |
-| **Total** | **408 ms** | **1,073 ms** | **5,905 ms** | ~Linear |
+| Generate source | 2 ms | 15 ms | 124 ms | Linear |
+| Parse + build | 90 ms | 266 ms | 1,496 ms | ~Linear |
+| Normalize | 11 ms | 79 ms | 327 ms | ~Linear |
+| **Total** | **328 ms** | **531 ms** | **2,115 ms** | ~Linear |
 
-### Hot (all tests in same JVM, JIT-warmed)
+vs previous (`f74cbef`, ANTLR parser):
 
-| Phase | 1K | 10K | 100K | Scaling |
+| Phase | 1K | 10K | 100K | Speedup |
 |---|---|---|---|---|
-| Generate source | 0 ms | 9 ms | 74 ms | Linear |
-| Parse + build | 29 ms | 474 ms | 5,525 ms | ~Linear |
-| Normalize | 1 ms | 40 ms | 414 ms | ~Linear |
-| 100 queries | 21 ms | 28 ms | 26 ms | **Flat (O(1))** |
-| **Total** | **55 ms** | **555 ms** | **6,041 ms** | ~Linear |
+| Parse + build | 228→90 ms | 818→266 ms | 5,246→1,496 ms | **2.5–3.5x** |
+| **Total** | 408→328 ms | 1,073→531 ms | 5,905→2,115 ms | **1.2–2.8x** |
 
 Queries are constant-time regardless of model size — demand-driven compilation means
 only the classes a query touches are compiled and resolved.
@@ -65,19 +60,9 @@ Same queries, varying hub-to-hub connectivity.
 | Phase | Sparse (~2 per hub) | Dense (~10 per hub) |
 |---|---|---|
 | Associations | 10,100 | 19,000 |
-| Parse + build | 818 ms | 966 ms |
-| Normalize | 69 ms | 72 ms |
-| 100 queries | 78 ms | 91 ms |
-| **Total** | **1,073 ms** | **1,237 ms** |
-
-### Hot
-
-| Phase | Sparse (~2 per hub) | Dense (~10 per hub) |
-|---|---|---|
-| Parse + build | 474 ms | 748 ms |
-| Normalize | 40 ms | 54 ms |
-| 100 queries | 28 ms | 53 ms |
-| **Total** | **555 ms** | **882 ms** |
+| Parse + build | 266 ms | 307 ms |
+| Normalize | 79 ms | 66 ms |
+| **Total** | **531 ms** | **616 ms** |
 
 Density adds moderate overhead. Per-query cost stays under 1ms hot.
 
@@ -114,18 +99,20 @@ random association graph.
 | Filtered classes | 8,309 |
 | Concat DynaFunc | 2,431 |
 | Associations | 100,000 |
-| Pure source | 115 MB (73 chunks) |
-| Parse + build | 9,611 ms |
-| Normalize | 484 ms |
-| 200 queries | 145 ms |
-| **Total** | **11.1 s** |
-| Heap required | 6 GB |
+| Pure source | ~115 MB |
+| Generate source | 432 ms |
+| Parse + build | 2,095 ms |
+| Normalize | 468 ms |
+| **Total** | **3,250 ms** |
+| Heap required | 4 GB |
+
+vs previous (`f74cbef`, ANTLR parser): Parse+build **9,611→2,095 ms (4.6x)**, Total **11.1→3.3 s (3.4x)**, Heap **6→4 GB**.
 
 16 query patterns: simple projects, all-column projects, filter on Integer/Boolean/Float,
 1-hop and 2-hop associations, DynaFunc computed columns, sorts, limits, slices,
 assoc+filter combos, Date column projects.
 
-Queries remain O(1) — 200 queries in 175ms regardless of 100K model size.
+Queries remain O(1) — 200 queries in <200ms regardless of 100K model size.
 
 ## Multi-Domain Realistic Model (StressDomainTest)
 
@@ -196,14 +183,23 @@ org, counterparty), 2.9KB SQL, generated in 238μs of plan generation.
 
 ## Key Optimizations
 
-1. **Demand-driven compilation** (TypeChecker pass 2): only compile source relations
+1. **Hand-rolled recursive descent parser** (PureModelParser + PureLexer2): replaces
+   ANTLR parse tree + visitor with direct token-to-object construction. Zero parse
+   tree allocation, zero visitor dispatch.
+
+2. **Zero-allocation string comparison** (textEquals): compares lexer token bytes
+   directly against keyword strings without creating intermediate String objects.
+
+3. **ArrayList int-indexed maps** (PureModelBuilder, MappingRegistry): all
+   class/mapping/association lookups use `ArrayList<T>` indexed by primitive int IDs
+   from SymbolTable — eliminates Integer boxing, HashMap$Node allocations, and hash
+   computation. Direct `array[id]` access instead of `hashCode()` + bucket walk.
+
+4. **Demand-driven compilation** (TypeChecker pass 2): only compile source relations
    for classes the query navigates — not the entire model graph.
 
-2. **Demand-driven resolution** (MappingResolver): only resolve association joins
+5. **Demand-driven resolution** (MappingResolver): only resolve association joins
    the query actually uses — skip all others.
 
-3. **Association index** (PureModelBuilder): `className → List<Association>` index
+6. **Association index** (PureModelBuilder): `className → List<Association>` index
    for O(1) lookup instead of O(N) scan.
-
-4. **SymbolTable int-keyed maps**: all class/mapping/association lookups use integer IDs
-   instead of string keys — eliminates hash collisions at scale.

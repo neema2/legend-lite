@@ -25,18 +25,28 @@ public final class MappingRegistry {
     private final SymbolTable symbols;
 
     // Flat maps — classId → mapping (searched across all scopes)
-    private final Map<Integer, RelationalMapping> relationalByClass = new HashMap<>();
-    private final Map<Integer, PureClassMapping> pureByTargetClass = new HashMap<>();
+    private final ArrayList<RelationalMapping> relationalByClass = new ArrayList<>();
+    private final ArrayList<PureClassMapping> pureByTargetClass = new ArrayList<>();
     private final Map<String, Join> joinsByName = new HashMap<>();
 
     // Multi-mapping support — classId → all mappings for that class
-    private final Map<Integer, List<RelationalMapping>> relationalMultiByClass = new HashMap<>();
+    private final ArrayList<List<RelationalMapping>> relationalMultiByClass = new ArrayList<>();
     // Set ID index — setId → mapping (arbitrary strings, not packageable elements)
     private final Map<String, RelationalMapping> relationalBySetId = new HashMap<>();
 
     // Scoped maps — mappingId → (classId → mapping)
-    private final Map<Integer, Map<Integer, RelationalMapping>> scopedRelational = new HashMap<>();
-    private final Map<Integer, Map<Integer, PureClassMapping>> scopedPure = new HashMap<>();
+    private final ArrayList<Map<Integer, RelationalMapping>> scopedRelational = new ArrayList<>();
+    private final ArrayList<Map<Integer, PureClassMapping>> scopedPure = new ArrayList<>();
+
+    // Primitive-int-indexed helpers — zero boxing, O(1) access
+    private static <T> T idGet(ArrayList<T> list, int id) {
+        return id >= 0 && id < list.size() ? list.get(id) : null;
+    }
+    private static <T> void idPut(ArrayList<T> list, int id, T value) {
+        int gap = id - list.size() + 1;
+        if (gap > 0) list.addAll(java.util.Collections.nCopies(gap, null));
+        list.set(id, value);
+    }
 
     public MappingRegistry(SymbolTable symbols) {
         this.symbols = symbols;
@@ -53,18 +63,21 @@ public final class MappingRegistry {
         int mappingId = symbols.resolveId(mappingName);
 
         // Scoped — root mapping wins, otherwise first registered
-        var scope = scopedRelational.computeIfAbsent(mappingId, k -> new HashMap<>());
+        Map<Integer, RelationalMapping> scope = idGet(scopedRelational, mappingId);
+        if (scope == null) { scope = new HashMap<>(); idPut(scopedRelational, mappingId, scope); }
         if (mapping.isRoot() || !scope.containsKey(classId)) {
             scope.put(classId, mapping);
         }
 
         // Flat — root mapping wins, otherwise first registered
-        if (mapping.isRoot() || !relationalByClass.containsKey(classId)) {
-            relationalByClass.put(classId, mapping);
+        if (mapping.isRoot() || idGet(relationalByClass, classId) == null) {
+            idPut(relationalByClass, classId, mapping);
         }
 
         // Multi-mapping list
-        relationalMultiByClass.computeIfAbsent(classId, k -> new ArrayList<>()).add(mapping);
+        List<RelationalMapping> multiList = idGet(relationalMultiByClass, classId);
+        if (multiList == null) { multiList = new ArrayList<>(); idPut(relationalMultiByClass, classId, multiList); }
+        multiList.add(mapping);
 
         // Set ID index
         if (mapping.setId() != null) {
@@ -80,11 +93,12 @@ public final class MappingRegistry {
         int mappingId = symbols.resolveId(mappingName);
 
         // Scoped
-        var scope = scopedPure.computeIfAbsent(mappingId, k -> new HashMap<>());
+        Map<Integer, PureClassMapping> scope = idGet(scopedPure, mappingId);
+        if (scope == null) { scope = new HashMap<>(); idPut(scopedPure, mappingId, scope); }
         scope.put(classId, mapping);
 
         // Flat
-        pureByTargetClass.put(classId, mapping);
+        idPut(pureByTargetClass, classId, mapping);
     }
 
     /**
@@ -110,7 +124,7 @@ public final class MappingRegistry {
     public Optional<RelationalMapping> findRootMapping(String className) {
         int id = symbols.resolveId(className);
         if (id < 0) return Optional.empty();
-        var mappings = relationalMultiByClass.get(id);
+        var mappings = idGet(relationalMultiByClass, id);
         if (mappings == null || mappings.isEmpty()) return Optional.empty();
         if (mappings.size() == 1) return Optional.of(mappings.get(0));
         return mappings.stream().filter(RelationalMapping::isRoot).findFirst();
@@ -122,7 +136,8 @@ public final class MappingRegistry {
     public List<RelationalMapping> findAllByClassName(String className) {
         int id = symbols.resolveId(className);
         if (id < 0) return List.of();
-        return relationalMultiByClass.getOrDefault(id, List.of());
+        List<RelationalMapping> list = idGet(relationalMultiByClass, id);
+        return list != null ? list : List.of();
     }
 
     // ==================== Flat Lookups (PureModelBuilder) ====================
@@ -132,7 +147,7 @@ public final class MappingRegistry {
      */
     public Optional<RelationalMapping> findByClassName(String className) {
         int id = symbols.resolveId(className);
-        return id >= 0 ? Optional.ofNullable(relationalByClass.get(id)) : Optional.empty();
+        return id >= 0 ? Optional.ofNullable(idGet(relationalByClass, id)) : Optional.empty();
     }
 
     /**
@@ -140,7 +155,7 @@ public final class MappingRegistry {
      */
     public Optional<PureClassMapping> findPureClassMapping(String targetClassName) {
         int id = symbols.resolveId(targetClassName);
-        return id >= 0 ? Optional.ofNullable(pureByTargetClass.get(id)) : Optional.empty();
+        return id >= 0 ? Optional.ofNullable(idGet(pureByTargetClass, id)) : Optional.empty();
     }
 
     /**
@@ -170,9 +185,9 @@ public final class MappingRegistry {
         int mappingId = symbols.resolveId(mappingName);
         if (mappingId < 0) return Map.of();
         Map<Integer, ClassMapping> result = new HashMap<>();
-        var relScope = scopedRelational.get(mappingId);
+        var relScope = idGet(scopedRelational, mappingId);
         if (relScope != null) result.putAll(relScope);
-        var pureScope = scopedPure.get(mappingId);
+        var pureScope = idGet(scopedPure, mappingId);
         if (pureScope != null) result.putAll(pureScope);
         return result;
     }

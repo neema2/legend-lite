@@ -8,6 +8,7 @@ import com.gs.legend.model.def.AssociationDefinition.AssociationEndDefinition;
 import com.gs.legend.model.def.ClassDefinition.*;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Hand-rolled recursive descent parser for Pure model definitions.
@@ -100,17 +101,11 @@ public final class PureModelParser {
         return lexer.tokenText(pos);
     }
 
-    private String text(int offset) {
-        return lexer.tokenText(pos + offset);
+    /** Zero-allocation string comparison against current token. */
+    private boolean textEquals(String expected) {
+        return pos < tokenCount && lexer.tokenEquals(pos, expected);
     }
 
-    private int tokenStart() {
-        return lexer.tokenStart(pos);
-    }
-
-    private int tokenEnd() {
-        return lexer.tokenEnd(pos);
-    }
 
     private void advance() {
         pos++;
@@ -122,7 +117,7 @@ public final class PureModelParser {
 
     private void expect(TokenType type) {
         if (peek() != type) {
-            error("missing " + type + ", expecting " + type + " but found " + peek() + " ('" + safeText() + "')");
+            error("missing " + type + " but found " + peek() + " ('" + safeText() + "')");
         }
         advance();
     }
@@ -137,7 +132,7 @@ public final class PureModelParser {
 
     private String consume(TokenType type) {
         if (peek() != type) {
-            error("missing " + type + ", expecting " + type + " but found " + peek() + " ('" + safeText() + "')");
+            error("missing " + type + " but found " + peek() + " ('" + safeText() + "')");
         }
         String t = text();
         advance();
@@ -393,24 +388,20 @@ public final class PureModelParser {
         if (peek() != TokenType.BRACE_OPEN) return false;
         pos++;
         // Try to read qualifiedName . identifier =
-        try {
-            if (!IDENTIFIER_TOKENS.contains(peek())) { pos = saved; return false; }
-            while (IDENTIFIER_TOKENS.contains(peek())) {
-                pos++;
-                if (peek() == TokenType.PATH_SEPARATOR) pos++;
-                else break;
-            }
-            if (peek() != TokenType.DOT) { pos = saved; return false; }
-            pos++; // skip .
-            if (!IDENTIFIER_TOKENS.contains(peek())) { pos = saved; return false; }
-            pos++; // skip tag name
-            if (peek() != TokenType.EQUAL) { pos = saved; return false; }
-            pos = saved;
-            return true;
-        } catch (Exception e) {
-            pos = saved;
-            return false;
+        if (!IDENTIFIER_TOKENS.contains(peek())) { pos = saved; return false; }
+        while (IDENTIFIER_TOKENS.contains(peek())) {
+            pos++;
+            if (pos >= tokenCount) { pos = saved; return false; }
+            if (peek() == TokenType.PATH_SEPARATOR) pos++;
+            else break;
         }
+        if (pos >= tokenCount || peek() != TokenType.DOT) { pos = saved; return false; }
+        pos++; // skip .
+        if (pos >= tokenCount || !IDENTIFIER_TOKENS.contains(peek())) { pos = saved; return false; }
+        pos++; // skip tag name
+        if (pos >= tokenCount || peek() != TokenType.EQUAL) { pos = saved; return false; }
+        pos = saved;
+        return true;
     }
 
     private TaggedValue parseTaggedValue() {
@@ -595,16 +586,6 @@ public final class PureModelParser {
         // Derived: stereotypes? taggedValues? identifier ( ... )
         // Simple: stereotypes? taggedValues? identifier : Type[mult]
         // Skip past optional stereotypes and tagged values to find the identifier
-        int saved = pos;
-        // Skip stereotypes (<<...>>)
-        if (peek() == TokenType.LESS_THAN && peek(1) == TokenType.LESS_THAN) {
-            skipBalanced(TokenType.LESS_THAN, TokenType.GREATER_THAN);
-            skipBalanced(TokenType.LESS_THAN, TokenType.GREATER_THAN); // second >
-            // Actually this is tricky, let me just check if after identifier comes ( or :
-        }
-        pos = saved;
-
-        // Simpler approach: skip to first identifier, check what follows
         int probe = pos;
         // Skip << ... >>
         if (probe < tokenCount && lexer.tokenType(probe) == TokenType.LESS_THAN
@@ -1015,10 +996,14 @@ public final class PureModelParser {
         return new RuntimeDefinition(qualifiedName, List.of(), new HashMap<>(), List.of());
     }
 
-    private static final java.util.regex.Pattern JMC_CLASS_PATTERN =
-            java.util.regex.Pattern.compile("class\\s*:\\s*([\\w:]+)\\s*;");
-    private static final java.util.regex.Pattern JMC_URL_PATTERN =
-            java.util.regex.Pattern.compile("url\\s*:\\s*'([^']*)'\\s*;");
+    private static final Pattern JMC_CLASS_PATTERN =
+            Pattern.compile("class\\s*:\\s*([\\w:]+)\\s*;");
+    private static final Pattern JMC_URL_PATTERN =
+            Pattern.compile("url\\s*:\\s*'([^']*)'\\s*;");
+    private static final Pattern CONTENT_TYPE_PATTERN =
+            Pattern.compile("contentType:\\s*'([^']*)'" );
+    private static final Pattern DATA_PATTERN =
+            Pattern.compile("data:\\s*'([^']*)'" );
 
     private JsonModelConnection parseEmbeddedJsonModelConnection(String raw) {
         raw = raw.trim();
@@ -1198,43 +1183,41 @@ public final class PureModelParser {
         List<DatabaseDefinition.SchemaDefinition> schemas = new ArrayList<>();
 
         while (peek() != TokenType.PAREN_CLOSE) {
-            String keyword = text();
-            switch (keyword) {
-                case "include" -> {
-                    advance();
-                    includes.add(parseQualifiedName());
-                }
-                case "Schema" -> {
+            if (textEquals("include")) {
+                advance();
+                includes.add(parseQualifiedName());
+            } else if (textEquals("Schema")) {
                     advance();
                     String schemaName = parseIdentifier();
                     expect(TokenType.PAREN_OPEN);
                     List<DatabaseDefinition.TableDefinition> schemaTables = new ArrayList<>();
                     List<DatabaseDefinition.ViewDefinition> schemaViews = new ArrayList<>();
                     while (peek() != TokenType.PAREN_CLOSE) {
-                        String inner = text();
-                        if ("Table".equals(inner)) {
+                        if (textEquals("Table")) {
                             schemaTables.add(parseDbTable());
                             tables.add(schemaTables.get(schemaTables.size() - 1));
-                        } else if ("View".equals(inner)) {
+                        } else if (textEquals("View")) {
                             DatabaseDefinition.ViewDefinition v = parseDbView();
                             schemaViews.add(v);
                             views.add(v);
                         } else {
-                            advance(); // skip unknown
+                            error("Unknown schema element: '" + safeText() + "'");
                         }
                     }
                     expect(TokenType.PAREN_CLOSE);
                     schemas.add(new DatabaseDefinition.SchemaDefinition(schemaName, schemaTables, schemaViews));
-                }
-                case "Table" -> tables.add(parseDbTable());
-                case "View" -> views.add(parseDbView());
-                case "Join" -> joins.add(parseDbJoin());
-                case "Filter" -> filters.add(parseDbFilter());
-                case "MultiGrainFilter" -> multiGrainFilters.add(parseDbMultiGrainFilter());
-                default -> {
-                    // Skip unknown top-level db element
-                    advance();
-                }
+            } else if (textEquals("Table")) {
+                tables.add(parseDbTable());
+            } else if (textEquals("View")) {
+                views.add(parseDbView());
+            } else if (textEquals("Join")) {
+                joins.add(parseDbJoin());
+            } else if (textEquals("Filter")) {
+                filters.add(parseDbFilter());
+            } else if (textEquals("MultiGrainFilter")) {
+                multiGrainFilters.add(parseDbMultiGrainFilter());
+            } else {
+                error("Unknown database element: '" + safeText() + "'");
             }
         }
         expect(TokenType.PAREN_CLOSE);
@@ -1376,11 +1359,11 @@ public final class PureModelParser {
         RelationalOperation left = parseDbAtomicOperation();
         // Check for boolean right: "and" | "or"
         if (!atEnd() && IDENTIFIER_TOKENS.contains(peek())) {
-            String nextText = text();
-            if ("and".equals(nextText) || "or".equals(nextText)) {
+            if (textEquals("and") || textEquals("or")) {
+                String op = text();
                 advance();
                 RelationalOperation right = parseDbOperation();
-                return new RelationalOperation.BooleanOp(left, nextText, right);
+                return new RelationalOperation.BooleanOp(left, op, right);
             }
         }
         return left;
@@ -1414,7 +1397,6 @@ public final class PureModelParser {
         } else {
             // Column or function: identifier...
             // Check if it's a function call: identifier(...)
-            int saved = pos;
             String firstId = parseRelationalIdentifier();
             if (peek() == TokenType.PAREN_OPEN && !firstId.contains(".")) {
                 // Function call: funcName(args)
@@ -1520,12 +1502,12 @@ public final class PureModelParser {
 
     private boolean isDbSelfOperator() {
         if (!IDENTIFIER_TOKENS.contains(peek())) return false;
-        return "is".equals(text());
+        return textEquals("is");
     }
 
     private RelationalOperation parseDbSelfOperator(RelationalOperation expr) {
         advance(); // "is"
-        if (IDENTIFIER_TOKENS.contains(peek()) && "not".equals(text())) {
+        if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("not")) {
             advance(); // "not"
             advance(); // "null"
             return new RelationalOperation.IsNotNull(expr);
@@ -1569,7 +1551,7 @@ public final class PureModelParser {
 
         while (peek() != TokenType.PAREN_CLOSE) {
             // Check for include
-            if (IDENTIFIER_TOKENS.contains(peek()) && "include".equals(text())) {
+            if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("include")) {
                 advance();
                 includes.add(parseMappingInclude());
                 continue;
@@ -1629,7 +1611,7 @@ public final class PureModelParser {
 
         // Optional extends [parentId]
         String extendsSetId = null;
-        if (IDENTIFIER_TOKENS.contains(peek()) && "extends".equals(text())) {
+        if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("extends")) {
             advance();
             expect(TokenType.BRACKET_OPEN);
             extendsSetId = parseIdentifier();
@@ -1648,11 +1630,11 @@ public final class PureModelParser {
                 enumMappingId = parseIdentifier();
             }
             expect(TokenType.BRACE_OPEN);
-            java.util.Map<String, java.util.List<Object>> valueMappings = new java.util.LinkedHashMap<>();
+            Map<String, List<Object>> valueMappings = new LinkedHashMap<>();
             while (peek() != TokenType.BRACE_CLOSE) {
                 String enumValue = parseIdentifier();
                 expect(TokenType.COLON);
-                java.util.List<Object> sourceValues = new ArrayList<>();
+                List<Object> sourceValues = new ArrayList<>();
                 if (peek() == TokenType.BRACKET_OPEN) {
                     advance();
                     while (peek() != TokenType.BRACKET_CLOSE) {
@@ -1677,7 +1659,7 @@ public final class PureModelParser {
             expect(TokenType.BRACE_OPEN);
             classMappings.add(parsePureM2MClassMappingBody(name));
             expect(TokenType.BRACE_CLOSE);
-        } else if ("AssociationMapping".equals(mappingType) || "Relational".equals(mappingType)) {
+        } else if ("AssociationMapping".equals(mappingType)) {
             // Association mapping — handle separately
             expect(TokenType.PAREN_OPEN);
             // Skip association mapping body for now
@@ -1808,7 +1790,7 @@ public final class PureModelParser {
                 if (peek() == TokenType.PAREN_CLOSE) {
                     // Empty parens: propName() Inline[setId]
                     advance(); // skip )
-                    if (IDENTIFIER_TOKENS.contains(peek()) && "Inline".equals(text())) {
+                    if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("Inline")) {
                         advance(); // skip Inline
                         expect(TokenType.BRACKET_OPEN);
                         String targetSetId = parseIdentifier();
@@ -1844,7 +1826,7 @@ public final class PureModelParser {
 
                 // Check for EnumerationMapping prefix
                 String enumMappingId = null;
-                if (IDENTIFIER_TOKENS.contains(peek()) && "EnumerationMapping".equals(text())) {
+                if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("EnumerationMapping")) {
                     advance();
                     if (IDENTIFIER_TOKENS.contains(peek()) && peek() != TokenType.COLON) {
                         enumMappingId = parseIdentifier();
@@ -1881,7 +1863,7 @@ public final class PureModelParser {
         }
         expect(TokenType.PAREN_CLOSE);
         // Check for Otherwise after the closing paren
-        if (IDENTIFIER_TOKENS.contains(peek()) && "Otherwise".equals(text())) {
+        if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("Otherwise")) {
             advance();
             expect(TokenType.PAREN_OPEN);
             expect(TokenType.BRACKET_OPEN);
@@ -2056,7 +2038,7 @@ public final class PureModelParser {
     private MappingDefinition.ClassMappingDefinition parsePureM2MClassMappingBody(String className) {
         String sourceClassName = null;
         String filterExpression = null;
-        java.util.Map<String, String> m2mPropertyExpressions = new java.util.LinkedHashMap<>();
+        Map<String, String> m2mPropertyExpressions = new LinkedHashMap<>();
 
         while (peek() != TokenType.BRACE_CLOSE) {
             // ~src
@@ -2116,11 +2098,11 @@ public final class PureModelParser {
     private RelationalOperation parseMappingOperation() {
         var left = parseMappingAtomicOperation();
         if (!atEnd() && IDENTIFIER_TOKENS.contains(peek())) {
-            String nextText = text();
-            if ("and".equals(nextText) || "or".equals(nextText)) {
+            if (textEquals("and") || textEquals("or")) {
+                String op = text();
                 advance();
                 var right = parseMappingOperation();
-                return new RelationalOperation.BooleanOp(left, nextText, right);
+                return new RelationalOperation.BooleanOp(left, op, right);
             }
         }
         return left;
@@ -2354,9 +2336,9 @@ public final class PureModelParser {
 
         String contentType = null;
         String data = null;
-        var ctMatcher = java.util.regex.Pattern.compile("contentType:\\s*'([^']*)'").matcher(content);
+        var ctMatcher = CONTENT_TYPE_PATTERN.matcher(content);
         if (ctMatcher.find()) contentType = ctMatcher.group(1);
-        var dMatcher = java.util.regex.Pattern.compile("data:\\s*'([^']*)'").matcher(content);
+        var dMatcher = DATA_PATTERN.matcher(content);
         if (dMatcher.find()) data = dMatcher.group(1);
         return new MappingDefinition.TestData(storeName, contentType, data, false);
     }
@@ -2380,7 +2362,7 @@ public final class PureModelParser {
         expect(TokenType.ISLAND_END);
 
         String expectedData = null;
-        var dMatcher = java.util.regex.Pattern.compile("data:\\s*'([^']*)'").matcher(content);
+        var dMatcher = DATA_PATTERN.matcher(content);
         if (dMatcher.find()) expectedData = dMatcher.group(1);
         return new MappingDefinition.TestAssertion(assertName, assertType, null, expectedData);
     }
@@ -2400,18 +2382,6 @@ public final class PureModelParser {
         }
     }
 
-    private void skipBalanced(TokenType open, TokenType close) {
-        int depth = 0;
-        while (!atEnd()) {
-            TokenType t = peek();
-            if (t == open) depth++;
-            else if (t == close) {
-                depth--;
-                if (depth <= 0) { advance(); return; }
-            }
-            advance();
-        }
-    }
 
     private void skipToSemicolon() {
         int depth = 0;

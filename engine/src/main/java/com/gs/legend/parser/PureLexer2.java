@@ -207,6 +207,20 @@ public final class PureLexer2 {
     public int tokenEnd(int index) { return ends[index]; }
     public String source() { return source; }
 
+    /**
+     * Zero-allocation string comparison: checks if token at index equals expected string
+     * without creating a substring. Use this instead of tokenText(i).equals(s) on hot paths.
+     */
+    public boolean tokenEquals(int index, String expected) {
+        int start = starts[index];
+        int len = ends[index] - start;
+        if (len != expected.length()) return false;
+        for (int i = 0; i < len; i++) {
+            if (source.charAt(start + i) != expected.charAt(i)) return false;
+        }
+        return true;
+    }
+
     // ==================== Token Emission ====================
 
     private void emit(TokenType type, int start, int end) {
