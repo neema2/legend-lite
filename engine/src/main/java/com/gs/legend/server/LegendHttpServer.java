@@ -8,6 +8,7 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -82,11 +83,13 @@ public class LegendHttpServer {
             }
             try {
                 String body = readBody(exchange);
-                String response = lspServer.handleMessage(body);
-                if (response != null) {
-                    sendResponse(exchange, 200, response);
-                } else {
+                List<String> responses = lspServer.handleMessage(body);
+                if (responses.isEmpty()) {
                     sendResponse(exchange, 204, "");
+                } else if (responses.size() == 1) {
+                    sendResponse(exchange, 200, responses.get(0));
+                } else {
+                    sendResponse(exchange, 200, "[" + String.join(",", responses) + "]");
                 }
             } catch (Exception e) {
                 sendResponse(exchange, 500, "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");

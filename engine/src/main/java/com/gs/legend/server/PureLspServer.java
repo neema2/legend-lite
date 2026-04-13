@@ -1,7 +1,6 @@
 package com.gs.legend.server;
 
 import com.gs.legend.model.PureModelBuilder;
-import com.gs.legend.parser.PureParser;
 
 import java.util.*;
 
@@ -23,10 +22,10 @@ public class PureLspServer {
 
     private final Map<String, String> documents = new HashMap<>();
 
-    public String handleMessage(String messageJson) {
+    public List<String> handleMessage(String messageJson) {
         Map<String, Object> message = LegendHttpJson.parseObject(messageJson);
         if (message == null) {
-            return errorResponse(null, -32700, "Parse error");
+            return List.of(errorResponse(null, -32700, "Parse error"));
         }
 
         String method = LegendHttpJson.getString(message, "method");
@@ -34,27 +33,27 @@ public class PureLspServer {
         Map<String, Object> params = LegendHttpJson.getObject(message, "params");
 
         if (method == null) {
-            return errorResponse(id, -32600, "Invalid Request: missing method");
+            return List.of(errorResponse(id, -32600, "Invalid Request: missing method"));
         }
 
         try {
             return switch (method) {
-                case "initialize" -> handleInitialize(id, params);
-                case "initialized" -> null;
-                case "shutdown" -> handleShutdown(id);
-                case "exit" -> null;
+                case "initialize" -> List.of(handleInitialize(id, params));
+                case "initialized" -> List.of();
+                case "shutdown" -> List.of(handleShutdown(id));
+                case "exit" -> List.of();
                 case "textDocument/didOpen" -> handleDidOpen(params);
                 case "textDocument/didChange" -> handleDidChange(params);
                 case "textDocument/didClose" -> handleDidClose(params);
                 default -> {
                     if (id != null) {
-                        yield errorResponse(id, -32601, "Method not found: " + method);
+                        yield List.of(errorResponse(id, -32601, "Method not found: " + method));
                     }
-                    yield null;
+                    yield List.of();
                 }
             };
         } catch (Exception e) {
-            return errorResponse(id, -32603, "Internal error: " + e.getMessage());
+            return List.of(errorResponse(id, -32603, "Internal error: " + e.getMessage()));
         }
     }
 
@@ -80,23 +79,23 @@ public class PureLspServer {
         return successResponse(id, null);
     }
 
-    private String handleDidOpen(Map<String, Object> params) {
+    private List<String> handleDidOpen(Map<String, Object> params) {
         Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
-        if (textDocument == null) return null;
+        if (textDocument == null) return List.of();
 
         String uri = LegendHttpJson.getString(textDocument, "uri");
         String text = LegendHttpJson.getString(textDocument, "text");
 
         if (uri != null && text != null) {
             documents.put(uri, text);
-            return publishDiagnostics(uri, text);
+            return rebuildAndPublishAll();
         }
-        return null;
+        return List.of();
     }
 
-    private String handleDidChange(Map<String, Object> params) {
+    private List<String> handleDidChange(Map<String, Object> params) {
         Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
-        if (textDocument == null) return null;
+        if (textDocument == null) return List.of();
 
         String uri = LegendHttpJson.getString(textDocument, "uri");
         List<Object> contentChanges = LegendHttpJson.getList(params, "contentChanges");
@@ -107,93 +106,116 @@ public class PureLspServer {
             String text = LegendHttpJson.getString(change, "text");
             if (text != null) {
                 documents.put(uri, text);
-                return publishDiagnostics(uri, text);
+                return rebuildAndPublishAll();
             }
         }
-        return null;
+        return List.of();
     }
 
-    private String handleDidClose(Map<String, Object> params) {
+    private List<String> handleDidClose(Map<String, Object> params) {
         Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
-        if (textDocument == null) return null;
+        if (textDocument == null) return List.of();
 
         String uri = LegendHttpJson.getString(textDocument, "uri");
         if (uri != null) {
             documents.remove(uri);
-            return publishDiagnosticsEmpty(uri);
+            List<String> notifications = new ArrayList<>(rebuildAndPublishAll());
+            notifications.add(publishDiagnosticsEmpty(uri));
+            return notifications;
         }
-        return null;
+        return List.of();
     }
 
     /**
-     * Validate the document using the new pipeline (PureModelBuilder + PureParser).
+     * Rebuild model from ALL open documents and publish diagnostics for each.
+     * ParseCache ensures only changed files are re-parsed.
      */
-    private String publishDiagnostics(String uri, String text) {
-        List<Map<String, Object>> diagnostics = new ArrayList<>();
+    private List<String> rebuildAndPublishAll() {
+        if (documents.isEmpty()) return List.of();
 
-        try {
-            // Validate model definitions
-            new PureModelBuilder().addSource(text);
-            // Also validate as a query expression if it doesn't look like definitions
-            if (!text.contains("Class ") && !text.contains("Mapping ") && !text.contains("Database ")) {
-                PureParser.parseQuery(text);
+        PureModelBuilder model = new PureModelBuilder();
+        Map<String, Exception> fileErrors = new LinkedHashMap<>();
+
+        for (var entry : documents.entrySet()) {
+            try {
+                model.addSource(entry.getValue());
+            } catch (Exception e) {
+                fileErrors.put(entry.getKey(), e);
             }
-        } catch (Exception e) {
-            String message = e.getMessage();
-            int line = 0;
-            int character = 0;
+        }
 
-            if (message != null) {
-                int lineIdx = message.indexOf("line ");
-                if (lineIdx >= 0) {
-                    try {
-                        int start = lineIdx + 5;
-                        int end = start;
-                        while (end < message.length() && Character.isDigit(message.charAt(end))) end++;
-                        if (end > start) {
-                            line = Integer.parseInt(message.substring(start, end)) - 1;
-                            if (end < message.length() && message.charAt(end) == ':') {
-                                int colStart = end + 1;
-                                int colEnd = colStart;
-                                while (colEnd < message.length() && Character.isDigit(message.charAt(colEnd))) colEnd++;
-                                if (colEnd > colStart) character = Integer.parseInt(message.substring(colStart, colEnd));
-                            }
-                        }
-                    } catch (NumberFormatException ignored) { }
-                }
+        List<String> notifications = new ArrayList<>();
+        for (var entry : documents.entrySet()) {
+            String uri = entry.getKey();
+            String text = entry.getValue();
+            Exception error = fileErrors.get(uri);
 
-                if (line == 0) {
-                    int quoteStart = message.indexOf("'");
-                    int quoteEnd = message.indexOf("'", quoteStart + 1);
-                    if (quoteStart >= 0 && quoteEnd > quoteStart) {
-                        String searchTerm = message.substring(quoteStart + 1, quoteEnd).split("\\s+")[0];
-                        int[] location = findInSource(text, searchTerm);
-                        if (location[0] > 0) {
-                            line = location[0] - 1;
-                            character = location[1];
+            if (error != null) {
+                notifications.add(createDiagnosticsForError(uri, text, error));
+            } else {
+                notifications.add(createDiagnosticsNotification(uri, List.of()));
+            }
+        }
+        return notifications;
+    }
+
+    /**
+     * Create a diagnostics notification for a single error in a file.
+     */
+    private String createDiagnosticsForError(String uri, String text, Exception e) {
+        String message = e.getMessage();
+        int line = 0;
+        int character = 0;
+
+        if (message != null) {
+            int lineIdx = message.indexOf("line ");
+            if (lineIdx >= 0) {
+                try {
+                    int start = lineIdx + 5;
+                    int end = start;
+                    while (end < message.length() && Character.isDigit(message.charAt(end))) end++;
+                    if (end > start) {
+                        line = Integer.parseInt(message.substring(start, end)) - 1;
+                        if (end < message.length() && message.charAt(end) == ':') {
+                            int colStart = end + 1;
+                            int colEnd = colStart;
+                            while (colEnd < message.length() && Character.isDigit(message.charAt(colEnd))) colEnd++;
+                            if (colEnd > colStart) character = Integer.parseInt(message.substring(colStart, colEnd));
                         }
+                    }
+                } catch (NumberFormatException ignored) { }
+            }
+
+            if (line == 0) {
+                int quoteStart = message.indexOf("'");
+                int quoteEnd = message.indexOf("'", quoteStart + 1);
+                if (quoteStart >= 0 && quoteEnd > quoteStart) {
+                    String searchTerm = message.substring(quoteStart + 1, quoteEnd).split("\\s+")[0];
+                    int[] location = findInSource(text, searchTerm);
+                    if (location[0] > 0) {
+                        line = location[0] - 1;
+                        character = location[1];
                     }
                 }
             }
-
-            Map<String, Object> diagnostic = new LinkedHashMap<>();
-            Map<String, Object> range = new LinkedHashMap<>();
-            Map<String, Object> startPos = new LinkedHashMap<>();
-            startPos.put("line", line);
-            startPos.put("character", character);
-            Map<String, Object> endPos = new LinkedHashMap<>();
-            endPos.put("line", line);
-            endPos.put("character", character + 20);
-            range.put("start", startPos);
-            range.put("end", endPos);
-            diagnostic.put("range", range);
-            diagnostic.put("severity", 1);
-            diagnostic.put("source", "legend-lite");
-            diagnostic.put("message", message != null ? message : "Compilation error");
-            diagnostics.add(diagnostic);
         }
 
-        return createDiagnosticsNotification(uri, diagnostics);
+        Map<String, Object> diagnostic = new LinkedHashMap<>();
+        Map<String, Object> range = new LinkedHashMap<>();
+        Map<String, Object> startPos = new LinkedHashMap<>();
+        startPos.put("line", line);
+        startPos.put("character", character);
+        Map<String, Object> endPos = new LinkedHashMap<>();
+        endPos.put("line", line);
+        endPos.put("character", character + 20);
+        range.put("start", startPos);
+        range.put("end", endPos);
+        diagnostic.put("range", range);
+        diagnostic.put("severity", 1);
+        diagnostic.put("source", "legend-lite");
+        diagnostic.put("message", message != null ? message : "Compilation error");
+
+        return createDiagnosticsNotification(uri, List.of(diagnostic));
     }
 
     private int[] findInSource(String source, String searchTerm) {
