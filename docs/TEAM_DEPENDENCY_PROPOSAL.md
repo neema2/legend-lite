@@ -647,6 +647,153 @@ for (var entry : documents.entrySet())
 
 ---
 
+## Breaking Change Workflow
+
+How breaking changes are detected, gated, and coordinated across teams.
+
+### Publish-Time Gate (First Line of Defense)
+
+When a team publishes, `legend publish --check-compat` compares the new artifact's shapes against the previous version:
+
+```bash
+$ legend publish --check-compat
+Comparing com.gs.refdata@2.0 vs @1.5...
+  ❌ BREAKING: Removed refdata::Sector.code (String[1])
+  ✅ Compatible: Added refdata::Sector.region (String[0..1])
+
+Publish blocked. Use --breaking to force.
+```
+
+A non-breaking publish (add optional property, add new class, add enum value) goes through automatically. A breaking change requires `--breaking` — an explicit acknowledgment.
+
+### Wavefront CI Gate (Second Line of Defense)
+
+Publishing a breaking artifact does NOT update the wavefront. The artifact lands in the monorepo, but CI must validate the full dependency graph before the wavefront advances:
+
+```
+1. Team A publishes refdata@2.0 (removed Sector.code)
+   → CI loads ALL latest artifacts
+   → Checks every consumer's usedSymbols against refdata@2.0:
+     - com.gs.products@3.2: usedSymbols.refdata = {Sector.name, Sector.code}
+       → Sector.code NOT in refdata@2.0 → ❌ FAIL
+     - com.gs.risk@2.0: usedSymbols.refdata = {Sector.name}
+       → Sector.name in refdata@2.0 → ✅ PASS
+   → Wavefront NOT updated. PR stays open.
+   → CI comment: "Blocked: com.gs.products@3.2 uses Sector.code"
+```
+
+Everyone on the existing wavefront (refdata@1.5) keeps working. Nothing breaks.
+
+### Cross-Team Coordination: Gated Merge Queue
+
+Individual teams submit PRs independently to the artifact monorepo. The wavefront advances only when the **combined set of all pending PRs** passes validation:
+
+```
+Timeline:
+
+  Day 1: Team A opens PR #101 — adds refdata/2.0.0.legend
+    → CI validates: products@3.2 fails (uses Sector.code)
+    → PR #101 stays open, wavefront stays at refdata@1.5
+    → CI posts: "Blocked: com.gs.products uses refdata::Sector.code"
+
+  Day 2: Team B opens PR #102 — adds products/3.3.0.legend
+    → CI validates PR #102 alone: products@3.3 compiles fine
+       (products@3.3 was compiled against refdata@1.5, still valid)
+    → CI detects #101 + #102 both open, affect same dep chain
+    → Runs combined validation: refdata@2.0 + products@3.3 + risk@2.0
+    → ALL pass ✅
+    → Both PRs auto-merge, wavefront advances to refdata@2.0 + products@3.3
+```
+
+Teams never need to co-author a single PR. Each team publishes from their own source repo on their own schedule. CI finds the valid combined set.
+
+### Pre-Publish Impact Analysis
+
+Before publishing a breaking change, teams can check who will be affected:
+
+```bash
+$ legend impact --breaking
+Scanning wavefront for consumers of refdata::Sector.code...
+
+  ❌ com.gs.products@3.2
+     usedSymbols.com.gs.refdata.classProperties:
+       refdata::Sector → [name, code]  ← uses 'code'
+
+  ✅ com.gs.risk@2.0
+     usedSymbols.com.gs.refdata.classProperties:
+       refdata::Sector → [name]  ← does NOT use 'code'
+
+  ✅ com.gs.trading@1.0
+     No direct dependency on com.gs.refdata
+
+→ 1 consumer needs update before wavefront can advance.
+  Contact: com.gs.products (Team B)
+```
+
+This is a local query over existing artifact data — reads each consumer's `usedSymbols` and checks whether the removed symbols appear. No compilation needed.
+
+### CI Pipeline for Artifact Monorepo
+
+```yaml
+# .github/workflows/validate.yml (artifact monorepo)
+on:
+  pull_request:
+    paths: ['*/*.legend', 'wavefront.yaml']
+
+jobs:
+  validate:
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main }
+
+      # Overlay all open PRs targeting main
+      - name: Collect pending artifacts
+        run: |
+          for pr in $(gh pr list --json number -q '.[].number'); do
+            gh pr checkout $pr --detach
+            cp -r */*.legend /tmp/pending/
+          done
+          cp /tmp/pending/*/*.legend .
+
+      # Validate combined set
+      - name: Wavefront validation
+        run: legend wavefront validate --all
+
+      # Report per-PR: which PRs can merge alone, which need companions
+      - name: Report
+        run: legend wavefront report --post-to-prs
+```
+
+### Staged Rollout (Alternative to Coordinated Merge)
+
+If Team B can't update quickly, Team A can do a backward-compatible staged rollout:
+
+```
+Phase 1: Add Sector.codeV2 alongside Sector.code
+  → Backward compatible (additive) → wavefront advances immediately
+
+Phase 2: Team B migrates from code → codeV2 at their own pace
+  → Each consumer publishes when ready → wavefront advances each time
+
+Phase 3: Team A removes Sector.code
+  → No consumer uses it anymore (all usedSymbols updated)
+  → Wavefront advances
+```
+
+This is the deprecation pattern — it never blocks anyone at any stage.
+
+### Summary: Three Layers of Breaking Change Protection
+
+| Layer | When | What it does | Who sees it |
+|---|---|---|---|
+| `legend publish --check-compat` | Before publish | Compares shapes, flags removals/renames | Publishing team |
+| `legend impact --breaking` | Before publish | Reports all affected consumers by symbol | Publishing team |
+| Wavefront CI validation | On PR to artifact monorepo | Validates full graph, gates merge | All teams (via CI comments) |
+
+The wavefront **never advances unless the full graph compiles**. Breaking changes don't break anyone — they queue until resolved.
+
+---
+
 ## Implementation Plan
 
 ### Step 1: Parse Cache ✅ DONE
