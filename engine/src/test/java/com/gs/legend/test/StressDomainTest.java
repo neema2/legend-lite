@@ -68,11 +68,18 @@ class StressDomainTest {
         System.out.println("Pure source size: " + (model.length() / 1024) + " KB");
         System.out.println("Phase 0 (load files): " + loadMs + " ms");
 
-        // ---- Phase 1: Parse + build model ----
+        // ---- Phase 1: Parse + build model (cold — first parse) ----
         long t1 = System.nanoTime();
         var builder = new com.gs.legend.model.PureModelBuilder().addSource(model);
         long buildMs = (System.nanoTime() - t1) / 1_000_000;
-        System.out.println("Phase 1 (parse + build model): " + buildMs + " ms");
+        System.out.println("Phase 1 (parse + build model, cold): " + buildMs + " ms");
+
+        // ---- Phase 1b: Rebuild from same source (warm — ParseCache hit) ----
+        long t1b = System.nanoTime();
+        var builder2 = new com.gs.legend.model.PureModelBuilder().addSource(model);
+        long rebuildMs = (System.nanoTime() - t1b) / 1_000_000;
+        System.out.println("Phase 1b (rebuild same source, cache hit): " + rebuildMs + " ms"
+                + " (speedup: " + (buildMs > 0 ? buildMs + "/" + rebuildMs + " = " + (buildMs / Math.max(rebuildMs, 1)) + "x" : "N/A") + ")");
 
         // ---- Phase 2: Normalize all 20 mappings ----
         long t2 = System.nanoTime();

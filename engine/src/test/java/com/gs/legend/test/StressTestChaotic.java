@@ -310,11 +310,40 @@ class StressTestChaotic {
         System.out.println("Pure source size: " + (model.length() / 1024) + " KB");
         System.out.println("Phase 0 (generate source): " + genMs + " ms");
 
-        // ---- Phase 1: Parse + build ----
-        long t1 = System.nanoTime();
+        // ---- Profile: isolate parse vs build ----
+        com.gs.legend.model.ParseCache.global().clear();
+
+        // Cold parse only (no model building)
+        long pCold0 = System.nanoTime();
+        var coldParsed = com.gs.legend.model.ParseCache.global().getOrParse(model);
+        long coldParseMs = (System.nanoTime() - pCold0) / 1_000_000;
+
+        // Warm parse only (cache hit, no model building)
+        long pWarm0 = System.nanoTime();
+        var warmParsed = com.gs.legend.model.ParseCache.global().getOrParse(model);
+        long warmParseMs = (System.nanoTime() - pWarm0) / 1_000_000;
+
+        System.out.println("\n--- PARSE PROFILING ---");
+        System.out.println("Parse only (cold):  " + coldParseMs + " ms  (" + coldParsed.definitions().size() + " definitions)");
+        System.out.println("Parse only (warm):  " + warmParseMs + " ms  (cache hit: " + (coldParsed == warmParsed) + ")");
+
+        // Full addSource: cold (cache already warm, so parse is free — measures pure build cost)
+        com.gs.legend.model.ParseCache.global().clear();
+        long t1cold = System.nanoTime();
         var builder = new com.gs.legend.model.PureModelBuilder().addSource(model);
-        long buildMs = (System.nanoTime() - t1) / 1_000_000;
-        System.out.println("Phase 1 (parse + build model): " + buildMs + " ms");
+        long coldTotalMs = (System.nanoTime() - t1cold) / 1_000_000;
+
+        // Full addSource: warm (cache hit from above cold run)
+        long t1warm = System.nanoTime();
+        new com.gs.legend.model.PureModelBuilder().addSource(model);
+        long warmTotalMs = (System.nanoTime() - t1warm) / 1_000_000;
+
+        System.out.println("\n--- FULL addSource PROFILING ---");
+        System.out.println("addSource (cold = parse + build): " + coldTotalMs + " ms");
+        System.out.println("addSource (warm = cache + build):  " + warmTotalMs + " ms");
+        System.out.println("Implied parse cost:  " + (coldTotalMs - warmTotalMs) + " ms");
+        System.out.println("Implied build cost:  " + warmTotalMs + " ms");
+        System.out.println("Parse fraction:      " + (coldTotalMs > 0 ? (100 * (coldTotalMs - warmTotalMs) / coldTotalMs) + "%" : "N/A"));
 
         // ---- Phase 2: Normalize ----
         long t2 = System.nanoTime();

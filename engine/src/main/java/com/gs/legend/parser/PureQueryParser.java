@@ -105,10 +105,6 @@ public final class PureQueryParser {
         return pos < tokenCount ? lexer.tokenStart(pos) : source.length();
     }
 
-    private int tokenEnd() {
-        return pos < tokenCount ? lexer.tokenEnd(pos) : source.length();
-    }
-
     private void error(String msg) {
         throw new PureParseException(msg);
     }
@@ -765,14 +761,14 @@ public final class PureQueryParser {
                     fn1 = (LambdaFunction) parseAnyLambda();
                 } else {
                     // type annotation: Type multiplicity?
-                    String typeName = parseTypeText();
+                    parseTypeText();
                     if (check(TokenType.BRACKET_OPEN)) {
                         parseMultiplicityText();
                     }
                 }
             } else {
                 // type annotation starting with ( for relationType or { for functionType
-                String typeName = parseTypeText();
+                parseTypeText();
                 if (check(TokenType.BRACKET_OPEN)) {
                     parseMultiplicityText();
                 }
