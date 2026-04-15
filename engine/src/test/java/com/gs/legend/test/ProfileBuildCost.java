@@ -119,10 +119,10 @@ class ProfileBuildCost {
         for (int i = 0; i < n; i++) {
             int target = StressTestChaotic.hash(i * 97 + 53) % n;
             if (target == i) target = (target + 1) % n;
-            sb.append("    test::L").append(i).append(": AssociationMapping (\n");
+            sb.append("    test::L").append(i).append(": Relational { AssociationMapping (\n");
             sb.append("        to").append(i).append(": [store::DB]@JL").append(i).append(",\n");
             sb.append("        from").append(i).append(": [store::DB]@JL").append(i).append("\n");
-            sb.append("    )\n");
+            sb.append("    ) }\n");
         }
         sb.append(")\n");
 

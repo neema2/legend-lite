@@ -668,7 +668,10 @@ treePathPropertyParameterType:                  type multiplicity
 mapping:                                        MAPPING qualifiedName
                                                     PAREN_OPEN
                                                         (includeMapping)*
-                                                        (classMappingElement | associationMappingElement | enumerationMappingElement)*
+                                                        // NOTE: associationMappingElement must come before classMappingElement
+                                                        // because both start with qualifiedName COLON RELATIONAL BRACE_OPEN
+                                                        // (matches legend-engine's RelationalParserGrammar ordering)
+                                                        (associationMappingElement | classMappingElement | enumerationMappingElement)*
                                                         (mappingTestableDefinition)?
                                                     PAREN_CLOSE
 ;
@@ -809,10 +812,13 @@ pureM2MPropertyMapping:                         identifier COLON combinedExpress
 ;
 
 // ------------------------------ ASSOCIATION MAPPING ------------------------------
-associationMappingElement:                      qualifiedName COLON ASSOCIATION_MAPPING
-                                                    PAREN_OPEN
-                                                        (associationPropertyMapping (COMMA associationPropertyMapping)*)?
-                                                    PAREN_CLOSE
+associationMappingElement:                      qualifiedName COLON RELATIONAL
+                                                    BRACE_OPEN
+                                                        ASSOCIATION_MAPPING
+                                                        PAREN_OPEN
+                                                            (associationPropertyMapping (COMMA associationPropertyMapping)*)?
+                                                        PAREN_CLOSE
+                                                    BRACE_CLOSE
 ;
 associationPropertyMapping:                     identifier (sourceAndTargetMappingId)? COLON databasePointer? mappingJoinSequence
 ;

@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  * @param enumMapping      Map from enum value name to list of db values (null
  *                         if not enum)
  * @param enumType         The enum type name (null if not enum)
- * @param joinChain        Ordered list of join names to traverse (null for local column mappings).
+ * @param joinChain        Ordered list of resolved Join objects to traverse (null for local column mappings).
  *                         When present, columnName is the terminal column on the final joined table.
  * @param dynaExpression   Pre-compiled DynaFunction expression (null for simple column/expression mappings).
  *                         When present, the expression is a ValueSpecification AST tree that PlanGenerator
@@ -39,9 +39,9 @@ public record PropertyMapping(
         String expressionString,
         Map<String, List<Object>> enumMapping,
         String enumType,
-        List<String> joinChain,
+        List<Join> joinChain,
         ValueSpecification dynaExpression,
-        List<List<String>> multiJoinChains) {
+        List<List<Join>> multiJoinChains) {
     public PropertyMapping {
         Objects.requireNonNull(propertyName, "Property name cannot be null");
         Objects.requireNonNull(columnName, "Column name cannot be null");
@@ -101,11 +101,11 @@ public record PropertyMapping(
      *
      * @param propertyName The property name
      * @param columnName   The terminal column name on the final joined table
-     * @param joinNames    Ordered list of join names to traverse
+     * @param joins        Ordered list of resolved Join objects to traverse
      */
     public static PropertyMapping joinChain(String propertyName, String columnName,
-            List<String> joinNames) {
-        return new PropertyMapping(propertyName, columnName, null, null, null, joinNames, null, null);
+            List<Join> joins) {
+        return new PropertyMapping(propertyName, columnName, null, null, null, joins, null, null);
     }
 
     /**
@@ -126,11 +126,11 @@ public record PropertyMapping(
      *
      * @param propertyName The property name
      * @param expr         Pre-compiled ValueSpecification expression tree (uses $src/$tgt references)
-     * @param joinNames    Ordered list of join names to traverse
+     * @param joins        Ordered list of resolved Join objects to traverse
      */
     public static PropertyMapping dynaFunctionWithJoin(String propertyName, ValueSpecification expr,
-            List<String> joinNames) {
-        return new PropertyMapping(propertyName, propertyName, null, null, null, joinNames, expr, null);
+            List<Join> joins) {
+        return new PropertyMapping(propertyName, propertyName, null, null, null, joins, expr, null);
     }
 
     /**
@@ -139,7 +139,7 @@ public record PropertyMapping(
      * Pure syntax: {@code prop: concat(@J1|T1.COL, ' ', @J2|T2.COL)}
      */
     public static PropertyMapping dynaFunctionWithMultiJoin(String propertyName,
-            ValueSpecification expr, List<List<String>> joinChains) {
+            ValueSpecification expr, List<List<Join>> joinChains) {
         return new PropertyMapping(propertyName, propertyName, null, null, null,
                 null, expr, List.copyOf(joinChains));
     }

@@ -131,6 +131,9 @@ public abstract class AbstractDatabaseTest {
                     street: [PersonDatabase] T_ADDRESS.STREET,
                     city: [PersonDatabase] T_ADDRESS.CITY
                 }
+
+                model::Person_Address: Relational { AssociationMapping ( person: [store::PersonDatabase]@Person_Address, addresses: [store::PersonDatabase]@Person_Address ) }
+                model::Person_PrimaryAddress: Relational { AssociationMapping ( personPrimary: [store::PersonDatabase]@Person_PrimaryAddress, primaryAddress: [store::PersonDatabase]@Person_PrimaryAddress ) }
             )
             """;
 

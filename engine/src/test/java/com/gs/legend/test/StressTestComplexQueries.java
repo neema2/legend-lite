@@ -193,30 +193,30 @@ class StressTestComplexQueries {
 
         // Hub ring association mappings
         for (int h = 0; h < HUBS; h++) {
-            sb.append("    test::HubRing").append(h).append(": AssociationMapping (\n");
+            sb.append("    test::HubRing").append(h).append(": Relational { AssociationMapping (\n");
             sb.append("        nextHub").append(h).append(": [store::DB]@JHubRing").append(h).append(",\n");
             sb.append("        prevHub").append(h).append(": [store::DB]@JHubRing").append(h).append("\n");
-            sb.append("    )\n");
+            sb.append("    ) }\n");
         }
 
         // Skip-link association mappings
         for (int h = 0; h < HUBS; h++) {
             for (int si = 0; si < SKIP_OFFSETS.length; si++) {
-                sb.append("    test::HubLink").append(h).append("_").append(si).append(": AssociationMapping (\n");
+                sb.append("    test::HubLink").append(h).append("_").append(si).append(": Relational { AssociationMapping (\n");
                 sb.append("        link").append(h).append("_").append(si)
                   .append(": [store::DB]@JLink").append(h).append("_").append(si).append(",\n");
                 sb.append("        back").append(h).append("_").append(si)
                   .append(": [store::DB]@JLink").append(h).append("_").append(si).append("\n");
-                sb.append("    )\n");
+                sb.append("    ) }\n");
             }
         }
 
         // Satellite→Hub association mappings
         for (int s = 0; s < SATS; s++) {
-            sb.append("    test::SatHub").append(s).append(": AssociationMapping (\n");
+            sb.append("    test::SatHub").append(s).append(": Relational { AssociationMapping (\n");
             sb.append("        hub").append(s).append(": [store::DB]@JSat").append(s).append(",\n");
             sb.append("        sat").append(s).append(": [store::DB]@JSat").append(s).append("\n");
-            sb.append("    )\n");
+            sb.append("    ) }\n");
         }
 
         sb.append(")\n");

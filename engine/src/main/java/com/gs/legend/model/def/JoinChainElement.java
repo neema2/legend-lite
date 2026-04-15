@@ -7,8 +7,8 @@ import java.util.Objects;
  * 
  * Pure syntax examples:
  * <pre>
- * @JoinName                          → JoinChainElement("JoinName", null, null, false)
- * (INNER) @JoinName                  → JoinChainElement("JoinName", "INNER", null, false)
+ * @JoinName                          → JoinChainElement("JoinName", null, "parentDB", false)
+ * (INNER) @JoinName                  → JoinChainElement("JoinName", "INNER", "parentDB", false)
  * (LEFT_OUTER) [DB2]@JoinName        → JoinChainElement("JoinName", "LEFT_OUTER", "DB2", false)
  * </pre>
  * 
@@ -17,7 +17,7 @@ import java.util.Objects;
  * 
  * @param joinName     The join name
  * @param joinType     The join type ("INNER", "LEFT_OUTER", "RIGHT_OUTER", "OUTER") or null for default
- * @param databaseName The database name override for this hop, or null to use the parent's database
+ * @param databaseName The database name for this hop (never null — stamped by parser from parent context)
  * @param strict       If true, enforce 1-to-1 cardinality (future: use scalar subquery instead of LEFT OUTER JOIN)
  */
 public record JoinChainElement(
@@ -28,19 +28,13 @@ public record JoinChainElement(
 ) {
     public JoinChainElement {
         Objects.requireNonNull(joinName, "Join name cannot be null");
+        Objects.requireNonNull(databaseName, "Database name cannot be null");
     }
 
     /**
-     * Creates a simple join chain element with no join type or database override.
+     * Creates a simple join chain element with no join type.
      */
-    public static JoinChainElement of(String joinName) {
-        return new JoinChainElement(joinName, null, null, false);
-    }
-
-    /**
-     * Creates a join chain element with a specific join type.
-     */
-    public static JoinChainElement withType(String joinName, String joinType) {
-        return new JoinChainElement(joinName, joinType, null, false);
+    public static JoinChainElement of(String databaseName, String joinName) {
+        return new JoinChainElement(joinName, null, databaseName, false);
     }
 }

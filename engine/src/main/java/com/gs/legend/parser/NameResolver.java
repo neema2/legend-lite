@@ -222,26 +222,100 @@ public final class NameResolver {
         String resolvedSourceClassName = cm.sourceClassName() != null
                 ? imports.resolve(cm.sourceClassName(), knownFqns) : null;
 
-        if (resolvedClassName.equals(cm.className())
-                && java.util.Objects.equals(resolvedSourceClassName, cm.sourceClassName())) {
-            return cm;
-        }
+        // Resolve database names in mainTable, filter, and property mappings
+        var resolvedMainTable = resolveTableReference(cm.mainTable(), imports, knownFqns);
+        var resolvedFilter = resolveMappingFilter(cm.filter(), imports, knownFqns);
+        var resolvedPropertyMappings = cm.propertyMappings().stream()
+                .map(pm -> resolvePropertyMapping(pm, imports, knownFqns))
+                .toList();
 
         return new MappingDefinition.ClassMappingDefinition(
                 resolvedClassName, cm.mappingType(), cm.setId(), cm.isRoot(), cm.extendsSetId(),
-                cm.mainTable(), cm.filter(), cm.distinct(), cm.groupBy(), cm.primaryKey(),
-                cm.propertyMappings(), resolvedSourceClassName, cm.filterExpression(),
+                resolvedMainTable, resolvedFilter, cm.distinct(), cm.groupBy(), cm.primaryKey(),
+                resolvedPropertyMappings, resolvedSourceClassName, cm.filterExpression(),
                 cm.m2mPropertyExpressions());
+    }
+
+    // ==================== Database-Scoped Name Resolution ====================
+
+    private static MappingDefinition.TableReference resolveTableReference(
+            MappingDefinition.TableReference ref, ImportScope imports, Set<String> knownFqns) {
+        if (ref == null) return null;
+        String resolvedDb = imports.resolve(ref.databaseName(), knownFqns);
+        if (resolvedDb.equals(ref.databaseName())) return ref;
+        return new MappingDefinition.TableReference(resolvedDb, ref.tableName());
+    }
+
+    private static MappingDefinition.MappingFilter resolveMappingFilter(
+            MappingDefinition.MappingFilter filter, ImportScope imports, Set<String> knownFqns) {
+        if (filter == null) return null;
+        String resolvedDb = filter.databaseName() != null
+                ? imports.resolve(filter.databaseName(), knownFqns) : null;
+        var resolvedJoinPath = filter.joinPath().stream()
+                .map(jce -> resolveJoinChainElement(jce, imports, knownFqns))
+                .toList();
+        return new MappingDefinition.MappingFilter(resolvedDb, resolvedJoinPath, filter.filterName());
+    }
+
+    private static MappingDefinition.ColumnReference resolveColumnReference(
+            MappingDefinition.ColumnReference ref, ImportScope imports, Set<String> knownFqns) {
+        if (ref == null) return null;
+        String resolvedDb = imports.resolve(ref.databaseName(), knownFqns);
+        if (resolvedDb.equals(ref.databaseName())) return ref;
+        return new MappingDefinition.ColumnReference(resolvedDb, ref.tableName(), ref.columnName());
+    }
+
+    private static MappingDefinition.JoinReference resolveJoinReference(
+            MappingDefinition.JoinReference ref, ImportScope imports, Set<String> knownFqns) {
+        if (ref == null) return null;
+        String resolvedDb = ref.databaseName() != null
+                ? imports.resolve(ref.databaseName(), knownFqns) : null;
+        var resolvedChain = ref.joinChain().stream()
+                .map(jce -> resolveJoinChainElement(jce, imports, knownFqns))
+                .toList();
+        return new MappingDefinition.JoinReference(resolvedDb, resolvedChain, ref.terminalColumn());
+    }
+
+    private static JoinChainElement resolveJoinChainElement(
+            JoinChainElement jce, ImportScope imports, Set<String> knownFqns) {
+        // databaseName is never null — parser stamps parent DB on every hop
+        String resolvedDb = imports.resolve(jce.databaseName(), knownFqns);
+        if (resolvedDb.equals(jce.databaseName())) return jce;
+        return new JoinChainElement(jce.joinName(), jce.joinType(), resolvedDb, jce.strict());
+    }
+
+    private static MappingDefinition.PropertyMappingDefinition resolvePropertyMapping(
+            MappingDefinition.PropertyMappingDefinition pm, ImportScope imports, Set<String> knownFqns) {
+        var resolvedCol = resolveColumnReference(pm.columnReference(), imports, knownFqns);
+        var resolvedJoin = resolveJoinReference(pm.joinReference(), imports, knownFqns);
+        if (resolvedCol == pm.columnReference() && resolvedJoin == pm.joinReference()) return pm;
+        return new MappingDefinition.PropertyMappingDefinition(
+                pm.propertyName(), resolvedCol, resolvedJoin, pm.expressionString(),
+                pm.embeddedClassName(), pm.enumMappingId(), pm.mappingExpression(), pm.structuredValue());
     }
 
     private static AssociationMappingDefinition resolveAssociationMapping(
             AssociationMappingDefinition am, ImportScope imports, Set<String> knownFqns) {
 
         String resolvedAssocName = imports.resolve(am.associationName(), knownFqns);
-        if (resolvedAssocName.equals(am.associationName())) return am;
+
+        // Resolve database names in association property mapping join chains
+        var resolvedProps = am.properties().stream()
+                .map(prop -> {
+                    var resolvedChain = prop.joinChain().stream()
+                            .map(jce -> resolveJoinChainElement(jce, imports, knownFqns))
+                            .toList();
+                    if (resolvedChain.equals(prop.joinChain())) return prop;
+                    return new AssociationMappingDefinition.AssociationPropertyMapping(
+                            prop.propertyName(), prop.sourceSetId(), prop.targetSetId(),
+                            resolvedChain, prop.crossExpression());
+                })
+                .toList();
+
+        if (resolvedAssocName.equals(am.associationName()) && resolvedProps.equals(am.properties())) return am;
 
         return new AssociationMappingDefinition(
-                resolvedAssocName, am.mappingType(), am.properties());
+                resolvedAssocName, am.mappingType(), resolvedProps);
     }
 
     // ==================== Query AST Resolution ====================
@@ -280,6 +354,14 @@ public final class NameResolver {
             case AppliedFunction af -> {
                 String resolvedFunc = imports.resolve(af.function(), knownFqns);
                 List<ValueSpecification> resolvedParams = resolveList(af.parameters(), imports, knownFqns);
+                // tableReference(CString(db), CString(name)): resolve the db arg
+                if ("tableReference".equals(af.function()) && resolvedParams.size() == 2
+                        && resolvedParams.get(0) instanceof CString dbCs) {
+                    String resolvedDb = imports.resolve(dbCs.value(), knownFqns);
+                    if (!resolvedDb.equals(dbCs.value())) {
+                        resolvedParams = List.of(new CString(resolvedDb), resolvedParams.get(1));
+                    }
+                }
                 yield (resolvedFunc.equals(af.function()) && resolvedParams == af.parameters()) ? af
                         : new AppliedFunction(resolvedFunc, resolvedParams, af.hasReceiver(),
                                 af.sourceText(), af.argTexts());
@@ -327,4 +409,5 @@ public final class NameResolver {
         // ClassInstance values (ColSpecArray, ColSpec, etc.) contain no class names to resolve.
         return value;
     }
+
 }

@@ -64,4 +64,34 @@ Mapping products::ProductsMapping
         ~mainTable [store::DB] ETF
         etfId: [store::DB] ETF.ETF_ID, ticker: [store::DB] ETF.TICKER, fundName: [store::DB] ETF.FUND_NAME, assetClass: [store::DB] ETF.ASSET_CLASS, expenseRatio: [store::DB] ETF.EXPENSE_RATIO, totalAssets: [store::DB] ETF.TOTAL_ASSETS, nav: [store::DB] ETF.NAV, navDate: [store::DB] ETF.NAV_DATE, trackingError: [store::DB] ETF.TRACKING_ERROR, indexName: [store::DB] ETF.INDEX_NAME, isLeveraged: [store::DB] ETF.IS_LEVERAGED, leverageMultiple: [store::DB] ETF.LEVERAGE_MULTIPLE, dividendFrequency: [store::DB] ETF.DIVIDEND_FREQUENCY
     }
+    cross::Bond_Issuer: Relational {
+        AssociationMapping (
+            issuer: [store::DB] @Bond_Issuer,
+            bonds: [store::DB] @Bond_Issuer
+        )
+    }
+    cross::Instrument_Currency: Relational {
+        AssociationMapping (
+            instrumentCurrency: [store::DB] @Instrument_Currency,
+            instrumentsByCurrency: [store::DB] @Instrument_Currency
+        )
+    }
+    cross::Instrument_Exchange: Relational {
+        AssociationMapping (
+            exchange: [store::DB] @Instrument_Exchange,
+            listedInstruments: [store::DB] @Instrument_Exchange
+        )
+    }
+    cross::Instrument_Sector: Relational {
+        AssociationMapping (
+            sector: [store::DB] @Instrument_Sector,
+            instruments: [store::DB] @Instrument_Sector
+        )
+    }
+    products::Option_Underlying: Relational {
+        AssociationMapping (
+            underlying: [store::DB] @Option_Underlying,
+            options: [store::DB] @Option_Underlying
+        )
+    }
 )

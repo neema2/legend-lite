@@ -224,26 +224,26 @@ class StressTest {
 
         // Hub ring association mappings
         for (int h = 0; h < HUBS; h++) {
-            sb.append("    test::HubRing").append(h).append(": AssociationMapping (\n");
+            sb.append("    test::HubRing").append(h).append(": Relational { AssociationMapping (\n");
             sb.append("        nextHub").append(h).append(": [store::DB]@JHubRing").append(h).append(",\n");
             sb.append("        prevHub").append(h).append(": [store::DB]@JHubRing").append(h).append("\n");
-            sb.append("    )\n");
+            sb.append("    ) }\n");
         }
 
         // Cross-link association mappings
         for (int h = 0; h < HUBS; h += 10) {
-            sb.append("    test::HubCross").append(h).append(": AssociationMapping (\n");
+            sb.append("    test::HubCross").append(h).append(": Relational { AssociationMapping (\n");
             sb.append("        crossTo").append(h).append(": [store::DB]@JCross").append(h).append(",\n");
             sb.append("        crossFrom").append(h).append(": [store::DB]@JCross").append(h).append("\n");
-            sb.append("    )\n");
+            sb.append("    ) }\n");
         }
 
         // Satellite→Hub association mappings
         for (int s = 0; s < SATS; s++) {
-            sb.append("    test::SatHub").append(s).append(": AssociationMapping (\n");
+            sb.append("    test::SatHub").append(s).append(": Relational { AssociationMapping (\n");
             sb.append("        hub").append(s).append(": [store::DB]@JSat").append(s).append(",\n");
             sb.append("        sat").append(s).append(": [store::DB]@JSat").append(s).append("\n");
-            sb.append("    )\n");
+            sb.append("    ) }\n");
         }
 
         sb.append(")\n");

@@ -18,25 +18,36 @@ import java.util.Objects;
  * PlanGenerator uses {@code renderJoinCondition(join.condition(), tableToAlias)} to render
  * the full expression tree to SQL. No decomposition into left/right table/column is needed.
  * 
+ * @param db        The parent database FQN (e.g., "store::DB"). Never empty.
  * @param name      The join name
  * @param condition The full expression tree for the join condition
  */
 public record Join(
+        String db,
         String name,
         RelationalOperation condition
 ) {
     
     public Join {
+        Objects.requireNonNull(db, "Database FQN cannot be null");
+        if (db.isBlank()) throw new IllegalArgumentException("Database FQN cannot be blank");
         Objects.requireNonNull(name, "Join name cannot be null");
         Objects.requireNonNull(condition, "Join condition cannot be null");
     }
 
     /**
+     * @return The fully qualified name: db + "." + name. Used as SymbolTable key.
+     */
+    public String qualifiedName() {
+        return db + "." + name;
+    }
+
+    /**
      * Convenience constructor for simple equi-joins: builds {@code Comparison(ColumnRef, "=", ColumnRef)}.
      */
-    public Join(String name, String leftTable, String leftColumn,
+    public Join(String db, String name, String leftTable, String leftColumn,
                 String rightTable, String rightColumn) {
-        this(name, RelationalOperation.Comparison.eq(
+        this(db, name, RelationalOperation.Comparison.eq(
                 RelationalOperation.ColumnRef.of(leftTable, leftColumn),
                 RelationalOperation.ColumnRef.of(rightTable, rightColumn)));
     }
@@ -44,9 +55,9 @@ public record Join(
     /**
      * Convenience factory for simple equi-joins.
      */
-    public static Join of(String name, String leftTable, String leftColumn, 
+    public static Join of(String db, String name, String leftTable, String leftColumn, 
                           String rightTable, String rightColumn) {
-        return new Join(name, leftTable, leftColumn, rightTable, rightColumn);
+        return new Join(db, name, leftTable, leftColumn, rightTable, rightColumn);
     }
     
     @Override

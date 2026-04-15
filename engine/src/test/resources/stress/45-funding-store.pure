@@ -60,4 +60,40 @@ Mapping funding::FundingMapping
         ~mainTable [store::DB] CASH_FORECAST
         forecastId: [store::DB] CASH_FORECAST.FORECAST_ID, forecastDate: [store::DB] CASH_FORECAST.FORECAST_DATE, horizon: [store::DB] CASH_FORECAST.HORIZON, projectedInflows: [store::DB] CASH_FORECAST.PROJECTED_INFLOWS, projectedOutflows: [store::DB] CASH_FORECAST.PROJECTED_OUTFLOWS, netCashFlow: [store::DB] CASH_FORECAST.NET_CASH_FLOW, openingBalance: [store::DB] CASH_FORECAST.OPENING_BALANCE, closingBalance: [store::DB] CASH_FORECAST.CLOSING_BALANCE, currency: [store::DB] CASH_FORECAST.CURRENCY, confidence: [store::DB] CASH_FORECAST.CONFIDENCE, scenario: [store::DB] CASH_FORECAST.SCENARIO, lastUpdated: [store::DB] CASH_FORECAST.LAST_UPDATED
     }
+    cross::CashFlow_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @CashFlow_Book,
+            cashFlows: [store::DB] @CashFlow_Book
+        )
+    }
+    funding::CashFlow_FundingCost: Relational {
+        AssociationMapping (
+            cashFlow: [store::DB] @CashFlow_FundingCost,
+            fundingCosts: [store::DB] @CashFlow_FundingCost
+        )
+    }
+    funding::CashForecast_LiquidityPool: Relational {
+        AssociationMapping (
+            liquidityPool: [store::DB] @CashForecast_LiquidityPool,
+            forecasts: [store::DB] @CashForecast_LiquidityPool
+        )
+    }
+    funding::LiquidityPool_FundingRequirement: Relational {
+        AssociationMapping (
+            liquidityPool: [store::DB] @LiquidityPool_FundingRequirement,
+            requirements: [store::DB] @LiquidityPool_FundingRequirement
+        )
+    }
+    funding::RepoTrade_FundingRate: Relational {
+        AssociationMapping (
+            fundingRate: [store::DB] @RepoTrade_FundingRate,
+            repoTrades: [store::DB] @RepoTrade_FundingRate
+        )
+    }
+    funding::SecuritiesLoan_FundingRate: Relational {
+        AssociationMapping (
+            fundingRate: [store::DB] @SecuritiesLoan_FundingRate,
+            securitiesLoans: [store::DB] @SecuritiesLoan_FundingRate
+        )
+    }
 )

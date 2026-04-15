@@ -63,4 +63,64 @@ Mapping prime::PrimeMapping
         ~mainTable [store::DB] CLIENT_STATEMENT
         statementId: [store::DB] CLIENT_STATEMENT.STATEMENT_ID, statementDate: [store::DB] CLIENT_STATEMENT.STATEMENT_DATE, openingBalance: [store::DB] CLIENT_STATEMENT.OPENING_BALANCE, closingBalance: [store::DB] CLIENT_STATEMENT.CLOSING_BALANCE, totalDebits: [store::DB] CLIENT_STATEMENT.TOTAL_DEBITS, totalCredits: [store::DB] CLIENT_STATEMENT.TOTAL_CREDITS, financingCharges: [store::DB] CLIENT_STATEMENT.FINANCING_CHARGES, fees: [store::DB] CLIENT_STATEMENT.FEES, currency: [store::DB] CLIENT_STATEMENT.CURRENCY, period: [store::DB] CLIENT_STATEMENT.PERIOD, status: [store::DB] CLIENT_STATEMENT.STATUS, generatedDate: [store::DB] CLIENT_STATEMENT.GENERATED_DATE
     }
+    cross::PBAccount_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @PBAccount_Counterparty,
+            pbAccounts: [store::DB] @PBAccount_Counterparty
+        )
+    }
+    cross::SyntheticPosition_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @SyntheticPosition_Instrument,
+            syntheticPositions: [store::DB] @SyntheticPosition_Instrument
+        )
+    }
+    prime::PBAccount_ClientBalance: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_ClientBalance,
+            balances: [store::DB] @PBAccount_ClientBalance
+        )
+    }
+    prime::PBAccount_ClientStatement: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_ClientStatement,
+            statements: [store::DB] @PBAccount_ClientStatement
+        )
+    }
+    prime::PBAccount_FinancingRate: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_FinancingRate,
+            financingRates: [store::DB] @PBAccount_FinancingRate
+        )
+    }
+    prime::PBAccount_MarginRequirement: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_MarginRequirement,
+            marginRequirements: [store::DB] @PBAccount_MarginRequirement
+        )
+    }
+    prime::PBAccount_PortfolioSwap: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_PortfolioSwap,
+            portfolioSwaps: [store::DB] @PBAccount_PortfolioSwap
+        )
+    }
+    prime::PBAccount_ShortLocate: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_ShortLocate,
+            shortLocates: [store::DB] @PBAccount_ShortLocate
+        )
+    }
+    prime::PBAccount_SyntheticPosition: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_SyntheticPosition,
+            syntheticPositions: [store::DB] @PBAccount_SyntheticPosition
+        )
+    }
+    prime::SyntheticPosition_SwapFinancing: Relational {
+        AssociationMapping (
+            syntheticPosition: [store::DB] @SyntheticPosition_SwapFinancing,
+            financingEntries: [store::DB] @SyntheticPosition_SwapFinancing
+        )
+    }
 )

@@ -62,4 +62,64 @@ Mapping settlement::SettlementMapping
         ~mainTable [store::DB] SETTLEMENT_NETTING
         nettingId: [store::DB] SETTLEMENT_NETTING.NETTING_ID, nettingDate: [store::DB] SETTLEMENT_NETTING.NETTING_DATE, grossPayAmount: [store::DB] SETTLEMENT_NETTING.GROSS_PAY_AMOUNT, grossReceiveAmount: [store::DB] SETTLEMENT_NETTING.GROSS_RECEIVE_AMOUNT, netAmount: [store::DB] SETTLEMENT_NETTING.NET_AMOUNT, currency: [store::DB] SETTLEMENT_NETTING.CURRENCY, tradeCount: [store::DB] SETTLEMENT_NETTING.TRADE_COUNT, status: [store::DB] SETTLEMENT_NETTING.STATUS, isMultilateral: [store::DB] SETTLEMENT_NETTING.IS_MULTILATERAL, netDirection: [store::DB] SETTLEMENT_NETTING.NET_DIRECTION, savingsAmount: [store::DB] SETTLEMENT_NETTING.SAVINGS_AMOUNT
     }
+    cross::CorporateAction_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @CorporateAction_Instrument,
+            corporateActions: [store::DB] @CorporateAction_Instrument
+        )
+    }
+    cross::Settlement_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Settlement_Counterparty,
+            settlementsWithCpty: [store::DB] @Settlement_Counterparty
+        )
+    }
+    cross::Settlement_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @Settlement_Trade,
+            settlements: [store::DB] @Settlement_Trade
+        )
+    }
+    settlement::CashSettlement_NostroAccount: Relational {
+        AssociationMapping (
+            nostroAccount: [store::DB] @CashSettlement_NostroAccount,
+            cashSettlements: [store::DB] @CashSettlement_NostroAccount
+        )
+    }
+    settlement::CorporateAction_Election: Relational {
+        AssociationMapping (
+            corporateAction: [store::DB] @CorporateAction_Election,
+            elections: [store::DB] @CorporateAction_Election
+        )
+    }
+    settlement::Settlement_CashSettlement: Relational {
+        AssociationMapping (
+            settlement: [store::DB] @Settlement_CashSettlement,
+            cashSettlements: [store::DB] @Settlement_CashSettlement
+        )
+    }
+    settlement::Settlement_Instruction: Relational {
+        AssociationMapping (
+            settlement: [store::DB] @Settlement_Instruction,
+            instructions: [store::DB] @Settlement_Instruction
+        )
+    }
+    settlement::Settlement_Netting: Relational {
+        AssociationMapping (
+            netting: [store::DB] @Settlement_Netting,
+            settlements: [store::DB] @Settlement_Netting
+        )
+    }
+    settlement::Settlement_SecuritiesSettlement: Relational {
+        AssociationMapping (
+            settlement: [store::DB] @Settlement_SecuritiesSettlement,
+            securitiesSettlements: [store::DB] @Settlement_SecuritiesSettlement
+        )
+    }
+    settlement::Settlement_SettlementFail: Relational {
+        AssociationMapping (
+            settlement: [store::DB] @Settlement_SettlementFail,
+            fails: [store::DB] @Settlement_SettlementFail
+        )
+    }
 )

@@ -1084,6 +1084,14 @@ public class BuiltinFunctionRegistry {
                 "native function toVariant(source:Any[*]):Variant[1];");
 
         // ===== Data Access =====
+        // tableReference: synthetic — emitted by MappingNormalizer and #>{db.TABLE}# DSL
+        // Custom checker: TableReferenceChecker (resolves table, builds schema)
+        reg.registerSignature("tableReference",
+                "native function tableReference(db:String[1], name:String[1]):Relation<Any>[1];");
+        // tds: synthetic — emitted by parser for TDS literals
+        // Custom checker: TdsChecker (parses inline TDS, builds schema)
+        reg.registerSignature("tds",
+                "native function tds(tag:String[1], raw:String[1]):Relation<Any>[1];");
         // getAll: class-based data query — T from Class type argument
         reg.registerSignature("getAll",
                 "native function getAll<T>(class:Class<T>[1]):T[*];");

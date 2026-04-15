@@ -146,7 +146,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         assertNotNull(personClass);
         assertEquals("Person", personClass.name());
 
-        Table personTable = modelBuilder.getTable("T_PERSON");
+        Table personTable = modelBuilder.getTable("store::PersonDatabase", "T_PERSON");
         assertNotNull(personTable);
         assertEquals(5, personTable.columns().size());
 

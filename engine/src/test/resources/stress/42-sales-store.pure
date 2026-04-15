@@ -63,4 +63,70 @@ Mapping sales::SalesMapping
         ~mainTable [store::DB] CLIENT_ACTIVITY
         activityId: [store::DB] CLIENT_ACTIVITY.ACTIVITY_ID, activityDate: [store::DB] CLIENT_ACTIVITY.ACTIVITY_DATE, activityType: [store::DB] CLIENT_ACTIVITY.ACTIVITY_TYPE, tradeCount: [store::DB] CLIENT_ACTIVITY.TRADE_COUNT, tradeVolume: [store::DB] CLIENT_ACTIVITY.TRADE_VOLUME, revenue: [store::DB] CLIENT_ACTIVITY.REVENUE, commission: [store::DB] CLIENT_ACTIVITY.COMMISSION, productArea: [store::DB] CLIENT_ACTIVITY.PRODUCT_AREA, isActive: [store::DB] CLIENT_ACTIVITY.IS_ACTIVE, currency: [store::DB] CLIENT_ACTIVITY.CURRENCY, region: [store::DB] CLIENT_ACTIVITY.REGION
     }
+    cross::ClientCoverage_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @ClientCoverage_Counterparty,
+            coverages: [store::DB] @ClientCoverage_Counterparty
+        )
+    }
+    cross::SalesCredit_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @SalesCredit_Trade,
+            salesCredits: [store::DB] @SalesCredit_Trade
+        )
+    }
+    cross::SalesPerson_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @SalesPerson_Desk,
+            salesPeople: [store::DB] @SalesPerson_Desk
+        )
+    }
+    sales::ClientActivity_ClientCoverage: Relational {
+        AssociationMapping (
+            coverage: [store::DB] @ClientActivity_ClientCoverage,
+            activities: [store::DB] @ClientActivity_ClientCoverage
+        )
+    }
+    sales::SalesCredit_SalesPerson: Relational {
+        AssociationMapping (
+            salesPerson: [store::DB] @SalesCredit_SalesPerson,
+            salesCredits: [store::DB] @SalesCredit_SalesPerson
+        )
+    }
+    sales::SalesPerson_ClientCoverage: Relational {
+        AssociationMapping (
+            salesPerson: [store::DB] @SalesPerson_ClientCoverage,
+            coverages: [store::DB] @SalesPerson_ClientCoverage
+        )
+    }
+    sales::SalesPerson_ClientInteraction: Relational {
+        AssociationMapping (
+            salesPerson: [store::DB] @SalesPerson_ClientInteraction,
+            interactions: [store::DB] @SalesPerson_ClientInteraction
+        )
+    }
+    sales::SalesPerson_Commission: Relational {
+        AssociationMapping (
+            commissionStructure: [store::DB] @SalesPerson_Commission,
+            salesPeople: [store::DB] @SalesPerson_Commission
+        )
+    }
+    sales::SalesPerson_Pipeline: Relational {
+        AssociationMapping (
+            salesPerson: [store::DB] @SalesPerson_Pipeline,
+            pipelines: [store::DB] @SalesPerson_Pipeline
+        )
+    }
+    sales::SalesPerson_RevenueBudget: Relational {
+        AssociationMapping (
+            salesPerson: [store::DB] @SalesPerson_RevenueBudget,
+            budgets: [store::DB] @SalesPerson_RevenueBudget
+        )
+    }
+    sales::SalesPerson_Territory: Relational {
+        AssociationMapping (
+            territory: [store::DB] @SalesPerson_Territory,
+            salesPeople: [store::DB] @SalesPerson_Territory
+        )
+    }
 )

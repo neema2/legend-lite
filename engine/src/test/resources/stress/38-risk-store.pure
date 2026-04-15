@@ -60,4 +60,58 @@ Mapping risk::RiskMapping
         ~mainTable [store::DB] CONCENTRATION_RISK
         concentrationId: [store::DB] CONCENTRATION_RISK.CONCENTRATION_ID, calcDate: [store::DB] CONCENTRATION_RISK.CALC_DATE, dimensionType: [store::DB] CONCENTRATION_RISK.DIMENSION_TYPE, dimensionValue: [store::DB] CONCENTRATION_RISK.DIMENSION_VALUE, exposure: [store::DB] CONCENTRATION_RISK.EXPOSURE, exposurePct: [store::DB] CONCENTRATION_RISK.EXPOSURE_PCT, limit: [store::DB] CONCENTRATION_RISK.LIMIT, isBreached: [store::DB] CONCENTRATION_RISK.IS_BREACHED, currency: [store::DB] CONCENTRATION_RISK.CURRENCY, rank: [store::DB] CONCENTRATION_RISK.RANK, previousExposure: [store::DB] CONCENTRATION_RISK.PREVIOUS_EXPOSURE, changeAmount: [store::DB] CONCENTRATION_RISK.CHANGE_AMOUNT
     }
+    cross::Greeks_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Greeks_Instrument,
+            instrumentGreeks: [store::DB] @Greeks_Instrument
+        )
+    }
+    cross::Greeks_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @Greeks_Position,
+            greeks: [store::DB] @Greeks_Position
+        )
+    }
+    cross::RiskLimit_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @RiskLimit_Desk,
+            riskLimits: [store::DB] @RiskLimit_Desk
+        )
+    }
+    cross::VaRResult_Portfolio: Relational {
+        AssociationMapping (
+            portfolio: [store::DB] @VaRResult_Portfolio,
+            varResults: [store::DB] @VaRResult_Portfolio
+        )
+    }
+    risk::RiskFactor_SensitivityResult: Relational {
+        AssociationMapping (
+            riskFactor: [store::DB] @RiskFactor_SensitivityResult,
+            sensitivities: [store::DB] @RiskFactor_SensitivityResult
+        )
+    }
+    risk::RiskLimit_LimitBreach: Relational {
+        AssociationMapping (
+            riskLimit: [store::DB] @RiskLimit_LimitBreach,
+            breaches: [store::DB] @RiskLimit_LimitBreach
+        )
+    }
+    risk::StressScenario_StressResult: Relational {
+        AssociationMapping (
+            scenario: [store::DB] @StressScenario_StressResult,
+            results: [store::DB] @StressScenario_StressResult
+        )
+    }
+    risk::VaRResult_ConcentrationRisk: Relational {
+        AssociationMapping (
+            varResult: [store::DB] @VaRResult_ConcentrationRisk,
+            concentrations: [store::DB] @VaRResult_ConcentrationRisk
+        )
+    }
+    risk::VaRResult_ExposureSnapshot: Relational {
+        AssociationMapping (
+            varResult: [store::DB] @VaRResult_ExposureSnapshot,
+            exposureSnapshots: [store::DB] @VaRResult_ExposureSnapshot
+        )
+    }
 )

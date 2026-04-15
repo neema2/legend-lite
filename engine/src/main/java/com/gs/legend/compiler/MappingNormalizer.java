@@ -56,7 +56,7 @@ public final class MappingNormalizer {
         return new ModelContext() {
             @Override public java.util.Optional<com.gs.legend.model.m3.PureClass> findClass(String n) { return model.findClass(n); }
             @Override public java.util.Optional<AssociationNavigation> findAssociationByProperty(String c, String p) { return model.findAssociationByProperty(c, p); }
-            @Override public java.util.Optional<com.gs.legend.model.store.Table> findTable(String n) { return model.findTable(n); }
+            @Override public java.util.Optional<com.gs.legend.model.store.Table> findTable(String db, String name) { return model.findTable(db, name); }
             @Override public java.util.Optional<com.gs.legend.model.def.EnumDefinition> findEnum(String n) { return model.findEnum(n); }
             @Override public java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String c) { return model.findAllAssociationNavigations(c); }
             @Override public java.util.List<com.gs.legend.model.def.FunctionDefinition> findFunction(String n) { return model.findFunction(n); }
@@ -101,7 +101,7 @@ public final class MappingNormalizer {
                 // View macro: resolve PMs through the view once, store the resolved mapping.
                 // MappingResolver reads the resolved PMs — no second resolution needed.
                 var resolvedPMs = resolvePropertyMappingsThroughView(
-                        rm.propertyMappings(), rm.view(), rm.table().qualifiedName());
+                        rm.propertyMappings(), rm.view(), rm.table().dbName());
                 var resolved = rm.withPropertyMappings(resolvedPMs);
                 // View ~groupBy: resolve key columns to class property names
                 if (!rm.view().groupBy().isEmpty()) {
@@ -202,7 +202,7 @@ public final class MappingNormalizer {
             com.gs.legend.ast.ValueSpecification source,
             Map<Integer, ClassMapping> resolvedMappings) {
 
-        String sourceTable = rm.table().qualifiedName();
+        String sourceTable = rm.table().dbName();
 
         for (var navEntry : model.findAllAssociationNavigationsFull(className).entrySet()) {
             String propName = navEntry.getKey();
@@ -214,7 +214,7 @@ public final class MappingNormalizer {
             if (targetCm == null || targetCm.sourceTable() == null) continue;
 
             // Build traverse chain (supports self-joins via TargetColumnRef)
-            var traverseCall = buildTraverseChain(sourceTable, java.util.List.of(nav.join().name()));
+            var traverseCall = buildTraverseChain(sourceTable, java.util.List.of(nav.join()));
 
             // Wrap traverse in a 0-param lambda: fn1 = { -> traverse(...) }
             var fn1 = new com.gs.legend.ast.LambdaFunction(
@@ -297,18 +297,20 @@ public final class MappingNormalizer {
      *
      * <p>Canonical ordering:
      * <ol>
-     *   <li>tableReference("db.TABLE") — base table</li>
+     *   <li>tableReference(db, name) — base table</li>
      *   <li>→filter(lambda) — ~filter condition (if any)</li>
      *   <li>→join(...) — property mapping join chains (LEFT OUTER)</li>
      *   <li>→distinct() — ~distinct (if set)</li>
      * </ol>
      */
     private com.gs.legend.ast.ValueSpecification synthesizeSourceSpec(RelationalMapping rm) {
-        // 1. Base: tableReference("db.TABLE") or tableReference("schema.TABLE")
-        String tableName = rm.table().qualifiedName();
+        // 1. Base: tableReference(db, name) — looked up by TableReferenceChecker
+        String tableDb = rm.table().db();
+        // Bare SQL name for join condition table matching (join conditions use bare names)
+        String tableSqlName = rm.table().dbName();
         com.gs.legend.ast.ValueSpecification source = new com.gs.legend.ast.AppliedFunction(
                 "tableReference",
-                java.util.List.of(new com.gs.legend.ast.CString(tableName)),
+                java.util.List.of(new com.gs.legend.ast.CString(tableDb), new com.gs.legend.ast.CString(tableSqlName)),
                 false);
 
         // PMs are already view-resolved (Phase 1 macro expansion) — use directly.
@@ -333,7 +335,7 @@ public final class MappingNormalizer {
         }
 
         // 2. Mapping ~filter → ->filter({row | <condition>})
-        if (rm.filterName() != null) {
+        if (rm.filterFqn() != null) {
             var filterBody = resolveFilterCondition(rm);
             if (filterBody != null) {
                 var lambda = new com.gs.legend.ast.LambdaFunction(
@@ -347,7 +349,7 @@ public final class MappingNormalizer {
         }
 
         // 3. Property mapping join chains → ->extend(traverse(...), ~[prop:t|$t.COL])
-        source = addTraverseExtends(effectivePMs, tableName, source);
+        source = addTraverseExtends(effectivePMs, tableSqlName, source);
 
         // 3b. Multi-join DynaFunction mappings → ->extend(PureCollection[traverse1, traverse2], ~[prop:{src,t1,t2|expr}])
         source = addMultiTraverseExtends(rm, source);
@@ -440,7 +442,7 @@ public final class MappingNormalizer {
             com.gs.legend.ast.ValueSpecification source) {
 
         // Group join-chain properties by their full chain path
-        var chainGroups = new LinkedHashMap<java.util.List<String>,
+        var chainGroups = new LinkedHashMap<java.util.List<Join>,
                 java.util.List<com.gs.legend.model.store.PropertyMapping>>();
         for (var pm : propertyMappings) {
             if (!pm.hasJoinChain()) continue;
@@ -450,11 +452,11 @@ public final class MappingNormalizer {
         if (chainGroups.isEmpty()) return source;
 
         for (var entry : chainGroups.entrySet()) {
-            java.util.List<String> chainNames = entry.getKey();
+            java.util.List<Join> chainJoins = entry.getKey();
             var props = entry.getValue();
 
             // Build traverse chain
-            var traverseExpr = buildTraverseChain(mainTable, chainNames);
+            var traverseExpr = buildTraverseChain(mainTable, chainJoins);
 
             // Build colSpecs: ~[prop1:{src,tgt|$tgt.COL1}, prop2:{src,tgt|$tgt.COL2}]
             var srcVar = new com.gs.legend.ast.Variable("src");
@@ -504,7 +506,7 @@ public final class MappingNormalizer {
             RelationalMapping rm,
             com.gs.legend.ast.ValueSpecification source) {
 
-        String mainTable = rm.table().qualifiedName();
+        String mainTable = rm.table().dbName();
 
         for (var pm : rm.propertyMappings()) {
             if (!pm.hasMultiJoinChains()) continue;
@@ -605,7 +607,7 @@ public final class MappingNormalizer {
      *   <li>{@code FunctionCall/complex} → rewrite PM to dynaFunction</li>
      * </ul>
      */
-    static java.util.List<com.gs.legend.model.store.PropertyMapping> resolvePropertyMappingsThroughView(
+    private java.util.List<com.gs.legend.model.store.PropertyMapping> resolvePropertyMappingsThroughView(
             java.util.List<com.gs.legend.model.store.PropertyMapping> mappingPMs,
             com.gs.legend.model.store.View view,
             String mainTable) {
@@ -626,11 +628,10 @@ public final class MappingNormalizer {
                         result.add(com.gs.legend.model.store.PropertyMapping.column(propName, ref.column()));
 
                 case com.gs.legend.model.def.RelationalOperation.JoinNavigation nav -> {
-                    java.util.List<String> joinNames = nav.joinChain().stream()
-                            .map(com.gs.legend.model.def.JoinChainElement::joinName).toList();
+                    java.util.List<Join> resolvedJoins = resolveJoinChain(nav.joinChain());
                     if (nav.terminal() instanceof com.gs.legend.model.def.RelationalOperation.ColumnRef cr) {
                         result.add(com.gs.legend.model.store.PropertyMapping.joinChain(
-                                propName, cr.column(), joinNames));
+                                propName, cr.column(), resolvedJoins));
                     } else if (nav.terminal() != null) {
                         var terminalTables = RelationalMappingConverter.collectTableNames(nav.terminal());
                         String terminalTable = terminalTables.stream()
@@ -641,7 +642,7 @@ public final class MappingNormalizer {
                         tableToParam.put(terminalTable, "tgt");
                         var vsExpr = RelationalMappingConverter.convert(nav.terminal(), tableToParam);
                         result.add(com.gs.legend.model.store.PropertyMapping.dynaFunctionWithJoin(
-                                propName, vsExpr, joinNames));
+                                propName, vsExpr, resolvedJoins));
                     }
                 }
 
@@ -656,15 +657,14 @@ public final class MappingNormalizer {
                         var tableToParam = new java.util.HashMap<String, String>();
                         tableToParam.put(mainTable, "src");
                         tableToParam.put(terminalTable, "tgt");
-                        java.util.List<String> joinNames = nav.joinChain().stream()
-                                .map(com.gs.legend.model.def.JoinChainElement::joinName).toList();
+                        java.util.List<Join> resolvedJoins = resolveJoinChain(nav.joinChain());
                         var vsExpr = RelationalMappingConverter.convert(expr, tableToParam);
                         result.add(com.gs.legend.model.store.PropertyMapping.dynaFunctionWithJoin(
-                                propName, vsExpr, joinNames));
+                                propName, vsExpr, resolvedJoins));
                     } else if (joinNavs.size() >= 2) {
                         var tableToParam = new java.util.HashMap<String, String>();
                         tableToParam.put(mainTable, "src");
-                        var allJoinChains = new java.util.ArrayList<java.util.List<String>>();
+                        var allJoinChains = new java.util.ArrayList<java.util.List<Join>>();
                         for (int ji = 0; ji < joinNavs.size(); ji++) {
                             var nav = joinNavs.get(ji);
                             String paramName = "t" + (ji + 1);
@@ -673,8 +673,7 @@ public final class MappingNormalizer {
                                     .filter(t -> !t.equals(mainTable))
                                     .findFirst().orElse(termTables.iterator().next());
                             tableToParam.put(termTable, paramName);
-                            allJoinChains.add(nav.joinChain().stream()
-                                    .map(com.gs.legend.model.def.JoinChainElement::joinName).toList());
+                            allJoinChains.add(resolveJoinChain(nav.joinChain()));
                         }
                         var vsExpr = RelationalMappingConverter.convert(expr, tableToParam);
                         result.add(com.gs.legend.model.store.PropertyMapping.dynaFunctionWithMultiJoin(
@@ -839,6 +838,16 @@ public final class MappingNormalizer {
     }
 
     /**
+     * Resolves a list of JoinChainElements to Join objects via model lookup.
+     */
+    private java.util.List<Join> resolveJoinChain(java.util.List<com.gs.legend.model.def.JoinChainElement> chain) {
+        return chain.stream().map(jce -> model.findJoin(jce.databaseName(), jce.joinName())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Join not found: " + jce.databaseName() + "." + jce.joinName())))
+                .toList();
+    }
+
+    /**
      * Builds a traverse chain from join definitions:
      * {@code traverse(T_DEPT, {prev,hop|...})->traverse(T_ORG, {prev,hop|...})}
      *
@@ -846,16 +855,13 @@ public final class MappingNormalizer {
      * the full join condition to Pure AST, supporting complex conditions (multi-column, function-based, etc.).
      */
     private com.gs.legend.ast.ValueSpecification buildTraverseChain(
-            String startTable, java.util.List<String> joinNames) {
+            String startTable, java.util.List<Join> resolvedJoins) {
 
         String[] currentTableHolder = { startTable };
         com.gs.legend.ast.ValueSpecification traverseExpr = null;
 
-        for (String joinName : joinNames) {
+        for (Join join : resolvedJoins) {
             String curTable = currentTableHolder[0];
-            Join join = model.findJoin(joinName)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Join not found: " + joinName));
 
             // Find the target table. For self-joins (all table names == curTable),
             // target stays as curTable — TargetColumnRef disambiguates in the condition.
@@ -872,9 +878,10 @@ public final class MappingNormalizer {
             if (!targetTable.equals(curTable)) tableToParam.put(targetTable, "hop");
             var condBody = RelationalMappingConverter.convert(join.condition(), tableToParam, "hop");
 
+            // tableReference(db, name) — structured for model-world lookup
             var targetRef = new com.gs.legend.ast.AppliedFunction(
                     "tableReference",
-                    java.util.List.of(new com.gs.legend.ast.CString(targetTable)),
+                    java.util.List.of(new com.gs.legend.ast.CString(join.db()), new com.gs.legend.ast.CString(targetTable)),
                     false);
 
             var condLambda = new com.gs.legend.ast.LambdaFunction(
@@ -953,18 +960,10 @@ public final class MappingNormalizer {
      * Returns null if the filter is not found.
      */
     private com.gs.legend.ast.ValueSpecification resolveFilterCondition(RelationalMapping rm) {
-        Filter filter = null;
-        if (rm.filterDbName() != null) {
-            filter = model.getFilter(rm.filterDbName() + "." + rm.filterName()).orElse(null);
-        }
-        if (filter == null) {
-            filter = model.getFilter(rm.filterName()).orElse(null);
-        }
-        if (filter == null) {
-            throw new IllegalStateException(
-                    "Filter '" + rm.filterName() + "' not found for mapping of "
-                            + rm.pureClass().qualifiedName());
-        }
+        Filter filter = model.getFilter(rm.filterFqn())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Filter '" + rm.filterFqn() + "' not found for mapping of "
+                                + rm.pureClass().qualifiedName()));
         return RelationalMappingConverter.convert(filter.condition());
     }
 }

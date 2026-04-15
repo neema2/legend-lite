@@ -64,4 +64,76 @@ Mapping positions::PositionsMapping
         ~mainTable [store::DB] POSITION_SNAPSHOT
         snapshotId: [store::DB] POSITION_SNAPSHOT.SNAPSHOT_ID, snapshotDate: [store::DB] POSITION_SNAPSHOT.SNAPSHOT_DATE, snapshotTime: [store::DB] POSITION_SNAPSHOT.SNAPSHOT_TIME, quantity: [store::DB] POSITION_SNAPSHOT.QUANTITY, marketValue: [store::DB] POSITION_SNAPSHOT.MARKET_VALUE, unrealizedPnL: [store::DB] POSITION_SNAPSHOT.UNREALIZED_PN_L, costBasis: [store::DB] POSITION_SNAPSHOT.COST_BASIS, currency: [store::DB] POSITION_SNAPSHOT.CURRENCY, source: [store::DB] POSITION_SNAPSHOT.SOURCE, isEOD: [store::DB] POSITION_SNAPSHOT.IS_EOD, version: [store::DB] POSITION_SNAPSHOT.VERSION
     }
+    cross::Book_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @Book_Desk,
+            books: [store::DB] @Book_Desk
+        )
+    }
+    cross::Portfolio_PortfolioManager: Relational {
+        AssociationMapping (
+            manager: [store::DB] @Portfolio_PortfolioManager,
+            portfolios: [store::DB] @Portfolio_PortfolioManager
+        )
+    }
+    cross::Position_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Position_Instrument,
+            positions: [store::DB] @Position_Instrument
+        )
+    }
+    positions::BookTransfer_Book: Relational {
+        AssociationMapping (
+            sourceBook: [store::DB] @BookTransfer_Book,
+            outgoingTransfers: [store::DB] @BookTransfer_Book
+        )
+    }
+    positions::CashBalance_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @CashBalance_Book,
+            cashBalances: [store::DB] @CashBalance_Book
+        )
+    }
+    positions::Inventory_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Inventory_Book,
+            inventory: [store::DB] @Inventory_Book
+        )
+    }
+    positions::LotPosition_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @LotPosition_Position,
+            lots: [store::DB] @LotPosition_Position
+        )
+    }
+    positions::Portfolio_Position: Relational {
+        AssociationMapping (
+            portfolio: [store::DB] @Portfolio_Position,
+            positions: [store::DB] @Portfolio_Position
+        )
+    }
+    positions::PositionBreak_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @PositionBreak_Position,
+            breaks: [store::DB] @PositionBreak_Position
+        )
+    }
+    positions::PositionSnapshot_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @PositionSnapshot_Position,
+            snapshots: [store::DB] @PositionSnapshot_Position
+        )
+    }
+    positions::Position_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Position_Book,
+            positions: [store::DB] @Position_Book
+        )
+    }
+    positions::ReconciliationItem_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @ReconciliationItem_Position,
+            reconItems: [store::DB] @ReconciliationItem_Position
+        )
+    }
 )

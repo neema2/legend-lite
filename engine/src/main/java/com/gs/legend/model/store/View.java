@@ -22,6 +22,7 @@ import java.util.Optional;
  * )
  * </pre>
  * 
+ * @param db             The parent database FQN (e.g., "store::DB"). Never empty.
  * @param schema         The schema name (empty for default)
  * @param name           The view name
  * @param filterMapping  Optional filter condition (null if none)
@@ -30,6 +31,7 @@ import java.util.Optional;
  * @param columnMappings The view columns (name -> expression)
  */
 public record View(
+        String db,
         String schema,
         String name,
         RelationalOperation filterMapping,
@@ -38,6 +40,8 @@ public record View(
         List<ViewColumn> columnMappings
 ) {
     public View {
+        Objects.requireNonNull(db, "Database FQN cannot be null");
+        if (db.isBlank()) throw new IllegalArgumentException("Database FQN cannot be blank");
         Objects.requireNonNull(schema, "Schema cannot be null (use empty string for default)");
         Objects.requireNonNull(name, "View name cannot be null");
         groupBy = groupBy != null ? List.copyOf(groupBy) : List.of();
@@ -47,16 +51,23 @@ public record View(
     /**
      * Creates a view in the default schema.
      */
-    public View(String name, RelationalOperation filterMapping, List<RelationalOperation> groupBy,
+    public View(String db, String name, RelationalOperation filterMapping, List<RelationalOperation> groupBy,
                 boolean distinct, List<ViewColumn> columnMappings) {
-        this("", name, filterMapping, groupBy, distinct, columnMappings);
+        this(db, "", name, filterMapping, groupBy, distinct, columnMappings);
     }
 
     /**
-     * @return The fully qualified view name (schema.view or just view)
+     * @return The database-local name (schema.view or just view). Used in SQL.
+     */
+    public String dbName() {
+        return schema.isEmpty() ? name : schema + "." + name;
+    }
+
+    /**
+     * @return The fully qualified name: db + "." + dbName(). Used as SymbolTable key.
      */
     public String qualifiedName() {
-        return schema.isEmpty() ? name : schema + "." + name;
+        return db + "." + dbName();
     }
 
     /**

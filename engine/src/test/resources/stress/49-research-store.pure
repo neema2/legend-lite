@@ -63,4 +63,58 @@ Mapping research::ResearchMapping
         ~mainTable [store::DB] RESEARCH_NOTE
         noteId: [store::DB] RESEARCH_NOTE.NOTE_ID, noteDate: [store::DB] RESEARCH_NOTE.NOTE_DATE, noteType: [store::DB] RESEARCH_NOTE.NOTE_TYPE, subject: [store::DB] RESEARCH_NOTE.SUBJECT, content: [store::DB] RESEARCH_NOTE.CONTENT, isUrgent: [store::DB] RESEARCH_NOTE.IS_URGENT, sentiment: [store::DB] RESEARCH_NOTE.SENTIMENT, impactLevel: [store::DB] RESEARCH_NOTE.IMPACT_LEVEL, sector: [store::DB] RESEARCH_NOTE.SECTOR, region: [store::DB] RESEARCH_NOTE.REGION, isPublished: [store::DB] RESEARCH_NOTE.IS_PUBLISHED
     }
+    cross::AnalystRecommendation_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @AnalystRecommendation_Instrument,
+            recommendations: [store::DB] @AnalystRecommendation_Instrument
+        )
+    }
+    research::AnalystCoverage_ResearchNote: Relational {
+        AssociationMapping (
+            coverage: [store::DB] @AnalystCoverage_ResearchNote,
+            notes: [store::DB] @AnalystCoverage_ResearchNote
+        )
+    }
+    research::AnalystCoverage_ResearchReport: Relational {
+        AssociationMapping (
+            coverage: [store::DB] @AnalystCoverage_ResearchReport,
+            reports: [store::DB] @AnalystCoverage_ResearchReport
+        )
+    }
+    research::CompanyProfile_AnalystRecommendation: Relational {
+        AssociationMapping (
+            company: [store::DB] @CompanyProfile_AnalystRecommendation,
+            recommendations: [store::DB] @CompanyProfile_AnalystRecommendation
+        )
+    }
+    research::CompanyProfile_EarningsEstimate: Relational {
+        AssociationMapping (
+            company: [store::DB] @CompanyProfile_EarningsEstimate,
+            earningsEstimates: [store::DB] @CompanyProfile_EarningsEstimate
+        )
+    }
+    research::CompanyProfile_PeerComparison: Relational {
+        AssociationMapping (
+            company: [store::DB] @CompanyProfile_PeerComparison,
+            peerComparisons: [store::DB] @CompanyProfile_PeerComparison
+        )
+    }
+    research::CompanyProfile_TargetPrice: Relational {
+        AssociationMapping (
+            company: [store::DB] @CompanyProfile_TargetPrice,
+            targetPrices: [store::DB] @CompanyProfile_TargetPrice
+        )
+    }
+    research::ConsensusForecast_CompanyProfile: Relational {
+        AssociationMapping (
+            company: [store::DB] @ConsensusForecast_CompanyProfile,
+            consensusForecasts: [store::DB] @ConsensusForecast_CompanyProfile
+        )
+    }
+    research::SectorOutlook_CompanyProfile: Relational {
+        AssociationMapping (
+            sectorOutlook: [store::DB] @SectorOutlook_CompanyProfile,
+            companies: [store::DB] @SectorOutlook_CompanyProfile
+        )
+    }
 )

@@ -176,26 +176,22 @@ class AssociationIntegrationTest {
                         id: [store::DB] T_ADDRESS.ID,
                         city: [store::DB] T_ADDRESS.CITY
                     }
-                    test::PersonFirm: AssociationMapping
-                    (
+                    test::PersonFirm: Relational { AssociationMapping (
                         employees: [store::DB]@PersonFirm,
                         firm: [store::DB]@PersonFirm
-                    )
-                    test::PersonDept: AssociationMapping
-                    (
+                    ) }
+                    test::PersonDept: Relational { AssociationMapping (
                         members: [store::DB]@PersonDept,
                         dept: [store::DB]@PersonDept
-                    )
-                    test::PersonAddress: AssociationMapping
-                    (
+                    ) }
+                    test::PersonAddress: Relational { AssociationMapping (
                         person: [store::DB]@PersonAddress,
                         addresses: [store::DB]@PersonAddress
-                    )
-                    test::DeptOrg: AssociationMapping
-                    (
+                    ) }
+                    test::DeptOrg: Relational { AssociationMapping (
                         departments: [store::DB]@DeptOrg,
                         org: [store::DB]@DeptOrg
-                    )
+                    ) }
                 )
                 """, "store::DB", "test::M");
     }
@@ -353,8 +349,8 @@ class AssociationIntegrationTest {
                         Person: Relational { ~mainTable [store::DB] T_PERSON2 name: [store::DB] T_PERSON2.NAME }
                         Addr: Relational { ~mainTable [store::DB] T_ADDR city: [store::DB] T_ADDR.CITY }
                         Phone: Relational { ~mainTable [store::DB] T_PHONE number: [store::DB] T_PHONE.NUMBER }
-                        test::PersonAddr: AssociationMapping ( person: [store::DB]@PersonAddr, addresses: [store::DB]@PersonAddr )
-                        test::PersonPhone: AssociationMapping ( owner: [store::DB]@PersonPhone, phones: [store::DB]@PersonPhone )
+                        test::PersonAddr: Relational { AssociationMapping ( person: [store::DB]@PersonAddr, addresses: [store::DB]@PersonAddr ) }
+                        test::PersonPhone: Relational { AssociationMapping ( owner: [store::DB]@PersonPhone, phones: [store::DB]@PersonPhone ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -671,11 +667,10 @@ class AssociationIntegrationTest {
                             id: [store::DB] T_FIRM.ID,
                             legalName: [store::DB] T_FIRM.LEGAL_NAME
                         }
-                        test::PersonFirm: AssociationMapping
-                        (
+                        test::PersonFirm: Relational { AssociationMapping (
                             employees: [store::DB]@PersonFirm,
                             firm: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -717,11 +712,10 @@ class AssociationIntegrationTest {
                             id: [store::DB] T_FIRM.ID,
                             legalName: [store::DB] T_FIRM.LEGAL_NAME
                         }
-                        test::PersonFirm: AssociationMapping
-                        (
+                        test::PersonFirm: Relational { AssociationMapping (
                             employees: [store::DB]@PersonFirm,
                             firm: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -764,11 +758,10 @@ class AssociationIntegrationTest {
                             id: [store::DB] T_FIRM.ID,
                             legalName: [store::DB] T_FIRM.LEGAL_NAME
                         }
-                        test::PersonFirm: AssociationMapping
-                        (
+                        test::PersonFirm: Relational { AssociationMapping (
                             employees: [store::DB]@PersonFirm,
                             firm: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -841,11 +834,10 @@ class AssociationIntegrationTest {
                             ~mainTable [store::DB] T_TEAM
                             teamName: [store::DB] T_TEAM.TEAM_NAME
                         }
-                        test::EmpTeam: AssociationMapping
-                        (
+                        test::EmpTeam: Relational { AssociationMapping (
                             members: [store::DB]@EmpTeam,
                             team: [store::DB]@EmpTeam
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -892,11 +884,10 @@ class AssociationIntegrationTest {
                             ~mainTable [store::DB] T_CHILD
                             name: [store::DB] T_CHILD.NAME
                         }
-                        test::ParentChild: AssociationMapping
-                        (
+                        test::ParentChild: Relational { AssociationMapping (
                             parent: [store::DB]@ParentChild,
                             activeChildren: [store::DB]@ParentChild
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -938,7 +929,7 @@ class AssociationIntegrationTest {
                     (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Firm: Relational { ~mainTable [store::DB] T_FIRM legalName: [store::DB] T_FIRM.LEGAL_NAME }
-                        test::PersonFirm: AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm )
+                        test::PersonFirm: Relational { AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -984,7 +975,7 @@ class AssociationIntegrationTest {
                     (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Firm: Relational { ~mainTable [store::DB] T_FIRM legalName: [store::DB] T_FIRM.LEGAL_NAME }
-                        test::PersonFirm: AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm )
+                        test::PersonFirm: Relational { AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -1156,7 +1147,7 @@ class AssociationIntegrationTest {
                     (
                         Person: Relational { ~mainTable [store::DB] T_EMPTY_PERSON name: [store::DB] T_EMPTY_PERSON.NAME }
                         Firm: Relational { ~mainTable [store::DB] T_EMPTY_FIRM legalName: [store::DB] T_EMPTY_FIRM.LEGAL_NAME }
-                        test::PersonFirm: AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm )
+                        test::PersonFirm: Relational { AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -1269,7 +1260,7 @@ class AssociationIntegrationTest {
                     Mapping test::M
                     (
                         Emp: Relational { ~mainTable [store::DB] T_EMP2 name: [store::DB] T_EMP2.NAME }
-                        test::EmpManager: AssociationMapping ( manager: [store::DB]@EmpManager, reports: [store::DB]@EmpManager )
+                        test::EmpManager: Relational { AssociationMapping ( manager: [store::DB]@EmpManager, reports: [store::DB]@EmpManager ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -1304,7 +1295,7 @@ class AssociationIntegrationTest {
                     Mapping test::M
                     (
                         Emp: Relational { ~mainTable [store::DB] T_EMP3 name: [store::DB] T_EMP3.NAME }
-                        test::EmpManager: AssociationMapping ( manager: [store::DB]@EmpManager, reports: [store::DB]@EmpManager )
+                        test::EmpManager: Relational { AssociationMapping ( manager: [store::DB]@EmpManager, reports: [store::DB]@EmpManager ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -1359,11 +1350,10 @@ class AssociationIntegrationTest {
                             id: [store::DB] T_FIRM.ID,
                             legalName: [store::DB] T_FIRM.LEGAL_NAME
                         }
-                        test::PersonFirm: AssociationMapping
-                        (
+                        test::PersonFirm: Relational { AssociationMapping (
                             employees: [store::DB]@PersonFirm,
                             firm: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
         }
@@ -1520,11 +1510,10 @@ class AssociationIntegrationTest {
                             ~mainTable [store::DB] T_FIRM
                             legalName: [store::DB] T_FIRM.LEGAL_NAME
                         }
-                        test::PersonFirm: AssociationMapping
-                        (
+                        test::PersonFirm: Relational { AssociationMapping (
                             employees: [store::DB]@PersonFirm,
                             firm: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
         }
@@ -1637,11 +1626,10 @@ class AssociationIntegrationTest {
                             ~mainTable [store::DB] T_EMP
                             name: [store::DB] T_EMP.NAME
                         }
-                        test::EmpManager: AssociationMapping
-                        (
+                        test::EmpManager: Relational { AssociationMapping (
                             manager: [store::DB]@EmpManager,
                             reports: [store::DB]@EmpManager
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -1881,13 +1869,13 @@ class AssociationIntegrationTest {
                     Country: Relational { ~mainTable [store::DB] T_COUNTRY  id: [store::DB] T_COUNTRY.ID, name: [store::DB] T_COUNTRY.NAME }
                     Tag: Relational { ~mainTable [store::DB] T_TAG  id: [store::DB] T_TAG.ID, label: [store::DB] T_TAG.LABEL }
                     Phone: Relational { ~mainTable [store::DB] T_PHONE  id: [store::DB] T_PHONE.ID, number: [store::DB] T_PHONE.NUMBER }
-                    test::PersonFirm: AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm )
-                    test::PersonDept: AssociationMapping ( members: [store::DB]@PersonDept, dept: [store::DB]@PersonDept )
-                    test::PersonAddress: AssociationMapping ( person: [store::DB]@PersonAddress, addresses: [store::DB]@PersonAddress )
-                    test::DeptOrg: AssociationMapping ( departments: [store::DB]@DeptOrg, org: [store::DB]@DeptOrg )
-                    test::AddressCountry: AssociationMapping ( addressesInCountry: [store::DB]@AddressCountry, country: [store::DB]@AddressCountry )
-                    test::AddressTag: AssociationMapping ( address: [store::DB]@AddressTag, tags: [store::DB]@AddressTag )
-                    test::PersonPhone: AssociationMapping ( owner: [store::DB]@PersonPhone, phones: [store::DB]@PersonPhone )
+                    test::PersonFirm: Relational { AssociationMapping ( employees: [store::DB]@PersonFirm, firm: [store::DB]@PersonFirm ) }
+                    test::PersonDept: Relational { AssociationMapping ( members: [store::DB]@PersonDept, dept: [store::DB]@PersonDept ) }
+                    test::PersonAddress: Relational { AssociationMapping ( person: [store::DB]@PersonAddress, addresses: [store::DB]@PersonAddress ) }
+                    test::DeptOrg: Relational { AssociationMapping ( departments: [store::DB]@DeptOrg, org: [store::DB]@DeptOrg ) }
+                    test::AddressCountry: Relational { AssociationMapping ( addressesInCountry: [store::DB]@AddressCountry, country: [store::DB]@AddressCountry ) }
+                    test::AddressTag: Relational { AssociationMapping ( address: [store::DB]@AddressTag, tags: [store::DB]@AddressTag ) }
+                    test::PersonPhone: Relational { AssociationMapping ( owner: [store::DB]@PersonPhone, phones: [store::DB]@PersonPhone ) }
                 )
                 """, "store::DB", "test::M");
         }

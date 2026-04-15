@@ -255,7 +255,10 @@ class M2MChainIntegrationTest {
                     budget: [CompanyDB] T_PROJECT.BUDGET,
                     employee: [CompanyDB] @EmpProject
                 }
-            )
+            
+                model::EmpDept: Relational { AssociationMapping ( employees: [store::CompanyDB]@EmpDept, department: [store::CompanyDB]@EmpDept ) }
+                model::EmpProject: Relational { AssociationMapping ( employee: [store::CompanyDB]@EmpProject, projects: [store::CompanyDB]@EmpProject ) }
+)
 
             // ===== L1 M2M mappings =====
             Mapping model::StaffMemberMapping

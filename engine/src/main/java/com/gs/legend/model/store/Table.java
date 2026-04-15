@@ -7,16 +7,20 @@ import java.util.Optional;
 /**
  * Represents a physical relational table.
  * 
+ * @param db     The parent database FQN (e.g., "store::DB"). Never empty.
  * @param schema The database schema (can be empty for default schema)
- * @param name The table name
+ * @param name   The table name
  * @param columns Immutable list of columns
  */
 public record Table(
+        String db,
         String schema,
         String name,
         List<Column> columns
 ) {
     public Table {
+        Objects.requireNonNull(db, "Database FQN cannot be null");
+        if (db.isBlank()) throw new IllegalArgumentException("Database FQN cannot be blank");
         Objects.requireNonNull(schema, "Schema cannot be null (use empty string for default)");
         Objects.requireNonNull(name, "Table name cannot be null");
         Objects.requireNonNull(columns, "Columns cannot be null");
@@ -32,15 +36,22 @@ public record Table(
     /**
      * Creates a table in the default schema.
      */
-    public Table(String name, List<Column> columns) {
-        this("", name, columns);
+    public Table(String db, String name, List<Column> columns) {
+        this(db, "", name, columns);
     }
     
     /**
-     * @return The fully qualified table name (schema.table or just table)
+     * @return The database-local name (schema.table or just table). Used in SQL and join matching.
+     */
+    public String dbName() {
+        return schema.isEmpty() ? name : schema + "." + name;
+    }
+
+    /**
+     * @return The fully qualified name: db + "." + dbName(). Used as SymbolTable key and for all lookups.
      */
     public String qualifiedName() {
-        return schema.isEmpty() ? name : schema + "." + name;
+        return db + "." + dbName();
     }
     
     /**
@@ -63,7 +74,7 @@ public record Table(
     public Column getColumn(String columnName) {
         return findColumn(columnName)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Column '" + columnName + "' not found in table " + qualifiedName()));
+                        "Column '" + columnName + "' not found in table " + dbName()));
     }
 
     /**
@@ -74,6 +85,6 @@ public record Table(
         return findColumn(columnName)
                 .map(c -> c.dataType().toGenericType())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Column '" + columnName + "' not found in table " + qualifiedName()));
+                        "Column '" + columnName + "' not found in table " + dbName()));
     }
 }

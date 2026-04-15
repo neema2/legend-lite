@@ -60,4 +60,40 @@ Mapping tax::TaxMapping
         ~mainTable [store::DB] WHTRATE
         rateId: [store::DB] WHTRATE.RATE_ID, jurisdiction: [store::DB] WHTRATE.JURISDICTION, incomeType: [store::DB] WHTRATE.INCOME_TYPE, standardRate: [store::DB] WHTRATE.STANDARD_RATE, treatyRate: [store::DB] WHTRATE.TREATY_RATE, effectiveDate: [store::DB] WHTRATE.EFFECTIVE_DATE, expiryDate: [store::DB] WHTRATE.EXPIRY_DATE, isActive: [store::DB] WHTRATE.IS_ACTIVE, source: [store::DB] WHTRATE.SOURCE, lastUpdated: [store::DB] WHTRATE.LAST_UPDATED
     }
+    cross::TaxLot_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @TaxLot_Position,
+            taxLots: [store::DB] @TaxLot_Position
+        )
+    }
+    tax::TaxJurisdiction_TaxTreaty: Relational {
+        AssociationMapping (
+            jurisdiction: [store::DB] @TaxJurisdiction_TaxTreaty,
+            treaties: [store::DB] @TaxJurisdiction_TaxTreaty
+        )
+    }
+    tax::TaxJurisdiction_WHTRate: Relational {
+        AssociationMapping (
+            jurisdiction: [store::DB] @TaxJurisdiction_WHTRate,
+            whtRates: [store::DB] @TaxJurisdiction_WHTRate
+        )
+    }
+    tax::TaxLot_CapitalGain: Relational {
+        AssociationMapping (
+            taxLot: [store::DB] @TaxLot_CapitalGain,
+            capitalGains: [store::DB] @TaxLot_CapitalGain
+        )
+    }
+    tax::TaxReport_TaxProvision: Relational {
+        AssociationMapping (
+            taxReport: [store::DB] @TaxReport_TaxProvision,
+            provisions: [store::DB] @TaxReport_TaxProvision
+        )
+    }
+    tax::WithholdingTax_TaxReclaim: Relational {
+        AssociationMapping (
+            withholdingTax: [store::DB] @WithholdingTax_TaxReclaim,
+            taxReclaims: [store::DB] @WithholdingTax_TaxReclaim
+        )
+    }
 )

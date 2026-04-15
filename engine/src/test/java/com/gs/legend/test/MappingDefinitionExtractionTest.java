@@ -892,11 +892,10 @@ class MappingDefinitionExtractionTest {
                             name: [store::DB] T_PERSON.NAME
                         }
 
-                        PersonFirmAssociation: AssociationMapping
-                        (
+                        PersonFirmAssociation: Relational { AssociationMapping (
                             persons: [store::DB] @Firm_Person,
                             firm: [store::DB] @Person_Firm
-                        )
+                        ) }
                     )
                     """);
 

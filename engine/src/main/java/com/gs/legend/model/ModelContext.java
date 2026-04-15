@@ -40,12 +40,13 @@ public interface ModelContext {
     Optional<AssociationNavigation> findAssociationByProperty(String fromClassName, String propertyName);
 
     /**
-     * Finds a table by name.
+     * Finds a table by database FQN and table name.
      * 
-     * @param tableName The table name
+     * @param db   The database FQN (e.g., "store::TestDB")
+     * @param name The table name within that database (e.g., "T_PERSON")
      * @return The table, if found
      */
-    Optional<Table> findTable(String tableName);
+    Optional<Table> findTable(String db, String name);
 
     /**
      * Finds an enum definition by name.
@@ -114,7 +115,7 @@ public interface ModelContext {
         /**
          * Relational mapping: source relation is the single source of truth.
          * The sourceSpec is a ValueSpecification chain synthesized by MappingNormalizer:
-         * {@code tableReference("db.TABLE") -> filter(...) -> join(...) -> extend(traverse()) -> distinct()}
+         * {@code tableReference(db, name) -> filter(...) -> join(...) -> extend(traverse()) -> distinct()}
          * Association traversals are embedded as extend() nodes with fn1=traverse.
          *
          * @param className        The class being mapped

@@ -62,4 +62,46 @@ Mapping refdata::RefdataMapping
         ~mainTable [store::DB] INDEX_CONSTITUENT
         constituentId: [store::DB] INDEX_CONSTITUENT.CONSTITUENT_ID, effectiveDate: [store::DB] INDEX_CONSTITUENT.EFFECTIVE_DATE, weight: [store::DB] INDEX_CONSTITUENT.WEIGHT, sharesHeld: [store::DB] INDEX_CONSTITUENT.SHARES_HELD, marketCap: [store::DB] INDEX_CONSTITUENT.MARKET_CAP, freeFloatFactor: [store::DB] INDEX_CONSTITUENT.FREE_FLOAT_FACTOR, addedDate: [store::DB] INDEX_CONSTITUENT.ADDED_DATE, removedDate: [store::DB] INDEX_CONSTITUENT.REMOVED_DATE, isActive: [store::DB] INDEX_CONSTITUENT.IS_ACTIVE, sector: [store::DB] INDEX_CONSTITUENT.SECTOR
     }
+    refdata::Calendar_Country: Relational {
+        AssociationMapping (
+            country: [store::DB] @Calendar_Country,
+            calendars: [store::DB] @Calendar_Country
+        )
+    }
+    refdata::Country_Exchange: Relational {
+        AssociationMapping (
+            country: [store::DB] @Country_Exchange,
+            exchanges: [store::DB] @Country_Exchange
+        )
+    }
+    refdata::Currency_Country: Relational {
+        AssociationMapping (
+            country: [store::DB] @Currency_Country,
+            currencies: [store::DB] @Currency_Country
+        )
+    }
+    refdata::Index_IndexConstituent: Relational {
+        AssociationMapping (
+            index: [store::DB] @Index_IndexConstituent,
+            constituents: [store::DB] @Index_IndexConstituent
+        )
+    }
+    refdata::Issuer_Country: Relational {
+        AssociationMapping (
+            country: [store::DB] @Issuer_Country,
+            issuers: [store::DB] @Issuer_Country
+        )
+    }
+    refdata::Rating_Issuer: Relational {
+        AssociationMapping (
+            issuer: [store::DB] @Rating_Issuer,
+            ratings: [store::DB] @Rating_Issuer
+        )
+    }
+    refdata::Sector_Industry: Relational {
+        AssociationMapping (
+            sector: [store::DB] @Sector_Industry,
+            industries: [store::DB] @Sector_Industry
+        )
+    }
 )

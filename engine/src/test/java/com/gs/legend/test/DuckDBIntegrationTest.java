@@ -74,7 +74,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // THEN: The model builder has created all objects
         assertNotNull(modelBuilder.getClass("model::Person"));
-        assertNotNull(modelBuilder.getTable("T_PERSON"));
+        assertNotNull(modelBuilder.getTable("store::PersonDatabase", "T_PERSON"));
         assertTrue(mappingRegistry.findByClassName("model::Person").isPresent());
 
         // Verify the PureClass
@@ -318,13 +318,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // THEN: We have classes, association, tables, and join
         assertNotNull(builder.getClass("model::Person"));
         assertNotNull(builder.getClass("model::Address"));
-        assertNotNull(builder.getTable("T_PERSON"));
-        assertNotNull(builder.getTable("T_ADDRESS"));
+        assertNotNull(builder.getTable("store::TestDB", "T_PERSON"));
+        assertNotNull(builder.getTable("store::TestDB", "T_ADDRESS"));
 
         assertTrue(builder.getAssociation("model::Person_Address").isPresent());
-        assertTrue(builder.getJoin("Person_Address").isPresent());
+        assertTrue(builder.getJoin("store::TestDB", "Person_Address").isPresent());
 
-        var join = builder.getJoin("Person_Address").orElseThrow();
+        var join = builder.getJoin("store::TestDB", "Person_Address").orElseThrow();
         var tableNames = com.gs.legend.model.RelationalMappingConverter.collectTableNames(join.condition());
         assertTrue(tableNames.contains("T_PERSON"));
         assertTrue(tableNames.contains("T_ADDRESS"));
@@ -759,7 +759,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 (
                     EmpMC: Relational { ~mainTable [McDb] T_EMP_MC  name: [McDb] T_EMP_MC.NAME }
                     DeptMC: Relational { ~mainTable [McDb] T_DEPT_MC  deptName: [McDb] T_DEPT_MC.DEPT_NAME }
-                )
+                
+                    model::Emp_Dept_MC: Relational { AssociationMapping ( emp: [store::McDb]@Emp_Dept_MC, dept: [store::McDb]@Emp_Dept_MC ) }
+)
                 RelationalDatabaseConnection store::McConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::McRT { mappings: [model::McMap]; connections: [store::McDb: [environment: store::McConn]]; }
                 """;
@@ -810,7 +812,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 (
                     EmpMC2: Relational { ~mainTable [McDb2] T_EMP_MC2  name: [McDb2] T_EMP_MC2.NAME }
                     DeptMC2: Relational { ~mainTable [McDb2] T_DEPT_MC2  deptName: [McDb2] T_DEPT_MC2.DEPT_NAME }
-                )
+                
+                    model::Emp_Dept_MC2: Relational { AssociationMapping ( emp: [store::McDb2]@Emp_Dept_MC2, dept: [store::McDb2]@Emp_Dept_MC2 ) }
+)
                 RelationalDatabaseConnection store::McConn2 { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
                 Runtime test::McRT2 { mappings: [model::McMap2]; connections: [store::McDb2: [environment: store::McConn2]]; }
                 """;

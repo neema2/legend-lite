@@ -225,7 +225,7 @@ public sealed interface RelationalOperation {
 
         /** Convenience for single-hop join (no terminal). */
         public static JoinNavigation single(String databaseName, String joinName) {
-            return new JoinNavigation(databaseName, List.of(JoinChainElement.of(joinName)), null);
+            return new JoinNavigation(databaseName, List.of(JoinChainElement.of(databaseName, joinName)), null);
         }
     }
 

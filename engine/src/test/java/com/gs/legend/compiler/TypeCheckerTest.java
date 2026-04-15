@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class TypeCheckerTest {
 
     // --- Test schema: PersonDatabase.T_PERSON ---
-    private static final Table PERSON_TABLE = new Table("T_PERSON", List.of(
+    private static final Table PERSON_TABLE = new Table("store::PersonDatabase", "T_PERSON", List.of(
             Column.required("FIRST_NAME", SqlDataType.VARCHAR),
             Column.required("LAST_NAME", SqlDataType.VARCHAR),
             Column.required("AGE", SqlDataType.INTEGER),
@@ -44,8 +44,8 @@ class TypeCheckerTest {
             return java.util.Optional.empty();
         }
 
-        public java.util.Optional<com.gs.legend.model.store.Table> findTable(String n) {
-            if (n.contains("T_PERSON")) return java.util.Optional.of(PERSON_TABLE);
+        public java.util.Optional<com.gs.legend.model.store.Table> findTable(String db, String name) {
+            if (name.contains("T_PERSON")) return java.util.Optional.of(PERSON_TABLE);
             return java.util.Optional.empty();
         }
     };

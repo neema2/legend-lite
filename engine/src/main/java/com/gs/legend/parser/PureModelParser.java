@@ -437,8 +437,8 @@ public final class PureModelParser {
     private EnumDefinition parseEnumDefinition() {
         expect(TokenType.ENUM);
         // stereotypes? taggedValues? — skip for now (same as ANTLR visitor)
-        List<StereotypeApplication> stereotypes = parseStereotypes();
-        List<TaggedValue> taggedValues = parseTaggedValues();
+        parseStereotypes();
+        parseTaggedValues();
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);
         List<String> values = new ArrayList<>();
@@ -511,8 +511,8 @@ public final class PureModelParser {
      */
     private AssociationDefinition parseAssociation() {
         expect(TokenType.ASSOCIATION);
-        List<StereotypeApplication> stereotypes = parseStereotypes();
-        List<TaggedValue> taggedValues = parseTaggedValues();
+        parseStereotypes();
+        parseTaggedValues();
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);
 
@@ -633,8 +633,8 @@ public final class PureModelParser {
     }
 
     private DerivedPropertyDefinition parseDerivedProperty() {
-        List<StereotypeApplication> stereotypes = parseStereotypes();
-        List<TaggedValue> taggedValues = parseTaggedValues();
+        parseStereotypes();
+        parseTaggedValues();
         String propName = parseIdentifier();
 
         // Parameters: ( paramDef, ... )
@@ -954,7 +954,7 @@ public final class PureModelParser {
                     expect(TokenType.COLON);
                     expect(TokenType.BRACKET_OPEN);
                     while (peek() != TokenType.BRACKET_CLOSE) {
-                        String connId = parseIdentifier();
+                        parseIdentifier();
                         expect(TokenType.COLON);
                         if (peek() == TokenType.ISLAND_OPEN) {
                             // Embedded connection: #{ JsonModelConnection { class: ...; url: '...'; } }#
@@ -1172,6 +1172,7 @@ public final class PureModelParser {
         parseStereotypes();
         parseTaggedValues();
         String qualifiedName = parseQualifiedName();
+        String dbScope = qualifiedName;
         expect(TokenType.PAREN_OPEN);
 
         List<String> includes = new ArrayList<>();
@@ -1197,7 +1198,7 @@ public final class PureModelParser {
                             schemaTables.add(parseDbTable());
                             tables.add(schemaTables.get(schemaTables.size() - 1));
                         } else if (textEquals("View")) {
-                            DatabaseDefinition.ViewDefinition v = parseDbView();
+                            DatabaseDefinition.ViewDefinition v = parseDbView(dbScope);
                             schemaViews.add(v);
                             views.add(v);
                         } else {
@@ -1209,13 +1210,13 @@ public final class PureModelParser {
             } else if (textEquals("Table")) {
                 tables.add(parseDbTable());
             } else if (textEquals("View")) {
-                views.add(parseDbView());
+                views.add(parseDbView(dbScope));
             } else if (textEquals("Join")) {
-                joins.add(parseDbJoin());
+                joins.add(parseDbJoin(dbScope));
             } else if (textEquals("Filter")) {
-                filters.add(parseDbFilter());
+                filters.add(parseDbFilter(dbScope));
             } else if (textEquals("MultiGrainFilter")) {
-                multiGrainFilters.add(parseDbMultiGrainFilter());
+                multiGrainFilters.add(parseDbMultiGrainFilter(dbScope));
             } else {
                 error("Unknown database element: '" + safeText() + "'");
             }
@@ -1260,34 +1261,34 @@ public final class PureModelParser {
         return new DatabaseDefinition.ColumnDefinition(columnName, dataType, primaryKey, notNull);
     }
 
-    private DatabaseDefinition.JoinDefinition parseDbJoin() {
+    private DatabaseDefinition.JoinDefinition parseDbJoin(String dbScope) {
         advance(); // skip "Join"
         String joinName = parseIdentifier();
         expect(TokenType.PAREN_OPEN);
-        RelationalOperation operation = parseDbOperation();
+        RelationalOperation operation = parseDbOperation(dbScope);
         expect(TokenType.PAREN_CLOSE);
         return new DatabaseDefinition.JoinDefinition(joinName, operation);
     }
 
-    private DatabaseDefinition.FilterDefinition parseDbFilter() {
+    private DatabaseDefinition.FilterDefinition parseDbFilter(String dbScope) {
         advance(); // skip "Filter"
         String filterName = parseIdentifier();
         expect(TokenType.PAREN_OPEN);
-        RelationalOperation condition = parseDbOperation();
+        RelationalOperation condition = parseDbOperation(dbScope);
         expect(TokenType.PAREN_CLOSE);
         return new DatabaseDefinition.FilterDefinition(filterName, condition);
     }
 
-    private DatabaseDefinition.FilterDefinition parseDbMultiGrainFilter() {
+    private DatabaseDefinition.FilterDefinition parseDbMultiGrainFilter(String dbScope) {
         advance(); // skip "MultiGrainFilter"
         String filterName = parseIdentifier();
         expect(TokenType.PAREN_OPEN);
-        RelationalOperation condition = parseDbOperation();
+        RelationalOperation condition = parseDbOperation(dbScope);
         expect(TokenType.PAREN_CLOSE);
         return new DatabaseDefinition.FilterDefinition(filterName, condition);
     }
 
-    private DatabaseDefinition.ViewDefinition parseDbView() {
+    private DatabaseDefinition.ViewDefinition parseDbView(String dbScope) {
         advance(); // skip "View"
         String viewName = parseRelationalIdentifier();
         expect(TokenType.PAREN_OPEN);
@@ -1308,8 +1309,8 @@ public final class PureModelParser {
             } else if (cmd == TokenType.GROUP_BY_CMD) {
                 expect(TokenType.PAREN_OPEN);
                 if (peek() != TokenType.PAREN_CLOSE) {
-                    groupBy.add(parseDbOperation());
-                    while (match(TokenType.COMMA)) groupBy.add(parseDbOperation());
+                    groupBy.add(parseDbOperation(dbScope));
+                    while (match(TokenType.COMMA)) groupBy.add(parseDbOperation(dbScope));
                 }
                 expect(TokenType.PAREN_CLOSE);
             } else if (cmd == TokenType.DISTINCT_CMD) {
@@ -1319,10 +1320,10 @@ public final class PureModelParser {
 
         // Column mappings
         if (peek() != TokenType.PAREN_CLOSE) {
-            columnMappings.add(parseViewColumnMapping());
+            columnMappings.add(parseViewColumnMapping(dbScope));
             while (match(TokenType.COMMA)) {
                 if (peek() == TokenType.PAREN_CLOSE) break;
-                columnMappings.add(parseViewColumnMapping());
+                columnMappings.add(parseViewColumnMapping(dbScope));
             }
         }
 
@@ -1330,7 +1331,7 @@ public final class PureModelParser {
         return new DatabaseDefinition.ViewDefinition(viewName, filterMapping, groupBy, distinct, columnMappings);
     }
 
-    private DatabaseDefinition.ViewDefinition.ViewColumnMapping parseViewColumnMapping() {
+    private DatabaseDefinition.ViewDefinition.ViewColumnMapping parseViewColumnMapping(String dbScope) {
         String colName = parseIdentifier();
         // Optional target set ID: [id]
         String targetSetId = null;
@@ -1340,45 +1341,45 @@ public final class PureModelParser {
             expect(TokenType.BRACKET_CLOSE);
         }
         expect(TokenType.COLON);
-        RelationalOperation expression = parseDbOperation();
+        RelationalOperation expression = parseDbOperation(dbScope);
         boolean pk = match(TokenType.PRIMARY_KEY);
         return new DatabaseDefinition.ViewDefinition.ViewColumnMapping(colName, targetSetId, expression, pk);
     }
 
     // ==================== DbOperation AST Walker ====================
 
-    private RelationalOperation parseDbOperation() {
+    private RelationalOperation parseDbOperation(String dbScope) {
         // dbOperation: dbJoinOperation | dbBooleanOperation
         if (peek() == TokenType.AT || (peek() == TokenType.BRACKET_OPEN && lookAheadIsJoin())) {
-            return parseDbJoinOperation();
+            return parseDbJoinOperation(dbScope);
         }
-        return parseDbBooleanOperation();
+        return parseDbBooleanOperation(dbScope);
     }
 
-    private RelationalOperation parseDbBooleanOperation() {
-        RelationalOperation left = parseDbAtomicOperation();
+    private RelationalOperation parseDbBooleanOperation(String dbScope) {
+        RelationalOperation left = parseDbAtomicOperation(dbScope);
         // Check for boolean right: "and" | "or"
         if (!atEnd() && IDENTIFIER_TOKENS.contains(peek())) {
             if (textEquals("and") || textEquals("or")) {
                 String op = text();
                 advance();
-                RelationalOperation right = parseDbOperation();
+                RelationalOperation right = parseDbOperation(dbScope);
                 return new RelationalOperation.BooleanOp(left, op, right);
             }
         }
         return left;
     }
 
-    private RelationalOperation parseDbAtomicOperation() {
+    private RelationalOperation parseDbAtomicOperation(String dbScope) {
         RelationalOperation expr;
 
         if (peek() == TokenType.PAREN_OPEN) {
             // Group: ( dbOperation )
             advance();
-            expr = new RelationalOperation.Group(parseDbOperation());
+            expr = new RelationalOperation.Group(parseDbOperation(dbScope));
             expect(TokenType.PAREN_CLOSE);
         } else if (peek() == TokenType.AT || (peek() == TokenType.BRACKET_OPEN && lookAheadIsJoin())) {
-            expr = parseDbJoinOperation();
+            expr = parseDbJoinOperation(dbScope);
         } else if (peek() == TokenType.STRING) {
             expr = RelationalOperation.Literal.string(unquoteString(text()));
             advance();
@@ -1403,8 +1404,8 @@ public final class PureModelParser {
                 advance(); // skip (
                 List<RelationalOperation> args = new ArrayList<>();
                 if (peek() != TokenType.PAREN_CLOSE) {
-                    args.add(parseDbFunctionArg());
-                    while (match(TokenType.COMMA)) args.add(parseDbFunctionArg());
+                    args.add(parseDbFunctionArg(dbScope));
+                    while (match(TokenType.COMMA)) args.add(parseDbFunctionArg(dbScope));
                 }
                 expect(TokenType.PAREN_CLOSE);
                 expr = new RelationalOperation.FunctionCall(firstId, args);
@@ -1435,7 +1436,7 @@ public final class PureModelParser {
                     || next == TokenType.NOT_EQUAL) {
                 String op = text();
                 advance();
-                RelationalOperation right = parseDbAtomicOperation();
+                RelationalOperation right = parseDbAtomicOperation(dbScope);
                 expr = new RelationalOperation.Comparison(expr, op, right);
             } else if (isDbSelfOperator()) {
                 expr = parseDbSelfOperator(expr);
@@ -1444,22 +1445,22 @@ public final class PureModelParser {
         return expr;
     }
 
-    private RelationalOperation parseDbFunctionArg() {
+    private RelationalOperation parseDbFunctionArg(String dbScope) {
         if (peek() == TokenType.BRACKET_OPEN) {
             // Array: [args...]
             advance();
             List<RelationalOperation> elements = new ArrayList<>();
             if (peek() != TokenType.BRACKET_CLOSE) {
-                elements.add(parseDbFunctionArg());
-                while (match(TokenType.COMMA)) elements.add(parseDbFunctionArg());
+                elements.add(parseDbFunctionArg(dbScope));
+                while (match(TokenType.COMMA)) elements.add(parseDbFunctionArg(dbScope));
             }
             expect(TokenType.BRACKET_CLOSE);
             return new RelationalOperation.ArrayLiteral(elements);
         }
-        return parseDbOperation();
+        return parseDbOperation(dbScope);
     }
 
-    private RelationalOperation parseDbJoinOperation() {
+    private RelationalOperation parseDbJoinOperation(String dbScope) {
         // Optional [DB] database pointer
         String dbName = null;
         if (peek() == TokenType.BRACKET_OPEN) {
@@ -1469,9 +1470,11 @@ public final class PureModelParser {
         }
 
         // @JoinName chains: @J1 > @J2 > ...
+        // Database context: navigation-level [DB] overrides the enclosing database
+        String db = dbName != null ? dbName : dbScope;
         List<JoinChainElement> chain = new ArrayList<>();
         expect(TokenType.AT);
-        chain.add(new JoinChainElement(parseIdentifier(), null, null, false));
+        chain.add(new JoinChainElement(parseIdentifier(), null, db, false));
         while (match(TokenType.GREATER_THAN)) {
             // Optional (joinType)
             String joinType = null;
@@ -1480,8 +1483,8 @@ public final class PureModelParser {
                 joinType = parseIdentifier();
                 expect(TokenType.PAREN_CLOSE);
             }
-            // Optional [DB]
-            String hopDb = null;
+            // Optional [DB] per-hop override
+            String hopDb = db;
             if (peek() == TokenType.BRACKET_OPEN) {
                 advance();
                 hopDb = parseQualifiedName();
@@ -1494,7 +1497,7 @@ public final class PureModelParser {
         // Optional terminal: | expression
         RelationalOperation terminal = null;
         if (match(TokenType.PIPE)) {
-            terminal = parseDbBooleanOperation();
+            terminal = parseDbBooleanOperation(dbScope);
         }
 
         return new RelationalOperation.JoinNavigation(dbName, chain, terminal);
@@ -1653,50 +1656,18 @@ public final class PureModelParser {
                     name, enumMappingId, valueMappings));
         } else if ("Relational".equals(mappingType)) {
             expect(TokenType.BRACE_OPEN);
-            classMappings.add(parseRelationalClassMappingBody(name, setId, isRoot, extendsSetId));
+            // Legend-engine syntax: AssocName: Relational { AssociationMapping (...) }
+            if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("AssociationMapping")) {
+                advance(); // consume "AssociationMapping"
+                associationMappings.add(parseAssociationMappingBody(name));
+            } else {
+                classMappings.add(parseRelationalClassMappingBody(name, setId, isRoot, extendsSetId));
+            }
             expect(TokenType.BRACE_CLOSE);
         } else if ("Pure".equals(mappingType)) {
             expect(TokenType.BRACE_OPEN);
             classMappings.add(parsePureM2MClassMappingBody(name));
             expect(TokenType.BRACE_CLOSE);
-        } else if ("AssociationMapping".equals(mappingType)) {
-            // Association mapping — handle separately
-            expect(TokenType.PAREN_OPEN);
-            // Skip association mapping body for now
-            List<AssociationMappingDefinition.AssociationPropertyMapping> props = new ArrayList<>();
-            while (peek() != TokenType.PAREN_CLOSE) {
-                // Simple: propertyName: [DB]@JoinName
-                String propName = parseIdentifier();
-                // Optional [source,target]
-                String sourceSetId2 = null;
-                String targetSetId2 = null;
-                if (peek() == TokenType.BRACKET_OPEN) {
-                    advance();
-                    sourceSetId2 = parseIdentifier();
-                    if (match(TokenType.COMMA)) {
-                        targetSetId2 = parseIdentifier();
-                    }
-                    expect(TokenType.BRACKET_CLOSE);
-                }
-                expect(TokenType.COLON);
-                // Parse join chain
-                String dbName = null;
-                if (peek() == TokenType.BRACKET_OPEN) {
-                    advance();
-                    dbName = parseQualifiedName();
-                    expect(TokenType.BRACKET_CLOSE);
-                }
-                List<JoinChainElement> joinChain = parseMappingJoinChain();
-                if (dbName != null && !joinChain.isEmpty() && joinChain.get(0).databaseName() == null) {
-                    var first = joinChain.get(0);
-                    joinChain.set(0, new JoinChainElement(first.joinName(), first.joinType(), dbName, first.strict()));
-                }
-                props.add(new AssociationMappingDefinition.AssociationPropertyMapping(
-                        propName, sourceSetId2, targetSetId2, joinChain, null));
-                match(TokenType.COMMA);
-            }
-            expect(TokenType.PAREN_CLOSE);
-            associationMappings.add(new AssociationMappingDefinition(name, "Relational", props));
         } else {
             // Unknown mapping type — skip body
             if (peek() == TokenType.BRACE_OPEN) {
@@ -1735,6 +1706,44 @@ public final class PureModelParser {
         }
     }
 
+    /**
+     * Parses the body of an association mapping inside a Relational block.
+     * Legend-engine syntax: {@code AssocName: Relational { AssociationMapping ( prop: [db]@Join, ... ) }}
+     * The "AssociationMapping" keyword has already been consumed by the caller.
+     */
+    private AssociationMappingDefinition parseAssociationMappingBody(String associationName) {
+        expect(TokenType.PAREN_OPEN);
+        List<AssociationMappingDefinition.AssociationPropertyMapping> props = new ArrayList<>();
+        while (peek() != TokenType.PAREN_CLOSE) {
+            String propName = parseIdentifier();
+            // Optional [source,target]
+            String sourceSetId = null;
+            String targetSetId = null;
+            if (peek() == TokenType.BRACKET_OPEN) {
+                advance();
+                sourceSetId = parseIdentifier();
+                if (match(TokenType.COMMA)) {
+                    targetSetId = parseIdentifier();
+                }
+                expect(TokenType.BRACKET_CLOSE);
+            }
+            expect(TokenType.COLON);
+            // Parse join chain: [DB]@JoinName
+            String dbName = null;
+            if (peek() == TokenType.BRACKET_OPEN) {
+                advance();
+                dbName = parseQualifiedName();
+                expect(TokenType.BRACKET_CLOSE);
+            }
+            List<JoinChainElement> joinChain = parseMappingJoinChain(dbName);
+            props.add(new AssociationMappingDefinition.AssociationPropertyMapping(
+                    propName, sourceSetId, targetSetId, joinChain, null));
+            match(TokenType.COMMA);
+        }
+        expect(TokenType.PAREN_CLOSE);
+        return new AssociationMappingDefinition(associationName, "Relational", props);
+    }
+
     private MappingDefinition.ClassMappingDefinition parseRelationalClassMappingBody(
             String className, String setId, boolean isRoot, String extendsSetId) {
 
@@ -1743,6 +1752,7 @@ public final class PureModelParser {
         List<RelationalOperation> groupBy = new ArrayList<>();
         List<RelationalOperation> primaryKey = new ArrayList<>();
         MappingDefinition.TableReference mainTable = null;
+        String dbScope = null; // set from ~mainTable, threaded to all child parsers
         List<MappingDefinition.PropertyMappingDefinition> propertyMappings = new ArrayList<>();
 
         while (peek() != TokenType.BRACE_CLOSE) {
@@ -1751,6 +1761,7 @@ public final class PureModelParser {
             if (tildeToken == TokenType.MAIN_TABLE_CMD) {
                 advance();
                 mainTable = parseMappingMainTable();
+                dbScope = mainTable.databaseName();
                 continue;
             } else if (tildeToken == TokenType.FILTER_CMD) {
                 advance();
@@ -1764,8 +1775,8 @@ public final class PureModelParser {
                 advance();
                 expect(TokenType.PAREN_OPEN);
                 if (peek() != TokenType.PAREN_CLOSE) {
-                    groupBy.add(parseMappingOperation());
-                    while (match(TokenType.COMMA)) groupBy.add(parseMappingOperation());
+                    groupBy.add(parseMappingOperation(dbScope));
+                    while (match(TokenType.COMMA)) groupBy.add(parseMappingOperation(dbScope));
                 }
                 expect(TokenType.PAREN_CLOSE);
                 continue;
@@ -1773,8 +1784,8 @@ public final class PureModelParser {
                 advance();
                 expect(TokenType.PAREN_OPEN);
                 if (peek() != TokenType.PAREN_CLOSE) {
-                    primaryKey.add(parseMappingOperation());
-                    while (match(TokenType.COMMA)) primaryKey.add(parseMappingOperation());
+                    primaryKey.add(parseMappingOperation(dbScope));
+                    while (match(TokenType.COMMA)) primaryKey.add(parseMappingOperation(dbScope));
                 }
                 expect(TokenType.PAREN_CLOSE);
                 continue;
@@ -1815,10 +1826,10 @@ public final class PureModelParser {
                                 propName, firstToken));
                     } else {
                         pos = saved;
-                        propertyMappings.add(parseEmbeddedPropertyMapping(propName));
+                        propertyMappings.add(parseEmbeddedPropertyMapping(propName, dbScope));
                     }
                 } else {
-                    propertyMappings.add(parseEmbeddedPropertyMapping(propName));
+                    propertyMappings.add(parseEmbeddedPropertyMapping(propName, dbScope));
                 }
             } else {
                 // Regular property mapping: colon then expression
@@ -1836,7 +1847,7 @@ public final class PureModelParser {
                     expect(TokenType.COLON);
                 }
 
-                propertyMappings.add(parseRegularPropertyMapping(propName, enumMappingId));
+                propertyMappings.add(parseRegularPropertyMapping(propName, enumMappingId, dbScope));
             }
 
             match(TokenType.COMMA);
@@ -1848,16 +1859,16 @@ public final class PureModelParser {
                 propertyMappings, null, null, null);
     }
 
-    private MappingDefinition.PropertyMappingDefinition parseEmbeddedPropertyMapping(String propName) {
+    private MappingDefinition.PropertyMappingDefinition parseEmbeddedPropertyMapping(String propName, String dbScope) {
         List<MappingDefinition.PropertyMappingDefinition> subMappings = new ArrayList<>();
         while (peek() != TokenType.PAREN_CLOSE) {
             String subPropName = parseIdentifier();
             expect(TokenType.COLON);
             if (peek() == TokenType.PAREN_OPEN) {
                 advance();
-                subMappings.add(parseEmbeddedPropertyMapping(subPropName));
+                subMappings.add(parseEmbeddedPropertyMapping(subPropName, dbScope));
             } else {
-                subMappings.add(parseRegularPropertyMapping(subPropName, null));
+                subMappings.add(parseRegularPropertyMapping(subPropName, null, dbScope));
             }
             match(TokenType.COMMA);
         }
@@ -1876,9 +1887,10 @@ public final class PureModelParser {
                 dbName = parseQualifiedName();
                 expect(TokenType.BRACKET_CLOSE);
             }
-            List<JoinChainElement> joinChain = parseMappingJoinChain();
+            String db = dbName != null ? dbName : dbScope;
+            List<JoinChainElement> joinChain = parseMappingJoinChain(db);
             expect(TokenType.PAREN_CLOSE);
-            var fallbackJoin = new PropertyMappingValue.JoinMapping(dbName, joinChain, null);
+            var fallbackJoin = new PropertyMappingValue.JoinMapping(db, joinChain, null);
             return MappingDefinition.PropertyMappingDefinition.otherwise(
                     propName, subMappings, fallbackSetId, fallbackJoin);
         }
@@ -1886,7 +1898,7 @@ public final class PureModelParser {
     }
 
     private MappingDefinition.PropertyMappingDefinition parseRegularPropertyMapping(
-            String propName, String enumMappingId) {
+            String propName, String enumMappingId, String dbScope) {
         // Check for join operation: [DB]@JoinName
         int exprStart = pos; // save for raw expression capture
         if (peek() == TokenType.BRACKET_OPEN || peek() == TokenType.AT) {
@@ -1897,15 +1909,12 @@ public final class PureModelParser {
                 expect(TokenType.BRACKET_CLOSE);
             }
             if (peek() == TokenType.AT) {
-                // Join mapping
-                List<JoinChainElement> chain = parseMappingJoinChain();
-                if (dbName != null && !chain.isEmpty() && chain.get(0).databaseName() == null) {
-                    var first = chain.get(0);
-                    chain.set(0, new JoinChainElement(first.joinName(), first.joinType(), dbName, first.strict()));
-                }
+                // Join mapping — explicit [DB] overrides scope
+                String db = dbName != null ? dbName : dbScope;
+                List<JoinChainElement> chain = parseMappingJoinChain(db);
                 RelationalOperation terminal = null;
                 if (match(TokenType.PIPE)) {
-                    terminal = parseMappingAtomicOperation();
+                    terminal = parseMappingAtomicOperation(dbScope);
                 }
                 return MappingDefinition.PropertyMappingDefinition.join(propName,
                         new MappingDefinition.JoinReference(dbName, chain, terminal));
@@ -1935,7 +1944,7 @@ public final class PureModelParser {
         }
 
         // DynaFunction expression: parse as RelationalOperation tree
-        RelationalOperation expr = parseMappingOperation();
+        RelationalOperation expr = parseMappingOperation(dbScope);
         return MappingDefinition.PropertyMappingDefinition.mappingExpression(propName, expr);
     }
 
@@ -1999,7 +2008,7 @@ public final class PureModelParser {
         // Check for join chain before filter name
         List<JoinChainElement> joinPath = new ArrayList<>();
         if (peek() == TokenType.AT) {
-            joinPath = parseMappingJoinChain();
+            joinPath = parseMappingJoinChain(dbName);
             // After join chain, expect PIPE then [DB] filterName
             expect(TokenType.PIPE);
             if (peek() == TokenType.BRACKET_OPEN) {
@@ -2012,10 +2021,10 @@ public final class PureModelParser {
         return new MappingDefinition.MappingFilter(dbName, joinPath, filterName);
     }
 
-    private List<JoinChainElement> parseMappingJoinChain() {
+    private List<JoinChainElement> parseMappingJoinChain(String db) {
         List<JoinChainElement> chain = new ArrayList<>();
         expect(TokenType.AT);
-        chain.add(new JoinChainElement(parseIdentifier(), null, null, false));
+        chain.add(new JoinChainElement(parseIdentifier(), null, db, false));
         while (match(TokenType.GREATER_THAN)) {
             String joinType = null;
             if (peek() == TokenType.PAREN_OPEN) {
@@ -2023,7 +2032,8 @@ public final class PureModelParser {
                 joinType = parseIdentifier();
                 expect(TokenType.PAREN_CLOSE);
             }
-            String hopDb = null;
+            // Per-hop [DB] override
+            String hopDb = db;
             if (peek() == TokenType.BRACKET_OPEN) {
                 advance();
                 hopDb = parseQualifiedName();
@@ -2095,25 +2105,25 @@ public final class PureModelParser {
 
     // ==================== Mapping Operation Walker ====================
 
-    private RelationalOperation parseMappingOperation() {
-        var left = parseMappingAtomicOperation();
+    private RelationalOperation parseMappingOperation(String dbScope) {
+        var left = parseMappingAtomicOperation(dbScope);
         if (!atEnd() && IDENTIFIER_TOKENS.contains(peek())) {
             if (textEquals("and") || textEquals("or")) {
                 String op = text();
                 advance();
-                var right = parseMappingOperation();
+                var right = parseMappingOperation(dbScope);
                 return new RelationalOperation.BooleanOp(left, op, right);
             }
         }
         return left;
     }
 
-    private RelationalOperation parseMappingAtomicOperation() {
+    private RelationalOperation parseMappingAtomicOperation(String dbScope) {
         RelationalOperation expr;
 
         if (peek() == TokenType.PAREN_OPEN) {
             advance();
-            expr = new RelationalOperation.Group(parseMappingOperation());
+            expr = new RelationalOperation.Group(parseMappingOperation(dbScope));
             expect(TokenType.PAREN_CLOSE);
         } else if (peek() == TokenType.AT) {
             // Could be @JoinName (join) or @TypeName (cast annotation)
@@ -2124,13 +2134,13 @@ public final class PureModelParser {
             if (peek() == TokenType.GREATER_THAN || peek() == TokenType.PIPE
                     || peek() == TokenType.BRACKET_OPEN) {
                 pos = saved;
-                expr = parseMappingJoinOp();
+                expr = parseMappingJoinOp(dbScope);
             } else {
                 // Type annotation: @Integer, @String, etc.
                 expr = RelationalOperation.Literal.string("@" + name);
             }
         } else if (peek() == TokenType.BRACKET_OPEN && lookAheadIsJoin()) {
-            expr = parseMappingJoinOp();
+            expr = parseMappingJoinOp(dbScope);
         } else if (peek() == TokenType.STRING) {
             expr = RelationalOperation.Literal.string(unquoteString(text()));
             advance();
@@ -2150,7 +2160,7 @@ public final class PureModelParser {
                 expect(TokenType.BRACKET_CLOSE);
                 if (peek() == TokenType.AT) {
                     pos = saved;
-                    return parseMappingJoinOp();
+                    return parseMappingJoinOp(dbScope);
                 }
             }
             String firstId = parseRelationalIdentifier();
@@ -2158,8 +2168,8 @@ public final class PureModelParser {
                 advance();
                 List<RelationalOperation> args = new ArrayList<>();
                 if (peek() != TokenType.PAREN_CLOSE) {
-                    args.add(parseMappingOperation());
-                    while (match(TokenType.COMMA)) args.add(parseMappingOperation());
+                    args.add(parseMappingOperation(dbScope));
+                    while (match(TokenType.COMMA)) args.add(parseMappingOperation(dbScope));
                 }
                 expect(TokenType.PAREN_CLOSE);
                 expr = new RelationalOperation.FunctionCall(firstId, args);
@@ -2186,8 +2196,8 @@ public final class PureModelParser {
             List<RelationalOperation> args = new ArrayList<>();
             args.add(expr); // receiver is first arg
             if (peek() != TokenType.PAREN_CLOSE) {
-                args.add(parseMappingOperation());
-                while (match(TokenType.COMMA)) args.add(parseMappingOperation());
+                args.add(parseMappingOperation(dbScope));
+                while (match(TokenType.COMMA)) args.add(parseMappingOperation(dbScope));
             }
             expect(TokenType.PAREN_CLOSE);
             expr = new RelationalOperation.FunctionCall(funcName, args);
@@ -2202,7 +2212,7 @@ public final class PureModelParser {
                     || next == TokenType.NOT_EQUAL) {
                 String op = text();
                 advance();
-                var right = parseMappingAtomicOperation();
+                var right = parseMappingAtomicOperation(dbScope);
                 expr = new RelationalOperation.Comparison(expr, op, right);
             } else if (isDbSelfOperator()) {
                 expr = parseDbSelfOperator(expr);
@@ -2211,17 +2221,18 @@ public final class PureModelParser {
         return expr;
     }
 
-    private RelationalOperation.JoinNavigation parseMappingJoinOp() {
+    private RelationalOperation.JoinNavigation parseMappingJoinOp(String dbScope) {
         String dbName = null;
         if (peek() == TokenType.BRACKET_OPEN) {
             advance();
             dbName = parseQualifiedName();
             expect(TokenType.BRACKET_CLOSE);
         }
-        List<JoinChainElement> chain = parseMappingJoinChain();
+        String db = dbName != null ? dbName : dbScope;
+        List<JoinChainElement> chain = parseMappingJoinChain(db);
         RelationalOperation terminal = null;
         if (match(TokenType.PIPE)) {
-            terminal = parseMappingAtomicOperation();
+            terminal = parseMappingAtomicOperation(dbScope);
         }
         return new RelationalOperation.JoinNavigation(dbName, chain, terminal);
     }

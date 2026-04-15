@@ -125,17 +125,15 @@ class MultiFileRebuildTest {
                     currency: [store::TradeDB] T_INSTRUMENT.CURRENCY
                 }
 
-                trade::Trade_Trader: AssociationMapping
-                (
+                trade::Trade_Trader: Relational { AssociationMapping (
                     trader: [store::TradeDB]@Trade_Trader,
                     trades: [store::TradeDB]@Trade_Trader
-                )
+                ) }
 
-                trade::Trade_Instrument: AssociationMapping
-                (
+                trade::Trade_Instrument: Relational { AssociationMapping (
                     instrument: [store::TradeDB]@Trade_Instrument,
                     instrumentTrades: [store::TradeDB]@Trade_Instrument
-                )
+                ) }
             )
             """;
 
@@ -232,17 +230,15 @@ class MultiFileRebuildTest {
                     country: [store::TradeDB] T_COUNTERPARTY.COUNTRY
                 }
 
-                trade::Trade_Trader: AssociationMapping
-                (
+                trade::Trade_Trader: Relational { AssociationMapping (
                     trader: [store::TradeDB]@Trade_Trader,
                     trades: [store::TradeDB]@Trade_Trader
-                )
+                ) }
 
-                trade::Trade_Counterparty: AssociationMapping
-                (
+                trade::Trade_Counterparty: Relational { AssociationMapping (
                     counterparty: [store::TradeDB]@Trade_Counterparty,
                     cpTrades: [store::TradeDB]@Trade_Counterparty
-                )
+                ) }
             )
             """;
 

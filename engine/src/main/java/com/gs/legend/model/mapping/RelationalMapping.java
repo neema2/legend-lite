@@ -29,8 +29,7 @@ import java.util.stream.Collectors;
  * @param setId            Optional set implementation ID (null if default)
  * @param isRoot           Whether this is the root mapping for the class
  * @param distinct           Whether ~distinct is specified on this mapping
- * @param filterName         Name of the ~filter (null if none)
- * @param filterDbName       Database name qualifying the filter (null if none)
+ * @param filterFqn          FQN of the ~filter (e.g., "store::DB.ActiveFilter"). Null if none.
  * @param embeddedMappings   Map from embedded property name to sub-property mappings.
  *                           e.g., firm → [legalName→FIRM_NAME, revenue→FIRM_REVENUE].
  *                           Empty if no embedded properties.
@@ -47,19 +46,18 @@ public record RelationalMapping(
         String setId,
         boolean isRoot,
         boolean distinct,
-        String filterName,
-        String filterDbName,
+        String filterFqn,
         Map<String, List<PropertyMapping>> embeddedMappings,
         List<String> groupByColumns,
         View view,
         String sourceUrl) implements ClassMapping {
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
-        this(pureClass, table, propertyMappings, false, null, false, false, null, null, Map.of(), List.of(), null, null);
+        this(pureClass, table, propertyMappings, false, null, false, false, null, Map.of(), List.of(), null, null);
     }
 
     public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings, boolean nested) {
-        this(pureClass, table, propertyMappings, nested, null, false, false, null, null, Map.of(), List.of(), null, null);
+        this(pureClass, table, propertyMappings, nested, null, false, false, null, Map.of(), List.of(), null, null);
     }
 
     public RelationalMapping {
@@ -79,12 +77,12 @@ public record RelationalMapping(
      */
     public RelationalMapping withPropertyMappings(List<PropertyMapping> resolvedPMs) {
         return new RelationalMapping(pureClass, table, resolvedPMs, nested, setId, isRoot,
-                distinct, filterName, filterDbName, embeddedMappings, groupByColumns, view, sourceUrl);
+                distinct, filterFqn, embeddedMappings, groupByColumns, view, sourceUrl);
     }
 
     public RelationalMapping withGroupByColumns(List<String> resolvedGroupBy) {
         return new RelationalMapping(pureClass, table, propertyMappings, nested, setId, isRoot,
-                distinct, filterName, filterDbName, embeddedMappings, resolvedGroupBy, view, sourceUrl);
+                distinct, filterFqn, embeddedMappings, resolvedGroupBy, view, sourceUrl);
     }
 
     /**
@@ -193,7 +191,7 @@ public record RelationalMapping(
         // Synthetic virtual table — name is the lowercased class name
         String simpleName = pureClass.name();
         String tableName = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
-        var table = new Table(tableName, columns);
+        var table = new Table("__identity__", tableName, columns);
 
         return new RelationalMapping(pureClass, table, mappings, true);
     }
@@ -215,7 +213,7 @@ public record RelationalMapping(
         // Internal table name — not registered, only used for mapping structure
         String simpleName = pureClass.name();
         String internalName = "_json_" + simpleName;
-        var table = new Table(internalName, columns);
+        var table = new Table("__json__", internalName, columns);
 
         var mappings = new java.util.ArrayList<PropertyMapping>();
         for (var prop : pureClass.allProperties()) {
@@ -229,14 +227,14 @@ public record RelationalMapping(
         }
 
         return new RelationalMapping(pureClass, table, mappings, false, null, false, false,
-                null, null, Map.of(), List.of(), null, sourceUrl);
+                null, Map.of(), List.of(), null, sourceUrl);
     }
 
     @Override
     public String toString() {
         var sb = new StringBuilder();
         sb.append("Mapping ").append(pureClass.qualifiedName())
-                .append(" -> ").append(table.qualifiedName()).append(" {\n");
+                .append(" -> ").append(table.dbName()).append(" {\n");
         for (PropertyMapping pm : propertyMappings) {
             sb.append("    ").append(pm).append("\n");
         }

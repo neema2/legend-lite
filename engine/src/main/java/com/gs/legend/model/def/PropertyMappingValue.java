@@ -70,7 +70,7 @@ public sealed interface PropertyMappingValue {
 
         /** Convenience for single-hop join with no terminal. */
         public static JoinMapping single(String databaseName, String joinName) {
-            return new JoinMapping(databaseName, List.of(JoinChainElement.of(joinName)), null);
+            return new JoinMapping(databaseName, List.of(JoinChainElement.of(databaseName, joinName)), null);
         }
     }
 

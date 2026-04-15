@@ -64,4 +64,94 @@ Mapping trading::TradingMapping
         ~mainTable [store::DB] AVERAGE_PRICE_TRADE
         avgTradeId: [store::DB] AVERAGE_PRICE_TRADE.AVG_TRADE_ID, avgPrice: [store::DB] AVERAGE_PRICE_TRADE.AVG_PRICE, totalQuantity: [store::DB] AVERAGE_PRICE_TRADE.TOTAL_QUANTITY, totalNotional: [store::DB] AVERAGE_PRICE_TRADE.TOTAL_NOTIONAL, numberOfFills: [store::DB] AVERAGE_PRICE_TRADE.NUMBER_OF_FILLS, vwapPrice: [store::DB] AVERAGE_PRICE_TRADE.VWAP_PRICE, twapPrice: [store::DB] AVERAGE_PRICE_TRADE.TWAP_PRICE, arrivalPrice: [store::DB] AVERAGE_PRICE_TRADE.ARRIVAL_PRICE, closePrice: [store::DB] AVERAGE_PRICE_TRADE.CLOSE_PRICE, tradeDate: [store::DB] AVERAGE_PRICE_TRADE.TRADE_DATE, side: [store::DB] AVERAGE_PRICE_TRADE.SIDE, currency: [store::DB] AVERAGE_PRICE_TRADE.CURRENCY
     }
+    cross::Allocation_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Allocation_Book,
+            allocations: [store::DB] @Allocation_Book
+        )
+    }
+    cross::Order_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Order_Instrument,
+            orders: [store::DB] @Order_Instrument
+        )
+    }
+    cross::Trade_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Trade_Book,
+            trades: [store::DB] @Trade_Book
+        )
+    }
+    cross::Trade_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Trade_Counterparty,
+            trades: [store::DB] @Trade_Counterparty
+        )
+    }
+    cross::Trade_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Trade_Instrument,
+            trades: [store::DB] @Trade_Instrument
+        )
+    }
+    cross::Trade_Trader: Relational {
+        AssociationMapping (
+            trader: [store::DB] @Trade_Trader,
+            trades: [store::DB] @Trade_Trader
+        )
+    }
+    trading::Execution_FillDetail: Relational {
+        AssociationMapping (
+            execution: [store::DB] @Execution_FillDetail,
+            fillDetails: [store::DB] @Execution_FillDetail
+        )
+    }
+    trading::Order_Execution: Relational {
+        AssociationMapping (
+            order: [store::DB] @Order_Execution,
+            executions: [store::DB] @Order_Execution
+        )
+    }
+    trading::Order_OrderRoute: Relational {
+        AssociationMapping (
+            order: [store::DB] @Order_OrderRoute,
+            routes: [store::DB] @Order_OrderRoute
+        )
+    }
+    trading::Order_Trade: Relational {
+        AssociationMapping (
+            order: [store::DB] @Order_Trade,
+            trades: [store::DB] @Order_Trade
+        )
+    }
+    trading::Trade_Allocation: Relational {
+        AssociationMapping (
+            trade: [store::DB] @Trade_Allocation,
+            allocations: [store::DB] @Trade_Allocation
+        )
+    }
+    trading::Trade_AveragePriceTrade: Relational {
+        AssociationMapping (
+            avgPriceTrade: [store::DB] @Trade_AveragePriceTrade,
+            trades: [store::DB] @Trade_AveragePriceTrade
+        )
+    }
+    trading::Trade_Block: Relational {
+        AssociationMapping (
+            block: [store::DB] @Trade_Block,
+            trades: [store::DB] @Trade_Block
+        )
+    }
+    trading::Trade_LifecycleEvent: Relational {
+        AssociationMapping (
+            trade: [store::DB] @Trade_LifecycleEvent,
+            lifecycleEvents: [store::DB] @Trade_LifecycleEvent
+        )
+    }
+    trading::Trade_TradeCorrection: Relational {
+        AssociationMapping (
+            trade: [store::DB] @Trade_TradeCorrection,
+            corrections: [store::DB] @Trade_TradeCorrection
+        )
+    }
 )

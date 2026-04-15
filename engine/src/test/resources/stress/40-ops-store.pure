@@ -59,4 +59,40 @@ Mapping ops::OpsMapping
         ~mainTable [store::DB] PROCESSING_QUEUE
         queueId: [store::DB] PROCESSING_QUEUE.QUEUE_ID, queueName: [store::DB] PROCESSING_QUEUE.QUEUE_NAME, itemCount: [store::DB] PROCESSING_QUEUE.ITEM_COUNT, oldestItemDate: [store::DB] PROCESSING_QUEUE.OLDEST_ITEM_DATE, priority: [store::DB] PROCESSING_QUEUE.PRIORITY, status: [store::DB] PROCESSING_QUEUE.STATUS, assignedTeam: [store::DB] PROCESSING_QUEUE.ASSIGNED_TEAM, avgProcessingTimeMs: [store::DB] PROCESSING_QUEUE.AVG_PROCESSING_TIME_MS, slaMinutes: [store::DB] PROCESSING_QUEUE.SLA_MINUTES, isBreachingSLA: [store::DB] PROCESSING_QUEUE.IS_BREACHING_SLA, lastProcessedTime: [store::DB] PROCESSING_QUEUE.LAST_PROCESSED_TIME, throughputPerHour: [store::DB] PROCESSING_QUEUE.THROUGHPUT_PER_HOUR
     }
+    cross::Confirmation_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @Confirmation_Trade,
+            confirmations: [store::DB] @Confirmation_Trade
+        )
+    }
+    cross::TradeException_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @TradeException_Trade,
+            exceptions: [store::DB] @TradeException_Trade
+        )
+    }
+    ops::NettingSet_NettingResult: Relational {
+        AssociationMapping (
+            nettingSet: [store::DB] @NettingSet_NettingResult,
+            nettingResults: [store::DB] @NettingSet_NettingResult
+        )
+    }
+    ops::OperationalIncident_TradeException: Relational {
+        AssociationMapping (
+            incident: [store::DB] @OperationalIncident_TradeException,
+            exceptions: [store::DB] @OperationalIncident_TradeException
+        )
+    }
+    ops::ReconciliationRun_DataQualityIssue: Relational {
+        AssociationMapping (
+            reconciliationRun: [store::DB] @ReconciliationRun_DataQualityIssue,
+            dataQualityIssues: [store::DB] @ReconciliationRun_DataQualityIssue
+        )
+    }
+    ops::TradeException_BreakResolution: Relational {
+        AssociationMapping (
+            tradeException: [store::DB] @TradeException_BreakResolution,
+            resolutions: [store::DB] @TradeException_BreakResolution
+        )
+    }
 )

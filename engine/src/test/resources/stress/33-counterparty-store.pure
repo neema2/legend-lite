@@ -64,4 +64,58 @@ Mapping counterparty::CounterpartyMapping
         ~mainTable [store::DB] SANCTIONS_CHECK
         checkId: [store::DB] SANCTIONS_CHECK.CHECK_ID, checkDate: [store::DB] SANCTIONS_CHECK.CHECK_DATE, screeningProvider: [store::DB] SANCTIONS_CHECK.SCREENING_PROVIDER, result: [store::DB] SANCTIONS_CHECK.RESULT, matchCount: [store::DB] SANCTIONS_CHECK.MATCH_COUNT, falsePositiveCount: [store::DB] SANCTIONS_CHECK.FALSE_POSITIVE_COUNT, trueMatchCount: [store::DB] SANCTIONS_CHECK.TRUE_MATCH_COUNT, status: [store::DB] SANCTIONS_CHECK.STATUS, resolvedDate: [store::DB] SANCTIONS_CHECK.RESOLVED_DATE, resolvedBy: [store::DB] SANCTIONS_CHECK.RESOLVED_BY, listChecked: [store::DB] SANCTIONS_CHECK.LIST_CHECKED, isCleared: [store::DB] SANCTIONS_CHECK.IS_CLEARED
     }
+    counterparty::Counterparty_Account: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Counterparty_Account,
+            accounts: [store::DB] @Counterparty_Account
+        )
+    }
+    counterparty::Counterparty_Agreement: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Counterparty_Agreement,
+            agreements: [store::DB] @Counterparty_Agreement
+        )
+    }
+    counterparty::Counterparty_BeneficialOwner: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Counterparty_BeneficialOwner,
+            beneficialOwners: [store::DB] @Counterparty_BeneficialOwner
+        )
+    }
+    counterparty::Counterparty_Contact: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Counterparty_Contact,
+            contacts: [store::DB] @Counterparty_Contact
+        )
+    }
+    counterparty::Counterparty_CounterpartyLimit: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Counterparty_CounterpartyLimit,
+            limits: [store::DB] @Counterparty_CounterpartyLimit
+        )
+    }
+    counterparty::Counterparty_CreditRating: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Counterparty_CreditRating,
+            creditRatings: [store::DB] @Counterparty_CreditRating
+        )
+    }
+    counterparty::Counterparty_KYC: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Counterparty_KYC,
+            kycRecords: [store::DB] @Counterparty_KYC
+        )
+    }
+    counterparty::Counterparty_SanctionsCheck: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Counterparty_SanctionsCheck,
+            sanctionsChecks: [store::DB] @Counterparty_SanctionsCheck
+        )
+    }
+    cross::Counterparty_Country: Relational {
+        AssociationMapping (
+            country: [store::DB] @Counterparty_Country,
+            counterparties: [store::DB] @Counterparty_Country
+        )
+    }
 )

@@ -226,7 +226,7 @@ class EnumIntegrationTest {
             // THEN: All elements are stored
             assertNotNull(builder.getEnum("model::TaskStatus"));
             assertNotNull(builder.getClass("model::Task"));
-            assertNotNull(builder.getTable("TASKS"));
+            assertNotNull(builder.getTable("store::TaskDB", "TASKS"));
             assertTrue(builder.getMappingRegistry().findByClassName("model::Task").isPresent());
 
             // AND: Enum values are validated

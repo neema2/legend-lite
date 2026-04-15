@@ -8,7 +8,6 @@ import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.store.*;
 import com.gs.legend.parser.NameResolver;
-import com.gs.legend.parser.PureParser;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,14 +29,16 @@ import java.util.Set;
  */
 public final class PureModelBuilder implements ModelContext {
 
+    // ==================== Instance fields ====================
+
     private final SymbolTable symbols = new SymbolTable();
     private final ArrayList<PureClass> classes = new ArrayList<>();
     private final ArrayList<ClassDefinition> pendingClassDefinitions = new ArrayList<>();
     private final ArrayList<Association> associations = new ArrayList<>();
-    private final Map<String, Table> tables = new HashMap<>();
-    private final Map<String, Join> joins = new HashMap<>();
-    private final Map<String, View> views = new HashMap<>();
-    private final Map<String, Filter> filters = new HashMap<>();
+    private final ArrayList<Table> tables = new ArrayList<>();
+    private final ArrayList<Join> joins = new ArrayList<>();
+    private final ArrayList<View> views = new ArrayList<>();
+    private final ArrayList<Filter> filters = new ArrayList<>();
     private final ArrayList<DatabaseDefinition> databases = new ArrayList<>();
     private final ArrayList<ProfileDefinition> profiles = new ArrayList<>();
     private final ArrayList<List<FunctionDefinition>> functions = new ArrayList<>();
@@ -46,6 +47,8 @@ public final class PureModelBuilder implements ModelContext {
     private final ArrayList<ServiceDefinition> services = new ArrayList<>();
     private final ArrayList<EnumDefinition> enums = new ArrayList<>();
     private final ArrayList<MappingDefinition> mappingDefinitions = new ArrayList<>();
+    private final Map<String, Map<String, Join>> explicitAssociationJoins = new HashMap<>();
+    private final MappingRegistry mappingRegistry = new MappingRegistry(symbols);
 
     // Primitive-int-indexed helpers — zero boxing, O(1) access
     private static <T> T idGet(ArrayList<T> list, int id) {
@@ -56,7 +59,6 @@ public final class PureModelBuilder implements ModelContext {
         if (gap > 0) list.addAll(java.util.Collections.nCopies(gap, null));
         list.set(id, value);
     }
-    private final MappingRegistry mappingRegistry = new MappingRegistry(symbols);
     private ImportScope imports = new ImportScope();
     private boolean strict = false;
 
@@ -96,11 +98,6 @@ public final class PureModelBuilder implements ModelContext {
         addEnum(EnumDefinition.of("meta::pure::functions::hash::HashType",
                 "MD5", "SHA1", "SHA256"));
     }
-
-    // Explicit association-to-join mappings from +AssociationName: Relational {
-    // prop: @Join } syntax
-    // Key: "AssociationName.propertyName", Value: Join
-    private final Map<String, Join> explicitAssociationJoins = new HashMap<>();
 
     /**
      * Returns the ImportScope for query resolution (same imports as the model source).
@@ -153,7 +150,6 @@ public final class PureModelBuilder implements ModelContext {
 
     // Lazily-built indexes for O(1) association lookups (avoids O(N) scans)
     private Map<String, List<Association>> classToAssociations;  // className → associations referencing that class
-    private Map<String, Join> propertyToJoin;                     // propertyName → explicit join
 
     /**
      * Adds Pure definitions from source code.
@@ -164,7 +160,6 @@ public final class PureModelBuilder implements ModelContext {
     public PureModelBuilder addSource(String pureSource) {
         // Invalidate lazy indexes — new definitions may add associations/joins
         classToAssociations = null;
-        propertyToJoin = null;
 
         PackageableElementBuilder.ParseResult parsed = ParseCache.global().getOrParse(pureSource);
         boolean isStrict = strict || pureSource.stripLeading().startsWith("\"use strict\"");
@@ -188,6 +183,14 @@ public final class PureModelBuilder implements ModelContext {
             }
             for (var entry : parsed.imports().getTypeImports().entrySet()) {
                 imports.addImport(entry.getValue());
+            }
+            // Auto-import packages from the current source's own definitions
+            // (mirrors legend-engine: package-local names resolve without explicit imports)
+            for (PackageableElement def : rawDefinitions) {
+                String pkg = def.packagePath();
+                if (!pkg.isEmpty()) {
+                    imports.addImport(pkg + "::*");
+                }
             }
             definitions = NameResolver.resolveDefinitions(rawDefinitions, imports, symbols.allFqns());
         }
@@ -217,15 +220,25 @@ public final class PureModelBuilder implements ModelContext {
         // PHASE 4: Resolve superclass references now that all classes are registered
         resolveSuperclasses();
 
-        // PHASE 5: Process remaining definitions
+        // PHASE 5a: Process associations and databases first (order matters: includes need DBs)
         for (PackageableElement def : definitions) {
             switch (def) {
-                case ClassDefinition classDef -> {
-                } // Already processed in Phase 1
-                case EnumDefinition enumDef -> {
-                } // Already processed in Phase 0
                 case AssociationDefinition assocDef -> addAssociation(assocDef);
                 case DatabaseDefinition dbDef -> addDatabase(dbDef);
+                default -> { }
+            }
+        }
+
+        // PHASE 5b: Resolve database includes before mappings reference included tables
+        resolveDatabaseIncludes();
+
+        // PHASE 5c: Process mappings and remaining definitions
+        for (PackageableElement def : definitions) {
+            switch (def) {
+                case ClassDefinition ignored -> { }
+                case EnumDefinition ignored -> { }
+                case AssociationDefinition ignored -> { }
+                case DatabaseDefinition ignored -> { }
                 case MappingDefinition mappingDef -> addMapping(mappingDef);
                 case ServiceDefinition serviceDef -> addService(serviceDef);
                 case ProfileDefinition profileDef -> addProfile(profileDef);
@@ -235,11 +248,7 @@ public final class PureModelBuilder implements ModelContext {
             }
         }
 
-
-        // PHASE 4: Resolve database includes (merge tables/joins/views/filters from included DBs)
-        resolveDatabaseIncludes();
-
-        // PHASE 5: Resolve mapping includes (copy class mappings from included mappings)
+        // PHASE 5d: Resolve mapping includes (copy class mappings from included mappings)
         resolveMappingIncludes();
 
         // PHASE 6: Pre-resolve function bodies — parse body text into AST and resolve names
@@ -260,43 +269,62 @@ public final class PureModelBuilder implements ModelContext {
             for (String includedPath : dbDef.includes()) {
                 DatabaseDefinition included = idGet(databases, symbols.resolveId(includedPath));
                 if (included == null) continue;
-                String dbName = dbDef.simpleName();
+                String dbFqn = dbDef.qualifiedName();
 
-                // Merge tables
+                // Merge tables — register under including db's FQN namespace
                 for (var tableDef : included.tables()) {
-                    Table table = convertTable(tableDef);
-                    tables.putIfAbsent(dbName + "." + tableDef.name(), table);
-                    tables.putIfAbsent(tableDef.name(), table);
+                    Table table = convertTable(dbFqn, tableDef);
+                    int qId = symbols.intern(table.qualifiedName());
+                    if (idGet(tables, qId) != null) {
+                        throw new IllegalStateException("Duplicate table '" + table.qualifiedName()
+                                + "' found via database include of '" + included.qualifiedName() + "'");
+                    }
+                    idPut(tables, qId, table);
                 }
                 for (var schema : included.schemas()) {
                     for (var tableDef : schema.tables()) {
-                        Table table = convertTable(schema.name(), tableDef);
-                        tables.putIfAbsent(dbName + "." + schema.name() + "." + tableDef.name(), table);
-                        tables.putIfAbsent(schema.name() + "." + tableDef.name(), table);
-                        tables.putIfAbsent(tableDef.name(), table);
+                        Table table = convertTable(dbFqn, schema.name(), tableDef);
+                        int qId = symbols.intern(table.qualifiedName());
+                        if (idGet(tables, qId) != null) {
+                            throw new IllegalStateException("Duplicate table '" + table.qualifiedName()
+                                    + "' found via database include of '" + included.qualifiedName() + "'");
+                        }
+                        idPut(tables, qId, table);
                     }
                 }
 
-                // Merge joins
+                // Merge joins — register under including db's FQN namespace
                 for (var joinDef : included.joins()) {
-                    Join join = new Join(joinDef.name(), joinDef.operation());
-                    joins.putIfAbsent(dbName + "." + joinDef.name(), join);
-                    joins.putIfAbsent(joinDef.name(), join);
+                    Join join = new Join(dbFqn, joinDef.name(), joinDef.operation());
+                    int qId = symbols.intern(join.qualifiedName());
+                    if (idGet(joins, qId) != null) {
+                        throw new IllegalStateException("Duplicate join '" + join.qualifiedName()
+                                + "' found via database include of '" + included.qualifiedName() + "'");
+                    }
+                    idPut(joins, qId, join);
                     mappingRegistry.registerJoin(join);
                 }
 
                 // Merge views
                 for (var viewDef : included.views()) {
-                    View view = convertView(viewDef);
-                    views.putIfAbsent(dbName + "." + viewDef.name(), view);
-                    views.putIfAbsent(viewDef.name(), view);
+                    View view = convertView(dbFqn, viewDef);
+                    int qId = symbols.intern(view.qualifiedName());
+                    if (idGet(views, qId) != null) {
+                        throw new IllegalStateException("Duplicate view '" + view.qualifiedName()
+                                + "' found via database include of '" + included.qualifiedName() + "'");
+                    }
+                    idPut(views, qId, view);
                 }
 
                 // Merge filters
                 for (var filterDef : included.filters()) {
-                    Filter filter = new Filter(filterDef.name(), filterDef.condition());
-                    filters.putIfAbsent(dbName + "." + filterDef.name(), filter);
-                    filters.putIfAbsent(filterDef.name(), filter);
+                    Filter filter = new Filter(dbFqn, filterDef.name(), filterDef.condition());
+                    int qId = symbols.intern(filter.qualifiedName());
+                    if (idGet(filters, qId) != null) {
+                        throw new IllegalStateException("Duplicate filter '" + filter.qualifiedName()
+                                + "' found via database include of '" + included.qualifiedName() + "'");
+                    }
+                    idPut(filters, qId, filter);
                 }
             }
         }
@@ -465,47 +493,40 @@ public final class PureModelBuilder implements ModelContext {
      * Adds a Database definition.
      */
     public PureModelBuilder addDatabase(DatabaseDefinition dbDef) {
-        idPut(databases, symbols.intern(dbDef.qualifiedName()), dbDef);
+        String dbFqn = dbDef.qualifiedName();
+        idPut(databases, symbols.intern(dbFqn), dbDef);
 
         // Register tables
         for (var tableDef : dbDef.tables()) {
-            Table table = convertTable(tableDef);
-            tables.put(tableDef.name(), table);
-            tables.put(dbDef.simpleName() + "." + tableDef.name(), table);
+            Table table = convertTable(dbFqn, tableDef);
+            idPut(tables, symbols.intern(table.qualifiedName()), table);
         }
 
-        // Register schema tables (schema-qualified and simple name)
+        // Register schema tables
         for (var schema : dbDef.schemas()) {
             for (var tableDef : schema.tables()) {
-                Table table = convertTable(schema.name(), tableDef);
-                tables.put(tableDef.name(), table);
-                tables.put(schema.name() + "." + tableDef.name(), table);
-                tables.put(dbDef.simpleName() + "." + schema.name() + "." + tableDef.name(), table);
+                Table table = convertTable(dbFqn, schema.name(), tableDef);
+                idPut(tables, symbols.intern(table.qualifiedName()), table);
             }
         }
 
         // Register joins
         for (var joinDef : dbDef.joins()) {
-            Join join = new Join(joinDef.name(), joinDef.operation());
-            joins.put(joinDef.name(), join);
-            joins.put(dbDef.simpleName() + "." + joinDef.name(), join);
-
-            // Also register with MappingRegistry for M2M deep fetch lookup
+            Join join = new Join(dbFqn, joinDef.name(), joinDef.operation());
+            idPut(joins, symbols.intern(join.qualifiedName()), join);
             mappingRegistry.registerJoin(join);
         }
 
         // Register views
         for (var viewDef : dbDef.views()) {
-            View view = convertView(viewDef);
-            views.put(viewDef.name(), view);
-            views.put(dbDef.simpleName() + "." + viewDef.name(), view);
+            View view = convertView(dbFqn, viewDef);
+            idPut(views, symbols.intern(view.qualifiedName()), view);
         }
 
         // Register filters
         for (var filterDef : dbDef.filters()) {
-            Filter filter = new Filter(filterDef.name(), filterDef.condition());
-            filters.put(filterDef.name(), filter);
-            filters.put(dbDef.simpleName() + "." + filterDef.name(), filter);
+            Filter filter = new Filter(dbFqn, filterDef.name(), filterDef.condition());
+            idPut(filters, symbols.intern(filter.qualifiedName()), filter);
         }
 
         return this;
@@ -564,11 +585,60 @@ public final class PureModelBuilder implements ModelContext {
                     mappingRegistry.register(mappingName, rm);
                 }
                 // Register synthetic table so compiler's findTable() works during sourceSpec synthesis
-                tables.put(rm.table().name(), rm.table());
+                idPut(tables, symbols.intern(rm.table().qualifiedName()), rm.table());
             }
         }
 
         return this;
+    }
+
+    /**
+     * Resolves a list of JoinChainElements to Join objects from the SymbolTable.
+     * JoinChainElement.databaseName() is always non-null (enforced by its record constructor,
+     * stamped by the parser, and resolved by NameResolver).
+     */
+    private List<Join> resolveJoins(List<com.gs.legend.model.def.JoinChainElement> chain) {
+        return chain.stream().map(jce -> {
+            String db = jce.databaseName();
+            Join join = idGet(joins, symbols.resolveId(db + "." + jce.joinName()));
+            if (join == null) {
+                throw new IllegalStateException("Join not found: " + db + "." + jce.joinName());
+            }
+            return join;
+        }).toList();
+    }
+
+    /**
+     * Resolves a Join from a JoinChainElement using its databaseName + joinName as canonical key.
+     */
+    private Join resolveJoinByChainElement(com.gs.legend.model.def.JoinChainElement jce) {
+        String db = jce.databaseName();
+        if (db == null) {
+            throw new IllegalStateException("No database context for join '" + jce.joinName() + "'");
+        }
+        Join join = idGet(joins, symbols.resolveId(db + "." + jce.joinName()));
+        if (join == null) {
+            throw new IllegalStateException("Join not found: " + db + "." + jce.joinName());
+        }
+        return join;
+    }
+
+    /**
+     * Resolves a Join from a JoinReference, using its own databaseName or falling back to
+     * the class mapping's database context.
+     */
+    private Join resolveJoinFromReference(MappingDefinition.JoinReference ref, String fallbackDb) {
+        var firstHop = ref.joinChain().get(0);
+        String db = firstHop.databaseName() != null ? firstHop.databaseName()
+                : ref.databaseName() != null ? ref.databaseName() : fallbackDb;
+        if (db == null) {
+            throw new IllegalStateException("No database context for join '" + firstHop.joinName() + "'");
+        }
+        Join join = idGet(joins, symbols.resolveId(db + "." + firstHop.joinName()));
+        if (join == null) {
+            throw new IllegalStateException("Join not found: " + db + "." + firstHop.joinName());
+        }
+        return join;
     }
 
     /**
@@ -585,14 +655,10 @@ public final class PureModelBuilder implements ModelContext {
         for (var assocMapping : mappingDef.associationMappings()) {
             for (var prop : assocMapping.properties()) {
                 if (!prop.joinChain().isEmpty()) {
-                    String joinName = prop.joinChain().get(0).joinName();
-                    Join join = joins.get(joinName);
-                    if (join != null) {
-                        // Already FQN from NameResolver
-                        String resolvedAssocName = assocMapping.associationName();
-                        String key = resolvedAssocName + "." + prop.propertyName();
-                        explicitAssociationJoins.put(key, join);
-                    }
+                    var firstHop = prop.joinChain().get(0);
+                    Join join = resolveJoinByChainElement(firstHop);
+                    String resolvedAssocName = assocMapping.associationName();
+                    explicitAssociationJoins.computeIfAbsent(resolvedAssocName, k -> new HashMap<>()).put(prop.propertyName(), join);
                 }
             }
         }
@@ -613,23 +679,24 @@ public final class PureModelBuilder implements ModelContext {
             // Find the Table (or View → infer base table)
             Table table = null;
             View view = null;
+            String dbFqn = classMapping.mainTable() != null ? classMapping.mainTable().databaseName() : null;
             if (classMapping.mainTable() != null) {
-                String tableName = classMapping.mainTable().tableName();
-                table = tables.get(tableName);
+                String tableKey = dbFqn + "." + classMapping.mainTable().tableName();
+                table = idGet(tables, symbols.resolveId(tableKey));
                 if (table == null) {
                     // Views are usable as tables in mappings (same as legend-engine)
-                    view = views.get(tableName);
+                    view = idGet(views, symbols.resolveId(tableKey));
                     if (view != null) {
                         String baseTableName = inferViewMainTable(view);
-                        table = tables.get(baseTableName);
+                        table = idGet(tables, symbols.resolveId(dbFqn + "." + baseTableName));
                         if (table == null) {
                             throw new IllegalStateException(
-                                    "View '" + tableName + "' references table '" + baseTableName + "' which was not found");
+                                    "View '" + tableKey + "' references table '" + baseTableName + "' which was not found");
                         }
                     }
                 }
                 if (table == null) {
-                    throw new IllegalStateException("Table or View not found: " + tableName);
+                    throw new IllegalStateException("Table or View not found: " + tableKey);
                 }
             }
 
@@ -652,10 +719,8 @@ public final class PureModelBuilder implements ModelContext {
                             } else {
                                 terminalCol = pm.propertyName();
                             }
-                            List<String> joinNames = joinRef.joinChain().stream()
-                                    .map(com.gs.legend.model.def.JoinChainElement::joinName)
-                                    .toList();
-                            return PropertyMapping.joinChain(pm.propertyName(), terminalCol, joinNames);
+                            List<Join> resolvedJoins = resolveJoins(joinRef.joinChain());
+                            return PropertyMapping.joinChain(pm.propertyName(), terminalCol, resolvedJoins);
                         }
                         if (pm.hasMappingExpression()) {
                             // DynaFunction expression: convert RelationalOperation → ValueSpecification
@@ -665,7 +730,7 @@ public final class PureModelBuilder implements ModelContext {
                                 String mainTableName = classMapping.mainTable().tableName();
                                 var tableToParam = new java.util.HashMap<String, String>();
                                 tableToParam.put(mainTableName, "src");
-                                var allJoinChains = new java.util.ArrayList<java.util.List<String>>();
+                                var allJoinChains = new java.util.ArrayList<java.util.List<Join>>();
                                 for (int ji = 0; ji < joinNavs.size(); ji++) {
                                     var nav = joinNavs.get(ji);
                                     String paramName = "t" + (ji + 1);
@@ -674,8 +739,7 @@ public final class PureModelBuilder implements ModelContext {
                                             .filter(t -> !t.equals(mainTableName))
                                             .findFirst().orElse(termTables.iterator().next());
                                     tableToParam.put(termTable, paramName);
-                                    allJoinChains.add(nav.joinChain().stream()
-                                            .map(com.gs.legend.model.def.JoinChainElement::joinName).toList());
+                                    allJoinChains.add(resolveJoins(nav.joinChain()));
                                 }
                                 var vsExpr = RelationalMappingConverter.convert(pm.mappingExpression(), tableToParam);
                                 return PropertyMapping.dynaFunctionWithMultiJoin(pm.propertyName(), vsExpr, allJoinChains);
@@ -693,9 +757,8 @@ public final class PureModelBuilder implements ModelContext {
                                 tableToParam.put(mainTableName, "src");
                                 tableToParam.put(terminalTable, "tgt");
                                 var vsExpr = RelationalMappingConverter.convert(pm.mappingExpression(), tableToParam);
-                                List<String> joinNames = joinNav.joinChain().stream()
-                                        .map(com.gs.legend.model.def.JoinChainElement::joinName).toList();
-                                return PropertyMapping.dynaFunctionWithJoin(pm.propertyName(), vsExpr, joinNames);
+                                List<Join> resolvedJoins = resolveJoins(joinNav.joinChain());
+                                return PropertyMapping.dynaFunctionWithJoin(pm.propertyName(), vsExpr, resolvedJoins);
                             }
                             var vsExpr = RelationalMappingConverter.convert(pm.mappingExpression());
                             return PropertyMapping.dynaFunction(pm.propertyName(), vsExpr);
@@ -746,16 +809,21 @@ public final class PureModelBuilder implements ModelContext {
                     })
                     .toList();
 
-            // Process join references for association properties
+            // Process bare join references (no terminal column) — these are association navigations.
+            // Join refs WITH terminal columns (e.g., @EmpDept | T.NAME) are traverse property mappings,
+            // already handled above as join-chain PropertyMappings.
             for (var pm : classMapping.propertyMappings()) {
-                if (pm.isJoinReference()) {
-                    String joinName = pm.joinReference().joinName();
-                    Join join = joins.get(joinName);
-                    if (join != null) {
-                        // Store with key "ClassName.propertyName" for lookup
-                        String key = classMapping.className() + "." + pm.propertyName();
-                        explicitAssociationJoins.put(key, join);
+                if (pm.isJoinReference() && pm.joinReference().terminalColumn() == null) {
+                    Join join = resolveJoinFromReference(pm.joinReference(), dbFqn);
+                    // Register under the association name (not class name) to match lookup
+                    String assocFqn = findAssociationForProperty(classMapping.className(), pm.propertyName());
+                    if (assocFqn == null) {
+                        throw new IllegalStateException(
+                                "Join reference for property '" + pm.propertyName()
+                                        + "' on class '" + classMapping.className()
+                                        + "' does not belong to any registered association");
                     }
+                    explicitAssociationJoins.computeIfAbsent(assocFqn, k -> new HashMap<>()).put(pm.propertyName(), join);
                 }
             }
 
@@ -763,8 +831,11 @@ public final class PureModelBuilder implements ModelContext {
             String setId = classMapping.setId();
             boolean isRoot = classMapping.isRoot();
             boolean distinct = classMapping.distinct();
-            String filterName = classMapping.filter() != null ? classMapping.filter().filterName() : null;
-            String filterDbName = classMapping.filter() != null ? classMapping.filter().databaseName() : null;
+            String filterFqn = null;
+            if (classMapping.filter() != null) {
+                var f = classMapping.filter();
+                filterFqn = f.databaseName() + "." + f.filterName();
+            }
 
             // Build embedded property mappings from structured PMDs
             var embeddedMappings = new java.util.LinkedHashMap<String, List<PropertyMapping>>();
@@ -804,12 +875,8 @@ public final class PureModelBuilder implements ModelContext {
                     }
                     embeddedMappings.put(pm.propertyName(), subMappings);
                     // Register fallback join as explicit association join
-                    String joinName = ow.fallbackJoin().joinChain().get(0).joinName();
-                    Join join = joins.get(joinName);
-                    if (join != null) {
-                        String key = classMapping.className() + "." + pm.propertyName();
-                        explicitAssociationJoins.put(key, join);
-                    }
+                    Join join = resolveJoinByChainElement(ow.fallbackJoin().joinChain().get(0));
+                    explicitAssociationJoins.computeIfAbsent(classMapping.className(), k -> new HashMap<>()).put(pm.propertyName(), join);
                 }
             }
 
@@ -821,7 +888,7 @@ public final class PureModelBuilder implements ModelContext {
 
             // Create and register the mapping
             RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings,
-                    false, setId, isRoot, distinct, filterName, filterDbName, embeddedMappings,
+                    false, setId, isRoot, distinct, filterFqn, embeddedMappings,
                     groupByColumns, view, null);
             mappingRegistry.register(mappingDef.qualifiedName(), mapping);
         }
@@ -912,19 +979,25 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
-     * @param tableName The table name
+     * @param db The database FQN
+     * @param name The table name
      * @return The Table
      */
-    public Table getTable(String tableName) {
-        return tables.get(tableName);
+    public Table getTable(String db, String name) {
+        java.util.Objects.requireNonNull(db, "db");
+        java.util.Objects.requireNonNull(name, "name");
+        return idGet(tables, symbols.resolveId(db + "." + name));
     }
 
     /**
-     * @param joinName The join name
+     * @param db The database FQN
+     * @param name The join name
      * @return The Join, if found
      */
-    public Optional<Join> getJoin(String joinName) {
-        return Optional.ofNullable(joins.get(joinName));
+    public Optional<Join> getJoin(String db, String name) {
+        java.util.Objects.requireNonNull(db, "db");
+        java.util.Objects.requireNonNull(name, "name");
+        return Optional.ofNullable(idGet(joins, symbols.resolveId(db + "." + name)));
     }
 
     /**
@@ -932,7 +1005,7 @@ public final class PureModelBuilder implements ModelContext {
      * @return The Filter, if found
      */
     public Optional<Filter> getFilter(String filterName) {
-        return Optional.ofNullable(filters.get(filterName));
+        return Optional.ofNullable(idGet(filters, symbols.resolveId(filterName)));
     }
 
     /**
@@ -1120,17 +1193,7 @@ public final class PureModelBuilder implements ModelContext {
      * independent of whether the property comes from an Association or is declared directly on the class.
      */
     public java.util.Map<String, Join> findAllPropertyJoins(String className) {
-        var result = new java.util.LinkedHashMap<String, Join>();
-        // Resolve to canonical FQN — keys in explicitAssociationJoins are already FQN-normalized
-        String fqn = className;
-        String prefix = fqn + ".";
-        for (var entry : explicitAssociationJoins.entrySet()) {
-            if (entry.getKey().startsWith(prefix)) {
-                String propName = entry.getKey().substring(prefix.length());
-                result.putIfAbsent(propName, entry.getValue());
-            }
-        }
-        return result;
+        return explicitAssociationJoins.getOrDefault(className, Map.of());
     }
 
     /**
@@ -1156,13 +1219,13 @@ public final class PureModelBuilder implements ModelContext {
 
             if (prop2.targetClass().equals(fqn)) {
                 boolean isToMany = prop1.multiplicity().isMany();
-                Join join = findJoinForAssociationProperty(assoc.name(), prop1.propertyName());
+                Join join = findJoinForAssociationProperty(assoc.qualifiedName(), prop1.propertyName());
                 result.putIfAbsent(prop1.propertyName(),
                         new FullAssociationNavigation(prop1.targetClass(), isToMany, join));
             }
             if (prop1.targetClass().equals(fqn)) {
                 boolean isToMany = prop2.multiplicity().isMany();
-                Join join = findJoinForAssociationProperty(assoc.name(), prop2.propertyName());
+                Join join = findJoinForAssociationProperty(assoc.qualifiedName(), prop2.propertyName());
                 result.putIfAbsent(prop2.propertyName(),
                         new FullAssociationNavigation(prop2.targetClass(), isToMany, join));
             }
@@ -1200,28 +1263,6 @@ public final class PureModelBuilder implements ModelContext {
         return index;
     }
 
-    /**
-     * Returns the propertyName → Join index. Built lazily from explicitAssociationJoins.
-     */
-    private Map<String, Join> getPropertyToJoinIndex() {
-        if (propertyToJoin == null) {
-            propertyToJoin = buildPropertyToJoinIndex();
-        }
-        return propertyToJoin;
-    }
-
-    private Map<String, Join> buildPropertyToJoinIndex() {
-        var index = new HashMap<String, Join>();
-        for (var entry : explicitAssociationJoins.entrySet()) {
-            String key = entry.getKey(); // "AssocName.propertyName" or "ClassName.propertyName"
-            int dot = key.lastIndexOf('.');
-            if (dot >= 0) {
-                String propName = key.substring(dot + 1);
-                index.putIfAbsent(propName, entry.getValue());
-            }
-        }
-        return index;
-    }
 
     @Override
     public Map<String, AssociationNavigation> findAllAssociationNavigations(String className) {
@@ -1274,44 +1315,46 @@ public final class PureModelBuilder implements ModelContext {
      * @param propertyName    The property name being navigated
      * @return The Join to use, or null if not found
      */
-    private Join findJoinForAssociationProperty(String associationName, String propertyName) {
-        // 1. Check property-name index (O(1) instead of scanning all keys)
-        Join indexed = getPropertyToJoinIndex().get(propertyName);
-        if (indexed != null) return indexed;
-
-        // 2. Check explicit mapping with association name (FQN.propertyName)
-        String resolvedAssocName = associationName;
-        String key = resolvedAssocName + "." + propertyName;
-        Join explicitJoin = explicitAssociationJoins.get(key);
-        if (explicitJoin != null) {
-            return explicitJoin;
-        }
-
-        // 3. Fall back to convention-based matching (Join name = Association name)
-        return findJoinForAssociation(associationName).orElse(null);
-    }
-
     /**
-     * Finds a join that matches an association name (convention-based).
+     * Finds the FQN of the association that owns the given property on the given class.
+     * Returns null if no matching association is found.
      */
-    private Optional<Join> findJoinForAssociation(String associationName) {
-        // Try exact match first
-        Join join = joins.get(associationName);
-        if (join != null) {
-            return Optional.of(join);
+    private String findAssociationForProperty(String className, String propertyName) {
+        for (Association assoc : getAssociationsForClass(className)) {
+            var p1 = assoc.property1();
+            var p2 = assoc.property2();
+            if (p1.propertyName().equals(propertyName) && p2.targetClass().equals(className)) {
+                return assoc.qualifiedName();
+            }
+            if (p2.propertyName().equals(propertyName) && p1.targetClass().equals(className)) {
+                return assoc.qualifiedName();
+            }
         }
-        // Try simple name (join names are dot-namespaced, not :: FQN)
-        String simpleName = SymbolTable.extractSimpleName(associationName);
-        return Optional.ofNullable(joins.get(simpleName));
+        return null;
     }
 
-    public Optional<Join> findJoin(String joinName) {
-        return Optional.ofNullable(joins.get(joinName));
+    private Join findJoinForAssociationProperty(String associationName, String propertyName) {
+        // Look up by association FQN → property name (scoped, no ambiguity)
+        Map<String, Join> inner = explicitAssociationJoins.get(associationName);
+        if (inner != null) {
+            Join explicitJoin = inner.get(propertyName);
+            if (explicitJoin != null) return explicitJoin;
+        }
+        return null;
+    }
+
+
+    public Optional<Join> findJoin(String db, String name) {
+        java.util.Objects.requireNonNull(db, "db");
+        java.util.Objects.requireNonNull(name, "name");
+        return Optional.ofNullable(idGet(joins, symbols.resolveId(db + "." + name)));
     }
 
     @Override
-    public Optional<Table> findTable(String tableName) {
-        return Optional.ofNullable(tables.get(tableName));
+    public Optional<Table> findTable(String db, String name) {
+        java.util.Objects.requireNonNull(db, "db");
+        java.util.Objects.requireNonNull(name, "name");
+        return Optional.ofNullable(idGet(tables, symbols.resolveId(db + "." + name)));
     }
 
     @Override
@@ -1359,15 +1402,15 @@ public final class PureModelBuilder implements ModelContext {
         };
     }
 
-    private Table convertTable(DatabaseDefinition.TableDefinition tableDef) {
-        return convertTable("", tableDef);
+    private Table convertTable(String dbFqn, DatabaseDefinition.TableDefinition tableDef) {
+        return convertTable(dbFqn, "", tableDef);
     }
 
-    private Table convertTable(String schema, DatabaseDefinition.TableDefinition tableDef) {
+    private Table convertTable(String dbFqn, String schema, DatabaseDefinition.TableDefinition tableDef) {
         List<Column> columns = tableDef.columns().stream()
                 .map(this::convertColumn)
                 .toList();
-        return new Table(schema, tableDef.name(), columns);
+        return new Table(dbFqn, schema, tableDef.name(), columns);
     }
 
     /**
@@ -1399,11 +1442,19 @@ public final class PureModelBuilder implements ModelContext {
         return tableNames.iterator().next();
     }
 
-    private View convertView(DatabaseDefinition.ViewDefinition viewDef) {
+    private View convertView(String dbFqn, DatabaseDefinition.ViewDefinition viewDef) {
         List<View.ViewColumn> viewColumns = viewDef.columnMappings().stream()
                 .map(vc -> new View.ViewColumn(vc.name(), vc.expression(), vc.primaryKey()))
                 .toList();
-        return new View(viewDef.name(), viewDef.filterMapping(),
+        // Qualify ~filter: references with dbFqn at registration time
+        RelationalOperation filterMapping = viewDef.filterMapping();
+        if (filterMapping instanceof com.gs.legend.model.def.RelationalOperation.Literal lit
+                && lit.value() instanceof String text && text.startsWith("~filter:")) {
+            String bareFilterName = text.substring("~filter:".length());
+            filterMapping = com.gs.legend.model.def.RelationalOperation.Literal.string(
+                    "~filter:" + dbFqn + "." + bareFilterName);
+        }
+        return new View(dbFqn, viewDef.name(), filterMapping,
                 viewDef.groupByColumns(), viewDef.distinct(), viewColumns);
     }
 

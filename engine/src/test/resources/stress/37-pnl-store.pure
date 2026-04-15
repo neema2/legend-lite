@@ -64,4 +64,76 @@ Mapping pnl::PnlMapping
         ~mainTable [store::DB] YTDPN_L
         ytdId: [store::DB] YTDPN_L.YTD_ID, yearStartDate: [store::DB] YTDPN_L.YEAR_START_DATE, asOfDate: [store::DB] YTDPN_L.AS_OF_DATE, ytdPnL: [store::DB] YTDPN_L.YTD_PN_L, ytdRealizedPnL: [store::DB] YTDPN_L.YTD_REALIZED_PN_L, ytdUnrealizedPnL: [store::DB] YTDPN_L.YTD_UNREALIZED_PN_L, ytdFees: [store::DB] YTDPN_L.YTD_FEES, ytdCommissions: [store::DB] YTDPN_L.YTD_COMMISSIONS, currency: [store::DB] YTDPN_L.CURRENCY, tradingDays: [store::DB] YTDPN_L.TRADING_DAYS, bestMonth: [store::DB] YTDPN_L.BEST_MONTH, worstMonth: [store::DB] YTDPN_L.WORST_MONTH, annualizedReturn: [store::DB] YTDPN_L.ANNUALIZED_RETURN, isFinalized: [store::DB] YTDPN_L.IS_FINALIZED
     }
+    cross::DailyPnL_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @DailyPnL_Book,
+            dailyPnLs: [store::DB] @DailyPnL_Book
+        )
+    }
+    cross::DailyPnL_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @DailyPnL_Desk,
+            dailyPnLs: [store::DB] @DailyPnL_Desk
+        )
+    }
+    cross::DailyPnL_Trader: Relational {
+        AssociationMapping (
+            trader: [store::DB] @DailyPnL_Trader,
+            dailyPnLs: [store::DB] @DailyPnL_Trader
+        )
+    }
+    pnl::DailyPnL_AccrualEntry: Relational {
+        AssociationMapping (
+            dailyPnL: [store::DB] @DailyPnL_AccrualEntry,
+            accruals: [store::DB] @DailyPnL_AccrualEntry
+        )
+    }
+    pnl::DailyPnL_HypotheticalPnL: Relational {
+        AssociationMapping (
+            dailyPnL: [store::DB] @DailyPnL_HypotheticalPnL,
+            hypotheticals: [store::DB] @DailyPnL_HypotheticalPnL
+        )
+    }
+    pnl::DailyPnL_PnLAdjustment: Relational {
+        AssociationMapping (
+            dailyPnL: [store::DB] @DailyPnL_PnLAdjustment,
+            adjustments: [store::DB] @DailyPnL_PnLAdjustment
+        )
+    }
+    pnl::DailyPnL_PnLAttribution: Relational {
+        AssociationMapping (
+            dailyPnL: [store::DB] @DailyPnL_PnLAttribution,
+            attributions: [store::DB] @DailyPnL_PnLAttribution
+        )
+    }
+    pnl::DailyPnL_PnLExplain: Relational {
+        AssociationMapping (
+            dailyPnL: [store::DB] @DailyPnL_PnLExplain,
+            explains: [store::DB] @DailyPnL_PnLExplain
+        )
+    }
+    pnl::DailyPnL_RevenueAllocation: Relational {
+        AssociationMapping (
+            dailyPnL: [store::DB] @DailyPnL_RevenueAllocation,
+            revenueAllocations: [store::DB] @DailyPnL_RevenueAllocation
+        )
+    }
+    pnl::DailyPnL_ValuationAdjustment: Relational {
+        AssociationMapping (
+            dailyPnL: [store::DB] @DailyPnL_ValuationAdjustment,
+            valuationAdjustments: [store::DB] @DailyPnL_ValuationAdjustment
+        )
+    }
+    pnl::MTDPnL_DailyPnL: Relational {
+        AssociationMapping (
+            mtdPnL: [store::DB] @MTDPnL_DailyPnL,
+            dailyPnLs: [store::DB] @MTDPnL_DailyPnL
+        )
+    }
+    pnl::YTDPnL_MTDPnL: Relational {
+        AssociationMapping (
+            ytdPnL: [store::DB] @YTDPnL_MTDPnL,
+            monthlyPnLs: [store::DB] @YTDPnL_MTDPnL
+        )
+    }
 )

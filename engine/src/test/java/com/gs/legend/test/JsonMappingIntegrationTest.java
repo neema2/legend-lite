@@ -622,7 +622,9 @@ class JsonMappingIntegrationTest {
                             orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
                             productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String)
                         }
-                    )
+                    
+                        model::Order_OrderItem: Relational { AssociationMapping ( order: [store::OrderDB]@Order_OrderItem, items: [store::OrderDB]@Order_OrderItem ) }
+)
                     """ + CONNECTION + RUNTIME;
 
             // Project order's customer name and item's product name (via association)
@@ -700,7 +702,9 @@ class JsonMappingIntegrationTest {
                             orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
                             productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String)
                         }
-                    )
+                    
+                        model::Order_OrderItem: Relational { AssociationMapping ( order: [store::OrderDB]@Order_OrderItem, items: [store::OrderDB]@Order_OrderItem ) }
+)
                     """ + CONNECTION + RUNTIME;
 
             // Filter on scalar orderId through association, project JSON-extracted
@@ -770,7 +774,9 @@ class JsonMappingIntegrationTest {
                             productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String),
                             quantity: [OrderDB] T_ORDER_ITEMS.DATA->get('quantity', @Integer)
                         }
-                    )
+                    
+                        model::Order_OrderItem: Relational { AssociationMapping ( order: [store::OrderDB]@Order_OrderItem, items: [store::OrderDB]@Order_OrderItem ) }
+)
                     """ + CONNECTION + RUNTIME;
 
             // Filter by scalar id, project JSON via association

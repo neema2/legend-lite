@@ -860,7 +860,13 @@ public final class PureQueryParser {
 
         ValueSpecification result = switch (dslType) {
             case "" -> parseGraphFetchTree(contentText);
-            case ">" -> new AppliedFunction("tableReference", List.of(new CString(contentText)));
+            case ">" -> {
+                int lastDot = contentText.lastIndexOf('.');
+                if (lastDot < 0) throw new PureParseException("Table reference must be db.TABLE: " + contentText);
+                String db = contentText.substring(0, lastDot);
+                String tableName = contentText.substring(lastDot + 1);
+                yield new AppliedFunction("tableReference", List.of(new CString(db), new CString(tableName)));
+            }
             default -> throw new PureParseException("Unknown DSL type: #" + dslType + "{");
         };
 

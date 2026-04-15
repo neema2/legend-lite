@@ -59,4 +59,46 @@ Mapping regulatory::RegulatoryMapping
         ~mainTable [store::DB] LIQUIDITY_COVERAGE
         lcrId: [store::DB] LIQUIDITY_COVERAGE.LCR_ID, calcDate: [store::DB] LIQUIDITY_COVERAGE.CALC_DATE, hqla: [store::DB] LIQUIDITY_COVERAGE.HQLA, netCashOutflows: [store::DB] LIQUIDITY_COVERAGE.NET_CASH_OUTFLOWS, lcr: [store::DB] LIQUIDITY_COVERAGE.LCR, nsfr: [store::DB] LIQUIDITY_COVERAGE.NSFR, currency: [store::DB] LIQUIDITY_COVERAGE.CURRENCY, stressScenario: [store::DB] LIQUIDITY_COVERAGE.STRESS_SCENARIO, isCompliant: [store::DB] LIQUIDITY_COVERAGE.IS_COMPLIANT, minimumRequired: [store::DB] LIQUIDITY_COVERAGE.MINIMUM_REQUIRED, buffer: [store::DB] LIQUIDITY_COVERAGE.BUFFER, lastUpdated: [store::DB] LIQUIDITY_COVERAGE.LAST_UPDATED
     }
+    cross::RegulatoryCapital_LegalEntity: Relational {
+        AssociationMapping (
+            legalEntity: [store::DB] @RegulatoryCapital_LegalEntity,
+            capitalCalcs: [store::DB] @RegulatoryCapital_LegalEntity
+        )
+    }
+    cross::TradeReport_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @TradeReport_Trade,
+            tradeReports: [store::DB] @TradeReport_Trade
+        )
+    }
+    cross::TransactionCost_Execution: Relational {
+        AssociationMapping (
+            execution: [store::DB] @TransactionCost_Execution,
+            transactionCosts: [store::DB] @TransactionCost_Execution
+        )
+    }
+    regulatory::ComplianceAlert_SanctionsScreening: Relational {
+        AssociationMapping (
+            complianceAlert: [store::DB] @ComplianceAlert_SanctionsScreening,
+            screenings: [store::DB] @ComplianceAlert_SanctionsScreening
+        )
+    }
+    regulatory::RegulatoryFiling_LiquidityCoverage: Relational {
+        AssociationMapping (
+            filing: [store::DB] @RegulatoryFiling_LiquidityCoverage,
+            liquidityCalcs: [store::DB] @RegulatoryFiling_LiquidityCoverage
+        )
+    }
+    regulatory::RegulatoryFiling_RegulatoryCapital: Relational {
+        AssociationMapping (
+            filing: [store::DB] @RegulatoryFiling_RegulatoryCapital,
+            capitalCalcs: [store::DB] @RegulatoryFiling_RegulatoryCapital
+        )
+    }
+    regulatory::TradeReport_TradeReportStatus: Relational {
+        AssociationMapping (
+            tradeReport: [store::DB] @TradeReport_TradeReportStatus,
+            statusHistory: [store::DB] @TradeReport_TradeReportStatus
+        )
+    }
 )

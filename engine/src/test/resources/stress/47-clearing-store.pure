@@ -61,4 +61,46 @@ Mapping clearing::ClearingMapping
         ~mainTable [store::DB] POSITION_TRANSFER
         transferId: [store::DB] POSITION_TRANSFER.TRANSFER_ID, transferDate: [store::DB] POSITION_TRANSFER.TRANSFER_DATE, fromMember: [store::DB] POSITION_TRANSFER.FROM_MEMBER, toMember: [store::DB] POSITION_TRANSFER.TO_MEMBER, notional: [store::DB] POSITION_TRANSFER.NOTIONAL, tradeCount: [store::DB] POSITION_TRANSFER.TRADE_COUNT, status: [store::DB] POSITION_TRANSFER.STATUS, reason: [store::DB] POSITION_TRANSFER.REASON, approvedBy: [store::DB] POSITION_TRANSFER.APPROVED_BY, effectiveDate: [store::DB] POSITION_TRANSFER.EFFECTIVE_DATE, currency: [store::DB] POSITION_TRANSFER.CURRENCY, isRegulatory: [store::DB] POSITION_TRANSFER.IS_REGULATORY
     }
+    clearing::ClearedTrade_NovationRequest: Relational {
+        AssociationMapping (
+            clearedTrade: [store::DB] @ClearedTrade_NovationRequest,
+            novationRequests: [store::DB] @ClearedTrade_NovationRequest
+        )
+    }
+    clearing::ClearingHouse_ClearingMember: Relational {
+        AssociationMapping (
+            clearingHouse: [store::DB] @ClearingHouse_ClearingMember,
+            members: [store::DB] @ClearingHouse_ClearingMember
+        )
+    }
+    clearing::ClearingHouse_DefaultFund: Relational {
+        AssociationMapping (
+            clearingHouse: [store::DB] @ClearingHouse_DefaultFund,
+            defaultFunds: [store::DB] @ClearingHouse_DefaultFund
+        )
+    }
+    clearing::ClearingMember_CCPMarginCall: Relational {
+        AssociationMapping (
+            clearingMember: [store::DB] @ClearingMember_CCPMarginCall,
+            ccpMarginCalls: [store::DB] @ClearingMember_CCPMarginCall
+        )
+    }
+    clearing::ClearingMember_ClearedTrade: Relational {
+        AssociationMapping (
+            clearingMember: [store::DB] @ClearingMember_ClearedTrade,
+            clearedTrades: [store::DB] @ClearingMember_ClearedTrade
+        )
+    }
+    clearing::ClearingMember_ClearingFee: Relational {
+        AssociationMapping (
+            clearingMember: [store::DB] @ClearingMember_ClearingFee,
+            clearingFees: [store::DB] @ClearingMember_ClearingFee
+        )
+    }
+    cross::ClearedTrade_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @ClearedTrade_Trade,
+            clearedTrades: [store::DB] @ClearedTrade_Trade
+        )
+    }
 )

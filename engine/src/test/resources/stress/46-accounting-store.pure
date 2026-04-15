@@ -60,4 +60,40 @@ Mapping accounting::AccountingMapping
         ~mainTable [store::DB] AUDIT_TRAIL
         auditId: [store::DB] AUDIT_TRAIL.AUDIT_ID, auditDate: [store::DB] AUDIT_TRAIL.AUDIT_DATE, action: [store::DB] AUDIT_TRAIL.ACTION, tableName: [store::DB] AUDIT_TRAIL.TABLE_NAME, recordId: [store::DB] AUDIT_TRAIL.RECORD_ID, fieldName: [store::DB] AUDIT_TRAIL.FIELD_NAME, oldValue: [store::DB] AUDIT_TRAIL.OLD_VALUE, newValue: [store::DB] AUDIT_TRAIL.NEW_VALUE, performedBy: [store::DB] AUDIT_TRAIL.PERFORMED_BY, ipAddress: [store::DB] AUDIT_TRAIL.IP_ADDRESS, isSystemAction: [store::DB] AUDIT_TRAIL.IS_SYSTEM_ACTION
     }
+    accounting::GLAccount_AccountingRule: Relational {
+        AssociationMapping (
+            glAccount: [store::DB] @GLAccount_AccountingRule,
+            accountingRules: [store::DB] @GLAccount_AccountingRule
+        )
+    }
+    accounting::JournalEntry_GLAccount: Relational {
+        AssociationMapping (
+            glAccount: [store::DB] @JournalEntry_GLAccount,
+            journalEntries: [store::DB] @JournalEntry_GLAccount
+        )
+    }
+    accounting::SubledgerEntry_JournalEntry: Relational {
+        AssociationMapping (
+            journalEntry: [store::DB] @SubledgerEntry_JournalEntry,
+            subledgerEntries: [store::DB] @SubledgerEntry_JournalEntry
+        )
+    }
+    accounting::TrialBalance_BalanceSheet: Relational {
+        AssociationMapping (
+            trialBalance: [store::DB] @TrialBalance_BalanceSheet,
+            balanceSheets: [store::DB] @TrialBalance_BalanceSheet
+        )
+    }
+    accounting::TrialBalance_IncomeStatement: Relational {
+        AssociationMapping (
+            trialBalance: [store::DB] @TrialBalance_IncomeStatement,
+            incomeStatements: [store::DB] @TrialBalance_IncomeStatement
+        )
+    }
+    cross::JournalEntry_CostCenter: Relational {
+        AssociationMapping (
+            costCenter: [store::DB] @JournalEntry_CostCenter,
+            journalEntries: [store::DB] @JournalEntry_CostCenter
+        )
+    }
 )

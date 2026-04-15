@@ -721,7 +721,8 @@ public final class MappingResolver {
         var tableRef = traverseAf.parameters().get(tableRefIdx);
         if (tableRef instanceof AppliedFunction af
                 && "tableReference".equals(SymbolTable.extractSimpleName(af.function()))) {
-            if (!af.parameters().isEmpty() && af.parameters().get(0) instanceof CString cs) {
+            if (af.parameters().size() >= 2 && af.parameters().get(1) instanceof CString cs) {
+                // 2nd arg is the bare table name (1st is db FQN)
                 return cs.value();
             }
         }

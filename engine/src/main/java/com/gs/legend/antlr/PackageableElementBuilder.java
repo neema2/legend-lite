@@ -737,28 +737,29 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
 
         // Extract joins
         List<com.gs.legend.model.def.DatabaseDefinition.JoinDefinition> joins = new ArrayList<>();
+        String dbScope = qualifiedName;
         for (PureParser.DbJoinContext joinCtx : ctx.dbJoin()) {
-            joins.add(extractDbJoin(joinCtx));
+            joins.add(extractDbJoin(joinCtx, dbScope));
         }
 
         // Extract filters
         List<com.gs.legend.model.def.DatabaseDefinition.FilterDefinition> filters = new ArrayList<>();
         for (PureParser.DbFilterContext filterCtx : ctx.dbFilter()) {
-            filters.add(extractDbFilter(filterCtx));
+            filters.add(extractDbFilter(filterCtx, dbScope));
         }
 
         // Extract multi-grain filters
         List<com.gs.legend.model.def.DatabaseDefinition.FilterDefinition> multiGrainFilters = new ArrayList<>();
         for (PureParser.DbMultiGrainFilterContext mgfCtx : ctx.dbMultiGrainFilter()) {
             String name = mgfCtx.identifier().getText();
-            var condition = buildDbOperation(mgfCtx.dbOperation());
+            var condition = buildDbOperation(mgfCtx.dbOperation(), dbScope);
             multiGrainFilters.add(new com.gs.legend.model.def.DatabaseDefinition.FilterDefinition(name, condition));
         }
 
         // Extract schemas (with their tables and views)
         List<com.gs.legend.model.def.DatabaseDefinition.SchemaDefinition> schemas = new ArrayList<>();
         for (PureParser.DbSchemaContext schemaCtx : ctx.dbSchema()) {
-            schemas.add(extractDbSchema(schemaCtx));
+            schemas.add(extractDbSchema(schemaCtx, dbScope));
             // Also add schema tables to top-level list for backward compat
             for (PureParser.DbTableContext tableCtx : schemaCtx.dbTable()) {
                 tables.add(extractDbTable(tableCtx));
@@ -768,12 +769,12 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         // Extract top-level views
         List<com.gs.legend.model.def.DatabaseDefinition.ViewDefinition> views = new ArrayList<>();
         for (PureParser.DbViewContext viewCtx : ctx.dbView()) {
-            views.add(extractDbView(viewCtx));
+            views.add(extractDbView(viewCtx, dbScope));
         }
         // Also collect views from schemas
         for (PureParser.DbSchemaContext schemaCtx : ctx.dbSchema()) {
             for (PureParser.DbViewContext viewCtx : schemaCtx.dbView()) {
-                views.add(extractDbView(viewCtx));
+                views.add(extractDbView(viewCtx, dbScope));
             }
         }
 
@@ -824,9 +825,9 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a filter definition: Filter identifier PAREN_OPEN dbOperation PAREN_CLOSE
      */
     private com.gs.legend.model.def.DatabaseDefinition.FilterDefinition extractDbFilter(
-            PureParser.DbFilterContext ctx) {
+            PureParser.DbFilterContext ctx, String dbScope) {
         String filterName = ctx.identifier().getText();
-        var condition = buildDbOperation(ctx.dbOperation());
+        var condition = buildDbOperation(ctx.dbOperation(), dbScope);
         return new com.gs.legend.model.def.DatabaseDefinition.FilterDefinition(filterName, condition);
     }
 
@@ -835,7 +836,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Schema schemaIdentifier PAREN_OPEN (dbTable | dbView | dbTabularFunction)* PAREN_CLOSE
      */
     private com.gs.legend.model.def.DatabaseDefinition.SchemaDefinition extractDbSchema(
-            PureParser.DbSchemaContext ctx) {
+            PureParser.DbSchemaContext ctx, String dbScope) {
         String schemaName = ctx.schemaIdentifier().getText();
 
         List<com.gs.legend.model.def.DatabaseDefinition.TableDefinition> tables = new ArrayList<>();
@@ -845,7 +846,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
 
         List<com.gs.legend.model.def.DatabaseDefinition.ViewDefinition> views = new ArrayList<>();
         for (PureParser.DbViewContext viewCtx : ctx.dbView()) {
-            views.add(extractDbView(viewCtx));
+            views.add(extractDbView(viewCtx, dbScope));
         }
 
         return new com.gs.legend.model.def.DatabaseDefinition.SchemaDefinition(schemaName, tables, views);
@@ -857,7 +858,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      *     (viewColumnMapping (COMMA viewColumnMapping)*)? PAREN_CLOSE
      */
     private com.gs.legend.model.def.DatabaseDefinition.ViewDefinition extractDbView(
-            PureParser.DbViewContext ctx) {
+            PureParser.DbViewContext ctx, String dbScope) {
         String viewName = ctx.relationalIdentifier().getText();
 
         // Optional filter mapping — stored as raw text for now (complex: join chains + filter ref)
@@ -873,7 +874,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         List<com.gs.legend.model.def.RelationalOperation> groupBy = new ArrayList<>();
         if (ctx.viewGroupBy() != null) {
             for (PureParser.DbOperationContext opCtx : ctx.viewGroupBy().dbOperation()) {
-                groupBy.add(buildDbOperation(opCtx));
+                groupBy.add(buildDbOperation(opCtx, dbScope));
             }
         }
 
@@ -886,7 +887,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             String colName = colCtx.identifier(0).getText();
             // Optional target set ID: [id]
             String targetSetId = colCtx.identifier().size() > 1 ? colCtx.identifier(1).getText() : null;
-            var expression = buildDbOperation(colCtx.dbOperation());
+            var expression = buildDbOperation(colCtx.dbOperation(), dbScope);
             boolean pk = colCtx.PRIMARY_KEY() != null;
             columnMappings.add(new com.gs.legend.model.def.DatabaseDefinition.ViewDefinition.ViewColumnMapping(
                     colName, targetSetId, expression, pk));
@@ -901,9 +902,9 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Grammar: dbJoin: JOIN identifier PAREN_OPEN dbOperation PAREN_CLOSE
      */
     private com.gs.legend.model.def.DatabaseDefinition.JoinDefinition extractDbJoin(
-            PureParser.DbJoinContext ctx) {
+            PureParser.DbJoinContext ctx, String dbScope) {
         String joinName = ctx.identifier().getText();
-        com.gs.legend.model.def.RelationalOperation operation = buildDbOperation(ctx.dbOperation());
+        com.gs.legend.model.def.RelationalOperation operation = buildDbOperation(ctx.dbOperation(), dbScope);
         return new com.gs.legend.model.def.DatabaseDefinition.JoinDefinition(joinName, operation);
     }
 
@@ -913,22 +914,22 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a dbOperation: dbBooleanOperation | dbJoinOperation
      */
     private com.gs.legend.model.def.RelationalOperation buildDbOperation(
-            PureParser.DbOperationContext ctx) {
+            PureParser.DbOperationContext ctx, String dbScope) {
         if (ctx.dbJoinOperation() != null) {
-            return buildDbJoinOperation(ctx.dbJoinOperation());
+            return buildDbJoinOperation(ctx.dbJoinOperation(), dbScope);
         }
-        return buildDbBooleanOperation(ctx.dbBooleanOperation());
+        return buildDbBooleanOperation(ctx.dbBooleanOperation(), dbScope);
     }
 
     /**
      * Visits a dbBooleanOperation: dbAtomicOperation dbBooleanOperationRight?
      */
     private com.gs.legend.model.def.RelationalOperation buildDbBooleanOperation(
-            PureParser.DbBooleanOperationContext ctx) {
-        var left = buildDbAtomicOperation(ctx.dbAtomicOperation());
+            PureParser.DbBooleanOperationContext ctx, String dbScope) {
+        var left = buildDbAtomicOperation(ctx.dbAtomicOperation(), dbScope);
         if (ctx.dbBooleanOperationRight() != null) {
             String op = ctx.dbBooleanOperationRight().dbBooleanOperator().getText(); // "and" or "or"
-            var right = buildDbOperation(ctx.dbBooleanOperationRight().dbOperation());
+            var right = buildDbOperation(ctx.dbBooleanOperationRight().dbOperation(), dbScope);
             return new com.gs.legend.model.def.RelationalOperation.BooleanOp(left, op, right);
         }
         return left;
@@ -938,20 +939,20 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a dbAtomicOperation: (group | func | column | join | constant) dbAtomicOperationRight?
      */
     private com.gs.legend.model.def.RelationalOperation buildDbAtomicOperation(
-            PureParser.DbAtomicOperationContext ctx) {
+            PureParser.DbAtomicOperationContext ctx, String dbScope) {
         com.gs.legend.model.def.RelationalOperation expr;
 
         if (ctx.dbGroupOperation() != null) {
             expr = new com.gs.legend.model.def.RelationalOperation.Group(
-                    buildDbOperation(ctx.dbGroupOperation().dbOperation()));
+                    buildDbOperation(ctx.dbGroupOperation().dbOperation(), dbScope));
         } else if (ctx.dbFunctionOperation() != null) {
             String dbName = ctx.databasePointer() != null
                     ? ctx.databasePointer().qualifiedName().getText() : null;
-            expr = buildDbFunctionOperation(ctx.dbFunctionOperation(), dbName);
+            expr = buildDbFunctionOperation(ctx.dbFunctionOperation(), dbName, dbScope);
         } else if (ctx.dbColumnOperation() != null) {
             expr = buildDbColumnOperation(ctx.dbColumnOperation());
         } else if (ctx.dbJoinOperation() != null) {
-            expr = buildDbJoinOperation(ctx.dbJoinOperation());
+            expr = buildDbJoinOperation(ctx.dbJoinOperation(), dbScope);
         } else if (ctx.dbConstant() != null) {
             expr = buildDbConstant(ctx.dbConstant());
         } else {
@@ -970,7 +971,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 }
             } else {
                 String op = rightCtx.dbAtomicOperator().getText(); // =, !=, <>, >, <, >=, <=
-                var rightExpr = buildDbAtomicOperation(rightCtx.dbAtomicOperation());
+                var rightExpr = buildDbAtomicOperation(rightCtx.dbAtomicOperation(), dbScope);
                 expr = new com.gs.legend.model.def.RelationalOperation.Comparison(expr, op, rightExpr);
             }
         }
@@ -999,14 +1000,14 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a dbFunctionOperation: identifier ( args... )
      */
     private com.gs.legend.model.def.RelationalOperation.FunctionCall buildDbFunctionOperation(
-            PureParser.DbFunctionOperationContext ctx, String databaseName) {
+            PureParser.DbFunctionOperationContext ctx, String databaseName, String dbScope) {
         String funcName = ctx.identifier().getText();
         List<com.gs.legend.model.def.RelationalOperation> args = new ArrayList<>();
         for (var argCtx : ctx.dbFunctionOperationArgument()) {
             if (argCtx.dbFunctionOperationArgumentArray() != null) {
-                args.add(buildDbFunctionOperationArray(argCtx.dbFunctionOperationArgumentArray()));
+                args.add(buildDbFunctionOperationArray(argCtx.dbFunctionOperationArgumentArray(), dbScope));
             } else {
-                args.add(buildDbOperation(argCtx.dbOperation()));
+                args.add(buildDbOperation(argCtx.dbOperation(), dbScope));
             }
         }
         return new com.gs.legend.model.def.RelationalOperation.FunctionCall(funcName, args);
@@ -1016,13 +1017,13 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a dbFunctionOperationArgumentArray: [ args... ]
      */
     private com.gs.legend.model.def.RelationalOperation.ArrayLiteral buildDbFunctionOperationArray(
-            PureParser.DbFunctionOperationArgumentArrayContext ctx) {
+            PureParser.DbFunctionOperationArgumentArrayContext ctx, String dbScope) {
         List<com.gs.legend.model.def.RelationalOperation> elements = new ArrayList<>();
         for (var argCtx : ctx.dbFunctionOperationArgument()) {
             if (argCtx.dbFunctionOperationArgumentArray() != null) {
-                elements.add(buildDbFunctionOperationArray(argCtx.dbFunctionOperationArgumentArray()));
+                elements.add(buildDbFunctionOperationArray(argCtx.dbFunctionOperationArgumentArray(), dbScope));
             } else {
-                elements.add(buildDbOperation(argCtx.dbOperation()));
+                elements.add(buildDbOperation(argCtx.dbOperation(), dbScope));
             }
         }
         return new com.gs.legend.model.def.RelationalOperation.ArrayLiteral(elements);
@@ -1071,7 +1072,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a dbJoinOperation: databasePointer? joinSequence (PIPE terminal)?
      */
     private com.gs.legend.model.def.RelationalOperation.JoinNavigation buildDbJoinOperation(
-            PureParser.DbJoinOperationContext ctx) {
+            PureParser.DbJoinOperationContext ctx, String dbScope) {
         String dbName = ctx.databasePointer() != null
                 ? ctx.databasePointer().qualifiedName().getText() : null;
 
@@ -1084,7 +1085,8 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             firstJoinType = joinSeqCtx.identifier().getText();
         }
         String firstJoinName = joinSeqCtx.joinPointer().identifier().getText();
-        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, null, false));
+        String db = dbName != null ? dbName : dbScope;
+        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, db, false));
 
         // Subsequent joins: > (joinType)? databasePointer? @joinName
         for (var fullCtx : joinSeqCtx.joinPointerFull()) {
@@ -1093,7 +1095,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 joinType = fullCtx.identifier().getText();
             }
             String hopDb = fullCtx.databasePointer() != null
-                    ? fullCtx.databasePointer().qualifiedName().getText() : null;
+                    ? fullCtx.databasePointer().qualifiedName().getText() : db;
             String joinName = fullCtx.joinPointer().identifier().getText();
             chain.add(new com.gs.legend.model.def.JoinChainElement(joinName, joinType, hopDb, false));
         }
@@ -1102,7 +1104,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         com.gs.legend.model.def.RelationalOperation terminal = null;
         if (ctx.PIPE() != null) {
             if (ctx.dbBooleanOperation() != null) {
-                terminal = buildDbBooleanOperation(ctx.dbBooleanOperation());
+                terminal = buildDbBooleanOperation(ctx.dbBooleanOperation(), dbScope);
             } else if (ctx.dbTableAliasColumnOperation() != null) {
                 terminal = buildDbTableAliasColumnOperation(ctx.dbTableAliasColumnOperation(), null);
             }
@@ -1309,13 +1311,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             // Join chain
             List<com.gs.legend.model.def.JoinChainElement> joinChain = new ArrayList<>();
             if (propCtx.mappingJoinSequence() != null) {
-                joinChain = extractMappingJoinChain(propCtx.mappingJoinSequence());
-                // Propagate database name to first element if not set
-                if (dbName != null && !joinChain.isEmpty() && joinChain.get(0).databaseName() == null) {
-                    var first = joinChain.get(0);
-                    joinChain.set(0, new com.gs.legend.model.def.JoinChainElement(
-                            first.joinName(), first.joinType(), dbName, first.strict()));
-                }
+                joinChain = extractMappingJoinChain(propCtx.mappingJoinSequence(), dbName);
             }
 
             properties.add(new com.gs.legend.model.def.AssociationMappingDefinition.AssociationPropertyMapping(
@@ -1526,11 +1522,14 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             mainTable = visitMappingMainTable(ctx.mappingMainTable());
         }
 
+        // Derive dbScope from mainTable
+        String dbScope = mainTable != null ? mainTable.databaseName() : null;
+
         // Property mappings
         List<com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition> propertyMappings = new ArrayList<>();
         for (PureParser.RelationalPropertyMappingContext propCtx : ctx.relationalPropertyMapping()) {
             com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition propMapping = visitRelationalPropertyMapping(
-                    propCtx);
+                    propCtx, dbScope);
             if (propMapping != null) {
                 propertyMappings.add(propMapping);
             }
@@ -1556,11 +1555,11 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a relational property mapping.
      */
     public com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition visitRelationalPropertyMapping(
-            PureParser.RelationalPropertyMappingContext ctx) {
+            PureParser.RelationalPropertyMappingContext ctx, String dbScope) {
         if (ctx.standardPropertyMapping() != null) {
-            return visitStandardPropertyMapping(ctx.standardPropertyMapping());
+            return visitStandardPropertyMapping(ctx.standardPropertyMapping(), dbScope);
         } else if (ctx.localMappingProperty() != null) {
-            return visitLocalMappingProperty(ctx.localMappingProperty());
+            return visitLocalMappingProperty(ctx.localMappingProperty(), dbScope);
         }
         return null;
     }
@@ -1569,31 +1568,31 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a standard property mapping.
      */
     public com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition visitStandardPropertyMapping(
-            PureParser.StandardPropertyMappingContext ctx) {
+            PureParser.StandardPropertyMappingContext ctx, String dbScope) {
         String propertyName = ctx.identifier().getText();
-        return visitRelationalPropertyValue(propertyName, ctx.relationalPropertyValue());
+        return visitRelationalPropertyValue(propertyName, ctx.relationalPropertyValue(), dbScope);
     }
 
     /**
      * Visits a local mapping property.
      */
     public com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition visitLocalMappingProperty(
-            PureParser.LocalMappingPropertyContext ctx) {
+            PureParser.LocalMappingPropertyContext ctx, String dbScope) {
         String propertyName = ctx.identifier().getText();
-        return visitRelationalPropertyValue(propertyName, ctx.relationalPropertyValue());
+        return visitRelationalPropertyValue(propertyName, ctx.relationalPropertyValue(), dbScope);
     }
 
     /**
      * Visits a relational property value.
      */
     public com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition visitRelationalPropertyValue(
-            String propertyName, PureParser.RelationalPropertyValueContext ctx) {
+            String propertyName, PureParser.RelationalPropertyValueContext ctx, String dbScope) {
 
         if (ctx.embeddedPropertyMapping() != null) {
             var embCtx = ctx.embeddedPropertyMapping();
             var subMappings = new java.util.ArrayList<com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition>();
             for (var rpm : embCtx.relationalPropertyMapping()) {
-                var sub = visitRelationalPropertyMapping(rpm);
+                var sub = visitRelationalPropertyMapping(rpm, dbScope);
                 if (sub != null) subMappings.add(sub);
             }
             // Check for Otherwise clause: Otherwise([setId]: [DB]@JoinName)
@@ -1602,9 +1601,10 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 String fallbackSetId = owCtx.identifier().getText();
                 String dbName = owCtx.databasePointer() != null
                         ? owCtx.databasePointer().qualifiedName().getText() : null;
-                var joinChain = extractMappingJoinChain(owCtx.mappingJoinSequence());
+                String db = dbName != null ? dbName : dbScope;
+                var joinChain = extractMappingJoinChain(owCtx.mappingJoinSequence(), db);
                 var fallbackJoin = new com.gs.legend.model.def.PropertyMappingValue.JoinMapping(
-                        dbName, joinChain, null);
+                        db, joinChain, null);
                 return com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition.otherwise(
                         propertyName, subMappings, fallbackSetId, fallbackJoin);
             }
@@ -1629,7 +1629,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                     enumMappingId = "";
                 }
             }
-            return visitMappingOperation(propertyName, ctx.mappingOperation(), enumMappingId);
+            return visitMappingOperation(propertyName, ctx.mappingOperation(), enumMappingId, dbScope);
         }
 
         return null;
@@ -1639,13 +1639,13 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a mapping operation.
      */
     public com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition visitMappingOperation(
-            String propertyName, PureParser.MappingOperationContext ctx, String enumMappingId) {
+            String propertyName, PureParser.MappingOperationContext ctx, String enumMappingId, String dbScope) {
 
         PureParser.MappingAtomicOperationContext atomicCtx = ctx.mappingAtomicOperation();
 
         // Check for join operation: [DB]@JoinName or @JoinName (databasePointer is optional per grammar)
         if (atomicCtx.mappingJoinOperation() != null) {
-            return visitMappingJoinOperation(propertyName, atomicCtx);
+            return visitMappingJoinOperation(propertyName, atomicCtx, dbScope);
         }
 
         // Check for column operation: [DB] TABLE.COLUMN
@@ -1746,7 +1746,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
         // Optional join path before PIPE
         List<com.gs.legend.model.def.JoinChainElement> joinPath = new ArrayList<>();
         if (ctx.mappingJoinSequence() != null) {
-            joinPath = extractMappingJoinChain(ctx.mappingJoinSequence());
+            joinPath = extractMappingJoinChain(ctx.mappingJoinSequence(), databaseName);
         }
 
         return new com.gs.legend.model.def.MappingDefinition.MappingFilter(databaseName, joinPath, filterName);
@@ -1757,7 +1757,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Grammar: mappingJoinSequence: (PAREN_OPEN identifier PAREN_CLOSE)? mappingJoinPointer (GREATER_THAN mappingJoinPointerFull)*
      */
     private List<com.gs.legend.model.def.JoinChainElement> extractMappingJoinChain(
-            PureParser.MappingJoinSequenceContext ctx) {
+            PureParser.MappingJoinSequenceContext ctx, String dbScope) {
         List<com.gs.legend.model.def.JoinChainElement> chain = new ArrayList<>();
 
         // First join: optional (joinType) before @joinName
@@ -1766,7 +1766,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
             firstJoinType = ctx.identifier().getText();
         }
         String firstJoinName = ctx.mappingJoinPointer().identifier().getText();
-        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, null, false));
+        chain.add(new com.gs.legend.model.def.JoinChainElement(firstJoinName, firstJoinType, dbScope, false));
 
         // Subsequent joins: > (joinType)? databasePointer? @joinName
         for (PureParser.MappingJoinPointerFullContext fullCtx : ctx.mappingJoinPointerFull()) {
@@ -1775,7 +1775,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                 joinType = fullCtx.identifier().getText();
             }
             String hopDb = fullCtx.databasePointer() != null
-                    ? fullCtx.databasePointer().qualifiedName().getText() : null;
+                    ? fullCtx.databasePointer().qualifiedName().getText() : dbScope;
             String joinName = fullCtx.mappingJoinPointer().identifier().getText();
             chain.add(new com.gs.legend.model.def.JoinChainElement(joinName, joinType, hopDb, false));
         }
@@ -1896,7 +1896,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
 
     private com.gs.legend.model.def.RelationalOperation.JoinNavigation buildMappingJoinOp(
             PureParser.MappingJoinOperationContext ctx, String dbName) {
-        List<com.gs.legend.model.def.JoinChainElement> chain = extractMappingJoinChain(ctx.mappingJoinSequence());
+        List<com.gs.legend.model.def.JoinChainElement> chain = extractMappingJoinChain(ctx.mappingJoinSequence(), dbName);
 
         com.gs.legend.model.def.RelationalOperation terminal = null;
         if (ctx.PIPE() != null) {
@@ -1943,7 +1943,7 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
      * Visits a mapping join operation: [DB]@JoinName or [DB]@J1 > @J2 | TABLE.COL
      */
     public com.gs.legend.model.def.MappingDefinition.PropertyMappingDefinition visitMappingJoinOperation(
-            String propertyName, PureParser.MappingAtomicOperationContext ctx) {
+            String propertyName, PureParser.MappingAtomicOperationContext ctx, String dbScope) {
 
         String databaseName = ctx.databasePointer() != null
                 ? ctx.databasePointer().qualifiedName().getText() : null;
@@ -1955,13 +1955,8 @@ public class PackageableElementBuilder extends PureParserBaseVisitor<Object> {
                     propertyName, expression, null);
         }
 
-        List<com.gs.legend.model.def.JoinChainElement> chain = extractMappingJoinChain(joinOpCtx.mappingJoinSequence());
-        // Propagate database name to first element if not set
-        if (databaseName != null && !chain.isEmpty() && chain.get(0).databaseName() == null) {
-            var first = chain.get(0);
-            chain.set(0, new com.gs.legend.model.def.JoinChainElement(
-                    first.joinName(), first.joinType(), databaseName, first.strict()));
-        }
+        String db = databaseName != null ? databaseName : dbScope;
+        List<com.gs.legend.model.def.JoinChainElement> chain = extractMappingJoinChain(joinOpCtx.mappingJoinSequence(), db);
 
         // Optional terminal column after PIPE
         com.gs.legend.model.def.RelationalOperation terminal = null;

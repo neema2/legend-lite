@@ -64,4 +64,70 @@ Mapping collateral::CollateralMapping
         ~mainTable [store::DB] COLLATERAL_DISPUTE
         disputeId: [store::DB] COLLATERAL_DISPUTE.DISPUTE_ID, disputeDate: [store::DB] COLLATERAL_DISPUTE.DISPUTE_DATE, disputedAmount: [store::DB] COLLATERAL_DISPUTE.DISPUTED_AMOUNT, ourAmount: [store::DB] COLLATERAL_DISPUTE.OUR_AMOUNT, theirAmount: [store::DB] COLLATERAL_DISPUTE.THEIR_AMOUNT, reason: [store::DB] COLLATERAL_DISPUTE.REASON, status: [store::DB] COLLATERAL_DISPUTE.STATUS, currency: [store::DB] COLLATERAL_DISPUTE.CURRENCY, resolvedDate: [store::DB] COLLATERAL_DISPUTE.RESOLVED_DATE, resolvedAmount: [store::DB] COLLATERAL_DISPUTE.RESOLVED_AMOUNT, escalationLevel: [store::DB] COLLATERAL_DISPUTE.ESCALATION_LEVEL, ageInDays: [store::DB] COLLATERAL_DISPUTE.AGE_IN_DAYS, assignedTo: [store::DB] COLLATERAL_DISPUTE.ASSIGNED_TO
     }
+    collateral::Agreement_Balance: Relational {
+        AssociationMapping (
+            agreement: [store::DB] @Agreement_Balance,
+            balances: [store::DB] @Agreement_Balance
+        )
+    }
+    collateral::Agreement_EligibilityRule: Relational {
+        AssociationMapping (
+            agreement: [store::DB] @Agreement_EligibilityRule,
+            eligibilityRules: [store::DB] @Agreement_EligibilityRule
+        )
+    }
+    collateral::Agreement_HaircutSchedule: Relational {
+        AssociationMapping (
+            agreement: [store::DB] @Agreement_HaircutSchedule,
+            haircutSchedules: [store::DB] @Agreement_HaircutSchedule
+        )
+    }
+    collateral::Agreement_InitialMargin: Relational {
+        AssociationMapping (
+            agreement: [store::DB] @Agreement_InitialMargin,
+            initialMargins: [store::DB] @Agreement_InitialMargin
+        )
+    }
+    collateral::Agreement_VariationMargin: Relational {
+        AssociationMapping (
+            agreement: [store::DB] @Agreement_VariationMargin,
+            variationMargins: [store::DB] @Agreement_VariationMargin
+        )
+    }
+    collateral::MarginCall_Agreement: Relational {
+        AssociationMapping (
+            agreement: [store::DB] @MarginCall_Agreement,
+            marginCalls: [store::DB] @MarginCall_Agreement
+        )
+    }
+    collateral::MarginCall_Dispute: Relational {
+        AssociationMapping (
+            marginCall: [store::DB] @MarginCall_Dispute,
+            disputes: [store::DB] @MarginCall_Dispute
+        )
+    }
+    collateral::MarginCall_Posting: Relational {
+        AssociationMapping (
+            marginCall: [store::DB] @MarginCall_Posting,
+            postings: [store::DB] @MarginCall_Posting
+        )
+    }
+    collateral::MarginCall_Substitution: Relational {
+        AssociationMapping (
+            marginCall: [store::DB] @MarginCall_Substitution,
+            substitutions: [store::DB] @MarginCall_Substitution
+        )
+    }
+    cross::CollateralAgreement_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @CollateralAgreement_Counterparty,
+            collateralAgreements: [store::DB] @CollateralAgreement_Counterparty
+        )
+    }
+    cross::MarginCall_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @MarginCall_Counterparty,
+            marginCalls: [store::DB] @MarginCall_Counterparty
+        )
+    }
 )

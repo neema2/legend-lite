@@ -251,11 +251,10 @@ class MappingParserTest {
             String source = """
                     Mapping model::PersonAddressMapping
                     (
-                        PersonAddressAssociation: AssociationMapping
-                        (
+                        PersonAddressAssociation: Relational { AssociationMapping (
                             persons: [DB] @Address_Person,
                             addresses: [DB] @Person_Address
-                        )
+                        ) }
                     )
                     """;
 
@@ -355,11 +354,10 @@ class MappingParserTest {
                             street: [DB] T_ADDRESS.STREET
                         }
 
-                        PersonAddressAssociation: AssociationMapping
-                        (
+                        PersonAddressAssociation: Relational { AssociationMapping (
                             persons: [DB] @Address_Person,
                             addresses: [DB] @Person_Address
-                        )
+                        ) }
 
                         Status: EnumerationMapping
                         {

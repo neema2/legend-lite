@@ -819,7 +819,9 @@ class RelationalMappingCompositionTest {
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Firm: Relational { ~mainTable [store::DB] T_FIRM legalName: [store::DB] T_FIRM.LEGAL_NAME }
-                    )
+                    
+                        model::Person_Firm: Relational { AssociationMapping ( person: [store::DB]@Person_Firm, firm: [store::DB]@Person_Firm ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -901,7 +903,9 @@ class RelationalMappingCompositionTest {
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Address: Relational { ~mainTable [store::DB] T_ADDRESS street: [store::DB] T_ADDRESS.STREET, city: [store::DB] T_ADDRESS.CITY }
-                    )
+                    
+                        model::Person_Address: Relational { AssociationMapping ( person: [store::DB]@Person_Address, addresses: [store::DB]@Person_Address ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -993,7 +997,9 @@ class RelationalMappingCompositionTest {
                             deptName: [store::DB] @Emp_Dept | T_DEPT.NAME
                         }
                         Firm: Relational { ~mainTable [store::DB] T_FIRM legalName: [store::DB] T_FIRM.LEGAL_NAME }
-                    )
+                    
+                        model::Emp_Firm: Relational { AssociationMapping ( employee: [store::DB]@Emp_Firm, firm: [store::DB]@Emp_Firm ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -1245,7 +1251,9 @@ class RelationalMappingCompositionTest {
                         RawEmp: Relational { ~mainTable [store::DB] T_EMP first: [store::DB] T_EMP.FIRST, last: [store::DB] T_EMP.LAST }
                         RawDept: Relational { ~mainTable [store::DB] T_DEPT name: [store::DB] T_DEPT.NAME }
                         Employee: Pure { ~src RawEmp fullName: $src.first + ' ' + $src.last }
-                    )
+                    
+                        model::RawEmp_Dept: Relational { AssociationMapping ( emps: [store::DB]@RawEmp_Dept, dept: [store::DB]@RawEmp_Dept ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -1387,7 +1395,9 @@ class RelationalMappingCompositionTest {
                             orgName: [store::DB] @Person_Dept > @Dept_Org | T_ORG.NAME
                         }
                         Address: Relational { ~mainTable [store::DB] T_ADDRESS city: [store::DB] T_ADDRESS.CITY }
-                    )
+                    
+                        model::Person_Address: Relational { AssociationMapping ( person: [store::DB]@Person_Address, addresses: [store::DB]@Person_Address ) }
+)
                     """, "store::DB", "model::M");
         }
 

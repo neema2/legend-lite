@@ -30,6 +30,8 @@ public class TdsChecker extends AbstractChecker {
     @Override
     public TypeInfo check(AppliedFunction af, TypeInfo source,
                           TypeChecker.CompilationContext ctx) {
+        // Validate arity against registered signature: tds(String[1], String[1])
+        resolveOverload("tds", af.parameters(), source);
         // tds(CString("TDS"), CString(raw)) — raw is param[1]
         String raw = ((CString) af.parameters().get(1)).value();
         TdsLiteral tds = TdsLiteral.parse(raw);

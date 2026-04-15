@@ -63,4 +63,58 @@ Mapping org::OrgMapping
         ~mainTable [store::DB] APPROVER
         approverId: [store::DB] APPROVER.APPROVER_ID, firstName: [store::DB] APPROVER.FIRST_NAME, lastName: [store::DB] APPROVER.LAST_NAME, email: [store::DB] APPROVER.EMAIL, approvalLevel: [store::DB] APPROVER.APPROVAL_LEVEL, maxApprovalAmount: [store::DB] APPROVER.MAX_APPROVAL_AMOUNT, department: [store::DB] APPROVER.DEPARTMENT, isActive: [store::DB] APPROVER.IS_ACTIVE, delegateTo: [store::DB] APPROVER.DELEGATE_TO, title: [store::DB] APPROVER.TITLE, currency: [store::DB] APPROVER.CURRENCY
     }
+    cross::PortfolioManager_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @PortfolioManager_Desk,
+            portfolioManagers: [store::DB] @PortfolioManager_Desk
+        )
+    }
+    org::BusinessUnit_Department: Relational {
+        AssociationMapping (
+            businessUnit: [store::DB] @BusinessUnit_Department,
+            departments: [store::DB] @BusinessUnit_Department
+        )
+    }
+    org::BusinessUnit_LegalEntity: Relational {
+        AssociationMapping (
+            legalEntity: [store::DB] @BusinessUnit_LegalEntity,
+            businessUnits: [store::DB] @BusinessUnit_LegalEntity
+        )
+    }
+    org::Department_CostCenter: Relational {
+        AssociationMapping (
+            costCenter: [store::DB] @Department_CostCenter,
+            departments: [store::DB] @Department_CostCenter
+        )
+    }
+    org::Department_Team: Relational {
+        AssociationMapping (
+            department: [store::DB] @Department_Team,
+            teams: [store::DB] @Department_Team
+        )
+    }
+    org::Desk_BusinessUnit: Relational {
+        AssociationMapping (
+            businessUnit: [store::DB] @Desk_BusinessUnit,
+            desks: [store::DB] @Desk_BusinessUnit
+        )
+    }
+    org::Desk_Trader: Relational {
+        AssociationMapping (
+            desk: [store::DB] @Desk_Trader,
+            traders: [store::DB] @Desk_Trader
+        )
+    }
+    org::LegalEntity_Region: Relational {
+        AssociationMapping (
+            region: [store::DB] @LegalEntity_Region,
+            legalEntities: [store::DB] @LegalEntity_Region
+        )
+    }
+    org::Team_Approver: Relational {
+        AssociationMapping (
+            team: [store::DB] @Team_Approver,
+            approvers: [store::DB] @Team_Approver
+        )
+    }
 )

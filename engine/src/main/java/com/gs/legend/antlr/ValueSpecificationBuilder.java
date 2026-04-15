@@ -547,8 +547,14 @@ public class ValueSpecificationBuilder extends PureParserBaseVisitor<ValueSpecif
     }
 
     private ValueSpecification parseRelationLiteral(String content) {
-        // Relation literals: store::DB.TABLE → AppliedFunction("tableReference", [CString(content)])
-        return new AppliedFunction("tableReference", List.of(new CString(content)));
+        // Relation literals: store::DB.TABLE → AppliedFunction("tableReference", [CString(db), CString(table)])
+        int lastDot = content.lastIndexOf('.');
+        if (lastDot < 0) {
+            throw new PureParseException("Table reference must be db.TABLE: " + content);
+        }
+        String db = content.substring(0, lastDot);
+        String tableName = content.substring(lastDot + 1);
+        return new AppliedFunction("tableReference", List.of(new CString(db), new CString(tableName)));
     }
 
     // ========================================

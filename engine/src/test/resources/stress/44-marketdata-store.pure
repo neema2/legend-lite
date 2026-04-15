@@ -59,4 +59,40 @@ Mapping marketdata::MarketdataMapping
         ~mainTable [store::DB] MARKET_DATA_SNAPSHOT
         snapshotId: [store::DB] MARKET_DATA_SNAPSHOT.SNAPSHOT_ID, snapshotTime: [store::DB] MARKET_DATA_SNAPSHOT.SNAPSHOT_TIME, snapshotType: [store::DB] MARKET_DATA_SNAPSHOT.SNAPSHOT_TYPE, source: [store::DB] MARKET_DATA_SNAPSHOT.SOURCE, itemCount: [store::DB] MARKET_DATA_SNAPSHOT.ITEM_COUNT, isComplete: [store::DB] MARKET_DATA_SNAPSHOT.IS_COMPLETE, isOfficial: [store::DB] MARKET_DATA_SNAPSHOT.IS_OFFICIAL, status: [store::DB] MARKET_DATA_SNAPSHOT.STATUS, processingTimeMs: [store::DB] MARKET_DATA_SNAPSHOT.PROCESSING_TIME_MS, version: [store::DB] MARKET_DATA_SNAPSHOT.VERSION, description: [store::DB] MARKET_DATA_SNAPSHOT.DESCRIPTION
     }
+    cross::FxRate_Currency: Relational {
+        AssociationMapping (
+            baseCurrency: [store::DB] @FxRate_Currency,
+            fxRatesForCurrency: [store::DB] @FxRate_Currency
+        )
+    }
+    cross::MarketQuote_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @MarketQuote_Instrument,
+            quotes: [store::DB] @MarketQuote_Instrument
+        )
+    }
+    marketdata::MarketDataSnapshot_FxRate: Relational {
+        AssociationMapping (
+            snapshot: [store::DB] @MarketDataSnapshot_FxRate,
+            fxRates: [store::DB] @MarketDataSnapshot_FxRate
+        )
+    }
+    marketdata::MarketDataSnapshot_MarketQuote: Relational {
+        AssociationMapping (
+            snapshot: [store::DB] @MarketDataSnapshot_MarketQuote,
+            quotes: [store::DB] @MarketDataSnapshot_MarketQuote
+        )
+    }
+    marketdata::VolatilitySurface_ImpliedVolPoint: Relational {
+        AssociationMapping (
+            surface: [store::DB] @VolatilitySurface_ImpliedVolPoint,
+            volPoints: [store::DB] @VolatilitySurface_ImpliedVolPoint
+        )
+    }
+    marketdata::YieldCurve_BenchmarkRate: Relational {
+        AssociationMapping (
+            yieldCurve: [store::DB] @YieldCurve_BenchmarkRate,
+            benchmarkRates: [store::DB] @YieldCurve_BenchmarkRate
+        )
+    }
 )

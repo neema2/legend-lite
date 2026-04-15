@@ -791,7 +791,10 @@ class RelationalMappingIntegrationTest {
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Firm: Relational { ~mainTable [store::DB] T_FIRM legalName: [store::DB] T_FIRM.LEGAL_NAME }
                         Address: Relational { ~mainTable [store::DB] T_ADDRESS street: [store::DB] T_ADDRESS.STREET, city: [store::DB] T_ADDRESS.CITY }
-                    )
+                    
+                        model::Person_Firm: Relational { AssociationMapping ( person: [store::DB]@Person_Firm, firm: [store::DB]@Person_Firm ) }
+                        model::Person_Address: Relational { AssociationMapping ( person: [store::DB]@Person_Address, addresses: [store::DB]@Person_Address ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -1525,7 +1528,10 @@ class RelationalMappingIntegrationTest {
                         Dept: Relational { ~mainTable [store::DB] DEPT name: [store::DB] DEPT.NAME }
                         Emp: Relational { ~mainTable [store::DB] EMP name: [store::DB] EMP.NAME }
                         Proj: Relational { ~mainTable [store::DB] PROJ name: [store::DB] PROJ.NAME }
-                    )
+                    
+                        model::Emp_Dept: Relational { AssociationMapping ( emp: [store::DB]@Emp_Dept, dept: [store::DB]@Emp_Dept ) }
+                        model::Emp_Proj: Relational { AssociationMapping ( emp: [store::DB]@Emp_Proj, projects: [store::DB]@Emp_Proj ) }
+)
                     """, "store::DB", "model::M");
 
             // Query employees with their department
@@ -1993,7 +1999,10 @@ class RelationalMappingIntegrationTest {
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Dept: Relational { ~mainTable [store::DB] T_DEPT name: [store::DB] T_DEPT.NAME }
                         Org: Relational { ~mainTable [store::DB] T_ORG name: [store::DB] T_ORG.NAME }
-                    )
+                    
+                        model::Person_Dept: Relational { AssociationMapping ( persons: [store::DB]@Person_Dept, dept: [store::DB]@Person_Dept ) }
+                        model::Dept_Org: Relational { AssociationMapping ( depts: [store::DB]@Dept_Org, org: [store::DB]@Dept_Org ) }
+)
                     """, "store::DB", "model::M");
             // Navigate Person → dept → org (2 hops)
             var r = exec(m, "Person.all()->project(~[name:p|$p.name, org:p|$p.dept.org.name])");
@@ -2084,7 +2093,9 @@ class RelationalMappingIntegrationTest {
                             name: [store::DB] EMPLOYEES.NAME,
                             managerName: @EmpMgr | [store::DB] EMPLOYEES.NAME
                         }
-                    )
+                    
+                        test::EmpMgr: Relational { AssociationMapping ( emp: [store::DB]@EmpMgr, manager: [store::DB]@EmpMgr ) }
+)
                     """, "store::DB", "test::M");
 
             var r = exec(model, "Employee.all()->filter(e|$e.managerName == 'Alice')->project(~[name:e|$e.name])");
@@ -2305,7 +2316,9 @@ class RelationalMappingIntegrationTest {
                             qty: [store::DB] ORDERS.QTY,
                             price: @OrderPrice | [store::DB] PRICES.PRICE
                         }
-                    )
+                    
+                        test::OrderPrice: Relational { AssociationMapping ( order: [store::DB]@OrderPrice, priceInfo: [store::DB]@OrderPrice ) }
+)
                     """, "store::DB", "test::M");
 
             var r = exec(model, "Order.all()->project(~[qty:o|$o.qty, price:o|$o.price])");
@@ -3029,11 +3042,10 @@ class RelationalMappingIntegrationTest {
                             id: [store::DB] T_FIRM.ID,
                             legalName: [store::DB] T_FIRM.LEGAL_NAME
                         }
-                        test::PersonFirm: AssociationMapping
-                        (
+                        test::PersonFirm: Relational { AssociationMapping (
                             employees: [store::DB]@PersonFirm,
                             firm: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
 
@@ -3299,7 +3311,9 @@ class RelationalMappingIntegrationTest {
                     Mapping model::M (
                         Employee: Relational { ~mainTable [store::DB] EMPLOYEES name: [store::DB] EMPLOYEES.NAME }
                         Dept: Relational { ~mainTable [store::DB] DEPTS name: [store::DB] DEPTS.NAME }
-                    )
+                    
+                        model::Emp_Dept: Relational { AssociationMapping ( employees: [store::DB]@Emp_Dept, dept: [store::DB]@Emp_Dept ) }
+)
                     """, "store::DB", "model::M");
             var r = exec(m, "Employee.all()->filter({e|$e.dept.name == 'Engineering'})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
@@ -3327,7 +3341,9 @@ class RelationalMappingIntegrationTest {
                     Mapping model::M (
                         Student: Relational { ~mainTable [store::DB] STUDENTS name: [store::DB] STUDENTS.NAME }
                         School: Relational { ~mainTable [store::DB] SCHOOLS name: [store::DB] SCHOOLS.NAME }
-                    )
+                    
+                        model::Student_School: Relational { AssociationMapping ( students: [store::DB]@Student_School, school: [store::DB]@Student_School ) }
+)
                     """, "store::DB", "model::M");
             var r = exec(m, "Student.all()->project(~[student:s|$s.name, school:s|$s.school.name])");
             assertEquals(3, r.rowCount());
@@ -3358,7 +3374,9 @@ class RelationalMappingIntegrationTest {
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] PEOPLE name: [store::DB] PEOPLE.NAME }
                         Addr: Relational { ~mainTable [store::DB] ADDRS city: [store::DB] ADDRS.CITY }
-                    )
+                    
+                        model::Person_Addr: Relational { AssociationMapping ( person: [store::DB]@Person_Addr, addrs: [store::DB]@Person_Addr ) }
+)
                     """, "store::DB", "model::M");
             // Project person name and address city (LEFT JOIN, rows expand)
             var r = exec(m, "Person.all()->project(~[name:p|$p.name, city:p|$p.addrs.city])");
@@ -3387,7 +3405,9 @@ class RelationalMappingIntegrationTest {
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] PEOPLE name: [store::DB] PEOPLE.NAME }
                         Addr: Relational { ~mainTable [store::DB] ADDRS city: [store::DB] ADDRS.CITY }
-                    )
+                    
+                        model::Person_Addr: Relational { AssociationMapping ( person: [store::DB]@Person_Addr, addrs: [store::DB]@Person_Addr ) }
+)
                     """, "store::DB", "model::M");
             var r = exec(m, "Person.all()->filter({p|$p.addrs.city == 'NYC'})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount()); // Alice and Bob have NYC addresses
@@ -3422,7 +3442,10 @@ class RelationalMappingIntegrationTest {
                         Order: Relational { ~mainTable [store::DB] ORDERS qty: [store::DB] ORDERS.QTY }
                         Customer: Relational { ~mainTable [store::DB] CUSTOMERS name: [store::DB] CUSTOMERS.NAME }
                         Product: Relational { ~mainTable [store::DB] PRODUCTS name: [store::DB] PRODUCTS.NAME }
-                    )
+                    
+                        model::Order_Customer: Relational { AssociationMapping ( orders: [store::DB]@Order_Customer, customer: [store::DB]@Order_Customer ) }
+                        model::Order_Product: Relational { AssociationMapping ( orders: [store::DB]@Order_Product, product: [store::DB]@Order_Product ) }
+)
                     """, "store::DB", "model::M");
             var r = exec(m, "Order.all()->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
             assertEquals(3, r.rowCount());
@@ -3449,7 +3472,9 @@ class RelationalMappingIntegrationTest {
                     Mapping model::M (
                         Author: Relational { ~mainTable [store::DB] AUTHORS name: [store::DB] AUTHORS.NAME, country: [store::DB] AUTHORS.COUNTRY }
                         Book: Relational { ~mainTable [store::DB] BOOKS title: [store::DB] BOOKS.TITLE }
-                    )
+                    
+                        model::Author_Book: Relational { AssociationMapping ( author: [store::DB]@Author_Book, books: [store::DB]@Author_Book ) }
+)
                     """, "store::DB", "model::M");
             // Get all UK authors' book titles
             var r = exec(m, "Author.all()->filter({a|$a.country == 'UK'})->project(~[author:a|$a.name, book:a|$a.books.title])");
@@ -3614,7 +3639,9 @@ class RelationalMappingIntegrationTest {
                     Mapping model::M (
                         Emp: Relational { ~mainTable [store::DB] HR_EMP name: [store::DB] HR_EMP.NAME, sal: [store::DB] HR_EMP.SAL }
                         Dept: Relational { ~mainTable [store::DB] HR_DEPT name: [store::DB] HR_DEPT.NAME }
-                    )
+                    
+                        model::Emp_Dept: Relational { AssociationMapping ( emps: [store::DB]@Emp_Dept, dept: [store::DB]@Emp_Dept ) }
+)
                     """, "store::DB", "model::M");
             // High earners (>100k) with their department
             var r = exec(m, "Emp.all()->filter({e|$e.sal > 100000})->project(~[name:e|$e.name, dept:e|$e.dept.name, sal:e|$e.sal])");
@@ -3642,7 +3669,9 @@ class RelationalMappingIntegrationTest {
                     Mapping model::M (
                         Item: Relational { ~mainTable [store::DB] INV_ITEMS name: [store::DB] INV_ITEMS.NAME, stock: [store::DB] INV_ITEMS.STOCK }
                         Supplier: Relational { ~mainTable [store::DB] SUPPLIERS name: [store::DB] SUPPLIERS.NAME, country: [store::DB] SUPPLIERS.COUNTRY }
-                    )
+                    
+                        model::Item_Supplier: Relational { AssociationMapping ( items: [store::DB]@Item_Supplier, supplier: [store::DB]@Item_Supplier ) }
+)
                     """, "store::DB", "model::M");
             // Low stock (< 10) items with their supplier
             var r = exec(m, "Item.all()->filter({i|$i.stock < 10})->project(~[item:i|$i.name, stock:i|$i.stock, supplier:i|$i.supplier.name])");
@@ -3717,7 +3746,10 @@ class RelationalMappingIntegrationTest {
                         Emp: Relational { ~mainTable [store::DB] C_EMP name: [store::DB] C_EMP.NAME, sal: [store::DB] C_EMP.SAL, active: [store::DB] C_EMP.ACTIVE }
                         Dept: Relational { ~mainTable [store::DB] C_DEPT name: [store::DB] C_DEPT.NAME, budget: [store::DB] C_DEPT.BUDGET }
                         Addr: Relational { ~mainTable [store::DB] C_ADDR city: [store::DB] C_ADDR.CITY, state: [store::DB] C_ADDR.STATE }
-                    )
+                    
+                        model::Emp_Dept: Relational { AssociationMapping ( emps: [store::DB]@Emp_Dept, dept: [store::DB]@Emp_Dept ) }
+                        model::Emp_Addr: Relational { AssociationMapping ( emp: [store::DB]@Emp_Addr, addrs: [store::DB]@Emp_Addr ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -3818,7 +3850,9 @@ class RelationalMappingIntegrationTest {
                     Mapping model::M (
                         Sale: Relational { ~mainTable [store::DB] SALE amount: [store::DB] SALE.AMOUNT }
                         Rep: Relational { ~mainTable [store::DB] REP name: [store::DB] REP.NAME, region: [store::DB] REP.REGION }
-                    )
+                    
+                        model::Sale_Rep: Relational { AssociationMapping ( sales: [store::DB]@Sale_Rep, rep: [store::DB]@Sale_Rep ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -3908,7 +3942,10 @@ class RelationalMappingIntegrationTest {
                         Order: Relational { ~mainTable [store::DB] MJ_ORDER qty: [store::DB] MJ_ORDER.QTY, price: [store::DB] MJ_ORDER.PRICE }
                         Customer: Relational { ~mainTable [store::DB] MJ_CUSTOMER name: [store::DB] MJ_CUSTOMER.NAME, tier: [store::DB] MJ_CUSTOMER.TIER }
                         Product: Relational { ~mainTable [store::DB] MJ_PRODUCT name: [store::DB] MJ_PRODUCT.NAME, category: [store::DB] MJ_PRODUCT.CATEGORY }
-                    )
+                    
+                        model::Order_Customer: Relational { AssociationMapping ( orders: [store::DB]@Order_Customer, customer: [store::DB]@Order_Customer ) }
+                        model::Order_Product: Relational { AssociationMapping ( orders: [store::DB]@Order_Product, product: [store::DB]@Order_Product ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -3997,7 +4034,9 @@ class RelationalMappingIntegrationTest {
                         Ticket: Relational { ~mainTable [store::DB] EJ_TICKET title: [store::DB] EJ_TICKET.TITLE, priority: EnumerationMapping PM: [store::DB] EJ_TICKET.PRIORITY_CODE }
                         User: Relational { ~mainTable [store::DB] EJ_USER name: [store::DB] EJ_USER.NAME }
                         Priority: EnumerationMapping PM { HIGH: 'H', MEDIUM: 'M', LOW: 'L' }
-                    )
+                    
+                        model::Ticket_User: Relational { AssociationMapping ( tickets: [store::DB]@Ticket_User, assignee: [store::DB]@Ticket_User ) }
+)
                     """, "store::DB", "model::M");
             // Filter by HIGH priority, project assignee name
             var r = exec(m, "Ticket.all()->filter({t|$t.priority == 'HIGH'})->project(~[title:t|$t.title, assignee:t|$t.assignee.name])");
@@ -4028,7 +4067,9 @@ class RelationalMappingIntegrationTest {
                         Order: Relational { ~mainTable [store::DB] EJ2_ORDER status: EnumerationMapping SM: [store::DB] EJ2_ORDER.STATUS, amount: [store::DB] EJ2_ORDER.AMOUNT }
                         Cust: Relational { ~mainTable [store::DB] EJ2_CUST name: [store::DB] EJ2_CUST.NAME }
                         Status: EnumerationMapping SM { ACTIVE: 'A', CANCELLED: 'C' }
-                    )
+                    
+                        model::Order_Cust: Relational { AssociationMapping ( orders: [store::DB]@Order_Cust, customer: [store::DB]@Order_Cust ) }
+)
                     """, "store::DB", "model::M");
             // Active orders only, total per customer
             var r = exec(m,
@@ -4069,7 +4110,9 @@ class RelationalMappingIntegrationTest {
                         RawEmp: Relational { ~mainTable [store::DB] M2M_EMP first: [store::DB] M2M_EMP.FIRST, last: [store::DB] M2M_EMP.LAST }
                         RawDept: Relational { ~mainTable [store::DB] M2M_DEPT name: [store::DB] M2M_DEPT.NAME }
                         Employee: Pure { ~src RawEmp fullName: $src.first + ' ' + $src.last }
-                    )
+                    
+                        model::RawEmp_Dept: Relational { AssociationMapping ( emps: [store::DB]@RawEmp_Dept, dept: [store::DB]@RawEmp_Dept ) }
+)
                     """, "store::DB", "model::M");
             var r = exec(m, "Employee.all()->project(~[fullName:e|$e.fullName])");
             assertEquals(2, r.rowCount());
@@ -4149,7 +4192,12 @@ class RelationalMappingIntegrationTest {
                         Emp: Relational { ~mainTable [store::DB] LD_EMP name: [store::DB] LD_EMP.NAME, sal: [store::DB] LD_EMP.SAL }
                         Project: Relational { ~mainTable [store::DB] LD_PROJECT name: [store::DB] LD_PROJECT.NAME, budget: [store::DB] LD_PROJECT.BUDGET }
                         Skill: Relational { ~mainTable [store::DB] LD_SKILL name: [store::DB] LD_SKILL.NAME, level: [store::DB] LD_SKILL.LEVEL }
-                    )
+                    
+                        model::Dept_Company: Relational { AssociationMapping ( depts: [store::DB]@Dept_Company, company: [store::DB]@Dept_Company ) }
+                        model::Emp_Dept: Relational { AssociationMapping ( emps: [store::DB]@Emp_Dept, dept: [store::DB]@Emp_Dept ) }
+                        model::Project_Dept: Relational { AssociationMapping ( projects: [store::DB]@Project_Dept, dept: [store::DB]@Project_Dept ) }
+                        model::Emp_Skill: Relational { AssociationMapping ( emp: [store::DB]@Emp_Skill, skills: [store::DB]@Emp_Skill ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -4390,7 +4438,9 @@ class RelationalMappingIntegrationTest {
                             street: [store::DB] T_ADDRESS.STREET,
                             city: [store::DB] T_ADDRESS.CITY
                         }
-                    )
+                    
+                        model::Person_Address: Relational { AssociationMapping ( person: [store::DB]@Person_Address, address: [store::DB]@Person_Address ) }
+)
                     """, "store::DB", "model::M");
 
             // Project embedded firm + association address
@@ -4439,7 +4489,9 @@ class RelationalMappingIntegrationTest {
                             street: [store::DB] T_ADDRESS.STREET,
                             city: [store::DB] T_ADDRESS.CITY
                         }
-                    )
+                    
+                        model::Person_Address: Relational { AssociationMapping ( person: [store::DB]@Person_Address, address: [store::DB]@Person_Address ) }
+)
                     """, "store::DB", "model::M");
 
             String sql = planSql(model, "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, city:p|$p.address.city])");
@@ -4571,7 +4623,9 @@ class RelationalMappingIntegrationTest {
                             legalName: [store::DB] T_FIRM.LEGAL_NAME,
                             revenue: [store::DB] T_FIRM.REVENUE
                         }
-                    )
+                    
+                        model::Person_Firm: Relational { AssociationMapping ( person: [store::DB]@Person_Firm, firm: [store::DB]@Person_Firm ) }
+)
                     """, "store::DB", "model::M");
         }
 
@@ -4724,7 +4778,11 @@ class RelationalMappingIntegrationTest {
                         Dept: Relational { ~mainTable [store::DB] T_DEPT name: [store::DB] T_DEPT.NAME }
                         Company: Relational { ~mainTable [store::DB] T_COMPANY name: [store::DB] T_COMPANY.NAME }
                         Country: Relational { ~mainTable [store::DB] T_COUNTRY name: [store::DB] T_COUNTRY.NAME }
-                    )
+                    
+                        model::Emp_Dept: Relational { AssociationMapping ( emps: [store::DB]@Emp_Dept, dept: [store::DB]@Emp_Dept ) }
+                        model::Dept_Company: Relational { AssociationMapping ( depts: [store::DB]@Dept_Company, company: [store::DB]@Dept_Company ) }
+                        model::Company_Country: Relational { AssociationMapping ( companies: [store::DB]@Company_Country, country: [store::DB]@Company_Country ) }
+)
                     """, "store::DB", "model::M");
             // Navigate Emp → dept → company → country (3 hops)
             var r = exec(m, "Emp.all()->project(~[name:e|$e.name, country:e|$e.dept.company.country.name])");
@@ -4772,7 +4830,10 @@ class RelationalMappingIntegrationTest {
                         E2: Relational { ~mainTable [store::DB] T_EMP2 name: [store::DB] T_EMP2.NAME, salary: [store::DB] T_EMP2.SALARY }
                         D2: Relational { ~mainTable [store::DB] T_DEPT2 name: [store::DB] T_DEPT2.NAME }
                         C2: Relational { ~mainTable [store::DB] T_COMPANY2 country: [store::DB] T_COMPANY2.COUNTRY }
-                    )
+                    
+                        model::E2_D2: Relational { AssociationMapping ( emps: [store::DB]@E2_D2, dept: [store::DB]@E2_D2 ) }
+                        model::D2_C2: Relational { AssociationMapping ( depts: [store::DB]@D2_C2, company: [store::DB]@D2_C2 ) }
+)
                     """, "store::DB", "model::M");
             // GroupBy country (2 hops from Emp), sum salary
             var r = exec(m, "E2.all()->project(~[country:e|$e.dept.company.country, salary:e|$e.salary])->groupBy([{r|$r.country}], [agg({r|$r.salary}, {y|$y->sum()})], ['country', 'totalSalary'])");
@@ -4878,10 +4939,10 @@ class RelationalMappingIntegrationTest {
                             legalName: [store::DB] T_FIRM.LEGAL_NAME,
                             country: @FirmCountry | [store::DB] T_COUNTRY.NAME
                         }
-                        test::PersonFirm: AssociationMapping (
+                        test::PersonFirm: Relational { AssociationMapping (
                             firm: [store::DB]@PersonFirm,
                             employees: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
             // Navigate Person -> Firm (association) -> Country (join chain on Firm)
@@ -4927,10 +4988,10 @@ class RelationalMappingIntegrationTest {
                             legalName: [store::DB] T_FIRM.LEGAL_NAME,
                             country: @FirmCountry | [store::DB] T_COUNTRY.NAME
                         }
-                        test::PersonFirm: AssociationMapping (
+                        test::PersonFirm: Relational { AssociationMapping (
                             firm: [store::DB]@PersonFirm,
                             employees: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
             var r = exec(model, "Person.all()->filter({p|$p.firm.country == 'USA'})->project(~[name:p|$p.name])->sort(~name->ascending())");
@@ -4971,10 +5032,10 @@ class RelationalMappingIntegrationTest {
                             legalName: [store::DB] T_FIRM.LEGAL_NAME,
                             country: @FirmCountry | [store::DB] T_COUNTRY.NAME
                         }
-                        test::PersonFirm: AssociationMapping (
+                        test::PersonFirm: Relational { AssociationMapping (
                             firm: [store::DB]@PersonFirm,
                             employees: [store::DB]@PersonFirm
-                        )
+                        ) }
                     )
                     """, "store::DB", "test::M");
             // Sort by country — UK before USA alphabetically
