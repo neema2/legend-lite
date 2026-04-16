@@ -11,7 +11,9 @@ Cross-project joins — where one team's query needs to join data from another t
 5. [Legend-Lite Compiler Opportunity](#5-legend-lite-compiler-opportunity)
 6. [Support Matrix: Both Approaches in Legend-Lite](#6-support-matrix-both-approaches-in-legend-lite)
 7. [Migration Auto-Convert: What Can Be Mechanically Rewritten](#7-migration-auto-convert-what-can-be-mechanically-rewritten)
-8. [Impact on Element Categories](#8-impact-on-element-categories)
+8. [Consumer-Side Class Extensions: A Trait-Style Escape Hatch](#8-consumer-side-class-extensions-a-trait-style-escape-hatch)
+9. [Compile-as-Validation Safety Model](#9-compile-as-validation-safety-model)
+10. [Impact on Element Categories](#10-impact-on-element-categories)
 
 ---
 
@@ -647,9 +649,421 @@ The residual 10-15% is exactly the population that should be blocked: these are 
 3. **Always prefer inline XStore lambda over `+` property** when both work — it's less code and keeps the intent in one place. Use `+` properties when the consumer-side computation is reused or when a local store-join is needed.
 4. **Treat blocked cases as structured asks** — emit a patch suggestion against the dependency repo (add property X, expose class Y), not just an error. The tool's value is highest when it makes the hard cases **actionable**, not just flagged.
 
+### When auto-conversion isn't enough
+
+The ❌ Blocked cases all reduce to the same root cause: **the dependency hasn't exposed what we need at the model level.** The principled fix is for the dependency team to expose the missing property, association, or computed view. When that coordination isn't immediately available, consumers have a time-bounded tactical alternative: **Extensions with shadow-mapped properties** (§8), validated at deploy time via the compile-as-validation model (§9).
+
 ---
 
-## 8. Impact on Element Categories
+## 8. Consumer-Side Class Extensions: A Trait-Style Escape Hatch
+
+The case matrix in §7 leaves a residual ~10-15% of cross-project joins as ❌ Blocked — always because the dependency side hasn't exposed something the consumer needs. In principle, the right fix is for the dependency team to expose it. In practice, migrations can't always wait for that coordination to complete.
+
+Legend-lite introduces a first-class mechanism to bridge this gap tactically: **Extensions**, modeled on the trait/protocol pattern from Swift, Kotlin, and Rust.
+
+### The trait/protocol mental model
+
+In modern languages, you can add capabilities to a foreign type **without creating a subtype and without modifying the original**:
+
+```swift
+// Swift
+extension Sector {
+  var displayName: String { "\(name) (\(id))" }
+}
+```
+
+```kotlin
+// Kotlin
+val Sector.displayName: String get() = "$name ($id)"
+```
+
+Call sites read `sector.displayName` as if it were a native property. The extension is scoped to whichever modules import it. No subclass, no namespace pollution, no polymorphism confusion.
+
+Legend-lite's `Extension` element applies this pattern to foreign Pure classes:
+
+```pure
+Extension trading::SectorDisplay for refdata::Sector
+{
+  displayName: String[1]
+  {
+    $this.name + ' (' + $this.id + ')'
+  }
+}
+
+// Usage — reads like a native property
+Trade.all()->project(~[
+  ~sector_display = $t.sector.displayName
+])
+```
+
+### Why this is less hacky than subclassing
+
+Any attempt to solve this by extending the class as a subtype (`trading::ExtendedSector extends refdata::Sector`) creates fundamental problems:
+
+| Axis | Subclass approach | Extension approach |
+|---|---|---|
+| Call-site code | Must rename every `Sector` reference to `ExtendedSector` | **Unchanged** — reads as `Sector.displayName` |
+| Type identity | New type; polymorphism confusion | Same type; additive augmentation |
+| Uninstall when foreign team exposes the property | Rename every call site back | **Delete Extension block. Zero call-site changes.** |
+| Conflict with another consumer's subclass | Type incompatibility | Compiler-enforced disambiguation |
+| Discoverability of "this is a patch" | Subclass looks like a first-class type | Extension is clearly marked; IDE can highlight extension-sourced properties |
+
+The syntactic/logical hack disappears. Any physical hack (shadow-mapped coupling) remains — but precisely scoped, clearly marked, and removable with zero call-site churn.
+
+### Two flavors, one syntax
+
+Extensions can carry two fundamentally different kinds of properties:
+
+**Derived-only** — Pure computation over existing exposed state. No physical coupling, no brittleness.
+
+```pure
+Extension trading::SectorHelpers for refdata::Sector
+{
+  // Purely derived — uses Sector.name, Sector.industryCode which are exposed
+  displayName: String[1]
+  {
+    $this.name + ' (' + $this.id + ')'
+  }
+  
+  isTechSector: Boolean[1]
+  {
+    $this.industryCode->in(['TECH', 'SAAS', 'SEMI'])
+  }
+}
+```
+
+Architecturally clean. Think of them as **consumer-scoped helper methods** — things you wish were on the foreign class but that the dependency team can't reasonably add for every consumer's convenience. These deserve to exist in legend-lite even independent of the migration use case.
+
+**Shadow-mapped** — binds a property to a physical column in the foreign database, reached via a consumer-declared shadow store plus runtime alias.
+
+```pure
+###Relational
+// Consumer declares ONLY the table/column they need to borrow
+Database trading::VirtualRefdataDB
+(
+  Schema Refdata
+  (
+    Table Sector (id INT, internal_ref_code VARCHAR(32))
+  )
+)
+
+###Pure
+Extension trading::SectorPatch for refdata::Sector
+{
+  <<Temporary(expires = "2027-01-15", ticket = "REFDATA-1234")>>
+  internalRefCode: String[1];
+}
+
+###Mapping
+Mapping trading::SectorPatchMapping
+(
+  refdata::Sector[sector_ext]: Extension
+  {
+    ~extension trading::SectorPatch
+    internalRefCode: [trading::VirtualRefdataDB]Refdata.Sector.internal_ref_code
+  }
+)
+
+###Runtime
+Runtime trading::TradingRuntime
+{
+  storeAliases:
+  [
+    trading::VirtualRefdataDB -> refdata::RefdataDB   // at exec time, rewrite FROM clauses
+  ];
+  // ... connections etc
+}
+```
+
+These extensions are **tactical debt**. They work today, but they physically couple the consumer to the foreign team's schema — same brittleness profile as the old `include refdata::RefdataDB`, just containerized to one column at a time.
+
+### Visibility rules — split by flavor
+
+The two flavors have very different risk profiles, so they have different scope rules:
+
+| Extension flavor | Same package | Dependent packages (default) | With explicit `import` | With `<<Exported>>` annotation |
+|---|---|---|---|---|
+| Derived-only | ✅ visible | ❌ | ✅ visible | ✅ broadcast to all dependents |
+| Shadow-mapped | ✅ visible | ❌ | ❌ **compiler rejects** | ❌ **compiler rejects** |
+
+**The critical rule the compiler enforces:**
+
+> An Extension containing any shadow-mapped property cannot be exported or imported across package boundaries — period. Tactical debt is containerized by design.
+
+This is a hard rule, not a lint. If you try to mark a shadow-mapped Extension `<<Exported>>`, the compiler refuses. If another project tries to `import trading::SectorPatch` when it contains any shadow-mapped property, the compiler refuses.
+
+**Why this matters**:
+- Shadow-mapped extensions are time-bounded workarounds. Sharing them makes them load-bearing, which makes them permanent.
+- If multiple consumers need the same unexposed foreign property, that's an **escalation signal** — fix the dependency properly. The compiler's refusal to share shadow extensions ensures this signal can't be suppressed.
+- Derived-only extensions CAN be shared (they're just Pure expressions over already-exposed state), enabling shared utility libraries — the Kotlin extension-library pattern.
+
+### Extension as a new packageable element
+
+`Extension` satisfies every criterion for a first-class packageable element:
+
+| Criterion | Satisfied? |
+|---|---|
+| Unique fully-qualified name (`trading::SectorPatch`) | ✅ |
+| Independently serializable as an element file | ✅ (fits the per-element architecture) |
+| Distinct lifecycle (add/remove independent of target class) | ✅ |
+| Own dependencies to track (target class + referenced stores/runtimes) | ✅ |
+| Own compile phase (property injection into TypeChecker's resolution path) | ✅ |
+| Conceptually distinct from existing elements | ✅ |
+
+It sits alongside existing elements in the per-element Bazel architecture:
+
+| Flavor | Model-dep compile-time | Impl-dep compile-time | Runtime |
+|---|---|---|---|
+| Extension (derived-only) | Target class | — | — |
+| Extension (shadow-mapped) | Target class | Consumer's shadow store | Consumer's runtime alias |
+
+Note: shadow-mapped Extensions reintroduce an impl-time dependency, but that dependency is on the **consumer's own shadow store** — no foreign impl coupling at compile time. The foreign dependency remains model-only at compile time, preserving per-element isolation.
+
+### Additional compiler-enforced rules
+
+- **No property override**: Extensions can only add properties, never override existing ones on the target class. Prevents "silently redefine `Sector.id` to do something weird."
+- **Read-only shadow stores**: Any INSERT/UPDATE/DELETE against a store used by a shadow-mapped Extension is a compile error. Prevents accidental write-through to a foreign DB via a shadow — the worst conceivable bug.
+- **Conflict detection**: If two Extensions define the same property name on the same class within one compilation unit, compile error. Must be disambiguated via explicit import or qualified access.
+- **Expiry required**: Shadow-mapped Extensions must carry a `<<Temporary(expires = ...)>>` annotation. Missing it is a compile error.
+
+### Worked example: unblocking the "foreign column unexposed" case
+
+From §7, this case was listed as ❌ Blocked:
+
+```pure
+// Old: Join Trade_Sector(Trades.Trade.ref_code = Refdata.Sector.internal_ref_code)
+// Refdata exposes Sector.id and Sector.name, but not internal_ref_code
+```
+
+With Extensions, it becomes ⚠ Tactical:
+
+```pure
+###Relational
+Database trading::VirtualRefdataDB
+(
+  Schema Refdata
+  (
+    Table Sector (id INT, internal_ref_code VARCHAR(32))
+  )
+)
+
+###Pure
+Extension trading::SectorPatch for refdata::Sector
+{
+  <<Temporary(expires = "2027-01-15", ticket = "REFDATA-1234")>>
+  internalRefCode: String[1];
+}
+
+Association trading::Trade_Sector
+{
+  sector: refdata::Sector[0..1];
+  trades: trading::Trade[*];
+}
+
+###Mapping
+Mapping trading::TradingMapping
+(
+  // The Extension mapping — binds the shadow-mapped property
+  refdata::Sector[sector_ext]: Extension
+  {
+    ~extension trading::SectorPatch
+    internalRefCode: [trading::VirtualRefdataDB]Refdata.Sector.internal_ref_code
+  }
+  
+  trading::Trade[trade]: Relational
+  {
+    ~mainTable [trading::TradingDB]Trades.Trade
+    id:      [trading::TradingDB]Trades.Trade.id,
+    refCode: [trading::TradingDB]Trades.Trade.ref_code
+  }
+  
+  // XStore association mapping is trivial again
+  trading::Trade_Sector: XStore
+  {
+    sector[trade, sector_ext]: $this.refCode == $that.internalRefCode,
+    trades[sector_ext, trade]: $this.internalRefCode == $that.refCode
+  }
+)
+
+###Runtime
+Runtime trading::TradingRuntime
+{
+  storeAliases: [ trading::VirtualRefdataDB -> refdata::RefdataDB ];
+  // ... connections
+}
+```
+
+At runtime with the store alias active, queries against `$trade.sector.internalRefCode` emit SQL against `refdata.sector.internal_ref_code` directly. The foreign team sees no changes. The consumer is unblocked.
+
+**When the foreign team eventually exposes `internalRefCode` as a real property on `refdata::Sector`**:
+
+1. Delete the `Extension trading::SectorPatch` block
+2. Delete `Database trading::VirtualRefdataDB`
+3. Delete the `storeAliases` entry in the runtime
+4. Delete the `refdata::Sector[sector_ext]: Extension` block in the mapping
+5. Update the XStore association mapping to reference the real class mapping id instead of `sector_ext`
+
+Query code is unchanged — still reads `$trade.sector.internalRefCode`, now resolved against the real property on `refdata::Sector`. Clean removal, zero call-site churn.
+
+### Updated case matrix with Extensions available
+
+The §7 matrix gains a third state — ⚠ Tactical — for cases that Extensions can unblock at the cost of controlled debt:
+
+| Pattern | Without Extensions | With Extensions |
+|---|---|---|
+| Simple equi-join, foreign column mapped to property | ✅ Auto | ✅ Auto |
+| Multi-column equi-join | ✅ Auto | ✅ Auto |
+| Multi-hop through consumer's own tables | ✅ Auto | ✅ Auto |
+| (all other §7 ✅ cases) | ✅ Auto | ✅ Auto |
+| Foreign physical column not exposed as a property | ❌ Blocked | ⚠ Tactical (shadow-mapped Extension) |
+| Calc on foreign columns, source parts not exposed | ❌ Blocked | ⚠ Tactical (shadow-mapped Extension per component) |
+| Embedded filter on foreign column not exposed | ❌ Blocked | ⚠ Tactical (shadow-mapped Extension for filter column) |
+| Multi-hop through dependency's tables (no intermediate class) | ❌ Blocked | ⚠ Tactical (shadow-mapped Extensions for all hop columns) — or coordinate proper exposure |
+
+**⚠ Tactical** means: works today, compiler-validated, but time-bounded and requires an expiry annotation. The migration tool should automatically:
+- Generate the shadow store + Extension + mapping patches
+- Mark every shadow-mapped Extension with an `<<Temporary>>` annotation + ticket reference
+- Open a parallel PR against the dependency repo proposing the proper exposure
+- Track expiry dates in a dashboard per team
+
+---
+
+## 9. Compile-as-Validation Safety Model
+
+Shadow-mapped Extensions (§8) introduce a real risk: the consumer's declared shadow schema might drift from the foreign DB's actual schema. A column rename on the foreign side, a type change, a dropped table — any of these turn a working shadow into a broken one.
+
+The naive approach would be to build an ad-hoc safety stack: schema introspection via `information_schema`, checksum fingerprints, canary queries, etc. Each would be a separate validation layer with its own maintenance burden and potential for drift between "build-time rules" and "runtime rules."
+
+Legend-lite takes a much simpler approach: **reuse the existing compiler as the validation mechanism.**
+
+### The core insight
+
+Legend-lite's invariant (from [AGENTS.md](../AGENTS.md)):
+
+> *The Compiler (`CleanCompiler`) is the single source of truth for types.*
+
+Every structural consistency check — column existence, type compatibility, nullability, property-to-column binding, mapping-to-store references — is already implemented as part of normal compilation. We don't need to build parallel validation code. We just need to **run compilation at a different phase with a different set of loaded elements.**
+
+### Build-time vs deploy-time compilation
+
+| Phase | Loaded elements | What's validated |
+|---|---|---|
+| **Build-time** | Consumer's own elements + consumer's **shadow** stores | Consumer code compiles consistently against its own declared assumptions |
+| **Deploy-time** | Consumer's elements + **real** foreign elements (merged world) | Consumer's assumptions actually hold against reality |
+
+Same compiler binary. Same type-checking rules. Same PropertyMapping validation. Same store-substitution validation. The only difference is which element files are loaded into `PureModelBuilder`.
+
+If the merged world compiles → everything is structurally consistent. Service starts normally.
+
+If the merged world fails to compile → service refuses to start, with a precise error message pointing at the specific Extension binding, column, or type mismatch that's inconsistent.
+
+### Why this is architecturally sound
+
+**Single source of truth.** No parallel validator code to keep in sync with the compiler's rules. If compilation rules evolve, deploy-time validation inherits the changes automatically.
+
+**Fail-closed by construction.** The compiler throws; it doesn't warn-and-continue. This discipline applies at deploy time automatically. No policy decisions, no opt-ins, no "just log the warning for now."
+
+**Deterministic.** Same inputs (consumer artifact + real foreign artifacts) produce the same compile outcome every time.
+
+**Cheap in legend-lite.** The per-element lazy-load architecture means deploy-time compile is O(Extensions × referenced elements), not O(full recompile). Milliseconds per extension at startup.
+
+### What this catches (for free)
+
+| Failure mode | Caught by existing compiler? |
+|---|---|
+| Foreign column renamed | ✅ `Table.findColumn()` throws `PureCompilationException` |
+| Foreign column type changed | ✅ TypeChecker on Extension's declared type vs real column type |
+| Foreign table renamed or dropped | ✅ Same lookup path |
+| Foreign DB schema reorganized | ✅ Same |
+| Extension declares a column that doesn't exist in the real store | ✅ PropertyMapping validation |
+| Shadow store declaration inconsistent with real store (type/nullability) | ✅ StoreSubstitution validation (existing machinery) |
+| Unsafe type coercion (VARCHAR → INT, etc.) | ✅ Existing TypeChecker compatibility check |
+| Nullability mismatch (declared NOT NULL, actual nullable) | ✅ Multiplicity check |
+| Extension defines property that collides with the foreign class's own property | ✅ Extension's own override-prohibition rule |
+| Consumer references Extension property that doesn't exist in any loaded Extension | ✅ Property resolution failure |
+
+**Every mechanical failure mode is already an existing compile error at a later phase.** No new validator code, no drift risk.
+
+### What this doesn't catch (residual)
+
+Two narrow cases escape compilation:
+
+1. **Semantic drift**: column exists with the same name and type, but now means something different. E.g., `internal_ref_code` used to be a 6-char opaque ID; now it's a formatted code with a prefix. The compiler can't distinguish — types match.
+
+2. **Foreign mapping semantics change**: the foreign's official mapping starts applying a filter or transform that the consumer's raw-column read bypasses. Legend-lite's design choice is **raw-column binding** for shadow-mapped Extensions (so they can target columns not yet mapped to properties, which is the whole point). This leaves mapping-level transform drift as a known-uncaught case.
+
+For these two, **canary rows remain valuable as optional defense-in-depth** — not as a required tier.
+
+### Optional tier: canary rows
+
+A consumer can declare well-known rows with expected values:
+
+```pure
+Extension trading::SectorPatch for refdata::Sector
+{
+  <<Temporary(expires = "2027-01-15")>>
+  internalRefCode: String[1]
+  
+  canaries:
+  [
+    {
+      query: Sector.all()->filter(s | $s.id == 'CANARY-001')->first().internalRefCode,
+      expect: 'CANARY-REF-A'
+    }
+  ]
+}
+```
+
+Canaries run at startup (after the compile-as-validation pass succeeds). If a canary fails, service refuses to start with a semantic-drift error. Useful for high-risk extensions where semantic stability matters; optional for extensions where a raw value lookup is unambiguous.
+
+### Expiry as enforcement, not metadata
+
+Shadow-mapped Extensions are tactical debt. They MUST have expiry:
+
+```pure
+<<Temporary(expires = "2027-01-15", ticket = "REFDATA-1234")>>
+```
+
+- Compiler rejects any shadow-mapped Extension without an expiry annotation.
+- CI warns 30 days before expiry.
+- CI fails at expiry.
+- Tooling cannot remove or extend the expiry automatically — human action required.
+- Dashboard per team: "shadow extensions about to expire."
+
+Turns "temporary" from intent to enforcement.
+
+### Observability
+
+Every query that touches a shadow-mapped Extension property emits a structured log:
+
+```json
+{
+  "event": "shadow_extension_access",
+  "ext": "trading::SectorPatch",
+  "prop": "internalRefCode",
+  "target_store": "refdata::RefdataDB",
+  "query_id": "q-abc123",
+  "ts": "..."
+}
+```
+
+Central observability dashboard shows:
+- Which extensions are actively used (candidates for proper exposure PRs)
+- Which extensions are dormant (candidates for deletion)
+- Extensions approaching expiry
+- Per-team debt summary
+
+### The elegant framing
+
+> **Build-time compilation validates the consumer's view of the world. Deploy-time compilation validates the world itself.** They use identical code paths. The only difference is which element files are loaded into `PureModelBuilder`.
+>
+> Shadow Extensions don't introduce a new class of risk — they introduce a new loading order. Build with shadows, validate with reality. Same compiler, different inputs.
+
+This collapses what could have been a multi-layer ad-hoc safety stack into one principled observation: **the compiler is already the safety net**; we just need to run it at a different phase.
+
+---
+
+## 10. Impact on Element Categories
 
 With XStore model joins and legend-lite's compiler, the element categories table in the [Bazel Dependency Proposal](./BAZEL_DEPENDENCY_PROPOSAL.md) is accurate as the target state:
 
@@ -657,11 +1071,23 @@ With XStore model joins and legend-lite's compiler, the element categories table
 |---|---|---|---|
 | **Model** | Class, Enum, Association | Yes | Yes |
 | **Functions** | Function (signature) | Yes | Yes |
+| **Extension** (derived-only) | `Extension` with only derived properties | Yes (target class) | Yes |
+| **Extension** (shadow-mapped) | `Extension` with store-bound properties | Yes (target class + consumer's own shadow store) | Yes |
 | **Store** | Database, Table, Join | **No** (with model joins) | Yes |
 | **Mapping** | Mapping, PropertyMapping | **No** (with model joins) | Yes |
 | **Runtime** | Runtime, Connection | No | Yes |
 | **Service** | Service | No | Yes |
 
-**Caveat:** Projects using legacy Database/Mapping includes will have Store and Mapping as compile-time deps until migrated to XStore. Legend-lite supports both, but the architecture is designed for and optimized for the model-join world.
+**Caveats**:
+- Projects using legacy Database/Mapping includes will have Store and Mapping as compile-time deps until migrated to XStore. Legend-lite supports both, but the architecture is designed for and optimized for the model-join world.
+- Shadow-mapped Extensions (§8) reintroduce an impl-time dep on the consumer's own shadow store. This does NOT extend compile-time coupling across project boundaries — the foreign dependency stays model-only at compile time. The impl-time dep is purely local.
+- The per-element file architecture works correctly in all cases — the difference is only which element files are inputs to compile actions vs test/execution actions.
 
-The per-element file architecture works correctly in both cases — the difference is only which element files are inputs to compile actions vs test/execution actions.
+### Safety model summary
+
+| Extension flavor | Compile coupling | Deploy coupling | Safety mechanism |
+|---|---|---|---|
+| Derived-only | Model only (target class) | None | Existing type-checker |
+| Shadow-mapped | Model (target class) + local impl (shadow store) | Model + real foreign store (via runtime alias) | Compile-as-validation at deploy time (§9) + compiler-enforced expiry + optional canaries |
+
+Shadow-mapped Extensions trade a small amount of local impl-time coupling (the shadow store declaration) for the ability to unblock migrations without waiting for dependency team exposure. The compile-as-validation model ensures this coupling is discovered as structural errors at deploy time, not as silent runtime failures.

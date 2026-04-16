@@ -81,16 +81,20 @@ This eliminates:
 |---|---|---|---|
 | **Model** | Class, Enum, Association | Yes (type resolution) | Yes |
 | **Functions** | Function (signature) | Yes (type-checking calls) | Yes (body for execution) |
+| **Extension** (derived-only) | `Extension` with purely derived properties | Yes (target class only) | Yes |
+| **Extension** (shadow-mapped) | `Extension` with store-bound properties | Yes (target class + consumer's own shadow store) | Yes |
 | **Store** | Database, Table, Join | No | Yes (SQL generation) |
 | **Mapping** | Mapping, PropertyMapping | No | Yes (query routing) |
 | **Runtime** | Runtime, Connection | No | Yes (execution) |
 | **Service** | Service | No | Yes (service execution) |
 
-Downstream compilation only touches the **Model + Function** elements. A mapping change in `refdata` doesn't touch any model element files, so zero downstream rebuilds -- without any shape extraction step.
+Downstream compilation only touches the **Model + Function + Extension (derived-only)** elements. A mapping change in `refdata` doesn't touch any model element files, so zero downstream rebuilds -- without any shape extraction step.
 
 > **Caveat: cross-project joins.** The table above assumes the target state where cross-project joins use XStore model joins (Association + local properties). In that model, Store and Mapping are truly runtime-only. However, many existing projects use Database/Mapping `include` for cross-project joins — a leaky abstraction that pulls Store and Mapping into compile scope. Legend-lite **must support both** approaches: legacy includes (where Store/Mapping become compile deps) and model joins (where they don't). New projects should use XStore model joins exclusively. See [Cross-Project Joins](./CROSS_PROJECT_JOINS.md) for the full analysis, migration path, and legend-lite compiler design.
 >
 > **Recommended migration step:** publish a `DataSpace` alongside each mapping. Consumers `include` the DataSpace instead of the raw mapping, giving the data owner a clean API surface while keeping the underlying mapping as an implementation detail. Once all consumers move to DataSpace-based includes, the raw mapping can be restructured without downstream impact. This is an incremental step toward the full model-join target state where no mapping includes are needed at all.
+>
+> **Caveat: Extensions.** Legend-lite adds a new packageable element — `Extension` — enabling consumer projects to augment foreign classes with derived or (tactically) shadow-mapped properties without modifying the dependency. Derived-only Extensions are cleanly model-tier. Shadow-mapped Extensions reintroduce a local impl-time dep on the consumer's own shadow store but NOT on any foreign store at compile time; foreign coupling is deferred to deploy-time validation via the compile-as-validation safety model. See [Cross-Project Joins §8-§9](./CROSS_PROJECT_JOINS.md#8-consumer-side-class-extensions-a-trait-style-escape-hatch) for the full mechanism, visibility rules, and safety guarantees.
 
 **When are implementation elements needed?** Compile actions only load model elements; implementation elements are inputs to `legend_test` actions only:
 
