@@ -188,8 +188,7 @@ legend_library(
 )
 ```
 
-**No `external/` directory. No element extraction pipeline. No webhook. No CI sync job.**
-Bazel fetches the `.pure` files on first build, caches them, and builds with the same rule as everything else. Bumping an external repo version = update the `commit` hash in `MODULE.bazel`.
+**No element extraction pipeline. No webhook. No CI sync job.** The `external/` directory holds only BUILD overlays (~5 lines each) — no source files. Bazel fetches the `.pure` files on first build, caches them, and builds with the same rule as everything else. Bumping an external repo version = update the `commit` hash in `MODULE.bazel`.
 
 ### Why One Monorepo?
 
@@ -474,7 +473,7 @@ All key claims in this proposal have been empirically verified with working Baze
 | Change used dep (`Sector.pure`) | Both rebuild | ✓ 2 actions |
 | Add new element (`Currency.pure`) | Module ext detects, new file declared | ✓ `refdata__Currency.json` appeared |
 
-**Key detail — byte-identical optimization:** When we changed `Sector.pure` by adding a property (but not changing the class name), `refdata__Sector.json`'s content was byte-identical. Bazel saw this and skipped the trading rebuild even though refdata re-ran. This is **free** — Bazel checks output hashes, not just "did the action execute."
+**Bazel output hashing:** Bazel checks output content hashes, not just "did the action execute." If refdata re-runs but produces byte-identical element files (e.g., a comment-only change in the source), downstream consumers skip rebuilding. This is free. Note: in a real compiler, adding a property to `Sector` WOULD change `refdata__Sector.json` (the full class definition is serialized), correctly triggering downstream rebuilds.
 
 ### Experiment 3: Auto Version-Bump via Module Extension (`experiments/legend_rules_test/version_check.bzl`)
 
@@ -524,7 +523,7 @@ steps:
 | Module extension can scan `.pure` files | ✅ Proven | Experiment 2: regex extraction |
 | Auto-discovery of new elements | ✅ Proven | Experiment 2: added `Currency.pure` |
 | Full unused-dep cache skipping | ✅ Proven | Experiment 2: Region change → trading cached |
-| Byte-identical output optimization | ✅ Proven | Experiment 2: property-only change |
+| Byte-identical output optimization | ✅ Bazel feature | Output hash check skips downstream if content unchanged (e.g., comment-only source change) |
 | `git ls-remote` in module extension | ✅ Proven | Experiment 3: real GitHub repo |
 | Auto-detect outdated commits | ✅ Proven | Experiment 3: status report |
 
