@@ -1,0 +1,1746 @@
+# Bazel-Based Dependency Management for Legend
+
+Alternate to TEAM_DEPENDENCY_PROPOSAL. Uses Bazel to manage the unified monorepo (platform + projects). External Legend repos (1000s of existing ones) are fetched by Bazel and built with the same rules as monorepo projects — no separate extraction pipeline.
+
+---
+
+## Design Philosophy: Let Bazel Do the Hard Parts
+
+The original proposal builds custom infrastructure for caching, dependency resolution, diamond resolution, wavefront validation, sparse checkout, and CLI tooling. **Bazel provides all of this for free.** What remains is the Pure-specific domain logic: element serialization and compatibility checking.
+
+| Custom Code (Original Proposal) | Bazel Equivalent | Status |
+|---|---|---|
+| Content-addressed parse cache | Bazel action cache (input hash to cached output) | **Free** |
+| Wavefront.yaml (validated version set) | Bazel's resolved dep graph (`MODULE.bazel`) | **Free** |
+| Diamond resolution | Bazel enforces single version per target | **Free** |
+| Transitive closure computation | Bazel's built-in dep resolution | **Free** |
+| Sparse checkout / download | Bazel fetches only what actions need | **Free** |
+| `legend compile/publish/sync` CLI | `bazel build / test / run` | **Free** |
+| CI validation ("build the world") | `bazel build //...` | **Free** |
+| Parallel builds | Bazel parallelizes independent targets | **Free** |
+| Remote caching | Bazel remote cache (GCS, S3, disk) | **Free** |
+| Element serialization | Still needed (one file per PackageableElement) | ~400 lines |
+| Upcast compatibility check | Still needed as domain-specific | ~100 lines |
+
+**Bazel eliminates ~70% of the custom code** from the original proposal. The per-element file approach eliminates the shape extraction step entirely.
+
+---
+
+## The Key Insight: Per-Element Files, Not Header/Impl Split
+
+The original approach proposed two outputs per project: a shapes file (like a C++ `.h`) and a full artifact (like a `.cpp`). **We can do better: no separate shape extraction at all.** Instead, every `PackageableElement` gets its own self-contained file.
+
+A `PackageableElement` is Legend's fundamental metamodel unit -- every class, enum, association, function, mapping, database, runtime, connection, and service is one. Each gets serialized to its own file:
+
+```
+legend_library(name = "products")
+        |
+        +-- elements/                          <-- one file per PackageableElement
+            +-- products__Instrument.json      <-- class: properties, supers, constraints
+            +-- products__InstrumentType.json   <-- enum: values
+            +-- products__Instrument_Sector.json <-- association: ends
+            +-- products__activeInstruments.json <-- function: signature + body
+            +-- products__ProductMapping.json    <-- mapping: full definition
+            +-- products__ProductDB.json         <-- database: tables, joins
+            +-- products__ProductRuntime.json    <-- runtime: mapping + connection refs
+```
+
+**No shape extraction step.** Each element file IS self-describing -- it contains everything about that element. The consumer decides what to load:
+
+- **For compilation**: downstream loads only model elements (classes, enums, associations, function signatures). Mappings, databases, runtimes are never loaded -- they're implementation details invisible to the compiler.
+- **For runtime**: test/execution additionally loads mapping/database/runtime/connection elements.
+- **For Bazel**: each file is a separate input. `unused_inputs_list` tracks exactly which elements were referenced. Change to an unused element = cache hit.
+
+This eliminates:
+- `ShapeExtractor` tool (no separate shape extraction step)
+- `shapes.json` vs `.legend` artifact distinction (one format: element files)
+- Shape serialization/deserialization code (~200 lines gone)
+- The entire "shapes/impl split" concept
+
+**Element categories:**
+
+| Category | Elements | Needed for compilation? | Needed for runtime? |
+|---|---|---|---|
+| **Model** | Class, Enum, Association | Yes (type resolution) | Yes |
+| **Functions** | Function (signature) | Yes (type-checking calls) | Yes (body for execution) |
+| **Store** | Database, Table, Join | No | Yes (SQL generation) |
+| **Mapping** | Mapping, PropertyMapping | No | Yes (query routing) |
+| **Runtime** | Runtime, Connection | No | Yes (execution) |
+| **Service** | Service | No | Yes (service execution) |
+
+Downstream compilation only touches the **Model + Function** elements. A mapping change in `refdata` doesn't touch any model element files, so zero downstream rebuilds -- without any shape extraction step.
+
+**Lazy loading for IDE/LSP:**
+
+Instead of loading all dependency elements upfront, the model builder lazy-loads on first reference:
+
+```java
+// Register element sources (just records the directory, loads nothing)
+model.registerElementSource("refdata", elementDir);
+
+// Later, TypeChecker asks "what is refdata::Sector?"
+// → model.findClass("refdata::Sector")
+// → not in memory → check registered sources
+// → load elements/refdata__Sector.json on demand
+// → parse, register in model, return PureClass
+```
+
+Project with 10,000 dependency classes but only uses 50: loads 50 element files on demand. Everything else stays on disk. First-keystroke latency is proportional to what you USE, not what EXISTS.
+
+---
+
+## Monorepo Structure
+
+legend-lite platform code and all new Legend projects live in ONE Bazel-managed monorepo. External repos (1000s of existing ones) are fetched by Bazel as source and built with the same `legend_library` rule — no separate extraction, no special "external" concept.
+
+```
+legend/                                    # THE monorepo
++-- MODULE.bazel                           # Bazel module definition + external repo pins
++-- BUILD.bazel                            # root build file
++-- external_repos.bzl                     # git_repository declarations for external Legend repos
+|
++-- platform/                              # legend-lite engine (what exists today)
+|   +-- engine/
+|   |   +-- BUILD.bazel                    # java_library for the compiler/planner
+|   |   +-- src/main/java/...             # current engine code
+|   +-- nlq/
+|   |   +-- BUILD.bazel
+|   |   +-- src/...
+|   +-- pct/
+|       +-- BUILD.bazel
+|       +-- src/...
+|
++-- tools/                                 # Bazel rule definitions + CLI tools
+|   +-- BUILD.bazel
+|   +-- legend.bzl                         # legend_library, legend_test rules
+|   +-- element_serializer/                # serializes PackageableElements to JSON
+|   |   +-- BUILD.bazel
+|   |   +-- ElementSerializer.java
+|   +-- compat_checker/                    # upcast compatibility checks
+|       +-- BUILD.bazel
+|       +-- ElementCompat.java
+|
++-- projects/                              # NEW Legend projects (teams create dirs here)
+|   +-- trading/
+|   |   +-- BUILD.bazel                    # legend_library(deps = [...])
+|   |   +-- src/
+|   |       +-- model/Trade.pure
+|   |       +-- mapping/TradingMapping.pure
+|   |       +-- store/TradingDB.pure
+|   +-- risk/
+|   |   +-- BUILD.bazel
+|   |   +-- src/*.pure
+|   +-- products/
+|   |   +-- BUILD.bazel
+|   |   +-- src/*.pure
+|   +-- refdata/
+|       +-- BUILD.bazel
+|       +-- src/*.pure
+|
++-- external/                              # BUILD overlays for external repos (no source files)
+|   +-- com_gs_legacy_products/
+|   |   +-- BUILD.overlay                  # legend_library applied to fetched repo
+|   +-- com_gs_legacy_risk/
+|   |   +-- BUILD.overlay
+|   +-- ... (one subdirectory per external repo)
+|
++-- .github/
+    +-- workflows/
+        +-- ci.yml                         # bazel build //... && bazel test //...
+```
+
+**External repos in `MODULE.bazel`:**
+
+```python
+# MODULE.bazel (or external_repos.bzl loaded from MODULE.bazel)
+
+# External Legend repos — Bazel fetches the .pure source files and builds
+# them with the same legend_library rule as monorepo projects.
+git_repository(
+    name = "com_gs_legacy_products",
+    remote = "https://github.com/gs/legacy-products.git",
+    commit = "abc123def456",
+    build_file = "//external/com_gs_legacy_products:BUILD.overlay",
+)
+
+git_repository(
+    name = "com_gs_legacy_risk",
+    remote = "https://github.com/gs/legacy-risk.git",
+    commit = "789ghi012jkl",
+    build_file = "//external/com_gs_legacy_risk:BUILD.overlay",
+)
+
+# ... 1000s of these, one entry per external repo
+```
+
+**Build file overlay for each external repo:**
+
+```python
+# external/com_gs_legacy_products/BUILD.overlay
+# This is overlaid onto the fetched repo — same rule as monorepo projects!
+load("@legend//tools:legend.bzl", "legend_library")
+
+legend_library(
+    name = "legacy_products",
+    srcs = glob(["src/**/*.pure"]),
+    deps = ["@com_gs_refdata//:refdata"],   # external deps on other external repos
+    visibility = ["//visibility:public"],
+)
+```
+
+**No `external/` directory. No element extraction pipeline. No webhook. No CI sync job.**
+Bazel fetches the `.pure` files on first build, caches them, and builds with the same rule as everything else. Bumping an external repo version = update the `commit` hash in `MODULE.bazel`.
+
+### Why One Monorepo?
+
+- **Single `bazel build //...`** validates the entire world -- no custom wavefront CI
+- **Single dep graph** -- Bazel resolves all transitive deps, detects cycles, enforces single-version
+- **Shared action cache** -- build `products` once, every consumer gets a cache hit
+- **Atomic cross-project changes** -- rename a class in `refdata`, fix all consumers in one commit
+- **IDE support** -- IntelliJ/VS Code Bazel plugins give cross-project navigation for free
+- **New team onboarding** -- `mkdir projects/my-team` and write a BUILD.bazel
+
+---
+
+## Bazel Rules
+
+### Element Discovery: Module Extension
+
+Bazel requires all output filenames to be declared **before** the compiler runs (analysis phase). But element names (e.g., `refdata::Sector`) are only discovered when the compiler parses `.pure` files (execution phase). This chicken-and-egg problem is solved by a **module extension** that scans `.pure` files with a fast regex **before** analysis begins.
+
+Module extensions (and repository rules) run in a special pre-analysis phase where they CAN read file contents — unlike rule implementations which can only see file paths.
+
+```python
+# tools/legend_ext.bzl — Module extension for element discovery
+
+_ELEMENT_PATTERN = r"^(Class|Enum|Association|Mapping|Function|Database|Runtime|Connection|Service)\s+([\w:]+)"
+
+def _scan_pure_files(mctx, src_dir):
+    """Scan .pure files and extract PackageableElement FQNs via regex."""
+    elements = []
+    for f in src_dir.readdir():
+        if str(f).endswith(".pure"):
+            content = mctx.read(f)
+            for line in content.splitlines():
+                match = _regex_match(_ELEMENT_PATTERN, line)
+                if match:
+                    elements.append(match.group(2))
+        elif f.is_dir:
+            elements.extend(_scan_pure_files(mctx, f))
+    return elements
+
+def _legend_impl(mctx):
+    # Scan local projects
+    for tag in mctx.modules[0].tags.project:
+        src_dir = mctx.path(Label("@@//:MODULE.bazel")).dirname.get_child(tag.path)
+        elements = _scan_pure_files(mctx, src_dir)
+        mctx.file(tag.name + "/elements.bzl", "ELEMENTS = " + repr(elements))
+
+    # Scan external repos (fetched via git_repository)
+    for tag in mctx.modules[0].tags.external:
+        repo_root = mctx.path(Label("@" + tag.repo + "//:BUILD.overlay")).dirname
+        src_dir = repo_root.get_child(tag.src_path if tag.src_path else "src")
+        elements = _scan_pure_files(mctx, src_dir)
+        mctx.file(tag.repo + "/elements.bzl", "ELEMENTS = " + repr(elements))
+
+_project_tag = tag_class(attrs = {
+    "name": attr.string(mandatory = True),
+    "path": attr.string(mandatory = True),  # e.g., "projects/refdata/src"
+})
+_external_tag = tag_class(attrs = {
+    "repo": attr.string(mandatory = True),   # e.g., "com_gs_legacy_products"
+    "src_path": attr.string(default = "src"),
+})
+
+legend = module_extension(
+    implementation = _legend_impl,
+    tag_classes = {"project": _project_tag, "external": _external_tag},
+)
+```
+
+Registration in `MODULE.bazel`:
+
+```python
+legend = use_extension("//tools:legend_ext.bzl", "legend")
+
+# Local projects
+legend.project(name = "refdata", path = "projects/refdata/src")
+legend.project(name = "products", path = "projects/products/src")
+legend.project(name = "trading", path = "projects/trading/src")
+
+# External repos
+legend.external(repo = "com_gs_legacy_products")
+legend.external(repo = "com_gs_refdata")
+
+use_repo(legend, "refdata", "products", "trading", "com_gs_legacy_products", "com_gs_refdata")
+```
+
+**Performance:** Each project's scan only re-runs when `.pure` files in that project change (~5ms for 50 files). External repos only re-scan on commit bump. No global re-scanning.
+
+### `legend_library` -- The Core Build Rule
+
+Every Legend project is a `legend_library` target. It declares **one output file per element** (names from the module extension), enabling per-element Bazel cache tracking via `unused_inputs_list`.
+
+**Experimentally verified:** `unused_inputs_list` works with individually declared files but NOT with files inside tree artifacts (directories are opaque to Bazel). See `experiments/tree_artifact_test/` for the proof.
+
+```python
+# tools/legend.bzl
+
+LegendElementsInfo = provider(
+    doc = "Per-PackageableElement files for this project",
+    fields = {
+        "element_files": "depset of individual element .json files",
+    },
+)
+
+def _legend_library_impl(ctx):
+    srcs = ctx.files.srcs
+    compiler = ctx.executable._legend_compiler
+
+    # Collect all dep element files (individually declared — NOT tree artifacts)
+    dep_element_files = []
+    for d in ctx.attr.deps:
+        dep_element_files.extend(d[LegendElementsInfo].element_files.to_list())
+
+    # Declare one output file per element (names from module extension scan)
+    output_files = []
+    for fqn in ctx.attr.elements:
+        filename = fqn.replace("::", "__") + ".json"
+        output_files.append(ctx.actions.declare_file(
+            ctx.label.name + "_elements/" + filename))
+
+    unused = ctx.actions.declare_file(ctx.label.name + ".unused_inputs")
+
+    # SINGLE ACTION: parse, compile, serialize each element to its own file
+    ctx.actions.run(
+        executable = compiler,
+        arguments = ["compile",
+                     "--elements-dir", output_files[0].dirname if output_files else "",
+                     "--track-unused", unused.path,
+                     "--srcs"] + [f.path for f in srcs]
+                     + ["--dep-elements"] + [f.path for f in dep_element_files],
+        inputs = srcs + dep_element_files,
+        outputs = output_files + [unused],
+        unused_inputs_list = unused,       # Bazel skips rebuild if unused deps change
+        mnemonic = "LegendCompile",
+    )
+
+    return [
+        LegendElementsInfo(
+            element_files = depset(
+                direct = output_files,     # individual files — per-element tracking!
+                transitive = [d[LegendElementsInfo].element_files for d in ctx.attr.deps],
+            ),
+        ),
+        DefaultInfo(files = depset(output_files)),
+    ]
+
+legend_library = rule(
+    implementation = _legend_library_impl,
+    attrs = {
+        "srcs": attr.label_list(allow_files = [".pure"]),
+        "elements": attr.string_list(),    # from module extension scan
+        "deps": attr.label_list(providers = [LegendElementsInfo]),
+        "_legend_compiler": attr.label(
+            default = "//tools/artifact_compiler",
+            executable = True,
+            cfg = "exec",
+        ),
+    },
+)
+```
+
+**Why this works:** The module extension discovers element FQNs via regex before analysis. The rule declares one output `File` per element. Downstream actions receive individual `File` objects as inputs. `unused_inputs_list` can name each one — Bazel skips rebuilds when only unused elements change.
+
+**Fallback:** If the module extension is too complex for initial implementation, use one `declare_file` per `.pure` source file (derived from `ctx.files.srcs` filenames). This gives per-source-file granularity with zero tooling. Upgrade to per-element later.
+
+### `legend_test` -- Query Execution Tests
+
+```python
+def _legend_test_impl(ctx):
+    # Tests load ALL element files (model + mappings + databases + runtimes)
+    # because they actually execute queries
+    all_elements = ctx.attr.library[LegendElementsInfo].element_files
+    # ... run queries against element files using legend-lite engine ...
+
+legend_test = rule(
+    implementation = _legend_test_impl,
+    attrs = {
+        "queries": attr.label_list(allow_files = [".pure"]),
+        "library": attr.label(providers = [LegendElementsInfo]),
+        "deps": attr.label_list(providers = [LegendElementsInfo]),
+    },
+    test = True,
+)
+```
+
+### Example BUILD Files
+
+```python
+# projects/refdata/BUILD.bazel
+load("//tools:legend.bzl", "legend_library")
+load("@refdata//:elements.bzl", "ELEMENTS")   # auto-generated by module extension
+
+legend_library(
+    name = "refdata",
+    srcs = glob(["src/**/*.pure"]),
+    elements = ELEMENTS,
+    visibility = ["//visibility:public"],
+)
+```
+
+```python
+# projects/products/BUILD.bazel
+load("//tools:legend.bzl", "legend_library")
+load("@products//:elements.bzl", "ELEMENTS")
+
+legend_library(
+    name = "products",
+    srcs = glob(["src/**/*.pure"]),
+    elements = ELEMENTS,
+    deps = ["//projects/refdata"],
+    visibility = ["//visibility:public"],
+)
+```
+
+```python
+# projects/trading/BUILD.bazel -- depends on monorepo + external repos (same syntax!)
+load("//tools:legend.bzl", "legend_library", "legend_test")
+load("@trading//:elements.bzl", "ELEMENTS")
+
+legend_library(
+    name = "trading",
+    srcs = glob(["src/**/*.pure"]),
+    elements = ELEMENTS,
+    deps = [
+        "//projects/products",                    # monorepo dep
+        "//projects/risk",                        # monorepo dep
+        "@com_gs_legacy_products//:legacy_products",  # external dep (same rule!)
+    ],
+    visibility = ["//visibility:public"],
+)
+
+legend_test(
+    name = "trading_test",
+    queries = glob(["test/**/*.pure"]),
+    library = ":trading",
+)
+```
+
+**No manual element lists.** The `ELEMENTS` list is auto-generated by the module extension's regex scan. When you add a new class to a `.pure` file, the module extension detects it on next build (~5ms). No tool to run, no manifest to update.
+
+**External and monorepo deps are interchangeable.** Both are `legend_library` targets producing per-element files. The only difference is where the `.pure` source files come from (local vs fetched).
+
+---
+
+## Experimental Validation
+
+All key claims in this proposal have been empirically verified with working Bazel prototypes. Source code is in `experiments/`.
+
+### Experiment 1: Per-Element Cache Tracking (`experiments/tree_artifact_test/`)
+
+**Question:** Does Bazel's `unused_inputs_list` work at per-element granularity?
+
+**Setup:** A `producer` rule creates element files from source. A `consumer` rule reads one element file, lists the others as unused. Two variants tested:
+
+| Variant | Output mechanism | `unused_inputs_list` content |
+|---|---|---|
+| **Tree artifact** | `declare_directory()` → all files in one dir | Individual file paths inside the dir |
+| **Individual files** | `declare_file()` per element | Individual file paths |
+
+**Results:**
+
+| Scenario | Tree artifact | Individual files |
+|---|---|---|
+| No change | Cached ✓ | Cached ✓ |
+| Change **unused** dep element | **Rebuilt ✗** | **Cache hit ✓** |
+| Change **used** dep element | Rebuilt ✓ | Rebuilt ✓ |
+
+**Conclusion:** `unused_inputs_list` does NOT work with files inside tree artifacts — Bazel treats directories as opaque blobs. It DOES work with individually declared files. **Per-element tracking requires `declare_file()` per element, not `declare_directory()`.**
+
+### Experiment 2: Full Pipeline (`experiments/legend_rules_test/`)
+
+**Question:** Does the full architecture work end-to-end? Module extension → element discovery → `legend_library` → per-element caching?
+
+**Setup:** Two projects: `refdata` (3 elements across 2 `.pure` files) and `trading` (1 element, depends on refdata). Module extension scans `.pure` files with keyword matching, generates `elements.bzl` per project.
+
+**Results:**
+
+| Test | Expected | Actual |
+|---|---|---|
+| Initial build | Both projects compile | ✓ 2 actions (refdata + trading) |
+| No-change rebuild | Fully cached | ✓ 0 actions |
+| Change unused dep (`Region.pure`) | Refdata rebuilds, trading cache hit | ✓ `1 action cache hit` |
+| Change used dep (`Sector.pure`) | Both rebuild | ✓ 2 actions |
+| Add new element (`Currency.pure`) | Module ext detects, new file declared | ✓ `refdata__Currency.json` appeared |
+
+**Key detail — byte-identical optimization:** When we changed `Sector.pure` by adding a property (but not changing the class name), `refdata__Sector.json`'s content was byte-identical. Bazel saw this and skipped the trading rebuild even though refdata re-ran. This is **free** — Bazel checks output hashes, not just "did the action execute."
+
+### Experiment 3: Auto Version-Bump via Module Extension (`experiments/legend_rules_test/version_check.bzl`)
+
+**Question:** Can Bazel module extensions auto-detect outdated external repo commit hashes?
+
+**Setup:** A `version_check` module extension that runs `git ls-remote` against a real GitHub repo, compares the latest commit with the pinned commit, and generates a status report.
+
+```python
+# In MODULE.bazel:
+vc.repo(
+    name = "example_repo",
+    remote = "https://github.com/bazelbuild/bazel-skylib.git",
+    current_commit = "0000000000000000000000000000000000000000",  # fake old commit
+)
+
+# Build:
+$ bazel build //:check_versions && cat bazel-bin/version_report.txt
+Repo: example_repo
+Status: OUTDATED
+Current: 0000000000000000000000000000000000000000
+Latest: 390ecf872568a9fc1752cbade56be52cd4263758
+```
+
+**How this integrates with CI:**
+
+```yaml
+# .github/workflows/bump_external.yml
+steps:
+  - run: bazel build //:check_versions
+  - run: |
+      STATUS=$(cat bazel-bin/version_report.txt | grep Status | cut -d' ' -f2)
+      if [ "$STATUS" = "OUTDATED" ]; then
+        LATEST=$(cat bazel-bin/version_report.txt | grep Latest | cut -d' ' -f2)
+        # Update MODULE.bazel with new commit hash
+        # Create PR, CI validates, human merges
+      fi
+```
+
+**Key insight:** Repository rules and module extensions can execute arbitrary programs (`rctx.execute()`). This means Bazel itself can be the version-checking infrastructure — no separate Python scripts, no external CI plugins. The version check runs as part of `bazel build`, is cached like any other action, and only re-runs when explicitly requested.
+
+### Summary of Validated Claims
+
+| Claim | Status | Evidence |
+|---|---|---|
+| Per-element `unused_inputs_list` tracking | ✅ Proven | Experiment 1: individual files |
+| Tree artifacts are opaque to `unused_inputs_list` | ✅ Proven | Experiment 1: tree artifact variant |
+| Module extension can scan `.pure` files | ✅ Proven | Experiment 2: regex extraction |
+| Auto-discovery of new elements | ✅ Proven | Experiment 2: added `Currency.pure` |
+| Full unused-dep cache skipping | ✅ Proven | Experiment 2: Region change → trading cached |
+| Byte-identical output optimization | ✅ Proven | Experiment 2: property-only change |
+| `git ls-remote` in module extension | ✅ Proven | Experiment 3: real GitHub repo |
+| Auto-detect outdated commits | ✅ Proven | Experiment 3: status report |
+
+---
+
+## External Repos: Just Another `legend_library`
+
+External repos (1000s of existing ones that can't be modified) are treated identically to monorepo projects. Bazel fetches their `.pure` source files via `git_repository`, and a BUILD overlay wraps them in the same `legend_library` rule.
+
+### How It Works
+
+```
+Monorepo MODULE.bazel says:
+  git_repository(name = "com_gs_legacy_products", commit = "abc123", ...)
+
+Developer runs: bazel build //projects/trading
+        |
+        v
+Bazel sees trading depends on @com_gs_legacy_products
+        |
+        v
+Bazel fetches legacy-products repo at commit abc123 (cached after first fetch)
+        |
+        v
+Bazel builds @com_gs_legacy_products//:legacy_products using legend_library
+  → parses .pure source files → produces per-element .json files in bazel-out/
+        |
+        v
+Trading's compile action uses legacy_products' element files as inputs
+  → same unused_inputs_list tracking as any other dep
+```
+
+**Same pipeline as monorepo projects. No extraction, no registry, no webhook.**
+
+### Registering a New External Repo (One-Time)
+
+```bash
+# 1. Create the external repo directory
+mkdir -p external/com_gs_legacy_products
+
+# 2. Write the BUILD overlay (one-time, ~5 lines)
+cat > external/com_gs_legacy_products/BUILD.overlay << 'EOF'
+load("@legend//tools:legend.bzl", "legend_library")
+load("@com_gs_legacy_products_elements//:elements.bzl", "ELEMENTS")  # auto-generated
+
+legend_library(
+    name = "legacy_products",
+    srcs = glob(["src/**/*.pure"]),
+    elements = ELEMENTS,
+    deps = ["@com_gs_refdata//:refdata"],
+    visibility = ["//visibility:public"],
+)
+EOF
+
+# 3. Add git_repository to external_repos.bzl
+cat >> external_repos.bzl << 'EOF'
+git_repository(
+    name = "com_gs_legacy_products",
+    remote = "https://github.com/gs/legacy-products.git",
+    commit = "abc123def456",
+    build_file = "//external/com_gs_legacy_products:BUILD.overlay",
+)
+EOF
+
+# 4. Register with module extension for element scanning (in MODULE.bazel)
+#    legend.external(repo = "com_gs_legacy_products")
+
+# 5. Add to your project's deps and build
+#    deps = [..., "@com_gs_legacy_products//:legacy_products"]
+bazel build //projects/trading
+
+# 6. Commit
+git add external/com_gs_legacy_products/ external_repos.bzl MODULE.bazel
+git commit -m "Add external dep: com.gs.legacy_products"
+git push
+```
+
+### Bumping an External Repo Version
+
+Bazel requires **pinned commits** for reproducible builds. Three options for keeping external repos up to date:
+
+**Option A: Bazel-native version checking (recommended — experimentally proven)**
+
+Uses the same module extension mechanism that powers element discovery. A `version_check` extension runs `git ls-remote` to detect outdated commits, generating a status report as a build target. See Experiment 3 above.
+
+```python
+# MODULE.bazel — register repos to monitor
+vc = use_extension("//tools:version_check.bzl", "version_check")
+vc.repo(name = "com_gs_refdata", remote = "https://github.com/gs/refdata.git",
+        current_commit = "abc123...", branch = "main")
+```
+
+```yaml
+# .github/workflows/bump_external.yml — runs nightly
+jobs:
+  bump:
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for outdated deps (Bazel-native)
+        run: bazel build //:check_versions
+      - name: Create PR if outdated
+        run: |
+          # Read status from Bazel-generated report
+          # Update commit hashes in MODULE.bazel
+          # PR triggers CI → bazel build //... → if it passes, safe to merge
+```
+
+**Zero custom Python scripts.** Bazel itself runs `git ls-remote`, compares commits, generates the report. Cached like any other action.
+
+**Option B: Traditional CI script**
+
+```yaml
+# .github/workflows/bump_external.yml — runs nightly or on webhook
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  repository_dispatch:
+    types: [legend-repo-updated]
+
+jobs:
+  bump:
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for new commits in external repos
+        run: python tools/bump_external_versions.py external_repos.bzl
+      - name: Create PR if anything changed
+        run: |
+          if ! git diff --quiet external_repos.bzl; then
+            git checkout -b auto/bump-externals
+            git add external_repos.bzl
+            git commit -m "Bump external repo versions"
+            git push -u origin auto/bump-externals
+            gh pr create --title "Bump external repos" --body "Auto-generated"
+          fi
+```
+
+Both options give you: **automatic updates, gated by CI**. If an external repo makes a breaking change, the PR fails and a human investigates.
+
+**Option C: Manual bump**
+
+```bash
+# Update the commit hash in external_repos.bzl
+sed -i 's/commit = "abc123"/commit = "def456"/' external_repos.bzl
+
+# Build — Bazel re-fetches the repo, rebuilds its elements,
+# and only rebuilds downstream projects whose USED elements changed.
+bazel build //...
+```
+
+**What happens when you bump a version:**
+
+```
+1. Bazel sees commit hash changed in external_repos.bzl
+2. Bazel re-fetches the external repo at the new commit
+3. Module extension re-scans .pure files (~5ms), regenerates elements.bzl if needed
+4. Bazel re-runs legend_library for that repo (parses .pure → individual element files)
+5. Element files that CHANGED → downstream consumers with those in USED set rebuild
+6. Element files that are UNCHANGED → byte-identical output → no downstream impact
+7. Element files that are NEW → not in anyone's input set → no downstream impact
+8. Element files in downstream's unused_inputs_list → skip rebuild even if changed
+```
+
+No polling, no "detect what changed" — Bazel handles it all from the pinned commit hash. Per-element `unused_inputs_list` tracking means even within a changed project, only consumers that reference the specific changed elements rebuild.
+
+### Outbound: Monorepo Projects Consumed by External Repos
+
+External repos that need to depend on monorepo projects can use the same mechanism in reverse. The monorepo is itself a `git_repository` from the external repo's perspective, or element files can be published to a lightweight store:
+
+```yaml
+# .github/workflows/publish_elements.yml
+on:
+  push:
+    branches: [main]
+    paths: ['projects/*/src/**/*.pure']
+
+jobs:
+  publish:
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all projects
+        run: bazel build //projects/...
+      - name: Publish element files to registry
+        run: |
+          for project in projects/*/; do
+            PKG=$(basename $project)
+            tar czf /tmp/$PKG-elements.tar.gz -C bazel-bin/$project ${PKG}_elements/
+          done
+          # Upload to S3, Artifactory, or a Git-based element registry
+```
+
+---
+
+## Loading Elements into PureModelBuilder
+
+### Name Resolution with Dependency Elements (Java-Style)
+
+The key design question: when a Pure source file writes `import refdata::*` and then uses `Sector`, how does the compiler resolve that to `refdata::Sector` and find the right element file?
+
+**Answer: the same way Java has done it for 30 years.** The compiler constructs candidate FQNs from imports and checks if the corresponding element file exists on disk. No pre-scanning, no manifest, no global symbol index.
+
+#### How it works today (single-project, no deps)
+
+The current `ImportScope.resolve()` takes a simple name + `knownTypes` set:
+
+```java
+// Current code in ImportScope.resolve():
+for (String pkg : wildcardImports) {
+    String candidate = pkg + "::" + name;       // constructs "refdata::Sector"
+    if (knownTypes.contains(candidate)) {        // checks in-memory set
+        matches.add(candidate);
+    }
+}
+```
+
+This works when all definitions are in one `addSource()` call, because Phase 0 interns all FQNs into the symbol table before name resolution runs. But with cross-project deps, the dependency FQNs are not in `knownTypes`.
+
+#### How it works with lazy loading (the change)
+
+Instead of checking an in-memory set, check if the element file exists on disk:
+
+```java
+// Updated ImportScope.resolve() — or a new overload used by PureModelBuilder:
+for (String pkg : wildcardImports) {
+    String candidate = pkg + "::" + name;       // constructs "refdata::Sector"
+    if (knownTypes.contains(candidate)           // local symbols (same as before)
+            || elementFileExists(candidate)) {   // NEW: check dep element dirs
+        matches.add(candidate);
+    }
+}
+```
+
+Where `elementFileExists` is:
+
+```java
+private boolean elementFileExists(String fqn) {
+    String filename = fqn.replace("::", "__") + ".json";
+    for (Path depDir : depElementDirs) {
+        if (Files.exists(depDir.resolve(filename))) {
+            return true;
+        }
+    }
+    return false;
+}
+```
+
+This is exactly how `javac` resolves `import java.util.*` + `List` — it constructs `java/util/List.class` and checks if that file exists on the classpath.
+
+#### Why this scales to millions of files
+
+| Approach | 30K files | 1.5M files |
+|---|---|---|
+| **Scan all filenames into memory** | ~5ms | ~3-7 seconds + 90MB RAM |
+| **File-exists per candidate (Java-style)** | ~0.3ms | ~0.3ms |
+
+The file-exists approach scales with **names actually used** (typically ~300 per project), not with total dependency count. Each `Files.exists()` check is ~1-5μs (kernel dentry cache hit). 20 imports × 15 simple names = 300 checks = ~0.3ms regardless of how many element files are in the directory.
+
+### Lazy Element Loading
+
+Once name resolution has resolved `Sector` → `refdata::Sector`, the model builder lazy-loads the element body on first access:
+
+```java
+// In PureModelBuilder -- lazy loading infrastructure
+
+/** Directories containing dependency element files */
+private final List<Path> depElementDirs = new ArrayList<>();
+private final Set<String> loadedElements = new HashSet<>();
+
+/**
+ * Register a dependency element directory.
+ * No elements are loaded — just records where to find them.
+ */
+public PureModelBuilder addDepElementDir(Path elementsDir) {
+    depElementDirs.add(elementsDir);
+    return this;
+}
+
+/**
+ * findClass with lazy-load fallback.
+ * Same pattern applies to findEnum, findAssociation, findFunction.
+ */
+@Override
+public Optional<PureClass> findClass(String fqn) {
+    var local = super.findClass(fqn);
+    if (local.isPresent()) return local;
+
+    // Cache miss — try lazy loading from dep element dirs
+    if (!loadedElements.contains(fqn)) {
+        loadElementIfExists(fqn);
+        return super.findClass(fqn);  // retry after loading
+    }
+    return Optional.empty();
+}
+
+private void loadElementIfExists(String fqn) {
+    loadedElements.add(fqn);
+    String filename = fqn.replace("::", "__") + ".json";
+    for (Path depDir : depElementDirs) {
+        Path file = depDir.resolve(filename);
+        if (Files.exists(file)) {
+            var element = ElementSerializer.deserialize(Files.readString(file));
+            addElement(element);
+            return;
+        }
+    }
+}
+```
+
+The full flow for `import refdata::*` + `sector: Sector[1]`:
+
+```
+1. Parser produces PropertyDefinition(type="Sector")
+2. NameResolver.resolve("Sector", knownTypes):
+   → candidate = "refdata::Sector"
+   → knownTypes.contains("refdata::Sector")? No (not a local def)
+   → elementFileExists("refdata::Sector")? Check refdata__Sector.json → Yes ✓
+   → resolved to "refdata::Sector"
+3. resolveType("refdata::Sector"):
+   → findClass("refdata::Sector") → cache miss
+   → loadElementIfExists("refdata::Sector")
+   → opens refdata__Sector.json, deserializes, calls addClass()
+   → retry findClass → found ✓
+```
+
+No scanning. No manifest. No index. The filesystem is the index.
+
+### Eager Loading (for `legend_test` actions)
+
+For `legend_test` actions that need ALL elements (model + implementation) for query execution:
+
+```java
+public PureModelBuilder addElementFiles(Path elementsDir) {
+    try (var files = Files.list(elementsDir)) {
+        var elementFiles = files.filter(f -> f.toString().endsWith(".json")).toList();
+
+        // Pass 1: Class stubs + enums (needed before property resolution)
+        for (var file : elementFiles) {
+            var element = ElementSerializer.deserialize(Files.readString(file));
+            if (element instanceof ClassDefinition cd) registerClassStub(cd);
+            if (element instanceof EnumDefinition ed) addEnum(ed);
+        }
+
+        // Pass 2: Full class properties + associations + functions
+        for (var file : elementFiles) {
+            var element = ElementSerializer.deserialize(Files.readString(file));
+            if (element instanceof ClassDefinition cd) addClass(cd);
+            if (element instanceof AssociationDefinition ad) addAssociation(ad);
+            if (element instanceof FunctionDefinition fd) addFunction(fd);
+        }
+
+        resolveSuperclasses();
+
+        // Pass 3: Implementation elements (mappings, databases, runtimes, etc.)
+        for (var file : elementFiles) {
+            var element = ElementSerializer.deserialize(Files.readString(file));
+            if (element instanceof DatabaseDefinition dd) addDatabase(dd);
+            if (element instanceof MappingDefinition md) addMapping(md);
+            if (element instanceof RuntimeDefinition rd) addRuntime(rd);
+            if (element instanceof ConnectionDefinition cd) addConnection(cd);
+            if (element instanceof ServiceDefinition sd) addService(sd);
+        }
+    }
+    return this;
+}
+```
+
+### Comparison with Original Proposal
+
+| Aspect | Original `addDependency()` | New per-element approach |
+|---|---|---|
+| Input | Full `LegendArtifact` (monolithic) | Individual element .json files |
+| Loading strategy | Eager (load everything upfront) | Lazy (load on first reference) or eager |
+| Granularity | All-or-nothing per dependency | Per-PackageableElement |
+| Requires ModelLayer extraction | Yes (separate local/dep layers) | No (elements into same collections) |
+| Requires shape extraction | Yes (separate shapes from impl) | No (each file IS the element) |
+| Bazel rebuild tracking | Per-artifact (coarse) | Per-element (fine-grained via `unused_inputs_list`) |
+| Name resolution | All dep FQNs pre-registered in memory | Java-style: file-exists check per candidate (scales to 1.5M files) |
+| IDE latency (10K dep classes, use 50) | Load all 10K upfront | Load 50 on demand |
+
+### When Are Implementation Elements Needed?
+
+```
+Compile time (TypeChecker):
+  "Does products::Instrument have a property 'ticker' of type String?"
+  --> Load products__Instrument.json (class element only)
+
+Runtime (MappingResolver + PlanGenerator + Execute):
+  "What table does products::Instrument map to? What columns? What joins?"
+  --> Load products__ProductMapping.json + products__ProductDB.json
+```
+
+For Bazel compile actions: only model elements (class/enum/association/function) are loaded as inputs. Implementation elements (mapping/database/runtime) are never even passed to the compile action -- they're only inputs to `legend_test` actions.
+
+---
+
+## ParseCache: Stays for IDE/LSP
+
+ParseCache is orthogonal to Bazel and remains valuable for the IDE/LSP workflow:
+
+| Context | Caching Strategy |
+|---|---|
+| **Bazel builds** | Bazel's action cache handles target-level caching. Each action runs in a fresh JVM. ParseCache is irrelevant. |
+| **IDE/LSP** | User edits one file, LSP rebuilds model from ALL open docs. ParseCache ensures only the changed file is re-parsed. Hot-path optimization for keystroke latency. |
+
+The existing `PureLspServer.rebuildAndPublishAll()` gains lazy element loading:
+
+```java
+private List<String> rebuildAndPublishAll() {
+    PureModelBuilder model = new PureModelBuilder();
+
+    // NEW: Register dependency element directories for lazy loading.
+    // No scanning, no pre-registration. Just records where to find files.
+    // Name resolution uses file-exists checks (Java-style classpath).
+    for (var dep : configuredDeps) {
+        model.addDepElementDir(dep.elementsDir());
+    }
+
+    // EXISTING: Add all open documents (ParseCache: only changed file re-parsed)
+    for (var entry : documents.entrySet()) {
+        try {
+            model.addSource(entry.getValue());
+        } catch (Exception e) {
+            fileErrors.put(entry.getKey(), e);
+        }
+    }
+    // Name resolution constructs candidate FQNs from imports,
+    // checks element file existence, and lazy-loads on first use.
+    // Only the elements actually referenced are loaded from disk.
+}
+```
+
+No changes to ParseCache itself. The key addition is `addDepElementDir()` — the filesystem is the index.
+
+---
+
+## What About the ModelLayer Extraction?
+
+**Not needed.** The per-element approach eliminates the need for ModelLayer entirely:
+
+- **No separate layers** -- dependency elements go into the same collections as local elements. A `refdata::Sector` class loaded from an element file is stored in the same `classes` map as a locally-defined class.
+- **No conflict risk** -- each PackageableElement has a unique FQN. A dependency's class cannot collide with a local class (different packages).
+- **No chained lookups** -- `findClass()` checks one map, with lazy-load fallback to element files.
+- **Symbol origin tracking** -- trivially available: the element file path tells you which dependency it came from.
+
+---
+
+## End-to-End Walkthrough: What Happens When You Change a Class
+
+This section walks through the complete sequence of events when a developer adds a property to an existing class, from editor to CI.
+
+### Assumptions
+
+```
+Monorepo: ~200 projects, each defining ~300 PackageableElements.
+Each project has ~100 transitive deps.
+Max element files per action: ~30,000 (100 deps × 300 elements).
+```
+
+### Step 1: Developer Edits `refdata/src/Sector.pure`
+
+Adds a new optional property `region` to `Sector`:
+
+```pure
+Class refdata::Sector
+{
+  name: String[1];
+  code: String[1];
+  region: refdata::Region[0..1];    // ← NEW
+}
+```
+
+Saves the file. Runs `bazel build //projects/trading`.
+
+### Step 2: Bazel Analysis Phase (~1-2 seconds)
+
+Bazel reads all `BUILD.bazel` files and constructs the action graph. For `//projects/trading`, it transitively resolves deps:
+
+```
+trading → products → refdata
+trading → products → shared_models
+trading → risk → refdata
+trading → risk → market_data
+... (100 projects total in transitive closure)
+```
+
+For each dep, Bazel knows it produces a set of element files (from the `LegendElementsInfo` provider). It constructs the compile action with ~15 own source files + ~30,000 dep element files as inputs.
+
+### Step 3: Refdata Builds First
+
+Before trading can build, `refdata` must rebuild (its source changed). Bazel schedules it first.
+
+```
+Action: LegendCompile for //projects/refdata
+  Inputs:
+    - refdata/src/Sector.pure             (CHANGED)
+    - refdata/src/Region.pure
+    - refdata/src/Currency.pure
+    - ... (~50 own .pure files)
+    - core_elements/...                   (~5,000 individual dep element files)
+  Outputs (individually declared by module extension scan):
+    - refdata_elements/refdata__Sector.json
+    - refdata_elements/refdata__Region.json
+    - ... (300 individual element files)
+    - refdata.unused_inputs
+```
+
+The compiler:
+1. Parses all refdata `.pure` files
+2. Loads dep elements as needed (lazy — maybe opens ~100 of the 5K)
+3. Type-checks everything
+4. Serializes each PackageableElement to its own `.json` file in `refdata_elements/`
+5. Writes `refdata.unused_inputs` listing the ~4,900 dep elements it didn't touch
+
+**Output**: `refdata_elements/refdata__Sector.json` is updated (now includes the `region` property). All other element files are byte-identical to before. Time: ~200-500ms.
+
+### Step 4: Bazel Checks If Trading Can Be Skipped
+
+Bazel has a cached result for trading from the last build. It checks:
+
+1. Reads `trading.unused_inputs` from last build — lists ~29,700 element files that weren't used.
+2. Of the ~300 USED element files, did any change? `refdata__Sector.json` changed.
+3. Sector was in the USED set (trading references `refdata::Sector`).
+4. **Action must re-run.**
+
+If we had instead changed `refdata::SomeObscureEnum` that trading never references, it would be in the UNUSED set → Bazel skips the action entirely. **Cache hit. Zero work.**
+
+### Step 5: Trading Compiles
+
+```
+Action: LegendCompile for //projects/trading
+  Inputs:
+    - trading/src/*.pure                  (~15 own source files)
+    - individual dep element files        (~30,000 from 100 transitive deps)
+  Outputs (individually declared):
+    - trading_elements/trading__Trade.json
+    - trading_elements/trading__TradeMapping.json
+    - ... (~50 individual element files)
+    - trading.unused_inputs
+```
+
+What the compiler does:
+
+```
+1. Parse own .pure files (~15 files, ~50ms)
+   → Discovers: Trade, TradeMapping, TradingDB, etc.
+
+2. Record dep element directories (just paths — ZERO I/O, ~0ms)
+   → "look in these dirs when you need a dep element"
+
+3. Name resolution + type-check (Java-style lazy loading):
+   - Trade has "import products::*" and property "instrument: Instrument[1]"
+     → NameResolver constructs candidate "products::Instrument"
+     → File.exists(products__Instrument.json)? Yes ✓ → resolved
+     → resolveType("products::Instrument") → findClass → cache miss
+     → lazy-loads products__Instrument.json (~1μs exists + ~50μs read)
+   - Function body: |$t: Trade[1]| $t.instrument.sector.name
+     → needs Sector → File.exists(refdata__Sector.json)? Yes ✓
+     → lazy-loads refdata__Sector.json
+   - TradeMapping references InstrumentMapping
+     → lazy-loads products__InstrumentMapping.json
+   ... each dep element loaded exactly once, on first reference
+
+4. Compiler knows exactly which dep elements it opened:
+   ~300 used out of 30,000 available
+
+5. Writes trading.unused_inputs (the 29,700 untouched elements)
+
+6. Serializes trading's own elements to trading_elements/
+```
+
+Total I/O: ~300 file-exists checks (~0.3ms) + ~300 file reads (1KB each = 300KB, ~15ms). Total compile time: ~200-500ms.
+
+### Step 6: Other Projects Build in Parallel
+
+200 projects depend on refdata. Bazel evaluates all of them:
+
+```
+For each of the 200 projects:
+  1. Read its unused_inputs from last build
+  2. Was refdata__Sector.json in the USED or UNUSED set?
+
+  ~150 projects: Sector was UNUSED → skip rebuild (cache hit, zero work)
+  ~50 projects: Sector was USED → must rebuild (~500ms each, in parallel)
+```
+
+**Without `unused_inputs_list`:** all 200 rebuild. **With it:** only 50 do. 75% reduction.
+
+### Step 7: Developer Pushes, CI Runs
+
+On PR, CI runs `bazel build //...`. Same process across all projects. Bazel's remote cache means most actions are cache hits (already built locally or by a previous CI run). Only affected projects rebuild.
+
+**Wall-clock for full CI build**: ~30-60 seconds (limited by critical path through dep graph, not total work).
+
+### The Numbers
+
+| Metric | Value |
+|---|---|
+| Bazel stat overhead per action (~30K inputs) | ~210ms |
+| Files actually opened by compiler | ~300 |
+| Compile time per project | ~200-500ms |
+| `unused_inputs` file size | ~30K lines, ~1MB |
+| Projects skipped on single-class change | ~75% (`unused_inputs` hit) |
+| Total wall-clock for incremental build | ~2-5 seconds |
+| Total wall-clock for full CI build | ~30-60 seconds |
+
+### Scaling
+
+| Deps per project | Elements per dep | Inputs per action | Stat overhead | Status |
+|---|---|---|---|---|
+| 100 | 300 | 30K | ~210ms | Comfortable |
+| 200 | 300 | 60K | ~420ms | Fine |
+| 500 | 300 | 150K | ~1.0s | Noticeable |
+| 1000 | 300 | 300K | ~2.1s | Slow |
+
+The practical limit is ~500K inputs per action. Below that, per-element files just work. The key mitigation is organizational: keep projects reasonably sized (~100-500 elements each). Split large shared model projects into smaller ones.
+
+---
+
+## Breaking Change Detection
+
+### Upcast Compatibility (Same as Original Proposal)
+
+The compatibility rules are domain-specific and unchanged:
+
+| Change | Compatible? | Why |
+|---|---|---|
+| Add optional property (`[0..1]`/`[*]`) | Yes | Existing code doesn't reference it |
+| Add new class/enum/association | Yes | No existing code references it |
+| Add new enum value | Yes | Existing switches on subset still work |
+| Remove/rename property or class | No | Existing references break |
+| Change property type | No | Type mismatch |
+| Narrow multiplicity (`[0..1]` to `[1]`) | No | Constraint violation |
+
+### How Bazel Detects Breakage
+
+When `refdata` removes `Sector.code`:
+
+1. `refdata__Sector.json` element file changes (class signature changed)
+2. Bazel invalidates all targets depending on `refdata__Sector.json`
+3. `products` rebuild fails: TypeChecker throws "Property 'code' not found on refdata::Sector"
+4. `bazel build //...` fails with a clear error
+5. PR to main is blocked
+
+Strengths over the original proposal's wavefront validation:
+- Uses the real compiler (TypeChecker), not a separate compatibility checker
+- Catches ALL breakage, not just symbol-level mismatches
+- Error message is the exact same one a developer would see locally
+
+### The Rebuild-on-Compatible-Change Tradeoff
+
+**Without `unused_inputs_list`, any element change triggers downstream rebuilds.** If `refdata` adds an optional property to `Sector`, the `refdata__Sector.json` element file changes, and all dependents that list it as an input rebuild. The rebuilds **succeed** (adding a property is compatible), but the work still happens.
+
+With `unused_inputs_list` (described above), only consumers that actually USED `refdata__Sector.json` rebuild. Consumers that only reference `refdata__Currency.json` are unaffected. This is the primary mitigation and should be enabled from the start.
+
+### Granular Rebuild Avoidance: `unused_inputs_list`
+
+Bazel provides `unused_inputs_list`: after an action runs, it declares which input files it didn't actually use. On future builds, changes to those files don't trigger a re-run. This is the Bazel-native equivalent of the original proposal's change tokens.
+
+Per-element files give us natural per-PackageableElement granularity by default. For even finer control, element files can be further shredded. Two levels:
+
+**Per-class shredding** (recommended starting point):
+
+```
+bazel-out/refdata_elements/               # output of legend_library for refdata
+  refdata__Sector.json                    # one file per class
+  refdata__Region.json
+  refdata__Currency.json
+```
+
+If `trading` only uses `Sector` and `Region`, the compile action writes `unused_inputs = [refdata__Currency.json]`. Next build, if only `Currency` changes, Bazel skips the `trading` rebuild entirely.
+
+**Per-property shredding** (maximum precision):
+
+```
+bazel-out/refdata_elements/               # output of legend_library for refdata
+  refdata__Sector/
+    __class.json                          # class exists + supers
+    name.json                             # {name: "name", type: "String", mult: [1,1]}
+    code.json
+    region.json
+  refdata__Region/
+    __class.json
+    name.json
+```
+
+If `trading` uses `Sector.name` but not `Sector.code`, and `refdata` changes `Sector.code`, Bazel skips the rebuild because `code.json` was in the unused list.
+
+**Bazel rule with `unused_inputs_list`:**
+
+```python
+def _legend_library_impl(ctx):
+    dep_element_files = []
+    for d in ctx.attr.deps:
+        dep_element_files.extend(d[LegendElementsInfo].element_files.to_list())
+
+    # Output files individually declared (names from module extension regex scan)
+    output_files = []
+    for fqn in ctx.attr.elements:
+        filename = fqn.replace("::", "__") + ".json"
+        output_files.append(ctx.actions.declare_file(
+            ctx.label.name + "_elements/" + filename))
+    unused = ctx.actions.declare_file(ctx.label.name + ".unused_inputs")
+
+    ctx.actions.run(
+        executable = compiler,
+        arguments = ["compile",
+                     "--elements-dir", output_files[0].dirname if output_files else "",
+                     "--track-unused", unused.path,
+                     "--dep-elements"] + [f.path for f in dep_element_files],
+        inputs = srcs + dep_element_files,
+        outputs = output_files + [unused],
+        unused_inputs_list = unused,      # Bazel reads this AFTER the action
+    )
+```
+
+> **Note:** `unused_inputs_list` only works with individually declared files — NOT with files inside tree artifacts (`declare_directory`). Tree artifacts are opaque to Bazel's input tracking. This was experimentally verified in `experiments/tree_artifact_test/`.
+
+**The chicken-and-egg resolves itself**: the first compile pays full cost and writes the unused list. Subsequent builds use the cached list. The list is only stale when the project's own sources change -- but that triggers a rebuild anyway.
+
+### Dependency Analysis: Two Tiers (Parser vs TypeChecker)
+
+The unused inputs list must reflect ALL cross-project references in the project. A Legend project may have ZERO executing queries -- it might be a pure model project, or it might define services and functions that are only invoked from outside. The dependency analysis must walk everything.
+
+**The key insight: the parser can resolve class-level refs, but per-property refs in expressions require TypeChecker.**
+
+Consider this chain in a function body or service query:
+
+```pure
+|Trade.all()->project([col(t|$t.instrument.sector.name, 'sectorName')])
+```
+
+The parser sees three property names: `instrument`, `sector`, `name`. But which classes do they belong to?
+
+- `.instrument` -- property on what class? Parser knows `$t` is a lambda param, but its **type** (`Trade`) comes from TypeChecker resolving `Trade.all()` return type
+- `.sector` -- property on what class? Only TypeChecker knows `instrument` returns `products::Instrument`, so `.sector` is `products::Instrument.sector`
+- `.name` -- property on what class? Only TypeChecker knows `sector` returns `refdata::Sector`, so `.name` is `refdata::Sector.name`
+
+Without TypeChecker, you see property names but not which classes they belong to. You can't write a meaningful `unused_inputs_list` at per-property granularity from the parser alone.
+
+**Tier 1: Parser-level analysis (class-level refs -- no TypeChecker needed)**
+
+FQNs appear as literal syntax in these locations:
+
+| Source Element | Example | What parser sees |
+|---|---|---|
+| Property type | `instrument: products::Instrument[1]` | FQN `products::Instrument` |
+| Superclass | `extends products::BaseTrade` | FQN `products::BaseTrade` |
+| Association end | `portfolio: products::Portfolio[1]` | FQN `products::Portfolio` |
+| Mapping source | `Mapping trading::TradingMapping ( ... )` | FQN in mapping class ref |
+| getAll class arg | `Trade.all()` | Class name (resolved to FQN by NameResolver) |
+| Enum type | `status: products::Status[1]` | FQN `products::Status` |
+| Function param type | `func(x: products::Instrument[1])` | FQN `products::Instrument` |
+| Connection store ref | `store: trading::TradingDB` | FQN |
+| Runtime mapping ref | `mappings: [trading::TradingMapping]` | FQN |
+
+This is sufficient for **per-class shredding** -- you know exactly which cross-project classes are referenced, without running TypeChecker.
+
+**Tier 2: TypeChecker pass over ALL expressions (per-property refs)**
+
+For per-property shredding, you need TypeChecker to resolve property access chains. This means type-checking the whole project -- not just ad-hoc queries:
+
+- **Function bodies** -- a function might never be called in this project, but its body references cross-project properties
+- **Service query lambdas** -- the service is defined here but executed externally
+- **Derived property expressions** -- computed properties that navigate cross-project chains
+- **Mapping expressions** -- filter conditions, join predicates that contain property chains
+- **Constraint expressions** -- validation rules referencing cross-project properties
+
+```java
+/**
+ * Analyzes ALL cross-project references in a Legend project.
+ *
+ * Two tiers:
+ *   Tier 1 (parser): Extracts class-level FQN refs from syntax.
+ *                     Sufficient for per-class shredding.
+ *   Tier 2 (TypeChecker): Resolves property access chains in ALL expressions
+ *                          (function bodies, service queries, derived props, etc.)
+ *                          Required for per-property shredding.
+ *
+ * Output drives Bazel's unused_inputs_list for granular rebuild avoidance.
+ */
+public class ProjectDependencyAnalyzer {
+
+    public record UsedSymbols(
+        Set<String> classes,          // FQN: "refdata::Sector"
+        Set<String> properties,       // "refdata::Sector.name"
+        Set<String> enums,            // "refdata::Rating"
+        Set<String> enumValues        // "refdata::Rating.AAA"
+    ) {}
+
+    /**
+     * Tier 1: Parser-level class refs. No TypeChecker needed.
+     * Walks parsed definitions for syntactically explicit FQNs.
+     */
+    public static UsedSymbols analyzeClassRefs(PureModelBuilder builder, String projectPackage) {
+        var classes = new LinkedHashSet<String>();
+        var enums = new LinkedHashSet<String>();
+
+        // Class definitions: property types + superclasses
+        for (var cls : builder.getLocalClassDefs()) {
+            for (var prop : cls.properties()) {
+                if (isCrossProject(prop.type(), projectPackage))
+                    classes.add(prop.type());
+            }
+            for (var superFqn : cls.superClasses()) {
+                if (isCrossProject(superFqn, projectPackage))
+                    classes.add(superFqn);
+            }
+        }
+
+        // Association definitions: both ends
+        for (var assoc : builder.getLocalAssociationDefs()) {
+            if (isCrossProject(assoc.end1().targetClass(), projectPackage))
+                classes.add(assoc.end1().targetClass());
+            if (isCrossProject(assoc.end2().targetClass(), projectPackage))
+                classes.add(assoc.end2().targetClass());
+        }
+
+        // Mapping source classes, function param/return types,
+        // connection store refs, runtime mapping refs, enum type refs...
+        // (all syntactically explicit FQNs)
+
+        return new UsedSymbols(classes, Set.of(), enums, Set.of());
+    }
+
+    /**
+     * Tier 2: Full project type-check for per-property refs.
+     * Runs TypeChecker on ALL expressions in the project:
+     *   - function bodies (even if never called in this project)
+     *   - service query lambdas (defined here, executed externally)
+     *   - derived property expressions
+     *   - mapping filter/join expressions
+     *   - constraint expressions
+     *
+     * This is the ONLY way to resolve property access chains like
+     * $t.instrument.sector.name to their owning classes.
+     */
+    public static UsedSymbols analyzePropertyRefs(PureModelBuilder builder,
+                                                   String projectPackage) {
+        // Start with Tier 1 class refs
+        var result = analyzeClassRefs(builder, projectPackage);
+        var properties = new LinkedHashSet<String>();
+        var enumValues = new LinkedHashSet<String>();
+
+        // Superclass inheritance: depend on ALL superclass properties
+        for (var cls : builder.getLocalClassDefs()) {
+            for (var superFqn : cls.superClasses()) {
+                if (isCrossProject(superFqn, projectPackage)) {
+                    var superCls = builder.findClass(superFqn);
+                    for (var p : superCls.properties())
+                        properties.add(superFqn + "." + p.name());
+                }
+            }
+        }
+
+        // Type-check ALL expressions in the project.
+        // TypeChecker records classPropertyAccesses as it resolves chains.
+        var typeChecker = new TypeChecker(builder);
+
+        // Function bodies
+        for (var func : builder.getLocalFunctionDefs())
+            typeChecker.checkExpression(func.body());
+
+        // Service query lambdas
+        for (var svc : builder.getLocalServiceDefs())
+            typeChecker.checkExpression(svc.queryBody());
+
+        // Derived property expressions
+        for (var cls : builder.getLocalClassDefs())
+            for (var prop : cls.derivedProperties())
+                typeChecker.checkExpression(prop.body());
+
+        // Mapping expressions (filters, join conditions)
+        for (var mapping : builder.getLocalMappings())
+            for (var propMapping : mapping.propertyMappings())
+                if (propMapping.hasExpression())
+                    typeChecker.checkExpression(propMapping.expression());
+
+        // Constraint expressions
+        for (var cls : builder.getLocalClassDefs())
+            for (var constraint : cls.constraints())
+                typeChecker.checkExpression(constraint.body());
+
+        // Collect per-property refs from TypeChecker's accumulated accesses
+        for (var access : typeChecker.classPropertyAccesses()) {
+            if (isCrossProject(access.classFqn(), projectPackage))
+                properties.add(access.classFqn() + "." + access.propertyName());
+        }
+
+        return new UsedSymbols(result.classes(), properties, result.enums(), enumValues);
+    }
+}
+```
+
+**What each source element contributes and what resolves it:**
+
+| Source Element | Reference Kind | Granularity | Resolved by |
+|---|---|---|---|
+| Property type (`x: Instrument[1]`) | Class exists | Class-level | **Parser** (FQN in syntax) |
+| Superclass (`extends Base`) | Class + ALL properties | Per-property | **Parser** (FQN) + model lookup |
+| Association end | Class exists | Class-level | **Parser** (FQN in syntax) |
+| Mapping source class | Class exists | Class-level | **Parser** (FQN in syntax) |
+| Mapping property (`ticker -> COL`) | Specific property | Per-property | **Parser** (name in mapping syntax) |
+| Mapping join chain (`@OrdCust`) | Join/association | Class-level | **Parser** (name in syntax) |
+| Function body (`$x.instrument.sector.name`) | Specific properties | Per-property | **TypeChecker** (chain resolution) |
+| Service query (`\|Trade.all()->project(...)`) | Specific properties | Per-property | **TypeChecker** (chain resolution) |
+| Derived property body | Specific properties | Per-property | **TypeChecker** (chain resolution) |
+| Constraint expression | Specific properties | Per-property | **TypeChecker** (chain resolution) |
+| Mapping filter/condition | Specific properties | Per-property | **TypeChecker** (chain resolution) |
+| Enum reference (`Rating.AAA`) | Enum + value | Per-value | **Parser** (FQN in syntax) |
+| getAll/Class reference | Class exists | Class-level | **Parser** (name in syntax) |
+
+**The `UsedSymbols` output drives the `unused_inputs_list`:**
+- For per-class shredding: Tier 1 (parser) -- any class file not in `UsedSymbols.classes` is unused
+- For per-property shredding: Tier 2 (TypeChecker) -- any property file not in `UsedSymbols.properties` is unused
+
+**Cost of Tier 2**: TypeChecker runs on ALL expressions in the project -- function bodies, service queries, derived properties, mapping expressions, constraints. This is real work, but it happens inside the same Bazel compile action that already parses and builds the model. The dependency analysis is a byproduct of compilation, not a separate step. The TypeChecker work is cached by Bazel across builds just like everything else.
+
+**Recommendation**: Start with per-class shredding + Tier 1 (parser-only) analysis. This handles the most common case (project uses subset of a large dependency's classes) with zero TypeChecker cost. Graduate to per-property shredding + Tier 2 (full TypeChecker pass) if profiling shows intra-class property changes causing significant unnecessary rebuilds.
+
+### Pre-Publish Impact Analysis
+
+```bash
+# "What breaks if I remove Sector.code?"
+# Just edit the file and run:
+bazel build //... 2>&1 | grep "ERROR"
+
+# Bazel tells you exactly which targets fail and why.
+# No custom `legend impact` tool needed.
+```
+
+### Staged Rollout for Breaking Changes
+
+Same deprecation pattern as original proposal, but managed through normal git workflow:
+
+```
+# Step 1: Add Sector.codeV2 alongside Sector.code (additive, compatible)
+# Commit to main. bazel build //... passes. Everyone keeps working.
+# (Downstream targets rebuild but succeed -- element changed but compatible)
+
+# Step 2: Consumers migrate from code to codeV2 at their own pace.
+# Each consumer commits when ready. bazel build //... keeps passing.
+
+# Step 3: Remove Sector.code. All consumers already migrated.
+# bazel build //... passes. Done.
+```
+
+---
+
+## Data Engineer's Daily Workflow
+
+### First Time Setup
+
+```bash
+# Clone the monorepo (or sparse-clone just your project + deps)
+git clone https://github.com/gs/legend.git
+cd legend
+
+# Build your project (Bazel fetches and caches everything)
+bazel build //projects/trading
+
+# Run tests
+bazel test //projects/trading:trading_test
+```
+
+### Daily Development
+
+```bash
+# Edit Pure files in Studio Lite (or any editor with LSP)
+# LSP uses ParseCache + lazy element loading for instant feedback
+# Cross-project diagnostics work because dep elements are loaded on demand
+
+# Build (incremental -- only rebuilds what changed)
+bazel build //projects/trading
+
+# Test
+bazel test //projects/trading:trading_test
+
+# If you need to see the generated SQL:
+bazel run //projects/trading:trading_test -- --verbose
+```
+
+### Creating a New Project
+
+```bash
+mkdir -p projects/my-new-project/src
+
+# Write your Pure files
+cat > projects/my-new-project/src/model.pure << 'EOF'
+Class myproject::Order {
+    id: Integer[1];
+    instrument: products::Instrument[1];
+}
+EOF
+
+# Write BUILD.bazel
+cat > projects/my-new-project/BUILD.bazel << 'EOF'
+load("//tools:legend.bzl", "legend_library")
+legend_library(
+    name = "my-new-project",
+    srcs = glob(["src/**/*.pure"]),
+    deps = ["//projects/products"],
+    visibility = ["//visibility:public"],
+)
+EOF
+
+# Build
+bazel build //projects/my-new-project
+
+# Commit and push -- CI validates against everything
+git add projects/my-new-project/
+git commit -m "Add my-new-project"
+git push
+```
+
+### Depending on an External Legacy Repo
+
+```bash
+# Check if the external repo is already registered
+grep "com_gs_legacy_thing" external_repos.bzl
+
+# If not, register it (one-time — add git_repository + BUILD overlay):
+# See "External Repos" section above for details.
+
+# Add to your BUILD.bazel deps:
+#   deps = [..., "@com_gs_legacy_thing//:legacy_thing"]
+
+# Build -- Bazel fetches the repo, builds it with legend_library,
+# TypeChecker now sees legacy_thing's classes
+bazel build //projects/my-project
+```
+
+---
+
+## CI Pipeline
+
+### On Every PR to Monorepo
+
+```yaml
+# .github/workflows/ci.yml
+on: [pull_request]
+
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazelbuild/setup-bazelisk@v3
+
+      # Build everything -- validates full dep graph
+      - run: bazel build //...
+
+      # Test everything
+      - run: bazel test //...
+
+      # Check for breaking element changes (optional explicit gate)
+      - run: bazel run //tools/compat_checker -- --against main
+```
+
+`bazel build //...` IS the wavefront validation. If any target fails, the PR is blocked.
+
+### Remote Cache for Fast CI
+
+```python
+# .bazelrc
+build --remote_cache=grpc://cache.internal:9090
+build --remote_upload_local_results
+```
+
+With remote caching, CI reuses cached outputs from previous builds. A typical PR that changes one project rebuilds only that project + its dependents -- everything else is a cache hit.
+
+---
+
+## Implementation Plan
+
+### Step 1: Bazel-ify the Monorepo (1 session)
+
+**Goal**: Get `bazel build //platform/engine` working.
+
+- Add `MODULE.bazel` to repo root
+- Add `BUILD.bazel` to `platform/engine/` (wraps existing Maven sources as `java_library`)
+- Move `engine/` under `platform/engine/` (or symlink)
+- Verify: `bazel build //platform/engine` compiles the engine
+- Verify: `bazel test //platform/engine:all` runs existing tests
+
+**Note**: Maven and Bazel can coexist during migration. Maven continues to work unchanged. Bazel is additive.
+
+### Step 2: Element Serialization (1 session)
+
+**Files**: `tools/element_serializer/ElementSerializer.java`
+
+- `ElementSerializer.serialize(PackageableElement)` -- one element to one JSON file
+- `ElementSerializer.deserialize(String json)` -- JSON back to definition record
+- Handles all element types: ClassDefinition, EnumDefinition, AssociationDefinition, FunctionDefinition, DatabaseDefinition, MappingDefinition, RuntimeDefinition, ConnectionDefinition, ServiceDefinition
+- CLI wrapper: `java ElementExtractor --srcs *.pure --out-dir elements/`
+- Test: extract elements from sales-trading model, verify round-trip for all element types
+
+### Step 3: Lazy Element Loading in PureModelBuilder (1 session)
+
+**Files**: `PureModelBuilder.java` (add lazy loading), `PureLspServer.java` (wire up)
+
+- Add `addDepElementDir(Path elementsDir)` — records where to find dep elements (zero I/O)
+- Override `findClass/findEnum/findAssociation/findFunction` with lazy-load fallback
+- Add `addElementFiles(Path dir)` for eager loading (Bazel actions)
+- Wire `addDepElementDir()` into `PureLspServer.rebuildAndPublishAll()`
+- Test: two-project test — project A's elements on disk, project B lazy-loads A's class on first `findClass` call, TypeChecker resolves cross-project refs
+
+### Step 4: Module Extension + `legend_library` Bazel Rule (1-2 sessions)
+
+**Files**: `tools/legend_ext.bzl`, `tools/legend.bzl`, `tools/artifact_compiler/ArtifactCompiler.java`
+
+- Define module extension: regex scan of `.pure` files → generates `elements.bzl` per project
+- Define `LegendElementsInfo` provider with `element_files` depset of individual `File` objects
+- Define `legend_library` rule: `declare_file()` per element (from `ctx.attr.elements`), single compile action
+- `ArtifactCompiler` CLI: `--elements-dir` output, `--dep-elements` input, `--track-unused` output
+- `unused_inputs_list` integration for per-element rebuild avoidance (experimentally verified: requires individually declared files, NOT tree artifacts)
+- Register projects in `MODULE.bazel` via `legend.project()` / `legend.external()` tags
+- Test: `bazel build //projects/refdata //projects/products` where products depends on refdata
+- Verify: change unused dep element → downstream cache hit (no rebuild)
+
+### Step 5: External Repo Integration (0.5 session)
+
+**Files**: `external_repos.bzl`, `external/*/BUILD.overlay`, `MODULE.bazel`
+
+- Add `git_repository` declarations for pilot external repos
+- Register external repos with module extension (`legend.external(repo = "...")`)
+- Write BUILD overlays that load auto-generated `elements.bzl`
+- Script to bulk-generate `git_repository` entries + BUILD overlays from a repo manifest
+- Auto-version-bump CI job (see "Bumping an External Repo Version")
+- Test: `bazel build @com_gs_legacy_products//:legacy_products` produces individual element files
+
+### Step 6: `legend_test` Rule (1 session)
+
+**Files**: `tools/legend.bzl` (add `legend_test`)
+
+- `legend_test` rule: loads ALL element files (model + implementation) for query execution
+- Uses `addElementFiles()` (eager mode) to load everything including mappings/databases/runtimes
+- Test: end-to-end query execution across project boundary
+
+### Step 7: Compat Checker + CI Hardening (0.5 session)
+
+**Files**: `tools/compat_checker/ElementCompat.java`, `.github/workflows/ci.yml`
+
+- `ElementCompat.check(oldElements, newElements)` -- upcast compatibility on model elements
+- CI workflow: `bazel build //...` + compat check on element changes
+- Test: detect removed property, added optional property, type change
+
+### Step 8: Frontend Multi-File Support (2 sessions)
+
+Same as original proposal Step 6:
+- File tree sidebar, tab-per-file editing
+- Each file tracked via LSP protocol
+- Model rebuilt from all files on change (ParseCache + lazy dep element loading)
+
+---
+
+## Migration Path: Maven to Bazel
+
+Bazel and Maven coexist. No big-bang migration needed.
+
+```
+Phase 1 (now):   Maven builds everything. No Bazel.
+Phase 2 (Step 1): Bazel builds platform/engine alongside Maven. Both work.
+Phase 3 (Step 4): New projects use legend_library rules. Platform still Maven.
+Phase 4 (later):  Platform migrates to Bazel. Maven removed.
+```
+
+Developers can use either build system during the transition. CI runs both until Maven is retired.
+
+---
+
+## What This Does NOT Include (Out of Scope)
+
+- **Incremental compilation** -- Bazel's action cache + per-element `unused_inputs_list` handles this
+- **Registry server** -- `git_repository` + Bazel fetching replaces the need for any registry
+- **Hot reloading** -- lazy element loading in LSP means deps load on demand (near-instant)
+- **Access control** -- all exports are public; `visibility` in BUILD.bazel provides basic scoping
+- **Version ranges** -- Bazel's single-version-per-target eliminates the need
+- **Custom CLI** -- `bazel build/test/run` replaces `legend compile/publish/sync`
+
+---
+
+## Performance Projections
+
+| Scenario | Expected |
+|---|---|
+| `bazel build //projects/trading` (cold, no cache) | ~3s (parse + compile + deps) |
+| `bazel build //projects/trading` (warm, cached deps) | ~200ms (only local recompile) |
+| `bazel build //...` (500 projects, remote cache) | ~30s (parallel, mostly cache hits) |
+| Edit one mapping in `refdata` (mapping element changes) | 0 downstream rebuilds (only mapping .json changed, unused by dependents) |
+| Add optional property to `refdata::Sector` | Only consumers that USE Sector rebuild (`unused_inputs_list`) |
+| Remove property from `refdata::Sector` | Consumers of Sector rebuild, TypeChecker FAILS, PR blocked |
+| Add new class to `refdata` | 0 downstream rebuilds (new file, not in anyone's input set) |
+| IDE keystroke latency (50-file project) | ~15ms (ParseCache: 1 re-parse + 49 cache hits) |
+| IDE with 10K dep classes, use 50 | ~5ms lazy load (50 x ~1KB element files on demand) |
+| Bump external repo version | Bazel re-fetches, rebuilds that repo's elements, only affected downstream rebuilds |
+
+---
+
+## Comparison: Original Proposal vs Bazel Proposal
+
+| Dimension | Original (Custom) | Bazel + Per-Element |
+|---|---|---|
+| **Lines of custom code** | ~3000 (est.) | ~500 (est.) |
+| **Dep resolution** | Custom wavefront + diamond resolver | Bazel built-in |
+| **Artifact format** | Monolithic `.legend` per project | Per-PackageableElement .json files |
+| **Shape extraction** | Separate ShapeExtractor tool | Not needed (element file IS the shape) |
+| **Caching** | Custom ParseCache + custom artifact cache | Bazel action cache + ParseCache (IDE only) |
+| **Rebuild granularity** | Per-project (or per-symbol with change tokens) | Per-element via `unused_inputs_list` *(proven: Experiment 1-2)* |
+| **Element discovery** | Manual manifest | Module extension regex scan *(proven: Experiment 2)* |
+| **CI validation** | Custom wavefront CI workflow | `bazel build //...` |
+| **CLI** | Custom `legend` CLI (5 subcommands) | `bazel build/test/run` |
+| **External repo support** | Sparse checkout from artifact monorepo | `git_repository` + same `legend_library` rule |
+| **External version bumping** | Manual or custom script | Bazel-native `git ls-remote` in module extension *(proven: Experiment 3)* |
+| **Breaking change detection** | Custom upcast + change tokens | Bazel rebuild + TypeChecker errors |
+| **Parallel builds** | Not addressed | Bazel built-in |
+| **Remote caching** | Not addressed | Bazel built-in |
+| **IDE integration** | ParseCache + addDependency (eager) | ParseCache + lazy element loading |
+| **IDE dep latency (10K classes)** | Load all 10K upfront | Load ~50 on demand |
+| **Monorepo** | Separate artifact monorepo | Single unified monorepo |
+| **ModelLayer extraction** | Required (~400 lines) | Not needed |
+| **New project setup** | `legend init` + `pure-project.yaml` | `mkdir` + `BUILD.bazel` (3 lines) |

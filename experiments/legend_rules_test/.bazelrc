@@ -1,0 +1,2 @@
+# Show subcommands to see which actions run
+build --subcommands=pretty_print

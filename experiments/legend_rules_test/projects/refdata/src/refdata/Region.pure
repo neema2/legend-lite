@@ -1,0 +1,7 @@
+Class refdata::Region
+{
+    name: String[1];
+    isoCode: String[1];
+    continent: String[0..1];
+}
+version2: continent added

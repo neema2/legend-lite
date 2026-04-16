@@ -1,0 +1,23 @@
+module(name = "legend_rules_test")
+
+# === Element discovery ===
+legend = use_extension("//:legend_ext.bzl", "legend")
+
+legend.project(name = "refdata_elements", path = "projects/refdata/src")
+legend.project(name = "trading_elements", path = "projects/trading/src")
+
+use_repo(legend, "refdata_elements", "trading_elements")
+
+# === External repo version checking ===
+# This demonstrates using a module extension to auto-detect outdated deps.
+# Uses a deliberately OLD commit to show the "outdated" detection.
+vc = use_extension("//:version_check.bzl", "version_check")
+
+vc.repo(
+    name = "example_repo",
+    remote = "https://github.com/bazelbuild/bazel-skylib.git",
+    current_commit = "0000000000000000000000000000000000000000",  # fake old commit
+    branch = "main",
+)
+
+use_repo(vc, "example_repo_version")

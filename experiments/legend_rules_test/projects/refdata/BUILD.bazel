@@ -1,0 +1,9 @@
+load("//:legend.bzl", "legend_library")
+load("@refdata_elements//:elements.bzl", "ELEMENTS")
+
+legend_library(
+    name = "refdata",
+    srcs = glob(["src/**/*.pure"]),
+    elements = ELEMENTS,
+    visibility = ["//visibility:public"],
+)

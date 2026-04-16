@@ -1,0 +1,2 @@
+# Show action execution to see if ConsumeElements re-runs
+build --subcommands=pretty_print

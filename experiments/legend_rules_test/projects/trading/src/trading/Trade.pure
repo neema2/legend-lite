@@ -1,0 +1,5 @@
+Class trading::Trade
+{
+    id: Integer[1];
+    sector: refdata::Sector[1];
+}

@@ -1,0 +1,31 @@
+load(":defs.bzl", "producer", "consumer", "individual_producer", "individual_consumer")
+
+# === EXPERIMENT 1: Tree artifact ===
+producer(
+    name = "refdata",
+    srcs = [
+        "src/used_element.txt",
+        "src/unused_element_a.txt",
+        "src/unused_element_b.txt",
+    ],
+)
+
+consumer(
+    name = "trading",
+    dep = ":refdata",
+)
+
+# === EXPERIMENT 2: Individual declared files ===
+individual_producer(
+    name = "refdata_individual",
+    srcs = [
+        "src/used_element.txt",
+        "src/unused_element_a.txt",
+        "src/unused_element_b.txt",
+    ],
+)
+
+individual_consumer(
+    name = "trading_individual",
+    dep = ":refdata_individual",
+)

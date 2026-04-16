@@ -1,0 +1,13 @@
+Class refdata::Sector
+{
+    name: String[1];
+    code: String[1];
+}
+
+Enum refdata::SectorType
+{
+    EQUITY,
+    FIXED_INCOME,
+    COMMODITY
+}
+version2: sector changed

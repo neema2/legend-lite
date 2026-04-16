@@ -1,0 +1,10 @@
+load("//:legend.bzl", "legend_library")
+load("@trading_elements//:elements.bzl", "ELEMENTS")
+
+legend_library(
+    name = "trading",
+    srcs = glob(["src/**/*.pure"]),
+    elements = ELEMENTS,
+    deps = ["//projects/refdata"],
+    visibility = ["//visibility:public"],
+)

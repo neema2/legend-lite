@@ -1,0 +1,18 @@
+# Root BUILD file
+
+# Query external repo version status
+load("@example_repo_version//:status.bzl", "STATUS", "CURRENT_COMMIT", "LATEST_COMMIT", "REPO")
+
+genrule(
+    name = "check_versions",
+    outs = ["version_report.txt"],
+    cmd = """echo "Repo: {repo}" > $@
+echo "Status: {status}" >> $@
+echo "Current: {current}" >> $@
+echo "Latest: {latest}" >> $@""".format(
+        repo = REPO,
+        status = STATUS,
+        current = CURRENT_COMMIT,
+        latest = LATEST_COMMIT,
+    ),
+)
