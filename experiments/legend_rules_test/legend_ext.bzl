@@ -19,7 +19,7 @@ def _scan_pure_files(mctx, src_dir):
                     line = line.strip()
                     for keyword in ["Class", "Enum", "Association", "Mapping",
                                     "Function", "Database", "Runtime",
-                                    "Connection", "Service"]:
+                                    "Connection", "Service", "Profile"]:
                         if line.startswith(keyword + " "):
                             rest = line[len(keyword) + 1:]
                             fqn = ""
@@ -27,7 +27,7 @@ def _scan_pure_files(mctx, src_dir):
                                 if ch in (" ", "{", "(", "\t", "\n"):
                                     break
                                 fqn += ch
-                            if "::" in fqn and fqn:
+                            if "::" in fqn and fqn and fqn not in elements:
                                 elements.append(fqn)
             elif f.is_dir:
                 dirs_to_scan.append(f)

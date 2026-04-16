@@ -212,7 +212,7 @@ Module extensions (and repository rules) run in a special pre-analysis phase whe
 ```python
 # tools/legend_ext.bzl — Module extension for element discovery
 
-_ELEMENT_PATTERN = r"^(Class|Enum|Association|Mapping|Function|Database|Runtime|Connection|Service)\s+([\w:]+)"
+_ELEMENT_PATTERN = r"^(Class|Enum|Association|Mapping|Function|Database|Runtime|Connection|Service|Profile)\s+([\w:]+)"
 
 def _scan_pure_files(mctx, src_dir):
     """Scan .pure files and extract PackageableElement FQNs via regex."""
@@ -275,6 +275,12 @@ use_repo(legend, "refdata", "products", "trading", "com_gs_legacy_products", "co
 ```
 
 **Performance:** Each project's scan only re-runs when `.pure` files in that project change (~5ms for 50 files). External repos only re-scan on commit bump. No global re-scanning.
+
+**Function overloads:** Pure allows multiple functions with the same FQN but different parameter signatures. The regex deduplicates by FQN — all overloads of `refdata::transform` produce a single `refdata__transform.json` file containing all overloads. This mirrors how `PureFunctionRegistry` already groups overloads by FQN. Changing any overload changes the file, which is the correct semantic — overloads are a cohesive unit.
+
+**Regex safety:** The regex only matches top-level element **definitions** (keyword at start of line + FQN). It does NOT need to find references, property types, imports, or anything inside element bodies. Pure's grammar guarantees all `PackageableElement` definitions start with an uppercase keyword (`Class`, `Enum`, `Mapping`, etc.). Body-level keywords like `include` (mapping/database includes) are lowercase and don't match. No false positives.
+
+**Cycle handling:** Bazel forbids dependency cycles between targets. Pure also forbids element-level cycles (no circular inheritance or imports). However, two projects might accidentally have mutual references (A uses B's class, B uses A's class) — this is a project organization smell, not a language feature. Bazel catches it immediately with a clear error. The fix: merge the two projects into a single `legend_library` target, since they are logically one unit. The module extension could optionally detect cross-project reference cycles during scanning and warn or auto-merge.
 
 ### `legend_library` -- The Core Build Rule
 
@@ -911,6 +917,166 @@ Trading source: $t.sector.region.name
 ```
 
 Each `findClass()` call triggers exactly one lazy load. No recursive loading chains during `addClass()`. The TypeChecker drives loading naturally through property access paths — it only loads classes it actually navigates into.
+
+### Required Change: Resolved AST for Executable Bodies
+
+**Problem:** Functions, services, derived properties, and constraints store executable bodies as raw source text. Imports are **file-scoped**, not element-scoped. When an element is serialized to its own `.json` file, the original file's imports are lost.
+
+Example — a file `trading/src/functions.pure`:
+
+```pure
+import refdata::*;
+import products::*;
+
+Function trading::sectorName(t: Trade[1]): String[1]
+{
+  $t.instrument.sector.name
+}
+```
+
+If we serialize the function body as raw text `$t.instrument.sector.name`, the downstream loader has no way to resolve `Trade` → `trading::Trade` or `Instrument` → `products::Instrument` — the import context that made those resolutions possible is gone.
+
+**Affected element types:**
+- `FunctionDefinition.body` — raw expression text (`resolvedBody` is null until Phase 6)
+- `ServiceDefinition.functionBody` — raw query text
+- `DerivedPropertyDefinition.expression` — raw expression text
+- `ConstraintDefinition` expressions
+- Mapping filter/join expressions
+
+**Fix: serialize resolved AST, not raw text.** The compiler already has a name resolution phase (`NameResolver`) that converts simple names to FQNs. The serialization boundary should be **after name resolution but before type-checking**:
+
+```
+Parser → NameResolver → [SERIALIZE HERE] → TypeChecker
+                          ↑
+                   All names are FQNs.
+                   Import context no longer needed.
+                   TypeChecker can work from this.
+```
+
+Each executable body should be serialized as a **resolved AST** where:
+- All type names are canonical FQNs (`Sector` → `refdata::Sector`)
+- All function call targets are FQNs (`transform` → `refdata::transform`)
+- All class references are FQNs (`Trade.all()` → `trading::Trade.all()`)
+- The AST structure is preserved (not flattened back to text)
+
+This is **not** typed AST — no `TypeInfo`, no store resolution, no mapping metadata. Just names canonicalized to FQNs. The TypeChecker still owns all type inference and runs from this resolved AST during compilation.
+
+**Why this boundary is right:**
+- Parser work is paid once at serialization time
+- Import context is no longer needed at load time
+- Lazy loading remains correct — the loader doesn't need to reconstruct imports
+- TypeChecker still drives all type inference (no premature typing in the artifact)
+
+**Impact on `NameResolver`:** Currently, `NameResolver` does not canonicalize all reference types. It handles class types, superclasses, and function calls, but passes through database includes, mapping includes, and service mapping/runtime refs unchanged. These must be expanded to FQN-canonicalize everything before serialization. Estimated scope: ~50-80 lines in `NameResolver.java` to add resolution for database includes, mapping includes, and service refs (mapping/runtime/connection).
+
+**Impact on `ElementSerializer`:** The serializer must capture the resolved AST (`ValueSpecification` tree with FQN names), not just the raw body string. The deserializer reconstructs the AST directly — no re-parsing or re-resolution needed.
+
+### Required Change: Lazy Superclass Resolution
+
+**Problem:** The current `PureModelBuilder.resolveSuperclasses()` eagerly resolves superclass **names** to actual `PureClass` **objects**. With lazy loading, the superclass element might not be loaded yet when a subclass is first encountered.
+
+```java
+// Current resolveSuperclasses() — called after all addClass() calls
+private void resolveSuperclasses() {
+    for (var entry : pendingClassDefinitions.entrySet()) {
+        var classDef = entry.getValue();
+        var superClasses = classDef.superClasses().stream()
+            .map(name -> findClass(name).orElseThrow())  // ← superclass must exist!
+            .toList();
+        // Replace class with version that has resolved supers
+    }
+}
+```
+
+This is the same category of problem as `resolveType()` — eager resolution that assumes the world is fully loaded.
+
+**Fix: store superclass FQNs as strings, resolve on demand.** The class element artifact stores:
+
+```json
+{
+  "fqn": "trading::Swap",
+  "superClasses": ["products::Instrument"],
+  "localProperties": [
+    { "name": "notional", "type": "Decimal", "mult": "[1]" }
+  ]
+}
+```
+
+When the TypeChecker navigates a property access on `Swap` and misses locally, it walks the `superClasses` FQN list, lazy-loading each superclass on demand:
+
+```
+1. TypeChecker: $s.ticker → findClass("trading::Swap")
+   → local property miss for "ticker"
+   → superClasses = ["products::Instrument"]
+   → findClass("products::Instrument") → lazy-load
+   → findProperty("ticker") → found ✓
+```
+
+**Why NOT flatten inherited properties into the subclass file:** Invalidation cost. If `Swap.json` included all inherited properties from `Instrument`, then every change to `Instrument` would change `Swap.json`, forcing ALL consumers of `Swap` to rebuild — even consumers that only use `Swap.notional` and never touch inherited members. Keeping inheritance lazy preserves per-element invalidation precision.
+
+**Scope of change:** ~20 lines in `PureModelBuilder` — replace `resolveSuperclasses()` with a lazy `findProperty()` that walks the superclass chain on demand, plus ~5 lines in `PureClass` to store `List<String> superClassFqns` instead of `List<PureClass> superClasses`.
+
+### Required Change: Association Navigation Sidecars
+
+**Problem:** Association-backed properties are not declared inside the class — they're injected by an `Association` element. When the TypeChecker resolves `$p.addresses` on `Person`, it needs to discover the `Person_Address` association. But the compiler only knows `(classFqn="refdata::Person", propertyName="addresses")` — it does NOT know the association FQN, so there's no file path to check. "The filesystem is the index" breaks for reverse lookups.
+
+```pure
+Class refdata::Person { name: String[1]; }
+Class refdata::Address { city: String[1]; }
+
+Association refdata::Person_Address
+{
+  person: refdata::Person[1];
+  addresses: refdata::Address[*];
+}
+```
+
+Currently, `PureModelBuilder.findAssociationByProperty()` scans a lazily-built `classToAssociations` index. With per-element lazy loading, that index doesn't exist until all associations are loaded — which defeats the purpose.
+
+**Fix: per-class navigation sidecar files.** During element serialization, the compiler emits a small sidecar alongside each class file that lists association-injected properties navigable **from** that class:
+
+```
+refdata_elements/
+  refdata__Person.json           ← class shape (local properties + superclass FQNs)
+  refdata__Person.nav.json       ← association navigation index
+  refdata__Address.json
+  refdata__Address.nav.json
+  refdata__Person_Address.json   ← authoritative association element
+```
+
+Example `refdata__Person.nav.json`:
+
+```json
+{
+  "addresses": {
+    "association": "refdata::Person_Address",
+    "targetClass": "refdata::Address",
+    "multiplicity": "[*]"
+  }
+}
+```
+
+**Property lookup sequence with sidecars:**
+
+```
+1. findProperty("addresses") on Person
+   → check local properties in Person.json → miss
+   → check superclass chain → miss
+   → load Person.nav.json
+   → find "addresses" → association = "refdata::Person_Address"
+   → return Property(name="addresses", typeFqn="refdata::Address", mult=[*])
+```
+
+**Why NOT embed association properties directly in `Person.json`:** Invalidation. If `Person_Address` changes (e.g., multiplicity `[*]` → `[1..*]`), it would change `Person.json`, forcing ALL consumers of `Person` to rebuild — even those that only use `Person.name`. With a sidecar:
+
+- Consumers of `Person.name` → depend on `Person.json` only → unaffected
+- Consumers of `Person.addresses` → depend on `Person.json` + `Person.nav.json` → rebuild correctly
+
+**Who generates the sidecars:** The same compile action that serializes element files. After serializing all association elements, the compiler groups them by class endpoint and writes one `.nav.json` per class that has association-backed properties. Classes with no associations get no sidecar (empty = no file).
+
+**Bazel integration:** The module extension already scans for `Association` elements. It can declare the `.nav.json` sidecar files alongside the class files. The `unused_inputs_list` naturally tracks which nav files were actually opened — consumers that never access association properties will list the `.nav.json` files as unused.
+
+**Scope of change:** ~30 lines in `ElementSerializer` to generate nav sidecars, ~15 lines in `PureModelBuilder.findProperty()` to check the nav sidecar on local miss, ~10 lines in the module extension to declare `.nav.json` output files.
 
 ### Eager Loading (for `legend_test` actions)
 
@@ -1671,25 +1837,31 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 
 **Note**: Maven and Bazel can coexist during migration. Maven continues to work unchanged. Bazel is additive.
 
-### Step 2: Element Serialization (1 session)
+### Step 2: Element Serialization (1-2 sessions)
 
-**Files**: `tools/element_serializer/ElementSerializer.java`
+**Files**: `tools/element_serializer/ElementSerializer.java`, `NameResolver.java` (expand FQN canonicalization)
 
 - `ElementSerializer.serialize(PackageableElement)` -- one element to one JSON file
 - `ElementSerializer.deserialize(String json)` -- JSON back to definition record
 - Handles all element types: ClassDefinition, EnumDefinition, AssociationDefinition, FunctionDefinition, DatabaseDefinition, MappingDefinition, RuntimeDefinition, ConnectionDefinition, ServiceDefinition
+- **Resolved AST serialization** -- executable bodies (functions, services, derived properties, constraints, mapping expressions) are serialized as resolved AST with all names canonicalized to FQNs, not raw source text. This eliminates the need to reconstruct import context at load time (see "Required Change: Resolved AST for Executable Bodies")
+- **Association navigation sidecars** -- after serializing all association elements, generate per-class `.nav.json` sidecar files listing association-injected properties navigable from that class (see "Required Change: Association Navigation Sidecars")
+- Expand `NameResolver` to FQN-canonicalize database includes, mapping includes, and service mapping/runtime/connection refs (~50-80 lines)
 - CLI wrapper: `java ElementExtractor --srcs *.pure --out-dir elements/`
-- Test: extract elements from sales-trading model, verify round-trip for all element types
+- Test: extract elements from sales-trading model, verify round-trip for all element types including resolved AST bodies and nav sidecars
 
-### Step 3: Lazy Element Loading in PureModelBuilder (1 session)
+### Step 3: Lazy Element Loading in PureModelBuilder (1-2 sessions)
 
-**Files**: `PureModelBuilder.java` (add lazy loading), `PureLspServer.java` (wire up)
+**Files**: `PureModelBuilder.java` (add lazy loading), `PureClass.java`, `Property.java`, `PureLspServer.java` (wire up)
 
 - Add `addDepElementDir(Path elementsDir)` — records where to find dep elements (zero I/O)
 - Override `findClass/findEnum/findAssociation/findFunction` with lazy-load fallback
+- **String-based property types** -- `Property` stores `String typeFqn` instead of resolved `Type` (see "Required Change: String-Based Property Types")
+- **Lazy superclass resolution** -- `PureClass` stores `List<String> superClassFqns` instead of resolved `List<PureClass>`, `findProperty()` walks superclass chain on demand (see "Required Change: Lazy Superclass Resolution")
+- **Association nav sidecar loading** -- `findProperty()` checks `.nav.json` sidecar on local+superclass miss (see "Required Change: Association Navigation Sidecars")
 - Add `addElementFiles(Path dir)` for eager loading (Bazel actions)
 - Wire `addDepElementDir()` into `PureLspServer.rebuildAndPublishAll()`
-- Test: two-project test — project A's elements on disk, project B lazy-loads A's class on first `findClass` call, TypeChecker resolves cross-project refs
+- Test: two-project test — project A's elements on disk, project B lazy-loads A's class on first `findClass` call, TypeChecker resolves cross-project refs including inherited and association-backed properties
 
 ### Step 4: Module Extension + `legend_library` Bazel Rule (1-2 sessions)
 
