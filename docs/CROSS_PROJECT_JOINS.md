@@ -10,7 +10,8 @@ Cross-project joins — where one team's query needs to join data from another t
 4. [What the Current Engine Enforces at Compile Time](#4-what-the-current-engine-enforces-at-compile-time)
 5. [Legend-Lite Compiler Opportunity](#5-legend-lite-compiler-opportunity)
 6. [Support Matrix: Both Approaches in Legend-Lite](#6-support-matrix-both-approaches-in-legend-lite)
-7. [Impact on Element Categories](#7-impact-on-element-categories)
+7. [Migration Auto-Convert: What Can Be Mechanically Rewritten](#7-migration-auto-convert-what-can-be-mechanically-rewritten)
+8. [Impact on Element Categories](#8-impact-on-element-categories)
 
 ---
 
@@ -498,7 +499,157 @@ Each step is independently testable. The SQL output is identical (verified by en
 
 ---
 
-## 7. Impact on Element Categories
+## 7. Migration Auto-Convert: What Can Be Mechanically Rewritten
+
+Migrating from legacy includes to XStore model joins is a per-AssociationMapping rewrite. Most of these rewrites are mechanical once you recognize an asymmetry in the mapping language: **the consumer side is much more flexible than you might initially think, while the dependency side is constrained by whatever it chose to expose at the class/association level.**
+
+### The consumer's toolkit
+
+When rewriting a cross-project join, the consumer (the project that used to `include` someone else's mapping) has the **full Legend mapping DSL** available in its own mapping file. In particular:
+
+- **`+` local properties** — add a mapping-level property that exists only inside this mapping, no change to the class definition
+  ```pure
+  +sectorId: String[1]: [TradingDB]Trade.sector_id
+  ```
+- **DynaFunction computations** — map a property to an expression over local columns
+  ```pure
+  +compoundKey: String[1]: concat([TradingDB]Trade.prefix, '_', [TradingDB]Trade.code)
+  ```
+- **Local store-join traversals** — pull a column from another table in the same (consumer-owned) database via a store-level `Join`
+  ```pure
+  +sectorId: String[1]: [TradingDB]@Trade_Order | Order.sector_id
+  ```
+- **Arbitrary XStore join expressions** — the cross-expression is a lambda, so it can contain computations, not just property equality
+  ```pure
+  client[trade, sector]: concat($this.prefix, '_', $this.code) == $that.compoundKey
+  ```
+
+All of these happen inside the consumer's own mapping file, touching only the consumer's own store. They require **no coordination with the dependency team.**
+
+### The dependency's contract
+
+The dependency side exposes only what it chose to model: classes, properties, associations, functions. From the consumer's XStore expression, `$that.something` resolves against these — nothing else. The consumer cannot reach into the dependency's store, cannot see its physical columns, cannot know about store-level joins or mapping-local properties defined on the dependency side.
+
+### The clean rule
+
+> **An include-based cross-project join can be auto-converted to an XStore model join iff, for every reference the join makes to the dependency side, that reference can be expressed using a class property, a class-level computation over properties, or a navigated association that the dependency has explicitly exposed.**
+>
+> The consumer side imposes no meaningful constraint — `+` properties, DynaFunctions, and local store-join traversals handle arbitrary consumer-side complexity.
+
+This is why the migration **is the API curation exercise**. The cases that don't auto-convert are exactly the cases where the old code was reaching past the foreign team's model into their physical storage — which is the pattern we're migrating away from.
+
+### Case matrix
+
+| Pattern | Auto-convertible? | Mechanism |
+|---|---|---|
+| Simple equi-join, foreign column mapped to property | ✅ Auto | Direct: `$this.fkCol == $that.pkProp` |
+| Multi-column equi-join | ✅ Auto | Conjunction of equalities in XStore lambda |
+| Self-join (`{target}` syntax) | ✅ Auto | Trivial — same class on both sides |
+| Join on unmapped **consumer** column | ✅ Auto | Synthesize `+localProp` in consumer mapping |
+| Calc on **consumer** columns, plain on foreign | ✅ Auto | Either `+` derived property, or inline calc in XStore lambda |
+| Multi-hop through **consumer's own** tables | ✅ Auto | `+` property with local store-join traversal (`[DB]@LocalJoin \| Table.col`) |
+| Embedded filter on **consumer** column | ✅ Auto | `+` derived Boolean property, or association-level filter |
+| Join where foreign side needs composition of exposed properties | ✅ Auto | Inline calc in XStore lambda: `$this.id == concat($that.prefix, '_', $that.code)` |
+| Multi-hop through **dependency's** tables, no intermediate class | ❌ Blocked | Requires dependency team to expose the intermediate concept as a class + association |
+| Join on **foreign physical column** not exposed as a property | ❌ Blocked | Requires dependency team to expose the column as a property |
+| Calc on **foreign** columns where source parts aren't exposed | ❌ Blocked | Requires dependency team to expose the components or the computed property |
+| Embedded filter on **foreign** column not exposed as a property | ❌ Blocked | Requires dependency team to expose the column as a property |
+| Mapping `include` with store substitution `[A -> B]` | ⏸ Orthogonal | This is runtime/env wiring, not a cross-project model join — leave it alone |
+
+### Worked examples: cases that become auto with `+`
+
+**Example 1: Multi-hop through consumer's own tables.** Consumer has `Trade` and `Order`; joins to foreign `Sector` via Order's `sector_id` column.
+
+```pure
+// Old (store-level join inside consumer's mapping):
+Join Trade_Sector_viaOrder(
+    Trades.Trade.order_id = Trades.Order.id
+    AND Trades.Order.sector_id = Refdata.Sector.id  // reaches into RefdataDB — broken
+)
+
+// New (XStore model join):
+Mapping trading::TradingMapping
+(
+  trading::Trade[trade]: Relational
+  {
+    ~mainTable [TradingDB]Trades.Trade
+    id: [TradingDB]Trades.Trade.id,
+    +sectorId: String[1]: [TradingDB]@Trade_Order | Order.sector_id   // LOCAL store-join traversal
+  }
+
+  trading::Trade_Sector: XStore
+  {
+    sector[trade, sector]: $this.sectorId == $that.id,               // $that.id on foreign class
+    trades[sector, trade]: $this.id       == $that.sectorId
+  }
+)
+```
+
+The multi-hop complexity is absorbed into the consumer's `+` property via a **local** store-join. The XStore expression stays trivial. No change to `Sector` is required.
+
+**Example 2: Calc on consumer columns against a plain foreign property.** Consumer composes a key from two local columns; foreign class exposes `compoundKey` directly.
+
+```pure
+trading::Trade_Sector: XStore
+{
+  sector[trade, sector]: concat($this.prefix, '_', $this.code) == $that.compoundKey,
+  trades[sector, trade]: $that.compoundKey                     == concat($this.prefix, '_', $this.code)
+}
+```
+
+No `+` property needed — the XStore lambda itself carries the computation.
+
+**Example 3: Foreign side has components, consumer has one flat column.** Dependency exposes `Sector.prefix` and `Sector.code` as properties; consumer has `Trade.sectorKey` as a single column matching their concat.
+
+```pure
+trading::Trade_Sector: XStore
+{
+  sector[trade, sector]: $this.sectorKey == concat($that.prefix, '_', $that.code),
+  trades[sector, trade]: concat($this.prefix, '_', $this.code) == $that.sectorKey
+}
+```
+
+The calc flips to the dependency side of the expression. Still auto — because the components are exposed.
+
+### Worked examples: cases that stay blocked
+
+**Example 4: Multi-hop through dependency's tables.**
+
+```pure
+// Old join reaches into RefdataDB's Industry table:
+Join Trade_Sector(
+    Trades.Trade.industry_code = Refdata.Industry.code
+    AND Refdata.Industry.sector_id = Refdata.Sector.id
+)
+```
+
+The consumer's `+` property can't help: `Industry` lives in **RefdataDB**, not TradingDB, and the consumer has no store access there. Unblocking requires Refdata to model `Industry` as a class and expose an `Industry_Sector` association. The auto-converter should emit this as a structured coordination ask against the refdata repo.
+
+**Example 5: Foreign column not exposed as a property.**
+
+```pure
+Join Trade_Sector(Trades.Trade.ref_code = Refdata.Sector.internal_ref_code)
+// Refdata's mapping maps id and name to properties, but internal_ref_code is not a property
+```
+
+No consumer-side cleverness makes `$that.internalRefCode` resolvable — the property simply does not exist on the `Sector` class. Unblocking requires Refdata to add `internalRefCode: String[1]` to `Sector` and a corresponding PropertyMapping. The migration tool surfaces this as a concrete ticket rather than silently generating broken code.
+
+### Revised coverage estimate
+
+With `+` local properties, DynaFunction computations, local store-join traversals, and arbitrary XStore lambda expressions all available on the consumer side, **roughly 85-90% of real-world cross-project joins should auto-convert** — up from the naive 70-80% estimate that assumed only "simple equi-join → simple equi-join" rewrites are safe.
+
+The residual 10-15% is exactly the population that should be blocked: these are the joins that were reaching past the foreign team's model into their physical storage. The migration tool's job is to surface them as coordination asks (with concrete patches to propose against the dependency repo), not to paper over them.
+
+### Implications for the migration tool
+
+1. **The reverse-lookup primitive is the core work** — given a physical column reference, find the class property (if any) that maps to it. Legend-lite's `NormalizedMapping.findSourceSpec()` and `MappingResolver` traversals already do this; the migration tool is a read-only consumer.
+2. **Classify per join, not per project** — a single `AssociationMapping` may auto-convert while another in the same project is blocked. Output per-join status.
+3. **Always prefer inline XStore lambda over `+` property** when both work — it's less code and keeps the intent in one place. Use `+` properties when the consumer-side computation is reused or when a local store-join is needed.
+4. **Treat blocked cases as structured asks** — emit a patch suggestion against the dependency repo (add property X, expose class Y), not just an error. The tool's value is highest when it makes the hard cases **actionable**, not just flagged.
+
+---
+
+## 8. Impact on Element Categories
 
 With XStore model joins and legend-lite's compiler, the element categories table in the [Bazel Dependency Proposal](./BAZEL_DEPENDENCY_PROPOSAL.md) is accurate as the target state:
 
