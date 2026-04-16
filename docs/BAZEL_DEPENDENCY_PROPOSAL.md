@@ -89,6 +89,8 @@ This eliminates:
 Downstream compilation only touches the **Model + Function** elements. A mapping change in `refdata` doesn't touch any model element files, so zero downstream rebuilds -- without any shape extraction step.
 
 > **Caveat: cross-project joins.** The table above assumes the target state where cross-project joins use XStore model joins (Association + local properties). In that model, Store and Mapping are truly runtime-only. However, many existing projects use Database/Mapping `include` for cross-project joins — a leaky abstraction that pulls Store and Mapping into compile scope. Legend-lite **must support both** approaches: legacy includes (where Store/Mapping become compile deps) and model joins (where they don't). New projects should use XStore model joins exclusively. See [Cross-Project Joins](./CROSS_PROJECT_JOINS.md) for the full analysis, migration path, and legend-lite compiler design.
+>
+> **Recommended migration step:** publish a `DataSpace` alongside each mapping. Consumers `include` the DataSpace instead of the raw mapping, giving the data owner a clean API surface while keeping the underlying mapping as an implementation detail. Once all consumers move to DataSpace-based includes, the raw mapping can be restructured without downstream impact. This is an incremental step toward the full model-join target state where no mapping includes are needed at all.
 
 **When are implementation elements needed?** Compile actions only load model elements; implementation elements are inputs to `legend_test` actions only:
 
@@ -168,6 +170,8 @@ legend/                                    # THE monorepo
 ```
 
 External repos are pinned via `git_repository` in `MODULE.bazel` and wrapped with the same `legend_library` rule via BUILD overlays in `external/`. No special extraction pipeline — see §5 for the full external repo workflow.
+
+**Scaling external repo pins.** At 1000+ external repos, hand-editing `external_repos.bzl` becomes untenable. Generate it from a flat manifest (`external_repos.yaml`) via a repository rule or codegen step. The YAML manifest stays human-readable and diff-friendly; the generated `.bzl` is never edited directly. This keeps PRs reviewable and enables batch operations (e.g., "bump all repos under org `gs-legacy/`").
 
 ### Why One Monorepo?
 
@@ -255,6 +259,8 @@ use_repo(legend, "refdata", "products", "trading", "com_gs_legacy_products", "co
 
 **Performance:** Each project's scan only re-runs when `.pure` files in that project change (~5ms for 50 files). External repos only re-scan on commit bump. No global re-scanning.
 
+**At monorepo scale:** 1000 projects × ~5ms = ~5s analysis-phase overhead on a cold `bazel build //...`. This is a worst-case number — in practice, `mctx.read()` results are cached per-project and only invalidated when that project's `.pure` files change, so steady-state overhead is proportional to the number of *changed* projects, not total projects. Worth validating with a scale test at target project count (see §9 Experiment 4).
+
 **Function overloads:** Pure allows multiple functions with the same FQN but different parameter signatures. The regex deduplicates by FQN — all overloads of `refdata::transform` produce a single `refdata__transform.json` file containing all overloads. This mirrors how `PureFunctionRegistry` already groups overloads by FQN. Changing any overload changes the file, which is the correct semantic — overloads are a cohesive unit.
 
 **Regex safety:** The regex only matches top-level element **definitions** (keyword at start of line + FQN). It does NOT need to find references, property types, imports, or anything inside element bodies. Pure's grammar guarantees all `PackageableElement` definitions start with an uppercase keyword (`Class`, `Enum`, `Mapping`, etc.). Body-level keywords like `include` (mapping/database includes) are lowercase and don't match. No false positives.
@@ -283,7 +289,7 @@ def _legend_library_impl(ctx):
 
     # Collect all dep element files (individually declared — NOT tree artifacts)
     dep_element_files = []
-    for d in ctx.attr.deps:
+    for d in ctx.attr.model_deps + ctx.attr.impl_deps:
         dep_element_files.extend(d[LegendElementsInfo].element_files.to_list())
 
     # Declare one output file per element (names from module extension scan)
@@ -313,7 +319,8 @@ def _legend_library_impl(ctx):
         LegendElementsInfo(
             element_files = depset(
                 direct = output_files,     # individual files — per-element tracking!
-                transitive = [d[LegendElementsInfo].element_files for d in ctx.attr.deps],
+                transitive = [d[LegendElementsInfo].element_files
+                              for d in ctx.attr.model_deps + ctx.attr.impl_deps],
             ),
         ),
         DefaultInfo(files = depset(output_files)),
@@ -324,7 +331,8 @@ legend_library = rule(
     attrs = {
         "srcs": attr.label_list(allow_files = [".pure"]),
         "elements": attr.string_list(),    # from module extension scan
-        "deps": attr.label_list(providers = [LegendElementsInfo]),
+        "model_deps": attr.label_list(providers = [LegendElementsInfo]),  # classes/enums/associations only
+        "impl_deps": attr.label_list(providers = [LegendElementsInfo]),   # + mappings/stores/runtimes
         "_legend_compiler": attr.label(
             default = "//tools/artifact_compiler",
             executable = True,
@@ -333,6 +341,8 @@ legend_library = rule(
     },
 )
 ```
+
+**`model_deps` vs `impl_deps`:** Two dep attributes make the compile-time contract explicit. `model_deps` is the target state — the compiler only loads model elements (Class, Enum, Association, Function) from these deps, which is sufficient for XStore model joins. `impl_deps` is for legacy Database/Mapping `include` patterns that pull Store and Mapping elements into compile scope. Both produce identical `LegendElementsInfo` depsets, but the distinction is visible in BUILD files and code review — making it easy to track migration from legacy includes to model joins. New projects should use `model_deps` exclusively. See [Cross-Project Joins](./CROSS_PROJECT_JOINS.md) for the full analysis.
 
 **Why this works:** The module extension discovers element FQNs via regex before analysis. The rule declares one output `File` per element. `unused_inputs_list` enables per-element rebuild avoidance — see §8 for the full invalidation semantics.
 
@@ -358,6 +368,10 @@ legend_test = rule(
 )
 ```
 
+**Eager loading tradeoff:** Tests load ALL element files (model + implementation) because they execute actual queries. This means any mapping or store change invalidates all tests that transitively depend on that project — no `unused_inputs_list` filtering at the test level.
+
+**Future work: per-test `unused_inputs_list`.** At v2, the test runner could extract the set of (mapping, store, runtime) elements actually touched by each test's query plan and emit those as the used set. A mapping change in one class would then only re-run tests whose query plans route through that mapping. Not on the v1 critical path — test execution time is dominated by query execution, not element loading.
+
 ### Example BUILD Files
 
 ```python
@@ -382,7 +396,7 @@ legend_library(
     name = "products",
     srcs = glob(["src/**/*.pure"]),
     elements = ELEMENTS,
-    deps = ["//projects/refdata"],
+    model_deps = ["//projects/refdata"],
     visibility = ["//visibility:public"],
 )
 ```
@@ -396,8 +410,8 @@ legend_library(
     name = "trading",
     srcs = glob(["src/**/*.pure"]),
     elements = ELEMENTS,
-    deps = [
-        "//projects/products",                    # monorepo dep
+    model_deps = [
+        "//projects/products",                    # monorepo dep (model elements only)
         "//projects/risk",                        # monorepo dep
         "@com_gs_legacy_products//:legacy_products",  # external dep (same rule!)
     ],
@@ -778,7 +792,13 @@ With this change:
 - Elements can be loaded in any order, one at a time, with zero dependency on what's already in the model
 - The only time `findClass()` is called is during TypeChecker property access (e.g., `$t.sector`) which triggers lazy loading naturally
 
-**Scope of change:** ~15 lines in `Property.java`, ~5 lines in `resolveType()`, ~10 lines updating callers in `TypeChecker.java` and `GenericType.java`. The `PureClass` record itself doesn't change — just what `Property` stores for its type.
+**Scope of change (revised estimate):** The `Property.genericType()` → `Type` reference is consumed throughout the compiler and planner. A realistic migration path:
+
+1. Add `String typeFqn` field to `Property` alongside existing `genericType` (~20 lines in `Property.java`)
+2. Incrementally migrate consumers across `TypeChecker.java`, `checkers/*` (~36 files), `PlanGenerator.java`, `MappingResolver.java`, `MappingNormalizer.java`, `GenericType.java` to read `typeFqn` instead of `genericType()` (~200-500 lines across ~30 files)
+3. Flag day: remove `genericType` field, all consumers on `typeFqn`
+
+**This is the largest single prerequisite for the Bazel migration.** Recommended approach: do this refactor in the main engine first (Step 2.5 in §11), validate with existing 2100+ tests, then wire into lazy loading. The `PureClass` record itself doesn't change — just what `Property` stores for its type.
 
 ### Transitive Loading Chains
 
@@ -856,6 +876,15 @@ This is **not** typed AST — no `TypeInfo`, no store resolution, no mapping met
 **Impact on `NameResolver`:** Currently, `NameResolver` does not canonicalize all reference types. It handles class types, superclasses, and function calls, but passes through database includes, mapping includes, and service mapping/runtime refs unchanged. These must be expanded to FQN-canonicalize everything before serialization. Estimated scope: ~50-80 lines in `NameResolver.java` to add resolution for database includes, mapping includes, and service refs (mapping/runtime/connection).
 
 **Impact on `ElementSerializer`:** The serializer must capture the resolved AST (`ValueSpecification` tree with FQN names), not just the raw body string. The deserializer reconstructs the AST directly — no re-parsing or re-resolution needed.
+
+**Schema evolution & versioning.** The resolved-AST JSON format is a serialization boundary that must survive across compiler versions. If the element file format changes (new AST node types, renamed fields, structural changes), old-format files become unreadable. Required safeguards:
+
+- **`schemaVersion` field** on every element file (e.g., `"schemaVersion": 1`). The deserializer checks this first and fails fast on unrecognized versions.
+- **Documented node-type taxonomy** — enumerated, not open-ended. Every AST node type that can appear in a serialized body must be listed in a schema spec. New node types require bumping the schema version.
+- **Backwards-compat test harness** — load prior-version fixture files with the current compiler. Ensures old element files remain readable after compiler upgrades.
+- **Forward-compat policy** — additive fields only within a major version (new optional fields are ignored by old deserializers). Breaking changes bump major version and require monorepo-wide re-serialization — Bazel handles this automatically since all outputs regenerate when the compiler binary changes.
+
+Recommend: **publish the JSON schema spec before writing any serializer code** (see §11 Step 2).
 
 ### Required Change: Lazy Superclass Resolution
 
@@ -963,6 +992,8 @@ Example `refdata__Person.nav.json`:
 **Bazel integration:** The module extension already scans for `Association` elements. It can declare the `.nav.json` sidecar files alongside the class files. The `unused_inputs_list` naturally tracks which nav files were actually opened — consumers that never access association properties will list the `.nav.json` files as unused.
 
 **Scope of change:** ~30 lines in `ElementSerializer` to generate nav sidecars, ~15 lines in `PureModelBuilder.findProperty()` to check the nav sidecar on local miss, ~10 lines in the module extension to declare `.nav.json` output files.
+
+**Dependency-graph asymmetry.** Sidecars create two flavors of class dependency: consumers that only use local properties (e.g., `Person.name`) depend on `Person.json` alone, while consumers that navigate association properties (e.g., `Person.addresses`) additionally depend on `Person.nav.json`. This asymmetry is a feature — it's the mechanism that prevents association changes from cascading to unrelated consumers — but it must be documented as a first-class invalidation contract, not treated as an implementation detail. The `ProjectDependencyAnalyzer` (§8) must emit per-class sidecar usage in `unused_inputs_list`: if a project only accesses `Person.name`, `Person.nav.json` goes in the unused list.
 
 ### Eager Loading (for `legend_test` actions)
 
@@ -1174,7 +1205,15 @@ On PR, CI runs `bazel build //...`. Same process across all projects. Bazel's re
 | 500 | 300 | 150K | ~1.0s | Noticeable |
 | 1000 | 300 | 300K | ~2.1s | Slow |
 
-The practical limit is ~500K inputs per action. Below that, per-element files just work. The key mitigation is organizational: keep projects reasonably sized (~100-500 elements each). Split large shared model projects into smaller ones.
+The practical limit is ~500K inputs per action. Below that, per-element files just work.
+
+**Mitigations as project count grows:**
+
+- **Project size discipline** — target 100-500 elements per `legend_library`. Split "god models" (e.g., a single `refdata` project with 5000 classes) into domain sub-libraries (`refdata-legal`, `refdata-geo`, `refdata-instrument`). Consumers only depend on the sub-library they need, reducing input count per action.
+- **Hierarchical aggregation** — for consumers that genuinely need a broad cross-section of a domain, introduce an umbrella `legend_library` that re-exports a curated subset of sub-library elements. The consumer depends on the umbrella; Bazel stats only the umbrella's element files, not the underlying sub-libraries' full transitive closures. This bounds per-action input count even as the total element count grows.
+- **Scale test before commit** — validate at target scale (100 projects / 30K elements) with realistic dep ratios before finalizing the per-element file granularity. See §9 Experiment 4 (planned).
+
+The 30K-input comfort zone covers most real-world scenarios (100 deps × 300 elements). The mitigation ladder (project splitting → hierarchical aggregation → per-property shredding) gives room to scale beyond that without architectural changes.
 
 ---
 
@@ -1561,6 +1600,42 @@ steps:
 
 **Key insight:** Repository rules and module extensions can execute arbitrary programs (`rctx.execute()`). This means Bazel itself can be the version-checking infrastructure — no separate Python scripts, no external CI plugins. The version check runs as part of `bazel build`, is cached like any other action, and only re-runs when explicitly requested.
 
+### Experiment 4 (Planned): Scale Validation
+
+**Question:** Does the per-element architecture hold at target scale (100+ projects / 30K+ elements)?
+
+**Setup:** Synthetic monorepo generator producing N projects, each with ~300 elements (classes, enums, associations, functions), with realistic dep ratios (10-100 transitive deps per project). Generator creates `.pure` source files with cross-project references: property types pointing to dep classes, function bodies referencing dep properties, associations spanning project boundaries.
+
+**What to measure:**
+
+| Metric | Target | Why it matters |
+|---|---|---|
+| Analysis phase (cold) | ≤10s | Module extension regex scans across all projects |
+| Analysis phase (warm, 1 project changed) | ≤1s | Only changed project rescanned |
+| Initial full build | ≤60s | All projects compile in parallel |
+| Incremental build (1 class changed) | ≤5s | Only affected projects rebuild |
+| Stat overhead per action at 30K inputs | ≤300ms | Per-element file viability |
+| `unused_inputs_list` effectiveness | ≥70% skip rate | Single-class change should skip most downstream |
+
+**How to run:**
+
+```bash
+# Generate synthetic monorepo
+python tools/gen_scale_test.py --projects 100 --elements-per-project 300 --dep-ratio 0.3
+
+# Full build
+time bazel build //scale_test/...
+
+# Incremental: change one class in one project, rebuild
+echo 'new_prop: String[0..1];' >> scale_test/project_42/src/model.pure
+time bazel build //scale_test/...
+
+# Check unused_inputs effectiveness
+wc -l bazel-out/*/bin/scale_test/project_*/unused_inputs
+```
+
+**Status:** Not yet run. Recommended before committing to the per-class-file granularity default. Add to `experiments/scale_test/`. See §11 Step 0.
+
 ### Summary of Validated Claims
 
 | Claim | Status | Evidence |
@@ -1573,6 +1648,7 @@ steps:
 | Byte-identical output optimization | ✅ Bazel feature | Output hash check skips downstream if content unchanged (e.g., comment-only source change) |
 | `git ls-remote` in module extension | ✅ Proven | Experiment 3: real GitHub repo |
 | Auto-detect outdated commits | ✅ Proven | Experiment 3: status report |
+| Per-element architecture at scale | ⬜ Planned | Experiment 4: synthetic 100-project monorepo |
 
 
 ---
@@ -1703,6 +1779,17 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 
 ## 11. Implementation Plan
 
+### Step 0: Scale Validation (0.5 session)
+
+**Goal**: Validate the per-element architecture at target scale before committing to implementation.
+
+**Files**: `experiments/scale_test/gen_scale_test.py`, `experiments/scale_test/MODULE.bazel`
+
+- Build a synthetic monorepo generator: N projects × ~300 elements, realistic dep ratios (10-100 transitive deps per project), cross-project property types and function references
+- Run Experiment 4 (§9): measure analysis phase, build time, incremental rebuild, stat overhead, unused_inputs effectiveness
+- **Go/no-go gate**: if stat overhead exceeds 500ms at 30K inputs or analysis phase exceeds 15s at 100 projects, revisit granularity (consider per-source-file instead of per-element, or hierarchical aggregation)
+- Document results in `experiments/scale_test/RESULTS.md`
+
 ### Step 1: Bazel-ify the Monorepo (1 session)
 
 **Goal**: Get `bazel build //platform/engine` working.
@@ -1719,23 +1806,37 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 
 **Files**: `tools/element_serializer/ElementSerializer.java`, `NameResolver.java` (expand FQN canonicalization)
 
+- **Prerequisite: publish the resolved-AST JSON schema first.** Document node taxonomy, `schemaVersion` field, versioning rules, forward/backward compat policy. Review the schema spec before writing any serializer code (see "Schema evolution & versioning" in §6).
 - `ElementSerializer.serialize(PackageableElement)` -- one element to one JSON file
 - `ElementSerializer.deserialize(String json)` -- JSON back to definition record
 - Handles all element types: ClassDefinition, EnumDefinition, AssociationDefinition, FunctionDefinition, DatabaseDefinition, MappingDefinition, RuntimeDefinition, ConnectionDefinition, ServiceDefinition
 - **Resolved AST serialization** -- executable bodies (functions, services, derived properties, constraints, mapping expressions) are serialized as resolved AST with all names canonicalized to FQNs, not raw source text. This eliminates the need to reconstruct import context at load time (see "Required Change: Resolved AST for Executable Bodies")
 - **Association navigation sidecars** -- after serializing all association elements, generate per-class `.nav.json` sidecar files listing association-injected properties navigable from that class (see "Required Change: Association Navigation Sidecars")
 - Expand `NameResolver` to FQN-canonicalize database includes, mapping includes, and service mapping/runtime/connection refs (~50-80 lines)
+- **Backwards-compat test harness** -- save fixture element files as golden tests; verify current deserializer can load them after compiler changes
 - CLI wrapper: `java ElementExtractor --srcs *.pure --out-dir elements/`
 - Test: extract elements from sales-trading model, verify round-trip for all element types including resolved AST bodies and nav sidecars
 
+### Step 2.5: `typeFqn` Preparatory Refactor (1-2 sessions)
+
+**Goal**: Migrate `Property.genericType()` from resolved `Type` references to `String typeFqn` in the main engine, validated by existing tests. This is the largest single prerequisite for lazy loading (Step 3).
+
+**Files**: `Property.java`, `PureModelBuilder.java`, `TypeChecker.java`, `checkers/*.java` (~36 files), `PlanGenerator.java`, `MappingResolver.java`, `MappingNormalizer.java`, `GenericType.java`
+
+- Add `String typeFqn` field to `Property` alongside existing `genericType()` (~20 lines)
+- Incrementally migrate consumers to read `typeFqn` instead of `genericType()` (~200-500 lines across ~30 files)
+- Flag day: remove `genericType` field, all consumers on `typeFqn`
+- Similarly: `PureClass.superClasses` from `List<PureClass>` to `List<String> superClassFqns` — prerequisite for lazy superclass resolution
+- Validate: all 2100+ existing tests pass with zero changes to test definitions
+- **Do NOT wire into lazy loading yet** — this step only changes the storage format, not the loading strategy
+
 ### Step 3: Lazy Element Loading in PureModelBuilder (1-2 sessions)
 
-**Files**: `PureModelBuilder.java` (add lazy loading), `PureClass.java`, `Property.java`, `PureLspServer.java` (wire up)
+**Files**: `PureModelBuilder.java` (add lazy loading), `PureClass.java`, `PureLspServer.java` (wire up)
 
 - Add `addDepElementDir(Path elementsDir)` — records where to find dep elements (zero I/O)
 - Override `findClass/findEnum/findAssociation/findFunction` with lazy-load fallback
-- **String-based property types** -- `Property` stores `String typeFqn` instead of resolved `Type` (see "Required Change: String-Based Property Types")
-- **Lazy superclass resolution** -- `PureClass` stores `List<String> superClassFqns` instead of resolved `List<PureClass>`, `findProperty()` walks superclass chain on demand (see "Required Change: Lazy Superclass Resolution")
+- String-based property types and lazy superclass resolution already landed in Step 2.5 — this step adds the lazy *loading* mechanism on top
 - **Association nav sidecar loading** -- `findProperty()` checks `.nav.json` sidecar on local+superclass miss (see "Required Change: Association Navigation Sidecars")
 - Add `addElementFiles(Path dir)` for eager loading (Bazel actions)
 - Wire `addDepElementDir()` into `PureLspServer.rebuildAndPublishAll()`
@@ -1748,6 +1849,7 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 - Define module extension: regex scan of `.pure` files → generates `elements.bzl` per project
 - Define `LegendElementsInfo` provider with `element_files` depset of individual `File` objects
 - Define `legend_library` rule: `declare_file()` per element (from `ctx.attr.elements`), single compile action
+- **`model_deps` / `impl_deps` attributes** — two dep attributes making the compile-time contract explicit (see §4). `model_deps` for XStore model joins (model elements only), `impl_deps` for legacy Database/Mapping includes
 - `ArtifactCompiler` CLI: `--elements-dir` output, `--dep-elements` input, `--track-unused` output
 - `unused_inputs_list` integration for per-element rebuild avoidance (experimentally verified: requires individually declared files, NOT tree artifacts)
 - Register projects in `MODULE.bazel` via `legend.project()` / `legend.external()` tags
@@ -1756,11 +1858,12 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 
 ### Step 5: External Repo Integration (0.5 session)
 
-**Files**: `external_repos.bzl`, `external/*/BUILD.overlay`, `MODULE.bazel`
+**Files**: `external_repos.bzl` (or generated from `external_repos.yaml`), `external/*/BUILD.overlay`, `MODULE.bazel`
 
 - Add `git_repository` declarations for pilot external repos
 - Register external repos with module extension (`legend.external(repo = "...")`)
 - Write BUILD overlays that load auto-generated `elements.bzl`
+- **Manifest-based generation**: at scale (1000+ repos), generate `external_repos.bzl` from `external_repos.yaml` via a repository rule or codegen step — keeps PRs reviewable and enables batch operations
 - Script to bulk-generate `git_repository` entries + BUILD overlays from a repo manifest
 - Auto-version-bump CI job (see "Bumping an External Repo Version")
 - Test: `bazel build @com_gs_legacy_products//:legacy_products` produces individual element files
@@ -1772,6 +1875,7 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 - `legend_test` rule: loads ALL element files (model + implementation) for query execution
 - Uses `addElementFiles()` (eager mode) to load everything including mappings/databases/runtimes
 - Test: end-to-end query execution across project boundary
+- **Future work (v2)**: per-test `unused_inputs_list` — extract mapping/store/runtime elements actually touched by each test's query plan. Not on v1 critical path.
 
 ### Step 7: Compat Checker + CI Hardening (0.5 session)
 
@@ -1797,10 +1901,12 @@ Same as original proposal Step 6:
 Bazel and Maven coexist. No big-bang migration needed.
 
 ```
-Phase 1 (now):   Maven builds everything. No Bazel.
-Phase 2 (Step 1): Bazel builds platform/engine alongside Maven. Both work.
-Phase 3 (Step 4): New projects use legend_library rules. Platform still Maven.
-Phase 4 (later):  Platform migrates to Bazel. Maven removed.
+Phase 0 (Step 0):     Scale validation — synthetic monorepo proves per-element viability.
+Phase 1 (now):         Maven builds everything. No Bazel.
+Phase 1.5 (Step 2.5): typeFqn refactor lands in main engine — prerequisite for lazy loading.
+Phase 2 (Step 1):      Bazel builds platform/engine alongside Maven. Both work.
+Phase 3 (Step 4):      New projects use legend_library rules. Platform still Maven.
+Phase 4 (later):       Platform migrates to Bazel. Maven removed.
 ```
 
 Developers can use either build system during the transition. CI runs both until Maven is retired.
