@@ -850,6 +850,69 @@ The full flow for `import refdata::*` + `sector: Sector[1]`:
 
 No scanning. No manifest. No index. The filesystem is the index.
 
+### Required Change: String-Based Property Types
+
+**Problem discovered:** The current `resolveType()` in `PureModelBuilder` resolves property type strings to actual `PureClass` references **at class registration time** (during `addClass()`). When lazy-loading `Sector.json`, `resolveType("refdata::Region")` fails because Region hasn't been loaded yet:
+
+```java
+// Current resolveType() — called during addClass()
+private Type resolveType(String typeName) {
+    return switch (typeName) {
+        case "String" -> PrimitiveType.STRING;
+        // ... other primitives ...
+        default -> {
+            PureClass classType = idGet(classes, symbols.resolveId(typeName));
+            if (classType != null) yield classType;
+            // Region NOT loaded yet → throws!
+            throw new IllegalStateException("Unknown type: " + typeName);
+        }
+    };
+}
+```
+
+**Fix: store property types as FQN strings, not resolved references.** The TypeChecker already converts `Property.genericType()` back to an FQN string via `GenericType.fromType()` → `ClassType(qualifiedName)`. It only uses the string to produce `ClassType`, never the `PureClass` object's internal structure. So the round-trip through resolved `PureClass` references is unnecessary.
+
+```java
+// Property currently stores a resolved Type (PureClass/PrimitiveType/PureEnumType)
+public record Property(String name, Type genericType, Multiplicity multiplicity, ...) {}
+
+// Change to: store just the FQN string
+public record Property(String name, String typeFqn, Multiplicity multiplicity, ...) {}
+```
+
+With this change:
+- `addClass()` never needs to resolve property types → **no ordering dependency between classes**
+- `resolveType()` becomes trivial: just pass through the string for non-primitives
+- TypeChecker's `GenericType.fromType()` becomes `GenericType.fromTypeName(typeFqn)` — already exists
+- Elements can be loaded in any order, one at a time, with zero dependency on what's already in the model
+- The only time `findClass()` is called is during TypeChecker property access (e.g., `$t.sector`) which triggers lazy loading naturally
+
+**Scope of change:** ~15 lines in `Property.java`, ~5 lines in `resolveType()`, ~10 lines updating callers in `TypeChecker.java` and `GenericType.java`. The `PureClass` record itself doesn't change — just what `Property` stores for its type.
+
+### Transitive Loading Chains
+
+With string-based property types, lazy loading chains resolve naturally:
+
+```
+Trading source: $t.sector.region.name
+
+1. TypeChecker: $t.sector → type is ClassType("refdata::Sector")
+   → findClass("refdata::Sector") → lazy-loads Sector.json → addClass() works (no resolveType needed!)
+   → findProperty("sector") → returns Property(name="sector", typeFqn="refdata::Sector", ...)
+
+2. TypeChecker: .sector → GenericType.fromTypeName("refdata::Sector") → ClassType("refdata::Sector")
+   → findClass("refdata::Sector") → already loaded ✓
+   → findProperty("region") → returns Property(name="region", typeFqn="refdata::Region", ...)
+
+3. TypeChecker: .region → GenericType.fromTypeName("refdata::Region") → ClassType("refdata::Region")
+   → findClass("refdata::Region") → lazy-loads Region.json
+   → findProperty("name") → returns Property(name="name", typeFqn="String", ...)
+
+4. TypeChecker: .name → GenericType.fromTypeName("String") → Primitive.STRING ✓
+```
+
+Each `findClass()` call triggers exactly one lazy load. No recursive loading chains during `addClass()`. The TypeChecker drives loading naturally through property access paths — it only loads classes it actually navigates into.
+
 ### Eager Loading (for `legend_test` actions)
 
 For `legend_test` actions that need ALL elements (model + implementation) for query execution:
