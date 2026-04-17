@@ -153,7 +153,7 @@ public record RelationalMapping(
      */
     public com.gs.legend.plan.GenericType pureTypeForProperty(String propertyName) {
         return pureClass.findProperty(propertyName)
-                .map(p -> com.gs.legend.plan.GenericType.fromType(p.genericType()))
+                .map(p -> com.gs.legend.plan.GenericType.fromTypeRef(p.typeRef()))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Property '" + propertyName + "' not found in class " + pureClass.name()));
     }
@@ -178,10 +178,10 @@ public record RelationalMapping(
             // Map ALL properties — for struct literals, every property is a physical column,
             // including collections (arrays needing UNNEST) and class-typed (nested structs).
             SqlDataType sqlType;
-            if (prop.genericType() instanceof com.gs.legend.model.m3.PrimitiveType pt) {
-                sqlType = SqlDataType.fromPrimitiveType(pt);
+            if (prop.typeRef() instanceof com.gs.legend.model.m3.TypeRef.PrimitiveRef pr) {
+                sqlType = SqlDataType.fromPrimitiveType(com.gs.legend.model.m3.PrimitiveType.fromName(pr.fqn()));
             } else {
-                // Class-typed property → use VARIANT (JSON/struct)
+                // Class-typed or enum-typed property → use VARIANT (JSON/struct)
                 sqlType = SqlDataType.SEMISTRUCTURED;
             }
             columns.add(Column.nullable(prop.name(), sqlType));
@@ -218,8 +218,8 @@ public record RelationalMapping(
         var mappings = new java.util.ArrayList<PropertyMapping>();
         for (var prop : pureClass.allProperties()) {
             String pureType = null;
-            if (prop.genericType() instanceof com.gs.legend.model.m3.PrimitiveType pt) {
-                pureType = pt.typeName();
+            if (prop.typeRef() instanceof com.gs.legend.model.m3.TypeRef.PrimitiveRef pr) {
+                pureType = pr.fqn();
             }
             String expr = "->get('" + prop.name() + "'" +
                     (pureType != null ? ", @" + pureType : "") + ")";
