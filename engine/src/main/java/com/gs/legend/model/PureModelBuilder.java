@@ -1050,6 +1050,14 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
+     * @param profileName The profile name (simple or qualified)
+     * @return The ProfileDefinition, or null if not found
+     */
+    public ProfileDefinition getProfile(String profileName) {
+        return idGet(profiles, symbols.resolveId(profileName));
+    }
+
+    /**
      * Resolves a live JDBC Connection from a Runtime name.
      * Looks up Runtime → Connection binding → ConnectionDefinition → JDBC Connection.
      *

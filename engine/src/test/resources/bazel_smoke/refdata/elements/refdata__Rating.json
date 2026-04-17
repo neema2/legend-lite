@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "enum",
+  "fqn": "refdata::Rating",
+  "values": [
+    "AAA",
+    "AA",
+    "A",
+    "BBB",
+    "BB",
+    "B"
+  ]
+}

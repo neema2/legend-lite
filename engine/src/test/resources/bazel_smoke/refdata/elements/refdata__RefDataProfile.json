@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "profile",
+  "fqn": "refdata::RefDataProfile",
+  "stereotypes": [
+    "rootEntity",
+    "referenceData"
+  ],
+  "tags": [
+    "description",
+    "domain"
+  ]
+}
