@@ -8,34 +8,57 @@ import java.util.Objects;
 /**
  * Represents a property within a Pure Class.
  * A property has a name, a generic type reference, and multiplicity constraints.
- * 
+ *
  * @param name The property name (e.g., "firstName")
  * @param genericType The type of this property (can be primitive or class reference)
  * @param multiplicity The cardinality constraints for this property
  * @param taggedValues Tagged value annotations on this property (e.g., nlq.description)
+ * @param typeFqn Fully qualified name of the property type (derived from {@code genericType} if null).
+ *                Phase A of the Bazel cross-project dependency work introduces this field as the
+ *                canonical type reference; see {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2.
+ *                Consumers should read {@code typeFqn} instead of {@code genericType().typeName()}.
  */
 public record Property(
         String name,
         Type genericType,
         Multiplicity multiplicity,
-        List<TaggedValue> taggedValues
+        List<TaggedValue> taggedValues,
+        String typeFqn
 ) {
     public Property {
         Objects.requireNonNull(name, "Property name cannot be null");
         Objects.requireNonNull(genericType, "Property genericType cannot be null");
         Objects.requireNonNull(multiplicity, "Property multiplicity cannot be null");
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
-        
+
         if (name.isBlank()) {
             throw new IllegalArgumentException("Property name cannot be blank");
         }
+
+        // Derive typeFqn from genericType when not supplied explicitly.
+        // PureClass / PureEnumType return fully qualified "pkg::Name"; PrimitiveType
+        // returns the simple type name (e.g. "String", "Integer").
+        if (typeFqn == null) {
+            typeFqn = switch (genericType) {
+                case PureClass pc -> pc.qualifiedName();
+                case PureEnumType et -> et.qualifiedName();
+                case PrimitiveType pt -> pt.typeName();
+            };
+        }
+    }
+
+    /**
+     * Constructor matching the pre-typeFqn record shape; derives typeFqn from genericType.
+     */
+    public Property(String name, Type genericType, Multiplicity multiplicity, List<TaggedValue> taggedValues) {
+        this(name, genericType, multiplicity, taggedValues, null);
     }
 
     /**
      * Constructor for backwards compatibility (no annotations).
      */
     public Property(String name, Type genericType, Multiplicity multiplicity) {
-        this(name, genericType, multiplicity, List.of());
+        this(name, genericType, multiplicity, List.of(), null);
     }
     
     /**
