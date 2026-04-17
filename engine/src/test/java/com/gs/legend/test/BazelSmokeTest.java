@@ -60,22 +60,24 @@ class BazelSmokeTest {
         var trade = builder.getClass("trading::Trade");
         var sectorProp = trade.findProperty("sector");
         assertTrue(sectorProp.isPresent(), "trading::Trade.sector property must exist");
-        assertTrue(sectorProp.get().genericType() instanceof com.gs.legend.model.m3.PureClass,
-                "trading::Trade.sector must be a PureClass reference (not a placeholder)");
-        assertEquals("refdata::Sector",
-                ((com.gs.legend.model.m3.PureClass) sectorProp.get().genericType()).qualifiedName(),
+        assertTrue(sectorProp.get().typeRef() instanceof com.gs.legend.model.m3.TypeRef.ClassRef,
+                "trading::Trade.sector must be a ClassRef (not a primitive or enum)");
+        assertEquals("refdata::Sector", sectorProp.get().typeFqn(),
                 "trading::Trade.sector must resolve to refdata::Sector (cross-project)");
 
-        // --- cross-project refs: enum-typed property ---
+        // --- cross-project refs: enum-typed property (kind preserved as EnumRef) ---
         var ratingProp = trade.findProperty("rating");
         assertTrue(ratingProp.isPresent(), "trading::Trade.rating property must exist");
+        assertTrue(ratingProp.get().typeRef() instanceof com.gs.legend.model.m3.TypeRef.EnumRef,
+                "trading::Trade.rating must be an EnumRef (enum-vs-class distinction preserved)");
+        assertEquals("refdata::Rating", ratingProp.get().typeFqn(),
+                "trading::Trade.rating must resolve to refdata::Rating");
 
         // --- cross-project refs: superclass resolves across projects ---
         var internalTrade = builder.getClass("trading::InternalTrade");
-        assertFalse(internalTrade.superClasses().isEmpty(),
-                "trading::InternalTrade must have a resolved superclass");
-        assertEquals("refdata::Categorized",
-                internalTrade.superClasses().get(0).qualifiedName(),
+        assertFalse(internalTrade.superClassFqns().isEmpty(),
+                "trading::InternalTrade must have a resolved superclass FQN");
+        assertEquals("refdata::Categorized", internalTrade.superClassFqns().get(0),
                 "trading::InternalTrade superclass must resolve to refdata::Categorized");
 
         // --- cross-project refs: inherited property reachable through superclass chain ---
