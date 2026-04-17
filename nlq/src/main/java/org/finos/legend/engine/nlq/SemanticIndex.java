@@ -1,5 +1,6 @@
 package org.finos.legend.engine.nlq;
 
+import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.Property;
@@ -72,12 +73,13 @@ public class SemanticIndex {
 
         Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
         totalDocuments = allClasses.size();
+        ModelContext ctx = modelBuilder;
 
         // Phase 1: Build entries and collect document frequencies
         Map<String, Integer> docFreq = new HashMap<>();
 
         for (PureClass pc : allClasses.values()) {
-            ClassIndexEntry entry = buildEntry(pc);
+            ClassIndexEntry entry = buildEntry(pc, ctx);
             entries.add(entry);
 
             // Count document frequency for IDF
@@ -96,7 +98,7 @@ public class SemanticIndex {
         }
     }
 
-    private ClassIndexEntry buildEntry(PureClass pc) {
+    private ClassIndexEntry buildEntry(PureClass pc, ModelContext ctx) {
         String description = getTagValue(pc, "description");
         if (description == null) {
             // Fallback to doc.doc
@@ -121,7 +123,7 @@ public class SemanticIndex {
 
         // Build property terms: property name + description + synonyms
         List<String> propertyTerms = new ArrayList<>();
-        for (Property prop : pc.allProperties()) {
+        for (Property prop : pc.allProperties(ctx)) {
             propertyTerms.add(prop.name());
 
             String propDesc = prop.getTagValue(NLQ_PROFILE, "description");

@@ -3,6 +3,7 @@ package com.gs.legend.model;
 import com.gs.legend.antlr.PackageableElementBuilder;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.m3.*;
+import com.gs.legend.model.m3.TypeRef;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.mapping.RelationalMapping;
@@ -386,8 +387,8 @@ public final class PureModelBuilder implements ModelContext {
         PureClass stub = new PureClass(
                 classDef.packagePath(),
                 classDef.simpleName(),
-                List.of(), // no properties yet
-                List.of(),
+                List.<String>of(), // superClassFqns — populated in addClass
+                List.of(),         // no properties yet
                 classDef.stereotypes(),
                 classDef.taggedValues());
         idPut(classes, symbols.intern(classDef.qualifiedName()), stub);
@@ -399,7 +400,7 @@ public final class PureModelBuilder implements ModelContext {
      * Superclass references are resolved later in resolveSuperclasses().
      */
     public PureModelBuilder addClass(ClassDefinition classDef) {
-        // Store the definition for later superclass resolution
+        // Store the definition for later superclass validation
         int id = symbols.intern(classDef.qualifiedName());
         idPut(pendingClassDefinitions, id, classDef);
 
@@ -407,11 +408,13 @@ public final class PureModelBuilder implements ModelContext {
                 .map(this::convertProperty)
                 .toList();
 
-        // Create class with empty superclass list initially, but carry metadata
+        // Populate superclass FQNs directly from the definition — NameResolver already
+        // canonicalized them to qualified form. No resolved-PureClass lookup is needed
+        // at this stage; superclass references are validated separately in resolveSuperclasses().
         PureClass pureClass = new PureClass(
                 classDef.packagePath(),
                 classDef.simpleName(),
-                List.of(), // Superclasses resolved later
+                classDef.superClasses(),
                 properties,
                 classDef.stereotypes(),
                 classDef.taggedValues());
@@ -422,43 +425,23 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
-     * Resolves superclass references for all registered classes.
-     * This is Phase 2 of the two-phase resolution process.
-     * Must be called after all classes are registered.
+     * Validates superclass references for all registered classes. Each FQN in
+     * {@code classDef.superClasses()} must resolve to a known class in the builder's
+     * symbol table. No PureClass reconstruction is needed after flag day — the
+     * {@code superClassFqns} field was populated directly in {@link #addClass}.
      */
     private void resolveSuperclasses() {
         for (int id = 0; id < pendingClassDefinitions.size(); id++) {
             ClassDefinition classDef = pendingClassDefinitions.get(id);
             if (classDef == null) continue;
 
-            if (classDef.superClasses().isEmpty()) {
-                continue; // No superclasses to resolve
-            }
-
-            // Resolve superclass references
-            List<PureClass> resolvedSuperClasses = new java.util.ArrayList<>();
             for (String superClassName : classDef.superClasses()) {
                 PureClass superClass = idGet(classes, symbols.resolveId(superClassName));
-
                 if (superClass == null) {
                     throw new IllegalStateException(
                             "Superclass not found: " + superClassName + " for class " + symbols.nameOf(id));
                 }
-                resolvedSuperClasses.add(superClass);
             }
-
-            // Create new PureClass with resolved superclasses (preserve metadata)
-            PureClass existingClass = idGet(classes, id);
-            PureClass updatedClass = new PureClass(
-                    existingClass.packagePath(),
-                    existingClass.name(),
-                    resolvedSuperClasses,
-                    existingClass.properties(),
-                    existingClass.stereotypes(),
-                    existingClass.taggedValues());
-
-            // Replace in registry
-            idPut(classes, id, updatedClass);
         }
 
         // Clear pending definitions
@@ -579,7 +562,7 @@ public final class PureModelBuilder implements ModelContext {
             for (var jmc : runtimeDef.jsonConnections()) {
                 var pc = findClass(jmc.className()).orElse(null);
                 if (pc == null) continue; // class not yet registered — skip silently
-                var rm = RelationalMapping.variantIdentity(pc, jmc.url());
+                var rm = RelationalMapping.variantIdentity(pc, jmc.url(), this);
                 // Register under each mapping referenced by this runtime
                 for (String mappingName : runtimeDef.mappings()) {
                     mappingRegistry.register(mappingName, rm);
@@ -769,7 +752,7 @@ public final class PureModelBuilder implements ModelContext {
                             String expr = pm.expressionString();
 
                             // Auto-infer cast type from class property when get() lacks @Type
-                            var prop = pureClass.findProperty(pm.propertyName());
+                            var prop = pureClass.findProperty(pm.propertyName(), this);
                             if (prop.isPresent() && expr.matches(".*->get\\('[^']+?'\\)\\s*$")) {
                                 String pureType = prop.get().typeFqn();
                                 if (!"Any".equals(pureType) && !"Variant".equals(pureType)) {
@@ -1375,31 +1358,35 @@ public final class PureModelBuilder implements ModelContext {
     // ==================== Conversion Helpers ====================
 
     private Property convertProperty(ClassDefinition.PropertyDefinition propDef) {
-        Type type = resolveType(propDef.type());
+        TypeRef typeRef = resolveTypeRef(propDef.type());
         Multiplicity multiplicity = new Multiplicity(propDef.lowerBound(), propDef.upperBound());
-        return new Property(propDef.name(), type, multiplicity, propDef.taggedValues());
+        return new Property(propDef.name(), typeRef, multiplicity, propDef.taggedValues());
     }
 
-    private Type resolveType(String typeName) {
+    /**
+     * Resolves a Pure type name to a lightweight {@link TypeRef} (FQN + kind).
+     * NameResolver has already canonicalized property types to fully qualified form, so the
+     * primitive / class / enum dispatch here only needs to check the known symbol table
+     * — no resolved {@link PureClass} or {@link PureEnumType} object is materialized.
+     *
+     * <p>Throws if the type is neither a known primitive, class, nor enum.
+     */
+    private TypeRef resolveTypeRef(String typeName) {
         return switch (typeName) {
-            case "String" -> PrimitiveType.STRING;
-            case "Integer" -> PrimitiveType.INTEGER;
-            case "Boolean" -> PrimitiveType.BOOLEAN;
-            case "Date" -> PrimitiveType.DATE;
-            case "StrictDate" -> PrimitiveType.STRICT_DATE;
-            case "DateTime" -> PrimitiveType.DATE_TIME;
-            case "Float" -> PrimitiveType.FLOAT;
-            case "Decimal" -> PrimitiveType.DECIMAL;
+            case "String"     -> new TypeRef.PrimitiveRef("String");
+            case "Integer"    -> new TypeRef.PrimitiveRef("Integer");
+            case "Boolean"    -> new TypeRef.PrimitiveRef("Boolean");
+            case "Date"       -> new TypeRef.PrimitiveRef("Date");
+            case "StrictDate" -> new TypeRef.PrimitiveRef("StrictDate");
+            case "DateTime"   -> new TypeRef.PrimitiveRef("DateTime");
+            case "Float"      -> new TypeRef.PrimitiveRef("Float");
+            case "Decimal"    -> new TypeRef.PrimitiveRef("Decimal");
             default -> {
-                // Look up as class reference
-                PureClass classType = idGet(classes, symbols.resolveId(typeName));
-                if (classType != null) {
-                    yield classType;
+                if (idGet(classes, symbols.resolveId(typeName)) != null) {
+                    yield new TypeRef.ClassRef(typeName);
                 }
-                // Look up as enum type
-                EnumDefinition enumDef = idGet(enums, symbols.resolveId(typeName));
-                if (enumDef != null) {
-                    yield new PureEnumType(enumDef);
+                if (idGet(enums, symbols.resolveId(typeName)) != null) {
+                    yield new TypeRef.EnumRef(typeName);
                 }
                 throw new IllegalStateException("Unknown type: " + typeName);
             }

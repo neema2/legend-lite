@@ -161,7 +161,7 @@ public final class MappingResolver {
         // ^Class — create identity mapping from model context
         PureClass pc = modelContext.findClass(className).orElse(null);
         if (pc == null) return null;
-        return resolveClassMapping(RelationalMapping.identity(pc), className);
+        return resolveClassMapping(RelationalMapping.identity(pc, modelContext), className);
     }
 
     // ==================== ClassMapping → StoreResolution ====================
@@ -250,7 +250,7 @@ public final class MappingResolver {
                     boolean isScalarTraverse = true;
                     var targetClassOpt = modelContext.findClass(pcm.targetClassName());
                     if (targetClassOpt.isPresent()) {
-                        var propOpt = targetClassOpt.get().findProperty(prop);
+                        var propOpt = targetClassOpt.get().findProperty(prop, modelContext);
                         if (propOpt.isPresent()
                                 && propOpt.get().typeRef() instanceof com.gs.legend.model.m3.TypeRef.ClassRef) {
                             isScalarTraverse = false;
@@ -267,7 +267,7 @@ public final class MappingResolver {
                         // RawPerson.rawAddresses is [*])
                         boolean isToMany = srcJoin.isToMany();
                         if (targetClassOpt.isPresent()) {
-                            var propOpt = targetClassOpt.get().findProperty(prop);
+                            var propOpt = targetClassOpt.get().findProperty(prop, modelContext);
                             if (propOpt.isPresent()) {
                                 isToMany = !propOpt.get().multiplicity().isSingular();
                             }
@@ -567,7 +567,7 @@ public final class MappingResolver {
             if (modelContext.findClass(targetFqn).isEmpty()) continue;
 
             var elementClass = modelContext.findClass(targetFqn).get();
-            var identityMapping = RelationalMapping.identity(elementClass);
+            var identityMapping = RelationalMapping.identity(elementClass, modelContext);
             StoreResolution targetResolution = resolveClassMapping(identityMapping, targetFqn);
             joins.put(prop.name(), new StoreResolution.JoinResolution(
                     null, null, null, true, null, Set.of(), targetResolution));

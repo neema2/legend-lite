@@ -1120,7 +1120,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             if (lcaOpt.isPresent()) {
                 var lcaClass = lcaOpt.get();
                 var lcaCols = new java.util.LinkedHashMap<String, com.gs.legend.plan.GenericType>();
-                for (var prop : lcaClass.allProperties()) {
+                for (var prop : lcaClass.allProperties(env.modelContext())) {
                     lcaCols.put(prop.name(),
                             com.gs.legend.plan.GenericType.fromTypeRef(prop.typeRef()));
                 }

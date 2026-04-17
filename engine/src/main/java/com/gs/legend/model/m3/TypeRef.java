@@ -43,17 +43,4 @@ public sealed interface TypeRef permits TypeRef.PrimitiveRef, TypeRef.ClassRef, 
             Objects.requireNonNull(fqn, "EnumRef fqn cannot be null");
         }
     }
-
-    /**
-     * Derive a {@code TypeRef} from a resolved m3 {@link Type}. Used to back-populate
-     * {@link Property#typeRef()} from the legacy {@code genericType} field during the
-     * Phase A adapter window; will disappear at flag day.
-     */
-    static TypeRef of(Type type) {
-        return switch (type) {
-            case PrimitiveType pt -> new PrimitiveRef(pt.typeName());
-            case PureClass pc -> new ClassRef(pc.qualifiedName());
-            case PureEnumType et -> new EnumRef(et.qualifiedName());
-        };
-    }
 }

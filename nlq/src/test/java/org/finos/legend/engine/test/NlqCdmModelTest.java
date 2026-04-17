@@ -5,6 +5,7 @@ import org.finos.legend.engine.nlq.ModelSchemaExtractor;
 import com.gs.legend.model.def.EnumDefinition;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.m3.*;
+import com.gs.legend.model.SymbolTable;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -184,10 +185,11 @@ class NlqCdmModelTest {
     void testPropertyTypes() {
         int enumProps = 0, primitiveProps = 0, classProps = 0;
         for (PureClass pc : modelBuilder.getAllClasses().values()) {
-            for (Property p : pc.allProperties()) {
-                if (p.genericType() instanceof PureEnumType) enumProps++;
-                else if (p.genericType() instanceof PrimitiveType) primitiveProps++;
-                else if (p.genericType() instanceof PureClass) classProps++;
+            for (Property p : pc.allProperties(modelBuilder)) {
+                TypeRef tr = p.typeRef();
+                if (tr instanceof TypeRef.EnumRef) enumProps++;
+                else if (tr instanceof TypeRef.PrimitiveRef) primitiveProps++;
+                else if (tr instanceof TypeRef.ClassRef) classProps++;
             }
         }
         System.out.printf("Property types — primitive: %d, enum: %d, class: %d%n",
@@ -202,13 +204,14 @@ class NlqCdmModelTest {
     void testEnumTypedProperty() {
         PureClass ce = modelBuilder.getAllClasses().get("event::CreditEvent");
         assertNotNull(ce, "CreditEvent missing");
-        Property cet = ce.allProperties().stream()
+        Property cet = ce.allProperties(modelBuilder).stream()
                 .filter(p -> p.name().equals("creditEventType"))
                 .findFirst().orElse(null);
         assertNotNull(cet, "creditEventType property missing");
-        assertInstanceOf(PureEnumType.class, cet.genericType(),
-                "creditEventType should be PureEnumType, got: " + cet.genericType().getClass().getSimpleName());
-        assertEquals("CreditEventTypeEnum", cet.genericType().typeName());
+        assertInstanceOf(TypeRef.EnumRef.class, cet.typeRef(),
+                "creditEventType should be an EnumRef, got: " + cet.typeRef().getClass().getSimpleName());
+        // Simple name matches the pre-flag-day assertEquals("CreditEventTypeEnum", typeName()) exactly.
+        assertEquals("CreditEventTypeEnum", SymbolTable.extractSimpleName(cet.typeFqn()));
     }
 
     @Test

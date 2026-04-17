@@ -125,19 +125,19 @@ class PackageableElementBuilderTest {
         var employee = builder.getClass("model::Employee");
         assertNotNull(employee);
 
-        // Own property should be found
-        assertTrue(employee.findProperty("employeeId").isPresent());
-        assertEquals("employeeId", employee.findProperty("employeeId").get().name());
+        // Own property
+        assertTrue(employee.findProperty("employeeId", builder).isPresent());
+        assertEquals("employeeId", employee.findProperty("employeeId", builder).get().name());
 
-        // Inherited property should be found
-        assertTrue(employee.findProperty("firstName").isPresent());
-        assertEquals("firstName", employee.findProperty("firstName").get().name());
+        // Inherited property resolved via the superclass walker
+        assertTrue(employee.findProperty("firstName", builder).isPresent());
+        assertEquals("firstName", employee.findProperty("firstName", builder).get().name());
 
-        assertTrue(employee.findProperty("lastName").isPresent());
-        assertEquals("lastName", employee.findProperty("lastName").get().name());
+        assertTrue(employee.findProperty("lastName", builder).isPresent());
+        assertEquals("lastName", employee.findProperty("lastName", builder).get().name());
 
         // Non-existent property should not be found
-        assertFalse(employee.findProperty("nonExistent").isPresent());
+        assertFalse(employee.findProperty("nonExistent", builder).isPresent());
     }
 
     @Test
@@ -153,12 +153,12 @@ class PackageableElementBuilderTest {
         assertNotNull(employee);
 
         // Own property
-        assertTrue(employee.findProperty("employeeId").isPresent());
-        // Parent property (Person)
-        assertTrue(employee.findProperty("firstName").isPresent());
-        assertTrue(employee.findProperty("lastName").isPresent());
-        // Grandparent property (Entity)
-        assertTrue(employee.findProperty("id").isPresent());
+        assertTrue(employee.findProperty("employeeId", builder).isPresent());
+        // Parent property (Person) — one-hop walk via superclass chain
+        assertTrue(employee.findProperty("firstName", builder).isPresent());
+        assertTrue(employee.findProperty("lastName", builder).isPresent());
+        // Grandparent property (Entity) — two-hop walk via superclass chain
+        assertTrue(employee.findProperty("id", builder).isPresent());
     }
 
     @Test
@@ -172,7 +172,8 @@ class PackageableElementBuilderTest {
         var employee = builder.getClass("model::Employee");
         assertNotNull(employee);
 
-        var allProps = employee.allProperties();
+        // allProperties on PureClass walks the superclass chain via the ModelContext.
+        var allProps = employee.allProperties(builder);
         assertEquals(3, allProps.size());
 
         var propNames = allProps.stream().map(p -> p.name()).toList();
@@ -182,7 +183,7 @@ class PackageableElementBuilderTest {
     }
 
     @Test
-    void testSuperClassesResolved() {
+    void testSuperClassFqnsRecorded() {
         var builder = new com.gs.legend.model.PureModelBuilder();
         builder.addSource("""
                 Class model::Person { firstName: String[1]; }
@@ -192,9 +193,12 @@ class PackageableElementBuilderTest {
         var employee = builder.getClass("model::Employee");
         assertNotNull(employee);
 
-        // Verify superclass is resolved (not just a string)
-        assertEquals(1, employee.superClasses().size());
-        var superClass = employee.superClasses().get(0);
+        // Superclass is recorded as an FQN — resolution is lazy via ModelContext.findClass
+        assertEquals(1, employee.superClassFqns().size());
+        assertEquals("model::Person", employee.superClassFqns().get(0));
+
+        // Verify it resolves via the builder
+        var superClass = builder.findClass("model::Person").orElseThrow();
         assertEquals("model::Person", superClass.qualifiedName());
         assertEquals("Person", superClass.name());
     }

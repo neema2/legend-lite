@@ -2,7 +2,6 @@ package com.gs.legend.test;
 
 import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.model.PureModelBuilder;
-import com.gs.legend.model.m3.PrimitiveType;
 import com.gs.legend.model.m3.Property;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.mapping.RelationalMapping;
@@ -83,8 +82,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals(3, personClass.properties().size());
 
         // Verify property types
-        Property firstName = personClass.getProperty("firstName");
-        assertEquals(PrimitiveType.STRING, firstName.genericType());
+        Property firstName = personClass.getProperty("firstName", modelBuilder);
+        assertEquals("String", firstName.typeFqn());
     }
 
     // ==================== Pure Language Query Tests ====================
@@ -254,8 +253,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertEquals("Person", personClass.name());
         assertEquals(3, personClass.properties().size());
 
-        Property firstName = personClass.getProperty("firstName");
-        assertEquals(PrimitiveType.STRING, firstName.genericType());
+        Property firstName = personClass.getProperty("firstName", modelBuilder);
+        assertEquals("String", firstName.typeFqn());
         assertTrue(firstName.isRequired());
     }
 

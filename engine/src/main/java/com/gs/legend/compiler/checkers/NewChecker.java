@@ -36,7 +36,7 @@ public class NewChecker extends AbstractChecker {
         // Validate properties and compile value expressions
         for (var entry : data.properties().entrySet()) {
             String propName = entry.getKey();
-            var propOpt = pureClass.findProperty(propName);
+            var propOpt = pureClass.findProperty(propName, env.modelContext());
             if (propOpt.isEmpty()) {
                 throw new PureCompileException(
                         "Struct literal: property '" + propName + "' not found in class '"
@@ -64,10 +64,10 @@ public class NewChecker extends AbstractChecker {
                     SymbolTable.extractPackagePath(data.className()),
                     "Pair", java.util.List.of(
                             new com.gs.legend.model.m3.Property("first",
-                                    com.gs.legend.model.m3.PrimitiveType.fromName(firstType.typeName()),
+                                    new com.gs.legend.model.m3.TypeRef.PrimitiveRef(firstType.typeName()),
                                     new com.gs.legend.model.m3.Multiplicity(1, 1)),
                             new com.gs.legend.model.m3.Property("second",
-                                    com.gs.legend.model.m3.PrimitiveType.fromName(secondType.typeName()),
+                                    new com.gs.legend.model.m3.TypeRef.PrimitiveRef(secondType.typeName()),
                                     new com.gs.legend.model.m3.Multiplicity(1, 1))));
         }
 

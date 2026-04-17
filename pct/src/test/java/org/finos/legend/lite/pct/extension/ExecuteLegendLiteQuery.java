@@ -502,9 +502,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 }
             }
 
-            com.gs.legend.model.m3.Type propType;
+            com.gs.legend.model.m3.TypeRef propTypeRef;
             try {
-                propType = PrimitiveType.fromName(typeName);
+                // Validate that it's a known primitive; the PrimitiveType.fromName call
+                // throws if not. We don't retain the resolved Type — just build a
+                // lightweight PrimitiveRef TypeRef with the same FQN.
+                PrimitiveType.fromName(typeName);
+                propTypeRef = new com.gs.legend.model.m3.TypeRef.PrimitiveRef(typeName);
             } catch (IllegalArgumentException e) {
                 if (rawType != null) {
                     String qualifiedTypeName = getQualifiedName(rawType);
@@ -513,7 +517,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                         extractClassRecursive(qualifiedTypeName, classes, visited, ps);
                         PureClass referenced = classes.get(qualifiedTypeName);
                         if (referenced != null) {
-                            propType = referenced;
+                            propTypeRef = new com.gs.legend.model.m3.TypeRef.ClassRef(referenced.qualifiedName());
                         } else {
                             continue;
                         }
@@ -524,7 +528,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     continue;
                 }
             }
-            properties.add(new Property(propName, propType, multiplicity));
+            properties.add(new Property(propName, propTypeRef, multiplicity));
         }
 
         String qualifiedName = getQualifiedName(cls);

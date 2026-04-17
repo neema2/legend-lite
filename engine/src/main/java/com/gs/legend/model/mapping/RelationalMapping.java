@@ -151,8 +151,9 @@ public record RelationalMapping(
      * @return The GenericType for this property
      * @throws IllegalArgumentException if property not found in Pure class
      */
-    public com.gs.legend.plan.GenericType pureTypeForProperty(String propertyName) {
-        return pureClass.findProperty(propertyName)
+    public com.gs.legend.plan.GenericType pureTypeForProperty(String propertyName,
+            com.gs.legend.model.ModelContext ctx) {
+        return pureClass.findProperty(propertyName, ctx)
                 .map(p -> com.gs.legend.plan.GenericType.fromTypeRef(p.typeRef()))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Property '" + propertyName + "' not found in class " + pureClass.name()));
@@ -170,11 +171,11 @@ public record RelationalMapping(
      * @param pureClass The Pure class to create an identity mapping for
      * @return A RelationalMapping with a synthetic Table and identity PropertyMappings
      */
-    public static RelationalMapping identity(PureClass pureClass) {
+    public static RelationalMapping identity(PureClass pureClass, com.gs.legend.model.ModelContext ctx) {
         var columns = new java.util.ArrayList<Column>();
         var mappings = new java.util.ArrayList<PropertyMapping>();
 
-        for (var prop : pureClass.allProperties()) {
+        for (var prop : pureClass.allProperties(ctx)) {
             // Map ALL properties — for struct literals, every property is a physical column,
             // including collections (arrays needing UNNEST) and class-typed (nested structs).
             SqlDataType sqlType;
@@ -208,7 +209,8 @@ public record RelationalMapping(
      * @param sourceUrl The data URL (data: URI, file:, or http:)
      * @return A RelationalMapping with expression-access PropertyMappings and sourceUrl
      */
-    public static RelationalMapping variantIdentity(PureClass pureClass, String sourceUrl) {
+    public static RelationalMapping variantIdentity(PureClass pureClass, String sourceUrl,
+            com.gs.legend.model.ModelContext ctx) {
         var columns = java.util.List.of(Column.nullable("data", SqlDataType.SEMISTRUCTURED));
         // Internal table name — not registered, only used for mapping structure
         String simpleName = pureClass.name();
@@ -216,7 +218,7 @@ public record RelationalMapping(
         var table = new Table("__json__", internalName, columns);
 
         var mappings = new java.util.ArrayList<PropertyMapping>();
-        for (var prop : pureClass.allProperties()) {
+        for (var prop : pureClass.allProperties(ctx)) {
             String pureType = null;
             if (prop.typeRef() instanceof com.gs.legend.model.m3.TypeRef.PrimitiveRef pr) {
                 pureType = pr.fqn();
@@ -267,8 +269,8 @@ public record RelationalMapping(
     }
 
     @Override
-    public GenericType typeForProperty(String propertyName) {
-        return pureTypeForProperty(propertyName);
+    public GenericType typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
+        return pureTypeForProperty(propertyName, ctx);
     }
 
     @Override

@@ -45,12 +45,14 @@ public sealed interface ClassMapping permits RelationalMapping, PureClassMapping
     ValueSpecification expressionForProperty(String propertyName);
 
     /**
-     * Gets the type of a property.
+     * Gets the type of a property, walking the class's inheritance chain via the supplied
+     * {@link com.gs.legend.model.ModelContext} to resolve inherited properties lazily.
      *
      * @param propertyName The Pure property name
+     * @param ctx          Model context for inheritance-aware lookup
      * @return The GenericType for this property
      */
-    GenericType typeForProperty(String propertyName);
+    GenericType typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx);
 
     /**
      * Whether this mapping has an expression for the given property.

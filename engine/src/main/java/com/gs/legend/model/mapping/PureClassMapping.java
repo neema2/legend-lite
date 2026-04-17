@@ -98,9 +98,9 @@ public record PureClassMapping(
     }
 
     @Override
-    public GenericType typeForProperty(String propertyName) {
+    public GenericType typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
         if (targetClass != null) {
-            var propOpt = targetClass.findProperty(propertyName);
+            var propOpt = targetClass.findProperty(propertyName, ctx);
             if (propOpt.isPresent()) {
                 return GenericType.fromTypeRef(propOpt.get().typeRef());
             }

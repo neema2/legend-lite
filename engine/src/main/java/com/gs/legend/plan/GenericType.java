@@ -153,7 +153,7 @@ public sealed interface GenericType
                 case "Variant" -> JSON;
                 case "Any" -> ANY;
                 default -> throw new IllegalArgumentException(
-                        "Unknown primitive type: '" + simpleName + "'. Use GenericType.fromType() for class/enum types.");
+                        "Unknown primitive type: '" + simpleName + "'. Use GenericType.fromTypeRef(TypeRef) for class/enum types.");
             };
         }
     }
@@ -473,18 +473,6 @@ public sealed interface GenericType
         };
     }
 
-
-    /**
-     * Converts a Pure m3 Type to a GenericType, preserving class/enum identity.
-     * This is the preferred conversion — avoids the lossy string path through fromTypeName.
-     */
-    static GenericType fromType(com.gs.legend.model.m3.Type type) {
-        return switch (type) {
-            case com.gs.legend.model.m3.PrimitiveType pt -> Primitive.fromTypeName(pt.typeName());
-            case com.gs.legend.model.m3.PureClass pc -> new ClassType(pc.qualifiedName());
-            case com.gs.legend.model.m3.PureEnumType et -> new EnumType(et.qualifiedName());
-        };
-    }
 
     /**
      * Converts a {@link com.gs.legend.model.m3.TypeRef} (the FQN + kind pair that replaces

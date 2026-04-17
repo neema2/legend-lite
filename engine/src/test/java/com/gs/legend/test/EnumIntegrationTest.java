@@ -166,12 +166,13 @@ class EnumIntegrationTest {
 
             // AND: The class has the expected properties
             var orderClass = builder.getClass("model::Order");
-            assertNotNull(orderClass.getProperty("status"));
-            assertNotNull(orderClass.getProperty("orderId"));
+            assertNotNull(orderClass.findProperty("status", builder).orElse(null));
+            assertNotNull(orderClass.findProperty("orderId", builder).orElse(null));
 
-            // AND: The status property has enum type
-            assertEquals("OrderStatus", orderClass.getProperty("status").genericType().typeName());
-            assertNotNull(orderClass.getProperty("amount"));
+            // AND: The status property has enum type — typeFqn is the canonical FQN
+            // (the enum was declared as `Enum model::OrderStatus`, so FQN == "model::OrderStatus")
+            assertEquals("model::OrderStatus", orderClass.getProperty("status", builder).typeFqn());
+            assertNotNull(orderClass.findProperty("amount", builder).orElse(null));
         }
 
         @Test

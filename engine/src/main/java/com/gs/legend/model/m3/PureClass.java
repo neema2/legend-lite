@@ -9,28 +9,30 @@ import java.util.*;
  * Represents a user-defined Class in the Pure type system.
  * A class is a composite type consisting of named properties.
  *
- * This is named PureClass to avoid collision with java.lang.Class.
+ * <p>This is named PureClass to avoid collision with java.lang.Class.
+ *
+ * <p>Phase A of the Bazel cross-project dependency work replaced the resolved
+ * {@code List<PureClass> superClasses} field with {@code List<String> superClassFqns}
+ * so cross-project superclass references don't force their targets to load eagerly.
+ * See {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2. Inheritance-aware property lookup
+ * ({@link #findProperty}, {@link #allProperties}) takes a {@link com.gs.legend.model.ModelContext}
+ * so the superclass chain can be walked via {@code ctx.findClass} lazily.
+ * {@link #findLocalProperty} remains as a context-free local-only primitive.
  *
  * @param packagePath     The package path (e.g., "model::domain")
  * @param name            The class name (e.g., "Person")
- * @param superClasses    List of superclasses (resolved references)
+ * @param superClassFqns  Fully qualified names of superclasses (canonical form)
  * @param properties      Immutable list of properties belonging to this class
  * @param stereotypes     Stereotype annotations on this class (e.g., nlq.rootEntity)
  * @param taggedValues    Tagged value annotations on this class (e.g., nlq.description)
- * @param superClassFqns  Fully qualified names of superclasses (derived from {@code superClasses} if null).
- *                        Phase A of the Bazel cross-project dependency work introduces this as the
- *                        canonical superclass reference; see {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2.
- *                        Consumers should use {@link #findProperty(String, ClassLookup)} and
- *                        {@link #allProperties(ClassLookup)} overloads to walk the chain via FQN lookup.
  */
 public record PureClass(
         String packagePath,
         String name,
-        List<PureClass> superClasses,
+        List<String> superClassFqns,
         List<Property> properties,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues,
-        List<String> superClassFqns) implements Type {
+        List<TaggedValue> taggedValues) implements Type {
 
     public PureClass {
         Objects.requireNonNull(packagePath, "Package path cannot be null");
@@ -42,32 +44,17 @@ public record PureClass(
         }
 
         // Ensure immutability
-        superClasses = superClasses == null ? List.of() : List.copyOf(superClasses);
+        superClassFqns = superClassFqns == null ? List.of() : List.copyOf(superClassFqns);
         properties = List.copyOf(properties);
         stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
-
-        // Derive superClassFqns from superClasses when not supplied explicitly.
-        if (superClassFqns == null) {
-            superClassFqns = superClasses.stream().map(PureClass::qualifiedName).toList();
-        } else {
-            superClassFqns = List.copyOf(superClassFqns);
-        }
     }
 
     /**
-     * Constructor matching the pre-superClassFqns record shape; derives FQNs from superClasses.
+     * Convenience constructor — no annotations (stereotypes/taggedValues default to empty).
      */
-    public PureClass(String packagePath, String name, List<PureClass> superClasses, List<Property> properties,
-                     List<StereotypeApplication> stereotypes, List<TaggedValue> taggedValues) {
-        this(packagePath, name, superClasses, properties, stereotypes, taggedValues, null);
-    }
-
-    /**
-     * Constructor for backwards compatibility (no annotations).
-     */
-    public PureClass(String packagePath, String name, List<PureClass> superClasses, List<Property> properties) {
-        this(packagePath, name, superClasses, properties, List.of(), List.of(), null);
+    public PureClass(String packagePath, String name, List<String> superClassFqns, List<Property> properties) {
+        this(packagePath, name, superClassFqns, properties, List.of(), List.of());
     }
 
     /**
@@ -124,224 +111,106 @@ public record PureClass(
     }
 
     /**
-     * Finds a property by name, searching this class and then all superclasses.
-     * Uses depth-first traversal of the inheritance hierarchy.
-     * 
-     * @param propertyName The name to search for
-     * @return Optional containing the property if found
-     */
-    public Optional<Property> findProperty(String propertyName) {
-        // First search local properties
-        Optional<Property> local = properties.stream()
-                .filter(p -> p.name().equals(propertyName))
-                .findFirst();
-        if (local.isPresent()) {
-            return local;
-        }
-
-        // Then search superclasses (depth-first)
-        Set<String> visited = new HashSet<>();
-        return findPropertyInSuperclasses(propertyName, visited);
-    }
-
-    /**
-     * FQN-based property lookup; walks the superclass chain via {@link ClassLookup} rather than
-     * resolved {@link PureClass} references. Preferred over {@link #findProperty(String)} once
-     * the calling site has a model context available.
+     * O(n) lookup of a LOCAL property by name. Does not walk the superclass chain.
      *
-     * <p>Introduced in Phase A of the Bazel cross-project dependency work; see
-     * {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2.
+     * <p>For inheritance-aware lookup, callers should use
+     * {@code ModelContext.findProperty(PureClass, String)} which walks the chain via
+     * {@code findClass}. This method exists as a pure-data primitive used by that walker
+     * internally and by code that genuinely wants local-only semantics.
+     *
+     * <p>Scan is a simple loop — typical class has 5-30 properties, making this
+     * effectively free. If profiling ever shows it as a hotspot, swap the implementation;
+     * the method signature stays the same.
      */
-    public Optional<Property> findProperty(String propertyName, ClassLookup lookup) {
-        // First search local properties
-        Optional<Property> local = properties.stream()
-                .filter(p -> p.name().equals(propertyName))
-                .findFirst();
-        if (local.isPresent()) {
-            return local;
-        }
-
-        Set<String> visited = new HashSet<>();
-        return findPropertyViaFqns(propertyName, visited, lookup);
-    }
-
-    /**
-     * Helper method for recursive property search through inheritance chain.
-     * Tracks visited classes to avoid infinite loops with diamond inheritance.
-     */
-    private Optional<Property> findPropertyInSuperclasses(String propertyName, Set<String> visited) {
-        for (PureClass superClass : superClasses) {
-            String superQualifiedName = superClass.qualifiedName();
-            if (visited.contains(superQualifiedName)) {
-                continue; // Already visited, skip to prevent cycles
-            }
-            visited.add(superQualifiedName);
-
-            // Check super's local properties first
-            Optional<Property> found = superClass.properties().stream()
-                    .filter(p -> p.name().equals(propertyName))
-                    .findFirst();
-            if (found.isPresent()) {
-                return found;
-            }
-
-            // Recursively search super's superclasses
-            found = superClass.findPropertyInSuperclasses(propertyName, visited);
-            if (found.isPresent()) {
-                return found;
-            }
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * FQN-based recursive property search. Mirrors {@link #findPropertyInSuperclasses} but
-     * looks up superclasses via {@link ClassLookup} instead of the resolved {@code superClasses}
-     * field.
-     */
-    private Optional<Property> findPropertyViaFqns(String propertyName, Set<String> visited, ClassLookup lookup) {
-        for (String fqn : superClassFqns) {
-            if (!visited.add(fqn)) {
-                continue; // cycle guard
-            }
-            Optional<PureClass> superOpt = lookup.find(fqn);
-            if (superOpt.isEmpty()) {
-                continue;
-            }
-            PureClass superClass = superOpt.get();
-
-            // Check super's local properties first
-            Optional<Property> found = superClass.properties().stream()
-                    .filter(p -> p.name().equals(propertyName))
-                    .findFirst();
-            if (found.isPresent()) {
-                return found;
-            }
-
-            // Recurse via FQN lookup
-            found = superClass.findPropertyViaFqns(propertyName, visited, lookup);
-            if (found.isPresent()) {
-                return found;
-            }
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * Returns all properties including inherited ones.
-     * Local properties have precedence over inherited ones if there are name
-     * conflicts.
-     * 
-     * @return List of all properties (local + inherited)
-     */
-    public List<Property> allProperties() {
-        if (superClasses.isEmpty()) {
-            return properties;
-        }
-
-        // Collect inherited properties, giving precedence to local ones
-        Set<String> localPropertyNames = new HashSet<>();
+    public Optional<Property> findLocalProperty(String propertyName) {
         for (Property p : properties) {
-            localPropertyNames.add(p.name());
+            if (p.name().equals(propertyName)) {
+                return Optional.of(p);
+            }
         }
-
-        java.util.List<Property> result = new java.util.ArrayList<>(properties);
-        Set<String> visited = new HashSet<>();
-        collectInheritedProperties(result, localPropertyNames, visited);
-
-        return List.copyOf(result);
+        return Optional.empty();
     }
 
     /**
-     * FQN-based variant of {@link #allProperties()}; walks the superclass chain via
-     * {@link ClassLookup}. Introduced in Phase A of the Bazel cross-project dependency work;
-     * see {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2.
+     * Inheritance-aware property lookup. Walks the superclass chain via
+     * {@code ctx.findClass(fqn)} with cycle detection. Local properties take precedence
+     * over inherited ones.
+     *
+     * <p>This is the canonical way to look up properties; use {@link #findLocalProperty}
+     * only when explicitly skipping the inheritance walk.
      */
-    public List<Property> allProperties(ClassLookup lookup) {
+    public Optional<Property> findProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
+        Optional<Property> local = findLocalProperty(propertyName);
+        if (local.isPresent()) return local;
+        return findPropertyInSuperclasses(propertyName, ctx, new HashSet<>());
+    }
+
+    private Optional<Property> findPropertyInSuperclasses(String propertyName,
+            com.gs.legend.model.ModelContext ctx, Set<String> visited) {
+        for (String fqn : superClassFqns) {
+            if (!visited.add(fqn)) continue; // cycle guard
+            Optional<PureClass> superOpt = ctx.findClass(fqn);
+            if (superOpt.isEmpty()) continue;
+            PureClass superClass = superOpt.get();
+            Optional<Property> found = superClass.findLocalProperty(propertyName);
+            if (found.isPresent()) return found;
+            found = superClass.findPropertyInSuperclasses(propertyName, ctx, visited);
+            if (found.isPresent()) return found;
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Inheritance-aware getter that throws if the property is not found. Equivalent to
+     * {@code findProperty(name, ctx).orElseThrow(...)}.
+     */
+    public Property getProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
+        return findProperty(propertyName, ctx)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Property '" + propertyName + "' not found in class " + qualifiedName()));
+    }
+
+    /**
+     * All properties of this class including inherited ones, walking the superclass chain
+     * via {@code ctx.findClass}. Local properties take precedence over inherited properties
+     * with the same name. Preserves declaration order: local properties first, then inherited.
+     */
+    public List<Property> allProperties(com.gs.legend.model.ModelContext ctx) {
         if (superClassFqns.isEmpty()) {
             return properties;
         }
-
         Set<String> collectedNames = new HashSet<>();
         for (Property p : properties) {
             collectedNames.add(p.name());
         }
-
-        java.util.List<Property> result = new java.util.ArrayList<>(properties);
-        Set<String> visited = new HashSet<>();
-        collectInheritedPropertiesViaFqns(result, collectedNames, visited, lookup);
-
+        List<Property> result = new java.util.ArrayList<>(properties);
+        collectInheritedProperties(ctx, result, collectedNames, new HashSet<>());
         return List.copyOf(result);
     }
 
-    private void collectInheritedProperties(java.util.List<Property> result,
-            Set<String> collectedNames, Set<String> visitedClasses) {
-        for (PureClass superClass : superClasses) {
-            String superQualifiedName = superClass.qualifiedName();
-            if (visitedClasses.contains(superQualifiedName)) {
-                continue;
-            }
-            visitedClasses.add(superQualifiedName);
-
-            for (Property prop : superClass.properties()) {
-                if (!collectedNames.contains(prop.name())) {
-                    result.add(prop);
-                    collectedNames.add(prop.name());
-                }
-            }
-
-            // Recursively collect from super's superclasses
-            superClass.collectInheritedProperties(result, collectedNames, visitedClasses);
-        }
-    }
-
-    /**
-     * FQN-based recursive property collection. Mirrors {@link #collectInheritedProperties} but
-     * looks up superclasses via {@link ClassLookup}.
-     */
-    private void collectInheritedPropertiesViaFqns(java.util.List<Property> result,
-            Set<String> collectedNames, Set<String> visitedClasses, ClassLookup lookup) {
+    private void collectInheritedProperties(com.gs.legend.model.ModelContext ctx,
+            List<Property> result, Set<String> collectedNames, Set<String> visited) {
         for (String fqn : superClassFqns) {
-            if (!visitedClasses.add(fqn)) {
-                continue; // cycle guard
-            }
-            Optional<PureClass> superOpt = lookup.find(fqn);
-            if (superOpt.isEmpty()) {
-                continue;
-            }
+            if (!visited.add(fqn)) continue; // cycle guard
+            Optional<PureClass> superOpt = ctx.findClass(fqn);
+            if (superOpt.isEmpty()) continue;
             PureClass superClass = superOpt.get();
-
             for (Property prop : superClass.properties()) {
-                if (!collectedNames.contains(prop.name())) {
+                if (collectedNames.add(prop.name())) {
                     result.add(prop);
-                    collectedNames.add(prop.name());
                 }
             }
-
-            superClass.collectInheritedPropertiesViaFqns(result, collectedNames, visitedClasses, lookup);
+            superClass.collectInheritedProperties(ctx, result, collectedNames, visited);
         }
-    }
-
-    /**
-     * @param propertyName The property name to look up
-     * @return The property
-     * @throws IllegalArgumentException if property not found
-     */
-    public Property getProperty(String propertyName) {
-        return findProperty(propertyName)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Property '" + propertyName + "' not found in class " + qualifiedName()));
     }
 
     @Override
     public String toString() {
         var sb = new StringBuilder();
         sb.append("Class ").append(qualifiedName());
-        if (!superClasses.isEmpty()) {
+        if (!superClassFqns.isEmpty()) {
             sb.append(" extends ");
-            sb.append(String.join(", ", superClasses.stream()
-                    .map(PureClass::qualifiedName)
-                    .toList()));
+            sb.append(String.join(", ", superClassFqns));
         }
         sb.append(" {\n");
         for (Property prop : properties) {

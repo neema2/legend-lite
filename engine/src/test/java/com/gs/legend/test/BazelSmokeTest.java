@@ -58,7 +58,7 @@ class BazelSmokeTest {
 
         // --- cross-project refs: class-typed property resolves to refdata FQN ---
         var trade = builder.getClass("trading::Trade");
-        var sectorProp = trade.findProperty("sector");
+        var sectorProp = trade.findProperty("sector", builder);
         assertTrue(sectorProp.isPresent(), "trading::Trade.sector property must exist");
         assertTrue(sectorProp.get().typeRef() instanceof com.gs.legend.model.m3.TypeRef.ClassRef,
                 "trading::Trade.sector must be a ClassRef (not a primitive or enum)");
@@ -66,7 +66,7 @@ class BazelSmokeTest {
                 "trading::Trade.sector must resolve to refdata::Sector (cross-project)");
 
         // --- cross-project refs: enum-typed property (kind preserved as EnumRef) ---
-        var ratingProp = trade.findProperty("rating");
+        var ratingProp = trade.findProperty("rating", builder);
         assertTrue(ratingProp.isPresent(), "trading::Trade.rating property must exist");
         assertTrue(ratingProp.get().typeRef() instanceof com.gs.legend.model.m3.TypeRef.EnumRef,
                 "trading::Trade.rating must be an EnumRef (enum-vs-class distinction preserved)");
@@ -81,7 +81,8 @@ class BazelSmokeTest {
                 "trading::InternalTrade superclass must resolve to refdata::Categorized");
 
         // --- cross-project refs: inherited property reachable through superclass chain ---
-        var categoryInherited = internalTrade.findProperty("category");
+        // PureClass.findProperty walks the superclass chain via ctx.findClass.
+        var categoryInherited = internalTrade.findProperty("category", builder);
         assertTrue(categoryInherited.isPresent(),
                 "trading::InternalTrade.category (inherited from refdata::Categorized) must be reachable");
     }

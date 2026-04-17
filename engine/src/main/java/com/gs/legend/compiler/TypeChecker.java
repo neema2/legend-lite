@@ -718,7 +718,7 @@ public class TypeChecker implements TypeCheckEnv {
             var pureClass = modelContext.findClass(qn).orElse(null);
             if (pureClass != null) {
                 for (var entry : data.properties().entrySet()) {
-                    var propOpt = pureClass.findProperty(entry.getKey());
+                    var propOpt = pureClass.findProperty(entry.getKey(), modelContext);
                     if (propOpt.isPresent() && propOpt.get().isCollection()
                             && !(entry.getValue() instanceof PureCollection)) {
                         GenericType propType = GenericType.fromTypeRef(propOpt.get().typeRef());
@@ -850,7 +850,7 @@ public class TypeChecker implements TypeCheckEnv {
             if (paramType instanceof GenericType.ClassType(String qualifiedName) && modelContext != null) {
                 var classOpt = modelContext.findClass(qualifiedName);
                 if (classOpt.isPresent()) {
-                    var propOpt = classOpt.get().findProperty(ap.property());
+                    var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
                     if (propOpt.isPresent()) {
                         classPropertyAccesses.computeIfAbsent(qualifiedName, k -> new HashSet<>()).add(ap.property());
                         GenericType fieldType = GenericType.fromTypeRef(propOpt.get().typeRef());
@@ -966,7 +966,7 @@ public class TypeChecker implements TypeCheckEnv {
                 if (className != null) {
                     var classOpt = modelContext.findClass(className);
                     if (classOpt.isPresent()) {
-                        var propOpt = classOpt.get().findProperty(ap.property());
+                        var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
                         if (propOpt.isPresent()) {
                             GenericType fieldType = GenericType.fromTypeRef(propOpt.get().typeRef());
                             List<String> assocPath = collectPropertyChain(ap);
@@ -1025,7 +1025,7 @@ public class TypeChecker implements TypeCheckEnv {
         if (srcInfo != null && srcInfo.type() instanceof GenericType.ClassType(String qn) && modelContext != null) {
             var classOpt = modelContext.findClass(qn);
             if (classOpt.isPresent()) {
-                var propOpt = classOpt.get().findProperty(ap.property());
+                var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
                 if (propOpt.isPresent()) {
                     fieldType = GenericType.fromTypeRef(propOpt.get().typeRef());
                 }

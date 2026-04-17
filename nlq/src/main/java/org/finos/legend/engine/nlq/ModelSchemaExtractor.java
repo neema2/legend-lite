@@ -1,5 +1,6 @@
 package org.finos.legend.engine.nlq;
 
+import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.Property;
@@ -90,17 +91,19 @@ public class ModelSchemaExtractor {
         // Build the schema text
         StringBuilder sb = new StringBuilder();
 
+        ModelContext ctx = modelBuilder;
+
         // Primary classes with full detail
         sb.append("=== Classes (full detail) ===\n\n");
         for (PureClass pc : primaryClasses.values()) {
-            appendClassFull(sb, pc);
+            appendClassFull(sb, pc, ctx);
         }
 
         // Neighbor classes with reduced detail
         if (!neighborClasses.isEmpty()) {
             sb.append("=== Related Classes (summary) ===\n\n");
             for (PureClass pc : neighborClasses.values()) {
-                appendClassSummary(sb, pc);
+                appendClassSummary(sb, pc, ctx);
             }
         }
 
@@ -170,9 +173,10 @@ public class ModelSchemaExtractor {
 
         // Build schema text
         StringBuilder sb = new StringBuilder();
+        ModelContext ctx = modelBuilder;
         sb.append("=== Classes ===\n\n");
         for (PureClass pc : primaryClasses.values()) {
-            appendClassFull(sb, pc);
+            appendClassFull(sb, pc, ctx);
             List<String> targets = assocTargets.get(pc.qualifiedName());
             if (targets != null && !targets.isEmpty()) {
                 // Deduplicate and sort
@@ -192,7 +196,7 @@ public class ModelSchemaExtractor {
 
     // ==================== Formatting ====================
 
-    private static void appendClassFull(StringBuilder sb, PureClass pc) {
+    private static void appendClassFull(StringBuilder sb, PureClass pc, ModelContext ctx) {
         sb.append("Class ").append(pc.qualifiedName());
 
         // Stereotypes
@@ -233,9 +237,9 @@ public class ModelSchemaExtractor {
 
         // Properties
         sb.append("  Properties:\n");
-        for (Property prop : pc.allProperties()) {
+        for (Property prop : pc.allProperties(ctx)) {
             sb.append("    - ").append(prop.name())
-              .append(": ").append(prop.genericType().typeName())
+              .append(": ").append(prop.typeFqn())
               .append(prop.multiplicity());
 
             String propDesc = prop.getTagValue("nlq::NlqProfile", "description");
@@ -258,7 +262,7 @@ public class ModelSchemaExtractor {
         sb.append("\n");
     }
 
-    private static void appendClassSummary(StringBuilder sb, PureClass pc) {
+    private static void appendClassSummary(StringBuilder sb, PureClass pc, ModelContext ctx) {
         sb.append("Class ").append(pc.qualifiedName());
 
         String desc = pc.getTagValue("nlq::NlqProfile", "description");
@@ -267,7 +271,7 @@ public class ModelSchemaExtractor {
             sb.append(" — ").append(desc);
         }
 
-        sb.append(" (").append(pc.allProperties().size()).append(" properties)\n");
+        sb.append(" (").append(pc.allProperties(ctx).size()).append(" properties)\n");
     }
 
     private static void appendAssociation(StringBuilder sb, Association assoc) {
