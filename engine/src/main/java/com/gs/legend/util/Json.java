@@ -817,23 +817,54 @@ public final class Json {
         }
 
         Num parseNumber() {
+            // RFC 8259 §6 grammar:
+            //   number = [ "-" ] int [ frac ] [ exp ]
+            //   int    = "0" / ( digit1-9 *DIGIT )             -- no leading zeros
+            //   frac   = "." 1*DIGIT                            -- requires digits after "."
+            //   exp    = ("e"|"E") [ "+"|"-" ] 1*DIGIT          -- requires digits after "e"
             int start = pos;
             if (peek() == '-') pos++;
-            while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
+
+            // Integer part: "0" or digit1-9 followed by any digits.
+            if (pos >= src.length()) throw error("Invalid number: expected digit");
+            char first = src.charAt(pos);
+            if (first == '0') {
+                pos++;
+                // After leading zero, next character cannot be another digit.
+                if (pos < src.length() && Character.isDigit(src.charAt(pos))) {
+                    throw error("Leading zeros are not permitted in JSON numbers");
+                }
+            } else if (first >= '1' && first <= '9') {
+                pos++;
+                while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
+            } else {
+                throw error("Invalid number: expected digit, got '" + first + "'");
+            }
+
             boolean isFloat = false;
+
+            // Optional fraction.
             if (pos < src.length() && src.charAt(pos) == '.') {
                 isFloat = true;
                 pos++;
+                if (pos >= src.length() || !Character.isDigit(src.charAt(pos))) {
+                    throw error("Number fraction requires at least one digit after '.'");
+                }
                 while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
             }
+
+            // Optional exponent.
             if (pos < src.length() && (src.charAt(pos) == 'e' || src.charAt(pos) == 'E')) {
                 isFloat = true;
                 pos++;
                 if (pos < src.length() && (src.charAt(pos) == '+' || src.charAt(pos) == '-')) pos++;
+                if (pos >= src.length() || !Character.isDigit(src.charAt(pos))) {
+                    throw error("Number exponent requires at least one digit");
+                }
                 while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
             }
+
             String num = src.substring(start, pos);
-            if (num.isEmpty() || num.equals("-")) throw error("Invalid number");
             if (isFloat) return Num.ofDouble(Double.parseDouble(num));
             return Num.ofLong(Long.parseLong(num));
         }
