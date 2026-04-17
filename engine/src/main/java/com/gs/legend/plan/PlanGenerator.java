@@ -36,20 +36,45 @@ import java.util.stream.Collectors;
  */
 public class PlanGenerator {
 
+    /**
+     * How a Graph-shaped result (graphFetch / bare ClassType) should be emitted.
+     *
+     * <ul>
+     *   <li>{@link #SNAPSHOT}: DB aggregates all rows into a single JSON array via
+     *       outer {@code json_group_array(json_object(...))} — one JDBC row, one
+     *       JSON string. Today's behaviour; correct for callers that materialize.</li>
+     *   <li>{@link #STREAMING}: DB emits one {@code json_object(...)} per row — N
+     *       JDBC rows, one JSON object each. The engine can byte-passthrough each
+     *       row to the output as it arrives, keeping Java memory at O(one row).</li>
+     * </ul>
+     *
+     * <p>For non-Graph plans (Tabular / Scalar / Collection) the mode has no
+     * effect — their SQL is identical in both modes.
+     */
+    public enum Mode { SNAPSHOT, STREAMING }
+
     private final TypeCheckResult unit;
     private final SQLDialect dialect;
     private final java.util.IdentityHashMap<com.gs.legend.ast.ValueSpecification, com.gs.legend.compiler.StoreResolution> storeResolutions;
+    private final Mode mode;
     private int tableAliasCounter = 0;
 
     public PlanGenerator(TypeCheckResult unit, SQLDialect dialect) {
-        this(unit, dialect, new java.util.IdentityHashMap<>());
+        this(unit, dialect, new java.util.IdentityHashMap<>(), Mode.SNAPSHOT);
     }
 
     public PlanGenerator(TypeCheckResult unit, SQLDialect dialect,
             java.util.IdentityHashMap<com.gs.legend.ast.ValueSpecification, com.gs.legend.compiler.StoreResolution> storeResolutions) {
+        this(unit, dialect, storeResolutions, Mode.SNAPSHOT);
+    }
+
+    public PlanGenerator(TypeCheckResult unit, SQLDialect dialect,
+            java.util.IdentityHashMap<com.gs.legend.ast.ValueSpecification, com.gs.legend.compiler.StoreResolution> storeResolutions,
+            Mode mode) {
         this.unit = unit;
         this.dialect = dialect;
         this.storeResolutions = storeResolutions;
+        this.mode = mode;
     }
 
     /**
@@ -65,6 +90,18 @@ public class PlanGenerator {
     public static SingleExecutionPlan generate(
             com.gs.legend.model.PureModelBuilder model,
             String query, String runtimeName) {
+        return generate(model, query, runtimeName, Mode.SNAPSHOT);
+    }
+
+    /**
+     * Mode-aware overload. Pass {@link Mode#STREAMING} when the caller intends to
+     * byte-passthrough per-row JSON to an output sink (see {@code QueryService.stream}),
+     * so Graph plans produce flat {@code json_object}-per-row SQL instead of a
+     * DB-side aggregated single row.
+     */
+    public static SingleExecutionPlan generate(
+            com.gs.legend.model.PureModelBuilder model,
+            String query, String runtimeName, Mode mode) {
         SQLDialect dialect = model.resolveDialect(runtimeName);
         var mappingNames = model.resolveMappingNames(runtimeName);
         var normalizer = new com.gs.legend.compiler.MappingNormalizer(model, mappingNames);
@@ -74,7 +111,7 @@ public class PlanGenerator {
 
         var storeResolutions = new com.gs.legend.compiler.MappingResolver(
                 unit, normalizer.normalizedMapping(), model).resolve();
-        return new PlanGenerator(unit, dialect, storeResolutions).generate();
+        return new PlanGenerator(unit, dialect, storeResolutions, mode).generate();
     }
 
     /**
@@ -143,9 +180,17 @@ public class PlanGenerator {
     /**
      * Wraps a tabular SQL builder in JSON output.
      *
-     * <p>Generates:
+     * <p>Snapshot mode generates:
      * <pre>
-     * SELECT json_group_array(json_object('p1', _sub."p1", ...)) AS result
+     * SELECT json_group_array(json_object('p1', _sub."p1", ...)) AS "result"
+     * FROM (tabular_sql) AS _sub
+     * </pre>
+     *
+     * <p>Streaming mode skips the outer {@code json_group_array} so each JDBC
+     * row carries one {@code json_object(...)} and the engine can emit rows as
+     * a JSON array without materializing:
+     * <pre>
+     * SELECT json_object('p1', _sub."p1", ...) AS "_obj"
      * FROM (tabular_sql) AS _sub
      * </pre>
      *
@@ -165,11 +210,9 @@ public class PlanGenerator {
             }
         }
 
-        var jsonObjectExpr = new SqlExpr.JsonObject(kvPairs);
-        var jsonArrayExpr = new SqlExpr.JsonArrayAgg(jsonObjectExpr);
-
         var outer = new SqlBuilder();
-        outer.addSelect(jsonArrayExpr, dialect.quoteIdentifier("result"));
+        outer.addSelect(wrapForMode(new SqlExpr.JsonObject(kvPairs)),
+                dialect.quoteIdentifier(aliasForMode()));
         outer.fromSubquery(tabular, dialect.quoteIdentifier("_sub"));
         return outer;
     }
@@ -182,6 +225,8 @@ public class PlanGenerator {
      * property names from the store resolution instead of a ColSpec tree.
      * Embedded/association properties are in {@code joins}, not {@code propertyToColumn},
      * and are excluded — matching legend-engine's ClassResultType behavior.
+     *
+     * <p>Honours {@link Mode} the same way as {@link #wrapJsonOutput}.
      */
     private SqlBuilder wrapJsonFromStore(SqlBuilder tabular, StoreResolution store) {
         var kvPairs = new java.util.ArrayList<SqlExpr>();
@@ -190,10 +235,25 @@ public class PlanGenerator {
             kvPairs.add(new SqlExpr.ColumnRef(entry.getValue()));
         }
         var outer = new SqlBuilder();
-        outer.addSelect(new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(kvPairs)),
-                dialect.quoteIdentifier("result"));
+        outer.addSelect(wrapForMode(new SqlExpr.JsonObject(kvPairs)),
+                dialect.quoteIdentifier(aliasForMode()));
         outer.fromSubquery(tabular, dialect.quoteIdentifier("_sub"));
         return outer;
+    }
+
+    /**
+     * Snapshot wraps a per-row {@code json_object} in {@code json_group_array}
+     * so the DB aggregates into one row. Streaming leaves the object bare so
+     * each row stands alone.
+     */
+    private SqlExpr wrapForMode(SqlExpr perRowJsonObject) {
+        return mode == Mode.SNAPSHOT
+                ? new SqlExpr.JsonArrayAgg(perRowJsonObject)
+                : perRowJsonObject;
+    }
+
+    private String aliasForMode() {
+        return mode == Mode.SNAPSHOT ? "result" : "_obj";
     }
 
     /**

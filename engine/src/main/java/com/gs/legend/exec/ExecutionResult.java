@@ -63,26 +63,36 @@ public sealed interface ExecutionResult {
             w.beginObject();
             for (int colIdx = 0; colIdx < cols.size(); colIdx++) {
                 w.name(cols.get(colIdx).name());
-                Object v = row.get(colIdx);
-                if (v == null) {
-                    w.writeNull();
-                } else if (v instanceof Boolean b) {
-                    w.writeBool(b);
-                } else if (v instanceof Number n) {
-                    if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
-                        w.writeLong(n.longValue());
-                    } else {
-                        w.writeDouble(n.doubleValue());
-                    }
-                } else {
-                    // JDBC types (Timestamp, LocalDate, byte[], …) emitted as strings.
-                    w.writeString(v.toString());
-                }
+                writeJsonValue(w, row.get(colIdx));
             }
             w.endObject();
         }
         w.endArray();
         return w.toString();
+    }
+
+    /**
+     * Emit one cell value into a {@link Json.Writer}. Handles nulls,
+     * booleans, integral and floating-point numbers, and other JDBC types
+     * (Timestamp, LocalDate, byte[], …) by calling {@code toString()}.
+     *
+     * <p>Package-private so {@link PlanExecutor#streamJson} can emit values
+     * lazily from a JDBC ResultSet without materializing rows.
+     */
+    static void writeJsonValue(Json.Writer w, Object v) {
+        if (v == null) {
+            w.writeNull();
+        } else if (v instanceof Boolean b) {
+            w.writeBool(b);
+        } else if (v instanceof Number n) {
+            if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
+                w.writeLong(n.longValue());
+            } else {
+                w.writeDouble(n.doubleValue());
+            }
+        } else {
+            w.writeString(v.toString());
+        }
     }
 
     // ===== Typed accessors — no cast, clear error =====
@@ -205,6 +215,17 @@ public sealed interface ExecutionResult {
         public List<Row> rows() {
             return List.of(new Row(List.of(json != null ? json : "")));
         }
+
+        /**
+         * The {@code json} field is already a well-formed JSON array (built by the DB
+         * via {@code json_group_array(json_object(...))} for snapshot-mode graph plans).
+         * Return it verbatim instead of the default {@code columns()/rows()} loop which
+         * would double-wrap it into {@code [{"json":"<escaped>"}]}.
+         */
+        @Override
+        public String toJsonArray() {
+            return json != null ? json : "[]";
+        }
     }
 
     // ===== Factory =====
@@ -212,8 +233,11 @@ public sealed interface ExecutionResult {
     /**
      * Builds Column metadata from the compiler's GenericType.Relation.Schema schema.
      * This is the source of truth for non-pivot queries.
+     *
+     * <p>Package-private so {@link PlanExecutor#streamJson} can resolve columns
+     * without materializing an ExecutionResult.
      */
-    private static List<Column> columnsFromSchema(GenericType.Relation.Schema schema) {
+    static List<Column> columnsFromSchema(GenericType.Relation.Schema schema) {
         List<Column> cols = new ArrayList<>(schema.size());
         for (var entry : schema.columns().entrySet()) {
             String typeName = entry.getValue().typeName();
@@ -227,8 +251,11 @@ public sealed interface ExecutionResult {
      * Static group-by columns use compiler types; dynamic pivot columns
      * (whose names are data-dependent) are matched by SEPARATOR suffix
      * to compiler-derived aggregate return types.
+     *
+     * <p>Package-private so {@link PlanExecutor#streamJson} can resolve columns
+     * without materializing an ExecutionResult.
      */
-    private static List<Column> columnsHybrid(
+    static List<Column> columnsHybrid(
             GenericType.Relation.Schema schema, ResultSetMetaData meta, int colCount) throws SQLException {
         // Build lookup: alias suffix → Pure return type
         var dynamicLookup = new java.util.HashMap<String, GenericType>();
