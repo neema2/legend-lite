@@ -486,6 +486,24 @@ public sealed interface GenericType
         };
     }
 
+    /**
+     * FQN-based conversion introduced in Phase A of the Bazel cross-project dependency work.
+     * Distinguishes enum types from class types by consulting the supplied
+     * {@link com.gs.legend.model.ModelContext}. Falls back to {@link ClassType} when the context
+     * is null or doesn't know the FQN.
+     *
+     * <p>See {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2 for the migration rationale.
+     */
+    static GenericType fromTypeFqn(String fqn, com.gs.legend.model.ModelContext ctx) {
+        GenericType base = fromTypeName(fqn);
+        // fromTypeName returns ClassType for anything non-primitive; upgrade to EnumType
+        // if the context knows this FQN is actually an enum.
+        if (base instanceof ClassType && ctx != null && ctx.findEnum(fqn).isPresent()) {
+            return new EnumType(fqn);
+        }
+        return base;
+    }
+
     // ========== Common supertype ==========
 
     /**
