@@ -1,0 +1,42 @@
+// ============================================================
+// Bazel smoke test — trading project (depends on refdata)
+// Every cross-project dependency type is exercised here:
+//   - Property type      -> refdata::Sector, refdata::Rating (enum)
+//   - Superclass         -> refdata::Categorized
+//   - Association end    -> refdata::Region
+//   - Function call      -> refdata::formatSector in a body
+//   - Derived prop chain -> $this.sector.region.code (navigates refdata)
+// See docs/BAZEL_IMPLEMENTATION_PLAN.md §1.2.
+// ============================================================
+
+import refdata::*;
+
+Class trading::Trade
+{
+    id: String[1];
+    sector: refdata::Sector[1];          // CROSS: class-typed property
+    rating: refdata::Rating[0..1];       // CROSS: enum-typed property
+    notional: Decimal[1];
+}
+
+Class trading::InternalTrade extends refdata::Categorized   // CROSS: superclass
+{
+    bookId: String[1];
+    notional: Decimal[1];
+}
+
+Association trading::TradeRegion
+{
+    trade: trading::Trade[1];
+    region: refdata::Region[0..1];       // CROSS: association end class
+}
+
+function trading::tradeSummary(t: trading::Trade[1]): String[1]
+{
+    refdata::formatSector($t.sector)     // CROSS: function-to-function call
+}
+
+function trading::sectorRegionCode(t: trading::Trade[1]): String[1]
+{
+    $t.sector.region.code                // CROSS: property chain across refdata
+}

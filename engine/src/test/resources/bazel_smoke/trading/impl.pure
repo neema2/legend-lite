@@ -1,0 +1,20 @@
+// ============================================================
+// Bazel smoke test — trading impl (Database + Mapping + Runtime)
+// Proves that cross-project lazy loading covers impl elements too —
+// the mapping references trading::Trade, whose properties reach into refdata.
+// See docs/BAZEL_IMPLEMENTATION_PLAN.md §1.2.
+// ============================================================
+
+Database trading::TradingDB
+(
+    Table TRADE (ID VARCHAR(50) PRIMARY KEY, SECTOR_CODE VARCHAR(50), RATING VARCHAR(10), NOTIONAL DOUBLE)
+)
+
+Mapping trading::TradingMapping
+(
+    trading::Trade: Relational {
+        ~mainTable [trading::TradingDB] TRADE
+        id: [trading::TradingDB] TRADE.ID,
+        notional: [trading::TradingDB] TRADE.NOTIONAL
+    }
+)

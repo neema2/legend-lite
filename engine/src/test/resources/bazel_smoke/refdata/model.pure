@@ -1,0 +1,38 @@
+// ============================================================
+// Bazel smoke test — refdata project (model-only)
+// Used as the regression canary for the Bazel cross-project dep work.
+// See docs/BAZEL_IMPLEMENTATION_PLAN.md §1.2 for what this exercises.
+// ============================================================
+
+Class refdata::Categorized
+{
+    category: String[1];
+}
+
+Class refdata::Region
+{
+    code: String[1];
+    name: String[1];
+}
+
+Class refdata::Sector extends refdata::Categorized
+{
+    code: String[1];
+    name: String[1];
+}
+
+Enum refdata::Rating
+{
+    AAA, AA, A, BBB, BB, B
+}
+
+Association refdata::SectorRegion
+{
+    sector: refdata::Sector[0..1];
+    region: refdata::Region[1];
+}
+
+function refdata::formatSector(s: refdata::Sector[1]): String[1]
+{
+    $s.code + '/' + $s.region.code
+}
