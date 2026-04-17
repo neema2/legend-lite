@@ -160,28 +160,10 @@ class NlqPipelineTest {
         assertThrows(LlmClient.LlmException.class, () -> mock.complete("sys", "msg2"));
     }
 
-    // ==================== GeminiClient JSON Helpers ====================
-
-    @Test
-    @Order(20)
-    @DisplayName("GeminiClient.escapeJson handles special characters")
-    void testEscapeJson() {
-        assertEquals("\"hello\"", GeminiClient.escapeJson("hello"));
-        assertEquals("\"line1\\nline2\"", GeminiClient.escapeJson("line1\nline2"));
-        assertEquals("\"tab\\there\"", GeminiClient.escapeJson("tab\there"));
-        assertEquals("\"quote\\\"here\"", GeminiClient.escapeJson("quote\"here"));
-        assertEquals("\"back\\\\slash\"", GeminiClient.escapeJson("back\\slash"));
-    }
-
-    @Test
-    @Order(21)
-    @DisplayName("GeminiClient.escapeJson handles empty and simple strings")
-    void testEscapeJsonSimple() {
-        assertEquals("\"\"", GeminiClient.escapeJson(""));
-        assertEquals("\"abc123\"", GeminiClient.escapeJson("abc123"));
-    }
-
     // ==================== NlqResult Tests ====================
+    // (GeminiClient.escapeJson was removed in the JSON convergence;
+    //  escape behavior is now covered by com.gs.legend.util.JsonTest —
+    //  34 escape + 22 unescape tests against RFC 8259 and JSONTestSuite.)
 
     @Test
     @Order(30)

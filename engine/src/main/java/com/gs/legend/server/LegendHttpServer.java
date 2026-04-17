@@ -93,7 +93,7 @@ public class LegendHttpServer {
                     sendResponse(exchange, 200, "[" + String.join(",", responses) + "]");
                 }
             } catch (Exception e) {
-                sendResponse(exchange, 500, "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+                sendResponse(exchange, 500, "{\"error\":\"" + Json.escape(e.getMessage()) + "\"}");
             }
         }
     }
@@ -345,11 +345,6 @@ public class LegendHttpServer {
         }
     }
 
-    private String escapeJson(String s) {
-        if (s == null)
-            return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
-    }
 
     /**
      * HTTP handler for /engine/diagram — delegates to DiagramService.
@@ -389,7 +384,7 @@ public class LegendHttpServer {
                 e.printStackTrace(System.err);
                 System.err.flush();
                 try {
-                    sendResponse(exchange, 500, "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+                    sendResponse(exchange, 500, "{\"error\":\"" + Json.escape(e.getMessage()) + "\"}");
                 } catch (Throwable ignore) {
                     // response already committed
                 }

@@ -1,5 +1,7 @@
 package org.finos.legend.engine.nlq;
 
+import com.gs.legend.util.Json;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -113,15 +115,15 @@ public class GeminiClient implements LlmClient {
 
         // System instruction
         if (systemPrompt != null && !systemPrompt.isBlank()) {
-            sb.append("\"system_instruction\":{\"parts\":[{\"text\":")
-              .append(escapeJson(systemPrompt))
-              .append("}]},");
+            sb.append("\"system_instruction\":{\"parts\":[{\"text\":\"")
+              .append(Json.escape(systemPrompt))
+              .append("\"}]},");
         }
 
         // User message
-        sb.append("\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":")
-          .append(escapeJson(userMessage))
-          .append("}]}],");
+        sb.append("\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"")
+          .append(Json.escape(userMessage))
+          .append("\"}]}],");
 
         // Generation config
         sb.append("\"generationConfig\":{\"temperature\":0.1,\"maxOutputTokens\":4096}");
@@ -133,62 +135,17 @@ public class GeminiClient implements LlmClient {
     /**
      * Extracts text from Gemini response JSON.
      * Expected path: candidates[0].content.parts[0].text
+     *
+     * <p>Still regex-based for now to limit blast radius — commit 6 replaces
+     * this with a proper Json.parse walk once all NLQ regex extractors are
+     * migrated together.
      */
     private static String extractText(String json) {
-        // Simple regex extraction — robust enough for well-formed Gemini responses
         Pattern p = Pattern.compile("\"text\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
         Matcher m = p.matcher(json);
         if (m.find()) {
-            return unescapeJson(m.group(1));
+            return Json.unescape(m.group(1));
         }
         throw new LlmException("Could not extract text from Gemini response", -1, json);
-    }
-
-    public static String escapeJson(String s) {
-        StringBuilder sb = new StringBuilder("\"");
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> sb.append(c);
-            }
-        }
-        sb.append("\"");
-        return sb.toString();
-    }
-
-    private static String unescapeJson(String s) {
-        StringBuilder sb = new StringBuilder(s.length());
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '\\' && i + 1 < s.length()) {
-                char next = s.charAt(i + 1);
-                switch (next) {
-                    case 'n' -> { sb.append('\n'); i++; }
-                    case 'r' -> { sb.append('\r'); i++; }
-                    case 't' -> { sb.append('\t'); i++; }
-                    case '"' -> { sb.append('"'); i++; }
-                    case '\\' -> { sb.append('\\'); i++; }
-                    case '/' -> { sb.append('/'); i++; }
-                    case 'u' -> {
-                        if (i + 5 < s.length()) {
-                            String hex = s.substring(i + 2, i + 6);
-                            sb.append((char) Integer.parseInt(hex, 16));
-                            i += 5;
-                        } else {
-                            sb.append(c);
-                        }
-                    }
-                    default -> sb.append(c);
-                }
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 }

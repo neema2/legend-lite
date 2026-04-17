@@ -1,5 +1,6 @@
 package com.gs.legend.service;
 
+import com.gs.legend.util.Json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -132,18 +133,8 @@ public final class ServiceServer {
 
         private void sendError(HttpExchange exchange, int statusCode, String message)
                 throws IOException {
-            String json = "{\"error\":\"" + escapeJson(message) + "\"}";
+            String json = "{\"error\":\"" + Json.escape(message) + "\"}";
             sendJson(exchange, statusCode, json);
-        }
-
-        private String escapeJson(String s) {
-            if (s == null)
-                return "";
-            return s.replace("\\", "\\\\")
-                    .replace("\"", "\\\"")
-                    .replace("\n", "\\n")
-                    .replace("\r", "\\r")
-                    .replace("\t", "\\t");
         }
 
         private Map<String, String> parseQueryString(String query) {

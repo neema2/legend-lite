@@ -282,7 +282,7 @@ class PureLspServerTest {
             server.handleMessage("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\","
                     + "\"params\":{\"textDocument\":{\"uri\":\"" + uri + "\","
                     + "\"languageId\":\"pure\",\"version\":" + (version++) + ","
-                    + "\"text\":\"" + escapeJson(text) + "\"}}}");
+                    + "\"text\":\"" + Json.escape(text) + "\"}}}");
         }
 
         Map<String, List<Diagnostic>> openAndGetDiagnostics(String uri, String text) {
@@ -290,7 +290,7 @@ class PureLspServerTest {
                     "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\","
                     + "\"params\":{\"textDocument\":{\"uri\":\"" + uri + "\","
                     + "\"languageId\":\"pure\",\"version\":" + (version++) + ","
-                    + "\"text\":\"" + escapeJson(text) + "\"}}}");
+                    + "\"text\":\"" + Json.escape(text) + "\"}}}");
             return parseDiagnosticsMap(responses);
         }
 
@@ -299,7 +299,7 @@ class PureLspServerTest {
                     "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\","
                     + "\"params\":{\"textDocument\":{\"uri\":\"" + uri + "\","
                     + "\"version\":" + (version++) + "},"
-                    + "\"contentChanges\":[{\"text\":\"" + escapeJson(text) + "\"}]}}");
+                    + "\"contentChanges\":[{\"text\":\"" + Json.escape(text) + "\"}]}}");
             return parseDiagnosticsMap(responses);
         }
 
@@ -345,9 +345,6 @@ class PureLspServerTest {
             return (Map<String, Object>) parent.get(key);
         }
 
-        private static String escapeJson(String s) {
-            return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
-        }
     }
 
     /**

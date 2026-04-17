@@ -1,5 +1,6 @@
 package com.gs.legend.server;
 
+import com.gs.legend.util.Json;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -112,29 +113,11 @@ class LegendHttpServerIntegrationTest {
 
     // Build JSON request body properly
     private static String buildJsonRequest(String code, String sql, String runtime) {
-        String sb = "{" +
-                "\"code\":\"" + escapeJson(code) + "\"," +
-                "\"sql\":\"" + escapeJson(sql) + "\"," +
-                "\"runtime\":\"" + escapeJson(runtime) + "\"" +
+        return "{" +
+                "\"code\":\"" + Json.escape(code) + "\"," +
+                "\"sql\":\"" + Json.escape(sql) + "\"," +
+                "\"runtime\":\"" + Json.escape(runtime) + "\"" +
                 "}";
-        return sb;
-    }
-
-    private static String escapeJson(String s) {
-        if (s == null)
-            return "";
-        StringBuilder sb = new StringBuilder();
-        for (char c : s.toCharArray()) {
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 
     @Test
@@ -286,7 +269,7 @@ class LegendHttpServerIntegrationTest {
                         }
                     }
                 }
-                """.formatted(escapeJson(validModel));
+                """.formatted(Json.escape(validModel));
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/lsp"))
@@ -315,7 +298,7 @@ class LegendHttpServerIntegrationTest {
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
 
-        String body = String.format("{\"code\":\"%s\"}", escapeJson(pureCodeWithQuery));
+        String body = String.format("{\"code\":\"%s\"}", Json.escape(pureCodeWithQuery));
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/engine/execute"))
@@ -402,7 +385,7 @@ class LegendHttpServerIntegrationTest {
                         }
                     }
                 }
-                """.formatted(escapeJson(pureModel));
+                """.formatted(Json.escape(pureModel));
 
         HttpRequest validateRequest = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/lsp"))
@@ -470,7 +453,7 @@ class LegendHttpServerIntegrationTest {
                     ->project(~[name:e|$e.name, salary:e|$e.salary])
                 """;
 
-        String queryBody = String.format("{\"code\":\"%s\"}", escapeJson(pureQuery));
+        String queryBody = String.format("{\"code\":\"%s\"}", Json.escape(pureQuery));
 
         HttpRequest queryRequest = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/engine/execute"))
