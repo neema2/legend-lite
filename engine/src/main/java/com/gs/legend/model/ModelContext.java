@@ -161,14 +161,18 @@ public interface ModelContext {
         if (class1Opt.isEmpty() || class2Opt.isEmpty())
             return Optional.empty();
 
-        // Collect all ancestors of class1 (including itself)
+        // Collect all ancestors of class1 (including itself). Walks superclasses via FQN lookup
+        // so lazy-loaded classes resolve through findClass() without requiring superClasses to
+        // have been eagerly populated.
         var ancestors1 = new java.util.LinkedHashSet<String>();
         var queue = new java.util.ArrayDeque<PureClass>();
         queue.add(class1Opt.get());
         while (!queue.isEmpty()) {
             var cls = queue.poll();
             if (ancestors1.add(cls.qualifiedName())) {
-                queue.addAll(cls.superClasses());
+                for (String superFqn : cls.superClassFqns()) {
+                    findClass(superFqn).ifPresent(queue::add);
+                }
             }
         }
 
@@ -182,7 +186,9 @@ public interface ModelContext {
             if (ancestors1.contains(cls.qualifiedName())) {
                 return Optional.of(cls);
             }
-            queue.addAll(cls.superClasses());
+            for (String superFqn : cls.superClassFqns()) {
+                findClass(superFqn).ifPresent(queue::add);
+            }
         }
         return Optional.empty();
     }
