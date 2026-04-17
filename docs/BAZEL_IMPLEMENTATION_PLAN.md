@@ -233,7 +233,7 @@ Follow the order below. Each row is one commit.
 | 6 | `model/mapping/PureClassMapping.java` | Migrate 1 `genericType` site | Mapping tests pass |
 | 7 | `model/mapping/RelationalMapping.java` | Migrate 3 sites (primitive detection via `GenericType.Primitive.fromTypeName`) | Mapping + end-to-end tests pass |
 | 8 | `compiler/MappingResolver.java` | Migrate 2 `instanceof PureClass` sites → `findClass(typeFqn).isPresent()` | Mapping resolution tests pass |
-| 9 | `model/PureModelBuilder.java` | Migrate 2 `genericType` sites + 3 `superClasses` sites | All tests pass |
+| 9 | `model/PureModelBuilder.java` + `parser/NameResolver.java` | Migrate 2 `genericType` sites. Pull the `EnumerationMappingDefinition.enumType` FQN canonicalization forward from Phase B §3.4 so both sides of `findEnumerationMapping` compare in FQN space (no `extractSimpleName` hack needed). Note: the 3 `superClasses()` sites in PureModelBuilder are def-layer (`ClassDefinition`, already `List<String>`) — no migration required | All tests pass |
 | 10 | `model/ModelContext.java` | Migrate 2 superclass queue walks to FQN-based | LCA / subtype tests pass |
 | 11 | `antlr/PackageableElementBuilder.java`, `parser/PureModelParser.java` | Update builder sites | Parser tests pass |
 | 11b | `test/BazelSmokeTest.java` and any other test files using `genericType()` / `superClasses()` | Migrate to `typeFqn()` / `superClassFqns()` | `mvn test -Dtest=BazelSmokeTest` passes |
@@ -578,7 +578,7 @@ Required before serialization. Checklist (from proposal §6, Category A matrix):
 - [ ] `ServiceDefinition.mappingRef` and `ServiceDefinition.runtimeRef`
 - [ ] `RuntimeDefinition.mappings` list + `connectionBindings` values
 - [ ] `ConnectionDefinition.storeName`
-- [ ] `EnumerationMappingDefinition.enumType`
+- [x] `EnumerationMappingDefinition.enumType` — pulled forward into Phase A/9 to eliminate the simple-vs-FQN ambiguity that the `findEnumerationMapping` `endsWith()` hack was papering over
 - [ ] `StereotypeApplication.profileName` and `TaggedValue.profileName` on every carrier (class, property, derived property, function)
 
 Each bullet: add a case arm in `NameResolver.resolveDefinition()` + a field walk in a new `resolveX()` method.

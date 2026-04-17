@@ -201,8 +201,17 @@ public final class NameResolver {
                         .map(am -> resolveAssociationMapping(am, imports, knownFqns))
                         .toList();
 
+        // Canonicalize each enumeration mapping's enumType to FQN so downstream lookups can
+        // compare qualified names directly instead of relying on fuzzy endsWith matching.
+        // See docs/BAZEL_DEPENDENCY_PROPOSAL.md §6 (Category A dependency matrix).
+        List<MappingDefinition.EnumerationMappingDefinition> resolvedEnumMappings =
+                mappingDef.enumerationMappings().stream()
+                        .map(em -> resolveEnumerationMapping(em, imports, knownFqns))
+                        .toList();
+
         if (resolvedMappings.equals(mappingDef.classMappings())
-                && resolvedAssocMappings.equals(mappingDef.associationMappings())) {
+                && resolvedAssocMappings.equals(mappingDef.associationMappings())
+                && resolvedEnumMappings.equals(mappingDef.enumerationMappings())) {
             return mappingDef;
         }
 
@@ -211,8 +220,18 @@ public final class NameResolver {
                 mappingDef.includes(),
                 resolvedMappings,
                 resolvedAssocMappings,
-                mappingDef.enumerationMappings(),
+                resolvedEnumMappings,
                 mappingDef.testSuites());
+    }
+
+    private static MappingDefinition.EnumerationMappingDefinition resolveEnumerationMapping(
+            MappingDefinition.EnumerationMappingDefinition em, ImportScope imports, Set<String> knownFqns) {
+        String resolvedEnumType = imports.resolve(em.enumType(), knownFqns);
+        if (resolvedEnumType.equals(em.enumType())) {
+            return em;
+        }
+        return new MappingDefinition.EnumerationMappingDefinition(
+                resolvedEnumType, em.id(), em.valueMappings());
     }
 
     private static MappingDefinition.ClassMappingDefinition resolveClassMapping(

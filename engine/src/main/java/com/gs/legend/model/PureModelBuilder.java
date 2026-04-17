@@ -771,7 +771,7 @@ public final class PureModelBuilder implements ModelContext {
                             // Auto-infer cast type from class property when get() lacks @Type
                             var prop = pureClass.findProperty(pm.propertyName());
                             if (prop.isPresent() && expr.matches(".*->get\\('[^']+?'\\)\\s*$")) {
-                                String pureType = prop.get().genericType().typeName();
+                                String pureType = prop.get().typeFqn();
                                 if (!"Any".equals(pureType) && !"Variant".equals(pureType)) {
                                     expr = expr.replaceFirst(
                                             "->get\\('([^']+?)'\\)\\s*$",
@@ -784,12 +784,16 @@ public final class PureModelBuilder implements ModelContext {
                             String columnName = pm.columnReference().columnName();
                             String enumMappingId = pm.enumMappingId();
 
-                            // Find the property's enum type from the class definition
+                            // Find the property's enum type from the class definition.
+                            // Both sides are now FQN-canonicalized: NameResolver rewrites
+                            // EnumerationMappingDefinition.enumType to FQN during resolution
+                            // (see NameResolver.resolveEnumerationMapping), and prop.typeFqn()
+                            // is already FQN for class/enum-typed properties.
                             var prop = pureClass.properties().stream()
                                     .filter(p -> p.name().equals(pm.propertyName()))
                                     .findFirst()
                                     .orElse(null);
-                            String enumType = prop != null ? prop.genericType().typeName() : null;
+                            String enumType = prop != null ? prop.typeFqn() : null;
 
                             // Find the enumeration mapping
                             var enumMapping = mappingDef.findEnumerationMapping(enumType,
