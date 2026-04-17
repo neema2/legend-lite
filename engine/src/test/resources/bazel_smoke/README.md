@@ -53,6 +53,11 @@ Then:
 - Multi-hop transitive deps (A → B → C)
 - M2M mappings
 - XStore cross-expression mappings
-- Profile-based stereotypes / taggedValues
 
 These can be added later as the corpus grows. Keep the initial set minimal so it's easy to reason about when debugging.
+
+## Profile cross-project references (added for NameResolver FQN canonicalization)
+
+- `refdata::RefDataProfile` is the cross-project profile
+- `trading::Trade` declares `<<RefDataProfile.rootEntity>>` and `{RefDataProfile.description = '...'}` using short-name references via `import refdata::*`
+- After `NameResolver` runs, both profile references must resolve to the FQN `refdata::RefDataProfile` in the stored `StereotypeApplication.profileName` / `TaggedValue.profileName` fields

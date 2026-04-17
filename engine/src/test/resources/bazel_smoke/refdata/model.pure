@@ -4,6 +4,12 @@
 // See docs/BAZEL_IMPLEMENTATION_PLAN.md §1.2 for what this exercises.
 // ============================================================
 
+Profile refdata::RefDataProfile
+{
+    stereotypes: [rootEntity, referenceData];
+    tags: [description, domain];
+}
+
 Class refdata::Categorized
 {
     category: String[1];

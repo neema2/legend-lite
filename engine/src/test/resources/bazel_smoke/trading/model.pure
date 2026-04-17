@@ -6,12 +6,14 @@
 //   - Association end    -> refdata::Region
 //   - Function call      -> refdata::formatSector in a body
 //   - Derived prop chain -> $this.sector.region.code (navigates refdata)
+//   - Profile stereotype -> RefDataProfile.rootEntity (short name via import)
+//   - Profile tag        -> RefDataProfile.description (short name via import)
 // See docs/BAZEL_IMPLEMENTATION_PLAN.md §1.2.
 // ============================================================
 
 import refdata::*;
 
-Class trading::Trade
+Class <<RefDataProfile.rootEntity>> {RefDataProfile.description = 'A financial trade'} trading::Trade
 {
     id: String[1];
     sector: refdata::Sector[1];          // CROSS: class-typed property

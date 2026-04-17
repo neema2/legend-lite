@@ -85,6 +85,26 @@ class BazelSmokeTest {
         var categoryInherited = internalTrade.findProperty("category", builder);
         assertTrue(categoryInherited.isPresent(),
                 "trading::InternalTrade.category (inherited from refdata::Categorized) must be reachable");
+
+        // --- cross-project refs: profile stereotype resolved from short name via import ---
+        // trading::Trade declares <<RefDataProfile.rootEntity>> — a short reference to a
+        // profile defined in refdata. NameResolver must canonicalize the profile FQN so
+        // downstream consumers see "refdata::RefDataProfile", not "RefDataProfile".
+        assertEquals(1, trade.stereotypes().size(),
+                "trading::Trade must carry one stereotype (RefDataProfile.rootEntity)");
+        var stereotype = trade.stereotypes().get(0);
+        assertEquals("refdata::RefDataProfile", stereotype.profileName(),
+                "Cross-project stereotype profile must canonicalize to refdata::RefDataProfile FQN");
+        assertEquals("rootEntity", stereotype.stereotypeName());
+
+        // --- cross-project refs: profile tagged value resolved from short name via import ---
+        assertEquals(1, trade.taggedValues().size(),
+                "trading::Trade must carry one tagged value (RefDataProfile.description)");
+        var taggedValue = trade.taggedValues().get(0);
+        assertEquals("refdata::RefDataProfile", taggedValue.profileName(),
+                "Cross-project taggedValue profile must canonicalize to refdata::RefDataProfile FQN");
+        assertEquals("description", taggedValue.tagName());
+        assertEquals("A financial trade", taggedValue.value());
     }
 
     private static String loadResource(String path) {

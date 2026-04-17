@@ -89,10 +89,18 @@ public final class NameResolver {
                 .map(d -> resolveDerivedProperty(d, imports, knownFqns))
                 .toList();
 
+        // Canonicalize class-level stereotype and tagged-value profile references to FQN
+        // so cross-project profiles work — e.g. `<<rootEntity>>` with `import nlq::*`
+        // becomes `<<nlq::NlqProfile.rootEntity>>` in the stored record.
+        var resolvedStereotypes = resolveStereotypes(classDef.stereotypes(), imports, knownFqns);
+        var resolvedTaggedValues = resolveTaggedValues(classDef.taggedValues(), imports, knownFqns);
+
         // Only create new record if something changed
         if (resolvedSuperClasses.equals(classDef.superClasses())
                 && resolvedProps.equals(classDef.properties())
-                && resolvedDerived.equals(classDef.derivedProperties())) {
+                && resolvedDerived.equals(classDef.derivedProperties())
+                && resolvedStereotypes == classDef.stereotypes()
+                && resolvedTaggedValues == classDef.taggedValues()) {
             return classDef;
         }
 
@@ -102,17 +110,23 @@ public final class NameResolver {
                 resolvedProps,
                 resolvedDerived,
                 classDef.constraints(),
-                classDef.stereotypes(),
-                classDef.taggedValues());
+                resolvedStereotypes,
+                resolvedTaggedValues);
     }
 
     private static PropertyDefinition resolveProperty(
             PropertyDefinition prop, ImportScope imports, Set<String> knownFqns) {
         String resolvedType = imports.resolve(prop.type(), knownFqns);
-        if (resolvedType.equals(prop.type())) return prop;
+        var resolvedStereotypes = resolveStereotypes(prop.stereotypes(), imports, knownFqns);
+        var resolvedTaggedValues = resolveTaggedValues(prop.taggedValues(), imports, knownFqns);
+        if (resolvedType.equals(prop.type())
+                && resolvedStereotypes == prop.stereotypes()
+                && resolvedTaggedValues == prop.taggedValues()) {
+            return prop;
+        }
         return new PropertyDefinition(
                 prop.name(), resolvedType, prop.lowerBound(), prop.upperBound(),
-                prop.stereotypes(), prop.taggedValues());
+                resolvedStereotypes, resolvedTaggedValues);
     }
 
     private static DerivedPropertyDefinition resolveDerivedProperty(
@@ -144,15 +158,69 @@ public final class NameResolver {
                 .map(p -> resolveFuncParam(p, imports, knownFqns))
                 .toList();
 
+        // Canonicalize function-level stereotype and tagged-value profile references to FQN
+        var resolvedStereotypes = resolveStereotypes(funcDef.stereotypes(), imports, knownFqns);
+        var resolvedTaggedValues = resolveTaggedValues(funcDef.taggedValues(), imports, knownFqns);
+
         if (resolvedReturnType.equals(funcDef.returnType())
-                && resolvedParams.equals(funcDef.parameters())) {
+                && resolvedParams.equals(funcDef.parameters())
+                && resolvedStereotypes == funcDef.stereotypes()
+                && resolvedTaggedValues == funcDef.taggedValues()) {
             return funcDef;
         }
 
         return new FunctionDefinition(funcDef.qualifiedName(), resolvedParams,
                 resolvedReturnType, funcDef.returnLowerBound(), funcDef.returnUpperBound(),
-                funcDef.body(), funcDef.stereotypes(), funcDef.taggedValues(),
+                funcDef.body(), resolvedStereotypes, resolvedTaggedValues,
                 null, funcDef.parsedReturnType());
+    }
+
+    // ==================== Stereotype / TaggedValue FQN Canonicalization ====================
+
+    /**
+     * Resolves every {@link StereotypeApplication}'s profile name to its FQN via the import
+     * scope. This ensures cross-project stereotype references compare equal regardless of
+     * how the user wrote them (short name vs. fully qualified).
+     *
+     * <p>Returns the input list unchanged (identity equal) if no profile names needed
+     * canonicalization — callers can use {@code ==} to detect a no-op.
+     */
+    private static List<StereotypeApplication> resolveStereotypes(
+            List<StereotypeApplication> apps, ImportScope imports, Set<String> knownFqns) {
+        if (apps.isEmpty()) return apps;
+        boolean changed = false;
+        List<StereotypeApplication> result = new ArrayList<>(apps.size());
+        for (var app : apps) {
+            String resolved = imports.resolve(app.profileName(), knownFqns);
+            if (resolved.equals(app.profileName())) {
+                result.add(app);
+            } else {
+                changed = true;
+                result.add(new StereotypeApplication(resolved, app.stereotypeName()));
+            }
+        }
+        return changed ? List.copyOf(result) : apps;
+    }
+
+    /**
+     * Resolves every {@link TaggedValue}'s profile name to its FQN via the import scope.
+     * See {@link #resolveStereotypes} for the rationale.
+     */
+    private static List<TaggedValue> resolveTaggedValues(
+            List<TaggedValue> tvs, ImportScope imports, Set<String> knownFqns) {
+        if (tvs.isEmpty()) return tvs;
+        boolean changed = false;
+        List<TaggedValue> result = new ArrayList<>(tvs.size());
+        for (var tv : tvs) {
+            String resolved = imports.resolve(tv.profileName(), knownFqns);
+            if (resolved.equals(tv.profileName())) {
+                result.add(tv);
+            } else {
+                changed = true;
+                result.add(new TaggedValue(resolved, tv.tagName(), tv.value()));
+            }
+        }
+        return changed ? List.copyOf(result) : tvs;
     }
 
     private static FunctionDefinition.ParameterDefinition resolveFuncParam(
