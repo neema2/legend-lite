@@ -1,6 +1,7 @@
 package com.gs.legend.server;
 
 import com.gs.legend.model.PureModelBuilder;
+import com.gs.legend.util.Json;
 
 import java.util.*;
 
@@ -23,14 +24,16 @@ public class PureLspServer {
     private final Map<String, String> documents = new HashMap<>();
 
     public List<String> handleMessage(String messageJson) {
-        Map<String, Object> message = LegendHttpJson.parseObject(messageJson);
-        if (message == null) {
+        Json.Obj message;
+        try {
+            message = Json.parseObject(messageJson);
+        } catch (IllegalArgumentException e) {
             return List.of(errorResponse(null, -32700, "Parse error"));
         }
 
-        String method = LegendHttpJson.getString(message, "method");
-        Object id = message.get("id");
-        Map<String, Object> params = LegendHttpJson.getObject(message, "params");
+        String method = message.getStringOr("method", null);
+        Object id = message.getOr("id", null);
+        Json.Obj params = message.getObjOr("params", null);
 
         if (method == null) {
             return List.of(errorResponse(id, -32600, "Invalid Request: missing method"));
@@ -57,7 +60,7 @@ public class PureLspServer {
         }
     }
 
-    private String handleInitialize(Object id, Map<String, Object> params) {
+    private String handleInitialize(Object id, Json.Obj params) {
         Map<String, Object> capabilities = new LinkedHashMap<>();
         Map<String, Object> textDocumentSync = new LinkedHashMap<>();
         textDocumentSync.put("openClose", true);
@@ -79,12 +82,13 @@ public class PureLspServer {
         return successResponse(id, null);
     }
 
-    private List<String> handleDidOpen(Map<String, Object> params) {
-        Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
+    private List<String> handleDidOpen(Json.Obj params) {
+        if (params == null) return List.of();
+        Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
 
-        String uri = LegendHttpJson.getString(textDocument, "uri");
-        String text = LegendHttpJson.getString(textDocument, "text");
+        String uri = textDocument.getStringOr("uri", null);
+        String text = textDocument.getStringOr("text", null);
 
         if (uri != null && text != null) {
             documents.put(uri, text);
@@ -93,17 +97,17 @@ public class PureLspServer {
         return List.of();
     }
 
-    private List<String> handleDidChange(Map<String, Object> params) {
-        Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
+    private List<String> handleDidChange(Json.Obj params) {
+        if (params == null) return List.of();
+        Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
 
-        String uri = LegendHttpJson.getString(textDocument, "uri");
-        List<Object> contentChanges = LegendHttpJson.getList(params, "contentChanges");
+        String uri = textDocument.getStringOr("uri", null);
+        Json.Arr contentChanges = params.getArrOr("contentChanges", null);
 
-        if (uri != null && contentChanges != null && !contentChanges.isEmpty()) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> change = (Map<String, Object>) contentChanges.get(0);
-            String text = LegendHttpJson.getString(change, "text");
+        if (uri != null && contentChanges != null && !contentChanges.items().isEmpty()) {
+            Json.Obj change = (Json.Obj) contentChanges.items().get(0);
+            String text = change.getStringOr("text", null);
             if (text != null) {
                 documents.put(uri, text);
                 return rebuildAndPublishAll();
@@ -112,11 +116,12 @@ public class PureLspServer {
         return List.of();
     }
 
-    private List<String> handleDidClose(Map<String, Object> params) {
-        Map<String, Object> textDocument = LegendHttpJson.getObject(params, "textDocument");
+    private List<String> handleDidClose(Json.Obj params) {
+        if (params == null) return List.of();
+        Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
 
-        String uri = LegendHttpJson.getString(textDocument, "uri");
+        String uri = textDocument.getStringOr("uri", null);
         if (uri != null) {
             documents.remove(uri);
             List<String> notifications = new ArrayList<>(rebuildAndPublishAll());
@@ -241,7 +246,7 @@ public class PureLspServer {
         notification.put("method", "textDocument/publishDiagnostics");
         notification.put("params", params);
 
-        return LegendHttpJson.toJson(notification);
+        return Json.toCompact(notification);
     }
 
     private String successResponse(Object id, Object result) {
@@ -249,7 +254,7 @@ public class PureLspServer {
         response.put("jsonrpc", "2.0");
         response.put("id", id);
         response.put("result", result);
-        return LegendHttpJson.toJson(response);
+        return Json.toCompact(response);
     }
 
     private String errorResponse(Object id, int code, String message) {
@@ -261,7 +266,7 @@ public class PureLspServer {
         response.put("jsonrpc", "2.0");
         response.put("id", id);
         response.put("error", error);
-        return LegendHttpJson.toJson(response);
+        return Json.toCompact(response);
     }
 
     public String getDocument(String uri) { return documents.get(uri); }

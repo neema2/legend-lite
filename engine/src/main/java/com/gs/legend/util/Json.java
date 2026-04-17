@@ -106,9 +106,15 @@ public final class Json {
             return n;
         }
 
+        /**
+         * Return the value for {@code key}, or {@code def} if the field is missing
+         * <em>or</em> present with a JSON null value. Consistent with the typed
+         * {@code *Or} variants (getStringOr, getIntOr, ...) which all treat
+         * both cases as "use the default".
+         */
         public Node getOr(String key, Node def) {
             Node n = fields.get(key);
-            return n == null ? def : n;
+            return (n == null || n instanceof Null) ? def : n;
         }
 
         public String getString(String key) { return ((Str) get(key)).value(); }

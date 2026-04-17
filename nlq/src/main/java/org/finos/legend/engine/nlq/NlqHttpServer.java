@@ -3,7 +3,7 @@ package org.finos.legend.engine.nlq;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.gs.legend.server.LegendHttpServer;
-import com.gs.legend.server.LegendHttpJson;
+import com.gs.legend.util.Json;
 import com.gs.legend.model.PureModelBuilder;
 
 import java.io.IOException;
@@ -85,10 +85,10 @@ public class NlqHttpServer {
 
             try {
                 String body = LegendHttpServer.readBody(exchange);
-                Map<String, Object> request = LegendHttpJson.parseObject(body);
-                String pureSource = LegendHttpJson.getString(request, "code");
-                String question = LegendHttpJson.getString(request, "question");
-                String domain = LegendHttpJson.getString(request, "domain");
+                Json.Obj request = Json.parseObject(body);
+                String pureSource = request.getStringOr("code", null);
+                String question = request.getStringOr("question", null);
+                String domain = request.getStringOr("domain", null);
 
                 if (pureSource == null || pureSource.isBlank()) {
                     LegendHttpServer.sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");
@@ -126,7 +126,7 @@ public class NlqHttpServer {
                     response.put("error", result.validationError());
                 }
 
-                LegendHttpServer.sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+                LegendHttpServer.sendResponse(exchange, 200, Json.toCompact(response));
 
             } catch (LlmClient.LlmException e) {
                 Map<String, Object> response = new LinkedHashMap<>();
@@ -135,13 +135,13 @@ public class NlqHttpServer {
                 if (e.statusCode() > 0) {
                     response.put("statusCode", e.statusCode());
                 }
-                LegendHttpServer.sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+                LegendHttpServer.sendResponse(exchange, 200, Json.toCompact(response));
             } catch (Exception e) {
                 e.printStackTrace();
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", false);
                 response.put("error", e.getMessage());
-                LegendHttpServer.sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+                LegendHttpServer.sendResponse(exchange, 200, Json.toCompact(response));
             }
         }
     }

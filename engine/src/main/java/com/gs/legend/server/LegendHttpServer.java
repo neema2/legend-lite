@@ -1,5 +1,6 @@
 package com.gs.legend.server;
 
+import com.gs.legend.util.Json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -121,8 +122,8 @@ public class LegendHttpServer {
 
             try {
                 String body = readBody(exchange);
-                Map<String, Object> request = LegendHttpJson.parseObject(body);
-                String fullSource = LegendHttpJson.getString(request, "code");
+                Json.Obj request = Json.parseObject(body);
+                String fullSource = request.getStringOr("code", null);
 
                 if (fullSource == null || fullSource.isBlank()) {
                     sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");
@@ -162,14 +163,14 @@ public class LegendHttpServer {
                 response.put("columns", result.columns().stream().map(c -> c.name()).toList());
                 response.put("rowCount", result.rowCount());
 
-                sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+                sendResponse(exchange, 200, Json.toCompact(response));
 
             } catch (Exception e) {
                 e.printStackTrace();
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", false);
                 response.put("error", e.getMessage());
-                sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+                sendResponse(exchange, 200, Json.toCompact(response));
             }
         }
     }
@@ -201,10 +202,10 @@ public class LegendHttpServer {
             try {
                 String body = readBody(exchange);
                 System.out.println("Raw body length: " + body.length());
-                Map<String, Object> request = LegendHttpJson.parseObject(body);
-                String pureSource = LegendHttpJson.getString(request, "code");
-                String sql = LegendHttpJson.getString(request, "sql");
-                String runtimeName = LegendHttpJson.getString(request, "runtime");
+                Json.Obj request = Json.parseObject(body);
+                String pureSource = request.getStringOr("code", null);
+                String sql = request.getStringOr("sql", null);
+                String runtimeName = request.getStringOr("runtime", null);
 
                 if (pureSource == null || pureSource.isBlank()) {
                     sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");
@@ -239,14 +240,14 @@ public class LegendHttpServer {
                     response.put("rowCount", result.rowCount());
                 }
 
-                sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+                sendResponse(exchange, 200, Json.toCompact(response));
 
             } catch (Exception e) {
                 e.printStackTrace();
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", false);
                 response.put("error", e.getMessage());
-                sendResponse(exchange, 200, LegendHttpJson.toJson(response));
+                sendResponse(exchange, 200, Json.toCompact(response));
             }
         }
     }
@@ -371,8 +372,8 @@ public class LegendHttpServer {
 
             try {
                 String body = readBody(exchange);
-                Map<String, Object> request = LegendHttpJson.parseObject(body);
-                String pureSource = LegendHttpJson.getString(request, "code");
+                Json.Obj request = Json.parseObject(body);
+                String pureSource = request.getStringOr("code", null);
 
                 if (pureSource == null || pureSource.isBlank()) {
                     sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");

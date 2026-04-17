@@ -1,5 +1,6 @@
 package com.gs.legend.server;
 
+import com.gs.legend.util.Json;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +58,7 @@ class PureLspServerTest {
         List<String> responses = server.handleMessage("""
                 {"jsonrpc":"2.0","id":7,"method":"textDocument/hover","params":{}}""");
         assertEquals(1, responses.size());
-        var resp = LegendHttpJson.parseObject(responses.get(0));
+        var resp = parseAsMap(responses.get(0));
         assertEquals(7, ((Number) resp.get("id")).intValue());
         var error = obj(resp, "error");
         assertEquals(-32601, ((Number) error.get("code")).intValue());
@@ -198,18 +199,18 @@ class PureLspServerTest {
             // Initialize
             String initResp = httpPost(port, "/lsp", """
                     {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}""");
-            var initResult = LegendHttpJson.parseObject(initResp);
+            var initResult = parseAsMap(initResp);
             assertEquals(1, ((Number) initResult.get("id")).intValue());
             assertNotNull(obj(initResult, "result").get("capabilities"));
 
             // didOpen with valid code — single file → single notification (not array)
             String openResp = httpPost(port, "/lsp", """
                     {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///http-test.pure","languageId":"pure","version":1,"text":"Class test::Foo { x: String[1]; }"}}}""");
-            var openResult = LegendHttpJson.parseObject(openResp);
+            var openResult = parseAsMap(openResp);
             assertEquals("textDocument/publishDiagnostics", openResult.get("method"));
             var openParams = obj(openResult, "params");
             assertEquals("file:///http-test.pure", openParams.get("uri"));
-            assertTrue(LegendHttpJson.getList(openParams, "diagnostics").isEmpty());
+            assertTrue(((List<?>) openParams.get("diagnostics")).isEmpty());
 
             // didOpen second file — returns JSON array of 2 notifications
             String open2Resp = httpPost(port, "/lsp", """
@@ -266,7 +267,7 @@ class PureLspServerTest {
             var responses = server.handleMessage("""
                     {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}""");
             assertEquals(1, responses.size());
-            var resp = LegendHttpJson.parseObject(responses.get(0));
+            var resp = parseAsMap(responses.get(0));
             return obj(resp, "result");
         }
 
@@ -274,7 +275,7 @@ class PureLspServerTest {
             var responses = server.handleMessage(
                     "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"shutdown\"}");
             assertEquals(1, responses.size());
-            return LegendHttpJson.parseObject(responses.get(0));
+            return parseAsMap(responses.get(0));
         }
 
         void open(String uri, String text) {
@@ -313,7 +314,7 @@ class PureLspServerTest {
         private Map<String, List<Diagnostic>> parseDiagnosticsMap(List<String> responses) {
             Map<String, List<Diagnostic>> result = new LinkedHashMap<>();
             for (String json : responses) {
-                var notification = LegendHttpJson.parseObject(json);
+                var notification = parseAsMap(json);
                 assertEquals("textDocument/publishDiagnostics", notification.get("method"),
                         "Expected publishDiagnostics notification");
                 var params = (Map<String, Object>) notification.get("params");
@@ -347,5 +348,36 @@ class PureLspServerTest {
         private static String escapeJson(String s) {
             return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
         }
+    }
+
+    /**
+     * Test-only bridge: parse JSON and convert the Node tree back to Java-native
+     * Map/List/String/Number/Boolean/null so the existing Map-based assertions
+     * keep working after the LegendHttpJson → util.Json migration. Production
+     * code should use the typed Node accessors directly (getString, getInt, …).
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseAsMap(String json) {
+        return (Map<String, Object>) nodeToJava(Json.parse(json));
+    }
+
+    private static Object nodeToJava(Json.Node n) {
+        if (n == null || n instanceof Json.Null) return null;
+        if (n instanceof Json.Str s) return s.value();
+        if (n instanceof Json.Num num) {
+            return num.isInteger() ? (Object) num.longValue() : (Object) num.doubleValue();
+        }
+        if (n instanceof Json.Bool b) return b.value();
+        if (n instanceof Json.Obj o) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            for (var e : o.fields().entrySet()) m.put(e.getKey(), nodeToJava(e.getValue()));
+            return m;
+        }
+        if (n instanceof Json.Arr a) {
+            List<Object> l = new ArrayList<>(a.items().size());
+            for (var item : a.items()) l.add(nodeToJava(item));
+            return l;
+        }
+        throw new IllegalStateException("Unknown Node kind: " + n.getClass());
     }
 }
