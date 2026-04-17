@@ -626,7 +626,52 @@ With the Bazel shape defined — module extension for discovery, `legend_library
 
 ## 6. How the Compiler Adapts
 
-The per-element architecture requires the compiler to adapt in several areas: name resolution for cross-project imports, lazy element loading, string-based property types, resolved AST serialization for executable bodies, lazy superclass resolution, and association navigation sidecars. An eager-loading path is also provided for `legend_test` actions.
+The per-element architecture requires the compiler to adapt in several areas: name resolution for cross-project imports, lazy element loading, string-based property types, resolved AST serialization for executable bodies, pre-parsed M2M/XStore expressions, lazy superclass resolution, and association navigation sidecars. Validation is exposed as an opt-in `validateElement` primitive invoked by Bazel and LSP at different scopes. The Bazel and LSP paths share the compiler core and element-file format, differing only in entry points and caching — matching how javac/rustc/tsc split batch vs language service. An eager-loading path is also provided for `legend_test` actions. See the Complete Dependency Reference Matrix below for every cross-element reference type and how the plan addresses it.
+
+### Complete Dependency Reference Matrix
+
+Every cross-element reference in legend-lite falls into one of two mechanical categories based on how the dependency is recorded:
+
+- **Category A — Syntactic FQN refs**: appear directly in element record fields, serialized as strings, FQN-canonicalized by `NameResolver` before serialization.
+- **Category B — Expression-embedded refs**: appear inside function/service/derived-property/constraint/M2M expression bodies, canonicalized via resolved-AST serialization.
+
+This table enumerates every reference type and maps it to the plan element that makes it work across project boundaries.
+
+**Category A — Syntactic FQN refs**
+
+| Reference | Carrier | Plan coverage |
+|---|---|---|
+| Superclass | `ClassDefinition.superClasses: List<String>` | Lazy Superclass Resolution |
+| Class property type (primitive or class) | `PropertyDefinition.type` | `typeFqn` refactor (Step 2.5) |
+| Derived property type + parameter types | `DerivedPropertyDefinition`, `ParameterDefinition.type` | `typeFqn` refactor |
+| Function return type + parameter types | `FunctionDefinition.returnType`, parameter `type` | `typeFqn` refactor |
+| Association end target classes | `AssociationEndDefinition.targetClass` | Natural (already FQN, canonicalized today) |
+| Mapping class + source class | `ClassMappingDefinition.className / sourceClassName` | Natural (canonicalized today) |
+| Mapping include | `MappingInclude.includedMappingPath` | Expand `NameResolver` |
+| Store substitutions inside a mapping include | `MappingInclude.StoreSubstitution(originalStore, substituteStore)` | Expand `NameResolver` |
+| Database include | `DatabaseDefinition.includes: List<String>` | Expand `NameResolver` |
+| Service mapping / runtime refs | `ServiceDefinition.mappingRef`, `ServiceDefinition.runtimeRef` | Expand `NameResolver` |
+| Runtime mapping list + connection bindings | `RuntimeDefinition.mappings`, `connectionBindings` values | Expand `NameResolver` |
+| Connection store ref | `ConnectionDefinition.storeName` | Expand `NameResolver` |
+| Enumeration mapping enum type | `EnumerationMappingDefinition.enumType` | Expand `NameResolver` |
+| Profile refs in stereotypes / tagged values (on classes, properties, derived properties, functions) | `StereotypeApplication.profileName`, `TaggedValue.profileName` | Expand `NameResolver` |
+
+**Category B — Expression-embedded refs** (resolved AST path)
+
+| Reference | Carrier | Plan coverage |
+|---|---|---|
+| Property access chains (`$x.sector.name`) | resolved AST nodes in bodies | Resolved AST + lazy `findClass` / `findProperty` |
+| Function-to-function calls (`myproj::helper(...)`) | `AppliedFunction.function` inside bodies | Resolved AST (`NameResolver` canonicalizes this today) |
+| Class literal refs (`Trade.all()`) | `AppliedFunction` with class arg | Resolved AST |
+| Derived property expression body | stored text today → resolved AST | Resolved AST for Executable Bodies |
+| Class constraint body | stored text today → resolved AST | Resolved AST for Executable Bodies |
+| Service query body | `ServiceDefinition.functionBody` | Resolved AST for Executable Bodies |
+| M2M property expressions | `ClassMappingDefinition.m2mPropertyExpressions: Map<String, String>` | Pre-Parsed M2M and XStore Expressions |
+| XStore cross expression | `AssociationPropertyMapping.crossExpression: String` | Pre-Parsed M2M and XStore Expressions |
+| Mapping relational filter expressions | `RelationalOperation` (already structured) | Natural; any class/DB refs inside follow Category A rules |
+| Mapping join chain refs (`@OrdCust`) | join name scoped to the owning Database | Natural via Database includes |
+
+The rest of §6 explains the specific compiler changes that implement this matrix. Validation (`validateElement`) closes the loop by running each element's checker over the FQN-resolved model, catching any remaining missing refs at build time rather than at query time.
 
 ### Name Resolution with Dependency Elements (Java-Style)
 
@@ -804,6 +849,14 @@ With this change:
 
 **This is the largest single prerequisite for the Bazel migration.** Recommended approach: do this refactor in the main engine first (Step 2.5 in §11), validate with existing 2100+ tests, then wire into lazy loading. The `PureClass` record itself doesn't change — just what `Property` stores for its type.
 
+### Per-Element Import Scopes (Optional Safety Net)
+
+**Context:** `PureModelBuilder.addSource()` today merges every file's `ImportScope` into a single global scope (see `PureModelBuilder.java:62`, merge at `:181-194`). That's fine for whole-project builds but becomes ambiguous when element files load standalone: an element's body references names that were resolved in the original file's import context, not the current builder's.
+
+With resolved-AST serialization (below), bodies carry FQNs directly and don't need import context at load time — this isn't a functional blocker.
+
+**Optional hardening:** serialize the element's original `ImportScope` as a side field so the loader has a fallback when re-resolution is ever needed (e.g., loading an old-schema element that wasn't yet AST-resolved). ~10 lines in the serializer. Skip for v1; add in v2 if backwards-compat tests demand it.
+
 ### Transitive Loading Chains
 
 With string-based property types, lazy loading chains resolve naturally:
@@ -877,7 +930,20 @@ This is **not** typed AST — no `TypeInfo`, no store resolution, no mapping met
 - Lazy loading remains correct — the loader doesn't need to reconstruct imports
 - TypeChecker still drives all type inference (no premature typing in the artifact)
 
-**Impact on `NameResolver`:** Currently, `NameResolver` does not canonicalize all reference types. It handles class types, superclasses, and function calls, but passes through database includes, mapping includes, and service mapping/runtime refs unchanged. These must be expanded to FQN-canonicalize everything before serialization. Estimated scope: ~50-80 lines in `NameResolver.java` to add resolution for database includes, mapping includes, and service refs (mapping/runtime/connection).
+**Impact on `NameResolver`:** Today `NameResolver` canonicalizes class types, superclasses, association ends, property types, derived-property types, function return/parameter types, function-to-function calls in resolved bodies, and mapping class/source class refs. The `default` arm at `NameResolver.java:68` passes through every other element type unchanged — that's a list of missing canonicalizations that must land before serialization. Concrete checklist (matches the Category A table above):
+
+- [ ] `DatabaseDefinition.includes` — every included DB FQN
+- [ ] `MappingDefinition.includes` (`MappingInclude.includedMappingPath`) — every included mapping FQN
+- [ ] `MappingInclude.storeSubstitutions` — both `originalStore` and `substituteStore` FQNs per pair
+- [ ] `ServiceDefinition.mappingRef` and `ServiceDefinition.runtimeRef`
+- [ ] `RuntimeDefinition.mappings` list + `connectionBindings` values
+- [ ] `ConnectionDefinition.storeName`
+- [ ] `EnumerationMappingDefinition.enumType`
+- [ ] `StereotypeApplication.profileName` and `TaggedValue.profileName` on every carrier (class, property, derived property, function) — these point at `Profile` packageable elements
+
+Each bullet is a new case arm in `resolveDefinition()` plus a field walk that may allocate a new record when a ref resolves. Estimated scope: ~100-150 lines in `NameResolver.java` plus ~1-3 lines per affected record's constructor. Most additions are mechanical.
+
+**Why this matters:** every unresolved ref is an invisible way for a cross-project reference to silently keep pointing at a short name after serialization. Whatever loads the element later has no import context to fix it up. Missing any one of these bullets is a latent bug class.
 
 **Impact on `ElementSerializer`:** The serializer must capture the resolved AST (`ValueSpecification` tree with FQN names), not just the raw body string. The deserializer reconstructs the AST directly — no re-parsing or re-resolution needed.
 
@@ -889,6 +955,21 @@ This is **not** typed AST — no `TypeInfo`, no store resolution, no mapping met
 - **Forward-compat policy** — additive fields only within a major version (new optional fields are ignored by old deserializers). Breaking changes bump major version and require monorepo-wide re-serialization — Bazel handles this automatically since all outputs regenerate when the compiler binary changes.
 
 Recommend: **publish the JSON schema spec before writing any serializer code** (see §11 Step 2).
+
+### Required Change: Pre-Parsed M2M and XStore Expressions
+
+**Problem:** Two mapping constructs store Pure expressions as raw text rather than structured AST:
+
+- `MappingDefinition.ClassMappingDefinition.m2mPropertyExpressions: Map<String, String>` — M2M property transforms (`MappingDefinition.java:184`)
+- `AssociationMappingDefinition.AssociationPropertyMapping.crossExpression: String` — XStore cross-class conditions (`AssociationMappingDefinition.java:60`)
+
+Both are parsed on-the-fly inside `addMapping()` via `PureParser.parseQuery()` (see `PureModelBuilder.java:907-936`). For a normal whole-project build this is fine — the parser is already loaded. For per-element load paths it means every mapping file forces the Pure parser onto the load path, even when the loader never re-parses source.
+
+**Fix:** add `parsedM2MExpressions: Map<String, ValueSpecification>` and `parsedCrossExpression: ValueSpecification` fields alongside the existing text fields, analogous to how `FunctionDefinition` carries both `body` (text) and `resolvedBody` (AST). Parse once at serialization time; deserialize AST directly on load. Fall back to re-parsing the text when the parsed field is absent — graceful handling of older element files.
+
+**Scope of change:** ~6 hours total. Adds one field to each record, updates the serializer and the existing `PureModelBuilder.registerM2MClassMapping()` code path.
+
+**Why it matters at scale:** without this, every mapping element file's load invokes the full Pure parser. Negligible for a single build, but O(N) at 30K elements.
 
 ### Required Change: Lazy Superclass Resolution
 
@@ -998,6 +1079,69 @@ Example `refdata__Person.nav.json`:
 **Scope of change:** ~30 lines in `ElementSerializer` to generate nav sidecars, ~15 lines in `PureModelBuilder.findProperty()` to check the nav sidecar on local miss, ~10 lines in the module extension to declare `.nav.json` output files.
 
 **Dependency-graph asymmetry.** Sidecars create two flavors of class dependency: consumers that only use local properties (e.g., `Person.name`) depend on `Person.json` alone, while consumers that navigate association properties (e.g., `Person.addresses`) additionally depend on `Person.nav.json`. This asymmetry is a feature — it's the mechanism that prevents association changes from cascading to unrelated consumers — but it must be documented as a first-class invalidation contract, not treated as an implementation detail. The `ProjectDependencyAnalyzer` (§8) must emit per-class sidecar usage in `unused_inputs_list`: if a project only accesses `Person.name`, `Person.nav.json` goes in the unused list.
+
+### Whole-Project Validation
+
+A subtle point not obvious from reading `PureModelBuilder`: **`addSource()` does not type-check anything.** It parses, resolves names, registers metadata, and (in Phase 6 — `PureModelBuilder.java:363-378`) parses function bodies into AST. It never invokes `TypeChecker`. Semantic errors in executable bodies only surface when a query happens to run and triggers `TypeChecker.check()`.
+
+That's fine for ad-hoc query execution but insufficient for a build action that must declare the project valid or invalid. Bazel's compile action needs to know, for example, that a function body `Person.all()->project(~[x: p | $p.thisFieldDoesntExist])` is broken — even if no test ever calls that function.
+
+**The solution: a `validateElement(fqn)` primitive** that runs the appropriate checkers over one element and aggregates errors. No new pipeline stages; just a new entry point over existing machinery:
+
+| Element kind | Validation passes |
+|---|---|
+| `ClassDefinition` | `TypeChecker.check()` on each derived-property expression and constraint body |
+| `FunctionDefinition` | `TypeChecker.check()` on `resolvedBody` |
+| `MappingDefinition` (Relational) | `MappingNormalizer` synthesizes `sourceSpec`; `TypeChecker.check()` stamps it |
+| `MappingDefinition` (M2M / Pure) | `MappingNormalizer` synthesizes the `getAll → filter → extend` chain; `TypeChecker.check()` stamps it |
+| `AssociationMappingDefinition` | `MappingNormalizer` integrates association extends into the owning mapping's `sourceSpec`; validated with it |
+| `ServiceDefinition` | `TypeChecker.check()` on the service's query body |
+| `DatabaseDefinition`, `RuntimeDefinition`, `ConnectionDefinition`, `EnumDefinition`, `ProfileDefinition` | Structural checks only (no expressions to type-check) |
+
+**Scope is the caller's concern.** Same primitive, different scopes:
+
+| Caller | Scope |
+|---|---|
+| Query execution (`PlanGenerator.generate`) | Implicitly per-query; only touches elements the query references — unchanged from today |
+| LSP `didChangeTextDocument` | Call `validateElement(edited)` + over reverse-deps for in-editor diagnostics |
+| Bazel compile action | Call for every element in the target's own elements — failed validation = failed build |
+| `legend validate` CLI (future) | Call for every element in the workspace |
+
+This keeps `addSource()` fast (no per-keystroke whole-project type check) while giving the compile action the guarantee that a successful build means a valid project.
+
+**Scope of change:** ~100 lines. Add `PureModelBuilder.validateElement(String fqn)` that dispatches on element kind and invokes the right pass. The Bazel `ArtifactCompiler` (§4) invokes it in a loop after `addSource()` on all own elements. Errors are collected with source locations and reported as build failures.
+
+### Shared Compiler Core: IDE vs Bazel
+
+The Bazel path and the LSP/IDE path are not parallel implementations — they share the compiler core (`PureModelBuilder`, `TypeChecker`, `MappingNormalizer`, `PlanGenerator`) and the element-file format. They differ only in entry points and caching strategy, matching the split every mainstream language toolchain uses:
+
+| Layer | Batch CLI (javac, rustc, tsc, Bazel action) | Language service (IntelliJ, rust-analyzer, tsserver, Legend LSP) |
+|---|---|---|
+| **Entry point** | One-shot: read sources + deps → emit artifacts | Incremental: edit events → update model → publish diagnostics |
+| **Source input** | `.pure` for current project, element files for deps | `.pure` opened in editor, element files for deps |
+| **Caching** | Action cache keyed on input hashes | In-memory `PureModelBuilder` kept alive; `ParseCache` across edits |
+| **Parser invocation** | Once per file on cold build | Once per file, reused from `ParseCache` on unchanged files |
+| **Validation** | `validateElement` on every own element; build fails on error | `validateElement` on edited element + reverse-deps; publish LSP diagnostics |
+| **Output** | Per-element JSON + `unused_inputs_list` | LSP messages: diagnostics, hover, completions, go-to-def |
+
+**What is shared:**
+- `PackageableElement` record definitions in `model/def/` — the serialization target
+- `ValueSpecification` AST for expressions — the structured body format
+- Element-file format on disk — both paths read the same per-element JSON for upstream deps
+- `NameResolver` with filesystem-indexed dep lookup
+- `TypeChecker`, `MappingNormalizer`, `PlanGenerator` — untouched by the Bazel split
+
+**What differs:**
+- Batch path constructs a `PureModelBuilder`, populates it from element files, runs `validateElement` on own elements, writes outputs, discards the builder.
+- LSP path constructs a `PureModelBuilder` once at workspace-open and keeps it resident, mutating through `ParseCache`-backed incremental re-parse on every `didChangeTextDocument`.
+
+**The crucial property:** element files produced by Bazel are directly consumable by the LSP. Monorepo-open editing works as follows — the LSP reads current-project sources directly (with full parse) and reads upstream projects' Bazel-emitted element files (skipping parse entirely). The IDE never re-parses dep sources. This matches IntelliJ's model (`.class` files from jars) and `rust-analyzer`'s model (`.rlib` metadata from `target/`).
+
+**For cross-workspace edits** (editing an upstream project in the same workspace), two strategies, same as real IDEs:
+1. **Bazel-rebuilds-on-save** — editor writes, background `bazel build` produces new element files, LSP picks them up. Simple, one-way, relies on fast incremental Bazel.
+2. **Shared in-memory model** — LSP detects upstream source change, re-parses into the shared `PureModelBuilder` so downstream sees the change instantly. More work, no Bazel in the edit loop.
+
+Either can be added later; neither affects the element-file format.
 
 ### Eager Loading (for `legend_test` actions)
 
@@ -1783,6 +1927,8 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 
 ## 11. Implementation Plan
 
+> **Detailed per-step guide:** [`BAZEL_IMPLEMENTATION_PLAN.md`](BAZEL_IMPLEMENTATION_PLAN.md) covers Steps 2, 2.5, and 3 (the risky engine refactors) with per-file checklists, JSON schema spec, contract definitions, test gates, and done criteria. Read that doc **during execution**; read this §11 for the step ordering and Bazel-native work.
+
 ### Step 0: Scale Validation (0.5 session)
 
 **Goal**: Validate the per-element architecture at target scale before committing to implementation.
@@ -1816,7 +1962,8 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 - Handles all element types: ClassDefinition, EnumDefinition, AssociationDefinition, FunctionDefinition, DatabaseDefinition, MappingDefinition, RuntimeDefinition, ConnectionDefinition, ServiceDefinition
 - **Resolved AST serialization** -- executable bodies (functions, services, derived properties, constraints, mapping expressions) are serialized as resolved AST with all names canonicalized to FQNs, not raw source text. This eliminates the need to reconstruct import context at load time (see "Required Change: Resolved AST for Executable Bodies")
 - **Association navigation sidecars** -- after serializing all association elements, generate per-class `.nav.json` sidecar files listing association-injected properties navigable from that class (see "Required Change: Association Navigation Sidecars")
-- Expand `NameResolver` to FQN-canonicalize database includes, mapping includes, and service mapping/runtime/connection refs (~50-80 lines)
+- Expand `NameResolver` to FQN-canonicalize all Category A refs in the Complete Dependency Reference Matrix (§6): database includes, mapping includes, `MappingInclude.storeSubstitutions`, service mapping/runtime refs, runtime mapping/connection bindings, connection store ref, enumeration mapping enum type, and Profile refs in stereotypes/taggedValues (~100-150 lines in `NameResolver.java`)
+- **Pre-parsed M2M and XStore expressions** -- serialize `parsedM2MExpressions` and `parsedCrossExpression` as `ValueSpecification` AST alongside the existing text fields, so mapping element file load paths don't pull in the full Pure parser (see "Required Change: Pre-Parsed M2M and XStore Expressions")
 - **Backwards-compat test harness** -- save fixture element files as golden tests; verify current deserializer can load them after compiler changes
 - CLI wrapper: `java ElementExtractor --srcs *.pure --out-dir elements/`
 - Test: extract elements from sales-trading model, verify round-trip for all element types including resolved AST bodies and nav sidecars
@@ -1844,7 +1991,9 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 - **Association nav sidecar loading** -- `findProperty()` checks `.nav.json` sidecar on local+superclass miss (see "Required Change: Association Navigation Sidecars")
 - Add `addElementFiles(Path dir)` for eager loading (Bazel actions)
 - Wire `addDepElementDir()` into `PureLspServer.rebuildAndPublishAll()`
+- **Add `validateElement(String fqn)` primitive** — dispatches by element kind and runs the appropriate `MappingNormalizer` + `TypeChecker` passes (see "Whole-Project Validation"). This is the API both the Bazel compile action and the LSP call for diagnostics; `addSource()` does NOT invoke it (keeps the per-keystroke path fast)
 - Test: two-project test — project A's elements on disk, project B lazy-loads A's class on first `findClass` call, TypeChecker resolves cross-project refs including inherited and association-backed properties
+- Test: `validateElement` catches a broken function body (`$p.nonExistentProp`) and a broken mapping filter, reports source locations correctly
 
 ### Step 4: Module Extension + `legend_library` Bazel Rule (1-2 sessions)
 
@@ -1855,6 +2004,7 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 - Define `legend_library` rule: `declare_file()` per element (from `ctx.attr.elements`), single compile action
 - **`model_deps` / `impl_deps` attributes** — two dep attributes making the compile-time contract explicit (see §4). `model_deps` for XStore model joins (model elements only), `impl_deps` for legacy Database/Mapping includes
 - `ArtifactCompiler` CLI: `--elements-dir` output, `--dep-elements` input, `--track-unused` output
+- **`ArtifactCompiler` invokes `validateElement()` on every own element** after loading sources. Failed validation = build error with aggregated source locations. This gives `bazel build` the guarantee that a green build = a type-correct project (see "Whole-Project Validation")
 - `unused_inputs_list` integration for per-element rebuild avoidance (experimentally verified: requires individually declared files, NOT tree artifacts)
 - Register projects in `MODULE.bazel` via `legend.project()` / `legend.external()` tags
 - Test: `bazel build //projects/refdata //projects/products` where products depends on refdata
