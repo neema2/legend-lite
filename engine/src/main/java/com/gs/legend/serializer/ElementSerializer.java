@@ -3,6 +3,7 @@ package com.gs.legend.serializer;
 import com.gs.legend.model.def.EnumDefinition;
 import com.gs.legend.model.def.PackageableElement;
 import com.gs.legend.model.def.ProfileDefinition;
+import com.gs.legend.util.Json;
 
 /**
  * Serializes {@link PackageableElement}s to the Phase B v1 JSON schema.

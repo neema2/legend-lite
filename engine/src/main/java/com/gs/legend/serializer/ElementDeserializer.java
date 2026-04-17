@@ -3,6 +3,7 @@ package com.gs.legend.serializer;
 import com.gs.legend.model.def.EnumDefinition;
 import com.gs.legend.model.def.PackageableElement;
 import com.gs.legend.model.def.ProfileDefinition;
+import com.gs.legend.util.Json;
 
 /**
  * Deserializes element JSON (Phase B v1 schema) back into the record form
