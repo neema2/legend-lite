@@ -5,6 +5,7 @@ import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.Property;
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.util.Json;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -127,59 +128,62 @@ public final class DiagramService {
     }
 
     /**
-     * Serialize DiagramData to JSON string.
+     * Serialize DiagramData to a compact JSON string.
+     *
+     * <p>Uses {@link Json.Writer} so escaping is RFC 8259 compliant. The
+     * previous hand-rolled {@code esc} helper missed {@code \t}, {@code \b},
+     * {@code \f}, and {@code \}u00xx control-char escapes.
      */
     public String toJson(DiagramData data) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\"classes\":[");
+        Json.Writer w = Json.compactWriter();
+        w.beginObject();
 
-        for (int i = 0; i < data.classes().size(); i++) {
-            if (i > 0) sb.append(",");
-            ClassInfo c = data.classes().get(i);
-            sb.append("{\"id\":\"").append(esc(c.id()))
-              .append("\",\"name\":\"").append(esc(c.name()))
-              .append("\",\"package\":\"").append(esc(c.packagePath()))
-              .append("\",\"stereotype\":\"").append(esc(c.stereotype()))
-              .append("\",\"description\":\"").append(esc(c.description()))
-              .append("\",\"businessDomain\":\"").append(esc(c.businessDomain()))
-              .append("\",\"properties\":[");
-
-            for (int j = 0; j < c.properties().size(); j++) {
-                if (j > 0) sb.append(",");
-                PropertyInfo p = c.properties().get(j);
-                sb.append("{\"name\":\"").append(esc(p.name()))
-                  .append("\",\"type\":\"").append(esc(p.type()))
-                  .append("\",\"multiplicity\":\"").append(esc(p.multiplicity()))
-                  .append("\"}");
+        w.name("classes").beginArray();
+        for (ClassInfo c : data.classes()) {
+            w.beginObject()
+                .field("id", c.id())
+                .field("name", c.name())
+                .field("package", c.packagePath())
+                .field("stereotype", c.stereotype())
+                .field("description", c.description())
+                .field("businessDomain", c.businessDomain());
+            w.name("properties").beginArray();
+            for (PropertyInfo p : c.properties()) {
+                w.beginObject()
+                    .field("name", p.name())
+                    .field("type", p.type())
+                    .field("multiplicity", p.multiplicity())
+                    .endObject();
             }
-            sb.append("]}");
+            w.endArray().endObject();
         }
+        w.endArray();
 
-        sb.append("],\"associations\":[");
-        for (int i = 0; i < data.associations().size(); i++) {
-            if (i > 0) sb.append(",");
-            AssociationInfo a = data.associations().get(i);
-            sb.append("{\"name\":\"").append(esc(a.name()))
-              .append("\",\"source\":\"").append(esc(a.source()))
-              .append("\",\"target\":\"").append(esc(a.target()))
-              .append("\",\"sourceProperty\":\"").append(esc(a.sourceProperty()))
-              .append("\",\"targetProperty\":\"").append(esc(a.targetProperty()))
-              .append("\",\"sourceMult\":\"").append(esc(a.sourceMult()))
-              .append("\",\"targetMult\":\"").append(esc(a.targetMult()))
-              .append("\"}");
+        w.name("associations").beginArray();
+        for (AssociationInfo a : data.associations()) {
+            w.beginObject()
+                .field("name", a.name())
+                .field("source", a.source())
+                .field("target", a.target())
+                .field("sourceProperty", a.sourceProperty())
+                .field("targetProperty", a.targetProperty())
+                .field("sourceMult", a.sourceMult())
+                .field("targetMult", a.targetMult())
+                .endObject();
         }
+        w.endArray();
 
-        sb.append("],\"generalisations\":[");
-        for (int i = 0; i < data.generalisations().size(); i++) {
-            if (i > 0) sb.append(",");
-            GeneralisationInfo g = data.generalisations().get(i);
-            sb.append("{\"child\":\"").append(esc(g.child()))
-              .append("\",\"parent\":\"").append(esc(g.parent()))
-              .append("\"}");
+        w.name("generalisations").beginArray();
+        for (GeneralisationInfo g : data.generalisations()) {
+            w.beginObject()
+                .field("child", g.child())
+                .field("parent", g.parent())
+                .endObject();
         }
+        w.endArray();
 
-        sb.append("]}");
-        return sb.toString();
+        w.endObject();
+        return w.toString();
     }
 
     // ── Helpers ──
@@ -190,11 +194,4 @@ public final class DiagramService {
         return val;
     }
 
-    private static String esc(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r");
-    }
 }

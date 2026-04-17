@@ -3,6 +3,7 @@ package com.gs.legend.exec;
 import com.gs.legend.model.def.MappingDefinition.TestDefinition;
 import com.gs.legend.model.def.MappingDefinition.TestSuiteDefinition;
 import com.gs.legend.server.QueryService;
+import com.gs.legend.util.Json;
 
 import java.sql.Connection;
 import java.util.ArrayList;
@@ -109,34 +110,44 @@ public class TestSuiteRunner {
 
 
 
+    /**
+     * Serialize a result as a JSON array-of-objects where every value is
+     * emitted as a string (preserves the legacy shape so existing test
+     * expected-data literals — which quote everything — keep matching).
+     * Column names and values are properly RFC 8259 escaped via Json.Writer.
+     */
     private String resultToJson(ExecutionResult result) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("[");
-        for (int i = 0; i < result.rows().size(); i++) {
-            if (i > 0)
-                sb.append(",");
-            sb.append("{");
-            var row = result.rows().get(i);
+        Json.Writer w = Json.compactWriter();
+        w.beginArray();
+        for (var row : result.rows()) {
+            w.beginObject();
             for (int j = 0; j < result.columns().size(); j++) {
-                if (j > 0)
-                    sb.append(",");
-                sb.append("\"").append(result.columns().get(j).name()).append("\":\"");
-                sb.append(row.get(j)).append("\"");
+                Object v = row.get(j);
+                w.field(result.columns().get(j).name(), v == null ? "null" : v.toString());
             }
-            sb.append("}");
+            w.endObject();
         }
-        sb.append("]");
-        return sb.toString();
+        w.endArray();
+        return w.toString();
     }
 
+    /**
+     * Deep-compare two JSON documents by parsing both and checking Node
+     * equality. Falls back to whitespace-normalized string comparison if
+     * either side fails to parse (e.g. historical assertions that aren't
+     * strictly valid JSON).
+     */
     private boolean compareJson(String actual, String expected) {
         if (expected == null || actual == null) {
             return false;
         }
-        // Simplified comparison - normalize whitespace
-        String normalizedActual = actual.replaceAll("\\s+", "");
-        String normalizedExpected = expected.replaceAll("\\s+", "");
-        return normalizedActual.equals(normalizedExpected);
+        try {
+            return Json.parse(actual).equals(Json.parse(expected));
+        } catch (IllegalArgumentException e) {
+            String normalizedActual = actual.replaceAll("\\s+", "");
+            String normalizedExpected = expected.replaceAll("\\s+", "");
+            return normalizedActual.equals(normalizedExpected);
+        }
     }
 
     // ==================== Result Classes ====================

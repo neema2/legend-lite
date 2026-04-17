@@ -1,7 +1,7 @@
 package com.gs.legend.exec;
 
 import com.gs.legend.plan.GenericType;
-
+import com.gs.legend.util.Json;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -50,28 +50,39 @@ public sealed interface ExecutionResult {
     /**
      * Serializes this result as a JSON array of objects.
      * Each row becomes a JSON object with column names as keys.
+     *
+     * <p>Uses {@link Json.Writer} internally so escaping is RFC 8259 compliant
+     * (the previous implementation missed {@code \b}, {@code \f}, and {@code \}u00xx
+     * control-char escapes).
      */
     default String toJsonArray() {
-        StringBuilder sb = new StringBuilder("[");
+        Json.Writer w = Json.compactWriter();
+        w.beginArray();
         List<Column> cols = columns();
-        List<Row> rowList = rows();
-
-        for (int rowIdx = 0; rowIdx < rowList.size(); rowIdx++) {
-            if (rowIdx > 0)
-                sb.append(",");
-            sb.append("{");
-            Row row = rowList.get(rowIdx);
+        for (Row row : rows()) {
+            w.beginObject();
             for (int colIdx = 0; colIdx < cols.size(); colIdx++) {
-                if (colIdx > 0)
-                    sb.append(",");
-                sb.append("\"").append(escapeJson(cols.get(colIdx).name())).append("\":");
-                sb.append(formatJsonValue(row.get(colIdx)));
+                w.name(cols.get(colIdx).name());
+                Object v = row.get(colIdx);
+                if (v == null) {
+                    w.writeNull();
+                } else if (v instanceof Boolean b) {
+                    w.writeBool(b);
+                } else if (v instanceof Number n) {
+                    if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
+                        w.writeLong(n.longValue());
+                    } else {
+                        w.writeDouble(n.doubleValue());
+                    }
+                } else {
+                    // JDBC types (Timestamp, LocalDate, byte[], …) emitted as strings.
+                    w.writeString(v.toString());
+                }
             }
-            sb.append("}");
+            w.endObject();
         }
-
-        sb.append("]");
-        return sb.toString();
+        w.endArray();
+        return w.toString();
     }
 
     // ===== Typed accessors — no cast, clear error =====
@@ -321,32 +332,4 @@ public sealed interface ExecutionResult {
         return new TabularResult(List.of(), List.of(), schema, new GenericType.Relation(schema));
     }
 
-    // ===== JSON helpers =====
-
-    private static String formatJsonValue(Object value) {
-        if (value == null)
-            return "null";
-        if (value instanceof Boolean)
-            return value.toString();
-        if (value instanceof Number)
-            return value.toString();
-        return "\"" + escapeJson(value.toString()) + "\"";
-    }
-
-    private static String escapeJson(String s) {
-        if (s == null)
-            return "";
-        StringBuilder sb = new StringBuilder(s.length());
-        for (char c : s.toCharArray()) {
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> sb.append(c);
-            }
-        }
-        return sb.toString();
-    }
 }

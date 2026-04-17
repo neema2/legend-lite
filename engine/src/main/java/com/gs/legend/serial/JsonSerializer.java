@@ -3,6 +3,7 @@ package com.gs.legend.serial;
 import com.gs.legend.exec.Column;
 import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.exec.Row;
+import com.gs.legend.util.Json;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -44,68 +45,43 @@ public final class JsonSerializer implements ResultSerializer {
     @Override
     public void serialize(ExecutionResult result, OutputStream out) throws IOException {
         try (Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
+            // Streaming: Json.Writer wraps the response Writer directly, so bytes
+            // flow to the OutputStream as rows are emitted — no materialization.
+            Json.Writer w = Json.compactWriter(writer);
             List<Column> columns = result.columns();
-            writer.write('[');
-
-            boolean first = true;
+            w.beginArray();
             for (Row row : result.rows()) {
-                if (!first) {
-                    writer.write(',');
-                }
-                first = false;
-                writeRow(writer, columns, row);
+                writeRow(w, columns, row);
             }
-
-            writer.write(']');
+            w.endArray();
         }
     }
 
-    private void writeRow(Writer writer, List<Column> columns, Row row) throws IOException {
-        writer.write('{');
-
+    private static void writeRow(Json.Writer w, List<Column> columns, Row row) {
+        w.beginObject();
         List<Object> values = row.values();
         for (int i = 0; i < columns.size(); i++) {
-            if (i > 0) {
-                writer.write(',');
-            }
-
-            writer.write('"');
-            writeEscaped(writer, columns.get(i).name());
-            writer.write("\":");
-            writeValue(writer, values.get(i));
+            w.name(columns.get(i).name());
+            writeValue(w, values.get(i));
         }
-
-        writer.write('}');
+        w.endObject();
     }
 
-    private void writeValue(Writer writer, Object value) throws IOException {
+    private static void writeValue(Json.Writer w, Object value) {
         if (value == null) {
-            writer.write("null");
-        } else if (value instanceof Boolean) {
-            writer.write(value.toString());
-        } else if (value instanceof Number) {
-            writer.write(value.toString());
-        } else {
-            writer.write('"');
-            writeEscaped(writer, value.toString());
-            writer.write('"');
-        }
-    }
-
-    private void writeEscaped(Writer writer, String s) throws IOException {
-        if (s == null)
-            return;
-
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> writer.write("\\\"");
-                case '\\' -> writer.write("\\\\");
-                case '\n' -> writer.write("\\n");
-                case '\r' -> writer.write("\\r");
-                case '\t' -> writer.write("\\t");
-                default -> writer.write(c);
+            w.writeNull();
+        } else if (value instanceof Boolean b) {
+            w.writeBool(b);
+        } else if (value instanceof Number n) {
+            if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
+                w.writeLong(n.longValue());
+            } else {
+                w.writeDouble(n.doubleValue());
             }
+        } else {
+            // JDBC types (Timestamp, LocalDate, byte[], ...) are emitted as strings;
+            // matches pre-convergence behavior.
+            w.writeString(value.toString());
         }
     }
 }
