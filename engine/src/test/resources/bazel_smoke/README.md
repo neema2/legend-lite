@@ -61,3 +61,17 @@ These can be added later as the corpus grows. Keep the initial set minimal so it
 - `refdata::RefDataProfile` is the cross-project profile
 - `trading::Trade` declares `<<RefDataProfile.rootEntity>>` and `{RefDataProfile.description = '...'}` using short-name references via `import refdata::*`
 - After `NameResolver` runs, both profile references must resolve to the FQN `refdata::RefDataProfile` in the stored `StereotypeApplication.profileName` / `TaggedValue.profileName` fields
+
+## Infrastructure cross-project references (Category A Phase B prep)
+
+`refdata/impl.pure` declares reusable infrastructure:
+- `refdata::RefDB` — Database (reusable cross-project DB include)
+- `refdata::RefMapping` — Mapping over RefDB (reusable cross-project mapping include)
+- `refdata::RefConn` — RelationalDatabaseConnection bound to `refdata::RefDB`
+
+`trading/impl.pure` consumes them via short-name references (relying on `import refdata::*`):
+- `Database trading::TradingDB ( include RefDB ... )` — short-name DB include
+- `Mapping trading::TradingMapping ( include RefMapping ... )` — short-name mapping include
+- `Runtime trading::TradingRuntime { mappings: [TradingMapping]; connections: [RefDB: [c1: RefConn]] }` — short-name mapping, store key, and connection value
+
+After `NameResolver` runs, every short-name reference above must canonicalize to its `refdata::*` or `trading::*` FQN in the stored record fields.

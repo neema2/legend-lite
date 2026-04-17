@@ -1034,6 +1034,22 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
+     * @param databaseName The database name (simple or qualified)
+     * @return The raw DatabaseDefinition, or null if not found
+     */
+    public DatabaseDefinition getDatabaseDefinition(String databaseName) {
+        return idGet(databases, symbols.resolveId(databaseName));
+    }
+
+    /**
+     * @param mappingName The mapping name (simple or qualified)
+     * @return The raw MappingDefinition, or null if not found
+     */
+    public MappingDefinition getMappingDefinition(String mappingName) {
+        return idGet(mappingDefinitions, symbols.resolveId(mappingName));
+    }
+
+    /**
      * Resolves a live JDBC Connection from a Runtime name.
      * Looks up Runtime → Connection binding → ConnectionDefinition → JDBC Connection.
      *

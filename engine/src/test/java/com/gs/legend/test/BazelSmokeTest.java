@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class BazelSmokeTest {
 
     private static final String REFDATA_MODEL = "bazel_smoke/refdata/model.pure";
+    private static final String REFDATA_IMPL = "bazel_smoke/refdata/impl.pure";
     private static final String TRADING_MODEL = "bazel_smoke/trading/model.pure";
     private static final String TRADING_IMPL = "bazel_smoke/trading/impl.pure";
 
@@ -32,6 +33,7 @@ class BazelSmokeTest {
     void corpusParsesWithCrossProjectRefs() {
         PureModelBuilder builder = new PureModelBuilder()
                 .addSource(loadResource(REFDATA_MODEL))
+                .addSource(loadResource(REFDATA_IMPL))
                 .addSource(loadResource(TRADING_MODEL))
                 .addSource(loadResource(TRADING_IMPL));
 
@@ -105,6 +107,49 @@ class BazelSmokeTest {
                 "Cross-project taggedValue profile must canonicalize to refdata::RefDataProfile FQN");
         assertEquals("description", taggedValue.tagName());
         assertEquals("A financial trade", taggedValue.value());
+
+        // --- cross-project refs: database include resolved from short name via import ---
+        // trading::TradingDB declares `include RefDB` — NameResolver must canonicalize the
+        // included DB FQN to refdata::RefDB in the stored DatabaseDefinition.includes list.
+        var tradingDb = builder.getDatabaseDefinition("trading::TradingDB");
+        assertNotNull(tradingDb, "trading::TradingDB must be registered");
+        assertEquals(java.util.List.of("refdata::RefDB"), tradingDb.includes(),
+                "trading::TradingDB.includes must canonicalize to refdata::RefDB FQN");
+
+        // --- cross-project refs: mapping include resolved from short name via import ---
+        // trading::TradingMapping declares `include RefMapping` — NameResolver must
+        // canonicalize the included-mapping FQN to refdata::RefMapping.
+        var tradingMapping = builder.getMappingDefinition("trading::TradingMapping");
+        assertNotNull(tradingMapping, "trading::TradingMapping must be registered");
+        assertEquals(1, tradingMapping.includes().size(),
+                "trading::TradingMapping must declare one include (refdata::RefMapping)");
+        assertEquals("refdata::RefMapping",
+                tradingMapping.includes().get(0).includedMappingPath(),
+                "Mapping include path must canonicalize to refdata::RefMapping FQN");
+
+        // --- cross-project refs: runtime mappings list resolved from short name ---
+        // trading::TradingRuntime declares `mappings: [TradingMapping]` — canonicalize.
+        var tradingRuntime = builder.getRuntime("trading::TradingRuntime");
+        assertNotNull(tradingRuntime, "trading::TradingRuntime must be registered");
+        assertEquals(java.util.List.of("trading::TradingMapping"), tradingRuntime.mappings(),
+                "Runtime mappings list must canonicalize to FQN");
+
+        // --- cross-project refs: runtime connection bindings (keys and values) ---
+        // trading::TradingRuntime declares `connections: [RefDB: [c1: RefConn]]`.
+        // Both the store key and the connection value must canonicalize to refdata::* FQNs.
+        assertEquals(1, tradingRuntime.connectionBindings().size(),
+                "TradingRuntime must have one connection binding");
+        var bindingEntry = tradingRuntime.connectionBindings().entrySet().iterator().next();
+        assertEquals("refdata::RefDB", bindingEntry.getKey(),
+                "Runtime connection binding key (store FQN) must canonicalize");
+        assertEquals("refdata::RefConn", bindingEntry.getValue(),
+                "Runtime connection binding value (connection FQN) must canonicalize");
+
+        // --- cross-project refs: connection storeName canonicalized ---
+        var refConn = builder.getConnection("refdata::RefConn");
+        assertNotNull(refConn, "refdata::RefConn must be registered");
+        assertEquals("refdata::RefDB", refConn.storeName(),
+                "ConnectionDefinition.storeName must be FQN");
     }
 
     private static String loadResource(String path) {

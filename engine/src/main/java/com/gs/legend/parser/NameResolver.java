@@ -6,6 +6,7 @@ import com.gs.legend.model.def.ClassDefinition.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -65,7 +66,11 @@ public final class NameResolver {
             case AssociationDefinition assocDef -> resolveAssociation(assocDef, imports, knownFqns);
             case MappingDefinition mappingDef -> resolveMapping(mappingDef, imports, knownFqns);
             case FunctionDefinition funcDef -> resolveFunction(funcDef, imports, knownFqns);
-            default -> def; // Database, Runtime, Service, etc. — no simple name fields
+            case DatabaseDefinition dbDef -> resolveDatabase(dbDef, imports, knownFqns);
+            case RuntimeDefinition rtDef -> resolveRuntime(rtDef, imports, knownFqns);
+            case ServiceDefinition svcDef -> resolveService(svcDef, imports, knownFqns);
+            case ConnectionDefinition connDef -> resolveConnection(connDef, imports, knownFqns);
+            default -> def; // EnumDefinition, ProfileDefinition — no cross-project refs
         };
     }
 
@@ -232,6 +237,124 @@ public final class NameResolver {
                 param.functionType(), param.parsedType());
     }
 
+    // ==================== DatabaseDefinition ====================
+
+    private static DatabaseDefinition resolveDatabase(
+            DatabaseDefinition dbDef, ImportScope imports, Set<String> knownFqns) {
+        // Canonicalize included database FQNs (cross-project DB includes)
+        List<String> resolvedIncludes = resolveFqnList(dbDef.includes(), imports, knownFqns);
+        if (resolvedIncludes == dbDef.includes()) return dbDef;
+        return new DatabaseDefinition(
+                dbDef.qualifiedName(),
+                resolvedIncludes,
+                dbDef.schemas(),
+                dbDef.tables(),
+                dbDef.views(),
+                dbDef.joins(),
+                dbDef.filters(),
+                dbDef.multiGrainFilters());
+    }
+
+    // ==================== RuntimeDefinition ====================
+
+    private static RuntimeDefinition resolveRuntime(
+            RuntimeDefinition rtDef, ImportScope imports, Set<String> knownFqns) {
+        // Canonicalize mapping FQNs referenced by this runtime
+        List<String> resolvedMappings = resolveFqnList(rtDef.mappings(), imports, knownFqns);
+        // Canonicalize both sides of every connection binding (store FQN → connection FQN)
+        Map<String, String> resolvedBindings = resolveFqnMap(rtDef.connectionBindings(), imports, knownFqns);
+        if (resolvedMappings == rtDef.mappings()
+                && resolvedBindings == rtDef.connectionBindings()) {
+            return rtDef;
+        }
+        return new RuntimeDefinition(
+                rtDef.qualifiedName(),
+                resolvedMappings,
+                resolvedBindings,
+                rtDef.jsonConnections());
+    }
+
+    // ==================== ServiceDefinition ====================
+
+    private static ServiceDefinition resolveService(
+            ServiceDefinition svcDef, ImportScope imports, Set<String> knownFqns) {
+        // Canonicalize mapping and runtime refs (nullable in the record)
+        String resolvedMappingRef = svcDef.mappingRef() != null
+                ? imports.resolve(svcDef.mappingRef(), knownFqns) : null;
+        String resolvedRuntimeRef = svcDef.runtimeRef() != null
+                ? imports.resolve(svcDef.runtimeRef(), knownFqns) : null;
+        if (java.util.Objects.equals(resolvedMappingRef, svcDef.mappingRef())
+                && java.util.Objects.equals(resolvedRuntimeRef, svcDef.runtimeRef())) {
+            return svcDef;
+        }
+        return new ServiceDefinition(
+                svcDef.qualifiedName(),
+                svcDef.pattern(),
+                svcDef.functionBody(),
+                svcDef.pathParams(),
+                svcDef.documentation(),
+                resolvedMappingRef,
+                resolvedRuntimeRef,
+                svcDef.testSuites());
+    }
+
+    // ==================== ConnectionDefinition ====================
+
+    private static ConnectionDefinition resolveConnection(
+            ConnectionDefinition connDef, ImportScope imports, Set<String> knownFqns) {
+        // Canonicalize the store FQN this connection binds to. Some connection types
+        // (e.g., JSON/model connections) don't bind to a relational store, so storeName
+        // can be null — leave it null in that case.
+        String resolvedStore = connDef.storeName() != null
+                ? imports.resolve(connDef.storeName(), knownFqns) : null;
+        if (java.util.Objects.equals(resolvedStore, connDef.storeName())) return connDef;
+        return new ConnectionDefinition(
+                connDef.qualifiedName(),
+                resolvedStore,
+                connDef.databaseType(),
+                connDef.specification(),
+                connDef.authentication());
+    }
+
+    // ==================== FQN List/Map Helpers ====================
+
+    /**
+     * Resolves every string in a list through the import scope. Returns the input list
+     * unchanged (identity equal) if no strings needed canonicalization.
+     */
+    private static List<String> resolveFqnList(
+            List<String> fqns, ImportScope imports, Set<String> knownFqns) {
+        if (fqns.isEmpty()) return fqns;
+        boolean changed = false;
+        List<String> result = new ArrayList<>(fqns.size());
+        for (String fqn : fqns) {
+            String resolved = imports.resolve(fqn, knownFqns);
+            if (!resolved.equals(fqn)) changed = true;
+            result.add(resolved);
+        }
+        return changed ? List.copyOf(result) : fqns;
+    }
+
+    /**
+     * Resolves every key and value in a map through the import scope (used for
+     * {@code RuntimeDefinition.connectionBindings}, where both keys and values are FQNs).
+     */
+    private static java.util.Map<String, String> resolveFqnMap(
+            java.util.Map<String, String> map, ImportScope imports, Set<String> knownFqns) {
+        if (map.isEmpty()) return map;
+        boolean changed = false;
+        java.util.Map<String, String> result = new java.util.LinkedHashMap<>(map.size());
+        for (var entry : map.entrySet()) {
+            String resolvedKey = imports.resolve(entry.getKey(), knownFqns);
+            String resolvedValue = imports.resolve(entry.getValue(), knownFqns);
+            if (!resolvedKey.equals(entry.getKey()) || !resolvedValue.equals(entry.getValue())) {
+                changed = true;
+            }
+            result.put(resolvedKey, resolvedValue);
+        }
+        return changed ? java.util.Map.copyOf(result) : map;
+    }
+
     // ==================== AssociationDefinition ====================
 
     private static AssociationDefinition resolveAssociation(
@@ -277,19 +400,63 @@ public final class NameResolver {
                         .map(em -> resolveEnumerationMapping(em, imports, knownFqns))
                         .toList();
 
+        // Canonicalize mapping includes: the included-mapping FQN plus both sides of every
+        // store substitution. Needed for cross-project mapping compositions.
+        List<MappingInclude> resolvedIncludes = resolveMappingIncludes(
+                mappingDef.includes(), imports, knownFqns);
+
         if (resolvedMappings.equals(mappingDef.classMappings())
                 && resolvedAssocMappings.equals(mappingDef.associationMappings())
-                && resolvedEnumMappings.equals(mappingDef.enumerationMappings())) {
+                && resolvedEnumMappings.equals(mappingDef.enumerationMappings())
+                && resolvedIncludes == mappingDef.includes()) {
             return mappingDef;
         }
 
         return new MappingDefinition(
                 mappingDef.qualifiedName(),
-                mappingDef.includes(),
+                resolvedIncludes,
                 resolvedMappings,
                 resolvedAssocMappings,
                 resolvedEnumMappings,
                 mappingDef.testSuites());
+    }
+
+    private static List<MappingInclude> resolveMappingIncludes(
+            List<MappingInclude> includes, ImportScope imports, Set<String> knownFqns) {
+        if (includes.isEmpty()) return includes;
+        boolean changed = false;
+        List<MappingInclude> result = new ArrayList<>(includes.size());
+        for (MappingInclude inc : includes) {
+            String resolvedPath = imports.resolve(inc.includedMappingPath(), knownFqns);
+            List<MappingInclude.StoreSubstitution> resolvedSubs = resolveStoreSubstitutions(
+                    inc.storeSubstitutions(), imports, knownFqns);
+            if (resolvedPath.equals(inc.includedMappingPath())
+                    && resolvedSubs == inc.storeSubstitutions()) {
+                result.add(inc);
+            } else {
+                changed = true;
+                result.add(new MappingInclude(resolvedPath, resolvedSubs));
+            }
+        }
+        return changed ? List.copyOf(result) : includes;
+    }
+
+    private static List<MappingInclude.StoreSubstitution> resolveStoreSubstitutions(
+            List<MappingInclude.StoreSubstitution> subs, ImportScope imports, Set<String> knownFqns) {
+        if (subs.isEmpty()) return subs;
+        boolean changed = false;
+        List<MappingInclude.StoreSubstitution> result = new ArrayList<>(subs.size());
+        for (var sub : subs) {
+            String resolvedOrig = imports.resolve(sub.originalStore(), knownFqns);
+            String resolvedSub = imports.resolve(sub.substituteStore(), knownFqns);
+            if (resolvedOrig.equals(sub.originalStore()) && resolvedSub.equals(sub.substituteStore())) {
+                result.add(sub);
+            } else {
+                changed = true;
+                result.add(new MappingInclude.StoreSubstitution(resolvedOrig, resolvedSub));
+            }
+        }
+        return changed ? List.copyOf(result) : subs;
     }
 
     private static MappingDefinition.EnumerationMappingDefinition resolveEnumerationMapping(

@@ -2,19 +2,37 @@
 // Bazel smoke test — trading impl (Database + Mapping + Runtime)
 // Proves that cross-project lazy loading covers impl elements too —
 // the mapping references trading::Trade, whose properties reach into refdata.
-// See docs/BAZEL_IMPLEMENTATION_PLAN.md §1.2.
+// Every short-name cross-project reference below must be canonicalized by
+// NameResolver to the full refdata::* FQN.
+// See docs/BAZEL_IMPLEMENTATION_PLAN.md §1.2 and §3.4.
 // ============================================================
+
+import refdata::*;
 
 Database trading::TradingDB
 (
+    include RefDB                          // CROSS: short-name database include
     Table TRADE (ID VARCHAR(50) PRIMARY KEY, SECTOR_CODE VARCHAR(50), RATING VARCHAR(10), NOTIONAL DOUBLE)
 )
 
 Mapping trading::TradingMapping
 (
+    include RefMapping                     // CROSS: short-name mapping include
     trading::Trade: Relational {
         ~mainTable [trading::TradingDB] TRADE
         id: [trading::TradingDB] TRADE.ID,
         notional: [trading::TradingDB] TRADE.NOTIONAL
     }
 )
+
+Runtime trading::TradingRuntime
+{
+    mappings: [TradingMapping];           // CROSS: short-name mapping ref (local but tests resolution)
+    connections:
+    [
+        RefDB:                              // CROSS: short-name store key
+        [
+            c1: RefConn                     // CROSS: short-name connection value
+        ]
+    ];
+}

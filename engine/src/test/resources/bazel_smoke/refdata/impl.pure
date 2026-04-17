@@ -1,0 +1,27 @@
+// ============================================================
+// Bazel smoke test — refdata project (implementation)
+// Database + Mapping + Connection exported for trading to reference
+// cross-project. See docs/BAZEL_IMPLEMENTATION_PLAN.md §3.4.
+// ============================================================
+
+Database refdata::RefDB
+(
+    Table SECTOR (CODE VARCHAR(50) PRIMARY KEY, NAME VARCHAR(100))
+)
+
+Mapping refdata::RefMapping
+(
+    refdata::Sector: Relational {
+        ~mainTable [refdata::RefDB] SECTOR
+        code: [refdata::RefDB] SECTOR.CODE,
+        name: [refdata::RefDB] SECTOR.NAME
+    }
+)
+
+RelationalDatabaseConnection refdata::RefConn
+{
+    store: refdata::RefDB;
+    type: DuckDB;
+    specification: InMemory { };
+    auth: NoAuth { };
+}
