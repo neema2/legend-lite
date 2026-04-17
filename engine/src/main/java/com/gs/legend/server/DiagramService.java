@@ -1,6 +1,7 @@
 package com.gs.legend.server;
 
 import com.gs.legend.model.PureModelBuilder;
+import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Association;
 import com.gs.legend.model.m3.Property;
 import com.gs.legend.model.m3.PureClass;
@@ -83,9 +84,11 @@ public final class DiagramService {
 
             List<PropertyInfo> props = new ArrayList<>();
             for (Property prop : pc.properties()) {
+                // Preserve pre-Phase-A behavior: diagram shows simple type names.
+                // typeFqn is fully qualified; extract the simple name for display.
                 props.add(new PropertyInfo(
                         prop.name(),
-                        prop.genericType().typeName(),
+                        SymbolTable.extractSimpleName(prop.typeFqn()),
                         prop.multiplicity().toString()));
             }
 
@@ -113,10 +116,10 @@ public final class DiagramService {
 
         for (var entry : allClasses.entrySet()) {
             PureClass pc = entry.getValue();
-            for (PureClass superClass : pc.superClasses()) {
+            for (String superFqn : pc.superClassFqns()) {
                 generalisations.add(new GeneralisationInfo(
                         pc.qualifiedName(),
-                        superClass.qualifiedName()));
+                        superFqn));
             }
         }
 
