@@ -487,21 +487,20 @@ public sealed interface GenericType
     }
 
     /**
-     * FQN-based conversion introduced in Phase A of the Bazel cross-project dependency work.
-     * Distinguishes enum types from class types by consulting the supplied
-     * {@link com.gs.legend.model.ModelContext}. Falls back to {@link ClassType} when the context
-     * is null or doesn't know the FQN.
+     * Converts a {@link com.gs.legend.model.m3.TypeRef} (the FQN + kind pair that replaces
+     * resolved {@link com.gs.legend.model.m3.Type} references on {@link com.gs.legend.model.m3.Property})
+     * into a plan-layer {@code GenericType}. Unlike {@link #fromTypeName(String)} this preserves the
+     * enum-vs-class distinction because {@code TypeRef} carries the kind explicitly.
      *
-     * <p>See {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2 for the migration rationale.
+     * <p>Introduced in Phase A of the Bazel cross-project dependency work; see
+     * {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2.
      */
-    static GenericType fromTypeFqn(String fqn, com.gs.legend.model.ModelContext ctx) {
-        GenericType base = fromTypeName(fqn);
-        // fromTypeName returns ClassType for anything non-primitive; upgrade to EnumType
-        // if the context knows this FQN is actually an enum.
-        if (base instanceof ClassType && ctx != null && ctx.findEnum(fqn).isPresent()) {
-            return new EnumType(fqn);
-        }
-        return base;
+    static GenericType fromTypeRef(com.gs.legend.model.m3.TypeRef ref) {
+        return switch (ref) {
+            case com.gs.legend.model.m3.TypeRef.PrimitiveRef p -> Primitive.fromTypeName(p.fqn());
+            case com.gs.legend.model.m3.TypeRef.ClassRef c -> new ClassType(c.fqn());
+            case com.gs.legend.model.m3.TypeRef.EnumRef e -> new EnumType(e.fqn());
+        };
     }
 
     // ========== Common supertype ==========

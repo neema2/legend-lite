@@ -721,7 +721,7 @@ public class TypeChecker implements TypeCheckEnv {
                     var propOpt = pureClass.findProperty(entry.getKey());
                     if (propOpt.isPresent() && propOpt.get().isCollection()
                             && !(entry.getValue() instanceof PureCollection)) {
-                        GenericType propType = GenericType.fromTypeFqn(propOpt.get().typeFqn(), modelContext);
+                        GenericType propType = GenericType.fromTypeRef(propOpt.get().typeRef());
                         var valInfo = types.get(entry.getValue());
                         if (valInfo != null) {
                             types.put(entry.getValue(),
@@ -853,7 +853,7 @@ public class TypeChecker implements TypeCheckEnv {
                     var propOpt = classOpt.get().findProperty(ap.property());
                     if (propOpt.isPresent()) {
                         classPropertyAccesses.computeIfAbsent(qualifiedName, k -> new HashSet<>()).add(ap.property());
-                        GenericType fieldType = GenericType.fromTypeFqn(propOpt.get().typeFqn(), modelContext);
+                        GenericType fieldType = GenericType.fromTypeRef(propOpt.get().typeRef());
                         var info = TypeInfo.builder()
                                 .expressionType(ExpressionType.one(fieldType))
                                 .associationPath(List.of(ap.property()))
@@ -968,7 +968,7 @@ public class TypeChecker implements TypeCheckEnv {
                     if (classOpt.isPresent()) {
                         var propOpt = classOpt.get().findProperty(ap.property());
                         if (propOpt.isPresent()) {
-                            GenericType fieldType = GenericType.fromTypeFqn(propOpt.get().typeFqn(), modelContext);
+                            GenericType fieldType = GenericType.fromTypeRef(propOpt.get().typeRef());
                             List<String> assocPath = collectPropertyChain(ap);
                             var info = TypeInfo.builder()
                                     .expressionType(ExpressionType.one(fieldType))
@@ -1027,7 +1027,7 @@ public class TypeChecker implements TypeCheckEnv {
             if (classOpt.isPresent()) {
                 var propOpt = classOpt.get().findProperty(ap.property());
                 if (propOpt.isPresent()) {
-                    fieldType = GenericType.fromTypeFqn(propOpt.get().typeFqn(), modelContext);
+                    fieldType = GenericType.fromTypeRef(propOpt.get().typeRef());
                 }
             }
         }

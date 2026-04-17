@@ -159,34 +159,52 @@ Each element kind has one complete example in §3.2, derived from the smoke test
 
 **Adapter pattern, not flag day.**
 
-Step 1 — Add `typeFqn` / `superClassFqns` as record components alongside the existing fields:
+The replacement for the resolved `Type genericType` reference is a lightweight `TypeRef` — a sealed interface with three variants (`PrimitiveRef` / `ClassRef` / `EnumRef`) that carries only the FQN string and the kind. It mirrors the existing `Type` sealed interface shape but strips the resolved object payload, so a property can describe its type without forcing the target class or enum to be loaded eagerly.
+
+Step 1 — Define `TypeRef` and add it as a record component alongside the existing `genericType` field:
 
 ```java
+public sealed interface TypeRef permits TypeRef.PrimitiveRef, TypeRef.ClassRef, TypeRef.EnumRef {
+    String fqn();
+    record PrimitiveRef(String fqn) implements TypeRef {}
+    record ClassRef(String fqn) implements TypeRef {}
+    record EnumRef(String fqn) implements TypeRef {}
+
+    static TypeRef of(Type type) {
+        return switch (type) {
+            case PrimitiveType pt -> new PrimitiveRef(pt.typeName());
+            case PureClass pc -> new ClassRef(pc.qualifiedName());
+            case PureEnumType et -> new EnumRef(et.qualifiedName());
+        };
+    }
+}
+
 public record Property(
     String name,
-    Type genericType,         // existing (temporary)
-    String typeFqn,           // NEW — derived from genericType in compact constructor
+    Type genericType,         // existing (temporary, removed at flag day)
     Multiplicity multiplicity,
-    List<TaggedValue> taggedValues
+    List<TaggedValue> taggedValues,
+    TypeRef typeRef           // NEW — derived from genericType in compact constructor
 ) {
     public Property {
         // ... existing validation ...
-        if (typeFqn == null) {
-            typeFqn = switch (genericType) {
-                case PureClass pc -> pc.qualifiedName();
-                case PureEnumType et -> et.qualifiedName();
-                case PrimitiveType pt -> pt.typeName();
-            };
+        if (typeRef == null) {
+            typeRef = TypeRef.of(genericType);
         }
     }
+
+    /** Convenience accessor — returns typeRef().fqn(). */
+    public String typeFqn() { return typeRef.fqn(); }
 }
 ```
 
-Both fields are populated simultaneously during construction. Constructors that only accept `genericType` fill in `typeFqn` automatically.
+Both fields are populated simultaneously during construction. Legacy constructors pass `null` for `typeRef`; the compact constructor derives it.
 
-Step 2 — Migrate each call site from `prop.genericType()` to `prop.typeFqn()`. Run tests after each file.
+Step 2 — Migrate each call site that reads `prop.genericType()`:
+- Sites that only need the FQN string (display, logging) call `prop.typeFqn()`.
+- Sites that need the kind (class vs enum vs primitive) for type checking or plan generation switch on `prop.typeRef()` or pass it to `GenericType.fromTypeRef(ref)` which preserves the enum-vs-class distinction without any `ModelContext` lookup.
 
-Step 3 — Once every call site reads `typeFqn`, delete `genericType` from the record and all legacy constructors. The redundant `Type` field disappears.
+Step 3 — Once every call site reads `typeRef`, delete `genericType` from the record and all legacy constructors. The redundant `Type` field disappears.
 
 Same pattern for `PureClass.superClasses` → `PureClass.superClassFqns`, except the internal `findProperty` / `allProperties` methods need a `ClassLookup` parameter to walk the FQN chain:
 
@@ -207,7 +225,7 @@ Follow the order below. Each row is one commit.
 
 | Order | File | Action | Validation |
 |---|---|---|---|
-| 1 | `model/m3/Property.java` | Add `String typeFqn` record component; auto-populate from `genericType` in compact constructor | Existing tests pass — `typeFqn` is silent until consumers migrate |
+| 1 | `model/m3/TypeRef.java` (new) + `model/m3/Property.java` | Define `TypeRef` sealed interface (`PrimitiveRef` / `ClassRef` / `EnumRef`); add `TypeRef typeRef` record component to `Property`, auto-populated from `genericType` in the compact constructor; add convenience `typeFqn()` method returning `typeRef().fqn()` | Existing tests pass — `typeRef` is silent until consumers migrate |
 | 2 | `model/m3/PureClass.java` | Add `List<String> superClassFqns` record component; auto-populate from `superClasses`; add `ClassLookup` overloads for `findProperty` / `allProperties` / `findPropertyInSuperclasses` / `collectInheritedProperties` | Same |
 | 3 | `server/DiagramService.java` | Migrate 1 `prop.genericType().typeName()` → `prop.typeFqn()` and 1 `superClasses()` walk | Diagram tests pass |
 | 4 | `compiler/checkers/AbstractChecker.java` | Migrate 1 site | Checker tests pass |
@@ -253,6 +271,8 @@ Commit 12 (flag day) is the only atomic step. If it breaks something, revert it 
 
 - [ ] `grep -r "genericType()" engine/src/main/java` returns zero matches
 - [ ] `grep -r "superClasses()" engine/src/main/java` returns only `NameResolver.java` and `ClassDefinition.java` (def-layer, unrelated to the `m3` refactor)
+- [ ] `Property.typeRef()` and `PureClass.superClassFqns()` are the canonical accessors; `typeFqn()` remains as a convenience for FQN-only sites
+- [ ] `GenericType.fromTypeRef(ref)` is the standard plan-layer conversion; `fromType(m3.Type)` and `fromTypeName(String)` are gone
 - [ ] `mvn test -q` reports the exact same pass/fail counts as the pre-refactor baseline
 - [ ] Smoke test corpus builds and runs a cross-project query (e.g., `Trade.all()->project(~[sectorCode: t | $t.sector.code])`)
 
@@ -296,8 +316,8 @@ Every element file has this top-level shape:
   "sourceLocation": { "file": "refdata/model.pure", "line": 18, "column": 1 },
   "superClassFqns": ["refdata::Categorized"],
   "properties": [
-    { "name": "code", "typeFqn": "String", "multiplicity": { "lower": 1, "upper": 1 }, "stereotypes": [], "taggedValues": [] },
-    { "name": "name", "typeFqn": "String", "multiplicity": { "lower": 1, "upper": 1 }, "stereotypes": [], "taggedValues": [] }
+    { "name": "code", "typeRef": { "kind": "primitive", "fqn": "String" }, "multiplicity": { "lower": 1, "upper": 1 }, "stereotypes": [], "taggedValues": [] },
+    { "name": "name", "typeRef": { "kind": "primitive", "fqn": "String" }, "multiplicity": { "lower": 1, "upper": 1 }, "stereotypes": [], "taggedValues": [] }
   ],
   "derivedProperties": [],
   "constraints": [],
@@ -311,7 +331,7 @@ Derived property with resolved AST body:
 ```json
 {
   "name": "displayName",
-  "returnTypeFqn": "String",
+  "returnTypeRef": { "kind": "primitive", "fqn": "String" },
   "multiplicity": { "lower": 1, "upper": 1 },
   "parameters": [],
   "body": { "kind": "AppliedFunction", "function": "meta::pure::functions::string::plus", "parameters": [ ... ] }
@@ -353,9 +373,9 @@ Derived property with resolved AST body:
   "kind": "function",
   "fqn": "refdata::formatSector",
   "parameters": [
-    { "name": "s", "typeFqn": "refdata::Sector", "multiplicity": { "lower": 1, "upper": 1 } }
+    { "name": "s", "typeRef": { "kind": "class", "fqn": "refdata::Sector" }, "multiplicity": { "lower": 1, "upper": 1 } }
   ],
-  "returnTypeFqn": "String",
+  "returnTypeRef": { "kind": "primitive", "fqn": "String" },
   "returnMultiplicity": { "lower": 1, "upper": 1 },
   "stereotypes": [],
   "taggedValues": [],
