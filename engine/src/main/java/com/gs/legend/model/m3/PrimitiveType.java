@@ -4,7 +4,7 @@ package com.gs.legend.model.m3;
  * Represents built-in primitive types in the Pure type system.
  * These are singleton instances representing scalar data types.
  */
-public enum PrimitiveType implements Type {
+public enum PrimitiveType implements TypeDecl {
     STRING("String"),
     INTEGER("Integer"),
     BOOLEAN("Boolean"),

@@ -32,7 +32,7 @@ public record PureClass(
         List<String> superClassFqns,
         List<Property> properties,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues) implements Type {
+        List<TaggedValue> taggedValues) implements TypeDecl {
 
     public PureClass {
         Objects.requireNonNull(packagePath, "Package path cannot be null");
@@ -96,7 +96,7 @@ public record PureClass(
     }
 
     /**
-     * @return The class name (implements Type interface)
+     * @return The class name (implements {@link TypeDecl} interface)
      */
     @Override
     public String typeName() {

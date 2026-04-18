@@ -5,14 +5,14 @@ import java.util.Objects;
 /**
  * A lightweight reference to a type by its fully qualified name plus its kind
  * (primitive, class, or enum). The FQN-only counterpart to the resolved-object
- * {@link Type} sealed interface.
+ * {@link TypeDecl} sealed interface.
  *
  * <p>Introduced in Phase A of the Bazel cross-project dependency work; see
  * {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2. {@link Property} carries a
- * {@code TypeRef} instead of a resolved {@link Type} so that cross-project property
+ * {@code TypeRef} instead of a resolved {@link TypeDecl} so that cross-project property
  * types don't force their target classes/enums to be loaded eagerly.
  *
- * <p>Relationship to {@link Type}:
+ * <p>Relationship to {@link TypeDecl}:
  * <ul>
  *   <li>{@link PrimitiveRef} ↔ {@link PrimitiveType}</li>
  *   <li>{@link ClassRef} ↔ {@link PureClass}</li>
