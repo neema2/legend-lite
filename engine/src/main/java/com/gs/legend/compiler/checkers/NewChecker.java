@@ -5,6 +5,7 @@ import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.GenericType;
 
 
@@ -58,16 +59,19 @@ public class NewChecker extends AbstractChecker {
         String simpleName = SymbolTable.extractSimpleName(data.className());
 
         if ("Pair".equals(simpleName) && data.typeArguments().size() == 2) {
-            var firstType = GenericType.fromTypeName(data.typeArguments().get(0));
-            var secondType = GenericType.fromTypeName(data.typeArguments().get(1));
+            // Canonical Type.resolve — no per-site resolver, no leaky default.
+            // If a Pair type arg names an unknown type, Type.resolve will throw with a
+            // clear diagnostic instead of silently producing a bogus ClassType.
+            Type firstType = Type.resolve(data.typeArguments().get(0), env.modelContext());
+            Type secondType = Type.resolve(data.typeArguments().get(1), env.modelContext());
             return new PureClass(
                     SymbolTable.extractPackagePath(data.className()),
                     "Pair", java.util.List.of(
                             new com.gs.legend.model.m3.Property("first",
-                                    new com.gs.legend.model.m3.TypeRef.PrimitiveRef(firstType.typeName()),
+                                    firstType,
                                     new com.gs.legend.model.m3.Multiplicity(1, 1)),
                             new com.gs.legend.model.m3.Property("second",
-                                    new com.gs.legend.model.m3.TypeRef.PrimitiveRef(secondType.typeName()),
+                                    secondType,
                                     new com.gs.legend.model.m3.Multiplicity(1, 1))));
         }
 

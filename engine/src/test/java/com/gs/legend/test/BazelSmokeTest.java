@@ -62,16 +62,16 @@ class BazelSmokeTest {
         var trade = builder.getClass("trading::Trade");
         var sectorProp = trade.findProperty("sector", builder);
         assertTrue(sectorProp.isPresent(), "trading::Trade.sector property must exist");
-        assertTrue(sectorProp.get().typeRef() instanceof com.gs.legend.model.m3.TypeRef.ClassRef,
-                "trading::Trade.sector must be a ClassRef (not a primitive or enum)");
+        assertTrue(sectorProp.get().type() instanceof com.gs.legend.model.m3.Type.ClassType,
+                "trading::Trade.sector must be a ClassType (not a primitive or enum)");
         assertEquals("refdata::Sector", sectorProp.get().typeFqn(),
                 "trading::Trade.sector must resolve to refdata::Sector (cross-project)");
 
         // --- cross-project refs: enum-typed property (kind preserved as EnumRef) ---
         var ratingProp = trade.findProperty("rating", builder);
         assertTrue(ratingProp.isPresent(), "trading::Trade.rating property must exist");
-        assertTrue(ratingProp.get().typeRef() instanceof com.gs.legend.model.m3.TypeRef.EnumRef,
-                "trading::Trade.rating must be an EnumRef (enum-vs-class distinction preserved)");
+        assertTrue(ratingProp.get().type() instanceof com.gs.legend.model.m3.Type.EnumType,
+                "trading::Trade.rating must be an EnumType (enum-vs-class distinction preserved)");
         assertEquals("refdata::Rating", ratingProp.get().typeFqn(),
                 "trading::Trade.rating must resolve to refdata::Rating");
 

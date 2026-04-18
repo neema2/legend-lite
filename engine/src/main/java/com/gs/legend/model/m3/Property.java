@@ -7,30 +7,32 @@ import java.util.Objects;
 
 /**
  * Represents a property within a Pure Class.
- * A property has a name, a {@link TypeRef lightweight type reference} (FQN + kind),
+ * A property has a name, a nominal {@link Type type reference} (primitive, class, or enum),
  * and multiplicity constraints.
  *
- * <p>Phase A of the Bazel cross-project dependency work replaced the resolved
- * {@code Type genericType} field with {@link TypeRef} so cross-project property
- * types don't force their target classes or enums to load eagerly. See
- * {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2. Consumers that need the plan-layer
- * type should go through {@link com.gs.legend.plan.GenericType#fromTypeRef(TypeRef)}.
+ * <p>The {@code type} field is one of the nominal {@link Type} variants
+ * ({@link Type.Primitive}, {@link Type.ClassType}, {@link Type.EnumType}) and carries only
+ * the FQN string plus kind discriminator — no resolved {@link PureClass} /
+ * {@link PureEnumType} object payload. Cross-project property types therefore do not force
+ * their target classes or enums to load eagerly (the Bazel Phase A invariant; see
+ * {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2). This replaces the legacy
+ * {@code m3.TypeRef} with the unified {@link Type} hierarchy introduced in Phase B 2.5a.
  *
  * @param name The property name (e.g., "firstName")
  * @param multiplicity The cardinality constraints for this property
  * @param taggedValues Tagged value annotations on this property (e.g., nlq.description)
- * @param typeRef Lightweight type reference (FQN + kind) — the canonical type handle
+ * @param type Nominal type (primitive / class / enum) — the canonical type handle
  */
 public record Property(
         String name,
         Multiplicity multiplicity,
         List<TaggedValue> taggedValues,
-        TypeRef typeRef
+        Type type
 ) {
     public Property {
         Objects.requireNonNull(name, "Property name cannot be null");
         Objects.requireNonNull(multiplicity, "Property multiplicity cannot be null");
-        Objects.requireNonNull(typeRef, "Property typeRef cannot be null");
+        Objects.requireNonNull(type, "Property type cannot be null");
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
 
         if (name.isBlank()) {
@@ -39,27 +41,34 @@ public record Property(
     }
 
     /**
-     * Ergonomic constructor with natural (name, typeRef, multiplicity, taggedValues) ordering
+     * Ergonomic constructor with natural (name, type, multiplicity, taggedValues) ordering
      * — delegates to the canonical constructor.
      */
-    public Property(String name, TypeRef typeRef, Multiplicity multiplicity, List<TaggedValue> taggedValues) {
-        this(name, multiplicity, taggedValues, typeRef);
+    public Property(String name, Type type, Multiplicity multiplicity, List<TaggedValue> taggedValues) {
+        this(name, multiplicity, taggedValues, type);
     }
 
     /**
      * Ergonomic constructor — no annotations.
      */
-    public Property(String name, TypeRef typeRef, Multiplicity multiplicity) {
-        this(name, multiplicity, List.of(), typeRef);
+    public Property(String name, Type type, Multiplicity multiplicity) {
+        this(name, multiplicity, List.of(), type);
     }
 
     /**
      * Convenience accessor — returns the fully qualified name of this property's type.
-     * Equivalent to {@code typeRef().fqn()}. Useful for display, logging, and string
-     * comparison where the type's kind (primitive/class/enum) is not needed.
+     * For primitives returns the Pure name ({@code "Integer"}); for classes and enums
+     * returns the fully qualified name ({@code "model::Person"}). Useful for display,
+     * logging, and string comparison where the type's kind is not needed.
      */
     public String typeFqn() {
-        return typeRef.fqn();
+        return switch (type) {
+            case Type.Primitive p -> p.pureName();
+            case Type.ClassType c -> c.qualifiedName();
+            case Type.EnumType e -> e.qualifiedName();
+            default -> throw new IllegalStateException(
+                    "Property type must be nominal (primitive/class/enum), got: " + type);
+        };
     }
 
     public boolean isRequired() {
@@ -88,6 +97,6 @@ public record Property(
 
     @Override
     public String toString() {
-        return name + ": " + typeRef.fqn() + multiplicity;
+        return name + ": " + typeFqn() + multiplicity;
     }
 }

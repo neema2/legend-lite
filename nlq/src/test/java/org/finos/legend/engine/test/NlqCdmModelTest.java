@@ -186,10 +186,10 @@ class NlqCdmModelTest {
         int enumProps = 0, primitiveProps = 0, classProps = 0;
         for (PureClass pc : modelBuilder.getAllClasses().values()) {
             for (Property p : pc.allProperties(modelBuilder)) {
-                TypeRef tr = p.typeRef();
-                if (tr instanceof TypeRef.EnumRef) enumProps++;
-                else if (tr instanceof TypeRef.PrimitiveRef) primitiveProps++;
-                else if (tr instanceof TypeRef.ClassRef) classProps++;
+                Type t = p.type();
+                if (t instanceof Type.EnumType) enumProps++;
+                else if (t instanceof Type.Primitive) primitiveProps++;
+                else if (t instanceof Type.ClassType) classProps++;
             }
         }
         System.out.printf("Property types — primitive: %d, enum: %d, class: %d%n",
@@ -208,8 +208,8 @@ class NlqCdmModelTest {
                 .filter(p -> p.name().equals("creditEventType"))
                 .findFirst().orElse(null);
         assertNotNull(cet, "creditEventType property missing");
-        assertInstanceOf(TypeRef.EnumRef.class, cet.typeRef(),
-                "creditEventType should be an EnumRef, got: " + cet.typeRef().getClass().getSimpleName());
+        assertInstanceOf(Type.EnumType.class, cet.type(),
+                "creditEventType should be a Type.EnumType, got: " + cet.type().getClass().getSimpleName());
         // Simple name matches the pre-flag-day assertEquals("CreditEventTypeEnum", typeName()) exactly.
         assertEquals("CreditEventTypeEnum", SymbolTable.extractSimpleName(cet.typeFqn()));
     }

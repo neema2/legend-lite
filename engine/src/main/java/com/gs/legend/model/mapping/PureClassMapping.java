@@ -102,7 +102,7 @@ public record PureClassMapping(
         if (targetClass != null) {
             var propOpt = targetClass.findProperty(propertyName, ctx);
             if (propOpt.isPresent()) {
-                return GenericType.fromTypeRef(propOpt.get().typeRef());
+                return GenericType.fromM3Type(propOpt.get().type());
             }
         }
         // Default to String if we can't resolve

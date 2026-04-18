@@ -153,7 +153,7 @@ public sealed interface GenericType
                 case "Variant" -> JSON;
                 case "Any" -> ANY;
                 default -> throw new IllegalArgumentException(
-                        "Unknown primitive type: '" + simpleName + "'. Use GenericType.fromTypeRef(TypeRef) for class/enum types.");
+                        "Unknown primitive type: '" + simpleName + "'. Use GenericType.fromM3Type(m3.Type) for class/enum types.");
             };
         }
     }
@@ -475,19 +475,23 @@ public sealed interface GenericType
 
 
     /**
-     * Converts a {@link com.gs.legend.model.m3.TypeRef} (the FQN + kind pair that replaces
-     * resolved {@link com.gs.legend.model.m3.Type} references on {@link com.gs.legend.model.m3.Property})
+     * Converts an {@link com.gs.legend.model.m3.Type m3.Type} (the unified type-expression
+     * hierarchy carrying nominal FQN + kind on {@link com.gs.legend.model.m3.Property})
      * into a plan-layer {@code GenericType}. Unlike {@link #fromTypeName(String)} this preserves the
-     * enum-vs-class distinction because {@code TypeRef} carries the kind explicitly.
+     * enum-vs-class distinction because {@code Type} carries the kind explicitly.
      *
-     * <p>Introduced in Phase A of the Bazel cross-project dependency work; see
-     * {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2.
+     * <p>Introduced as {@code fromTypeRef} in Phase A of the Bazel cross-project work and
+     * renamed to {@code fromM3Type} in Phase B 2.5b.2 when {@code m3.TypeRef} was merged
+     * into the unified {@code m3.Type} hierarchy. This bridge method will be deleted in
+     * 2.5b.5 when {@code GenericType} itself is replaced by {@code m3.Type}.
      */
-    static GenericType fromTypeRef(com.gs.legend.model.m3.TypeRef ref) {
-        return switch (ref) {
-            case com.gs.legend.model.m3.TypeRef.PrimitiveRef p -> Primitive.fromTypeName(p.fqn());
-            case com.gs.legend.model.m3.TypeRef.ClassRef c -> new ClassType(c.fqn());
-            case com.gs.legend.model.m3.TypeRef.EnumRef e -> new EnumType(e.fqn());
+    static GenericType fromM3Type(com.gs.legend.model.m3.Type type) {
+        return switch (type) {
+            case com.gs.legend.model.m3.Type.Primitive p -> Primitive.fromTypeName(p.pureName());
+            case com.gs.legend.model.m3.Type.ClassType c -> new ClassType(c.qualifiedName());
+            case com.gs.legend.model.m3.Type.EnumType e -> new EnumType(e.qualifiedName());
+            default -> throw new IllegalStateException(
+                    "fromM3Type only supports nominal types (Primitive/ClassType/EnumType); got: " + type);
         };
     }
 

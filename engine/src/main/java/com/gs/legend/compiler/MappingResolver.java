@@ -253,7 +253,7 @@ public final class MappingResolver {
                     if (targetClassOpt.isPresent()) {
                         var propOpt = targetClassOpt.get().findProperty(prop, modelContext);
                         if (propOpt.isPresent()
-                                && propOpt.get().typeRef() instanceof com.gs.legend.model.m3.TypeRef.ClassRef) {
+                                && propOpt.get().type() instanceof com.gs.legend.model.m3.Type.ClassType) {
                             isScalarTraverse = false;
                         }
                     }
@@ -563,8 +563,8 @@ public final class MappingResolver {
         for (var prop : pureClass.properties()) {
             if (joins.containsKey(prop.name())) continue;
             if (prop.multiplicity().isSingular()) continue;
-            if (!(prop.typeRef() instanceof com.gs.legend.model.m3.TypeRef.ClassRef targetRef)) continue;
-            String targetFqn = targetRef.fqn();
+            if (!(prop.type() instanceof com.gs.legend.model.m3.Type.ClassType targetRef)) continue;
+            String targetFqn = targetRef.qualifiedName();
             if (modelContext.findClass(targetFqn).isEmpty()) continue;
 
             var elementClass = modelContext.findClass(targetFqn).get();

@@ -3,7 +3,6 @@ package com.gs.legend.model;
 import com.gs.legend.antlr.PackageableElementBuilder;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.m3.*;
-import com.gs.legend.model.m3.TypeRef;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.model.mapping.RelationalMapping;
@@ -1376,39 +1375,11 @@ public final class PureModelBuilder implements ModelContext {
     // ==================== Conversion Helpers ====================
 
     private Property convertProperty(ClassDefinition.PropertyDefinition propDef) {
-        TypeRef typeRef = resolveTypeRef(propDef.type());
+        // Use the canonical Type.resolve — no per-site resolver. PureModelBuilder is a
+        // ModelContext, so its findClass / findEnum back Type.resolve's lookups.
+        Type type = Type.resolve(propDef.type(), this);
         Multiplicity multiplicity = new Multiplicity(propDef.lowerBound(), propDef.upperBound());
-        return new Property(propDef.name(), typeRef, multiplicity, propDef.taggedValues());
-    }
-
-    /**
-     * Resolves a Pure type name to a lightweight {@link TypeRef} (FQN + kind).
-     * NameResolver has already canonicalized property types to fully qualified form, so the
-     * primitive / class / enum dispatch here only needs to check the known symbol table
-     * — no resolved {@link PureClass} or {@link PureEnumType} object is materialized.
-     *
-     * <p>Throws if the type is neither a known primitive, class, nor enum.
-     */
-    private TypeRef resolveTypeRef(String typeName) {
-        return switch (typeName) {
-            case "String"     -> new TypeRef.PrimitiveRef("String");
-            case "Integer"    -> new TypeRef.PrimitiveRef("Integer");
-            case "Boolean"    -> new TypeRef.PrimitiveRef("Boolean");
-            case "Date"       -> new TypeRef.PrimitiveRef("Date");
-            case "StrictDate" -> new TypeRef.PrimitiveRef("StrictDate");
-            case "DateTime"   -> new TypeRef.PrimitiveRef("DateTime");
-            case "Float"      -> new TypeRef.PrimitiveRef("Float");
-            case "Decimal"    -> new TypeRef.PrimitiveRef("Decimal");
-            default -> {
-                if (idGet(classes, symbols.resolveId(typeName)) != null) {
-                    yield new TypeRef.ClassRef(typeName);
-                }
-                if (idGet(enums, symbols.resolveId(typeName)) != null) {
-                    yield new TypeRef.EnumRef(typeName);
-                }
-                throw new IllegalStateException("Unknown type: " + typeName);
-            }
-        };
+        return new Property(propDef.name(), type, multiplicity, propDef.taggedValues());
     }
 
     private Table convertTable(String dbFqn, DatabaseDefinition.TableDefinition tableDef) {

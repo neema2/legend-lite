@@ -46,7 +46,6 @@ import org.finos.legend.pure.runtime.java.interpreted.natives.NativeFunction;
 import org.finos.legend.pure.runtime.java.interpreted.profiler.Profiler;
 
 import com.gs.legend.model.m3.Multiplicity;
-import com.gs.legend.model.m3.PrimitiveType;
 import com.gs.legend.model.m3.Property;
 import com.gs.legend.model.m3.PureClass;
 
@@ -502,33 +501,27 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 }
             }
 
-            com.gs.legend.model.m3.TypeRef propTypeRef;
-            try {
-                // Validate that it's a known primitive; the PrimitiveType.fromName call
-                // throws if not. We don't retain the resolved Type — just build a
-                // lightweight PrimitiveRef TypeRef with the same FQN.
-                PrimitiveType.fromName(typeName);
-                propTypeRef = new com.gs.legend.model.m3.TypeRef.PrimitiveRef(typeName);
-            } catch (IllegalArgumentException e) {
-                if (rawType != null) {
-                    String qualifiedTypeName = getQualifiedName(rawType);
-                    if (qualifiedTypeName != null) {
-                        if (qualifiedTypeName.startsWith("meta::pure::metamodel")) continue;
-                        extractClassRecursive(qualifiedTypeName, classes, visited, ps);
-                        PureClass referenced = classes.get(qualifiedTypeName);
-                        if (referenced != null) {
-                            propTypeRef = new com.gs.legend.model.m3.TypeRef.ClassRef(referenced.qualifiedName());
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-                } else {
+            // Resolve the property type: primitive by Pure-level name lookup, otherwise
+            // recurse into the referenced class. Replaces a legacy try/catch-for-control-flow
+            // pattern (Phase B 2.5b.2) with Optional-based dispatch.
+            com.gs.legend.model.m3.Type propType;
+            var primitive = com.gs.legend.model.m3.Type.Primitive.lookup(typeName);
+            if (primitive.isPresent()) {
+                propType = primitive.get();
+            } else if (rawType != null) {
+                String qualifiedTypeName = getQualifiedName(rawType);
+                if (qualifiedTypeName == null
+                        || qualifiedTypeName.startsWith("meta::pure::metamodel")) {
                     continue;
                 }
+                extractClassRecursive(qualifiedTypeName, classes, visited, ps);
+                PureClass referenced = classes.get(qualifiedTypeName);
+                if (referenced == null) continue;
+                propType = new com.gs.legend.model.m3.Type.ClassType(referenced.qualifiedName());
+            } else {
+                continue;
             }
-            properties.add(new Property(propName, propTypeRef, multiplicity));
+            properties.add(new Property(propName, propType, multiplicity));
         }
 
         String qualifiedName = getQualifiedName(cls);
