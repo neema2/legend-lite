@@ -1,6 +1,7 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.ast.*;
+import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.mapping.ClassMapping;
@@ -37,7 +38,7 @@ import java.util.Set;
  */
 public final class MappingResolver {
 
-    private final TypeCheckResult typeResult;
+    private final CompiledExpression typeResult;
     private final ModelContext modelContext;
     private final NormalizedMapping normalized;
     private final IdentityHashMap<ValueSpecification, StoreResolution> resolutions = new IdentityHashMap<>();
@@ -49,7 +50,7 @@ public final class MappingResolver {
      * @param normalized   Immutable mapping snapshot (from MappingNormalizer)
      * @param modelContext Model for class/association lookups
      */
-    public MappingResolver(TypeCheckResult typeResult, NormalizedMapping normalized,
+    public MappingResolver(CompiledExpression typeResult, NormalizedMapping normalized,
                            ModelContext modelContext) {
         this.typeResult = typeResult;
         this.modelContext = modelContext;
@@ -62,7 +63,7 @@ public final class MappingResolver {
      * @return per-node StoreResolution sidecar
      */
     public IdentityHashMap<ValueSpecification, StoreResolution> resolve() {
-        walkNode(typeResult.root(), null);
+        walkNode(typeResult.ast(), null);
         stampExtendOverrides();
         return resolutions;
     }
@@ -378,7 +379,7 @@ public final class MappingResolver {
         }
 
         // Demand-driven: only resolve associations the query actually navigates
-        Set<String> neededAssocs = typeResult.associationNavigations()
+        Set<String> neededAssocs = typeResult.dependencies().associationNavigations()
                 .getOrDefault(className, Set.of());
 
         for (AppliedFunction extendAf : findExtendNodes(sourceSpec)) {
@@ -669,9 +670,9 @@ public final class MappingResolver {
      * Stamps {@link StoreResolution.ExtendOverride} on sourceSpec extend nodes
      * whose columns are not all used by the query.
      *
-     * <p>Reads {@code typeResult.classPropertyAccesses()} (populated by TypeChecker)
-     * to determine which model properties are referenced. Intersects with each
-     * extend node's colSpec names to produce column-level cancellation.
+     * <p>Reads {@code typeResult.dependencies().classPropertyAccesses()} (populated
+     * by TypeChecker) to determine which model properties are referenced. Intersects
+     * with each extend node's colSpec names to produce column-level cancellation.
      */
     private void stampExtendOverrides() {
         // Collect overrides first, then apply — avoids ConcurrentModificationException
@@ -685,7 +686,7 @@ public final class MappingResolver {
 
             String className = entry.getValue();
 
-            Set<String> usedProps = typeResult.classPropertyAccesses()
+            Set<String> usedProps = typeResult.dependencies().classPropertyAccesses()
                     .getOrDefault(className, Set.of());
 
             for (AppliedFunction extendAf : findExtendNodes(store.sourceSpec())) {

@@ -2,8 +2,8 @@ package com.gs.legend.plan;
 
 import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
+import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.compiler.PureCompileException;
-import com.gs.legend.compiler.TypeCheckResult;
 import com.gs.legend.compiler.TypeChecker;
 import com.gs.legend.compiler.StoreResolution;
 import com.gs.legend.compiler.TypeInfo;
@@ -53,22 +53,22 @@ public class PlanGenerator {
      */
     public enum Mode { SNAPSHOT, STREAMING }
 
-    private final TypeCheckResult unit;
+    private final CompiledExpression unit;
     private final SQLDialect dialect;
     private final java.util.IdentityHashMap<com.gs.legend.ast.ValueSpecification, com.gs.legend.compiler.StoreResolution> storeResolutions;
     private final Mode mode;
     private int tableAliasCounter = 0;
 
-    public PlanGenerator(TypeCheckResult unit, SQLDialect dialect) {
+    public PlanGenerator(CompiledExpression unit, SQLDialect dialect) {
         this(unit, dialect, new java.util.IdentityHashMap<>(), Mode.SNAPSHOT);
     }
 
-    public PlanGenerator(TypeCheckResult unit, SQLDialect dialect,
+    public PlanGenerator(CompiledExpression unit, SQLDialect dialect,
             java.util.IdentityHashMap<com.gs.legend.ast.ValueSpecification, com.gs.legend.compiler.StoreResolution> storeResolutions) {
         this(unit, dialect, storeResolutions, Mode.SNAPSHOT);
     }
 
-    public PlanGenerator(TypeCheckResult unit, SQLDialect dialect,
+    public PlanGenerator(CompiledExpression unit, SQLDialect dialect,
             java.util.IdentityHashMap<com.gs.legend.ast.ValueSpecification, com.gs.legend.compiler.StoreResolution> storeResolutions,
             Mode mode) {
         this.unit = unit;
@@ -124,7 +124,7 @@ public class PlanGenerator {
     }
 
     public SingleExecutionPlan generate() {
-        ValueSpecification vs = unit.root();
+        ValueSpecification vs = unit.ast();
         TypeInfo info = unit.types().get(vs);
 
         // If root was inlined (user function), process the expanded body

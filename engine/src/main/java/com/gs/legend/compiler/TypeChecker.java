@@ -2,6 +2,8 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
+import com.gs.legend.compiled.CompiledDependencies;
+import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.parser.PureParser;
@@ -69,10 +71,10 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Top-level compile: returns a {@link TypeCheckResult} bundling the typed
-     * result and per-node side table.
+     * Top-level compile: returns a {@link CompiledExpression} bundling the typed
+     * AST, per-node type side table, and dependency data.
      */
-    public TypeCheckResult check(ValueSpecification vs) {
+    public CompiledExpression check(ValueSpecification vs) {
         TypeInfo rootInfo = compileExpr(vs, new CompilationContext());
 
         if (rootInfo == null) {
@@ -85,7 +87,10 @@ public class TypeChecker implements TypeCheckEnv {
         }
 
         compileNeededAssociationTargets();
-        return new TypeCheckResult(vs, types, classPropertyAccesses, associationNavigations);
+        return new CompiledExpression(
+                vs,
+                types,
+                new CompiledDependencies(classPropertyAccesses, associationNavigations));
     }
 
     /**

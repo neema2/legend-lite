@@ -1,5 +1,8 @@
 # Bazel-Based Dependency Management for Legend
 
+> **📎 Phase B design note:** Element serialization details (the `Compiled*` record hierarchy, `.legend` file format, `compileAll()` API, Tier 1/2/3 back-reference modeling) are now fully specified in **[`PHASE_B_COMPILED_ELEMENTS.md`](./PHASE_B_COMPILED_ELEMENTS.md)**. This doc retains the high-level rationale and §6 tier design; concrete Java types and serialization format live in the companion.
+> **Terminology drift:** references to `.json` element files and `validateElement(fqn)` in this doc reflect earlier thinking — they become `.legend` files and `tc.check(e)`/`compileAll()` per the companion. A textual update is tracked as Phase 6 of the companion's implementation plan.
+
 Proposes a Bazel-managed monorepo for Legend (platform + projects), with an incremental path that lets the 1000s of existing external Legend repos participate in the same build ecosystem — Bazel fetches them as source and builds them with the same rules as monorepo projects, no separate extraction pipeline. Whether in the monorepo or external, users still write `.pure` files exactly as they do today; the build automatically shreds each `PackageableElement` into its own output file, giving Bazel per-element dependency tracking, faster incremental builds, and lazy loading of cross-project elements.
 
 ## How It Works in 60 Seconds

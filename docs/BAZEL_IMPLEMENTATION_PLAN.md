@@ -3,6 +3,16 @@
 > **Companion doc to `BAZEL_DEPENDENCY_PROPOSAL.md`.**
 > The proposal explains *why* and *what*. This doc explains *how* and *in what order* — with per-file checklists, contracts, test gates, and done criteria you can actually check off.
 
+> **📎 Phase B supersession note:** §3 (Phase B — Element Serialization) and §4.3 (`validateElement` contract) have been redesigned in **[`PHASE_B_COMPILED_ELEMENTS.md`](./PHASE_B_COMPILED_ELEMENTS.md)**. Read that doc for the final design before starting Phase B work. Highlights:
+> - `validateElement(fqn)` primitive → subsumed into `TypeChecker.check(e)` + `PureModelBuilder.compileAll()`
+> - `.json` element files → `.legend` files with format-neutral extension
+> - Flat `fqn__underscored.json` naming → hierarchical `<package>/<SimpleName>.legend` (Java `.class`-style)
+> - Jackson-implicit schema → explicit per-kind codecs via project `Json` util
+> - Ad-hoc schema fields → sealed `CompiledElement` record hierarchy in `com.gs.legend.compiled`
+> - Nav sidecars → `CompiledBackRefFragment` (Tier 1) + `CompiledProjectManifest` (Tier 2)
+>
+> §3.2 (JSON schema), §3.5 (pre-parsed M2M), §3.6 (nav sidecars), §4.3 (`validateElement`) of *this* plan are **superseded** by the companion. §3.4 (NameResolver expansion), §4.2 (lazy loading), §4.4 (sidecar lookup order), §4.5 (LSP wiring), §4.7 (smoke test scenarios) remain accurate in principle — update `.json` → `.legend` and `validateElement` → `compileAll`/`check(e)` when referencing them.
+
 **Scope of this plan:** the three risky engine refactors that must land before any Bazel work:
 
 1. **Phase A** — `typeFqn` storage refactor (proposal §11 Step 2.5)
