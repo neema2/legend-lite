@@ -1,5 +1,7 @@
 package com.gs.legend.compiled;
 
+import com.gs.legend.model.m3.Type;
+
 /**
  * Back-reference: a qualified property injected into {@code targetClassFqn}
  * by association {@code associationFqn}. Qualified properties carry a
@@ -10,6 +12,6 @@ public record CompiledQualifiedPropertyFromAssociation(
         String name,
         String associationFqn,
         CompiledExpression body,
-        TypeRef returnTypeRef,
+        Type returnType,
         Multiplicity returnMultiplicity) implements CompiledBackReference {
 }

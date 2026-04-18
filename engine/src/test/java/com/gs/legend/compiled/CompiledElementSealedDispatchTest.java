@@ -1,5 +1,6 @@
 package com.gs.legend.compiled;
 
+import com.gs.legend.model.m3.Type;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -56,7 +57,7 @@ class CompiledElementSealedDispatchTest {
                 new CompiledClass("m::C", List.of(), List.of(), List.of(), List.of(), List.of(), Map.of(), loc),
                 new CompiledAssociation("m::A", List.of(), List.of(), loc),
                 new CompiledMapping("m::M", List.of(), loc),
-                new CompiledFunction("m::f__", List.of(), TypeRef.primitive("String"), Multiplicity.ONE, null, loc),
+                new CompiledFunction("m::f__", List.of(), Type.Primitive.STRING, Multiplicity.ONE, null, loc),
                 new CompiledService("m::s", List.of(), null, loc),
                 new CompiledEnum("m::E", List.of(), List.of(), Map.of(), loc),
                 new CompiledProfile("m::P", List.of(), List.of(), loc),

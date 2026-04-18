@@ -1,5 +1,7 @@
 package com.gs.legend.compiled;
 
+import com.gs.legend.model.m3.Type;
+
 import java.util.List;
 
 /**
@@ -14,7 +16,7 @@ import java.util.List;
 public record CompiledFunction(
         String qualifiedName,
         List<CompiledParameter> parameters,
-        TypeRef returnTypeRef,
+        Type returnType,
         Multiplicity returnMultiplicity,
         CompiledExpression body,
         SourceLocation sourceLocation) implements CompiledElement {

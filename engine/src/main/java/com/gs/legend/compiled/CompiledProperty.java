@@ -1,5 +1,7 @@
 package com.gs.legend.compiled;
 
+import com.gs.legend.model.m3.Type;
+
 /**
  * Compiled-state property: a name plus its declared type and multiplicity.
  *
@@ -9,6 +11,6 @@ package com.gs.legend.compiled;
  */
 public record CompiledProperty(
         String name,
-        TypeRef typeRef,
+        Type type,
         Multiplicity multiplicity) {
 }
