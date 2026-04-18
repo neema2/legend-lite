@@ -1,6 +1,8 @@
 package com.gs.legend.model.m3;
 
+import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
+import com.gs.legend.model.def.EnumDefinition;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +51,85 @@ public sealed interface Type {
      */
     default boolean isSubtypeOf(Type other) {
         return this.equals(other) || (other instanceof Primitive p && p == Primitive.ANY);
+    }
+
+    // ============================================================
+    //  Kind-aware String -> Type resolver (the ONLY resolver)
+    // ============================================================
+
+    /**
+     * Canonical String → {@link Type} resolver. Tries the three kinds in order:
+     *
+     * <ol>
+     *   <li>{@link Primitive} via {@link Primitive#lookup}</li>
+     *   <li>Class via {@link ModelContext#findClass}</li>
+     *   <li>Enum via {@link ModelContext#findEnum}</li>
+     * </ol>
+     *
+     * <p><strong>This is the one and only kind-aware resolver.</strong> It replaces the
+     * seven scattered String→Type resolvers in the legacy code:
+     * {@code GenericType.fromTypeName} (leaky default to ClassType),
+     * {@code GenericType.Primitive.fromTypeName} (throwing, used for control flow),
+     * {@code m3.PrimitiveType.fromName} (case-insensitive, inconsistent),
+     * {@code TdsChecker} / {@code NewChecker} / {@code CastChecker} locals, and the
+     * {@code parseMultiplicity} trio.
+     *
+     * <p><strong>Never returns a leaky default.</strong> If {@code name} is not a
+     * primitive, class, or enum in the provided {@link ModelContext}, throws
+     * {@link IllegalStateException}.
+     *
+     * <p>Callers that already know the kind from parse context (e.g., the parser just
+     * saw a {@code Class} keyword) should construct the variant directly
+     * ({@code new ClassType(fqn)}) rather than invoke this method — this resolver is
+     * for cases where the kind must be inferred from the model.
+     *
+     * @param name Simple or fully qualified type name
+     * @param ctx  Model context for class / enum lookup
+     * @return The resolved {@link Type}
+     * @throws IllegalStateException if {@code name} is not a known primitive, class, or enum
+     */
+    static Type resolve(String name, ModelContext ctx) {
+        Objects.requireNonNull(name, "Type name cannot be null");
+        Objects.requireNonNull(ctx, "ModelContext cannot be null");
+
+        Optional<Primitive> primitive = Primitive.lookup(name);
+        if (primitive.isPresent()) {
+            return primitive.get();
+        }
+
+        Optional<PureClass> cls = ctx.findClass(name);
+        if (cls.isPresent()) {
+            return new ClassType(cls.get().qualifiedName());
+        }
+
+        Optional<EnumDefinition> enm = ctx.findEnum(name);
+        if (enm.isPresent()) {
+            return new EnumType(enm.get().qualifiedName());
+        }
+
+        throw new IllegalStateException(
+                "Unknown type: '" + name + "'. Not a primitive, class, or enum in the current model context.");
+    }
+
+    /**
+     * Like {@link #resolve}, but returns {@link Optional#empty()} instead of throwing
+     * when the name cannot be resolved. Use when the caller wants to handle the
+     * unknown-type case explicitly (e.g., for diagnostic messages) — never to silently
+     * fall back to a default type.
+     */
+    static Optional<Type> tryResolve(String name, ModelContext ctx) {
+        if (name == null || ctx == null) return Optional.empty();
+
+        Optional<Primitive> primitive = Primitive.lookup(name);
+        if (primitive.isPresent()) return Optional.of(primitive.get());
+
+        Optional<PureClass> cls = ctx.findClass(name);
+        if (cls.isPresent()) return Optional.of(new ClassType(cls.get().qualifiedName()));
+
+        Optional<EnumDefinition> enm = ctx.findEnum(name);
+        if (enm.isPresent()) return Optional.of(new EnumType(enm.get().qualifiedName()));
+
+        return Optional.empty();
     }
 
     // ============================================================
