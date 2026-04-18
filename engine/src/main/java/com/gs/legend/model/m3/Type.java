@@ -472,21 +472,73 @@ public sealed interface Type {
 
     /**
      * Column schema shared by {@link Relation} and {@link Tuple}. Immutable;
-     * column order is preserved.
+     * column order is preserved via {@link LinkedHashMap}.
+     *
+     * <p>Shape-compatible with the legacy {@code GenericType.Relation.Schema} to make
+     * the chunk 2.5b migration a mechanical type-name swap. Intentionally simpler than
+     * legend-pure's {@code RelationType} + {@code Column<U,V>[m]} metamodel — in
+     * particular, we do not yet track per-column multiplicity, name wildcards, or
+     * column stereotypes/taggedValues. Those features are not exercised by legend-lite
+     * today and would cascade across {@code ExtendChecker} / {@code ProjectChecker} /
+     * dozens of callers; they are deferred to a future chunk when actually needed.
+     *
+     * <p>{@code dynamicPivotColumns} is legend-lite-specific (not in Pure metamodel) —
+     * captures column specs for pivot queries where names depend on runtime data.
+     *
+     * @param columns             Ordered map of column name to column type
+     * @param dynamicPivotColumns Specs for data-dependent pivot columns; empty for non-pivot
      */
-    record Schema(Map<String, Type> columns) {
+    record Schema(Map<String, Type> columns,
+                  List<DynamicPivotColumn> dynamicPivotColumns) {
+
+        /**
+         * Dynamic pivot column spec: the column name has an {@code aliasSuffix} appended
+         * to a data-derived prefix, and the value has {@code returnType}. Used by
+         * {@code pivot()} to describe columns whose final names aren't known until
+         * query execution.
+         */
+        public record DynamicPivotColumn(String aliasSuffix, Type returnType) {
+            public static final String SEPARATOR = "__|__";
+        }
+
         public Schema {
             Objects.requireNonNull(columns, "Schema columns cannot be null");
             columns = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(columns));
+            dynamicPivotColumns = dynamicPivotColumns != null
+                    ? List.copyOf(dynamicPivotColumns) : List.of();
         }
 
+        // ----- Factories -----
+
         public static Schema empty() {
-            return new Schema(Map.of());
+            return new Schema(Map.of(), List.of());
+        }
+
+        public static Schema withoutPivot(Map<String, Type> columns) {
+            return new Schema(columns, List.of());
         }
 
         public static Schema of(Map<String, Type> columns) {
-            return new Schema(columns);
+            return new Schema(columns, List.of());
         }
+
+        public static Schema of(List<String> names, List<Type> types) {
+            if (names.size() != types.size()) {
+                throw new IllegalArgumentException(
+                        "Column names and types must have the same size");
+            }
+            var cols = new LinkedHashMap<String, Type>();
+            for (int i = 0; i < names.size(); i++) {
+                cols.put(names.get(i), types.get(i));
+            }
+            return new Schema(cols, List.of());
+        }
+
+        public static Schema ofSingle(String name, Type type) {
+            return new Schema(Map.of(name, type), List.of());
+        }
+
+        // ----- Structural accessors -----
 
         public int size() {
             return columns.size();
@@ -500,8 +552,107 @@ public sealed interface Type {
             return columns.get(name);
         }
 
+        public Type requireColumnType(String name) {
+            Type type = columns.get(name);
+            if (type == null) {
+                throw new IllegalStateException(
+                        "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
+            }
+            return type;
+        }
+
+        /** Alias for {@link #requireColumnType(String)} — matches legacy naming. */
+        public Type requireColumn(String name) {
+            return requireColumnType(name);
+        }
+
         public List<String> columnNames() {
             return List.copyOf(columns.keySet());
+        }
+
+        // ----- Assertions -----
+
+        public void assertHasColumn(String name) {
+            if (!columns.containsKey(name)) {
+                throw new IllegalStateException(
+                        "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
+            }
+        }
+
+        public void assertHasColumns(List<String> names) {
+            var missing = names.stream().filter(n -> !columns.containsKey(n)).toList();
+            if (!missing.isEmpty()) {
+                throw new IllegalStateException(
+                        "Columns " + missing + " do not exist. Available columns: " + columns.keySet());
+            }
+        }
+
+        // ----- Transformations (all return new immutable Schemas) -----
+
+        public Schema withColumn(String name, Type type) {
+            var newCols = new LinkedHashMap<>(columns);
+            newCols.put(name, type);
+            return new Schema(newCols, dynamicPivotColumns);
+        }
+
+        public Schema withColumns(Map<String, Type> additionalColumns) {
+            var newCols = new LinkedHashMap<>(columns);
+            newCols.putAll(additionalColumns);
+            return new Schema(newCols, dynamicPivotColumns);
+        }
+
+        public Schema onlyColumns(List<String> names) {
+            var newCols = new LinkedHashMap<String, Type>();
+            for (String name : names) {
+                Type type = columns.get(name);
+                if (type == null) {
+                    throw new IllegalStateException(
+                            "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
+                }
+                newCols.put(name, type);
+            }
+            return new Schema(newCols, dynamicPivotColumns);
+        }
+
+        public Schema withoutColumns(java.util.Set<String> names) {
+            var newCols = new LinkedHashMap<>(columns);
+            names.forEach(newCols::remove);
+            return new Schema(newCols, dynamicPivotColumns);
+        }
+
+        public Schema renameColumn(String oldName, String newName) {
+            Type type = columns.get(oldName);
+            if (type == null) {
+                throw new IllegalStateException(
+                        "Cannot rename: column '" + oldName + "' does not exist. Available: " + columns.keySet());
+            }
+            var newCols = new LinkedHashMap<String, Type>();
+            for (var entry : columns.entrySet()) {
+                if (entry.getKey().equals(oldName)) {
+                    newCols.put(newName, entry.getValue());
+                } else {
+                    newCols.put(entry.getKey(), entry.getValue());
+                }
+            }
+            return new Schema(newCols, dynamicPivotColumns);
+        }
+
+        public Schema merge(Schema other) {
+            var newCols = new LinkedHashMap<>(columns);
+            newCols.putAll(other.columns());
+            return new Schema(newCols, dynamicPivotColumns);
+        }
+
+        @Override
+        public String toString() {
+            var sb = new StringBuilder("(");
+            boolean first = true;
+            for (var entry : columns.entrySet()) {
+                if (!first) sb.append(", ");
+                sb.append(entry.getKey()).append(":").append(entry.getValue().typeName());
+                first = false;
+            }
+            return sb.append(')').toString();
         }
     }
 }
