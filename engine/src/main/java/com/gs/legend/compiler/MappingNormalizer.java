@@ -49,7 +49,7 @@ public final class MappingNormalizer {
     }
 
     /**
-     * Restricted view for TypeChecker — only sees findMappingExpression.
+     * Restricted view for TypeChecker — only sees findSourceSpec.
      */
     public ModelContext modelContext() {
         if (!normalized.hasClassMappings()) return model;
@@ -60,8 +60,8 @@ public final class MappingNormalizer {
             @Override public java.util.Optional<com.gs.legend.model.def.EnumDefinition> findEnum(String n) { return model.findEnum(n); }
             @Override public java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String c) { return model.findAllAssociationNavigations(c); }
             @Override public java.util.List<com.gs.legend.model.def.FunctionDefinition> findFunction(String n) { return model.findFunction(n); }
-            @Override public java.util.Optional<MappingExpression> findMappingExpression(String className) {
-                return normalized.findMappingExpression(className);
+            @Override public java.util.Optional<com.gs.legend.ast.ValueSpecification> findSourceSpec(String className) {
+                return normalized.findSourceSpec(className);
             }
         };
     }
@@ -86,7 +86,7 @@ public final class MappingNormalizer {
         }
 
         Map<Integer, ClassMapping> resolvedMappings = new HashMap<>();
-        Map<Integer, ModelContext.MappingExpression> expressions = new HashMap<>();
+        Map<Integer, com.gs.legend.ast.ValueSpecification> sourceSpecs = new HashMap<>();
 
         // Phase 1: Resolve M2M chains
         Set<Integer> resolving = new HashSet<>();
@@ -114,7 +114,7 @@ public final class MappingNormalizer {
             }
         }
 
-        // Phase 2a: Build Relational MappingExpressions.
+        // Phase 2a: Build relational sourceSpecs.
         // Association traversals are embedded in sourceSpec as extend() nodes
         // with fn1=traverse — no separate AssociationJoinInfo needed.
         for (var entry : resolvedMappings.entrySet()) {
@@ -125,24 +125,21 @@ public final class MappingNormalizer {
 
             var sourceSpec = synthesizeSourceSpec(rm);
             sourceSpec = addAssociationExtends(rm, className, sourceSpec, resolvedMappings);
-            expressions.put(classId, new ModelContext.MappingExpression.Relational(
-                    className, sourceSpec));
+            sourceSpecs.put(classId, sourceSpec);
         }
 
-        // Phase 2b: Build M2M MappingExpressions with sourceSpec chain.
-        // Like relational, the sourceSpec is the single source of truth:
+        // Phase 2b: Build M2M sourceSpec chains.
+        // Same shape as relational — one synthesized ValueSpecification:
         //   getAll("SrcClass") → filter(src|cond) → extend(~[prop:src|expr, ...])
         for (var entry : resolvedMappings.entrySet()) {
             int classId = entry.getKey();
             ClassMapping cm = entry.getValue();
             if (!(cm instanceof PureClassMapping pcm)) continue;
 
-            var sourceSpec = synthesizeM2MSourceSpec(pcm);
-            expressions.put(classId, new ModelContext.MappingExpression.M2M(
-                    pcm.sourceClassName(), sourceSpec));
+            sourceSpecs.put(classId, synthesizeM2MSourceSpec(pcm));
         }
 
-        return new NormalizedMapping(symbols, resolvedMappings, expressions);
+        return new NormalizedMapping(symbols, resolvedMappings, sourceSpecs);
     }
 
     // ==================== M2M Chain Resolution ====================

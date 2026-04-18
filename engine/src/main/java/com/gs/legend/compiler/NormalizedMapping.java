@@ -37,15 +37,15 @@ public final class NormalizedMapping {
 
     private final SymbolTable symbols;
     private final Map<Integer, ClassMapping> classMappings;
-    private final Map<Integer, ModelContext.MappingExpression> expressions;
+    private final Map<Integer, com.gs.legend.ast.ValueSpecification> sourceSpecs;
 
     public NormalizedMapping(
             SymbolTable symbols,
             Map<Integer, ClassMapping> classMappings,
-            Map<Integer, ModelContext.MappingExpression> expressions) {
+            Map<Integer, com.gs.legend.ast.ValueSpecification> sourceSpecs) {
         this.symbols = symbols;
         this.classMappings = Map.copyOf(classMappings);
-        this.expressions = Map.copyOf(expressions);
+        this.sourceSpecs = Map.copyOf(sourceSpecs);
     }
 
     /**
@@ -59,24 +59,12 @@ public final class NormalizedMapping {
 
     /**
      * Returns the synthesized sourceSpec for a class (relational or M2M).
-     * Used by MappingResolver to build StoreResolution without touching MappingExpression.
+     * Used by both {@code TypeChecker} (via {@code ModelContext.findSourceSpec()}
+     * delegation) and {@code MappingResolver} (directly on this snapshot).
      */
-    public com.gs.legend.ast.ValueSpecification findSourceSpec(String className) {
-        return findMappingExpression(className)
-                .map(e -> switch (e) {
-                    case ModelContext.MappingExpression.Relational r -> r.sourceSpec();
-                    case ModelContext.MappingExpression.M2M m -> m.sourceSpec();
-                })
-                .orElse(null);
-    }
-
-    /**
-     * Finds the compiler-visible mapping expression for a class.
-     * Used by TypeChecker via ModelContext.findMappingExpression() delegation.
-     */
-    public Optional<ModelContext.MappingExpression> findMappingExpression(String className) {
+    public Optional<com.gs.legend.ast.ValueSpecification> findSourceSpec(String className) {
         int id = symbols.resolveId(className);
-        return id >= 0 ? Optional.ofNullable(expressions.get(id)) : Optional.empty();
+        return id >= 0 ? Optional.ofNullable(sourceSpecs.get(id)) : Optional.empty();
     }
 
     /**

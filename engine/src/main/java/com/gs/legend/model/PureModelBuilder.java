@@ -1171,12 +1171,6 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     @Override
-    public Optional<MappingExpression> findMappingExpression(String className) {
-        return mappingRegistry.findPureClassMapping(className)
-                .map(pcm -> new MappingExpression.M2M(pcm.sourceClassName(), null));
-    }
-
-    @Override
     public Optional<PureClass> findClass(String className) {
         return Optional.ofNullable(idGet(classes, symbols.resolveId(className)));
     }

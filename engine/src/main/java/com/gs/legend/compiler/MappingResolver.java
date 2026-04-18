@@ -198,7 +198,7 @@ public final class MappingResolver {
         // 2. Walk sourceSpec extends ONCE — override computed properties with
         //    DynaFunction(expression) derived from the extend's lambda body.
         //    Also resolves association joins, embedded extends, and traverse extends.
-        var sourceSpec = normalized.findSourceSpec(className);
+        var sourceSpec = normalized.findSourceSpec(className).orElse(null);
         Map<String, StoreResolution.JoinResolution> joins =
                 resolveSourceSpecExtends(className, tableName, sourceSpec, propToCol, properties);
 
@@ -301,7 +301,7 @@ public final class MappingResolver {
         }
 
         // 4. Get M2M sourceSpec and stamp stores on chain nodes
-        var sourceSpec = normalized.findSourceSpec(pcm.targetClassName());
+        var sourceSpec = normalized.findSourceSpec(pcm.targetClassName()).orElse(null);
         if (sourceSpec != null) {
             stampM2MSourceSpecStores(sourceSpec, sourceStore, properties, propToCol, joins);
         }

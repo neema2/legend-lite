@@ -3,7 +3,6 @@ package com.gs.legend.test;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.MappingNormalizer;
 import com.gs.legend.compiler.TypeChecker;
-import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.FunctionDefinition;
@@ -133,21 +132,12 @@ class PhaseBEagerCompileSpike {
         String slowestClass = null;
         String slowestKind = null;
         for (var pureClass : builder.getAllClasses().values()) {
-            var mapExprOpt = modelCtx.findMappingExpression(pureClass.qualifiedName());
-            if (mapExprOpt.isEmpty()) continue;
-            ValueSpecification sourceSpec;
-            String kind;
-            switch (mapExprOpt.get()) {
-                case ModelContext.MappingExpression.Relational rel -> {
-                    sourceSpec = rel.sourceSpec();
-                    kind = "relational";
-                }
-                case ModelContext.MappingExpression.M2M m2m -> {
-                    sourceSpec = m2m.sourceSpec();
-                    kind = "M2M";
-                }
-            }
-            if (sourceSpec == null) continue;
+            String fqn = pureClass.qualifiedName();
+            var specOpt = modelCtx.findSourceSpec(fqn);
+            if (specOpt.isEmpty()) continue;
+            ValueSpecification sourceSpec = specOpt.get();
+            String kind = builder.getMappingRegistry().findPureClassMapping(fqn).isPresent()
+                    ? "M2M" : "relational";
             long s = System.nanoTime();
             warmTc.compileExpr(sourceSpec, new TypeChecker.CompilationContext());
             long d = System.nanoTime() - s;

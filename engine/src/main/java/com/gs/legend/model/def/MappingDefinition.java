@@ -231,6 +231,19 @@ public record MappingDefinition(
         }
 
         /**
+         * The source this class is mapped from, uniformly:
+         * the source class FQN for M2M, the main table's name for relational.
+         * Empty when the def record carries neither (e.g., a relational class
+         * mapping with no explicit main table).
+         */
+        public Optional<String> sourceName() {
+            if (isM2M()) {
+                return Optional.ofNullable(sourceClassName);
+            }
+            return mainTable != null ? Optional.ofNullable(mainTable.tableName()) : Optional.empty();
+        }
+
+        /**
          * Finds a property mapping by property name.
          */
         public Optional<PropertyMappingDefinition> findPropertyMapping(String propertyName) {

@@ -10,16 +10,18 @@ import java.util.Optional;
  * for relational mappings, a projection of another class's properties for
  * M2M mappings.
  *
- * @param classFqn       FQN of the class being mapped.
- * @param kind           {@link MappingKind#RELATIONAL} or {@link MappingKind#M2M}.
- * @param sourceSpec     Compiled source expression for this class.
- * @param rootTableFqn   Root table FQN for relational mappings; empty for M2M.
- * @param sourceClassFqn Source class FQN for M2M mappings; empty for relational.
+ * @param classFqn   FQN of the class being mapped.
+ * @param kind       {@link MappingKind#RELATIONAL} or {@link MappingKind#M2M}.
+ * @param sourceSpec Compiled source expression for this class.
+ * @param sourceName The source this class is mapped from, interpreted per
+ *                   {@code kind}: root table name for {@link MappingKind#RELATIONAL},
+ *                   source class FQN for {@link MappingKind#M2M}. Empty when the
+ *                   def record doesn't carry one (e.g., a relational class mapping
+ *                   with no explicit main table).
  */
 public record CompiledMappedClass(
         String classFqn,
         MappingKind kind,
         CompiledExpression sourceSpec,
-        Optional<String> rootTableFqn,
-        Optional<String> sourceClassFqn) {
+        Optional<String> sourceName) {
 }

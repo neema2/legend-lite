@@ -21,6 +21,10 @@ public interface TypeCheckEnv {
     /** Look up the TypeInfo for a previously compiled AST node (by identity). */
     TypeInfo lookupCompiled(ValueSpecification vs);
 
-    /** Mark a class's source spec as compiled (for demand-driven pass 2). */
-    void markSourceSpecCompiled(String className);
+    /**
+     * Compile a class's sourceSpec (relational or M2M) once, idempotently.
+     * Single primitive shared by the query path (GetAllChecker, pass-2
+     * association targets) and the build path (compileMapping fan-out).
+     */
+    void compileSourceSpecFor(String classFqn);
 }

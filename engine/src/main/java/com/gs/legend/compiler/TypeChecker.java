@@ -11,10 +11,13 @@ import com.gs.legend.compiled.CompiledElement;
 import com.gs.legend.compiled.CompiledEnum;
 import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.compiled.CompiledFunction;
+import com.gs.legend.compiled.CompiledMappedClass;
 import com.gs.legend.compiled.CompiledMapping;
 import com.gs.legend.compiled.CompiledProfile;
 import com.gs.legend.compiled.CompiledRuntime;
 import com.gs.legend.compiled.CompiledService;
+import com.gs.legend.compiled.MappingKind;
+import com.gs.legend.compiled.SourceLocation;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.def.AssociationDefinition;
@@ -108,9 +111,28 @@ public class TypeChecker implements TypeCheckEnv {
         return types.get(vs);
     }
 
+    /**
+     * Compile a class's normalized sourceSpec (relational or M2M) once, idempotently.
+     *
+     * <p>Single primitive behind every place that needs "type-check this class's
+     * sourceSpec":
+     * <ul>
+     *   <li>Query path — {@code GetAllChecker} on a class reference.</li>
+     *   <li>Query path, pass-2 — association-target fan-out in
+     *       {@link #compileNeededAssociationTargets()}.</li>
+     *   <li>Build path — {@link #compileMapping(MappingDefinition)} fan-out.</li>
+     * </ul>
+     *
+     * <p>Guarded by {@link #compiledSourceSpecs}: a second call for the same
+     * {@code classFqn} within this {@code TypeChecker}'s lifetime is a no-op.
+     */
     @Override
-    public void markSourceSpecCompiled(String className) {
-        compiledSourceSpecs.add(className);
+    public void compileSourceSpecFor(String classFqn) {
+        if (compiledSourceSpecs.contains(classFqn)) return;
+        modelContext.findSourceSpec(classFqn).ifPresent(spec -> {
+            compiledSourceSpecs.add(classFqn);
+            compileExpr(spec, new CompilationContext());
+        });
     }
 
     /**
@@ -216,9 +238,47 @@ public class TypeChecker implements TypeCheckEnv {
                 "Phase 1b: compileClass not yet implemented for " + cd.qualifiedName());
     }
 
+    /**
+     * Compiles a {@link MappingDefinition} into a {@link CompiledMapping}.
+     *
+     * <p>For each class the mapping covers, pulls the already-normalized
+     * sourceSpec from {@code modelContext.findMappingExpression(classFqn)}
+     * (produced earlier by {@code MappingNormalizer}), type-checks it via
+     * {@link #compileExpr(com.gs.legend.ast.ValueSpecification, CompilationContext)},
+     * and wraps it as a {@link CompiledMappedClass}.
+     *
+     * <p>Idempotent with the query path: per-class sourceSpec compilation is
+     * guarded by {@code compiledSourceSpecs}, so a subsequent
+     * {@code GetAllChecker} hit on the same class is a no-op.
+     *
+     * <p>{@code rootTableFqn} / {@code sourceClassFqn} on the resulting
+     * mapped-class records carry what the def-record exposes directly; a
+     * later chunk resolves {@code rootTableFqn} to a fully-qualified
+     * database FQN (today the def record only carries the short table name).
+     */
     private CompiledMapping compileMapping(MappingDefinition md) {
-        throw new UnsupportedOperationException(
-                "Phase 1b: compileMapping not yet implemented for " + md.qualifiedName());
+        var mappedClasses = new ArrayList<CompiledMappedClass>();
+        for (var cm : md.classMappings()) {
+            String classFqn = cm.className();
+
+            // Primitive — handles both relational and M2M, idempotent with the
+            // query path's prior source-spec compilation for the same class.
+            compileSourceSpecFor(classFqn);
+
+            ValueSpecification spec = modelContext.findSourceSpec(classFqn).orElse(null);
+
+            MappingKind kind = cm.isM2M() ? MappingKind.M2M : MappingKind.RELATIONAL;
+
+            CompiledExpression compiledSourceSpec = spec == null ? null
+                    : new CompiledExpression(
+                            spec,
+                            types,
+                            new CompiledDependencies(classPropertyAccesses, associationNavigations));
+
+            mappedClasses.add(new CompiledMappedClass(
+                    classFqn, kind, compiledSourceSpec, cm.sourceName()));
+        }
+        return new CompiledMapping(md.qualifiedName(), List.copyOf(mappedClasses), SourceLocation.UNKNOWN);
     }
 
     private CompiledFunction compileFunction(FunctionDefinition fd) {
@@ -272,28 +332,15 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private void compileNeededAssociationTargets() {
         if (modelContext == null) return;
-        // Iterate a snapshot — associationNavigations is not modified by compileExpr on source relations
+        // Iterate a snapshot — associationNavigations is not modified by compileExpr on source relations.
         for (var entry : new ArrayList<>(associationNavigations.entrySet())) {
             String className = entry.getKey();
-            // Compile this class's source relation if not already done
-            compileSourceSpecIfNeeded(className);
-            // Compile each target class's source relation
+            compileSourceSpecFor(className);
             for (String propName : entry.getValue()) {
-                modelContext.findAssociationByProperty(className, propName).ifPresent(nav -> {
-                    compileSourceSpecIfNeeded(nav.targetClassName());
-                });
+                modelContext.findAssociationByProperty(className, propName)
+                        .ifPresent(nav -> compileSourceSpecFor(nav.targetClassName()));
             }
         }
-    }
-
-    private void compileSourceSpecIfNeeded(String className) {
-        if (compiledSourceSpecs.contains(className)) return;
-        modelContext.findMappingExpression(className).ifPresent(mapExpr -> {
-            if (mapExpr instanceof ModelContext.MappingExpression.Relational rel) {
-                compiledSourceSpecs.add(className);
-                compileExpr(rel.sourceSpec(), new CompilationContext());
-            }
-        });
     }
 
     /**

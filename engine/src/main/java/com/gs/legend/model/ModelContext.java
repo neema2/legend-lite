@@ -91,49 +91,19 @@ public interface ModelContext {
     }
 
     /**
-     * Compiler-visible view of a mapping — expressions only, no routing info.
-     * Sealed interface with two variants: M2M (Pure expression-based) and
-     * Relational (column-based with optional filter).
-     *
-     * <p>TypeChecker sees this via {@link #findMappingExpression(String)}.
-     * MappingResolver never sees this — it reads from NormalizedMapping accessors.
-     */
-    sealed interface MappingExpression {
-
-        /**
-         * M2M (Pure) mapping: sourceSpec is the single source of truth.
-         * The sourceSpec is a ValueSpecification chain synthesized by MappingNormalizer:
-         * {@code getAll("SrcClass") -> filter({src|cond}) -> extend(~[prop:{src|expr}, ...])}
-         *
-         * @param sourceClassName  The source class being mapped from (~src)
-         * @param sourceSpec       Synthesized class-space chain: getAll → filter → extend
-         */
-        record M2M(
-                String sourceClassName,
-                ValueSpecification sourceSpec) implements MappingExpression {}
-
-        /**
-         * Relational mapping: source relation is the single source of truth.
-         * The sourceSpec is a ValueSpecification chain synthesized by MappingNormalizer:
-         * {@code tableReference(db, name) -> filter(...) -> join(...) -> extend(traverse()) -> distinct()}
-         * Association traversals are embedded as extend() nodes with fn1=traverse.
-         *
-         * @param className        The class being mapped
-         * @param sourceSpec   Synthesized Relation ValueSpec (tableRef + filter + joins + extends + distinct)
-         */
-        record Relational(
-                String className,
-                ValueSpecification sourceSpec) implements MappingExpression {}
-    }
-
-    /**
-     * Finds the compiler-visible mapping expression for a class.
-     * Returns only expressions — no routing info (tables, columns, joins).
+     * Finds the normalized sourceSpec for a class — the single
+     * {@code ValueSpecification} chain synthesized by {@code MappingNormalizer}:
+     * <ul>
+     *   <li><b>Relational</b>: {@code tableReference → filter → join → extend(traverse) → distinct}</li>
+     *   <li><b>M2M</b>: {@code getAll("SrcClass") → filter → extend(~[...])}</li>
+     * </ul>
+     * Kind discrimination (if needed) lives on the def record
+     * ({@code ClassMappingDefinition.isM2M()}), not here.
      *
      * @param className Simple or qualified class name
-     * @return The mapping expression, if this class has a mapping
+     * @return The normalized sourceSpec, if this class has a mapping
      */
-    default Optional<MappingExpression> findMappingExpression(String className) {
+    default Optional<ValueSpecification> findSourceSpec(String className) {
         return Optional.empty();
     }
 
