@@ -180,7 +180,7 @@ public record RelationalMapping(
             // including collections (arrays needing UNNEST) and class-typed (nested structs).
             SqlDataType sqlType;
             if (prop.type() instanceof com.gs.legend.model.m3.Type.Primitive pr) {
-                sqlType = SqlDataType.fromPrimitiveType(com.gs.legend.model.m3.PrimitiveType.fromName(pr.pureName()));
+                sqlType = SqlDataType.fromPrimitive(pr);
             } else {
                 // Class-typed or enum-typed property → use VARIANT (JSON/struct)
                 sqlType = SqlDataType.SEMISTRUCTURED;

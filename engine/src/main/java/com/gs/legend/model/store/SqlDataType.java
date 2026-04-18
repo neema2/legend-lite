@@ -1,6 +1,6 @@
 package com.gs.legend.model.store;
 
-import com.gs.legend.model.m3.PrimitiveType;
+import com.gs.legend.model.m3.Type;
 
 /**
  * Represents SQL data types for relational columns.
@@ -34,21 +34,28 @@ public enum SqlDataType {
     }
 
     /**
-     * Maps a Pure primitive type to its corresponding SQL type.
-     * 
-     * @param primitiveType The Pure primitive type
-     * @return The corresponding SQL data type
+     * Maps a Pure primitive type ({@link Type.Primitive}) to its corresponding SQL type.
+     *
+     * <p>The mapping is intentionally coarse — this enum was designed for the eight
+     * legacy {@code m3.PrimitiveType} values and does not preserve VARCHAR size,
+     * DECIMAL precision/scale, or distinguish BIGINT / SMALLINT / TINYINT. See the
+     * Phase B findings document for the planned post-Phase-B enhancement.
+     *
+     * <p>Throws for primitives that have no direct SQL column mapping
+     * ({@code ANY}, {@code NIL}).
      */
-    public static SqlDataType fromPrimitiveType(PrimitiveType primitiveType) {
-        return switch (primitiveType) {
+    public static SqlDataType fromPrimitive(Type.Primitive primitive) {
+        return switch (primitive) {
             case STRING -> VARCHAR;
-            case INTEGER -> INTEGER;
-            case BOOLEAN -> BOOLEAN;
-            case DATE -> DATE;
-            case STRICT_DATE -> DATE; // StrictDate maps to SQL DATE
-            case DATE_TIME -> TIMESTAMP; // DateTime maps to SQL TIMESTAMP
+            case INTEGER, INT64, INT128 -> INTEGER;
+            case NUMBER, DECIMAL -> DECIMAL;
             case FLOAT -> DOUBLE;
-            case DECIMAL -> DECIMAL;
+            case BOOLEAN -> BOOLEAN;
+            case DATE, STRICT_DATE -> DATE;
+            case DATE_TIME, STRICT_TIME -> TIMESTAMP;
+            case JSON -> SEMISTRUCTURED;
+            case ANY, NIL -> throw new IllegalArgumentException(
+                    "Pure primitive '" + primitive.pureName() + "' has no direct SQL column mapping");
         };
     }
 }

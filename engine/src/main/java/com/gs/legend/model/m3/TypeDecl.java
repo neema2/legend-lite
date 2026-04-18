@@ -1,23 +1,26 @@
 package com.gs.legend.model.m3;
 
 /**
- * Sealed interface representing a declared type in the Pure model — the entity
- * that shows up in the symbol table as a named declaration.
+ * Sealed interface representing a user-defined declared type in the Pure model —
+ * a named declaration that shows up in the symbol table.
  *
  * <p>Analogous to Java's {@code javax.lang.model.element.TypeElement}: a
- * {@code TypeDecl} is a declaration ({@link PrimitiveType}, {@link PureClass},
- * {@link PureEnumType}), not a type expression. Type expressions (primitive
- * references, parameterized types, relations, functions, etc.) are represented
- * by the forthcoming {@code m3.Type} sealed hierarchy, which is orthogonal.
+ * {@code TypeDecl} is a declaration ({@link PureClass} or {@link PureEnumType}),
+ * not a type expression. Type expressions (primitives, parameterized types,
+ * relations, functions, etc.) live on the orthogonal {@link Type} sealed hierarchy.
+ *
+ * <p>Primitives are intentionally <em>not</em> declarations — they're built-in
+ * type expressions modeled by {@link Type.Primitive}.
  *
  * <p>Renamed from {@code m3.Type} in Phase B chunk 2.5a to free the {@code Type}
- * name for the unified type-expression hierarchy.
+ * name for the unified type-expression hierarchy; {@code PrimitiveType} dropped
+ * from the permits clause in 2.5b.3 when the redundant enum was deleted.
  */
-public sealed interface TypeDecl permits PrimitiveType, PureClass, PureEnumType {
+public sealed interface TypeDecl permits PureClass, PureEnumType {
 
     /**
-     * @return The name of this declared type (simple name for classes/enums,
-     *         Pure-level name for primitives).
+     * @return The simple name of this declared type (e.g., "Person" for
+     *         {@code model::Person}).
      */
     String typeName();
 }
