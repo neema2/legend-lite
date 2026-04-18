@@ -16,6 +16,7 @@ Proposes a Bazel-managed monorepo for Legend (platform + projects), with an incr
 
 1. [Why Bazel?](#1-why-bazel)
 2. [The Key Insight: Per-Element Files, Not Header/Impl Split](#2-the-key-insight-per-element-files-not-headerimpl-split)
+2.5. [Project-Qualified FQNs](#25-project-qualified-fqns)
 3. [Monorepo Structure](#3-monorepo-structure)
 4. [Bazel Rules](#4-bazel-rules)
 5. [External Repos: Just Another legend_library](#5-external-repos-just-another-legend_library)
@@ -120,6 +121,44 @@ Runtime (MappingResolver + PlanGenerator + Execute):
 
 **Lazy loading for IDE/LSP:** Instead of loading all dependency elements upfront, the model builder lazy-loads on first reference via `addDepElementDir()` (see §6 for details). A project with 10,000 dependency classes but only using 50 loads 50 element files on demand. First-keystroke latency is proportional to what you USE, not what EXISTS.
 
+
+---
+
+## 2.5 Project-Qualified FQNs (Internal Only)
+
+Legend's grammar doesn't enforce global FQN uniqueness. Two projects can declare the same source-level FQN — deliberately (legacy projects with known duplicates) or accidentally (someone copies `refdata::Sector` into their own project without realizing it shadows an upstream class). There is no way to prevent this at the source level, so **every element must be identified internally by `(projectId, fqn)` — not by `fqn` alone**.
+
+**This is a compiler-internal mechanism. Users never see it, never type it, and the grammar never accepts it.** The project id is a separate dimension carried alongside the source FQN, not a new namespace segment. Rendered form inside the compiler and on disk: `<projectId>__<sourceFqn>`. The `__` separator is deliberately not valid Pure FQN syntax, which is exactly what keeps this form out of the language surface.
+
+- **Source:** `Class refdata::Sector { ... }` — unchanged, forever
+- **Declared dependencies:** project-level in `BUILD.bazel` (`deps = ["//projects/refdata:lib"]`) — Bazel tracks these
+- **Internal canonical form:** `refdata__refdata::Sector` (declaring project: `refdata`, source FQN: `refdata::Sector`)
+- **On-disk filename:** `refdata__refdata__Sector.json`
+- **LSP / hover / error messages:** strip `<projectId>__` before display — user always sees `refdata::Sector`
+- **Second project copying the same source FQN** (`other__refdata::Sector`) serializes to a distinct file — no collision, no silent shadowing
+
+The qualifier is **always applied**, including for projects whose source FQN root happens to equal their project id. We cannot rely on that convention because it isn't enforced, and a downstream project that copies one of our classes breaks the invariant without our knowledge.
+
+### Where project-qualification is load-bearing
+
+- **Filenames.** The per-element filesystem in §6 only works because filenames are globally unique.
+- **NameResolver output.** Every resolved reference carries `(projectId, fqn)`, so lazy load opens the right file even when two projects define the same source FQN.
+- **Back-reference fragment keys (§6 Tier 1).** Cross-project contributions to the same target class must agree on the canonical key to merge.
+- **Resolved AST references.** A walk like `$x.sector.name` expands to canonical form at serialization time — no import context needed at load.
+
+### What doesn't change
+
+- **Authoring.** Users write `Class refdata::Sector`. No new syntax, no project-id ceremony in sources.
+- **Grammar.** The parser does not recognize `__` — you can't type the canonical form, and you can't accidentally refer to another project's class by it.
+- **Runtime type identity.** A class is identified by `(declaringProjectId, sourceFqn)`. Wherever `refdata::Sector` is referenced from project `refdata`, it's the same type.
+- **Display surface.** Every UI/LSP path strips the project-id prefix — canonical form is an internal detail.
+
+### Implementation
+
+- **`NameResolver`** is the single place where project id gets prepended. Given a source reference and the declaring project context, it resolves short/unqualified/imported names against the project's declared Bazel deps (first match wins, ambiguity is a compile error) and emits `(resolvedProjectId, resolvedFqn)` for every reference. This is the canonical form for everything downstream.
+- **`ElementSerializer`** uses canonical form for filenames and for every FQN it emits into resolved AST / back-reference fragments. Mechanical once `NameResolver` hands it the pair.
+- **LSP / display layer** has a single `stripProjectId()` helper applied at the presentation boundary — errors, hovers, go-to-def labels, rename previews.
+- Bazel already tracks project-level `deps`; no new dependency-declaration syntax.
 
 ---
 
@@ -636,7 +675,7 @@ With the Bazel shape defined — module extension for discovery, `legend_library
 
 ## 6. How the Compiler Adapts
 
-The per-element architecture requires the compiler to adapt in several areas: name resolution for cross-project imports, lazy element loading, string-based property types, resolved AST serialization for executable bodies, pre-parsed M2M/XStore expressions, lazy superclass resolution, and association navigation sidecars. Validation is exposed as an opt-in `validateElement` primitive invoked by Bazel and LSP at different scopes. The Bazel and LSP paths share the compiler core and element-file format, differing only in entry points and caching — matching how javac/rustc/tsc split batch vs language service. An eager-loading path is also provided for `legend_test` actions. See the Complete Dependency Reference Matrix below for every cross-element reference type and how the plan addresses it.
+The per-element architecture requires the compiler to adapt in several areas: name resolution for cross-project imports, lazy element loading, string-based property types, resolved AST serialization for executable bodies, pre-parsed M2M/XStore expressions, lazy superclass resolution, and a three-tier back-reference system (target-side fragments, caller-side manifests, deferred IDE indexer). Validation is exposed as an opt-in `validateElement` primitive invoked by Bazel and LSP at different scopes. The Bazel and LSP paths share the compiler core and element-file format, differing only in entry points and caching — matching how javac/rustc/tsc split batch vs language service. An eager-loading path is also provided for `legend_test` actions. See the Complete Dependency Reference Matrix below for every cross-element reference type and how the plan addresses it.
 
 ### Complete Dependency Reference Matrix
 
@@ -1026,69 +1065,198 @@ When the TypeChecker navigates a property access on `Swap` and misses locally, i
 
 **Scope of change:** ~20 lines in `PureModelBuilder` — replace `resolveSuperclasses()` with a lazy `findProperty()` that walks the superclass chain on demand, plus ~5 lines in `PureClass` to store `List<String> superClassFqns` instead of `List<PureClass> superClasses`.
 
-### Required Change: Association Navigation Sidecars
+### Required Change: Back-Reference Fragments (Three-Tier)
 
-**Problem:** Association-backed properties are not declared inside the class — they're injected by an `Association` element. When the TypeChecker resolves `$p.addresses` on `Person`, it needs to discover the `Person_Address` association. But the compiler only knows `(classFqn="refdata::Person", propertyName="addresses")` — it does NOT know the association FQN, so there's no file path to check. "The filesystem is the index" breaks for reverse lookups.
+**Problem:** Some properties of a class are not declared inside the class file. They're *contributed* by other elements — an `Association` injects `Person.addresses`; a future `Extension` injects `Sector.displayName`; a subclass relationship means `Trade.all()` should find `Swap` instances. When the TypeChecker resolves `$p.addresses` on `Person`, it only knows `(classFqn="refdata::Person", propertyName="addresses")`. It does NOT know which association or extension contributed that property. "The filesystem is the index" breaks for reverse lookups.
 
-```pure
-Class refdata::Person { name: String[1]; }
-Class refdata::Address { city: String[1]; }
+A naïve fix — embed all contributed properties directly in `Person.json` — causes write amplification: a change to any contributor (even in another project) would change `Person.json`, invalidating every consumer of `Person` including those that never touch the contributed property.
 
-Association refdata::Person_Address
-{
-  person: refdata::Person[1];
-  addresses: refdata::Address[*];
-}
+The elegant fix comes from real compilers. Rustc, Swift, Kotlin, and javac each handle back-references differently depending on **semantics**, not uniformly. Legend-lite adopts the same split into **three tiers**, each with a distinct mechanism matched to its scope.
+
+#### The three tiers
+
+| Tier | Semantics | Legend-lite kinds | Mechanism | Model |
+|---|---|---|---|---|
+| **Tier 1** | Target-side injection (always visible once loaded) | Association properties, (future) subclasses | Per-target-FQN fragment files, merged at load | Pure's `BackReference` |
+| **Tier 2** | Caller-side resolution (scoped by import) | Extensions (§8 of CROSS_PROJECT_JOINS) | Per-project manifest; NameResolver builds an in-scope registry per compile | Kotlin extensions, Swift extensions, Rust traits |
+| **Tier 3** | IDE-only queries (not needed at compile or runtime) | find-references, rename, call hierarchy | Out-of-band indexer, deferred; NOT in build outputs | Swift's SourceKit `.indexstore` |
+
+Each tier is explained below. Tier 1 is the v1 critical path (replaces the old "nav sidecar" design). Tier 2 is the infrastructure that makes the Extension feature from [Cross-Project Joins §8](./CROSS_PROJECT_JOINS.md#8-consumer-side-class-extensions-a-trait-style-escape-hatch) architecturally clean. Tier 3 is explicitly **deferred** — it's not in scope for the Bazel migration, and it would live in a separate indexer pipeline if ever built.
+
+#### Why three mechanisms instead of one
+
+Pure (see `@/Users/neema/legend/legend-pure/legend-pure-core/legend-pure-m3-core/src/main/java/org/finos/legend/pure/m3/serialization/compiler/metadata/BackReference.java`) uses a **single** target-side mechanism for all back-reference kinds. This works but has two costs relevant here:
+
+1. **Lost scoping for extensions.** Kotlin-style extensions require import-scoped visibility (§8 of CROSS_PROJECT_JOINS specifies a full visibility matrix with `<<Exported>>`). A target-side back-ref is universal-once-loaded; it cannot express "visible only if imported." Grafting scope rules onto a target-side mechanism requires filtering logic that doesn't exist in Pure.
+2. **IDE-tier write amplification.** Pure maintains `ReferenceUsage` for editor features (find-references). Every reference in every body produces a fragment. Build outputs become ~2× larger than necessary for non-editor use. Swift's separation of `.swiftmodule` from `.indexstore` avoids this.
+
+Splitting the tiers preserves target-side simplicity where it belongs (associations) while adopting caller-side resolution where semantics demand it (extensions) and deferring IDE-only tracking to a separate pipeline.
+
+#### Tier 1: Target-side back-reference fragments
+
+**Use when** the back-reference is **always visible once the target is loaded** — the target's users should see it regardless of import scope.
+
+**In scope today:** association-injected properties (`propertiesFromAssociations`), association-injected qualified properties (`qualifiedPropertiesFromAssociations`).
+
+**In scope if/when added:** subclass enumeration (needed if `SuperClass.all()` polymorphic queries are added).
+
+**File format.** Each contributing project emits one fragment file per target class it contributes to, co-located with its own element outputs:
+
+```
+products_elements/
+  products__PersonAccount.json        ← authoritative association element (Category A source)
+  refdata__Person.backrefs.json       ← fragment: contributions from products TO refdata::Person
+  refdata__Account.backrefs.json      ← fragment: contributions from products TO refdata::Account
 ```
 
-Currently, `PureModelBuilder.findAssociationByProperty()` scans a lazily-built `classToAssociations` index. With per-element lazy loading, that index doesn't exist until all associations are loaded — which defeats the purpose.
+The filename encodes the **target** (`refdata::Person` → `refdata__Person`); the **containing directory** encodes the **contributor** (`products_elements/`). Multiple contributors each produce their own fragment with the same target filename, distinguished by directory.
 
-**Fix: per-class navigation sidecar files.** During element serialization, the compiler emits a small sidecar alongside each class file that lists association-injected properties navigable **from** that class:
-
-```
-refdata_elements/
-  refdata__Person.json           ← class shape (local properties + superclass FQNs)
-  refdata__Person.nav.json       ← association navigation index
-  refdata__Address.json
-  refdata__Address.nav.json
-  refdata__Person_Address.json   ← authoritative association element
-```
-
-Example `refdata__Person.nav.json`:
+**Fragment payload** uses Pure's `BackReference` sealed hierarchy (see `@/Users/neema/legend/legend-pure/legend-pure-core/legend-pure-m3-core/src/main/java/org/finos/legend/pure/m3/serialization/compiler/metadata/BackReference.java`):
 
 ```json
 {
-  "addresses": {
-    "association": "refdata::Person_Address",
-    "targetClass": "refdata::Address",
-    "multiplicity": "[*]"
-  }
+  "schemaVersion": 1,
+  "targetFqn": "refdata::Person",
+  "contributorProject": "products",
+  "backReferences": [
+    {
+      "kind": "propertyFromAssociation",
+      "associationFqn": "products::PersonAccount",
+      "propertyName": "accounts",
+      "targetClassFqn": "products::Account",
+      "multiplicity": { "lower": 0, "upper": null }
+    }
+  ]
 }
 ```
 
-**Property lookup sequence with sidecars:**
+The v1 `kind` values populated are `propertyFromAssociation` and `qualifiedPropertyFromAssociation`. The hierarchy is extensible — adding a `specialization` kind later for subclass enumeration requires adding a case arm to the serializer and deserializer, no file format change.
+
+**Load-time merging.** When `PureModelBuilder` lazy-loads `refdata::Person`, it also loads every `refdata__Person.backrefs.json` found across registered dep element dirs (zero, one, or many). The contributions merge into a single polymorphic `List<BackReference>` attached to the loaded `PureClass`. `findProperty("accounts")` on `Person` consults this list after local-property and superclass-chain misses.
 
 ```
-1. findProperty("addresses") on Person
+1. findProperty("accounts") on Person
    → check local properties in Person.json → miss
    → check superclass chain → miss
-   → load Person.nav.json
-   → find "addresses" → association = "refdata::Person_Address"
-   → return Property(name="addresses", typeFqn="refdata::Address", mult=[*])
+   → for depDir in depElementDirs: load depDir/refdata__Person.backrefs.json if exists
+   → merged back-refs include propertyFromAssociation("accounts", ...)
+   → return Property(name="accounts", typeFqn="products::Account", mult=[0..*])
 ```
 
-**Why NOT embed association properties directly in `Person.json`:** Invalidation. If `Person_Address` changes (e.g., multiplicity `[*]` → `[1..*]`), it would change `Person.json`, forcing ALL consumers of `Person` to rebuild — even those that only use `Person.name`. With a sidecar:
+**Why NOT embed in `Person.json`:** Invalidation. Embedding `accounts` into `Person.json` means every change to `products::PersonAccount` (multiplicity, rename, etc.) changes `Person.json`, invalidating every consumer of `Person` — even consumers that only use `Person.name` in a project that never depends on `products`. With fragments:
 
-- Consumers of `Person.name` → depend on `Person.json` only → unaffected
-- Consumers of `Person.addresses` → depend on `Person.json` + `Person.nav.json` → rebuild correctly
+- Consumer using `Person.name` only → depends on `Person.json` → unaffected by `PersonAccount` changes
+- Consumer using `Person.accounts` via a path through `products` → depends on `Person.json` + `products_elements/refdata__Person.backrefs.json` → rebuilds correctly
+- Consumer in a project that doesn't depend on `products` → never sees the fragment → correct behavior (the property isn't in scope for them)
 
-**Who generates the sidecars:** The same compile action that serializes element files. After serializing all association elements, the compiler groups them by class endpoint and writes one `.nav.json` per class that has association-backed properties. Classes with no associations get no sidecar (empty = no file).
+**Cross-project contribution.** Project A defines `refdata::Person`. Project B (`products`) declares `Association products::PersonAccount` between `refdata::Person` and `products::Account`. Project B's compile emits:
+- `products_elements/products__PersonAccount.json` — the association element itself
+- `products_elements/refdata__Person.backrefs.json` — a fragment contributing `accounts` to `refdata::Person`
+- `products_elements/products__Account.backrefs.json` — a fragment contributing `person` to `products::Account` (reverse direction of the same association)
 
-**Bazel integration:** The module extension already scans for `Association` elements. It can declare the `.nav.json` sidecar files alongside the class files. The `unused_inputs_list` naturally tracks which nav files were actually opened — consumers that never access association properties will list the `.nav.json` files as unused.
+Consumer C that depends on both `refdata` and `products` loads `Person.json` from the refdata dir, merges in the fragment from the products dir, and sees `Person.accounts`. Consumer D that depends only on `refdata` sees `Person` without `accounts` — which is correct: `accounts` is only defined when `products` is in the dependency graph.
 
-**Scope of change:** ~30 lines in `ElementSerializer` to generate nav sidecars, ~15 lines in `PureModelBuilder.findProperty()` to check the nav sidecar on local miss, ~10 lines in the module extension to declare `.nav.json` output files.
+**Scope of change:** ~60 lines in `ElementSerializer` (emit fragments, one per target class with contributions), ~40 lines in `PureModelBuilder` (merge fragments at load), ~10 lines in the module extension (declare fragment output files alongside element files). Sealed hierarchy borrows Pure's `BackReference` record names verbatim.
 
-**Dependency-graph asymmetry.** Sidecars create two flavors of class dependency: consumers that only use local properties (e.g., `Person.name`) depend on `Person.json` alone, while consumers that navigate association properties (e.g., `Person.addresses`) additionally depend on `Person.nav.json`. This asymmetry is a feature — it's the mechanism that prevents association changes from cascading to unrelated consumers — but it must be documented as a first-class invalidation contract, not treated as an implementation detail. The `ProjectDependencyAnalyzer` (§8) must emit per-class sidecar usage in `unused_inputs_list`: if a project only accesses `Person.name`, `Person.nav.json` goes in the unused list.
+#### Tier 2: Caller-side resolution (per-project manifest)
+
+**Use when** the back-reference is **import-scoped** — only visible to callers that explicitly depend on the contributing project.
+
+**In scope:** Extensions (see [CROSS_PROJECT_JOINS §8](./CROSS_PROJECT_JOINS.md#8-consumer-side-class-extensions-a-trait-style-escape-hatch)). The Extension design explicitly specifies a visibility matrix (same-package, default-not-exported, `<<Exported>>` opt-in) that is **structurally equivalent to Kotlin/Swift/Rust extension scoping** — resolution happens at the caller's compile site, not on the target class.
+
+**Why NOT Tier 1:** Tier 1 back-refs are always visible once the target is loaded. Extensions are explicitly scoped: Project D can load `refdata::Sector` without seeing Project C's `SectorDisplay` extension unless D directly imports it. Target-side injection would universally leak extensions to every downstream consumer of Sector — violating the §8 visibility rules.
+
+**File format.** Each project emits one manifest file summarizing what it contributes at the caller side:
+
+```
+products_elements/
+  project_manifest.json
+```
+
+```json
+{
+  "schemaVersion": 1,
+  "projectId": "products",
+  "extensions": [
+    {
+      "extensionFqn": "products::AccountHelpers",
+      "targetFqn": "refdata::Account",
+      "exported": false,
+      "flavor": "derived-only"
+    },
+    {
+      "extensionFqn": "products::SectorDisplay",
+      "targetFqn": "refdata::Sector",
+      "exported": true,
+      "flavor": "derived-only"
+    }
+  ]
+}
+```
+
+`flavor` enforces the §8 rule that shadow-mapped extensions cannot cross package boundaries (`exported: true` + `flavor: shadow-mapped` is a compile error in the emitting project).
+
+**Caller-side resolution.** When Consumer C compiles, its `PureModelBuilder` loads `project_manifest.json` from every dep dir (O(1) per dep, tiny files). It builds an in-memory registry `Map<targetFqn, List<ExtensionRef>>` scoped to C's own compile unit:
+
+```
+At C's compile-time, NameResolver encounters $sector.displayName:
+  1. findClass("refdata::Sector") → lazy-loads refdata__Sector.json
+  2. findProperty("displayName") on Sector → local miss, superclass miss, Tier 1 fragment miss
+  3. Consult caller-scoped extension registry: registry.get("refdata::Sector")
+     → [{extensionFqn: "products::SectorDisplay", exported: true}, ...]
+  4. For each candidate, check visibility:
+     - Same package as C? visible.
+     - C explicitly imports this extension? visible.
+     - Extension is <<Exported>>? visible.
+     - Otherwise: skip.
+  5. Among visible candidates, find one with property "displayName"
+     → products::SectorDisplay declares displayName
+     → lazy-load products__SectorDisplay.json for its definition
+  6. Resolve property expression against SectorDisplay's body
+```
+
+The target class `refdata::Sector` never knows about extensions. Extensions register themselves with their project's manifest; callers scan deps' manifests at their own compile time. This naturally enforces scoping: Project D that depends on `refdata` but NOT on `products` never sees `products`'s manifest, and `Sector.displayName` is unresolvable for D — which is the correct behavior per §8.
+
+**Conflict detection is free.** Two extensions contributing the same property name to the same target, both visible to the same caller, is a registry-build duplicate-key error. Matches the §8 rule without extra logic.
+
+**Export broadcast.** `<<Exported>>` extensions are visible to every direct dependent. A consumer D that depends on C (which depends on `products`) transitively sees `products`'s exported extensions through C's manifest inclusion. Non-exported extensions stop at direct dep boundaries — exactly the Kotlin extension-library pattern.
+
+**Scope of change:** ~30 lines in `ElementSerializer` (emit per-project manifest), ~50 lines in `PureModelBuilder` (load manifests, build caller-scoped registry, consult on property miss), ~10 lines in `NameResolver` (visibility filter at resolution time). The Extension element itself is a separate piece of work tracked in `CROSS_PROJECT_JOINS.md` §8.
+
+**When to build:** Tier 2 infrastructure can land incrementally. A v1 without any Extension elements still emits an empty-extensions manifest and builds the registry (cost: zero). When the Extension feature lands, the registry is already wired.
+
+#### Tier 3: IDE indexer (deferred)
+
+**Use when** the back-reference is **only needed at edit time** — find-references, rename, call hierarchy, goto-implementations. These features exist in Pure's `ReferenceUsage` taxonomy but are **not** needed by the compiler or runtime.
+
+**Not in scope for the Bazel migration.** Build outputs stay lean; IDE-only back-refs do NOT live in element files or fragments.
+
+**Future architecture (illustrative).** A separate indexer — possibly an LSP extension, possibly a daemon — walks the emitted element files after each build and maintains its own index store:
+
+```
+.legend-index/
+  find_references_index.db    ← reverse-ref index keyed by target FQN
+  callers_index.db            ← function-call reverse-ref index
+  ...
+```
+
+This matches Swift's SourceKit-LSP model (`.swiftmodule` for the compiler; `.indexstore` for the IDE). The build system (Bazel) doesn't know about the index; the index can be stale without breaking builds; rebuilding the index is always derivable from element files.
+
+**Why defer:** Tier 3 features are productivity wins but not correctness-critical. Adding them to every build inflates outputs and creates churn-sensitive rebuilds. Deferring lets v1 ship without paying for features that have no immediate user.
+
+#### Tier summary table
+
+| Aspect | Tier 1 (target-side fragments) | Tier 2 (caller-side manifest) | Tier 3 (IDE indexer) |
+|---|---|---|---|
+| **v1 status** | Required (replaces nav sidecar) | Scaffolded (no extensions yet) | Deferred |
+| **Kinds populated** | `propertyFromAssociation`, `qualifiedPropertyFromAssociation` | (none until Extensions land) | N/A |
+| **Visibility** | Universal once target is loaded | Scoped by caller's import graph | Global index per workspace |
+| **File format** | One `{target}.backrefs.json` per contributor per target | One `project_manifest.json` per project | Separate `.legend-index/*` store |
+| **Bazel integration** | Declared as additional outputs; `unused_inputs_list` tracks usage | Manifest is always loaded (tiny); no per-fragment tracking | Out of band |
+| **Invalidation** | Consumer rebuilds only if it accessed the specific target | Consumer rebuilds if a manifest it loads changes | Index rebuilds independently |
+| **Inspiration** | Pure's `BackReference` | Kotlin / Swift / Rust extensions | Swift SourceKit, Google Kythe |
+
+This split is a deliberate improvement over Pure's single-mechanism design. Pure conflates all back-reference kinds into one serialized taxonomy, which works for legend-engine's eager-load runtime but loses the scoping semantics needed for extensions and pays the IDE-tier write cost unconditionally. Splitting into three tiers gets each kind into its correct mechanism.
 
 ### Whole-Project Validation
 
@@ -1971,12 +2139,13 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 - `ElementSerializer.deserialize(String json)` -- JSON back to definition record
 - Handles all element types: ClassDefinition, EnumDefinition, AssociationDefinition, FunctionDefinition, DatabaseDefinition, MappingDefinition, RuntimeDefinition, ConnectionDefinition, ServiceDefinition
 - **Resolved AST serialization** -- executable bodies (functions, services, derived properties, constraints, mapping expressions) are serialized as resolved AST with all names canonicalized to FQNs, not raw source text. This eliminates the need to reconstruct import context at load time (see "Required Change: Resolved AST for Executable Bodies")
-- **Association navigation sidecars** -- after serializing all association elements, generate per-class `.nav.json` sidecar files listing association-injected properties navigable from that class (see "Required Change: Association Navigation Sidecars")
+- **Tier 1 back-reference fragments** -- after serializing all association elements, group contributions by target class and emit one `{target}.backrefs.json` fragment per target with `propertyFromAssociation` / `qualifiedPropertyFromAssociation` entries using Pure's `BackReference` schema (see "Required Change: Back-Reference Fragments (Three-Tier)")
+- **Tier 2 project manifest** -- emit `project_manifest.json` listing this project's extensions with their target FQN, export flag, and flavor (v1: empty until the Extension element lands; infrastructure stays wired)
 - Expand `NameResolver` to FQN-canonicalize all Category A refs in the Complete Dependency Reference Matrix (§6): database includes, mapping includes, `MappingInclude.storeSubstitutions`, service mapping/runtime refs, runtime mapping/connection bindings, connection store ref, enumeration mapping enum type, and Profile refs in stereotypes/taggedValues (~100-150 lines in `NameResolver.java`)
 - **Pre-parsed M2M and XStore expressions** -- serialize `parsedM2MExpressions` and `parsedCrossExpression` as `ValueSpecification` AST alongside the existing text fields, so mapping element file load paths don't pull in the full Pure parser (see "Required Change: Pre-Parsed M2M and XStore Expressions")
 - **Backwards-compat test harness** -- save fixture element files as golden tests; verify current deserializer can load them after compiler changes
 - CLI wrapper: `java ElementExtractor --srcs *.pure --out-dir elements/`
-- Test: extract elements from sales-trading model, verify round-trip for all element types including resolved AST bodies and nav sidecars
+- Test: extract elements from sales-trading model, verify round-trip for all element types including resolved AST bodies, Tier 1 back-reference fragments, and the Tier 2 project manifest
 
 ### Step 2.5: `typeFqn` Preparatory Refactor (1-2 sessions)
 
@@ -1998,7 +2167,8 @@ With remote caching, CI reuses cached outputs from previous builds. A typical PR
 - Add `addDepElementDir(Path elementsDir)` — records where to find dep elements (zero I/O)
 - Override `findClass/findEnum/findAssociation/findFunction` with lazy-load fallback
 - String-based property types and lazy superclass resolution already landed in Step 2.5 — this step adds the lazy *loading* mechanism on top
-- **Association nav sidecar loading** -- `findProperty()` checks `.nav.json` sidecar on local+superclass miss (see "Required Change: Association Navigation Sidecars")
+- **Tier 1 fragment merging** -- `findProperty()` on local+superclass miss loads `{target}.backrefs.json` from every dep element dir and merges contributions (see "Required Change: Back-Reference Fragments (Three-Tier)")
+- **Tier 2 manifest loading** -- on `PureModelBuilder` init, load `project_manifest.json` from each dep dir and build a caller-scoped extension registry; consult on property-lookup miss after Tier 1
 - Add `addElementFiles(Path dir)` for eager loading (Bazel actions)
 - Wire `addDepElementDir()` into `PureLspServer.rebuildAndPublishAll()`
 - **Add `validateElement(String fqn)` primitive** — dispatches by element kind and runs the appropriate `MappingNormalizer` + `TypeChecker` passes (see "Whole-Project Validation"). This is the API both the Bazel compile action and the LSP call for diagnostics; `addSource()` does NOT invoke it (keeps the per-keystroke path fast)
