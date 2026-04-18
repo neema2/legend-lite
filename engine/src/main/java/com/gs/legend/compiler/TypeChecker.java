@@ -2,10 +2,32 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
+import com.gs.legend.compiled.CompiledAssociation;
+import com.gs.legend.compiled.CompiledClass;
+import com.gs.legend.compiled.CompiledConnection;
+import com.gs.legend.compiled.CompiledDatabase;
 import com.gs.legend.compiled.CompiledDependencies;
+import com.gs.legend.compiled.CompiledElement;
+import com.gs.legend.compiled.CompiledEnum;
 import com.gs.legend.compiled.CompiledExpression;
+import com.gs.legend.compiled.CompiledFunction;
+import com.gs.legend.compiled.CompiledMapping;
+import com.gs.legend.compiled.CompiledProfile;
+import com.gs.legend.compiled.CompiledRuntime;
+import com.gs.legend.compiled.CompiledService;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
+import com.gs.legend.model.def.AssociationDefinition;
+import com.gs.legend.model.def.ClassDefinition;
+import com.gs.legend.model.def.ConnectionDefinition;
+import com.gs.legend.model.def.DatabaseDefinition;
+import com.gs.legend.model.def.EnumDefinition;
+import com.gs.legend.model.def.FunctionDefinition;
+import com.gs.legend.model.def.MappingDefinition;
+import com.gs.legend.model.def.PackageableElement;
+import com.gs.legend.model.def.ProfileDefinition;
+import com.gs.legend.model.def.RuntimeDefinition;
+import com.gs.legend.model.def.ServiceDefinition;
 import com.gs.legend.parser.PureParser;
 import com.gs.legend.plan.GenericType;
 
@@ -51,6 +73,27 @@ public class TypeChecker implements TypeCheckEnv {
     private final Map<String, Set<String>> associationNavigations = new HashMap<>();
     /** Classes whose source relations have been compiled (prevents double-compilation in pass 2). */
     private final Set<String> compiledSourceSpecs = new HashSet<>();
+    /**
+     * Memoization of compiled element results, keyed by element FQN.
+     *
+     * <p><strong>Correctness depends on a lifecycle invariant</strong>: a single
+     * {@code TypeChecker} instance operates over a stable {@link ModelContext}
+     * snapshot — no one mutates def records mid-compile. Given that, FQN
+     * uniquely identifies one def-record content instance for the TypeChecker's
+     * lifetime, so FQN-keyed memoization is safe without content hashing.
+     *
+     * <p>This matches current usage: every compilation cycle constructs a
+     * fresh TypeChecker. {@code compileAll()} (Phase 2) will share one
+     * TypeChecker across a build; the same invariant still holds because
+     * {@code PureModelBuilder} takes a def-record snapshot at the start of
+     * the call.
+     *
+     * <p><strong>Do not reuse a {@code TypeChecker} across compilation cycles
+     * whose underlying model may have changed</strong> — e.g., LSP hot-reload
+     * where a file edit replaces a def record for the same FQN. In that case
+     * construct a new TypeChecker.
+     */
+    private final Map<String, CompiledElement> compiledElements = new HashMap<>();
 
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
@@ -91,6 +134,131 @@ public class TypeChecker implements TypeCheckEnv {
                 vs,
                 types,
                 new CompiledDependencies(classPropertyAccesses, associationNavigations));
+    }
+
+    // ============================================================
+    // check(PackageableElement) — Phase 1b API surface.
+    //
+    // Exactly one public method per kind, with an exhaustive sealed
+    // switch on PackageableElement. Adding a new PackageableElement
+    // subtype forces a compile error here — query path and build path
+    // both converge on this method, so nothing silently drops elements.
+    //
+    // Each private compile*() builds the corresponding Compiled* record
+    // and installs it in `compiledElements` before returning. Results
+    // are memoized by FQN — repeat calls return the same instance.
+    //
+    // Phase 1b chunk 1 lands the API shape only: the per-kind compile*
+    // methods throw UnsupportedOperationException until their owning
+    // chunk (GetAllChecker / inlineUserFunction / compileProperty
+    // refactor) wires them up. Nothing currently calls check(e), so the
+    // stubs never execute in production — query path and tests are
+    // unaffected.
+    // ============================================================
+
+    /**
+     * Compile one packageable element to its {@link CompiledElement}
+     * representation. Memoized — repeat calls on the same element return
+     * the same cached instance.
+     *
+     * <p>This is the single public compile entry point for the sealed
+     * {@link PackageableElement} hierarchy. Both the build path
+     * ({@code PureModelBuilder.compileAll()} iterating) and the query
+     * path ({@code GetAllChecker} / {@code inlineUserFunction} /
+     * {@code compileProperty}) converge here, which makes it
+     * structurally impossible to bypass memoization.
+     */
+    public CompiledElement check(PackageableElement e) {
+        Objects.requireNonNull(e, "PackageableElement must not be null");
+        var cached = compiledElements.get(e.qualifiedName());
+        if (cached != null) return cached;
+        CompiledElement compiled = switch (e) {
+            case ClassDefinition cd       -> compileClass(cd);
+            case MappingDefinition md     -> compileMapping(md);
+            case FunctionDefinition fd    -> compileFunction(fd);
+            case ServiceDefinition sd     -> compileService(sd);
+            case AssociationDefinition ad -> compileAssociation(ad);
+            case DatabaseDefinition dd    -> compileDatabase(dd);
+            case EnumDefinition ed        -> compileEnum(ed);
+            case ProfileDefinition pd     -> compileProfile(pd);
+            case ConnectionDefinition cd  -> compileConnection(cd);
+            case RuntimeDefinition rd     -> compileRuntime(rd);
+        };
+        compiledElements.put(e.qualifiedName(), compiled);
+        return compiled;
+    }
+
+    /** Narrow-return overload — same dispatch, more precise return type. */
+    public CompiledClass       check(ClassDefinition cd)       { return (CompiledClass)       check((PackageableElement) cd); }
+    /** Narrow-return overload. */
+    public CompiledMapping     check(MappingDefinition md)     { return (CompiledMapping)     check((PackageableElement) md); }
+    /** Narrow-return overload. */
+    public CompiledFunction    check(FunctionDefinition fd)    { return (CompiledFunction)    check((PackageableElement) fd); }
+    /** Narrow-return overload. */
+    public CompiledService     check(ServiceDefinition sd)     { return (CompiledService)     check((PackageableElement) sd); }
+    /** Narrow-return overload. */
+    public CompiledAssociation check(AssociationDefinition ad) { return (CompiledAssociation) check((PackageableElement) ad); }
+    /** Narrow-return overload. */
+    public CompiledDatabase    check(DatabaseDefinition dd)    { return (CompiledDatabase)    check((PackageableElement) dd); }
+    /** Narrow-return overload. */
+    public CompiledEnum        check(EnumDefinition ed)        { return (CompiledEnum)        check((PackageableElement) ed); }
+    /** Narrow-return overload. */
+    public CompiledProfile     check(ProfileDefinition pd)     { return (CompiledProfile)     check((PackageableElement) pd); }
+    /** Narrow-return overload. */
+    public CompiledConnection  check(ConnectionDefinition cd)  { return (CompiledConnection)  check((PackageableElement) cd); }
+    /** Narrow-return overload. */
+    public CompiledRuntime     check(RuntimeDefinition rd)     { return (CompiledRuntime)     check((PackageableElement) rd); }
+
+    // --- Private per-kind compilation (Phase 1b chunks 2+ implement these) ---
+
+    private CompiledClass compileClass(ClassDefinition cd) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileClass not yet implemented for " + cd.qualifiedName());
+    }
+
+    private CompiledMapping compileMapping(MappingDefinition md) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileMapping not yet implemented for " + md.qualifiedName());
+    }
+
+    private CompiledFunction compileFunction(FunctionDefinition fd) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileFunction not yet implemented for " + fd.qualifiedName());
+    }
+
+    private CompiledService compileService(ServiceDefinition sd) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileService not yet implemented for " + sd.qualifiedName());
+    }
+
+    private CompiledAssociation compileAssociation(AssociationDefinition ad) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileAssociation not yet implemented for " + ad.qualifiedName());
+    }
+
+    private CompiledDatabase compileDatabase(DatabaseDefinition dd) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileDatabase not yet implemented for " + dd.qualifiedName());
+    }
+
+    private CompiledEnum compileEnum(EnumDefinition ed) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileEnum not yet implemented for " + ed.qualifiedName());
+    }
+
+    private CompiledProfile compileProfile(ProfileDefinition pd) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileProfile not yet implemented for " + pd.qualifiedName());
+    }
+
+    private CompiledConnection compileConnection(ConnectionDefinition cd) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileConnection not yet implemented for " + cd.qualifiedName());
+    }
+
+    private CompiledRuntime compileRuntime(RuntimeDefinition rd) {
+        throw new UnsupportedOperationException(
+                "Phase 1b: compileRuntime not yet implemented for " + rd.qualifiedName());
     }
 
     /**
