@@ -2,6 +2,16 @@
 
 Proposes a Bazel-managed monorepo for Legend (platform + projects), with an incremental path that lets the 1000s of existing external Legend repos participate in the same build ecosystem — Bazel fetches them as source and builds them with the same rules as monorepo projects, no separate extraction pipeline. Whether in the monorepo or external, users still write `.pure` files exactly as they do today; the build automatically shreds each `PackageableElement` into its own output file, giving Bazel per-element dependency tracking, faster incremental builds, and lazy loading of cross-project elements.
 
+## How It Works in 60 Seconds
+
+- **Artifact boundary** — each `PackageableElement` becomes its own self-contained JSON file. No shapes/impl split; no separate shape-extraction step.
+- **Element discovery** — a Bazel module extension regex-scans `.pure` files pre-analysis and emits per-project element FQN lists, so `legend_library` can declare one output file per element before the compiler runs.
+- **Bazel graph stays coarse** — one `legend_library` node per project with human-declared `deps`. Bazel does not build a per-element DAG; per-property refs inside Pure bodies would require running the TypeChecker to extract, which is exactly the work the compile action already does.
+- **Per-element precision comes from `unused_inputs_list`** — the compiler writes the set of dep element files it never opened. Bazel uses that list to skip rebuilds even when an upstream project rebuilds, so consumers whose used-set is unchanged are cache hits.
+- **Cross-project resolution is Java-style** — the compiler lazy-loads dep element files on first `findClass` / `findProperty` miss via `Files.exists()` on `fqn.replace("::", "__") + ".json"`. The filesystem is the index — no manifest, no pre-scan.
+- **Executable bodies travel as resolved AST** — function, service, and derived-property bodies serialize with every name canonicalized to FQN. Load-time needs no import context.
+- **Builds are semantically validated** — a `validateElement(fqn)` primitive runs the right checkers per element kind. A green `bazel build` guarantees a type-correct project, not just parse-correct.
+
 ## Table of Contents
 
 1. [Why Bazel?](#1-why-bazel)
