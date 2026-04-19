@@ -70,12 +70,12 @@ public class FoldChecker extends AbstractChecker {
                     .build();
         }
 
-        PType.FunctionType ft = extractFunctionType(def.params().get(1));
+        Type.FunctionType ft = extractFunctionType(def.params().get(1));
 
         TypeChecker.CompilationContext lambdaCtx = ctx;
-        for (int p = 0; p < lambda.parameters().size() && p < ft.paramTypes().size(); p++) {
+        for (int p = 0; p < lambda.parameters().size() && p < ft.params().size(); p++) {
             String paramName = lambda.parameters().get(p).name();
-            Type resolvedParamType = resolve(ft.paramTypes().get(p).type(), bindings,
+            Type resolvedParamType = resolve(ft.params().get(p).type(), bindings,
                     "fold() lambda param '" + paramName + "'");
             lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
         }

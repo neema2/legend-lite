@@ -118,8 +118,8 @@ public class GroupByChecker extends AbstractChecker {
         var bindings = unify(def, source.expressionType());
 
         // Resolve lambda param type from signature (C[1])
-        PType.FunctionType ft = extractFunctionType(def.params().get(1));
-        Type resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+        Type.FunctionType ft = extractFunctionType(def.params().get(1));
+        Type resolvedParamType = resolve(ft.params().get(0).type(), bindings,
                 "groupBy() key lambda param");
 
         Map<String, Type> resultColumns = new LinkedHashMap<>();

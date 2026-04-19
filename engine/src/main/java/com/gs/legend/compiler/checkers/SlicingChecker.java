@@ -37,7 +37,7 @@ public class SlicingChecker extends AbstractChecker {
         String funcName = simpleName(af.function());
 
         // Pre-compile non-source arguments so resolveOverload has compiled types
-        // for Concrete params (e.g., Integer[1] in limit/take/drop/slice)
+        // for Primitive params (e.g., Integer[1] in limit/take/drop/slice)
         Map<Integer, ExpressionType> compiledTypes = new java.util.HashMap<>();
         for (int i = 1; i < params.size(); i++) {
             TypeInfo argInfo = env.compileExpr(params.get(i), ctx);

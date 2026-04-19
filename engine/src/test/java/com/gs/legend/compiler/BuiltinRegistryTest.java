@@ -1,4 +1,5 @@
 package com.gs.legend.compiler;
+import com.gs.legend.model.m3.Type;
 
 import com.gs.legend.model.m3.Multiplicity;
 import org.junit.jupiter.api.Test;
@@ -77,7 +78,7 @@ class BuiltinRegistryTest {
         var overloads = registry.resolve("abs");
         assertEquals(1, overloads.size(),
                 "abs should have 1 generic overload (TypeVar T)");
-        assertInstanceOf(PType.TypeVar.class, overloads.getFirst().returnType());
+        assertInstanceOf(Type.TypeVar.class, overloads.getFirst().returnType());
     }
 
     @Test
@@ -151,39 +152,38 @@ class BuiltinRegistryTest {
         assertEquals("m", new Multiplicity.Var("m").toString());
     }
 
-    // ===== PType basic checks =====
+    // ===== Type basic checks =====
 
     @Test
-    void ptype_concrete() {
-        var t = new PType.Concrete("String");
-        assertEquals("String", t.name());
-        assertEquals("String", t.toString());
+    void type_nameRef_carriesFqn() {
+        var t = new Type.NameRef("meta::pure::metamodel::type::String");
+        assertEquals("meta::pure::metamodel::type::String", t.qualifiedName());
     }
 
     @Test
-    void ptype_typeVar() {
-        var t = new PType.TypeVar("T");
+    void type_typeVar_carriesName() {
+        var t = new Type.TypeVar("T");
         assertEquals("T", t.name());
-        assertEquals("T", t.toString());
     }
 
     @Test
-    void ptype_parameterized() {
-        var t = new PType.Parameterized("Relation",
-                List.of(new PType.TypeVar("T")));
+    void type_parameterized_carriesRawTypeAndArgs() {
+        var t = new Type.Parameterized("Relation",
+                List.of(new Type.TypeVar("T")));
         assertEquals("Relation", t.rawType());
-        assertEquals("Relation<T>", t.toString());
+        assertEquals(1, t.typeArgs().size());
+        assertInstanceOf(Type.TypeVar.class, t.typeArgs().get(0));
     }
 
     @Test
-    void ptype_functionType() {
-        var ft = new PType.FunctionType(
-                List.of(new PType.Param("x", new PType.Concrete("String"), Multiplicity.ONE)),
-                new PType.Concrete("Boolean"),
+    void type_functionType_carriesParamsAndReturn() {
+        var ft = new Type.FunctionType(
+                List.of(new Type.Parameter("x", com.gs.legend.model.m3.Primitive.STRING, Multiplicity.ONE)),
+                com.gs.legend.model.m3.Primitive.BOOLEAN,
                 Multiplicity.ONE
         );
-        assertInstanceOf(PType.FunctionType.class, ft);
-        assertEquals(1, ft.paramTypes().size());
-        assertEquals("{x:String[1]->Boolean[1]}", ft.toString());
+        assertEquals(1, ft.params().size());
+        assertEquals("x", ft.params().get(0).name());
+        assertEquals(com.gs.legend.model.m3.Primitive.BOOLEAN, ft.returnType());
     }
 }

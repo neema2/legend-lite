@@ -12,9 +12,9 @@ import java.util.Objects;
 /**
  * Unified sealed hierarchy for type <em>expressions</em> in the Pure type system.
  *
- * <p>Introduced in Phase B chunk 2.5a as the single replacement for seven overlapping
- * representations: {@code compiler.PType}, {@code plan.Type}, {@code m3.TypeRef},
- * {@code m3.PrimitiveType}, {@code compiled.TypeRef}, and raw {@code String} type names.
+ * <p>Single replacement for the legacy overlapping representations that used to live
+ * as {@code plan.Type}, {@code m3.TypeRef}, {@code m3.PrimitiveType},
+ * {@code compiled.TypeRef}, and raw {@code String} type names.
  *
  * <p>Orthogonality invariants:
  * <ul>
@@ -29,9 +29,6 @@ import java.util.Objects;
  *   <li>{@link #isSubtypeOf(Type)} is polymorphic — callers never need to pre-normalize
  *       (e.g., the old {@code PrecisionDecimal → DECIMAL} copy-paste is gone).</li>
  * </ul>
- *
- * <p>See {@code .windsurf/plans/phase-b-type-sweep-findings-c0954a.md} for the full
- * audit findings and staged consolidation plan.
  */
 public sealed interface Type permits
         Primitive,
@@ -433,12 +430,19 @@ public sealed interface Type permits
     // ============================================================
 
     /**
-     * A named (type, multiplicity) pair used for function parameters. Keeps
+     * A named (type, multiplicity) triple used for function parameters. Keeps
      * multiplicity orthogonal to the type expression.
+     *
+     * <p>{@code name} is non-null but may be empty ({@code ""}) when the parameter
+     * originates from a function <em>type</em> literal such as {@code {Integer[1]->Boolean[1]}},
+     * where Pure's grammar provides no identifier. This matches legend-pure's own
+     * metamodel encoding (see {@code AntlrContextToM3CoreInstance.typeFunctionTypePureType}
+     * which constructs {@code VariableExpressionInstance(..., "")}). A function
+     * <em>definition</em> parameter always has a non-empty name.
      */
     record Parameter(String name, Type type, Multiplicity multiplicity) {
         public Parameter {
-            Objects.requireNonNull(name, "Parameter name cannot be null");
+            Objects.requireNonNull(name, "Parameter name cannot be null (use \"\" for anonymous function-type params)");
             Objects.requireNonNull(type, "Parameter type cannot be null");
             Objects.requireNonNull(multiplicity, "Parameter multiplicity cannot be null");
         }

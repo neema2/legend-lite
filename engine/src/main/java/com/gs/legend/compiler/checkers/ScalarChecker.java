@@ -1,4 +1,5 @@
 package com.gs.legend.compiler.checkers;
+import com.gs.legend.model.m3.Type;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
@@ -63,7 +64,7 @@ public class ScalarChecker extends AbstractChecker {
         // 4. Process remaining params: unify pre-compiled ones, compile lambdas
         for (int i = startIdx; i < params.size(); i++) {
             var param = params.get(i);
-            PType.Param sigParam = i < def.params().size() ? def.params().get(i) : null;
+            Type.Parameter sigParam = i < def.params().size() ? def.params().get(i) : null;
 
             if (sigParam != null && isLambdaParam(sigParam) && param instanceof LambdaFunction lambda) {
                 // Lambdas are compiled AFTER resolution — they need the resolved signature

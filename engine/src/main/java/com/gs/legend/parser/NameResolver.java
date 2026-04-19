@@ -1,7 +1,8 @@
 package com.gs.legend.parser;
 
 import com.gs.legend.ast.*;
-import com.gs.legend.compiler.PType;
+import com.gs.legend.model.m3.Primitive;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.def.ClassDefinition.*;
 
@@ -163,7 +164,7 @@ public final class NameResolver {
         List<FunctionDefinition.ParameterDefinition> resolvedParams = funcDef.parameters().stream()
                 .map(p -> resolveFuncParam(p, imports, knownFqns))
                 .toList();
-        PType resolvedParsedReturnType = funcDef.parsedReturnType() == null
+        Type resolvedParsedReturnType = funcDef.parsedReturnType() == null
                 ? null : resolvePType(funcDef.parsedReturnType(), imports, knownFqns);
 
         // Canonicalize function-level stereotype and tagged-value profile references to FQN
@@ -235,9 +236,9 @@ public final class NameResolver {
     private static FunctionDefinition.ParameterDefinition resolveFuncParam(
             FunctionDefinition.ParameterDefinition param, ImportScope imports, Set<String> knownFqns) {
         String resolvedType = imports.resolve(param.type(), knownFqns);
-        PType.FunctionType resolvedFunctionType = param.functionType() == null
-                ? null : (PType.FunctionType) resolvePType(param.functionType(), imports, knownFqns);
-        PType resolvedParsedType = param.parsedType() == null
+        Type.FunctionType resolvedFunctionType = param.functionType() == null
+                ? null : (Type.FunctionType) resolvePType(param.functionType(), imports, knownFqns);
+        Type resolvedParsedType = param.parsedType() == null
                 ? null : resolvePType(param.parsedType(), imports, knownFqns);
         if (resolvedType.equals(param.type())
                 && resolvedFunctionType == param.functionType()
@@ -250,65 +251,73 @@ public final class NameResolver {
     }
 
     /**
-     * Walks a {@link PType} tree and rewrites concrete type names via imports. Leaves type
+     * Walks a {@link Type} tree and rewrites concrete type names via imports. Leaves type
      * variables, parameterized outer names ("Relation", "ColSpec") and structural operators
      * untouched — only bare concrete leaves get FQN'd. Returns the input unchanged when nothing
      * needs rewriting (reference equality preserved).
      */
-    private static PType resolvePType(PType type, ImportScope imports, Set<String> knownFqns) {
+    private static Type resolvePType(Type type, ImportScope imports, Set<String> knownFqns) {
         return switch (type) {
-            case PType.Concrete c -> {
-                String resolved = imports.resolve(c.name(), knownFqns);
-                yield resolved.equals(c.name()) ? type : new PType.Concrete(resolved);
+            case Type.NameRef c -> {
+                String resolved = imports.resolve(c.qualifiedName(), knownFqns);
+                yield resolved.equals(c.qualifiedName()) ? type : new Type.NameRef(resolved);
             }
-            case PType.TypeVar ignored -> type;
-            case PType.Parameterized p -> {
+            case Type.TypeVar ignored -> type;
+            case Type.Parameterized p -> {
                 boolean changed = false;
-                List<PType> resolvedArgs = new ArrayList<>(p.typeArgs().size());
-                for (PType arg : p.typeArgs()) {
-                    PType r = resolvePType(arg, imports, knownFqns);
+                List<Type> resolvedArgs = new ArrayList<>(p.typeArgs().size());
+                for (Type arg : p.typeArgs()) {
+                    Type r = resolvePType(arg, imports, knownFqns);
                     if (r != arg) changed = true;
                     resolvedArgs.add(r);
                 }
-                yield changed ? new PType.Parameterized(p.rawType(), resolvedArgs) : type;
+                yield changed ? new Type.Parameterized(p.rawType(), resolvedArgs) : type;
             }
-            case PType.FunctionType ft -> {
+            case Type.FunctionType ft -> {
                 boolean changed = false;
-                List<PType.Param> resolvedParams = new ArrayList<>(ft.paramTypes().size());
-                for (PType.Param pp : ft.paramTypes()) {
-                    PType r = resolvePType(pp.type(), imports, knownFqns);
+                List<Type.Parameter> resolvedParams = new ArrayList<>(ft.params().size());
+                for (Type.Parameter pp : ft.params()) {
+                    Type r = resolvePType(pp.type(), imports, knownFqns);
                     if (r != pp.type()) {
                         changed = true;
-                        resolvedParams.add(new PType.Param(pp.name(), r, pp.mult()));
+                        resolvedParams.add(new Type.Parameter(pp.name(), r, pp.multiplicity()));
                     } else {
                         resolvedParams.add(pp);
                     }
                 }
-                PType resolvedReturn = resolvePType(ft.returnType(), imports, knownFqns);
+                Type resolvedReturn = resolvePType(ft.returnType(), imports, knownFqns);
                 if (resolvedReturn != ft.returnType()) changed = true;
-                yield changed ? new PType.FunctionType(resolvedParams, resolvedReturn, ft.returnMult()) : type;
+                yield changed ? new Type.FunctionType(resolvedParams, resolvedReturn, ft.returnMult()) : type;
             }
-            case PType.SchemaAlgebra sa -> {
-                PType l = resolvePType(sa.left(), imports, knownFqns);
-                PType r = resolvePType(sa.right(), imports, knownFqns);
-                yield (l == sa.left() && r == sa.right()) ? type : new PType.SchemaAlgebra(l, r, sa.op());
+            case Type.SchemaAlgebra sa -> {
+                Type l = resolvePType(sa.left(), imports, knownFqns);
+                Type r = resolvePType(sa.right(), imports, knownFqns);
+                yield (l == sa.left() && r == sa.right()) ? type : new Type.SchemaAlgebra(l, sa.op(), r);
             }
-            case PType.RelationTypeVar rtv -> {
+            case Type.RelationTypeVar rtv -> {
                 // Inline relation types like Relation<(name:String[1], age:Integer[1])> — walk
-                // each column's PType to rewrite simple concrete names.
+                // each column's Type to rewrite simple concrete names.
                 boolean changed = false;
-                List<PType.RelationTypeVar.Column> resolvedCols = new ArrayList<>(rtv.columns().size());
-                for (PType.RelationTypeVar.Column col : rtv.columns()) {
-                    PType r = resolvePType(col.type(), imports, knownFqns);
+                List<Type.RelationTypeVar.Column> resolvedCols = new ArrayList<>(rtv.columns().size());
+                for (Type.RelationTypeVar.Column col : rtv.columns()) {
+                    Type r = resolvePType(col.type(), imports, knownFqns);
                     if (r != col.type()) {
                         changed = true;
-                        resolvedCols.add(new PType.RelationTypeVar.Column(col.name(), r, col.mult()));
+                        resolvedCols.add(new Type.RelationTypeVar.Column(col.name(), r, col.multiplicity()));
                     } else {
                         resolvedCols.add(col);
                     }
                 }
-                yield changed ? new PType.RelationTypeVar(resolvedCols) : type;
+                yield changed ? new Type.RelationTypeVar(resolvedCols) : type;
             }
+            // Already-resolved leaves / compile-time variants — nothing to rewrite.
+            case Primitive p -> type;
+            case Type.ClassType c -> type;
+            case Type.EnumType e -> type;
+            case Type.PrecisionDecimal pd -> type;
+            case Type.Relation r -> type;
+            case Type.Tuple t -> type;
+            case Type.FunctionReference fr -> type;
         };
     }
 

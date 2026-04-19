@@ -1,4 +1,5 @@
 package com.gs.legend.model;
+import com.gs.legend.model.m3.Type;
 
 import com.gs.legend.compiler.BuiltinRegistry;
 import com.gs.legend.model.def.*;

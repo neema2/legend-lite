@@ -13,18 +13,22 @@ import java.util.Map;
 /**
  * Base class for function type-checkers.
  *
- * <p>Provides signature-driven validation infrastructure:
+ * <p>Provides signature-driven validation infrastructure built on the sealed
+ * {@link Type} hierarchy:
  * <ul>
  *   <li>{@link #unify} — validate + bind type variables from signature against actuals</li>
- *   <li>{@link #resolve} — resolve a PType to Type using bindings</li>
- *   <li>{@link #resolveMult} — resolve a Mult to Multiplicity</li>
+ *   <li>{@link #resolve} — resolve a signature {@link Type} using bindings</li>
+ *   <li>{@link #resolveMult} — resolve a {@link Multiplicity} using mult-var bindings</li>
  *   <li>{@link #bindLambdaParam} — bind lambda param in CompilationContext</li>
- *   <li>{@link #resolveOutput} — construct output ExpressionType from signature return type</li>
+ *   <li>{@link #resolveOutput} — construct output {@link ExpressionType} from a signature return type</li>
  * </ul>
  *
- * <p>String comparisons on {@code PType.Parameterized.rawType()} are centralized
- * in {@link #unifyType} and {@link #resolve} — the bridge between parse-time
- * PTypes and compile-time GenericTypes. TODO: replace with proper type algebra.
+ * <p>Dispatch on {@link Type.Parameterized#rawType()} is centralized in
+ * {@link #structuralMatch}, {@link #unifyType}, and {@link #resolve}: these are
+ * the only sites that know about signature-layer pseudo-types ({@code Relation},
+ * {@code ColSpec}, {@code _Window}, etc.) by name. A future refactor may replace
+ * the string dispatch with a typed {@code rawType} enum once the FQN migration
+ * (item 5 in the audit) lands.
  */
 public abstract class AbstractChecker implements FunctionChecker {
 
@@ -130,10 +134,7 @@ public abstract class AbstractChecker implements FunctionChecker {
 
         // Step 2: structural matching — uses compiled types (type + multiplicity) when available
         var matches = arityMatches.stream()
-                .filter(d -> {
-                    boolean m = matchesStructurally(d, params, source, compiledTypes);
-                    return m;
-                })
+                .filter(d -> matchesStructurally(d, params, source, compiledTypes))
                 .toList();
         if (matches.size() == 1) {
             return matches.get(0);
@@ -213,10 +214,10 @@ public abstract class AbstractChecker implements FunctionChecker {
             ExpressionType actual = entry.getValue();
             if (paramIdx >= def.params().size()) continue;
 
-            PType.Param sigParam = def.params().get(paramIdx);
+            Type.Parameter sigParam = def.params().get(paramIdx);
             int typeScore = scoreParamType(sigParam.type(), actual.type());
             if (typeScore < 0) return -1; // incompatible type — eliminate
-            int multScore = scoreParamMult(sigParam.mult(), actual.multiplicity());
+            int multScore = scoreParamMult(sigParam.multiplicity(), actual.multiplicity());
             if (multScore < 0) return -1; // incompatible multiplicity — eliminate
             totalScore += typeScore * 10 + multScore;
         }
@@ -226,35 +227,36 @@ public abstract class AbstractChecker implements FunctionChecker {
     /**
      * Scores a single param: declared type vs actual compiled type.
      * Returns 2 for exact, 1 for subtype, 0 for TypeVar/Any, -1 for incompatible.
+     *
+     * <p>Native signatures produce fully resolved {@link Type} values at parse time
+     * (primitives as {@link Primitive}, enums as {@link Type.EnumType}, type params
+     * as {@link Type.TypeVar}); this method dispatches on those variants directly.
+     * PrecisionDecimal normalization is done on both sides so that a
+     * {@code PrecisionDecimal(38,2)} actual scores as exact against a declared
+     * {@code Decimal}.
      */
-    private int scoreParamType(PType declaredType, Type actualType) {
-        if (declaredType instanceof PType.Concrete c) {
-            // Normalize PrecisionDecimal → Primitive.DECIMAL on BOTH sides so scoring
-            // compares nominal primitives. A PrecisionDecimal(38,2) actual should score
-            // as exact-match against a "Decimal" signature parameter — and c.toGenericType()
-            // returns Type.DEFAULT_DECIMAL (a PrecisionDecimal) for "Decimal", so we must
-            // flatten that too.
-            if (actualType instanceof Type.PrecisionDecimal) {
-                actualType = Primitive.DECIMAL;
-            }
-            // EnumType: exact match if names equal, else incompatible
-            if (actualType instanceof Type.EnumType et) {
-                return et.typeName().equals(c.name()) ? 2 : -1;
-            }
-            if ("Any".equals(c.name())) return 0; // Any accepts everything, lowest priority
-            if (!(actualType instanceof Primitive actualPrim)) {
-                return -1;
-            }
-            Type declared = c.toGenericType();
-            if (declared instanceof Type.PrecisionDecimal) {
-                declared = Primitive.DECIMAL;
-            }
-            if (!(declared instanceof Primitive declaredPrim)) return -1;
-            if (actualPrim == declaredPrim) return 2;             // exact match
+    private int scoreParamType(Type declaredType, Type actualType) {
+        // Normalize PrecisionDecimal → Primitive.DECIMAL on both sides.
+        if (actualType instanceof Type.PrecisionDecimal) {
+            actualType = Primitive.DECIMAL;
+        }
+        if (declaredType instanceof Type.PrecisionDecimal) {
+            declaredType = Primitive.DECIMAL;
+        }
+        if (declaredType instanceof Primitive declaredPrim) {
+            if (declaredPrim == Primitive.ANY) return 0;     // Any accepts everything, lowest priority
+            if (!(actualType instanceof Primitive actualPrim)) return -1;
+            if (actualPrim == declaredPrim) return 2;        // exact match
             if (actualPrim.isSubtypeOf(declaredPrim)) return 1;   // subtype match
             return -1;
         }
-        // TypeVar or Parameterized — always applicable but lowest priority
+        if (declaredType instanceof Type.EnumType declaredEnum) {
+            return actualType instanceof Type.EnumType actualEnum
+                    && actualEnum.qualifiedName().equals(declaredEnum.qualifiedName())
+                    ? 2 : -1;
+        }
+        // TypeVar, Parameterized, FunctionType, SchemaAlgebra, etc. —
+        // always applicable (structural matching handled elsewhere), lowest priority
         return 0;
     }
 
@@ -317,7 +319,7 @@ public abstract class AbstractChecker implements FunctionChecker {
 
     /**
      * Checks if a def's param types AND multiplicities structurally match the AST param nodes.
-     * Uses compiled types for Concrete matching when available, falls back
+     * Uses compiled types for Primitive/EnumType matching when available, falls back
      * to AST-shape matching otherwise.
      * Multiplicity: [0..1] actual never matches [1] declared.
      */
@@ -326,8 +328,8 @@ public abstract class AbstractChecker implements FunctionChecker {
                                         TypeInfo source,
                                         Map<Integer, ExpressionType> compiledTypes) {
         for (int i = 0; i < def.params().size() && i < params.size(); i++) {
-            PType.Param sigParam = def.params().get(i);
-            PType expected = sigParam.type();
+            Type.Parameter sigParam = def.params().get(i);
+            Type expected = sigParam.type();
             ValueSpecification actual = params.get(i);
             ExpressionType compiledExpr = compiledTypes.get(i);
             Type compiledType = compiledExpr != null ? compiledExpr.type() : null;
@@ -337,7 +339,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             // Multiplicity check: if we have compiled multiplicity, verify it
             // fits the declared multiplicity. [0..1] must NOT match [1].
-            if (compiledExpr != null && sigParam.mult() instanceof Multiplicity.Bounded b) {
+            if (compiledExpr != null && sigParam.multiplicity() instanceof Multiplicity.Bounded b) {
                 if (!subsumes(b, compiledExpr.multiplicity())) {
                     return false;
                 }
@@ -347,27 +349,27 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Matches a single PType against an AST node + optional compiled type.
+     * Matches a single Type against an AST node + optional compiled type.
      *
-     * <p>For Concrete types: if a compiled type is available, uses subtype
-     * checking for precise matching. Otherwise falls back to AST-shape
+     * <p>For Primitive/EnumType declared types: if a compiled type is available,
+     * uses subtype checking for precise matching. Otherwise falls back to AST-shape
      * filtering (reject lambdas and class instances).
      */
-    private boolean structuralMatch(PType expected, ValueSpecification actual,
+    private boolean structuralMatch(Type expected, ValueSpecification actual,
                                     TypeInfo source, boolean isSource,
                                     Type compiledType) {
         // PureCollection wraps multiple elements (e.g., [ascending(~id), ascending(~name)])
-        // For Concrete types with a compiled collection type, use that directly —
+        // For Primitive/EnumType declared types with a compiled collection type, use that directly —
         // recursing into elements loses the compiled type context.
         if (actual instanceof PureCollection(java.util.List<ValueSpecification> elements)
                 && !elements.isEmpty()) {
-            if (compiledType != null && expected instanceof PType.Concrete) {
+            if (compiledType != null && (expected instanceof Primitive || expected instanceof Type.EnumType)) {
                 // Compiled type is definitive — use subtype checking
-                return isConcreteCompatible(((PType.Concrete) expected).name(), compiledType);
+                return primitiveOrEnumCompatible(expected, compiledType);
             }
             return elements.stream().allMatch(e -> structuralMatch(expected, e, source, false, null));
         }
-        if (expected instanceof PType.Parameterized p) {
+        if (expected instanceof Type.Parameterized p) {
             return switch (p.rawType()) {
                 case "Relation" -> isSource
                         ? (source != null && source.isRelational())
@@ -397,70 +399,68 @@ public abstract class AbstractChecker implements FunctionChecker {
                 case "_Window" -> actual instanceof AppliedFunction af
                     && !"traverse".equals(simpleName(af.function()));
                 case "Rows", "_Range" -> actual instanceof AppliedFunction;
+                case "_Traversal" -> actual instanceof AppliedFunction af
+                    && "traverse".equals(simpleName(af.function()));
                 default -> isSource && source != null
                         && source.type() instanceof Type.Parameterized gp
                         && p.rawType().equals(gp.rawType());
             };
         }
-        if (expected instanceof PType.TypeVar) {
+        if (expected instanceof Type.TypeVar) {
             // TypeVar (T, V, etc.) matches anything EXCEPT Relation sources
             return !isSource || source == null || !source.isRelational();
         }
-        if (expected instanceof PType.Concrete c) {
+        if (expected instanceof Primitive p) {
             // Any is the top type — accepts everything
-            if ("Any".equals(c.name())) {
-                return true;
-            }
-            // _Traversal: matches traverse() AppliedFunction (no type params → Concrete)
-            if ("_Traversal".equals(c.name())) {
-                return actual instanceof AppliedFunction af
-                        && "traverse".equals(simpleName(af.function()));
-            }
-            // Reject lambdas and class instances for specific Concrete types
-            // (e.g., Number, String) — they are structural, not scalar values
+            if (p == Primitive.ANY) return true;
+            // Reject lambdas and class instances for specific primitives — they're structural,
+            // not scalar values.
             if (actual instanceof LambdaFunction || actual instanceof ClassInstance) {
                 return false;
             }
-
-            // If we have a compiled type for this param, use precise subtype checking
-            if (compiledType != null) {
-                return isConcreteCompatible(c.name(), compiledType);
-            }
-            // No compiled type → can't match Concrete types.
-            // All callers that need Concrete matching go through ScalarChecker
-            // which always provides compiled types. 3-arg callers resolve via
-            // arity or Parameterized matching before reaching this point.
-            return false;
+            // Compiled type is needed to subtype-check against a specific primitive. All callers
+            // that need primitive matching go through ScalarChecker which provides compiled types.
+            return compiledType != null && primitiveOrEnumCompatible(p, compiledType);
+        }
+        if (expected instanceof Type.PrecisionDecimal) {
+            // Mirrors the "bare Decimal = DEFAULT_DECIMAL" convention applied by
+            // {@link PureNativeSignatureParser}: signatures written as {@code Decimal[1]}
+            // land here as PrecisionDecimal(38,18). Treat the declared precision as
+            // {@link Primitive#DECIMAL} for matching — any Decimal actual fits.
+            if (actual instanceof LambdaFunction || actual instanceof ClassInstance) return false;
+            return compiledType != null && primitiveOrEnumCompatible(Primitive.DECIMAL, compiledType);
+        }
+        if (expected instanceof Type.EnumType e) {
+            if (actual instanceof LambdaFunction || actual instanceof ClassInstance) return false;
+            return compiledType != null && primitiveOrEnumCompatible(e, compiledType);
         }
         return false;
     }
 
 
     /**
-     * Checks if a compiled type is compatible with a declared Concrete type name.
-     * Compatible means: exact match or the actual type is a subtype of the declared type.
+     * Checks whether a compiled actual type fits a declared {@link Primitive} or
+     * {@link Type.EnumType}. Fits means exact match or subtype in the primitive
+     * lattice (enums require strict FQN equality; enums don't subtype).
      *
      * <p>Mirrors the normalization in {@link #scoreParamType}: any {@link Type.PrecisionDecimal}
      * (on either side) flattens to {@link Primitive#DECIMAL} so precision differences don't
-     * spuriously reject a PrecisionDecimal(38,1) actual against a declared {@code "Decimal"}
+     * spuriously reject a {@code PrecisionDecimal(38,1)} actual against a declared {@code Decimal}
      * parameter.
      */
-    private boolean isConcreteCompatible(String declaredName, Type actualType) {
+    private boolean primitiveOrEnumCompatible(Type declared, Type actualType) {
         if (actualType instanceof Type.PrecisionDecimal) {
             actualType = Primitive.DECIMAL;
         }
-        // EnumType: match if the enum's simple name equals the declared name
-        if (actualType instanceof Type.EnumType et) {
-            return et.typeName().equals(declaredName);
-        }
-        if ("Any".equals(declaredName)) return true;
-        // Resolve the declared simple name to a Type via the same path the scorer uses.
-        // Returns null for signature-layer markers (JoinKind, DurationUnit, _Window, ...).
-        Type declared = new PType.Concrete(declaredName).toGenericType();
         if (declared instanceof Type.PrecisionDecimal) {
             declared = Primitive.DECIMAL;
         }
-        if (declared == null) return false;
+        // EnumType: exact FQN match required
+        if (declared instanceof Type.EnumType de) {
+            return actualType instanceof Type.EnumType ae
+                    && ae.qualifiedName().equals(de.qualifiedName());
+        }
+        if (declared == Primitive.ANY) return true;
         // Any (from empty collections []) is covariant with all types.
         if (actualType == Primitive.ANY) return true;
         return actualType.equals(declared) || actualType.isSubtypeOf(declared);
@@ -486,13 +486,13 @@ public abstract class AbstractChecker implements FunctionChecker {
             throw new PureCompileException(
                     def.name() + "(): signature has no parameters");
         }
-        PType.Param param0 = def.params().get(0);
+        Type.Parameter param0 = def.params().get(0);
 
         // Validate + bind type vars
         unifyType(param0.type(), source.type(), bindings, def.name() + "() source");
 
         // Bind mult vars (e.g., m in cast<T|m>, sort<T|m>)
-        if (param0.mult() instanceof Multiplicity.Var v) {
+        if (param0.multiplicity() instanceof Multiplicity.Var v) {
             bindings.mults().put(v.name(), source.multiplicity());
         }
 
@@ -501,7 +501,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         // The [1] means "one relation container", not "one row".
         // TODO: Fix table()/typed() to return Relation<T>[1], then enable this check.
         if (!(source.type() instanceof Type.Relation)) {
-            validateMult(param0.mult(), source.multiplicity(), def.name() + "() source");
+            validateMult(param0.multiplicity(), source.multiplicity(), def.name() + "() source");
         }
 
         return bindings;
@@ -539,11 +539,11 @@ public abstract class AbstractChecker implements FunctionChecker {
         }
         for (int i = 0; i < def.params().size() && i < actuals.size(); i++) {
             if (actuals.get(i) == null) continue;
-            PType.Param param = def.params().get(i);
+            Type.Parameter param = def.params().get(i);
             unifyType(param.type(), actuals.get(i).type(), bindings,
                       def.name() + "() param[" + i + "]");
             // Bind mult vars from this param
-            if (param.mult() instanceof Multiplicity.Var v) {
+            if (param.multiplicity() instanceof Multiplicity.Var v) {
                 bindings.mults().put(v.name(), actuals.get(i).multiplicity());
             }
         }
@@ -555,43 +555,43 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Called by subclasses (e.g., ScalarChecker) for source-less functions like rowMapper(val, key)
      * where type vars must be bound from the argument types rather than from a source expression.
      */
-    protected void unifyParam(PType.Param sigParam, Type actualType,
+    protected void unifyParam(Type.Parameter sigParam, Type actualType,
                                Bindings bindings, String context) {
         unifyType(sigParam.type(), actualType, bindings, context);
     }
 
     /**
-     * Recursively matches a PType against a Type, populating type variable bindings.
+     * Recursively matches a Type against a Type, populating type variable bindings.
      * No silent skips — every case either binds, validates, or throws.
      */
-    private void unifyType(PType expected, Type actual,
+    private void unifyType(Type expected, Type actual,
                            Bindings bindings, String context) {
         switch (expected) {
-            case PType.TypeVar v -> {
-                // Normalize: PrecisionDecimal → DECIMAL
-                Type normalized = actual;
-                if (normalized instanceof Type.PrecisionDecimal) {
-                    normalized = Primitive.DECIMAL;
-                }
+            case Type.TypeVar v -> {
+                // Bind the actual type unchanged so precision-carrying types
+                // (PrecisionDecimal(p, s)) flow through to the return type —
+                // e.g., plus<T>(values:T[*]):T[1] applied to PrecisionDecimal(38,18)
+                // values returns PrecisionDecimal(38,18), not a bare DECIMAL.
+                //
+                // Compatibility check between multiple bindings of the same T
+                // normalizes PrecisionDecimal → DECIMAL so two different-precision
+                // decimals aren't considered a conflict.
                 Type existing = bindings.get(v.name());
                 if (existing != null) {
-                    // Check compatibility: normalize existing for comparison too
-                    Type existNorm = existing;
-                    if (existNorm instanceof Type.PrecisionDecimal) {
-                        existNorm = Primitive.DECIMAL;
-                    }
-                    if (!existNorm.typeName().equals(normalized.typeName())
+                    Type existNorm = existing instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : existing;
+                    Type actualNorm = actual instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : actual;
+                    if (!existNorm.typeName().equals(actualNorm.typeName())
                             && !"Any".equals(existing.typeName())
-                            && !"Any".equals(normalized.typeName())) {
+                            && !"Any".equals(actual.typeName())) {
                         throw new PureCompileException(
                                 context + ": type variable " + v.name() + " bound to "
-                                        + existing.typeName() + " but got " + normalized.typeName());
+                                        + existing.typeName() + " but got " + actual.typeName());
                     }
                 } else {
-                    bindings.put(v.name(), normalized);
+                    bindings.put(v.name(), actual);
                 }
             }
-            case PType.Parameterized p -> {
+            case Type.Parameterized p -> {
                 if ("Relation".equals(p.rawType())) {
                     if (!(actual instanceof Type.Relation rel)) {
                         throw new PureCompileException(
@@ -620,73 +620,82 @@ public abstract class AbstractChecker implements FunctionChecker {
                             context + ": expected " + p.rawType() + ", got " + actual.typeName());
                 }
             }
-            case PType.Concrete c -> {
-                Type g = c.toGenericType();
-                if (g == null) {
-                    // Non-primitive signature type (DurationUnit, JoinKind, etc.)
-                    // — validate that the actual is an EnumType with matching FQN
-                    if (actual instanceof Type.EnumType et) {
-                        if (!et.qualifiedName().equals(c.name())) {
-                            throw new PureCompileException(
-                                    context + ": expected " + c.name() + ", got " + et.qualifiedName());
-                        }
-                    } else {
-                        throw new PureCompileException(
-                                context + ": expected " + c.name() + ", got " + actual.typeName());
-                    }
-                    return;
-                }
-                // Use subtype hierarchy: Integer is subtype of Number, Number of Any, etc.
-                // Any is the top type — accepts everything
-                if (g == Primitive.ANY) {
-                    return; // Any accepts all types
-                }
-                // Normalize actual AND signature type:
-                //   PrecisionDecimal → DECIMAL (for both)
-                Type gNorm = g;
-                if (gNorm instanceof Type.PrecisionDecimal) {
-                    gNorm = Primitive.DECIMAL;
-                }
-                Type norm = actual;
-                if (norm instanceof Type.PrecisionDecimal) {
-                    norm = Primitive.DECIMAL;
-                }
-                if (gNorm instanceof Primitive expectedPrim
-                        && norm instanceof Primitive actualPrim) {
-                    // Any (from empty collections []) is covariant with all types
-                    if (actualPrim == Primitive.ANY) {
-                        return;
-                    }
+            case Primitive expectedPrim -> {
+                if (expectedPrim == Primitive.ANY) return; // Any accepts all types
+                // Normalize PrecisionDecimal → DECIMAL on actual.
+                Type norm = actual instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : actual;
+                if (norm instanceof Primitive actualPrim) {
+                    if (actualPrim == Primitive.ANY) return; // empty-collection covariance
                     if (!actualPrim.isSubtypeOf(expectedPrim)) {
                         throw new PureCompileException(
-                                context + ": expected " + c.name() + ", got " + actual.typeName());
+                                context + ": expected " + expectedPrim.typeName() + ", got " + actual.typeName());
                     }
-                } else if (!gNorm.typeName().equals(norm.typeName())) {
+                } else if (!norm.typeName().equals(expectedPrim.typeName())) {
                     throw new PureCompileException(
-                            context + ": expected " + c.name() + ", got " + actual.typeName());
+                            context + ": expected " + expectedPrim.typeName() + ", got " + actual.typeName());
                 }
             }
-            case PType.SchemaAlgebra sa -> {
+            case Type.EnumType expectedEnum -> {
+                if (!(actual instanceof Type.EnumType actualEnum)
+                        || !actualEnum.qualifiedName().equals(expectedEnum.qualifiedName())) {
+                    throw new PureCompileException(
+                            context + ": expected " + expectedEnum.qualifiedName() + ", got " + actual.typeName());
+                }
+            }
+            case Type.ClassType ct -> {
+                // Class-typed signature parameter — accept any class (model-level match done elsewhere)
+                if (!(actual instanceof Type.ClassType)) {
+                    throw new PureCompileException(
+                            context + ": expected class " + ct.qualifiedName() + ", got " + actual.typeName());
+                }
+            }
+            case Type.NameRef nr -> throw new PureCompileException(
+                    context + ": unresolved NameRef '" + nr.qualifiedName() + "' in signature — native signatures should be fully resolved");
+            case Type.PrecisionDecimal pd -> {
+                // Declared PrecisionDecimal in a signature — treat as DECIMAL for unification
+                Type norm = actual instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : actual;
+                if (!(norm instanceof Primitive p) || !p.isSubtypeOf(Primitive.DECIMAL)) {
+                    throw new PureCompileException(
+                            context + ": expected Decimal, got " + actual.typeName());
+                }
+            }
+            case Type.SchemaAlgebra sa -> {
                 // Schema algebra (T+V, T-Z) doesn't appear during source unification.
                 // If encountered (e.g., in a FunctionType param), skip — the algebra
                 // only matters during return-type resolution via resolve().
             }
-            case PType.FunctionType ft -> throw new PureCompileException(
+            case Type.FunctionType ft -> throw new PureCompileException(
                     context + ": FunctionType should not appear in source unification");
-            case PType.RelationTypeVar rtv -> throw new PureCompileException(
+            case Type.RelationTypeVar rtv -> throw new PureCompileException(
                     context + ": RelationTypeVar should not appear in source unification");
+            case Type.Relation r -> {
+                // Already-resolved Relation in a signature — just verify actual is Relation
+                if (!(actual instanceof Type.Relation)) {
+                    throw new PureCompileException(
+                            context + ": expected Relation, got " + actual.typeName());
+                }
+            }
+            case Type.Tuple t -> {
+                // Already-resolved Tuple — verify actual shape
+                if (!(actual instanceof Type.Tuple)) {
+                    throw new PureCompileException(
+                            context + ": expected Tuple, got " + actual.typeName());
+                }
+            }
+            case Type.FunctionReference fr -> throw new PureCompileException(
+                    context + ": FunctionReference should not appear in source unification");
         }
     }
 
     // ========== Type resolution ==========
 
     /**
-     * Resolves a PType to a Type using type variable bindings.
+     * Resolves a Type to a Type using type variable bindings.
      * Every case either resolves or throws — no null returns.
      */
-    protected Type resolve(PType type, Bindings bindings, String context) {
+    protected Type resolve(Type type, Bindings bindings, String context) {
         return switch (type) {
-            case PType.TypeVar v -> {
+            case Type.TypeVar v -> {
                 Type resolved = bindings.get(v.name());
                 if (resolved == null) {
                     throw new PureCompileException(
@@ -694,30 +703,13 @@ public abstract class AbstractChecker implements FunctionChecker {
                 }
                 yield resolved;
             }
-            case PType.Concrete c -> {
-                Type g = c.toGenericType();
-                if (g == null) {
-                    // Non-primitive: look up against model as enum or class
-                    var modelCtx = env.modelContext();
-                    if (modelCtx != null && modelCtx.findEnum(c.name()).isPresent()) {
-                        yield new Type.EnumType(c.name());
-                    }
-                    if (modelCtx != null) {
-                        var classOpt = modelCtx.findClass(c.name());
-                        if (classOpt.isPresent()) {
-                            yield new Type.ClassType(classOpt.get().qualifiedName());
-                        }
-                    }
-                    // Meta-model types that map to String in SQL context
-                    if ("Type".equals(c.name())) {
-                        yield Primitive.STRING;
-                    }
-                    throw new PureCompileException(
-                            context + ": unresolvable concrete type: " + c.name());
-                }
-                yield g;
-            }
-            case PType.Parameterized p -> {
+            case Primitive p -> p;
+            case Type.EnumType e -> e;
+            case Type.ClassType c -> c;
+            case Type.PrecisionDecimal pd -> pd;
+            case Type.NameRef nr -> throw new PureCompileException(
+                    context + ": unresolved NameRef '" + nr.qualifiedName() + "' during resolution — native signatures should be fully resolved at parse time");
+            case Type.Parameterized p -> {
                 if ("Relation".equals(p.rawType()) && !p.typeArgs().isEmpty()) {
                     Type inner = resolve(p.typeArgs().get(0), bindings, context);
                     // Reconstruct Relation from Tuple: Relation<T> where T=Tuple(schema)
@@ -732,15 +724,18 @@ public abstract class AbstractChecker implements FunctionChecker {
                         .map(a -> resolve(a, bindings, context)).toList();
                 yield new Type.Parameterized(p.rawType(), resolvedArgs);
             }
-            case PType.SchemaAlgebra sa -> {
+            case Type.SchemaAlgebra sa -> {
                 Type left = resolve(sa.left(), bindings, context);
                 Type right = resolve(sa.right(), bindings, context);
                 yield resolveSchemaAlgebra(left, right, sa.op(), context);
             }
-            case PType.FunctionType ft -> throw new PureCompileException(
+            case Type.FunctionType ft -> throw new PureCompileException(
                     context + ": cannot resolve FunctionType to Type");
-            case PType.RelationTypeVar rtv -> throw new PureCompileException(
+            case Type.RelationTypeVar rtv -> throw new PureCompileException(
                     context + ": cannot resolve RelationTypeVar to Type");
+            case Type.Relation r -> r;
+            case Type.Tuple t -> t;
+            case Type.FunctionReference fr -> fr;
         };
     }
 
@@ -758,15 +753,15 @@ public abstract class AbstractChecker implements FunctionChecker {
      * case in {@link #resolve} unwrap it back into a {@code Relation}.
      */
     private Type resolveSchemaAlgebra(Type left, Type right,
-                                            PType.SchemaAlgebra.OpType op, String context) {
+                                            Type.SchemaAlgebra.Op op, String context) {
         Type.Schema leftSchema = extractSchema(left, context + " (left)");
         Type.Schema rightSchema = extractSchema(right, context + " (right)");
 
         return switch (op) {
-            case Union -> new Type.Tuple(leftSchema.merge(rightSchema));
-            case Difference -> new Type.Tuple(leftSchema.withoutColumns(
+            case UNION -> new Type.Tuple(leftSchema.merge(rightSchema));
+            case DIFFERENCE -> new Type.Tuple(leftSchema.withoutColumns(
                     rightSchema.columns().keySet()));
-            case Subset, Equal -> throw new PureCompileException(
+            case SUBSET, EQUAL -> throw new PureCompileException(
                     context + ": schema algebra op " + op + " not yet supported in resolution");
         };
     }
@@ -893,10 +888,10 @@ public abstract class AbstractChecker implements FunctionChecker {
      * {@code FuncColSpecArray<{...},T>} (project).
      * Must always succeed — malformed signature throws.
      */
-    protected PType.FunctionType extractFunctionType(PType.Param lambdaDef) {
-        if (lambdaDef.type() instanceof PType.Parameterized fp
+    protected Type.FunctionType extractFunctionType(Type.Parameter lambdaDef) {
+        if (lambdaDef.type() instanceof Type.Parameterized fp
                 && !fp.typeArgs().isEmpty()
-                && fp.typeArgs().get(0) instanceof PType.FunctionType ft) {
+                && fp.typeArgs().get(0) instanceof Type.FunctionType ft) {
             // Both Function<{T[1]->Boolean[1]}> and FuncColSpecArray<{C[1]->Any[*]},T>
             // have the FunctionType as their first type argument
             if ("Function".equals(fp.rawType())
@@ -930,7 +925,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Validates lambda return type AND multiplicity against a FunctionType.
      * Uses unifyType internally for type checking and validateMult for multiplicity.
      */
-    protected void validateLambdaReturn(TypeInfo bodyType, PType.FunctionType ft,
+    protected void validateLambdaReturn(TypeInfo bodyType, Type.FunctionType ft,
                                         Bindings bindings, String funcName) {
         String context = funcName + "() predicate return";
 
@@ -951,8 +946,8 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Useful for generic checkers that iterate params and need to distinguish
      * lambda args from scalar args.
      */
-    protected static boolean isLambdaParam(PType.Param sigParam) {
-        return sigParam.type() instanceof PType.Parameterized p
+    protected static boolean isLambdaParam(Type.Parameter sigParam) {
+        return sigParam.type() instanceof Type.Parameterized p
                 && "Function".equals(p.rawType());
     }
 
@@ -966,17 +961,17 @@ public abstract class AbstractChecker implements FunctionChecker {
      *
      * @return The TypeInfo of the lambda body (last statement)
      */
-    protected TypeInfo compileLambdaArg(LambdaFunction lambda, PType.Param sigParam,
+    protected TypeInfo compileLambdaArg(LambdaFunction lambda, Type.Parameter sigParam,
                                         Bindings bindings, TypeInfo source,
                                         TypeChecker.CompilationContext ctx, String funcName) {
-        PType.FunctionType ft = extractFunctionType(sigParam);
+        Type.FunctionType ft = extractFunctionType(sigParam);
 
         // Bind lambda params (all of them, not just the first)
         TypeChecker.CompilationContext lambdaCtx = ctx;
-        int paramCount = Math.min(lambda.parameters().size(), ft.paramTypes().size());
+        int paramCount = Math.min(lambda.parameters().size(), ft.params().size());
         for (int pi = 0; pi < paramCount; pi++) {
             String paramName = lambda.parameters().get(pi).name();
-            Type resolvedParamType = resolve(ft.paramTypes().get(pi).type(), bindings,
+            Type resolvedParamType = resolve(ft.params().get(pi).type(), bindings,
                     funcName + "() lambda param " + pi);
             lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
         }
@@ -989,7 +984,7 @@ public abstract class AbstractChecker implements FunctionChecker {
 
         // Bind unbound return TypeVar from body result (e.g., V in map<T,V>)
         // This lets resolveOutput work without special-case logic downstream.
-        if (ft.returnType() instanceof PType.TypeVar tv && !bindings.containsKey(tv.name())) {
+        if (ft.returnType() instanceof Type.TypeVar tv && !bindings.containsKey(tv.name())) {
             if (bodyResult.type() != null) {
                 bindings.put(tv.name(), bodyResult.type());
             }
@@ -997,7 +992,7 @@ public abstract class AbstractChecker implements FunctionChecker {
 
         // Validate return type — skip for TypeVars we just bound from the body
         // (they ARE the body result, so validation is tautological)
-        if (!(ft.returnType() instanceof PType.TypeVar tv2) || !bindings.containsKey(tv2.name())
+        if (!(ft.returnType() instanceof Type.TypeVar tv2) || !bindings.containsKey(tv2.name())
                 || bindings.get(tv2.name()) != bodyResult.type()) {
             validateLambdaReturn(bodyResult, ft, bindings, funcName);
         }

@@ -150,8 +150,8 @@ public class ExtendChecker extends AbstractChecker {
         var bindings = unify(def, source.expressionType());
 
         // Resolve lambda param type from signature (C[1])
-        PType.FunctionType ft = extractFunctionType(def.params().get(1));
-        Type resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+        Type.FunctionType ft = extractFunctionType(def.params().get(1));
+        Type resolvedParamType = resolve(ft.params().get(0).type(), bindings,
                 "extend() class-source lambda param");
 
         if (!(params.get(1) instanceof ClassInstance ci)) {
@@ -269,15 +269,15 @@ public class ExtendChecker extends AbstractChecker {
         // Extract lambda param types from the resolved extend() signature's FuncColSpec.
         // For traverse extends: S = original source schema, T = terminal (joined) table schema.
         // For non-traverse extends: S = T = source schema.
-        PType.FunctionType sigFnType = findColSpecFunctionType(def, fn1.parameters().size());
+        Type.FunctionType sigFnType = findColSpecFunctionType(def, fn1.parameters().size());
         var bindings = new Bindings();
         bindings.put("S", new Type.Tuple(originalSourceSchema));
         bindings.put("T", new Type.Tuple(colSpecSchema));
 
         TypeChecker.CompilationContext fn1Ctx = ctx;
-        for (int pi = 0; pi < fn1.parameters().size() && pi < sigFnType.paramTypes().size(); pi++) {
+        for (int pi = 0; pi < fn1.parameters().size() && pi < sigFnType.params().size(); pi++) {
             String paramName = fn1.parameters().get(pi).name();
-            PType sigType = sigFnType.paramTypes().get(pi).type();
+            Type sigType = sigFnType.params().get(pi).type();
             Type resolvedType = resolve(sigType, bindings,
                     "extend() lambda param " + pi);
             fn1Ctx = bindLambdaParam(fn1Ctx, paramName, resolvedType, source);
@@ -349,15 +349,15 @@ public class ExtendChecker extends AbstractChecker {
      * Finds the FunctionType from the resolved extend() def's ColSpec parameter
      * that matches the given lambda arity. Throws if not found.
      */
-    private PType.FunctionType findColSpecFunctionType(NativeFunctionDef def, int lambdaArity) {
+    private Type.FunctionType findColSpecFunctionType(NativeFunctionDef def, int lambdaArity) {
         for (var param : def.params()) {
-            if (param.type() instanceof PType.Parameterized fp
+            if (param.type() instanceof Type.Parameterized fp
                     && !fp.typeArgs().isEmpty()
-                    && fp.typeArgs().get(0) instanceof PType.FunctionType ft) {
+                    && fp.typeArgs().get(0) instanceof Type.FunctionType ft) {
                 String raw = fp.rawType();
                 if ("FuncColSpec".equals(raw) || "AggColSpec".equals(raw)
                         || "FuncColSpecArray".equals(raw) || "AggColSpecArray".equals(raw)) {
-                    if (ft.paramTypes().size() == lambdaArity) {
+                    if (ft.params().size() == lambdaArity) {
                         return ft;
                     }
                 }

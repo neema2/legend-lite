@@ -51,19 +51,19 @@ public class MapChecker extends AbstractChecker {
         var bindings = unify(def, source.expressionType());
 
         // 3. Extract lambda FunctionType from signature param[1]
-        PType.FunctionType ft = extractFunctionType(def.params().get(1));
+        Type.FunctionType ft = extractFunctionType(def.params().get(1));
         if (!(params.get(1) instanceof LambdaFunction lambda)) {
             throw new PureCompileException("map() argument 2 must be a lambda");
         }
-        if (lambda.parameters().size() != ft.paramTypes().size()) {
+        if (lambda.parameters().size() != ft.params().size()) {
             throw new PureCompileException(
                     "map() lambda has " + lambda.parameters().size()
-                            + " params, signature requires " + ft.paramTypes().size());
+                            + " params, signature requires " + ft.params().size());
         }
 
         // 4. Bind lambda param using resolved T
         String paramName = lambda.parameters().get(0).name();
-        Type resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+        Type resolvedParamType = resolve(ft.params().get(0).type(), bindings,
                 "map() lambda param");
         TypeChecker.CompilationContext lambdaCtx = bindLambdaParam(ctx, paramName,
                 resolvedParamType, source);

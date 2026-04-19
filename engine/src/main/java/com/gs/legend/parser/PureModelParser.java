@@ -1,6 +1,6 @@
 package com.gs.legend.parser;
+import com.gs.legend.model.m3.Type;
 
-import com.gs.legend.compiler.PType;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.def.AssociationDefinition.AssociationEndDefinition;
@@ -285,7 +285,7 @@ public final class PureModelParser {
     }
 
     /** Parsed property return type: {@code :Type[mult]}. */
-    private record PropertyReturnType(String type, Multiplicity mult) {}
+    private record PropertyReturnType(String type, Multiplicity multiplicity) {}
 
     /**
      * Parse a type reference: qualifiedName (with optional generics we skip for now).
@@ -525,7 +525,7 @@ public final class PureModelParser {
             PropertyReturnType ret = parsePropertyReturnType();
             expect(TokenType.SEMI_COLON);
             ends.add(new AssociationEndDefinition(propName, ret.type(),
-                    ret.mult().lowerBound(), ret.mult().upperBound()));
+                    ret.multiplicity().lowerBound(), ret.multiplicity().upperBound()));
         }
 
         expect(TokenType.BRACE_CLOSE);
@@ -627,7 +627,7 @@ public final class PureModelParser {
         PropertyReturnType ret = parsePropertyReturnType();
         expect(TokenType.SEMI_COLON);
         return new PropertyDefinition(propName, ret.type(),
-                ret.mult().lowerBound(), ret.mult().upperBound(),
+                ret.multiplicity().lowerBound(), ret.multiplicity().upperBound(),
                 stereotypes, taggedValues);
     }
 
@@ -671,7 +671,7 @@ public final class PureModelParser {
 
         // DerivedPropertyDefinition(name, params, expression, type, lower, upper)
         return new DerivedPropertyDefinition(propName, params, body, ret.type(),
-                ret.mult().lowerBound(), ret.mult().upperBound());
+                ret.multiplicity().lowerBound(), ret.multiplicity().upperBound());
     }
 
     private ClassDefinition.ParameterDefinition parseDerivedPropertyParameter() {
@@ -754,7 +754,7 @@ public final class PureModelParser {
 
         expect(TokenType.COLON);
         String returnType = parseType();
-        PType parsedReturnType = parsePureType(returnType);
+        Type parsedReturnType = parsePureType(returnType);
         Multiplicity returnMult = parseMultiplicity();
 
         // Constraints (optional)
@@ -785,24 +785,24 @@ public final class PureModelParser {
         String name = parseIdentifier();
         expect(TokenType.COLON);
         String type = parseType();
-        PType parsedType = parsePureType(type);
+        Type parsedType = parsePureType(type);
         Multiplicity mult = parseMultiplicity();
         // Extract function type if it's a Function<{...}> parameter
-        PType.FunctionType fnType = (parsedType instanceof PType.FunctionType ft) ? ft
-                : (parsedType instanceof PType.Parameterized p
+        Type.FunctionType fnType = (parsedType instanceof Type.FunctionType ft) ? ft
+                : (parsedType instanceof Type.Parameterized p
                         && "Function".equals(p.rawType())
                         && !p.typeArgs().isEmpty()
-                        && p.typeArgs().get(0) instanceof PType.FunctionType ft2) ? ft2
+                        && p.typeArgs().get(0) instanceof Type.FunctionType ft2) ? ft2
                 : null;
         return new FunctionDefinition.ParameterDefinition(name, type,
                 mult.lowerBound(), mult.upperBound(), fnType, parsedType);
     }
 
     /**
-     * Convert a type string to PType.
+     * Convert a type string to Type.
      * Handles: simple types, Function&lt;{...}&gt;, bare {T[m]->R[m]}, Relation&lt;(...)&gt;.
      */
-    private PType parsePureType(String typeText) {
+    private Type parsePureType(String typeText) {
         if (typeText == null || typeText.isEmpty()) return null;
 
         // Bare function type: {T[m]->R[m]}
@@ -819,8 +819,8 @@ public final class PureModelParser {
             // Function<{...}> — extract function type from inner braces
             if ("Function".equals(rawType) || "FunctionDefinition".equals(rawType)) {
                 if (inner.startsWith("{") && inner.endsWith("}")) {
-                    PType fnType = parseFunctionTypeLiteral(inner.substring(1, inner.length() - 1));
-                    return new PType.Parameterized(rawType, List.of(fnType));
+                    Type fnType = parseFunctionTypeLiteral(inner.substring(1, inner.length() - 1));
+                    return new Type.Parameterized(rawType, List.of(fnType));
                 }
             }
 
@@ -828,33 +828,33 @@ public final class PureModelParser {
             if ("Relation".equals(rawType)) {
                 if (inner.startsWith("(") && inner.endsWith(")")) {
                     String colSpec = inner.substring(1, inner.length() - 1);
-                    List<PType.RelationTypeVar.Column> cols = parseRelationColumns(colSpec);
-                    return new PType.Parameterized(rawType,
-                            List.of(new PType.RelationTypeVar(cols)));
+                    List<Type.RelationTypeVar.Column> cols = parseRelationColumns(colSpec);
+                    return new Type.Parameterized(rawType,
+                            List.of(new Type.RelationTypeVar(cols)));
                 }
                 // Relation<T> — type variable
-                return new PType.Parameterized(rawType,
-                        List.of(new PType.TypeVar(inner)));
+                return new Type.Parameterized(rawType,
+                        List.of(new Type.TypeVar(inner)));
             }
 
             // Other generics: just split type args
-            return new PType.Parameterized(rawType,
+            return new Type.Parameterized(rawType,
                     splitTypeArgs(inner).stream().map(this::parsePureType).toList());
         }
 
         // Simple named type
-        return new PType.Concrete(typeText);
+        return new Type.NameRef(typeText);
     }
 
     /** Parse function type body: "T[m],U[m]->R[m]" */
-    private PType.FunctionType parseFunctionTypeLiteral(String body) {
+    private Type.FunctionType parseFunctionTypeLiteral(String body) {
         // Find the last -> to split params from return
         int arrowIdx = body.lastIndexOf("->");
         if (arrowIdx < 0) return null;
         String paramsStr = body.substring(0, arrowIdx);
         String returnStr = body.substring(arrowIdx + 2);
 
-        List<PType.Param> params = new ArrayList<>();
+        List<Type.Parameter> params = new ArrayList<>();
         if (!paramsStr.isEmpty()) {
             for (String paramStr : splitTypeArgs(paramsStr)) {
                 paramStr = paramStr.trim();
@@ -864,16 +864,19 @@ public final class PureModelParser {
                     String typePart = paramStr.substring(0, bracketIdx);
                     String multStr = paramStr.substring(bracketIdx + 1,
                             paramStr.endsWith("]") ? paramStr.length() - 1 : paramStr.length());
-                    PType type = parsePureType(typePart);
+                    Type type = parsePureType(typePart);
                     Multiplicity mult = parseMultiplicityFromString(multStr);
-                    params.add(new PType.Param(null, type, mult));
+                    // Function-type literals ({T[1]->R[1]}) have no parameter identifiers;
+                    // mirror legend-pure's convention of using "" for anonymous function-type
+                    // parameters. See Type.Parameter javadoc for the full rationale.
+                    params.add(new Type.Parameter("", type, mult));
                 }
             }
         }
         // Parse return: Type[mult]
         returnStr = returnStr.trim();
         int bracketIdx = returnStr.lastIndexOf('[');
-        PType retType = new PType.Concrete("Any");
+        Type retType = new Type.NameRef("Any");
         Multiplicity retMult = Multiplicity.ONE;
         if (bracketIdx > 0) {
             retType = parsePureType(returnStr.substring(0, bracketIdx));
@@ -881,7 +884,7 @@ public final class PureModelParser {
                     returnStr.endsWith("]") ? returnStr.length() - 1 : returnStr.length());
             retMult = parseMultiplicityFromString(multStr);
         }
-        return new PType.FunctionType(params, retType, retMult);
+        return new Type.FunctionType(params, retType, retMult);
     }
 
     /**
@@ -910,15 +913,15 @@ public final class PureModelParser {
     }
 
     /** Parse relation column specs: "NAME:Type,AGE:Type" */
-    private List<PType.RelationTypeVar.Column> parseRelationColumns(String colSpec) {
-        List<PType.RelationTypeVar.Column> cols = new ArrayList<>();
+    private List<Type.RelationTypeVar.Column> parseRelationColumns(String colSpec) {
+        List<Type.RelationTypeVar.Column> cols = new ArrayList<>();
         for (String part : splitTypeArgs(colSpec)) {
             part = part.trim();
             int colonIdx = part.indexOf(':');
             if (colonIdx > 0) {
                 String colName = part.substring(0, colonIdx).trim();
                 String typeStr = part.substring(colonIdx + 1).trim();
-                cols.add(new PType.RelationTypeVar.Column(colName, parsePureType(typeStr), Multiplicity.ONE));
+                cols.add(new Type.RelationTypeVar.Column(colName, parsePureType(typeStr), Multiplicity.ONE));
             }
         }
         return cols;

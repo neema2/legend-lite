@@ -141,18 +141,18 @@ public class AsOfJoinChecker extends AbstractChecker {
                                          TypeChecker.CompilationContext ctx) {
         if (lambda.parameters().isEmpty() || lambda.body().isEmpty()) return;
 
-        PType.FunctionType ft = extractFunctionType(def.params().get(paramIdx));
-        if (lambda.parameters().size() != ft.paramTypes().size()) {
+        Type.FunctionType ft = extractFunctionType(def.params().get(paramIdx));
+        if (lambda.parameters().size() != ft.params().size()) {
             throw new PureCompileException(
                     "asOfJoin() condition lambda has " + lambda.parameters().size()
-                            + " params, signature requires " + ft.paramTypes().size());
+                            + " params, signature requires " + ft.params().size());
         }
 
         TypeChecker.CompilationContext lambdaCtx = ctx;
         TypeInfo[] sources = { left, right };
-        for (int i = 0; i < ft.paramTypes().size(); i++) {
+        for (int i = 0; i < ft.params().size(); i++) {
             String paramName = lambda.parameters().get(i).name();
-            Type resolvedType = resolve(ft.paramTypes().get(i).type(), bindings,
+            Type resolvedType = resolve(ft.params().get(i).type(), bindings,
                     "asOfJoin() condition param " + i);
             lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedType, sources[i]);
         }

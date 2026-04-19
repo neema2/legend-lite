@@ -152,19 +152,19 @@ public class JoinChecker extends AbstractChecker {
         if (lambda.parameters().isEmpty() || lambda.body().isEmpty()) return;
 
         // Extract {T[1],V[1]->Boolean[1]} from the signature
-        PType.FunctionType ft = extractFunctionType(def.params().get(paramIdx));
-        if (lambda.parameters().size() != ft.paramTypes().size()) {
+        Type.FunctionType ft = extractFunctionType(def.params().get(paramIdx));
+        if (lambda.parameters().size() != ft.params().size()) {
             throw new PureCompileException(
                     "join() condition lambda has " + lambda.parameters().size()
-                            + " params, signature requires " + ft.paramTypes().size());
+                            + " params, signature requires " + ft.params().size());
         }
 
         // Resolve each param type from bindings and bind
         TypeChecker.CompilationContext lambdaCtx = ctx;
         TypeInfo[] sources = { left, right };
-        for (int i = 0; i < ft.paramTypes().size(); i++) {
+        for (int i = 0; i < ft.params().size(); i++) {
             String paramName = lambda.parameters().get(i).name();
-            Type resolvedType = resolve(ft.paramTypes().get(i).type(), bindings,
+            Type resolvedType = resolve(ft.params().get(i).type(), bindings,
                     "join() condition param " + i);
             lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedType, sources[i]);
         }

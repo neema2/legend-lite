@@ -55,8 +55,8 @@ public class ProjectChecker extends AbstractChecker {
         List<ColSpec> colSpecs = extractColSpecs(params.get(1));
 
         // 3. Resolve lambda param type from signature
-        PType.FunctionType ft = extractFunctionType(def.params().get(1));
-        Type resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+        Type.FunctionType ft = extractFunctionType(def.params().get(1));
+        Type resolvedParamType = resolve(ft.params().get(0).type(), bindings,
                 "project() lambda param");
 
         // 4. Type-check each ColSpec lambda → build output schema

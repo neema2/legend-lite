@@ -1,7 +1,7 @@
 package com.gs.legend.model.def;
+import com.gs.legend.model.m3.Type;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.compiler.PType;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,7 +28,7 @@ import java.util.Objects;
  * @param body             The function body expression
  * @param stereotypes        Applied stereotypes
  * @param taggedValues       Applied tagged values
- * @param parsedReturnType   Full parsed PType for the return type; null when not available.
+ * @param parsedReturnType   Full parsed Type for the return type; null when not available.
  *                           Used by the compiler for schema-aware return type validation.
  */
 public record FunctionDefinition(
@@ -41,7 +41,7 @@ public record FunctionDefinition(
         List<StereotypeApplication> stereotypes,
         List<TaggedValue> taggedValues,
         List<ValueSpecification> resolvedBody,
-        PType parsedReturnType) implements PackageableElement {
+        Type parsedReturnType) implements PackageableElement {
 
     public FunctionDefinition {
         Objects.requireNonNull(qualifiedName, "Function name cannot be null");
@@ -104,7 +104,7 @@ public record FunctionDefinition(
      * @param upperBound   Upper multiplicity bound (null for *)
      * @param functionType Structured function type for Function<{...}> params;
      *                     null for non-function params (String, Integer, etc.)
-     * @param parsedType   Full parsed PType from the grammar; null when not available.
+     * @param parsedType   Full parsed Type from the grammar; null when not available.
      *                     Used by the compiler to resolve parameterized types like
      *                     Relation<(col:Type)> to Type for schema validation.
      */
@@ -113,15 +113,15 @@ public record FunctionDefinition(
             String type,
             int lowerBound,
             Integer upperBound,
-            PType.FunctionType functionType,
-            PType parsedType) {
+            Type.FunctionType functionType,
+            Type parsedType) {
         public ParameterDefinition {
             Objects.requireNonNull(name, "Parameter name cannot be null");
             Objects.requireNonNull(type, "Parameter type cannot be null");
         }
 
         public ParameterDefinition(String name, String type, int lowerBound, Integer upperBound,
-                                    PType.FunctionType functionType) {
+                                    Type.FunctionType functionType) {
             this(name, type, lowerBound, upperBound, functionType, null);
         }
 

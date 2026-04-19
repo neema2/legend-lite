@@ -1,8 +1,10 @@
 package com.gs.legend.parser;
 
+import com.gs.legend.compiler.BuiltinRegistry;
 import com.gs.legend.compiler.NativeFunctionDef;
-import com.gs.legend.compiler.PType;
 import com.gs.legend.model.m3.Multiplicity;
+import com.gs.legend.model.m3.Primitive;
+import com.gs.legend.model.m3.Type;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -72,7 +74,7 @@ public final class PureNativeSignatureParser {
         typeParams = new HashSet<>(typeParamList);
 
         expect(TokenType.PAREN_OPEN);
-        List<PType.Param> params = new ArrayList<>();
+        List<Type.Parameter> params = new ArrayList<>();
         if (!check(TokenType.PAREN_CLOSE)) {
             params.add(parseParam());
             while (match(TokenType.COMMA)) {
@@ -82,7 +84,7 @@ public final class PureNativeSignatureParser {
         expect(TokenType.PAREN_CLOSE);
 
         expect(TokenType.COLON);
-        PType returnType = parsePType();
+        Type returnType = parsePType();
         Multiplicity returnMult = parseMultiplicity();
 
         // Optional trailing ';' (Pure grammar requires it)
@@ -112,18 +114,18 @@ public final class PureNativeSignatureParser {
         expect(TokenType.GREATER_THAN);
     }
 
-    private PType.Param parseParam() {
+    private Type.Parameter parseParam() {
         String name = parseIdentifier();
         expect(TokenType.COLON);
-        PType type = parsePType();
+        Type type = parsePType();
         Multiplicity mult = parseMultiplicity();
-        return new PType.Param(name, type, mult);
+        return new Type.Parameter(name, type, mult);
     }
 
     // ==================== Types ====================
 
-    /** Parses a single PType (no enclosing multiplicity). */
-    private PType parsePType() {
+    /** Parses a single Type (no enclosing multiplicity). */
+    private Type parsePType() {
         // Function type: {T[1]->Boolean[1]} or {T[1],V[1]->Any[*]}
         if (check(TokenType.BRACE_OPEN)) {
             return parseFunctionType();
@@ -135,49 +137,85 @@ public final class PureNativeSignatureParser {
         // Named type (possibly generic): Name or Name<...>
         String typeName = parseTypeName();
         if (match(TokenType.LESS_THAN)) {
-            List<PType> typeArgs = new ArrayList<>();
+            List<Type> typeArgs = new ArrayList<>();
             typeArgs.add(parseTypeWithOperation());
             while (match(TokenType.COMMA)) {
                 typeArgs.add(parseTypeWithOperation());
             }
             expect(TokenType.GREATER_THAN);
+            // Structural pseudo-types (Relation, Function, ColSpec, _Window, etc.) carry their
+            // simple name as the rawType — they're signature-layer markers, not real Pure types.
             String simpleName = simpleName(typeName);
-            return new PType.Parameterized(simpleName, typeArgs);
+            return new Type.Parameterized(simpleName, typeArgs);
         }
-        // No type args — either a type variable or a concrete named type
+        // No type args — one of:
+        //   (a) bare type-variable letter declared in the <> header (T, V, K, ...)
+        //   (b) signature-layer pseudo-type with no type args (Rows, _Range, _Traversal) —
+        //       represented as a zero-arg Parameterized for uniform matching with the
+        //       non-bare pseudo-types (_Window<T>, ColSpec<T>, etc.)
+        //   (c) full FQN of a primitive or platform enum — native sigs are always
+        //       FQN-qualified for real types (see BuiltinRegistry).
         String simpleName = simpleName(typeName);
         if (typeParams.contains(simpleName)) {
-            return new PType.TypeVar(simpleName);
+            return new Type.TypeVar(simpleName);
         }
-        return new PType.Concrete(typeName);
+        Primitive prim = Primitive.findByFqn(typeName).orElse(null);
+        if (prim != null) {
+            // Legend-lite convention: bare "Decimal" in a native signature means
+            // DECIMAL(38, 18) — the widest SQL decimal compatible with DuckDB's INT128.
+            // Legend-pure's sigs write bare Decimal and leave precision to the dialect;
+            // legend-lite pins it at the Pure type layer so downstream type inference
+            // sees Decimal(38,18) instead of unparameterized Decimal. Tests assert this.
+            if (prim == Primitive.DECIMAL) return Type.DEFAULT_DECIMAL;
+            return prim;
+        }
+        if (BuiltinRegistry.findPlatformEnum(typeName).isPresent()) {
+            return new Type.EnumType(typeName);
+        }
+        // Unqualified residual: must be a signature-layer structural pseudo-type
+        // (Rows, _Range, _Traversal, SortInfo). Not a real Pure type — it only flows
+        // through AbstractChecker.structuralMatch which dispatches on rawType.
+        if (!typeName.contains("::")) {
+            return new Type.Parameterized(simpleName, List.of());
+        }
+        throw new PureParseException(
+                "PureNativeSignatureParser: unknown type name '" + typeName + "' in signature '"
+                        + source + "'. Native signatures must reference primitives and platform enums "
+                        + "by fully qualified name, or declared type parameters by bare letter.");
     }
 
-    /** {@code {T[1],V[1]->R[1]}} — one or more param types, then {@code ->}, then return. */
-    private PType.FunctionType parseFunctionType() {
+    /**
+     * {@code {T[1],V[1]->R[1]}} — one or more param types, then {@code ->}, then return.
+     *
+     * <p>Function-type literals have no parameter identifiers; all params are
+     * constructed with {@code ""} as the name, matching legend-pure's convention
+     * (see {@link Type.Parameter} javadoc).
+     */
+    private Type.FunctionType parseFunctionType() {
         expect(TokenType.BRACE_OPEN);
-        List<PType.Param> params = new ArrayList<>();
+        List<Type.Parameter> params = new ArrayList<>();
         if (!check(TokenType.ARROW)) {
             // At least one param type
-            PType firstType = parsePType();
+            Type firstType = parsePType();
             Multiplicity firstMult = parseMultiplicity();
-            params.add(new PType.Param("", firstType, firstMult));
+            params.add(new Type.Parameter("", firstType, firstMult));
             while (match(TokenType.COMMA)) {
-                PType t = parsePType();
+                Type t = parsePType();
                 Multiplicity m = parseMultiplicity();
-                params.add(new PType.Param("", t, m));
+                params.add(new Type.Parameter("", t, m));
             }
         }
         expect(TokenType.ARROW);
-        PType retType = parsePType();
+        Type retType = parsePType();
         Multiplicity retMult = parseMultiplicity();
         expect(TokenType.BRACE_CLOSE);
-        return new PType.FunctionType(params, retType, retMult);
+        return new Type.FunctionType(params, retType, retMult);
     }
 
     /** {@code (col:Type[mult], ...)} — inline RelationType columns. */
-    private PType.RelationTypeVar parseRelationType() {
+    private Type.RelationTypeVar parseRelationType() {
         expect(TokenType.PAREN_OPEN);
-        List<PType.RelationTypeVar.Column> columns = new ArrayList<>();
+        List<Type.RelationTypeVar.Column> columns = new ArrayList<>();
         if (!check(TokenType.PAREN_CLOSE)) {
             columns.add(parseRelationColumn());
             while (match(TokenType.COMMA)) {
@@ -185,46 +223,46 @@ public final class PureNativeSignatureParser {
             }
         }
         expect(TokenType.PAREN_CLOSE);
-        return new PType.RelationTypeVar(columns);
+        return new Type.RelationTypeVar(columns);
     }
 
-    private PType.RelationTypeVar.Column parseRelationColumn() {
+    private Type.RelationTypeVar.Column parseRelationColumn() {
         // mayColumnName: QUESTION | columnName
         String colName = match(TokenType.QUESTION) ? "?" : parseIdentifier();
         expect(TokenType.COLON);
         // mayColumnType: QUESTION | type
-        PType colType = match(TokenType.QUESTION) ? new PType.Concrete("Any") : parsePType();
+        Type colType = match(TokenType.QUESTION) ? Primitive.ANY : parsePType();
         Multiplicity mult = check(TokenType.BRACKET_OPEN) ? parseMultiplicity() : Multiplicity.ONE;
-        return new PType.RelationTypeVar.Column(colName, colType, mult);
+        return new Type.RelationTypeVar.Column(colName, colType, mult);
     }
 
     /**
      * Parses a single type argument, possibly wrapped in schema-algebra operators:
      * {@code T}, {@code T-Z+V}, {@code Z⊆T}, {@code Z=K⊆T}, {@code Z=(?:K)⊆T}.
      */
-    private PType parseTypeWithOperation() {
-        PType result = parsePType();
+    private Type parseTypeWithOperation() {
+        Type result = parsePType();
 
         // Equal: T=K  (matches legend-pure's equalType)
         if (match(TokenType.EQUAL)) {
-            PType eqType = parsePType();
-            result = new PType.SchemaAlgebra(result, eqType, PType.SchemaAlgebra.OpType.Equal);
+            Type eqType = parsePType();
+            result = new Type.SchemaAlgebra(result, Type.SchemaAlgebra.Op.EQUAL, eqType);
         }
 
         // Add/subtract chain: T-Z+V
         while (check(TokenType.PLUS) || check(TokenType.MINUS)) {
-            PType.SchemaAlgebra.OpType op =
+            Type.SchemaAlgebra.Op op =
                     match(TokenType.PLUS)
-                            ? PType.SchemaAlgebra.OpType.Union
-                            : consumeAs(TokenType.MINUS, PType.SchemaAlgebra.OpType.Difference);
-            PType right = parsePType();
-            result = new PType.SchemaAlgebra(result, right, op);
+                            ? Type.SchemaAlgebra.Op.UNION
+                            : consumeAs(TokenType.MINUS, Type.SchemaAlgebra.Op.DIFFERENCE);
+            Type right = parsePType();
+            result = new Type.SchemaAlgebra(result, op, right);
         }
 
         // Subset: Z⊆T
         if (match(TokenType.SUBSET)) {
-            PType superSet = parsePType();
-            result = new PType.SchemaAlgebra(result, superSet, PType.SchemaAlgebra.OpType.Subset);
+            Type superSet = parsePType();
+            result = new Type.SchemaAlgebra(result, Type.SchemaAlgebra.Op.SUBSET, superSet);
         }
 
         return result;

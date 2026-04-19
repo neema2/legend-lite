@@ -45,8 +45,10 @@ import org.finos.legend.pure.runtime.java.interpreted.natives.NativeFunction;
 import org.finos.legend.pure.runtime.java.interpreted.profiler.Profiler;
 
 import com.gs.legend.model.m3.Multiplicity;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Property;
 import com.gs.legend.model.m3.PureClass;
+
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -494,33 +496,30 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 rawType = org.finos.legend.pure.m3.navigation.importstub.ImportStub
                         .withImportStubByPass(rawType, ps);
             }
-            String typeName = "Any";
-            if (rawType != null) {
-                CoreInstance rawTypeName = rawType.getValueForMetaPropertyToOne(M3Properties.name);
-                if (rawTypeName != null) {
-                    typeName = PrimitiveUtilities.getStringValue(rawTypeName);
-                }
-            }
-
-            // Resolve the property type: primitive by Pure-level name lookup, otherwise
-            // recurse into the referenced class. Replaces a legacy try/catch-for-control-flow
-            // pattern (Phase B 2.5b.2) with Optional-based dispatch.
+            // Resolve the property type via FQN — no simple-name resolver (see the
+            // "single kind-aware resolver" policy on Type.java). For primitives,
+            // Pure's FQN (e.g. {@code meta::pure::metamodel::type::Integer}) maps
+            // directly to our {@link Primitive} singletons via {@link Primitive#findByFqn}.
+            // For classes, we recurse. rawType==null means "no declared type" → Any.
             com.gs.legend.model.m3.Type propType;
-            var primitive = com.gs.legend.model.m3.Type.Primitive.lookup(typeName);
-            if (primitive.isPresent()) {
-                propType = primitive.get();
-            } else if (rawType != null) {
+            if (rawType == null) {
+                propType = Primitive.ANY;
+            } else {
                 String qualifiedTypeName = getQualifiedName(rawType);
-                if (qualifiedTypeName == null
+                var primitive = qualifiedTypeName != null
+                        ? Primitive.findByFqn(qualifiedTypeName)
+                        : java.util.Optional.<Primitive>empty();
+                if (primitive.isPresent()) {
+                    propType = primitive.get();
+                } else if (qualifiedTypeName == null
                         || qualifiedTypeName.startsWith("meta::pure::metamodel")) {
                     continue;
+                } else {
+                    extractClassRecursive(qualifiedTypeName, classes, visited, ps);
+                    PureClass referenced = classes.get(qualifiedTypeName);
+                    if (referenced == null) continue;
+                    propType = new com.gs.legend.model.m3.Type.ClassType(referenced.qualifiedName());
                 }
-                extractClassRecursive(qualifiedTypeName, classes, visited, ps);
-                PureClass referenced = classes.get(qualifiedTypeName);
-                if (referenced == null) continue;
-                propType = new com.gs.legend.model.m3.Type.ClassType(referenced.qualifiedName());
-            } else {
-                continue;
             }
             properties.add(new Property(propName, propType, multiplicity));
         }

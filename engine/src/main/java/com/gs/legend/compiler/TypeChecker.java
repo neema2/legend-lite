@@ -569,7 +569,7 @@ public class TypeChecker implements TypeCheckEnv {
             var paramDef = firstMatch.parameters().get(i);
             if (paramDef.functionType() != null && arg instanceof LambdaFunction lambda) {
                 // Arity check before bidirectional compilation
-                int expectedArity = paramDef.functionType().paramTypes().size();
+                int expectedArity = paramDef.functionType().params().size();
                 if (lambda.parameters().size() != expectedArity) {
                     throw new PureCompileException(
                             "Function '" + af.function() + "' parameter '" + paramDef.name()
@@ -598,11 +598,11 @@ public class TypeChecker implements TypeCheckEnv {
                 if ("Any".equals(declaredSimple)) continue;
 
                 // Schema-aware check for Relation<(col:Type)> params
-                if (paramDef.parsedType() instanceof PType.Parameterized p
+                if (paramDef.parsedType() instanceof Type.Parameterized p
                         && "Relation".equals(p.rawType())
                         && !p.typeArgs().isEmpty()
-                        && p.typeArgs().get(0) instanceof PType.RelationTypeVar) {
-                    Type declaredGeneric = resolvePTypeToGenericType(paramDef.parsedType());
+                        && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
+                    Type declaredGeneric = resolveUserSignatureType(paramDef.parsedType());
                     checkRelationSchemaCompatibility(
                             af.function(), paramDef.name(), argInfo.type(), declaredGeneric);
                     continue;
@@ -668,11 +668,11 @@ public class TypeChecker implements TypeCheckEnv {
             String declaredReturnSimple = SymbolTable.extractSimpleName(declaredReturnFqn);
             if (!"Any".equals(declaredReturnSimple)) {
                 // Schema-aware return check for Relation<(col:Type)> return types (covariant)
-                if (funcDef.parsedReturnType() instanceof PType.Parameterized p
+                if (funcDef.parsedReturnType() instanceof Type.Parameterized p
                         && "Relation".equals(p.rawType())
                         && !p.typeArgs().isEmpty()
-                        && p.typeArgs().get(0) instanceof PType.RelationTypeVar) {
-                    Type declaredGeneric = resolvePTypeToGenericType(funcDef.parsedReturnType());
+                        && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
+                    Type declaredGeneric = resolveUserSignatureType(funcDef.parsedReturnType());
                     // Covariant: body's actual schema must be ⊇ declared return schema
                     checkRelationSchemaCompatibility(
                             af.function(), "<return>", bodyResult.type(), declaredGeneric);
@@ -816,13 +816,13 @@ public class TypeChecker implements TypeCheckEnv {
      * <p>Same pattern as {@code AbstractChecker.compileLambdaArg} for built-in functions.
      */
     private TypeInfo compileLambdaWithExpectedType(
-            LambdaFunction lambda, PType.FunctionType expectedFT, CompilationContext ctx) {
+            LambdaFunction lambda, Type.FunctionType expectedFT, CompilationContext ctx) {
         // 1. Bind lambda params from expected FunctionType
         CompilationContext lambdaCtx = ctx;
-        int paramCount = Math.min(lambda.parameters().size(), expectedFT.paramTypes().size());
+        int paramCount = Math.min(lambda.parameters().size(), expectedFT.params().size());
         for (int i = 0; i < paramCount; i++) {
             String paramName = lambda.parameters().get(i).name();
-            Type paramType = resolvePTypeToGenericType(expectedFT.paramTypes().get(i).type());
+            Type paramType = resolveUserSignatureType(expectedFT.params().get(i).type());
             lambdaCtx = lambdaCtx.withLambdaParam(paramName, paramType);
         }
 
@@ -832,17 +832,14 @@ public class TypeChecker implements TypeCheckEnv {
         }
         TypeInfo bodyResult = compileBodyStatements(lambda.body(), lambdaCtx);
 
-        // 3. Validate return type against expected
-        if (bodyResult.type() != null && expectedFT.returnType() instanceof PType.Concrete c) {
-            Type expectedReturn = c.toGenericType();
-            if (expectedReturn != null) {
-                String expectedName = expectedReturn.typeName();
-                // Use expectedReturn directly — avoids Type→name→Type roundtrip which breaks
-                // when expectedName is a simple name (e.g., from signature-layer PType.Concrete)
-                // and ModelContext.findType is FQN-only.
-                if (!"Any".equals(expectedName) && !isSubtype(bodyResult.type(), expectedReturn)) {
+        // 3. Validate return type against expected (signatures are fully resolved —
+        // the expected return is a Primitive/EnumType/ClassType directly, not a NameRef).
+        if (bodyResult.type() != null) {
+            Type expectedReturn = expectedFT.returnType();
+            if (expectedReturn instanceof Primitive || expectedReturn instanceof Type.EnumType) {
+                if (expectedReturn != Primitive.ANY && !isSubtype(bodyResult.type(), expectedReturn)) {
                     throw new PureCompileException(
-                            "Lambda return type mismatch: expected " + expectedName
+                            "Lambda return type mismatch: expected " + expectedReturn.typeName()
                                     + " but body returns " + bodyResult.type().typeName());
                 }
             }
@@ -856,32 +853,51 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Converts a PType (parse-time type) to Type (compile-time type).
-     * Only concrete types are allowed in user function signatures — type variables
-     * (generics) require a unification framework we don't have.
+     * Resolves a parsed user-signature {@link Type} to a fully classified compile-time
+     * {@link Type}. {@link Type.NameRef} leaves get looked up via {@link ModelContext#findType}
+     * (FQN-only — NameResolver guarantees the FQN form before we reach this point).
+     * Already-resolved leaves (Primitive, ClassType, EnumType, PrecisionDecimal) are
+     * idempotent. The {@code Relation<(...columns...)>} structural shape is classified
+     * to {@link Type.Relation}.
+     *
+     * <p>Type variables (generics) aren't supported in user function signatures — they'd
+     * require a unification framework the user-signature compiler doesn't have yet.
+     * Native-signature-only variants (SchemaAlgebra, FunctionReference, RelationTypeVar
+     * outside a Relation&lt;...&gt;, etc.) also throw.
      */
-    private Type resolvePTypeToGenericType(PType ptype) {
-        return switch (ptype) {
-            case PType.Concrete c -> {
-                Type gt = c.toGenericType();
-                if (gt != null) yield gt;
-                // Non-primitive: try as class name
-                yield Type.resolve(c.name(), modelContext);
-            }
-            case PType.Parameterized p when "Relation".equals(p.rawType())
+    private Type resolveUserSignatureType(Type parsed) {
+        return switch (parsed) {
+            case Type.NameRef nr -> Type.resolve(nr.qualifiedName(), modelContext);
+            case Primitive p -> p;
+            case Type.ClassType c -> c;
+            case Type.EnumType e -> e;
+            case Type.PrecisionDecimal pd -> pd;
+            case Type.Parameterized p when "Relation".equals(p.rawType())
                     && !p.typeArgs().isEmpty()
-                    && p.typeArgs().get(0) instanceof PType.RelationTypeVar rtv -> {
+                    && p.typeArgs().get(0) instanceof Type.RelationTypeVar rtv -> {
                 // Relation<(col1:Type1, col2:Type2)> → Type.Relation(Schema)
                 var columns = new java.util.LinkedHashMap<String, Type>();
                 for (var col : rtv.columns()) {
-                    columns.put(col.name(), resolvePTypeToGenericType(col.type()));
+                    columns.put(col.name(), resolveUserSignatureType(col.type()));
                 }
                 yield new Type.Relation(Type.Schema.withoutPivot(columns));
             }
-            case PType.TypeVar tv -> throw new PureCompileException(
+            case Type.Parameterized p -> throw new PureCompileException(
+                    "Parameterized types other than Relation<(...)> are not supported in user function signatures: " + p);
+            case Type.TypeVar tv -> throw new PureCompileException(
                     "Type variables (generics) are not supported in user function signatures: " + tv.name());
-            default -> throw new PureCompileException(
-                    "Unsupported type in user function signature: " + ptype);
+            case Type.FunctionType ft -> throw new PureCompileException(
+                    "Function types are not supported in user function signatures: " + ft);
+            case Type.Relation r -> throw new PureCompileException(
+                    "Pre-built Type.Relation should not appear in user-parsed signatures: " + r);
+            case Type.Tuple t -> throw new PureCompileException(
+                    "Pre-built Type.Tuple should not appear in user-parsed signatures: " + t);
+            case Type.SchemaAlgebra sa -> throw new PureCompileException(
+                    "Schema algebra is a native-signature construct, not valid in user signatures: " + sa);
+            case Type.RelationTypeVar rtv -> throw new PureCompileException(
+                    "Bare RelationTypeVar must appear inside a Relation<...>, not as a standalone type: " + rtv);
+            case Type.FunctionReference fr -> throw new PureCompileException(
+                    "FunctionReference is an expression-level type, not valid in user signatures: " + fr);
         };
     }
 

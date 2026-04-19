@@ -1,7 +1,7 @@
 package com.gs.legend.parser;
+import com.gs.legend.model.m3.Type;
 
 import com.gs.legend.compiler.NativeFunctionDef;
-import com.gs.legend.compiler.PType;
 import com.gs.legend.model.m3.Multiplicity;
 import org.junit.jupiter.api.Test;
 
@@ -21,34 +21,34 @@ class NativeFunctionParseTest {
     @Test
     void testSimpleScalar_toLower() {
         var fn = PureNativeSignatureParser.parse(
-                "native function toLower(source:String[1]):String[1];");
+                "native function toLower(source:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
         assertEquals("toLower", fn.name());
         assertEquals(List.of(), fn.typeParams());
         assertEquals(1, fn.params().size());
         assertEquals("source", fn.params().get(0).name());
-        assertConcrete("String", fn.params().get(0).type());
-        assertConcrete("String", fn.returnType());
+        assertPrimitive("String", fn.params().get(0).type());
+        assertPrimitive("String", fn.returnType());
         assertEquals(Multiplicity.ONE, fn.returnMult());
     }
 
     @Test
     void testSimpleScalar_abs() {
         var fn = PureNativeSignatureParser.parse(
-                "native function abs(int:Integer[1]):Integer[1];");
+                "native function abs(int:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
         assertEquals("abs", fn.name());
-        assertConcrete("Integer", fn.returnType());
+        assertPrimitive("Integer", fn.returnType());
     }
 
     @Test
     void testScalar_substring() {
         var fn = PureNativeSignatureParser.parse(
-                "native function substring(str:String[1], start:Integer[1], end:Integer[1]):String[1];");
+                "native function substring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
         assertEquals("substring", fn.name());
         assertEquals(3, fn.params().size());
         assertEquals("str", fn.params().get(0).name());
         assertEquals("start", fn.params().get(1).name());
         assertEquals("end", fn.params().get(2).name());
-        assertConcrete("String", fn.returnType());
+        assertPrimitive("String", fn.returnType());
     }
 
     // ===== Generic functions with type params =====
@@ -57,7 +57,7 @@ class NativeFunctionParseTest {
     void testGeneric_filter() {
         var fn = PureNativeSignatureParser.parse(
                 "native function filter<T>(rel:Relation<T>[1], " +
-                "f:Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1];");
+                "f:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):Relation<T>[1];");
         assertEquals("filter", fn.name());
         assertEquals(List.of("T"), fn.typeParams());
         assertEquals(2, fn.params().size());
@@ -80,7 +80,7 @@ class NativeFunctionParseTest {
         var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("join",
                 "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], " +
-                "joinKind:JoinKind[1], f:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<T+V>[1];");
+                "joinKind:meta::pure::functions::relation::JoinKind[1], f:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):Relation<T+V>[1];");
         var fn = registry.resolve("join").get(0);
         assertEquals("join", fn.name());
         assertEquals(List.of("T", "V"), fn.typeParams());
@@ -94,12 +94,12 @@ class NativeFunctionParseTest {
     @Test
     void testGeneric_exists() {
         var fn = PureNativeSignatureParser.parse(
-                "native function exists<T>(value:T[*], func:Function<{T[1]->Boolean[1]}>[1]):Boolean[1];");
+                "native function exists<T>(value:T[*], func:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
         assertEquals("exists", fn.name());
         assertEquals(List.of("T"), fn.typeParams());
         assertTypeVar("T", fn.params().get(0).type());
-        assertEquals(Multiplicity.MANY, fn.params().get(0).mult());
-        assertConcrete("Boolean", fn.returnType());
+        assertEquals(Multiplicity.MANY, fn.params().get(0).multiplicity());
+        assertPrimitive("Boolean", fn.returnType());
     }
 
     // ===== Multiplicity variables =====
@@ -114,7 +114,7 @@ class NativeFunctionParseTest {
         assertTypeVar("T", fn.returnType());
         assertInstanceOf(Multiplicity.Var.class, fn.returnMult());
         assertEquals("m", ((Multiplicity.Var) fn.returnMult()).name());
-        assertInstanceOf(Multiplicity.Var.class, fn.params().get(0).mult());
+        assertInstanceOf(Multiplicity.Var.class, fn.params().get(0).multiplicity());
     }
 
     // ===== Window functions =====
@@ -122,11 +122,11 @@ class NativeFunctionParseTest {
     @Test
     void testWindow_rank() {
         var fn = PureNativeSignatureParser.parse(
-                "native function rank<T>(rel:Relation<T>[1], w:_Window<T>[1], row:T[1]):Integer[1];");
+                "native function rank<T>(rel:Relation<T>[1], w:_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
         assertEquals("rank", fn.name());
         assertEquals(3, fn.params().size());
         assertParameterized("_Window", fn.params().get(1).type());
-        assertConcrete("Integer", fn.returnType());
+        assertPrimitive("Integer", fn.returnType());
     }
 
     @Test
@@ -188,10 +188,10 @@ class NativeFunctionParseTest {
         var funcType = assertParameterized("Function", fn.params().get(1).type());
         // Function type arg should be a FunctionType
         assertFalse(funcType.typeArgs().isEmpty());
-        assertInstanceOf(PType.FunctionType.class, funcType.typeArgs().get(0));
+        assertInstanceOf(Type.FunctionType.class, funcType.typeArgs().get(0));
 
-        var ft = (PType.FunctionType) funcType.typeArgs().get(0);
-        assertEquals(1, ft.paramTypes().size());
+        var ft = (Type.FunctionType) funcType.typeArgs().get(0);
+        assertEquals(1, ft.params().size());
         assertTypeVar("V", ft.returnType());
     }
 
@@ -234,20 +234,26 @@ class NativeFunctionParseTest {
 
     // ===== Helpers =====
 
-    private static void assertConcrete(String expected, PType actual) {
-        assertInstanceOf(PType.Concrete.class, actual, "Expected Concrete(" + expected + ") but got: " + actual);
-        assertEquals(expected, ((PType.Concrete) actual).name());
+    /**
+     * Asserts the parsed type is a built-in primitive matching the given Pure simple name
+     * (e.g., "Integer", "String"). Native signatures resolve primitives eagerly at parse
+     * time via FQN, so the actual type is a {@link com.gs.legend.model.m3.Primitive}.
+     */
+    private static void assertPrimitive(String expected, Type actual) {
+        assertInstanceOf(com.gs.legend.model.m3.Primitive.class, actual,
+                "Expected Primitive(" + expected + ") but got: " + actual);
+        assertEquals(expected, ((com.gs.legend.model.m3.Primitive) actual).pureName());
     }
 
-    private static void assertTypeVar(String expected, PType actual) {
-        assertInstanceOf(PType.TypeVar.class, actual, "Expected TypeVar(" + expected + ") but got: " + actual);
-        assertEquals(expected, ((PType.TypeVar) actual).name());
+    private static void assertTypeVar(String expected, Type actual) {
+        assertInstanceOf(Type.TypeVar.class, actual, "Expected TypeVar(" + expected + ") but got: " + actual);
+        assertEquals(expected, ((Type.TypeVar) actual).name());
     }
 
-    private static PType.Parameterized assertParameterized(String expected, PType actual) {
-        assertInstanceOf(PType.Parameterized.class, actual,
+    private static Type.Parameterized assertParameterized(String expected, Type actual) {
+        assertInstanceOf(Type.Parameterized.class, actual,
                 "Expected Parameterized(" + expected + ") but got: " + actual);
-        var p = (PType.Parameterized) actual;
+        var p = (Type.Parameterized) actual;
         assertEquals(expected, p.rawType());
         return p;
     }

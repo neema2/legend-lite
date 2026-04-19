@@ -246,13 +246,13 @@ public class SortChecker extends AbstractChecker {
             }
 
             // Extract FunctionType from signature param
-            PType.FunctionType ft = extractFunctionType(def.params().get(i));
+            Type.FunctionType ft = extractFunctionType(def.params().get(i));
 
             // Bind lambda params using resolved types from signature
             TypeChecker.CompilationContext lambdaCtx = ctx;
-            for (int p = 0; p < lambda.parameters().size() && p < ft.paramTypes().size(); p++) {
+            for (int p = 0; p < lambda.parameters().size() && p < ft.params().size(); p++) {
                 String paramName = lambda.parameters().get(p).name();
-                Type resolvedParamType = resolve(ft.paramTypes().get(p).type(), bindings,
+                Type resolvedParamType = resolve(ft.params().get(p).type(), bindings,
                         "sort() lambda param '" + paramName + "'");
                 lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
             }
@@ -263,7 +263,7 @@ public class SortChecker extends AbstractChecker {
             // Bind return type variable (e.g. U from key:{T→U}) into bindings
             // so the next lambda (comp:{U,U→Int}) can resolve U
             if (bodyType != null && bodyType.expressionType() != null
-                    && ft.returnType() instanceof PType.TypeVar tv
+                    && ft.returnType() instanceof Type.TypeVar tv
                     && !bindings.containsKey(tv.name())) {
                 bindings.put(tv.name(), bodyType.expressionType().type());
             }
