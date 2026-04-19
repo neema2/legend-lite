@@ -844,7 +844,10 @@ public class TypeChecker implements TypeCheckEnv {
             Type expectedReturn = c.toGenericType();
             if (expectedReturn != null) {
                 String expectedName = expectedReturn.typeName();
-                if (!"Any".equals(expectedName) && !isSubtype(bodyResult.type(), Type.resolve(expectedName, modelContext))) {
+                // Use expectedReturn directly — avoids Type→name→Type roundtrip which breaks
+                // when expectedName is a simple name (e.g., from signature-layer PType.Concrete)
+                // and ModelContext.findType is FQN-only.
+                if (!"Any".equals(expectedName) && !isSubtype(bodyResult.type(), expectedReturn)) {
                     throw new PureCompileException(
                             "Lambda return type mismatch: expected " + expectedName
                                     + " but body returns " + bodyResult.type().typeName());

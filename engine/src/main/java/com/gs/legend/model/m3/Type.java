@@ -3,7 +3,6 @@ package com.gs.legend.model.m3;
 import com.gs.legend.compiler.PureCompileException;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
-import com.gs.legend.model.def.EnumDefinition;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -149,24 +148,8 @@ public sealed interface Type {
     static Type resolve(String name, ModelContext ctx) {
         Objects.requireNonNull(name, "Type name cannot be null");
         Objects.requireNonNull(ctx, "ModelContext cannot be null");
-
-        Optional<Primitive> primitive = Primitive.lookup(name);
-        if (primitive.isPresent()) {
-            return primitive.get();
-        }
-
-        Optional<PureClass> cls = ctx.findClass(name);
-        if (cls.isPresent()) {
-            return new ClassType(cls.get().qualifiedName());
-        }
-
-        Optional<EnumDefinition> enm = ctx.findEnum(name);
-        if (enm.isPresent()) {
-            return new EnumType(enm.get().qualifiedName());
-        }
-
-        throw new IllegalStateException(
-                "Unknown type: '" + name + "'. Not a primitive, class, or enum in the current model context.");
+        return ctx.findType(name).orElseThrow(() -> new IllegalStateException(
+                "Unknown type: '" + name + "'. Not a primitive, class, or enum in the current model context."));
     }
 
     // ============================================================

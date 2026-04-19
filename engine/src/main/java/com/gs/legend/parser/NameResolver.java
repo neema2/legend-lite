@@ -1,6 +1,7 @@
 package com.gs.legend.parser;
 
 import com.gs.legend.ast.*;
+import com.gs.legend.compiler.PType;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.def.ClassDefinition.*;
 
@@ -162,6 +163,8 @@ public final class NameResolver {
         List<FunctionDefinition.ParameterDefinition> resolvedParams = funcDef.parameters().stream()
                 .map(p -> resolveFuncParam(p, imports, knownFqns))
                 .toList();
+        PType resolvedParsedReturnType = funcDef.parsedReturnType() == null
+                ? null : resolvePType(funcDef.parsedReturnType(), imports, knownFqns);
 
         // Canonicalize function-level stereotype and tagged-value profile references to FQN
         var resolvedStereotypes = resolveStereotypes(funcDef.stereotypes(), imports, knownFqns);
@@ -169,6 +172,7 @@ public final class NameResolver {
 
         if (resolvedReturnType.equals(funcDef.returnType())
                 && resolvedParams.equals(funcDef.parameters())
+                && resolvedParsedReturnType == funcDef.parsedReturnType()
                 && resolvedStereotypes == funcDef.stereotypes()
                 && resolvedTaggedValues == funcDef.taggedValues()) {
             return funcDef;
@@ -177,7 +181,7 @@ public final class NameResolver {
         return new FunctionDefinition(funcDef.qualifiedName(), resolvedParams,
                 resolvedReturnType, funcDef.returnLowerBound(), funcDef.returnUpperBound(),
                 funcDef.body(), resolvedStereotypes, resolvedTaggedValues,
-                null, funcDef.parsedReturnType());
+                null, resolvedParsedReturnType);
     }
 
     // ==================== Stereotype / TaggedValue FQN Canonicalization ====================
@@ -231,10 +235,81 @@ public final class NameResolver {
     private static FunctionDefinition.ParameterDefinition resolveFuncParam(
             FunctionDefinition.ParameterDefinition param, ImportScope imports, Set<String> knownFqns) {
         String resolvedType = imports.resolve(param.type(), knownFqns);
-        if (resolvedType.equals(param.type())) return param;
+        PType.FunctionType resolvedFunctionType = param.functionType() == null
+                ? null : (PType.FunctionType) resolvePType(param.functionType(), imports, knownFqns);
+        PType resolvedParsedType = param.parsedType() == null
+                ? null : resolvePType(param.parsedType(), imports, knownFqns);
+        if (resolvedType.equals(param.type())
+                && resolvedFunctionType == param.functionType()
+                && resolvedParsedType == param.parsedType()) {
+            return param;
+        }
         return new FunctionDefinition.ParameterDefinition(
                 param.name(), resolvedType, param.lowerBound(), param.upperBound(),
-                param.functionType(), param.parsedType());
+                resolvedFunctionType, resolvedParsedType);
+    }
+
+    /**
+     * Walks a {@link PType} tree and rewrites concrete type names via imports. Leaves type
+     * variables, parameterized outer names ("Relation", "ColSpec") and structural operators
+     * untouched — only bare concrete leaves get FQN'd. Returns the input unchanged when nothing
+     * needs rewriting (reference equality preserved).
+     */
+    private static PType resolvePType(PType type, ImportScope imports, Set<String> knownFqns) {
+        return switch (type) {
+            case PType.Concrete c -> {
+                String resolved = imports.resolve(c.name(), knownFqns);
+                yield resolved.equals(c.name()) ? type : new PType.Concrete(resolved);
+            }
+            case PType.TypeVar ignored -> type;
+            case PType.Parameterized p -> {
+                boolean changed = false;
+                List<PType> resolvedArgs = new ArrayList<>(p.typeArgs().size());
+                for (PType arg : p.typeArgs()) {
+                    PType r = resolvePType(arg, imports, knownFqns);
+                    if (r != arg) changed = true;
+                    resolvedArgs.add(r);
+                }
+                yield changed ? new PType.Parameterized(p.rawType(), resolvedArgs) : type;
+            }
+            case PType.FunctionType ft -> {
+                boolean changed = false;
+                List<PType.Param> resolvedParams = new ArrayList<>(ft.paramTypes().size());
+                for (PType.Param pp : ft.paramTypes()) {
+                    PType r = resolvePType(pp.type(), imports, knownFqns);
+                    if (r != pp.type()) {
+                        changed = true;
+                        resolvedParams.add(new PType.Param(pp.name(), r, pp.mult()));
+                    } else {
+                        resolvedParams.add(pp);
+                    }
+                }
+                PType resolvedReturn = resolvePType(ft.returnType(), imports, knownFqns);
+                if (resolvedReturn != ft.returnType()) changed = true;
+                yield changed ? new PType.FunctionType(resolvedParams, resolvedReturn, ft.returnMult()) : type;
+            }
+            case PType.SchemaAlgebra sa -> {
+                PType l = resolvePType(sa.left(), imports, knownFqns);
+                PType r = resolvePType(sa.right(), imports, knownFqns);
+                yield (l == sa.left() && r == sa.right()) ? type : new PType.SchemaAlgebra(l, r, sa.op());
+            }
+            case PType.RelationTypeVar rtv -> {
+                // Inline relation types like Relation<(name:String[1], age:Integer[1])> — walk
+                // each column's PType to rewrite simple concrete names.
+                boolean changed = false;
+                List<PType.RelationTypeVar.Column> resolvedCols = new ArrayList<>(rtv.columns().size());
+                for (PType.RelationTypeVar.Column col : rtv.columns()) {
+                    PType r = resolvePType(col.type(), imports, knownFqns);
+                    if (r != col.type()) {
+                        changed = true;
+                        resolvedCols.add(new PType.RelationTypeVar.Column(col.name(), r, col.mult()));
+                    } else {
+                        resolvedCols.add(col);
+                    }
+                }
+                yield changed ? new PType.RelationTypeVar(resolvedCols) : type;
+            }
+        };
     }
 
     // ==================== DatabaseDefinition ====================
@@ -618,8 +693,14 @@ public final class NameResolver {
                                 af.sourceText(), af.argTexts());
             }
             case LambdaFunction lf -> {
+                // Typed lambda params (e.g., {x:Integer[1] | ...}) carry a raw typeName string
+                // that must be rewritten to FQN via imports before downstream TypeChecker calls
+                // Type.resolve on it. Untyped params (typeName=null) pass through unchanged.
+                List<Variable> resolvedParams = resolveLambdaParams(lf.parameters(), imports, knownFqns);
                 List<ValueSpecification> resolvedBody = resolveList(lf.body(), imports, knownFqns);
-                yield resolvedBody == lf.body() ? lf : new LambdaFunction(lf.parameters(), resolvedBody);
+                yield (resolvedParams == lf.parameters() && resolvedBody == lf.body())
+                        ? lf
+                        : new LambdaFunction(resolvedParams, resolvedBody);
             }
             case PureCollection coll -> {
                 List<ValueSpecification> resolvedValues = resolveList(coll.values(), imports, knownFqns);
@@ -655,10 +736,78 @@ public final class NameResolver {
         return changed ? List.copyOf(result) : list;
     }
 
+    /**
+     * Rewrites simple type names on typed lambda parameters (e.g., {@code {x:Integer[1] | ...}})
+     * to FQN via imports. Untyped parameters (typeName=null) pass through unchanged.
+     */
+    private static List<Variable> resolveLambdaParams(
+            List<Variable> params, ImportScope imports, Set<String> knownFqns) {
+        boolean changed = false;
+        List<Variable> resolved = new ArrayList<>(params.size());
+        for (Variable v : params) {
+            if (v.typeName() == null) {
+                resolved.add(v);
+                continue;
+            }
+            String resolvedType = imports.resolve(v.typeName(), knownFqns);
+            if (resolvedType.equals(v.typeName())) {
+                resolved.add(v);
+            } else {
+                resolved.add(new Variable(v.name(), resolvedType, v.multiplicity()));
+                changed = true;
+            }
+        }
+        return changed ? List.copyOf(resolved) : params;
+    }
+
     private static Object resolveClassInstanceValue(
             Object value, ImportScope imports, Set<String> knownFqns) {
-        // ClassInstance values (ColSpecArray, ColSpec, etc.) contain no class names to resolve.
-        return value;
+        // ClassInstance values carry lambdas (ColSpec function1/function2) and generic type
+        // arguments (InstanceData typeArguments) that may contain simple names — rewrite them
+        // to FQN before they reach ModelContext.findType (which is FQN-only by contract).
+        return switch (value) {
+            case ColSpec cs -> {
+                LambdaFunction fn1 = cs.function1();
+                LambdaFunction fn2 = cs.function2();
+                LambdaFunction newFn1 = fn1 == null ? null : (LambdaFunction) resolveVs(fn1, imports, knownFqns);
+                LambdaFunction newFn2 = fn2 == null ? null : (LambdaFunction) resolveVs(fn2, imports, knownFqns);
+                yield (newFn1 == fn1 && newFn2 == fn2) ? cs : new ColSpec(cs.name(), newFn1, newFn2);
+            }
+            case ColSpecArray csa -> {
+                boolean changed = false;
+                List<ColSpec> resolved = new ArrayList<>(csa.colSpecs().size());
+                for (ColSpec cs : csa.colSpecs()) {
+                    ColSpec r = (ColSpec) resolveClassInstanceValue(cs, imports, knownFqns);
+                    if (r != cs) changed = true;
+                    resolved.add(r);
+                }
+                yield changed ? new ColSpecArray(resolved) : csa;
+            }
+            case InstanceData id -> {
+                // className is separately resolved in the enclosing AppliedFunction; here we only
+                // need to walk typeArguments (e.g., Pair<String, Integer>) and property values.
+                boolean changed = false;
+                List<String> resolvedTypeArgs = new ArrayList<>(id.typeArguments().size());
+                for (String ta : id.typeArguments()) {
+                    String r = imports.resolve(ta, knownFqns);
+                    if (!r.equals(ta)) changed = true;
+                    resolvedTypeArgs.add(r);
+                }
+                Map<String, ValueSpecification> resolvedProps = new java.util.LinkedHashMap<>();
+                for (var e : id.properties().entrySet()) {
+                    ValueSpecification r = resolveVs(e.getValue(), imports, knownFqns);
+                    if (r != e.getValue()) changed = true;
+                    resolvedProps.put(e.getKey(), r);
+                }
+                yield changed ? new InstanceData(id.className(), resolvedProps, resolvedTypeArgs) : id;
+            }
+            // Explicit throw forces callers to add a case here when a new ClassInstance value
+            // type is introduced — no silent passthrough that could hide name-resolution gaps.
+            default -> throw new IllegalStateException(
+                    "Unhandled ClassInstance value type: "
+                    + (value == null ? "null" : value.getClass().getName())
+                    + " — add a case to NameResolver.resolveClassInstanceValue");
+        };
     }
 
     /**

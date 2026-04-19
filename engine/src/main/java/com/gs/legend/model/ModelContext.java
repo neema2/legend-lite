@@ -1,7 +1,9 @@
 package com.gs.legend.model;
 
 import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.compiler.BuiltinRegistry;
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.model.store.Table;
 import java.util.Map;
 import java.util.Optional;
@@ -56,6 +58,39 @@ public interface ModelContext {
      */
     default Optional<com.gs.legend.model.def.EnumDefinition> findEnum(String enumName) {
         return Optional.empty();
+    }
+
+    /**
+     * Canonical name → {@link Type} resolver. Single entry point for all kind-agnostic
+     * type lookup. Returns the first match in order:
+     *
+     * <ol>
+     *   <li>Built-in primitive via {@link BuiltinRegistry#findPrimitive} (FQN-keyed)</li>
+     *   <li>User-defined class (wrapped in {@link Type.ClassType} during phase 2.5c overlap)</li>
+     *   <li>User-defined enum (wrapped in {@link Type.EnumType} during phase 2.5c overlap)</li>
+     * </ol>
+     *
+     * <p>The "primitives first" order matches {@link Type#resolve}'s historical fast path —
+     * primitives dominate property-type lookups (e.g., 100K classes × 50 properties where
+     * most property types are Integer / String / Boolean). Checking primitives first avoids
+     * two HashMap misses per primitive lookup.
+     *
+     * <p>FQN-only by contract. Simple-name resolution is upstream's problem via
+     * {@code NameResolver} + {@code ImportScope}; every {@code PureModelBuilder} seeds its
+     * initial {@code ImportScope} with all built-in FQNs so simple names get rewritten before
+     * they reach here.
+     *
+     * <p>{@link BuiltinRegistry#toLegacyPrimitive} is a transitional bridge — deleted in
+     * phase 2.5c.4 once {@code PurePrimitive} implements {@code Type} directly and
+     * {@code Type.Primitive} goes away.
+     *
+     * @param name Fully qualified type name
+     * @return The resolved {@link Type}, or empty if not a known primitive, class, or enum
+     */
+    default Optional<Type> findType(String name) {
+        return BuiltinRegistry.findPrimitive(name).map(p -> (Type) BuiltinRegistry.toLegacyPrimitive(p))
+                .or(() -> findClass(name).map(c -> (Type) new Type.ClassType(c.qualifiedName())))
+                .or(() -> findEnum(name).map(e -> new Type.EnumType(e.qualifiedName())));
     }
 
     /**

@@ -826,8 +826,14 @@ public final class MappingNormalizer {
         // to(get(...), @Type) → text extraction (->> in SQL) + CAST.
         // Parser-layer artifact emits a purely syntactic TypeAnnotation; the downstream
         // TypeConversionChecker resolves it to an m3.Type via the ModelContext.
+        //
+        // The raw cast type from parsedAccess is a simple name ("Integer") or FQN — we must
+        // resolve it through the model's ImportScope so downstream ModelContext.findType (which
+        // is FQN-only by contract) receives a canonical name. Without this, simple names leak
+        // past NameResolver via this programmatic construction path.
         if (parsedAccess.castType() != null) {
-            var typeRef = new com.gs.legend.ast.TypeAnnotation.Named(parsedAccess.castType());
+            String castFqn = model.imports().resolve(parsedAccess.castType(), model.allFqns());
+            var typeRef = new com.gs.legend.ast.TypeAnnotation.Named(castFqn);
             body = new com.gs.legend.ast.AppliedFunction(
                     "to", java.util.List.of(body, typeRef));
         }

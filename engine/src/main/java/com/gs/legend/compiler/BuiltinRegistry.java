@@ -2,6 +2,7 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.model.def.EnumDefinition;
 import com.gs.legend.model.m3.PurePrimitive;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -319,6 +320,34 @@ public class BuiltinRegistry {
      */
     public static Optional<PurePrimitive> findPrimitive(String fqn) {
         return Optional.ofNullable(PRIMITIVES_BY_FQN.get(fqn));
+    }
+
+    /**
+     * Transitional bridge: maps a {@link PurePrimitive} to its legacy {@link Type.Primitive}
+     * enum counterpart. Used by {@code ModelContext.findType}'s default implementation during
+     * the phase 2.5c migration to route primitive lookups through {@code BuiltinRegistry}
+     * (FQN-keyed) while still returning {@link Type} values (since {@code PurePrimitive}
+     * doesn't yet implement {@code Type} — phase 2.5c.3 wires that up).
+     *
+     * <p>Deleted in phase 2.5c.4 when {@code Type.Primitive} goes away.
+     */
+    public static Type.Primitive toLegacyPrimitive(PurePrimitive p) {
+        if (p == ANY)         return Type.Primitive.ANY;
+        if (p == NIL)         return Type.Primitive.NIL;
+        if (p == NUMBER)      return Type.Primitive.NUMBER;
+        if (p == INTEGER)     return Type.Primitive.INTEGER;
+        if (p == INT64)       return Type.Primitive.INT64;
+        if (p == INT128)      return Type.Primitive.INT128;
+        if (p == FLOAT)       return Type.Primitive.FLOAT;
+        if (p == DECIMAL)     return Type.Primitive.DECIMAL;
+        if (p == STRING)      return Type.Primitive.STRING;
+        if (p == BOOLEAN)     return Type.Primitive.BOOLEAN;
+        if (p == DATE)        return Type.Primitive.DATE;
+        if (p == STRICT_DATE) return Type.Primitive.STRICT_DATE;
+        if (p == DATE_TIME)   return Type.Primitive.DATE_TIME;
+        if (p == STRICT_TIME) return Type.Primitive.STRICT_TIME;
+        if (p == VARIANT)     return Type.Primitive.JSON;
+        throw new IllegalStateException("No legacy Type.Primitive counterpart for " + p.qualifiedName());
     }
 
     // ===== Platform enums =====
